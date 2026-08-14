@@ -3279,7 +3279,74 @@ export class EidosFileRuntime {
         includeRelationDisplays: options.resolveRelations === true,
       }
     )
-    const rows = page.rows.map((row) => {
+    const rows = this.logicalRows(
+      rowIdField,
+      requested,
+      page.rows,
+      options.resolveRelations === true
+    )
+    return { rows, ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) }
+  }
+
+  /** @internal Exact primary-key lookup without page totals or cursor work. */
+  getLogicalRowsByIds(
+    tableId: string,
+    rowIds: string[],
+    options: { fields?: string[]; resolveRelations?: boolean } = {}
+  ): EidosFileLogicalRow[] {
+    if (rowIds.length === 0) return []
+    if (rowIds.length > 500) {
+      throw new EidosFileError(
+        "resource-limit",
+        "getLogicalRowsByIds accepts at most 500 Row IDs"
+      )
+    }
+    const ids = rowIds.map((rowId) => assertEidosFileUuid(rowId, "Row ID"))
+    const fields = this.listFields(tableId)
+    const requested = options.fields
+      ? options.fields.map((id) => this.fieldByKey(tableId, id))
+      : fields
+    const rowIdField = fields.find((field) => field.type === "row-id")!
+    const source = this.logicalSource(
+      tableId,
+      requested.map((field) => field.id!),
+      false,
+      options.resolveRelations === true
+    )
+    const rawRows = this.connection.query<
+      Record<string, EidosFileSqlPrimitive>
+    >(
+      `WITH logical AS (${source.sql})
+       SELECT * FROM logical
+       WHERE "__base_rowid" IN (${ids.map(() => "?").join(", ")})`,
+      ids
+    )
+    const logicalRows = this.logicalRows(
+      rowIdField,
+      requested,
+      rawRows.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).flatMap(([key, value]) =>
+            key === "__base_rowid" ? [] : [[key, rowValue(value)]]
+          )
+        )
+      ),
+      options.resolveRelations === true
+    )
+    const byId = new Map(logicalRows.map((row) => [row.id, row]))
+    return ids.flatMap((rowId) => {
+      const row = byId.get(rowId)
+      return row ? [row] : []
+    })
+  }
+
+  private logicalRows(
+    rowIdField: EidosFileFieldInfo,
+    requested: EidosFileFieldInfo[],
+    rows: EidosFileRow[],
+    resolveRelations: boolean
+  ): EidosFileLogicalRow[] {
+    return rows.map((row) => {
       const logicalFields = Object.fromEntries(
         requested.map((field) => {
           const raw = row[field.tableColumnName]
@@ -3314,7 +3381,7 @@ export class EidosFileRuntime {
           return [field.id!, value]
         })
       )
-      const resolved = options.resolveRelations
+      const resolved = resolveRelations
         ? Object.fromEntries(
             requested.flatMap((field) => {
               if (field.type !== "relation") return []
@@ -3344,7 +3411,6 @@ export class EidosFileRuntime {
         ...(resolved && Object.keys(resolved).length > 0 ? { resolved } : {}),
       }
     })
-    return { rows, ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) }
   }
 
   /**
@@ -4478,29 +4544,7 @@ export class EidosFileRuntime {
       }
     }, input.expectedRevision)
     const requestedIds = [...new Set([...result.inserted, ...result.updated])]
-    const rowIdField = this.listFields(input.tableId).find(
-      (field) => field.type === "row-id"
-    )!
-    const queried =
-      requestedIds.length === 0
-        ? []
-        : this.queryRows(input.tableId, {
-            query: {
-              filter: {
-                type: "group",
-                conjunction: "and",
-                children: [
-                  {
-                    type: "rule",
-                    field: rowIdField.id!,
-                    operator: "is-any-of",
-                    value: requestedIds,
-                  },
-                ],
-              },
-            },
-            limit: requestedIds.length,
-          }).rows
+    const queried = this.getLogicalRowsByIds(input.tableId, requestedIds)
     const rowsById = new Map(queried.map((row) => [row.id, row]))
     return {
       revision: this.info().revision ?? 0,

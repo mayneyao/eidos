@@ -670,7 +670,7 @@ describe("GraftClient", () => {
       command: vi.fn(async (command) => {
         commands.push(command)
         if (command === "sdkVersion") {
-          return "0.3.14"
+          return "0.3.15"
         }
         if (command === "statusIncremental") {
           return {
@@ -755,6 +755,8 @@ describe("GraftClient", () => {
       path.join(os.tmpdir(), "eidos-lite-graft-metadata-apis-")
     )
     const commands: string[] = []
+    const localHead = "a".repeat(64)
+    const remoteHead = "b".repeat(64)
     const transport: GraftSdkTransport = {
       target: root,
       open: vi.fn(async () => undefined),
@@ -764,9 +766,10 @@ describe("GraftClient", () => {
         commands.push(command)
         if (command === "repositoryMetadata") {
           return {
-            current_head: "a".repeat(64),
+            current_head: localHead,
             current_branch: "main",
             upstream: { remote: "origin", branch: "main" },
+            upstream_target: remoteHead,
             telemetry: { paths_examined: 0 },
           }
         }
@@ -774,9 +777,9 @@ describe("GraftClient", () => {
           return {
             commits: [
               {
-                id: "c".repeat(64),
-                parents: ["a".repeat(64), "b".repeat(64)],
-                message: "Merge Hosted changes",
+                id: localHead,
+                parents: [],
+                message: "Local checkpoint",
                 timestamp_ms: 1_700_000_000_000,
                 path_changes: { added: 0, modified: 1, deleted: 0 },
                 path_counts_complete: true,
@@ -787,6 +790,17 @@ describe("GraftClient", () => {
             has_more: false,
             next_cursor: null,
             telemetry: { paths_examined: 0 },
+          }
+        }
+        if (command === "commitDetails") {
+          return {
+            id: remoteHead,
+            parents: [],
+            message: "Hosted checkpoint",
+            timestamp_ms: 1_700_000_001_000,
+            changes: [],
+            tables: [],
+            changed_tables: 0,
           }
         }
         if (command === "listRemotes") {
@@ -810,13 +824,18 @@ describe("GraftClient", () => {
 
     try {
       await expect(client.history(root)).resolves.toMatchObject({
-        currentHead: "a".repeat(64),
+        currentHead: localHead,
         currentBranch: "main",
         commits: [
           {
-            id: "c".repeat(64),
-            parent: "a".repeat(64),
-            parents: ["a".repeat(64), "b".repeat(64)],
+            id: remoteHead,
+            parent: null,
+            parents: [],
+          },
+          {
+            id: localHead,
+            parent: null,
+            parents: [],
             files: 1,
           },
         ],
@@ -827,6 +846,7 @@ describe("GraftClient", () => {
       expect(commands).toEqual([
         "repositoryMetadata",
         "historySummaries",
+        "commitDetails",
         "listRemotes",
       ])
       expect(commands).not.toContain("status")

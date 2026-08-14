@@ -1,22 +1,32 @@
 ## What's new
 
-### A clearer Sync panel
+### Cloud checkpoints stay visible in History
 
-Sync now presents one compact, consistent view of connection state, actions,
-first-upload checks, storage, and synced Spaces. Important status and recovery
-actions are easier to scan without expanding several competing sections.
+Version History now marks the last locally known Cloud checkpoint even when
+Local and Cloud histories have diverged. Like a Git remote-tracking ref, this
+uses the checkpoint recorded by the latest fetch or push and does not require
+another network request.
 
-### Real transfer progress
+### Conflict-free merges finish automatically
 
-Uploads and downloads show transferred and total size, percentage, current
-speed, and estimated time remaining. During clone, Eidos explicitly says when
-it is still calculating the total size and time left instead of presenting an
-unexplained spinner.
+When Graft completes a reviewed three-way merge without any unresolved paths,
+Lite now finalizes it immediately instead of opening an empty conflict workspace
+showing zero conflicts. Interrupted conflict-free merges receive the same
+recovery behavior, so Sync can continue to the next fetch or push.
 
-### More focused first-sync review
+### Large Eidos File merges are much faster
 
-The first-upload file review, cloud storage summary, repository picker, and
-signed-in account controls use a simpler hierarchy. Local work remains clearly
-identified as safe while Sync is connecting, transferring, or needs attention.
+Merge analysis now targets changed SQLite pages and reuses proven snapshots
+instead of repeatedly scanning and copying an entire large Eidos File. On the
+retained 417 MiB macOS fixture, warmed merge lifecycle P95 improved from 42.34
+seconds to 1.56 seconds; a fresh process completed in 2.93 seconds. Windows and
+Linux receive the same sparse WAL import path, while macOS additionally uses an
+APFS copy-on-write seed when available.
+
+Row edits on very large Eidos Files now return their committed values through
+an exact primary-key lookup instead of running the general paged query and row
+count path. On the same local one-million-row fixture, update P95 improved from
+86.8 ms to 29.3 ms and insert P95 from 149.5 ms to 31.5 ms; delete P95 was 28.7
+ms.
 
 No migration is required.

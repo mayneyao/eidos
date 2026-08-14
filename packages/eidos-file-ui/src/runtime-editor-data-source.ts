@@ -444,7 +444,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       (entry) => entry.clientKey === clientKey
     )?.rowId
     const row = result.returnedRows?.rows[0]
-    const loaded = rowId ? await this.getRow(tableId, rowId) : null
+    const loaded = !row && rowId ? await this.getRow(tableId, rowId) : null
     return this.rowMutationResult(
       tableId,
       row

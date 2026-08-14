@@ -341,7 +341,7 @@ describe.runIf(performanceEnabled)(
         projection()
       )
       const mutationDurationsMs: number[] = []
-      for (let index = 0; index < 10; index += 1) {
+      for (let index = 0; index < 20; index += 1) {
         const id = String(firstPage.rows[index]!._id)
         const mutation = await timed(() =>
           opened.source.updateRow(millionTableId, id, {
@@ -350,40 +350,52 @@ describe.runIf(performanceEnabled)(
         )
         mutationDurationsMs.push(mutation.durationMs)
       }
-      const inserted = await timed(() =>
-        opened.source.insertRow(millionTableId, {
-          [nameFieldId]: "Performance inserted row",
-          [categoryFieldId]: "Category 0",
-          [scoreFieldId]: MILLION_ROWS + 1,
-          [statusFieldId]: "Status 0",
-        })
-      )
-      const deleted = await timed(() =>
-        opened.source.deleteRows(millionTableId, [
-          String(inserted.value.row._id),
-        ])
-      )
-      const p95Ms = percentile(mutationDurationsMs, 0.95)
+      const insertedRowIds: string[] = []
+      const insertDurationsMs: number[] = []
+      for (let index = 0; index < 20; index += 1) {
+        const inserted = await timed(() =>
+          opened.source.insertRow(millionTableId, {
+            [nameFieldId]: `Performance inserted row ${index + 1}`,
+            [categoryFieldId]: `Category ${index % 20}`,
+            [scoreFieldId]: MILLION_ROWS + index + 1,
+            [statusFieldId]: `Status ${index % 4}`,
+          })
+        )
+        insertedRowIds.push(String(inserted.value.row._id))
+        insertDurationsMs.push(inserted.durationMs)
+      }
+      const deleteDurationsMs: number[] = []
+      for (const insertedRowId of insertedRowIds) {
+        const deleted = await timed(() =>
+          opened.source.deleteRows(millionTableId, [insertedRowId])
+        )
+        deleteDurationsMs.push(deleted.durationMs)
+      }
+      const updateP95Ms = percentile(mutationDurationsMs, 0.95)
+      const insertP95Ms = percentile(insertDurationsMs, 0.95)
+      const deleteP95Ms = percentile(deleteDurationsMs, 0.95)
 
       console.info(
         JSON.stringify({
           benchmark: "table-million-mutations",
           rowMutationP50Ms: percentile(mutationDurationsMs, 0.5),
-          rowMutationP95Ms: p95Ms,
-          insertRowMs: inserted.durationMs,
-          deleteRowMs: deleted.durationMs,
+          rowMutationP95Ms: updateP95Ms,
+          insertRowP50Ms: percentile(insertDurationsMs, 0.5),
+          insertRowP95Ms: insertP95Ms,
+          deleteRowP50Ms: percentile(deleteDurationsMs, 0.5),
+          deleteRowP95Ms: deleteP95Ms,
         })
       )
-      expect(p95Ms).toBeLessThanOrEqual(
+      expect(updateP95Ms).toBeLessThanOrEqual(
         EIDOS_LITE_PERFORMANCE_BUDGET_MS.tableRowMutationP95
       )
-      expect(inserted.durationMs).toBeLessThanOrEqual(
+      expect(insertP95Ms).toBeLessThanOrEqual(
         EIDOS_LITE_PERFORMANCE_BUDGET_MS.tableRowMutationP95
       )
-      expect(deleted.durationMs).toBeLessThanOrEqual(
+      expect(deleteP95Ms).toBeLessThanOrEqual(
         EIDOS_LITE_PERFORMANCE_BUDGET_MS.tableRowMutationP95
       )
-    })
+    }, 15_000)
 
     it("separates metadata edits from physical SQLite schema migrations", async () => {
       const renamed = await timed(() =>

@@ -1084,19 +1084,23 @@ export class EidosRuntimeService implements RuntimeClient {
               affectedRows,
             }
             if (request.returning) {
+              const returnedRowIds = request.changes.flatMap((change) => {
+                if (change.kind === "create") {
+                  const allocated = created.find(
+                    (entry) => entry.clientKey === change.clientKey
+                  )
+                  return allocated ? [allocated.rowId] : []
+                }
+                if (change.kind === "update") return [change.rowId]
+                return []
+              })
               response.returnedRows = await this.getRowsByIdDirect(
                 request.tableId,
-                request.changes.flatMap((change) => {
-                  if (change.kind === "create") {
-                    const allocated = created.find(
-                      (entry) => entry.clientKey === change.clientKey
-                    )
-                    return allocated ? [allocated.rowId] : []
-                  }
-                  if (change.kind === "update") return [change.rowId]
-                  return []
-                }),
-                request.returning
+                returnedRowIds,
+                request.returning,
+                request.returning.resolveRelations.length === 0
+                  ? result.rows
+                  : undefined
               )
             }
             return response
@@ -2407,9 +2411,18 @@ export class EidosRuntimeService implements RuntimeClient {
   private async getRowsByIdDirect(
     tableId: string,
     rowIds: string[],
-    projection: ProjectionSpec
+    projection: ProjectionSpec,
+    preloadedRows?: EidosFileLogicalRow[]
   ): Promise<RowBatch> {
-    const rows = this.fetchRowsByIds(tableId, rowIds, projection)
+    const rows = preloadedRows
+      ? (() => {
+          const byId = new Map(preloadedRows.map((row) => [row.id, row]))
+          return rowIds.flatMap((rowId) => {
+            const row = byId.get(rowId)
+            return row ? [row] : []
+          })
+        })()
+      : this.fetchRowsByIds(tableId, rowIds, projection)
     const found = new Set(rows.map((row) => row.id))
     const metadata = this.core.info()
     const columns = this.columns(tableId, projection)
@@ -2446,14 +2459,10 @@ export class EidosRuntimeService implements RuntimeClient {
         offset,
         offset + EIDOS_RUNTIME_LIMITS.rowsByIdMax
       )
-      const rows = this.core.queryRows(tableId, {
+      const rows = this.core.getLogicalRowsByIds(tableId, ids, {
         fields: projection.fields,
-        query: this.compatibilityQuery(tableId, {
-          filter: { op: "in", fieldId: rowIdField.id, values: ids },
-        }),
-        limit: ids.length,
         resolveRelations: projection.resolveRelations.length > 0,
-      }).rows
+      })
       for (const row of rows) found.set(row.id, row)
     }
     return rowIds.flatMap((rowId) => {

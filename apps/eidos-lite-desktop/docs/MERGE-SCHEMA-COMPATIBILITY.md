@@ -1,8 +1,8 @@
 # Eidos Lite merge schema compatibility matrix
 
 Status: living product and verification contract  
-Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.14
-Last reviewed: 2026-08-13
+Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.15
+Last reviewed: 2026-08-15
 
 ## Purpose and ownership
 
@@ -368,13 +368,14 @@ product contract and therefore remains a release blocker for that scenario.
 
 ### `GRAFT-SCHEMA-GAP-001`: validation-required candidates lack a standalone materialization operation
 
-Graft 0.3.14 automatically materializes compatible column/table/index/view/
-trigger unions in a directory repository. For a more complex candidate that
-requires application validation, such as independent data rows plus
-`sqlite_sequence`/index/stat rebuild state (`SC-OPAQUE-001/002/003`), it leaves
-the path unmerged and returns an explicit `automatic_merge_available` file
-record with `recommended_result: "merged"` and
-`recommended_action: "apply_merge"`.
+Graft 0.3.15 automatically materializes compatible column/table/index/view/
+trigger unions in a directory repository. It can also install a validated
+final SQLite candidate directly when merge analysis has accepted that result.
+For a more complex candidate that still requires application validation, such
+as independent data rows plus `sqlite_sequence`/index/stat rebuild state
+(`SC-OPAQUE-001/002/003`), it leaves the path unmerged and returns an explicit
+`automatic_merge_available` file record with `recommended_result: "merged"`
+and `recommended_action: "apply_merge"`.
 
 The remaining API sequence is not usable safely by Lite:
 
@@ -386,9 +387,9 @@ The remaining API sequence is not usable safely by Lite:
   merge commit and rejects it because the index is unresolved. Lite must not
   depend on a failed command's worktree side effect as an API contract.
 
-Graft needs a state-token-guarded operation that materializes the analyzed
-candidate without staging or committing it, returns the latest merge state,
-and declares `operationMaterializesWorktree = true`. Lite can then close
+Graft still needs a state-token-guarded operation that materializes the
+analyzed candidate without staging or committing it, returns the latest merge
+state, and declares `operationMaterializesWorktree = true`. Lite can then close
 handles, invoke it through `SpaceOperationGate`, run Eidos domain validation,
 and call `stageMergeSqliteResult`. Until then, the UI retains recoverable
 complete-file Local/Hosted choices for these validation-required candidates.
@@ -415,7 +416,7 @@ before Lite can claim Field-index merge coverage.
 
 ### Closed: `GRAFT-SCHEMA-GAP-003` malformed tracked SQLite diagnostics
 
-Graft 0.3.14 returns structured `path_diagnostics` for skipped, corrupt, and
+Graft 0.3.15 returns structured `path_diagnostics` for skipped, corrupt, and
 analysis-failed tracked SQLite paths, including `protected_by_index`. Lite
 projects the diagnostics, blocks merge planning, and preserves the worktree
 file while directing the user to repair or recovery. This closes the prior
@@ -424,7 +425,7 @@ published or silently replaced.
 
 ### Closed: `GRAFT-SCHEMA-GAP-002` table/view same-name selection
 
-Graft 0.3.14 reports `schema_same_name_conflict` and safely completes either the
+Graft 0.3.15 reports `schema_same_name_conflict` and safely completes either the
 Local table or Hosted view complete-file choice. The real directory-repository
 matrix verifies both final `sqlite_schema` object types and no longer observes
 the former `Invalid page number` failure.

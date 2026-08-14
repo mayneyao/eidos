@@ -40,8 +40,8 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.14"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.14"
+export const GRAFT_SDK_VERSION = "0.3.15"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.15"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -1564,11 +1564,33 @@ export class GraftClient {
         options
       )
     )
-    return versionHistory({
+    const history = versionHistory({
       current_head: stringValue(metadata.current_head) ?? null,
       current_branch: stringValue(metadata.current_branch) ?? null,
       ...page,
     })
+    const upstreamTarget = stringValue(metadata.upstream_target)
+    if (
+      options.after ||
+      !upstreamTarget ||
+      history.commits.some((item) => item.id === upstreamTarget)
+    ) {
+      return history
+    }
+    const upstreamCommit = commit(
+      await this.runSdk(root, "commitDetails", [upstreamTarget], options)
+    )
+    if (upstreamCommit.id !== upstreamTarget) return history
+    const insertionIndex = history.commits.findIndex(
+      (item) => item.timestampMs < upstreamCommit.timestampMs
+    )
+    const commits = [...history.commits]
+    commits.splice(
+      insertionIndex < 0 ? commits.length : insertionIndex,
+      0,
+      upstreamCommit
+    )
+    return { ...history, commits }
   }
 
   async inspectIgnore(

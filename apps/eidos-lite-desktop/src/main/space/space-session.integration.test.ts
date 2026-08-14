@@ -1871,13 +1871,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: remoteOrigin,
-      expectedVersion: () => "0.3.14",
+      expectedVersion: () => "0.3.15",
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.14",
-        expectedVersion: "0.3.14",
+        version: "0.3.15",
+        expectedVersion: "0.3.15",
         initialized: true,
         clean: true,
         currentHead: localHead,
@@ -2231,7 +2231,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.14",
+      expectedVersion: () => "0.3.15",
       close: vi.fn(async () => undefined),
       operationMaterializesWorktree: vi.fn(async (operation: string) => {
         calls.push(`contract:${operation}`)
@@ -2266,11 +2266,30 @@ describe("SpaceSession Graft-backed snapshots", () => {
       }),
       prepareSemanticMerge,
       acceptSemanticMergeResult,
+      hasExactMergeWorktreePaths: vi.fn(() => true),
+      getMergeStatus: vi.fn(async () => {
+        calls.push("status")
+        return { ...merging, stagedCount: 1, unmergedCount: 0 }
+      }),
+      continueMerge: vi.fn(
+        async (
+          _root: string,
+          message: string,
+          token: string,
+          options: {
+            onWorktreePaths?: (paths: string[] | null) => void
+          }
+        ) => {
+          calls.push(`continue:${message}:${token}`)
+          options.onWorktreePaths?.([relativePath])
+          return { state: "none" as const }
+        }
+      ),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.14",
-        expectedVersion: "0.3.14",
+        version: "0.3.15",
+        expectedVersion: "0.3.15",
         initialized: true,
         clean: true,
         currentHead: localHead,
@@ -2340,8 +2359,9 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
       await expect(
         session.applyHostedMerge({ expectedHead: localHead, planToken })
-      ).resolves.toMatchObject({ state: "merging", unmergedCount: 0 })
+      ).resolves.toEqual({ state: "none" })
 
+      expect(graft.status).not.toHaveBeenCalled()
       expect(calls).toEqual([
         "contract:applyMerge",
         "close",
@@ -2351,6 +2371,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "runtime-merge",
         "contract:acceptSemanticMergeResult",
         "accept-semantic",
+        `validate:${relativePath}`,
+        "reopen",
+        "contract:continueMerge",
+        "status",
+        "close",
+        `validate:${relativePath}`,
+        `continue:Merge Hosted changes:${stateToken}`,
         `validate:${relativePath}`,
         "reopen",
       ])
@@ -2809,6 +2836,26 @@ describe("SpaceSession Graft-backed snapshots", () => {
       expect(signals).toHaveLength(3)
       expect(new Set(signals).size).toBe(1)
       expect(signals[0]?.aborted).toBe(false)
+      expect(session.gate.current().phase).toBe("ready")
+
+      calls.length = 0
+      signals.length = 0
+
+      await expect(session.getSyncMergeStatus()).resolves.toEqual({
+        state: "none",
+      })
+      expect(calls.slice(0, 8)).toEqual([
+        "status",
+        "contract",
+        "status",
+        "close",
+        "validate:archive.eidos,records.eidos",
+        "continue",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(signals).toHaveLength(4)
+      expect(new Set(signals).size).toBe(2)
       expect(session.gate.current().phase).toBe("ready")
     } finally {
       await session?.close().catch(() => undefined)

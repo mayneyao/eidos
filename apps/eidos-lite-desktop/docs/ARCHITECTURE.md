@@ -63,7 +63,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.14"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.15"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -146,6 +146,9 @@ physical field add/drop, Text/Select conversion, and a streamed one-million-row
 CSV from analysis through its final visible snapshot. Physical SQLite schema
 migrations have a separate budget because `ALTER TABLE` can touch file pages;
 they must never be mislabeled as metadata-only work or block the renderer.
+Mutation return projections use an exact primary-key lookup and never invoke
+the general page-total or cursor path; a single-row edit must stay proportional
+to the changed row rather than the Table size.
 
 One `SpaceRepositoryCoordinator` owns repository task priority for a Space.
 Foreground reads may preempt cancellable background classification; background
@@ -356,7 +359,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.14`,
+The SDK adapter pins published `@eidos.space/graft@0.3.15`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
@@ -618,7 +621,7 @@ conflict is never by itself proof that an Eidos candidate is safe.
    Abort restores the pre-merge Local head and retains Hosted history.
 
 The merge surface is compiled against a type-only snapshot kept aligned with
-the published Graft 0.3.14 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
+the published Graft 0.3.15 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
 a compatible local package in source development and tests; production always
 resolves the pinned SDK and fails closed with a typed unavailable result if its
 runtime contract is incomplete.

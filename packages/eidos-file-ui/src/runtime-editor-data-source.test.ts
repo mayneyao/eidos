@@ -421,7 +421,15 @@ describe("EidosRuntimeEditorDataSource", () => {
         fileId: FILE,
         revision: "2",
         changed: true,
-        created: [],
+        created:
+          request.changes[0]?.kind === "create"
+            ? [
+                {
+                  clientKey: request.changes[0].clientKey,
+                  rowId: PROJECT_ROW,
+                },
+              ]
+            : [],
         affectedRows: [{ tableId: PROJECTS, rowId: PROJECT_ROW }],
         returnedRows: {
           fileId: FILE,
@@ -700,6 +708,22 @@ describe("EidosRuntimeEditorDataSource", () => {
             rowId: PROJECT_ROW,
             values: { [SIGNALS]: ["Quality", "Speed"] },
           },
+        ],
+      }),
+      expect.any(Object)
+    )
+
+    await expect(
+      source.insertRow(PROJECTS, { [TITLE]: "Created" })
+    ).resolves.toMatchObject({ row: { _id: PROJECT_ROW } })
+
+    expect(mutateRows).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        changes: [
+          expect.objectContaining({
+            kind: "create",
+            values: { [TITLE]: "Created" },
+          }),
         ],
       }),
       expect.any(Object)
