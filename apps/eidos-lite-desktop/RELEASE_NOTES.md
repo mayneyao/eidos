@@ -14,11 +14,13 @@ Lite now finalizes it immediately instead of opening an empty conflict workspace
 showing zero conflicts. Interrupted conflict-free merges receive the same
 recovery behavior, so Sync can continue to the next fetch or push.
 
-### Upload progress uses the whole push
+### Large Eidos File merges are much faster
 
-Uploads containing several Graft objects now establish the complete known
-payload before sending the first object. The transferred value advances against
-one stable total instead of repeatedly showing matching values such as `10/10`
-and `20/20` while more requests are still waiting.
+Merge analysis now targets changed SQLite pages and reuses proven snapshots
+instead of repeatedly scanning and copying an entire large Eidos File. On the
+retained 417 MiB macOS fixture, warmed merge lifecycle P95 improved from 42.34
+seconds to 1.56 seconds; a fresh process completed in 2.93 seconds. Windows and
+Linux receive the same sparse WAL import path, while macOS additionally uses an
+APFS copy-on-write seed when available.
 
 No migration is required.
