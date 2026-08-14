@@ -23,4 +23,10 @@ seconds to 1.56 seconds; a fresh process completed in 2.93 seconds. Windows and
 Linux receive the same sparse WAL import path, while macOS additionally uses an
 APFS copy-on-write seed when available.
 
+Row edits on very large Eidos Files now return their committed values through
+an exact primary-key lookup instead of running the general paged query and row
+count path. On the same local one-million-row fixture, update P95 improved from
+86.8 ms to 29.3 ms and insert P95 from 149.5 ms to 31.5 ms; delete P95 was 28.7
+ms.
+
 No migration is required.

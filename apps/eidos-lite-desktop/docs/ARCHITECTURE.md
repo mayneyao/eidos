@@ -146,6 +146,9 @@ physical field add/drop, Text/Select conversion, and a streamed one-million-row
 CSV from analysis through its final visible snapshot. Physical SQLite schema
 migrations have a separate budget because `ALTER TABLE` can touch file pages;
 they must never be mislabeled as metadata-only work or block the renderer.
+Mutation return projections use an exact primary-key lookup and never invoke
+the general page-total or cursor path; a single-row edit must stay proportional
+to the changed row rather than the Table size.
 
 One `SpaceRepositoryCoordinator` owns repository task priority for a Space.
 Foreground reads may preempt cancellable background classification; background

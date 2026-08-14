@@ -2,7 +2,7 @@ import { copyFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
 import {
@@ -11,6 +11,7 @@ import {
   NodeSqliteConnectionPort,
   openEidosFile,
 } from "./node-sqlite"
+import { EidosFileRuntime } from "./runtime"
 import { Runtime } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -347,6 +348,7 @@ describe.runIf(supportsElectron43NodeSqlite)(
             .revision
         ).toBe(schema.revision)
 
+        const queryRows = vi.spyOn(EidosFileRuntime.prototype, "queryRows")
         const inserted = await runtime.mutateRows(
           {
             tableId,
@@ -358,9 +360,23 @@ describe.runIf(supportsElectron43NodeSqlite)(
                 values: { [titleId]: "First" },
               },
             ],
+            returning: {
+              fields: [titleId, notesId, tagsId],
+              resolveRelations: [],
+            },
           },
           runtimeContext("complete-required-value")
         )
+        try {
+          expect(queryRows).not.toHaveBeenCalled()
+          expect(inserted.returnedRows?.rows[0]?.values).toEqual([
+            "First",
+            null,
+            [],
+          ])
+        } finally {
+          queryRows.mockRestore()
+        }
         const rows = await runtime.getRowsById(
           {
             tableId,

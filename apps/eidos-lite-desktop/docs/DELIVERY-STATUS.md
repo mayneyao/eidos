@@ -61,10 +61,17 @@ The final local audit passed:
   availability and full dual-client cases. The semantic-provider integration
   additionally proves automatic Eidos system-metadata acceptance, persisted
   domain conflicts, exact state tokens, and Runtime validation.
-- Explicit performance load: 16 passed. Explorer with 1,000 entries was 14.4
-  ms; a stable change in a 10,000-entry watcher was 0.4 ms; 10 MiB and 100 MiB
-  native opens were 100.6 ms and 96.5 ms; the canonical 100,000-row first page
-  was 4.0 ms and cell-commit P95 was 1.89 ms.
+- Explicit performance load: 16 passed. Explorer with 1,000 entries was 15.2
+  ms; a stable change in a 10,000-entry watcher was 38.1 ms; 10 MiB and 100 MiB
+  native opens were 105.0 ms and 97.7 ms; the canonical 100,000-row first page
+  was 3.37 ms and cell-commit P95 was 1.76 ms. On the one-million-row Table,
+  exact post-mutation primary-key lookup reduced update P95 from 86.8 ms to
+  29.3 ms and insert P95 from 149.5 ms to 31.5 ms; delete P95 was 28.7 ms.
+- The rebuilt 0.1.10 unsigned staging package passed both packaged processes
+  with zero console errors and embedded Graft SDK 0.3.15. The fresh observation
+  was 2,220 ms, including 1,979 ms before the Electron bootstrap; the second
+  isolated process enforced the unchanged budgets at 328 ms cold start, 194.8
+  ms utility-open P95, and 185.3 ms for the rendered 100,000-row first frame.
 - The exact 1,425,218-byte Elden Ring CSV fixture imported 10,111 data rows and
   9 columns in 202.9-268.9 ms after the bulk-write fix, versus a 10,355.0 ms
   baseline. The complete row-aware Graft diff contained 10,126 row changes and
