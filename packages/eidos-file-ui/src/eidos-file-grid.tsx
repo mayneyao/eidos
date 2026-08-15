@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react"
 import type {
   EidosFileColumnStatConfig,
@@ -123,6 +124,51 @@ function eidosFileRowIdentity(row: EidosFileRow): string | undefined {
   const rowId = row._id
   if (typeof rowId !== "string" && typeof rowId !== "number") return undefined
   return String(rowId)
+}
+
+function canonicalEidosFileRowId(
+  value: unknown,
+  aliases: ReadonlyMap<string, string>
+): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return undefined
+  }
+  let id = String(value)
+  const visited = new Set<string>()
+  while (!visited.has(id)) {
+    visited.add(id)
+    const next = aliases.get(id)
+    if (!next) break
+    id = next
+  }
+  return id
+}
+
+/**
+ * Whether a Grid selection still covers a row. Draft rows stay pinned to
+ * their creation index while covered; leaving the row ends the draft session.
+ */
+function selectionCoversRowIndex(
+  selection: GridSelection | null,
+  rowIndex: number
+): boolean {
+  if (!selection) return false
+  if (selection.rows.hasIndex(rowIndex)) return true
+  const current = selection.current
+  if (!current) return false
+  if (current.cell[1] === rowIndex) return true
+  const ranges = [current.range, ...current.rangeStack]
+  return ranges.some(
+    (range) => rowIndex >= range.y && rowIndex < range.y + range.height
+  )
+}
+
+function draftRowPinLimit(pins: ReadonlyMap<number, unknown>): number {
+  let limit = 0
+  for (const index of pins.keys()) {
+    limit = Math.max(limit, index + 1)
+  }
+  return limit
 }
 
 function tagGridCellRowIdentity<T extends GridCell>(
@@ -463,6 +509,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     new Map<string, Promise<EidosFileRowMutationResult>>()
   )
   const rowIdAliasesRef = useRef(new Map<string, string>())
+  // Newly appended rows are pinned to their creation index for the duration
+  // of their edit session so a sort/filter revalidation never yanks the row
+  // out from under its open editor (Notion/Airtable draft-row behavior).
+  const draftRowPinsRef = useRef(new Map<number, { rowId: string }>())
+  const deferredRefreshRef = useRef(false)
+  const gridSelectionRef = useRef<GridSelection | null>(null)
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
   const pageAccessRef = useRef(new Map<number, number>())
@@ -500,6 +552,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onRowCountChangeRef.current = onRowCountChange
   onSelectedRowsChangeRef.current = onSelectedRowsChange
   const [cacheRevision, setCacheRevision] = useState(0)
+  const [refreshToken, setRefreshToken] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
   const rowCountRef = useRef(rowCount)
   rowCountRef.current = rowCount
@@ -573,6 +626,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     for (const rowIndex of historyRowsRef.current) {
       protectedPages.add(Math.floor(rowIndex / PAGE_SIZE))
     }
+    for (const pinnedIndex of draftRowPinsRef.current.keys()) {
+      protectedPages.add(Math.floor(pinnedIndex / PAGE_SIZE))
+    }
 
     const candidates = [...loadedPagesRef.current]
       .filter((pageIndex) => !protectedPages.has(pageIndex))
@@ -600,6 +656,27 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     return changed
   }, [])
 
+  /**
+   * Releases draft-row pins whose edit session has ended: the insert and all
+   * cell saves have settled and the selection no longer covers the row. Once
+   * the last pin is released, any revalidation deferred for the draft is
+   * applied so the row lands at its truthful sort/filter position.
+   */
+  const releaseDraftRowPins = useCallback((selection: GridSelection | null) => {
+    const pins = draftRowPinsRef.current
+    if (pins.size === 0) return
+    for (const [index, pin] of [...pins]) {
+      if (pendingRowCreatesRef.current.has(pin.rowId)) continue
+      if (rowMutationRevisionRef.current.has(index)) continue
+      if (selectionCoversRowIndex(selection, index)) continue
+      pins.delete(index)
+    }
+    if (pins.size === 0 && deferredRefreshRef.current) {
+      deferredRefreshRef.current = false
+      setRefreshToken((token) => token + 1)
+    }
+  }, [])
+
   const loadPageIndex = useCallback(
     async (pageIndex: number) => {
       if (pageIndex < 0) return false
@@ -613,6 +690,32 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       try {
         const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
         if (generation !== generationRef.current) return false
+        const pinnedRows = new Map<string, number>()
+        for (const [pinnedIndex, pin] of draftRowPinsRef.current) {
+          const rowId = canonicalEidosFileRowId(
+            pin.rowId,
+            rowIdAliasesRef.current
+          )
+          if (rowId !== undefined) pinnedRows.set(rowId, pinnedIndex)
+        }
+        const relocatesPinnedDraft = page.rows.some((row, index) => {
+          const rowId = canonicalEidosFileRowId(
+            eidosFileRowIdentity(row),
+            rowIdAliasesRef.current
+          )
+          if (rowId === undefined) return false
+          const pinnedIndex = pinnedRows.get(rowId)
+          return (
+            pinnedIndex !== undefined && pinnedIndex !== page.offset + index
+          )
+        })
+        if (relocatesPinnedDraft) {
+          // Applying only this page would either duplicate the draft at its
+          // truthful sorted position or leave a hole after filtering it out.
+          // Keep the current coherent snapshot and refresh once editing ends.
+          deferredRefreshRef.current = true
+          return false
+        }
         page.rows.forEach((row, index) => {
           const rowIndex = page.offset + index
           // A refetched page may have been read before a pending optimistic
@@ -620,15 +723,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           // to the stale value mid-typing, and the mutation result reapplies
           // the authoritative row once the save completes.
           if (!rowMutationRevisionRef.current.has(rowIndex)) {
-            rowsRef.current.set(rowIndex, row)
+            // Draft rows stay pinned at their creation index until their edit
+            // session ends, even when the refetch sorts them elsewhere.
+            if (!draftRowPinsRef.current.has(rowIndex)) {
+              rowsRef.current.set(rowIndex, row)
+            }
           }
         })
         for (const rowIndex of [...rowsRef.current.keys()]) {
           // Drop cached rows beyond the authoritative total (deleted or
           // filtered out) so a stale entry can never be edited by accident.
+          // Pinned draft rows survive: a filter must not hide a row whose
+          // editor is still open.
           if (
             rowIndex >= page.total &&
-            !rowMutationRevisionRef.current.has(rowIndex)
+            !rowMutationRevisionRef.current.has(rowIndex) &&
+            !draftRowPinsRef.current.has(rowIndex)
           ) {
             rowsRef.current.delete(rowIndex)
           }
@@ -636,8 +746,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         loadedPagesRef.current.add(pageIndex)
         touchPage(pageIndex)
         prunePageCache()
-        setRowCount(page.total)
-        onRowCountChangeRef.current?.(page.total)
+        const nextRowCount = Math.max(
+          page.total,
+          draftRowPinLimit(draftRowPinsRef.current)
+        )
+        setRowCount(nextRowCount)
+        onRowCountChangeRef.current?.(nextRowCount)
         setCacheRevision((current) => current + 1)
         return true
       } catch (error) {
@@ -695,6 +809,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     const scope = `${table.table.id}:${view?.id ?? "default"}`
     const thumbnailScope = `${scope}:${reloadToken}`
     const preserveData = dataScopeRef.current === scope
+    if (preserveData && draftRowPinsRef.current.size > 0) {
+      // A draft row is pinned at the bottom with its edit session open.
+      // Defer the revalidation so the sorted/filtered snapshot cannot move or
+      // hide the row mid-edit; the refresh is applied once the session ends.
+      deferredRefreshRef.current = true
+      return
+    }
+    deferredRefreshRef.current = false
     const pagesToRefresh = preserveData
       ? new Set([0, ...visiblePagesRef.current])
       : new Set([0])
@@ -715,6 +837,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       rowMutationRevisionRef.current.clear()
       pendingRowCreatesRef.current.clear()
       rowIdAliasesRef.current.clear()
+      draftRowPinsRef.current.clear()
       visiblePagesRef.current.clear()
       historyRowsRef.current = new Set()
       mutationInFlightRef.current = false
@@ -737,6 +860,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   }, [
     attachmentThumbnails,
     loadPageIndex,
+    refreshToken,
     reloadToken,
     scheduleLatestPageRequest,
     table.table.id,
@@ -754,6 +878,42 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   useEffect(() => {
     setWidths(viewWidths(view))
   }, [view?.id, view?.properties])
+
+  // Keyboard activation chain: opening a file or switching a view hands
+  // focus to the Grid so arrow keys and Grid shortcuts work immediately
+  // (e.g. after Quick Open or view tab cycling). Glide mounts its canvas a
+  // commit after the editor shell, so focus is retried on animation frames
+  // until it lands; a user pointer interaction cancels the retry by moving
+  // the focus elsewhere.
+  const gridFocusKey = `${table.table.id}:${view?.id ?? "default"}`
+  useEffect(() => {
+    let cancelled = false
+    let attempts = 0
+    const initiallyActiveElement = document.activeElement
+    const tryFocus = () => {
+      if (cancelled) return
+      const container = containerRef.current
+      if (!container) return
+      if (container.contains(document.activeElement)) return
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active !== document.body &&
+        (attempts > 0 || active !== initiallyActiveElement)
+      ) {
+        return
+      }
+      attempts += 1
+      gridRef.current?.focus?.()
+      if (attempts < 30 && !container.contains(document.activeElement)) {
+        requestAnimationFrame(tryFocus)
+      }
+    }
+    requestAnimationFrame(tryFocus)
+    return () => {
+      cancelled = true
+    }
+  }, [gridFocusKey])
 
   useEffect(
     () => () => {
@@ -1107,18 +1267,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
 
   const canonicalRowId = useCallback((value: unknown): string | undefined => {
-    if (typeof value !== "string" && typeof value !== "number") {
-      return undefined
-    }
-    let id = String(value)
-    const visited = new Set<string>()
-    while (!visited.has(id)) {
-      visited.add(id)
-      const next = rowIdAliasesRef.current.get(id)
-      if (!next) break
-      id = next
-    }
-    return id
+    return canonicalEidosFileRowId(value, rowIdAliasesRef.current)
   }, [])
 
   const sameRowIdentity = useCallback(
@@ -1289,6 +1438,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           if (changed) setCacheRevision((revision) => revision + 1)
           refreshColumnStats()
         }
+        // A settled save may be the last thing keeping a draft row pinned
+        // after the user already moved on.
+        releaseDraftRowPins(gridSelectionRef.current)
       } catch (error) {
         if (generation !== generationRef.current) {
           // The world moved on and the failure can no longer be surfaced.
@@ -1329,6 +1481,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       persistRowEdits,
       prunePageCache,
       refreshColumnStats,
+      releaseDraftRowPins,
       sameRowIdentity,
       updateFailedMutation,
     ]
@@ -1482,6 +1635,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         : result.rowCount
       setRowCount(rowCountRef.current)
       setCacheRevision((current) => current + 1)
+      const draftRowId = eidosFileRowIdentity(result.row)
+      if (draftRowId) {
+        // Pin the draft at its creation index so a sorted/filtered
+        // revalidation cannot move or hide it while its editor is open.
+        draftRowPinsRef.current.set(index, { rowId: draftRowId })
+      }
       if (!result.settled) {
         refreshColumnStats()
         return "bottom" as const
@@ -1517,6 +1676,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           setRowCount(rowCountRef.current)
           setCacheRevision((current) => current + 1)
           refreshColumnStats()
+          releaseDraftRowPins(gridSelectionRef.current)
         })
         .catch((error) => {
           pendingRowCreatesRef.current.delete(optimisticId)
@@ -1527,6 +1687,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           if (failedIndex !== undefined) {
             rowsRef.current.delete(failedIndex)
             rowMutationRevisionRef.current.delete(failedIndex)
+            draftRowPinsRef.current.delete(failedIndex)
             for (
               let rowIndex = failedIndex + 1;
               rowIndex < rowCountRef.current;
@@ -1540,6 +1701,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
                 rowMutationRevisionRef.current.set(rowIndex - 1, revision)
               }
               rowMutationRevisionRef.current.delete(rowIndex)
+              const shiftedPin = draftRowPinsRef.current.get(rowIndex)
+              if (shiftedPin) {
+                draftRowPinsRef.current.set(rowIndex - 1, shiftedPin)
+              }
+              draftRowPinsRef.current.delete(rowIndex)
             }
             rowCountRef.current = Math.max(0, rowCountRef.current - 1)
             setRowCount(rowCountRef.current)
@@ -1552,7 +1718,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       onError?.(error)
       return undefined
     }
-  }, [onAddRow, onError, refreshColumnStats])
+  }, [onAddRow, onError, refreshColumnStats, releaseDraftRowPins])
 
   const handleGridSelectionChange = useCallback(
     (selection: GridSelection) => {
@@ -1576,6 +1742,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     MAX_UNDO_HISTORY_BATCHES
   )
   historyRowsRef.current = history.historyRows
+  gridSelectionRef.current = history.gridSelection
+
+  const handleGridSelectionChangeWithDraftRelease = useCallback(
+    (selection: GridSelection) => {
+      history.onGridSelectionChange(selection)
+      releaseDraftRowPins(selection)
+    },
+    [history.onGridSelectionChange, releaseDraftRowPins]
+  )
 
   useEffect(() => {
     history.reset()
@@ -1841,27 +2016,25 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [fields]
   )
 
-  const onCellContextMenu = useCallback<
-    NonNullable<DataEditorProps["onCellContextMenu"]>
-  >(
-    ([fieldIndex, rowIndex], event) => {
+  const presentCellMenu = useCallback(
+    (
+      fieldIndex: number,
+      rowIndex: number,
+      bounds: Rectangle,
+      point?: { x: number; y: number }
+    ) => {
       const field = fields[fieldIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
-      event.preventDefault()
       setFieldMenu(null)
       setColumnStatMenu(null)
       setCellMenu({
-        bounds: event.bounds,
+        bounds,
         field,
         fieldIndex,
-        point: {
-          x:
-            event.bounds.x +
-            Math.min(event.bounds.width, Math.max(0, event.localEventX)),
-          y:
-            event.bounds.y +
-            Math.min(event.bounds.height, Math.max(0, event.localEventY)),
+        point: point ?? {
+          x: bounds.x + bounds.width / 2,
+          y: bounds.y + bounds.height / 2,
         },
         row,
         rowIndex,
@@ -1872,6 +2045,54 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       })
     },
     [fields, history.gridSelection]
+  )
+
+  const onCellContextMenu = useCallback<
+    NonNullable<DataEditorProps["onCellContextMenu"]>
+  >(
+    ([fieldIndex, rowIndex], event) => {
+      const field = fields[fieldIndex]
+      const row = rowsRef.current.get(rowIndex)
+      if (!field || !row) return
+      event.preventDefault()
+      presentCellMenu(fieldIndex, rowIndex, event.bounds, {
+        x:
+          event.bounds.x +
+          Math.min(event.bounds.width, Math.max(0, event.localEventX)),
+        y:
+          event.bounds.y +
+          Math.min(event.bounds.height, Math.max(0, event.localEventY)),
+      })
+    },
+    [fields, presentCellMenu]
+  )
+
+  // Keyboard equivalent of a right click (Shift+F10 / the Menu key): opens
+  // the cell menu for the focused cell or the first selected row, so row
+  // actions like Delete stay reachable without a pointer.
+  const onGridContainerKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const isContextMenuKey =
+        event.key === "ContextMenu" ||
+        (event.key === "F10" &&
+          event.shiftKey &&
+          !event.ctrlKey &&
+          !event.altKey &&
+          !event.metaKey)
+      if (!isContextMenuKey) return
+      const selection = gridSelectionRef.current
+      let target: Item | null = selection?.current?.cell ?? null
+      if (!target && selection && selection.rows.length > 0) {
+        const firstRow = selection.rows.first()
+        if (firstRow !== undefined) target = [0, firstRow]
+      }
+      if (!target) return
+      const bounds = gridRef.current?.getBounds?.(target[0], target[1])
+      if (!bounds) return
+      event.preventDefault()
+      presentCellMenu(target[0], target[1], bounds)
+    },
+    [presentCellMenu]
   )
 
   const onCellClicked = useCallback<
@@ -1964,7 +2185,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ref={containerRef}
       className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden"
     >
-      <div className="relative min-w-0 flex-1 overflow-hidden">
+      <div
+        className="relative min-w-0 flex-1 overflow-hidden"
+        onKeyDown={onGridContainerKeyDown}
+      >
         <DataEditor
           {...gridConfig}
           ref={gridRef}
@@ -1984,7 +2208,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           gridSelection={history.gridSelection ?? undefined}
           onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
           onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
-          onGridSelectionChange={history.onGridSelectionChange}
+          onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
           onCellClicked={onCellClicked}

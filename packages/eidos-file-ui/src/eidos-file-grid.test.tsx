@@ -34,6 +34,13 @@ const mocks = vi.hoisted(() => ({
   props: null as DataEditorProps | null,
   scrollTo: vi.fn(),
   updateCells: vi.fn(),
+  focus: vi.fn(),
+  getBounds: vi.fn((col: number, row: number) => ({
+    x: col * 100,
+    y: 32 + row * 32,
+    width: 100,
+    height: 32,
+  })),
 }))
 
 vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
@@ -46,6 +53,8 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
       React.useImperativeHandle(ref, () => ({
         scrollTo: mocks.scrollTo,
         updateCells: mocks.updateCells,
+        focus: mocks.focus,
+        getBounds: mocks.getBounds,
       }))
       return <div data-testid="glide-grid" tabIndex={-1} />
     }),
@@ -165,9 +174,17 @@ describe("EidosFileGrid", () => {
     mocks.props = null
     mocks.scrollTo.mockReset()
     mocks.updateCells.mockReset()
+    mocks.focus.mockReset()
+    mocks.getBounds.mockClear()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
+    // Behave like Glide's focus: it moves focus to the grid canvas.
+    mocks.focus.mockImplementation(() => {
+      container
+        .querySelector<HTMLElement>('[data-testid="glide-grid"]')
+        ?.focus()
+    })
   })
 
   afterEach(() => {
@@ -895,7 +912,7 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.customRenderers).toBe(firstRenderers)
   })
 
-  it("keeps an appended empty editor bound to its row when sorting moves it", async () => {
+  it("pins an appended row under its editor until the draft session ends", async () => {
     const rowA = rowAt(0)
     const rowB = rowAt(1)
     const appendedRow = { _id: "row_appended", title: null, done: 0 }
@@ -931,20 +948,36 @@ describe("EidosFileGrid", () => {
     const appendedCell = mocks.props?.getCellContent([0, 2])
     expect(appendedCell).toMatchObject({ data: "" })
 
-    // The updated-time sort puts the just-created row at the top while Glide's
-    // open overlay editor remains attached to the old bottom index.
+    // Glide focuses the appended row and opens its editor.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 2],
+          range: { x: 0, y: 2, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    // The updated-time sort puts the just-created row at the top, but the
+    // draft stays pinned at its creation index while its editor is open:
+    // the revalidation is deferred instead of moving the row mid-edit.
     await act(async () => {
       root.render(renderGrid([appendedRow, rowA, rowB], 1))
       await Promise.resolve()
       await Promise.resolve()
     })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write RFC",
+    })
     expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
-      data: "Row 1",
+      data: "",
     })
 
     // DataEditor always offers edits to onCellsEdited first. Exiting the
-    // untouched empty editor must target the appended row by identity, not
-    // clear the unrelated record that moved into its former index.
+    // untouched empty editor must not clear the pinned draft row.
     act(() => {
       mocks.props?.onCellsEdited?.([
         {
@@ -959,11 +992,8 @@ describe("EidosFileGrid", () => {
     })
 
     expect(onCellEdit).not.toHaveBeenCalled()
-    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
-      data: "",
-    })
     expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
-      data: "Row 1",
+      data: "",
     })
 
     act(() => {
@@ -987,12 +1017,215 @@ describe("EidosFileGrid", () => {
       table.fields[0],
       "New task"
     )
-    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
       data: "New task",
+    })
+
+    // Moving the selection off the draft ends its session: the deferred
+    // refresh applies and the row lands at its truthful sorted position.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "",
     })
     expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
       data: "Row 1",
     })
+  })
+
+  it("keeps an appended row visible against a filter while its editor is open", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const appendedRow = { _id: "row_appended", title: null, done: 0 }
+    const onAddRow = vi.fn(async () => ({
+      tableId: "tasks",
+      row: appendedRow,
+      rowCount: 3,
+    }))
+    const renderGrid = (
+      rows: EidosFileRow[],
+      total: number,
+      reloadToken: number
+    ) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: 2 }}
+        view={table.views[0]}
+        reloadToken={reloadToken}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total,
+          rows,
+        }))}
+        onAddRow={onAddRow}
+        onCellEdit={createCellEdit()}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB], 2, 0))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    expect(mocks.props?.rows).toBe(3)
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({ data: "" })
+
+    // Glide focuses the appended row and opens its editor.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 2],
+          range: { x: 0, y: 2, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    // The active filter excludes the new row: the revalidation reports the
+    // smaller total. The pinned draft must survive instead of vanishing
+    // while its editor is open.
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB], 2, 1))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.rows).toBe(3)
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({ data: "" })
+
+    // Ending the session releases the pin; the deferred refresh then applies
+    // the filter truthfully and the non-matching row leaves the view.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.rows).toBe(2)
+  })
+
+  it("does not duplicate a pinned draft when an unloaded page sees its sorted identity", async () => {
+    const appendedRow = { _id: "row_appended", title: null, done: 0 }
+    let created = false
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      if (offset === 0) {
+        return {
+          tableId: "tasks",
+          offset,
+          limit,
+          total: created ? 251 : 250,
+          rows: created
+            ? [
+                appendedRow,
+                ...Array.from({ length: 99 }, (_, index) => rowAt(index)),
+              ]
+            : Array.from({ length: 100 }, (_, index) => rowAt(index)),
+        }
+      }
+      if (offset === 200) {
+        return {
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 251,
+          rows: [
+            appendedRow,
+            ...Array.from({ length: 50 }, (_, index) => rowAt(200 + index)),
+          ],
+        }
+      }
+      throw new Error(`Unexpected page offset: ${offset}`)
+    })
+    const onAddRow = vi.fn(async () => {
+      created = true
+      return { tableId: "tasks", row: appendedRow, rowCount: 251 }
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={loadPage}
+          onAddRow={onAddRow}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 250],
+          range: { x: 0, y: 250, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 200, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadPage).toHaveBeenCalledWith(200, 100)
+    expect(mocks.props?.getCellContent([0, 200])).toMatchObject({
+      kind: GridCellKind.Loading,
+    })
+    expect(mocks.props?.getCellContent([0, 250])).toMatchObject({ data: "" })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "" })
   })
 
   it("keeps fill edits on their target rows", async () => {
@@ -1241,6 +1474,130 @@ describe("EidosFileGrid", () => {
       data: "Write implementation",
     })
     expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+  })
+
+  it("focuses the Grid when a view opens so keys work immediately", async () => {
+    const renderGrid = (viewId: string) => (
+      <EidosFileGrid
+        table={table}
+        view={{ ...table.views[0], id: viewId }}
+        loadPage={createLoadPage()}
+        onAddRow={vi.fn()}
+        onCellEdit={createCellEdit()}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid("view_a"))
+    })
+    // Focus retries on animation frames because Glide mounts its canvas a
+    // commit after the editor shell. Wait after React has flushed the effect
+    // that schedules the first frame.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(mocks.focus).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(
+      document.activeElement
+    )
+
+    // Simulate the user moving focus out (e.g. opening a kanban view), then
+    // switch back: the Grid takes focus again.
+    await act(async () => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      root.render(renderGrid("view_b"))
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(mocks.focus).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not steal focus from a control used before the first Grid frame", async () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+    const outsideButton = document.createElement("button")
+    document.body.append(outsideButton)
+    try {
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={createLoadPage()}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+          />
+        )
+      })
+      outsideButton.focus()
+      act(() => frames.shift()?.(0))
+
+      expect(mocks.focus).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(outsideButton)
+    } finally {
+      requestFrame.mockRestore()
+      outsideButton.remove()
+    }
+  })
+
+  it("opens the cell context menu from the keyboard for the focused cell", async () => {
+    const onRequestDeleteRows = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRequestDeleteRows={onRequestDeleteRows}
+        />
+      )
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    const gridElement = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )
+    act(() => {
+      gridElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+
+    const menu = [...document.body.querySelectorAll('[role="menu"]')].find(
+      (candidate) => candidate.textContent?.includes("Delete record")
+    )
+    expect(menu).toBeTruthy()
+    expect(mocks.getBounds).toHaveBeenCalledWith(0, 1)
+
+    const deleteItem = [...(menu?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent?.includes("Delete record")
+    )
+    act(() => deleteItem?.click())
+    expect(onRequestDeleteRows).toHaveBeenCalledWith([
+      { startIndex: 1, endIndex: 2 },
+    ])
   })
 
   it("forwards the trailing row action", async () => {
@@ -1893,10 +2250,26 @@ describe("EidosFileGrid", () => {
     expect(
       container.querySelector('[aria-label="Record details for Write RFC"]')
     ).toBeTruthy()
+    const openInTab = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Open record in tab"]'
+    )
     act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[aria-label="Open record in tab"]')
-        ?.click()
+      openInTab?.focus()
+      openInTab?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(
+      [...document.body.querySelectorAll('[role="menu"]')].some((candidate) =>
+        candidate.textContent?.includes("Delete record")
+      )
+    ).toBe(false)
+    act(() => {
+      openInTab?.click()
     })
     expect(onOpenRecordInTab).toHaveBeenCalledWith(
       expect.objectContaining({ _id: "row_0", title: "Write RFC" })
