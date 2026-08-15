@@ -13,6 +13,25 @@ When reviewing the first saved version of an Eidos File, switching between
 tables no longer mistakes Graft's internal root marker for a Space checkpoint.
 Each table can now be opened without an `Invalid Space checkpoint` error.
 
+### Attachments can be previewed safely
+
+Images can now be previewed inside Eidos Lite through a Host-issued attachment
+lease. Other attachment types show trusted file metadata and explicit Open or
+Show in Folder actions, and activation failures remain visible in the preview.
+
+### Tables and views are easier to navigate by keyboard
+
+Table and view tabs can now be cycled from anywhere outside a text editor. The
+shortcuts work without focusing the tab strip first and preserve native typing
+and editing key combinations.
+
+### New rows stay put while you edit
+
+A newly appended row now remains under its active editor while sorting,
+filtering, or background page loading changes the surrounding result set. Lite
+applies the deferred refresh after editing ends, without duplicating the row or
+moving focus unexpectedly.
+
 ### Cloud checkpoints stay visible in History
 
 Version History now marks the last locally known Cloud checkpoint even when
