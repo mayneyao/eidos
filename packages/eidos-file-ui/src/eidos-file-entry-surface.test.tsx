@@ -300,4 +300,176 @@ describe("EidosFileEntrySurface", () => {
     )
     expect(releaseAsset).toHaveBeenCalledOnce()
   })
+
+  it("previews an image attachment inline from the Host-issued lease", async () => {
+    const file = entry("photo", "assets/photo.png", "photo.png")
+    const services = {
+      resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ lease, altText }) => (
+        <img src={lease.resourceToken} alt={altText} />
+      ),
+      activate: vi.fn(async () => undefined),
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface entry={file} />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Preview photo.png"]')
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const preview = document.body.querySelector(
+      "[data-eidos-file-attachment-preview]"
+    )
+    expect(preview).not.toBeNull()
+    expect(preview?.querySelector("img")?.getAttribute("src")).toBe(
+      "blob:host/thumbnail/photo"
+    )
+    expect(preview?.textContent).toContain("photo.png")
+  })
+
+  it("previews a non-image attachment as trusted metadata with explicit actions", async () => {
+    const file = entry(
+      "document",
+      "https://example.test/report.pdf",
+      "report.pdf",
+      "application/pdf",
+      "42"
+    )
+    const resolveAsset = vi.fn(async (request) =>
+      leaseFor(file, request.purpose)
+    )
+    const activate = vi.fn(async () => undefined)
+    const services = {
+      resolveAsset,
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: () => null,
+      activate,
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface entry={file} />
+        </EidosFileUIProvider>
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Preview report.pdf"]')
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const preview = document.body.querySelector(
+      "[data-eidos-file-attachment-preview]"
+    )
+    expect(preview).not.toBeNull()
+    expect(preview?.querySelector("img")).toBeNull()
+    expect(preview?.textContent).toContain("application/pdf")
+
+    await act(async () => {
+      const openButton = Array.from(
+        preview?.querySelectorAll<HTMLButtonElement>("button") ?? []
+      ).find((button) => button.textContent?.includes("Open report.pdf"))
+      openButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(resolveAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ entryId: file.id, purpose: "preview" }),
+      expect.objectContaining({ requestId: expect.any(String) })
+    )
+    expect(activate).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "open" }),
+      expect.objectContaining({ requestId: expect.any(String) })
+    )
+  })
+
+  it("keeps an activation failure visible inside the open preview dialog", async () => {
+    const file = entry(
+      "document-error",
+      "assets/report.pdf",
+      "report.pdf",
+      "application/pdf",
+      "42"
+    )
+    const services = {
+      resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: () => null,
+      activate: vi.fn(async () => {
+        throw new Error("The Host could not open this attachment")
+      }),
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface entry={file} />
+        </EidosFileUIProvider>
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Preview report.pdf"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    const preview = document.body.querySelector(
+      "[data-eidos-file-attachment-preview]"
+    )
+    const openButton = Array.from(
+      preview?.querySelectorAll<HTMLButtonElement>("button") ?? []
+    ).find((button) => button.textContent?.includes("Open report.pdf"))
+
+    await act(async () => {
+      openButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(preview?.querySelector('[role="status"]')?.textContent).toBe(
+      "The Host could not open this attachment"
+    )
+  })
 })

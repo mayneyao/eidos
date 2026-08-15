@@ -11,6 +11,7 @@ import {
   FileVideo,
   Image,
   LoaderCircle,
+  X,
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
@@ -22,6 +23,13 @@ import {
 } from "./eidos-file-asset-lease"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog"
 
 function useThumbnailLease(entry: FileEntry): {
   lease: AssetLease | null
@@ -151,6 +159,152 @@ function formattedSize(size: string): string {
   }
 }
 
+/**
+ * Inline attachment preview. Raster images render through the Host-issued
+ * thumbnail lease; other entries fall back to their trusted metadata so the
+ * dialog never has to dereference the canonical URI itself. External
+ * activation stays one explicit button press away.
+ */
+function EidosFileEntryPreviewDialog({
+  entry,
+  open,
+  onOpenChange,
+  thumbnail,
+  canOpen,
+  canDownload,
+  activating,
+  activationError,
+  onActivate,
+}: {
+  entry: FileEntry
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  thumbnail: {
+    lease: AssetLease | null
+    pending: boolean
+    error: string | null
+  }
+  canOpen: boolean
+  canDownload: boolean
+  activating: "open" | "download" | null
+  activationError: string | null
+  onActivate: (action: "open" | "download") => void
+}) {
+  const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
+  const isImage = entry.mediaType.toLowerCase().startsWith("image/")
+  let image: ReactNode = null
+  if (isImage && thumbnail.lease && assetPresenter && assetSession) {
+    try {
+      image = assetPresenter.renderImage({
+        sessionId: assetSession.state.sessionId,
+        lease: thumbnail.lease,
+        altText: entry.name,
+      })
+    } catch {
+      image = null
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-w-3xl gap-0 overflow-hidden p-0"
+        data-eidos-file-attachment-preview=""
+      >
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <EidosFileMediaIcon
+            mediaType={entry.mediaType}
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+          />
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="truncate text-xs font-medium">
+              {entry.name}
+            </DialogTitle>
+            <DialogDescription className="truncate text-[11px]">
+              {entry.mediaType} · {formattedSize(entry.size)}
+            </DialogDescription>
+          </div>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={t("Close")}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </DialogClose>
+        </div>
+        <div className="flex min-h-40 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-h-[70vh] [&_img]:max-w-full [&_img]:object-contain">
+          {image ??
+            (thumbnail.pending && isImage ? (
+              <LoaderCircle
+                aria-label={t("Loading preview")}
+                className="h-5 w-5 animate-spin text-muted-foreground"
+              />
+            ) : (
+              <span
+                className="flex flex-col items-center gap-2 py-8 text-muted-foreground"
+                role="img"
+                aria-label={entry.name}
+              >
+                <EidosFileMediaIcon
+                  mediaType={entry.mediaType}
+                  className="h-10 w-10"
+                />
+                {isImage && thumbnail.error ? (
+                  <span className="text-[11px] text-destructive">
+                    {t("Preview unavailable")}
+                  </span>
+                ) : null}
+              </span>
+            ))}
+        </div>
+        {canOpen || canDownload ? (
+          <div className="flex items-center gap-2 border-t px-3 py-2">
+            {activationError ? (
+              <p
+                role="status"
+                className="min-w-0 flex-1 break-words text-[11px] text-destructive"
+              >
+                {activationError}
+              </p>
+            ) : (
+              <span className="min-w-0 flex-1" />
+            )}
+            {canOpen ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                disabled={activating !== null}
+                onClick={() => onActivate("open")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {t("Open {file}", { file: entry.name })}
+              </Button>
+            ) : null}
+            {canDownload ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                disabled={activating !== null}
+                onClick={() => onActivate("download")}
+              >
+                <Download className="h-3.5 w-3.5" />
+                {t("Download {file}", { file: entry.name })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export interface EidosFileEntrySurfaceProps {
   entry: FileEntry
   className?: string
@@ -229,6 +383,7 @@ export function EidosFileEntrySurface({
   const thumbnail = useThumbnailLease(entry)
   const [activationError, setActivationError] = useState<string | null>(null)
   const [activating, setActivating] = useState<"open" | "download" | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   const activate = useCallback(
     async (action: "open" | "download") => {
@@ -291,55 +446,136 @@ export function EidosFileEntrySurface({
   const canDownload =
     assetPresenter !== undefined &&
     eidosFileAssetResolutionAllowed(assetSession, entry, "download")
+  const imagePreviewAllowed =
+    entry.mediaType.toLowerCase().startsWith("image/") &&
+    assetPresenter !== undefined &&
+    eidosFileAssetResolutionAllowed(assetSession, entry, "thumbnail")
+  const canPreview = imagePreviewAllowed || canOpen || canDownload
   const assetError = activationError ?? thumbnail.error
+
+  const thumbnailBadge = (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground",
+        compact ? "h-7 w-7" : "h-8 w-8"
+      )}
+    >
+      {preview ??
+        (thumbnail.pending ? (
+          <LoaderCircle
+            aria-label={t("Loading preview")}
+            className="h-4 w-4 animate-spin"
+          />
+        ) : (
+          <EidosFileMediaIcon mediaType={entry.mediaType} />
+        ))}
+    </span>
+  )
+  const identityText = (
+    <div className="min-w-0 flex-1 text-left">
+      <div className="truncate text-xs font-medium" title={entry.name}>
+        {entry.name}
+      </div>
+      {compact && assetError ? (
+        <p
+          role="status"
+          className="truncate text-[11px] text-destructive"
+          title={assetError}
+        >
+          {t("Preview unavailable")}
+        </p>
+      ) : (
+        <div
+          className="truncate text-[11px] text-muted-foreground"
+          title={`${entry.mediaType} · ${formattedSize(entry.size)}`}
+        >
+          {compact
+            ? formattedSize(entry.size)
+            : `${entry.mediaType} · ${formattedSize(entry.size)}`}
+        </div>
+      )}
+    </div>
+  )
+  const trigger = canPreview ? (
+    <button
+      type="button"
+      aria-label={t("Preview {file}", { file: entry.name })}
+      className={cn(
+        "flex min-w-0 flex-1 cursor-pointer items-center rounded outline-hidden focus-visible:ring-1 focus-visible:ring-ring",
+        compact ? "gap-1.5" : "gap-2"
+      )}
+      onClick={() => setPreviewOpen(true)}
+    >
+      {thumbnailBadge}
+      {identityText}
+    </button>
+  ) : (
+    <>
+      {thumbnailBadge}
+      {identityText}
+    </>
+  )
+  const actions =
+    showActions && (canOpen || canDownload) ? (
+      <div
+        className={cn(
+          "flex shrink-0 items-center",
+          compact &&
+            "opacity-0 transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100"
+        )}
+      >
+        {canOpen ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={activating !== null}
+            aria-label={t("Open {file}", { file: entry.name })}
+            onClick={() => void activate("open")}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {canDownload ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={activating !== null}
+            aria-label={t("Download {file}", { file: entry.name })}
+            onClick={() => void activate("download")}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+      </div>
+    ) : null
 
   return (
     <div
       className={cn(
-        "group/file flex min-w-0 items-center rounded-md",
-        compact ? "gap-1.5 py-0.5" : "gap-2 border border-border p-2",
+        "group/file flex min-w-0 rounded-md",
+        compact
+          ? "items-center gap-1.5 py-0.5"
+          : "flex-col border border-border p-2",
         className
       )}
     >
-      <span
-        className={cn(
-          "flex shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground",
-          compact ? "h-7 w-7" : "h-8 w-8"
-        )}
-      >
-        {preview ??
-          (thumbnail.pending ? (
-            <LoaderCircle
-              aria-label={t("Loading preview")}
-              className="h-4 w-4 animate-spin"
-            />
-          ) : (
-            <EidosFileMediaIcon mediaType={entry.mediaType} />
-          ))}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium" title={entry.name}>
-          {entry.name}
+      {compact ? (
+        <>
+          {trigger}
+          {actions}
+        </>
+      ) : (
+        <div className="flex min-w-0 items-center gap-2">
+          {trigger}
+          {actions}
         </div>
-        {compact && assetError ? (
-          <p
-            role="status"
-            className="truncate text-[11px] text-destructive"
-            title={assetError}
-          >
-            {t("Preview unavailable")}
-          </p>
-        ) : (
-          <div
-            className="truncate text-[11px] text-muted-foreground"
-            title={`${entry.mediaType} · ${formattedSize(entry.size)}`}
-          >
-            {compact
-              ? formattedSize(entry.size)
-              : `${entry.mediaType} · ${formattedSize(entry.size)}`}
-          </div>
-        )}
-        {!compact ? (
+      )}
+      {!compact ? (
+        <>
           <details className="text-[11px] text-muted-foreground">
             <summary className="cursor-pointer select-none">
               {t("File URI")}
@@ -364,48 +600,25 @@ export function EidosFileEntrySurface({
               </Button>
             </div>
           </details>
-        ) : null}
-        {!compact && assetError ? (
-          <p role="status" className="text-[11px] text-destructive">
-            {assetError}
-          </p>
-        ) : null}
-      </div>
-      {showActions && (canOpen || canDownload) ? (
-        <div
-          className={cn(
-            "flex shrink-0 items-center",
-            compact &&
-              "opacity-0 transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100"
-          )}
-        >
-          {canOpen ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={activating !== null}
-              aria-label={t("Open {file}", { file: entry.name })}
-              onClick={() => void activate("open")}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
+          {assetError ? (
+            <p role="status" className="text-[11px] text-destructive">
+              {assetError}
+            </p>
           ) : null}
-          {canDownload ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={activating !== null}
-              aria-label={t("Download {file}", { file: entry.name })}
-              onClick={() => void activate("download")}
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
-        </div>
+        </>
+      ) : null}
+      {canPreview ? (
+        <EidosFileEntryPreviewDialog
+          entry={entry}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          thumbnail={thumbnail}
+          canOpen={canOpen}
+          canDownload={canDownload}
+          activating={activating}
+          activationError={activationError}
+          onActivate={(action) => void activate(action)}
+        />
       ) : null}
     </div>
   )
