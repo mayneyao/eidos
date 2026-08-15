@@ -138,6 +138,11 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined
 }
 
+function checkpointValue(value: unknown): string | null {
+  const checkpoint = stringValue(value)
+  return checkpoint === undefined || checkpoint === "root" ? null : checkpoint
+}
+
 function isString(value: string | undefined): value is string {
   return value !== undefined
 }
@@ -767,8 +772,8 @@ function boundedVersionDiff(value: unknown): SpaceVersionDiff {
   return {
     currentHead: stringValue(item.current_head) ?? null,
     currentBranch: stringValue(item.current_branch) ?? null,
-    from: stringValue(item.from) ?? null,
-    to: stringValue(item.to) ?? null,
+    from: checkpointValue(item.from),
+    to: checkpointValue(item.to),
     paths: Array.isArray(item.paths) ? item.paths.map(pathChange) : [],
     files: Array.isArray(item.files) ? item.files.map(boundedFileDiff) : [],
     hasMore: false,
@@ -834,8 +839,8 @@ function versionDiff(value: unknown): SpaceVersionDiff {
   return {
     currentHead: stringValue(item.current_head) ?? null,
     currentBranch: stringValue(item.current_branch) ?? null,
-    from: stringValue(item.from) ?? null,
-    to: stringValue(item.to) ?? null,
+    from: checkpointValue(item.from),
+    to: checkpointValue(item.to),
     paths: Array.isArray(item.paths) ? item.paths.map(pathChange) : [],
     files: Array.isArray(item.files) ? item.files.map(fileDiff) : [],
     ...(typeof item.total_paths === "number"

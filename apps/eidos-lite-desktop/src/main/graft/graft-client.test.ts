@@ -1322,6 +1322,97 @@ describe("GraftClient", () => {
     }
   })
 
+  it("keeps Graft's root diff sentinel out of the Lite checkpoint contract", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-root-sqlite-diff-")
+    )
+    const commit = "b".repeat(64)
+    const transport: GraftSdkTransport = {
+      ...createUnusedTransport(),
+      target: root,
+      command: vi.fn(async (command, args) => {
+        if (command !== "diffSqlitePaths") {
+          throw new Error(`Unexpected Graft command: ${command}`)
+        }
+        const options = args[0] as Record<string, unknown>
+        const table = typeof options.table === "string" ? options.table : null
+        return {
+          paths: [
+            {
+              path: "data.eidos",
+              diff: {
+                current_head: commit,
+                from: "root",
+                to: commit,
+                paths: [
+                  {
+                    path: "data.eidos",
+                    change: "added",
+                    kind: "sqlite_database",
+                    storage: "sqlite_snapshot",
+                  },
+                ],
+                files: [
+                  {
+                    path: "data.eidos",
+                    change: "added",
+                    kind: "sqlite_database",
+                    storage: "sqlite_snapshot",
+                    row_diff_available: true,
+                    mode: table ? "rows" : "summary",
+                    limitations: [],
+                    ...(table
+                      ? {
+                          tables: [
+                            {
+                              name: table,
+                              columns: ["name"],
+                              changes: [],
+                            },
+                          ],
+                        }
+                      : { summaries: [] }),
+                  },
+                ],
+              },
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        }
+      }),
+    }
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      const summary = await client.sqlitePathDiff(root, "data.eidos", {
+        from: null,
+        to: commit,
+      })
+      const firstTable = await client.sqlitePathDiff(root, "data.eidos", {
+        table: "Customers",
+        from: summary.from,
+        to: commit,
+      })
+      const secondTable = await client.sqlitePathDiff(root, "data.eidos", {
+        table: "Orders",
+        from: firstTable.from,
+        to: commit,
+      })
+
+      expect([summary.from, firstTable.from, secondTable.from]).toEqual([
+        null,
+        null,
+        null,
+      ])
+      expect(firstTable.to).toBe(commit)
+      expect(secondTable.to).toBe(commit)
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("bounds explicit path diffs to one UI page and returns a host cursor", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-diff-page-")
