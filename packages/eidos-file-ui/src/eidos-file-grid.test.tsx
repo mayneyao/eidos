@@ -1545,7 +1545,7 @@ describe("EidosFileGrid", () => {
     }
   })
 
-  it("opens the cell context menu from the keyboard for the focused cell", async () => {
+  it("keeps cell actions keyboard-accessible from the focused cell", async () => {
     const onRequestDeleteRows = vi.fn()
     await act(async () => {
       root.render(
@@ -1590,14 +1590,41 @@ describe("EidosFileGrid", () => {
     )
     expect(menu).toBeTruthy()
     expect(mocks.getBounds).toHaveBeenCalledWith(0, 1)
+    expect(menu?.contains(document.activeElement)).toBe(true)
 
     const deleteItem = [...(menu?.querySelectorAll("button") ?? [])].find(
       (button) => button.textContent?.includes("Delete record")
     )
+    act(() => {
+      menu?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "End",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    expect(document.activeElement).toBe(deleteItem)
     act(() => deleteItem?.click())
     expect(onRequestDeleteRows).toHaveBeenCalledWith([
       { startIndex: 1, endIndex: 2 },
     ])
+
+    // Windows keyboards may expose a dedicated Menu key instead of the
+    // Shift+F10 chord. It must reopen the same actions for the current cell.
+    act(() => {
+      gridElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ContextMenu",
+          bubbles: true,
+        })
+      )
+    })
+    expect(
+      [...document.body.querySelectorAll('[role="menu"]')].some((candidate) =>
+        candidate.textContent?.includes("Delete record")
+      )
+    ).toBe(true)
   })
 
   it("forwards the trailing row action", async () => {
