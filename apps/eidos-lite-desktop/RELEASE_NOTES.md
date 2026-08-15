@@ -1,5 +1,18 @@
 ## What's new
 
+### Sync fast-forwards after one fetch
+
+Pulling Hosted changes now fetches the remote checkpoint once, verifies an
+immutable fast-forward plan, and applies that fetched plan directly. Lite no
+longer starts a second remote fetch inside pull, while any snapshot bytes still
+needed during materialization continue to report concrete download progress.
+
+### First-version table history stays inspectable
+
+When reviewing the first saved version of an Eidos File, switching between
+tables no longer mistakes Graft's internal root marker for a Space checkpoint.
+Each table can now be opened without an `Invalid Space checkpoint` error.
+
 ### Cloud checkpoints stay visible in History
 
 Version History now marks the last locally known Cloud checkpoint even when
