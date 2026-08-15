@@ -98,6 +98,7 @@ describe("GraftClient", () => {
       command: string
       args: unknown[]
       signal: AbortSignal | undefined
+      onProgress: unknown
     }> = []
     let mutation = 0
     const merging = () => ({
@@ -115,7 +116,12 @@ describe("GraftClient", () => {
       ...createUnusedTransport(),
       target: root,
       command: vi.fn(async (command, args = [], options) => {
-        requests.push({ command, args, signal: options?.signal })
+        requests.push({
+          command,
+          args,
+          signal: options?.signal,
+          onProgress: options?.onProgress,
+        })
         if (command === "getMergePolicy") {
           return { policy, policy_token: policyToken, active_merge: false }
         }
@@ -280,6 +286,7 @@ describe("GraftClient", () => {
     }
     const client = new GraftClient({ sdkTransport: transport })
     const controller = new AbortController()
+    const onProgress = vi.fn()
 
     try {
       await expect(
@@ -315,6 +322,7 @@ describe("GraftClient", () => {
         planToken,
         {
           signal: controller.signal,
+          onProgress,
           onWorktreePaths: appliedWorktreePaths,
         }
       )
@@ -462,6 +470,7 @@ describe("GraftClient", () => {
       expect(
         requests.every((request) => request.signal === controller.signal)
       ).toBe(true)
+      expect(requests[4]?.onProgress).toBe(onProgress)
       expect(requests[3]?.args).toEqual([
         { revision: "origin/main", expectedHead: head },
       ])

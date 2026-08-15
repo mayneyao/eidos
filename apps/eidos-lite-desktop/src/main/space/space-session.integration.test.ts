@@ -1834,6 +1834,186 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
+  it("fast-forwards the fetched Hosted head without issuing a second pull fetch", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-single-fetch-sync-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-single-fetch-sync-state-")
+    )
+    const remoteOrigin = "https://sync-staging.eidos.space"
+    const remoteUrl = `${remoteOrigin}/u-alice/project`
+    const localHead = "a".repeat(64)
+    const hostedHead = "b".repeat(64)
+    const planToken = "c".repeat(64)
+    const policyToken = "d".repeat(64)
+    const calls: string[] = []
+    let applied = false
+    await fs.mkdir(path.join(root, ".graft"))
+    await fs.writeFile(path.join(root, "note.txt"), "hosted\n")
+
+    const relation = () => ({
+      dirty: false,
+      currentHead: applied ? hostedHead : localHead,
+      currentBranch: "main",
+      ahead: 0,
+      behind: applied ? 0 : 1,
+      hasConflicts: false,
+      changedPaths: 0,
+      paths: [],
+      changes: [],
+      sync: {
+        state: applied ? ("up_to_date" as const) : ("behind" as const),
+        localHead: applied ? hostedHead : localHead,
+        remoteHead: hostedHead,
+        commonAncestor: localHead,
+        ahead: 0,
+        behind: applied ? 0 : 1,
+      },
+    })
+    const fetch = vi.fn(async () => {
+      calls.push("fetch")
+    })
+    const pull = vi.fn(async () => {
+      calls.push("pull")
+    })
+    const planMerge = vi.fn(async () => {
+      calls.push("plan")
+      return {
+        kind: "fast_forward" as const,
+        expectedHead: localHead,
+        hostedHead,
+        commonAncestor: localHead,
+        stagedPaths: ["note.txt"],
+        conflictedPaths: [],
+        planToken,
+        policyToken,
+        policyVersion: 1,
+      }
+    })
+    const applyMerge = vi.fn(
+      async (
+        _root: string,
+        _revision: string,
+        _expectedHead: string,
+        _planToken: string,
+        options: {
+          signal?: AbortSignal
+          onProgress?: (progress: {
+            direction: "upload" | "download"
+            transferredBytes: number
+            totalBytes?: number
+          }) => void
+          onWorktreePaths?: (paths: string[] | null) => void
+        }
+      ) => {
+        calls.push("apply")
+        options.onProgress?.({
+          direction: "download",
+          transferredBytes: 4,
+          totalBytes: 8,
+        })
+        options.onWorktreePaths?.(["note.txt"])
+        applied = true
+        return { state: "none" as const }
+      }
+    )
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: remoteOrigin,
+      expectedVersion: () => "0.3.15",
+      close: vi.fn(async () => undefined),
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.15",
+        expectedVersion: "0.3.15",
+        initialized: true,
+        clean: true,
+        ...relation(),
+      })),
+      inspectIgnores: vi.fn(async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        }))
+      ),
+      remoteUrl: vi.fn(async () => remoteUrl),
+      configureOfficialRemote: vi.fn(async () => undefined),
+      status: vi.fn(async () => relation()),
+      fetch,
+      pull,
+      operationMaterializesWorktree: vi.fn(async () => true),
+      planMerge,
+      applyMerge,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      const canonical = await canonicalizeSpaceRoot(root)
+      await new SpaceSyncStateStore(
+        path.join(userData, "spaces", canonical.id),
+        remoteOrigin
+      ).markClone(remoteUrl)
+      session = await SpaceSession.createCanonical(canonical, userData, {
+        graft,
+      })
+      vi.spyOn(session.runtimePool, "closeHandles").mockResolvedValue()
+      vi.spyOn(session.runtimePool, "reopenHandles").mockResolvedValue()
+      const reportTransfer = vi.fn()
+
+      await expect(
+        session.syncHostedRemote(
+          "access-token",
+          "read_write",
+          () => undefined,
+          reportTransfer
+        )
+      ).resolves.toMatchObject({
+        state: "synced",
+        pulled: true,
+        pushed: false,
+        ahead: 0,
+        behind: 0,
+      })
+
+      expect(fetch).toHaveBeenCalledOnce()
+      expect(pull).not.toHaveBeenCalled()
+      expect(planMerge).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "origin/main",
+        localHead,
+        { signal: expect.any(AbortSignal) }
+      )
+      expect(applyMerge).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "origin/main",
+        localHead,
+        planToken,
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+          onProgress: reportTransfer,
+          onWorktreePaths: expect.any(Function),
+        })
+      )
+      expect(reportTransfer).toHaveBeenCalledWith({
+        direction: "download",
+        transferredBytes: 4,
+        totalBytes: 8,
+      })
+      expect(calls).toEqual(["fetch", "plan", "apply"])
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("binds a Runtime-derived Eidos policy to merge planning with one CAS signal", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-space-merge-policy-")

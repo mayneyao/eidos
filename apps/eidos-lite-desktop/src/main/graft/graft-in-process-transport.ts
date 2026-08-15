@@ -264,6 +264,7 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         return session.applyMerge({
           ...(this.object(args[0]) as unknown as GraftApplyMergeOptions),
           signal,
+          onProgress: options.onProgress,
         })
       case "getMergeStatus":
         this.requireMergeMethod(session, command)

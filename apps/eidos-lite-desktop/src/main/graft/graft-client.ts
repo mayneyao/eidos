@@ -93,6 +93,7 @@ interface GraftRemoteOperationOptions {
 
 interface GraftMergeMutationOptions {
   signal?: AbortSignal
+  onProgress?: (progress: GraftTransferProgress) => void
   onWorktreePaths?: (paths: string[] | null) => void
 }
 

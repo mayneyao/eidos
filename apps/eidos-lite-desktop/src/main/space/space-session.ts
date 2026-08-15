@@ -1218,12 +1218,16 @@ export class SpaceSession {
     if (repositorySyncState(relation) === "behind") {
       if (
         !(await this.repository.runForeground(() =>
-          this.graft.operationMaterializesWorktree("pull")
+          this.graft.operationMaterializesWorktree("applyMerge")
         ))
       ) {
-        throw new Error("Graft pull materialization contract is unavailable")
+        throw new Error(
+          "Graft fast-forward materialization contract is unavailable"
+        )
       }
-      let shouldPull = true
+      let shouldApplyFastForward = true
+      let fastForwardPlan: EidosSyncMergePlan | null = null
+      let materializedPaths: string[] | null = null
       const stopProgress = this.gate.subscribe((state) => {
         if (state.phase === "quiescing") {
           reportProgress(
@@ -1264,14 +1268,45 @@ export class SpaceSession {
                 "Local and Hosted history diverged after fetch. No pull was started."
               )
             }
-            shouldPull = repositorySyncState(current) === "behind"
+            shouldApplyFastForward = repositorySyncState(current) === "behind"
+            if (!shouldApplyFastForward) return
+            fastForwardPlan = await this.graft.planMerge(
+              this.canonical.root,
+              "origin/main",
+              current.currentHead ?? null,
+              { signal }
+            )
+            if (fastForwardPlan.kind !== "fast_forward") {
+              throw new Error(
+                "Hosted history changed after fetch. Sync again to review it safely."
+              )
+            }
           },
+          validationPaths: () =>
+            shouldApplyFastForward ? (materializedPaths ?? undefined) : [],
           materialize: async (signal) => {
-            if (!shouldPull) return false
-            await this.graft.pull(this.canonical.root, {
-              signal,
-              onProgress: reportTransfer,
-            })
+            if (!shouldApplyFastForward) return false
+            if (!fastForwardPlan) {
+              throw new Error("The fetched fast-forward plan is unavailable")
+            }
+            const applied = await this.graft.applyMerge(
+              this.canonical.root,
+              "origin/main",
+              fastForwardPlan.expectedHead,
+              fastForwardPlan.planToken,
+              {
+                signal,
+                onProgress: reportTransfer,
+                onWorktreePaths: (paths) => {
+                  materializedPaths = paths
+                },
+              }
+            )
+            if (applied.state !== "none") {
+              throw new Error(
+                "Graft started an unexpected merge for a fast-forward plan"
+              )
+            }
             return true
           },
         })

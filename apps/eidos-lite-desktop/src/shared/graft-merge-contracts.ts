@@ -6,6 +6,8 @@
  * version containing these APIs is published and pinned by Lite.
  */
 
+import type { GraftTransferProgress } from "./graft-sdk-contracts"
+
 export interface GraftOperationOptions {
   signal?: AbortSignal
 }
@@ -21,6 +23,7 @@ export interface GraftApplyMergeOptions extends GraftOperationOptions {
   revision: string
   expectedHead?: string
   planToken: string
+  onProgress?: (progress: GraftTransferProgress) => void
 }
 
 export type GraftSemanticKeyCollation = "binary" | "nocase"
