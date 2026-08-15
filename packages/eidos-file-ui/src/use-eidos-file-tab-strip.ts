@@ -11,6 +11,100 @@ export interface EidosFileTabStripItem {
   id: string
 }
 
+/**
+ * Matches a `keydown` event against an aria-keyshortcuts style binding like
+ * "Control+PageUp". The modifier set must match exactly so composed bindings
+ * (e.g. Control+Shift+PageUp) never shadow their simpler variants.
+ */
+export function eidosFileKeyboardEventMatchesBinding(
+  event: {
+    key: string
+    ctrlKey: boolean
+    metaKey: boolean
+    altKey: boolean
+    shiftKey: boolean
+  },
+  binding: string
+): boolean {
+  const parts = binding.split("+")
+  const key = parts[parts.length - 1]
+  const modifiers = new Set(parts.slice(0, -1))
+  if (event.key !== key) return false
+  return (
+    event.ctrlKey === modifiers.has("Control") &&
+    event.metaKey === modifiers.has("Meta") &&
+    event.altKey === modifiers.has("Alt") &&
+    event.shiftKey === modifiers.has("Shift")
+  )
+}
+
+/**
+ * Global previous/next tab cycling for a tab strip, so keyboard users can
+ * switch tabs without first focusing the strip (the declared
+ * aria-keyshortcuts contract). Typing contexts (inputs, text areas, rich
+ * text) keep the keys for their own editing behavior.
+ */
+export function useEidosFileTabCycleShortcut<T extends EidosFileTabStripItem>({
+  items,
+  activeId,
+  disabled = false,
+  onSelect,
+  previousBindings,
+  nextBindings,
+}: {
+  items: readonly T[]
+  activeId?: string | null
+  disabled?: boolean
+  onSelect: (id: string) => void
+  previousBindings: readonly string[]
+  nextBindings: readonly string[]
+}) {
+  const itemsRef = useRef(items)
+  const activeIdRef = useRef(activeId)
+  const onSelectRef = useRef(onSelect)
+  itemsRef.current = items
+  activeIdRef.current = activeId
+  onSelectRef.current = onSelect
+
+  useEffect(() => {
+    if (disabled) return
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const currentItems = itemsRef.current
+      if (currentItems.length < 2) return
+      const direction = previousBindings.some((binding) =>
+        eidosFileKeyboardEventMatchesBinding(event, binding)
+      )
+        ? -1
+        : nextBindings.some((binding) =>
+              eidosFileKeyboardEventMatchesBinding(event, binding)
+            )
+          ? 1
+          : null
+      if (direction === null) return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        target.closest('input, textarea, [contenteditable="true"]')
+      ) {
+        return
+      }
+      event.preventDefault()
+      const currentIndex = currentItems.findIndex(
+        (item) => item.id === activeIdRef.current
+      )
+      const nextIndex =
+        ((currentIndex < 0 ? 0 : currentIndex) +
+          direction +
+          currentItems.length) %
+        currentItems.length
+      onSelectRef.current(currentItems[nextIndex].id)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [disabled, nextBindings, previousBindings])
+}
+
 export function useEidosFileTabStrip<T extends EidosFileTabStripItem>({
   items,
   activeId,

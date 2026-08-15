@@ -202,6 +202,138 @@ describe("shared Eidos File editor chrome", () => {
     expect(selected).toEqual(["gallery"])
   })
 
+  it("cycles views globally without focusing the tab strip first", () => {
+    const selected: string[] = []
+    function Harness() {
+      const [active, setActive] = React.useState("grid")
+      return (
+        <EidosFileViewTabStrip
+          views={views}
+          activeViewId={active}
+          onSelect={(id) => {
+            selected.push(id)
+            setActive(id)
+          }}
+        />
+      )
+    }
+    act(() => {
+      root.render(<Harness />)
+    })
+
+    act(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageDown",
+          ctrlKey: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(selected).toEqual(["gallery"])
+
+    act(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageUp",
+          ctrlKey: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(selected).toEqual(["gallery", "grid"])
+
+    // The macOS-style variant cycles as well.
+    act(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          metaKey: true,
+          altKey: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(selected).toEqual(["gallery", "grid", "gallery"])
+
+    // Plain arrows never leave the strip, and a Ctrl+Shift variant must not
+    // shadow the view bindings (it belongs to the table strip).
+    for (const key of ["ArrowRight", "PageDown"]) {
+      act(() =>
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key,
+            ctrlKey: key === "PageDown",
+            shiftKey: key === "PageDown",
+            bubbles: true,
+          })
+        )
+      )
+    }
+    expect(selected).toEqual(["gallery", "grid", "gallery"])
+  })
+
+  it("declares and honors the table cycling shortcut", () => {
+    const selected: string[] = []
+    act(() => {
+      root.render(
+        <EidosFileSheetTabStrip
+          tables={tables}
+          activeTableId="tasks"
+          onSelect={(id) => selected.push(id)}
+        />
+      )
+    })
+
+    expect(
+      container
+        .querySelector('[aria-label="Eidos File tables"]')
+        ?.getAttribute("aria-keyshortcuts")
+    ).toBe("Control+Shift+PageUp Control+Shift+PageDown")
+
+    act(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageDown",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(selected).toEqual(["projects"])
+  })
+
+  it("leaves cycling keys to typing contexts", () => {
+    const selected: string[] = []
+    act(() => {
+      root.render(
+        <>
+          <input data-testid="editor" />
+          <EidosFileViewTabStrip
+            views={views}
+            activeViewId="grid"
+            onSelect={(id) => selected.push(id)}
+          />
+        </>
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="editor"]'
+    )
+    act(() =>
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageDown",
+          ctrlKey: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(selected).toEqual([])
+  })
+
   it("keeps the dropped tab order while persistence is still pending", async () => {
     let resolveViewReorder: (() => void) | undefined
     const onViewReorder = vi.fn(

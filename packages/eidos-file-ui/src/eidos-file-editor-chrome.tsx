@@ -31,7 +31,21 @@ import {
 } from "./plugin"
 import { Button } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
-import { useEidosFileTabStrip } from "./use-eidos-file-tab-strip"
+import {
+  useEidosFileTabCycleShortcut,
+  useEidosFileTabStrip,
+} from "./use-eidos-file-tab-strip"
+
+const VIEW_CYCLE_PREVIOUS_BINDINGS = [
+  "Control+PageUp",
+  "Meta+Alt+ArrowLeft",
+] as const
+const VIEW_CYCLE_NEXT_BINDINGS = [
+  "Control+PageDown",
+  "Meta+Alt+ArrowRight",
+] as const
+const TABLE_CYCLE_PREVIOUS_BINDINGS = ["Control+Shift+PageUp"] as const
+const TABLE_CYCLE_NEXT_BINDINGS = ["Control+Shift+PageDown"] as const
 
 export { exportEidosFileViewCsv } from "./eidos-file-csv-export"
 export type {
@@ -187,6 +201,14 @@ export function EidosFileViewTabStrip({
     updateScrollState,
     viewportRef,
   } = useEidosFileTabStrip({ items: views, activeId: activeViewId, onSelect })
+  useEidosFileTabCycleShortcut({
+    items: views,
+    activeId: activeViewId,
+    disabled,
+    onSelect,
+    previousBindings: VIEW_CYCLE_PREVIOUS_BINDINGS,
+    nextBindings: VIEW_CYCLE_NEXT_BINDINGS,
+  })
 
   return (
     <div
@@ -222,6 +244,8 @@ export function EidosFileViewTabStrip({
             role: "tablist",
             "aria-label": t("Eidos File views"),
             "aria-orientation": "horizontal",
+            "aria-keyshortcuts":
+              "Control+PageUp Control+PageDown Meta+Alt+ArrowLeft Meta+Alt+ArrowRight",
           }}
           renderItem={(view, index) => {
             const tab = (
@@ -313,6 +337,14 @@ export function EidosFileSheetTabStrip({
     updateScrollState,
     viewportRef,
   } = useEidosFileTabStrip({ items: tables, activeId: activeTableId, onSelect })
+  useEidosFileTabCycleShortcut({
+    items: tables,
+    activeId: activeTableId,
+    disabled,
+    onSelect,
+    previousBindings: TABLE_CYCLE_PREVIOUS_BINDINGS,
+    nextBindings: TABLE_CYCLE_NEXT_BINDINGS,
+  })
 
   useEffect(() => {
     if (activeTableId !== lastTableId) return
@@ -356,7 +388,7 @@ export function EidosFileSheetTabStrip({
             role: "tablist",
             "aria-label": t("Eidos File tables"),
             "aria-orientation": "horizontal",
-            "aria-keyshortcuts": "Control+PageUp Control+PageDown",
+            "aria-keyshortcuts": "Control+Shift+PageUp Control+Shift+PageDown",
           }}
           renderItem={(table, index) => {
             const tab = (
