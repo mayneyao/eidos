@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Release Eidos Lite, the standalone Eidos CLI, and editor.eidos.space. Use when asked to prepare or publish a Lite or CLI version, deploy the Eidos File Web editor, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
+description: Release Eidos Lite, the standalone Eidos CLI, and editor.eidos.space. Use when asked to prepare or publish a Lite or CLI version, write or audit release notes, deploy the Eidos File Web editor, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
 ---
 
 # Eidos Release
@@ -12,8 +12,10 @@ publisher, and prove the public result.
 ## Select the release surface
 
 - **Eidos Lite:** read
+  [references/release-notes-policy.md](references/release-notes-policy.md), then
   [references/eidos-lite-release.md](references/eidos-lite-release.md).
 - **Standalone CLI:** read
+  [references/release-notes-policy.md](references/release-notes-policy.md), then
   [references/cli-release.md](references/cli-release.md).
 - **Eidos File Web:** read
   [references/web-editor-release.md](references/web-editor-release.md).
@@ -39,6 +41,13 @@ Do not conflate version namespaces or publishers:
 - For tagged releases, require a curated, non-empty, surface-specific release
   body before creating the tag. An empty body, placeholder, or unreviewed
   generated commit list is a release blocker.
+- Treat each checked-in `RELEASE_NOTES.md` as the body for one version, not as
+  an accumulating changelog. Replace it completely during release preparation.
+- Publish that committed body when the GitHub Release is first created. Never
+  create a generated body and repair it later.
+- Compare the candidate with the previous three same-surface releases. Reused
+  feature sections, semantic restatements of an old change, and changes owned
+  only by another release surface are blockers.
 - Never claim success from a local tag, green build, or successful deploy
   command alone. Prove remote state and public artifacts.
 

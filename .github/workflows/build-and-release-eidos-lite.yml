@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,6 +48,14 @@ jobs:
             throw new Error(`Tag base ${match[1]} does not match committed Lite version ${pkg.version}`)
           }
           NODE
+
+      - name: Audit single-release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
+            --surface lite \
+            --tag "$TAG"
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -250,6 +260,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
       - name: Download platform assets
         uses: actions/download-artifact@v4
         with:
@@ -317,9 +330,22 @@ jobs:
         with:
           name: Eidos Lite ${{ steps.release.outputs.version }}
           prerelease: ${{ steps.release.outputs.prerelease == 'true' }}
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: apps/eidos-lite-desktop/RELEASE_NOTES.md
           fail_on_unmatched_files: true
           files: release-upload/*
+
+      - name: Verify published release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          published="$RUNNER_TEMP/published-release-notes.md"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body \
+            | jq --join-output '.body' > "$published"
+          diff -u apps/eidos-lite-desktop/RELEASE_NOTES.md "$published"
 
       - name: Verify live update metadata
         shell: bash

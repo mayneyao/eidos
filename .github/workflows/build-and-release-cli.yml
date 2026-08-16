@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,6 +54,14 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Audit single-release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
+            --surface cli \
+            --tag "$TAG"
 
       - name: Check formatting
         working-directory: apps/cli
@@ -228,3 +238,15 @@ jobs:
             release-assets/eidos-installer.sh
             release-assets/eidos-installer.ps1
             release-assets/SHA256SUMS
+
+      - name: Verify published release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          published="$RUNNER_TEMP/published-release-notes.md"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body \
+            | jq --join-output '.body' > "$published"
+          diff -u apps/cli/RELEASE_NOTES.md "$published"

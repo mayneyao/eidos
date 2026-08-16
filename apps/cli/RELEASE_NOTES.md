@@ -21,7 +21,7 @@ Windows, a one-time helper completes the verified replacement after the running
 CLI process exits; macOS and Linux replace it atomically while preserving its
 executable permissions.
 
-### Version-matched Eidos Skill for Codex
+## Use with Codex
 
 Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:

@@ -80,6 +80,8 @@ test("CLI workflow publishes the complete independent release contract", async (
   assert.match(workflow, /generate_release_notes: false/u)
   assert.match(workflow, /body_path: apps\/cli\/RELEASE_NOTES\.md/u)
   assert.doesNotMatch(workflow, /generate_release_notes: true/u)
+  assert.match(workflow, /audit-release-notes\.mjs/u)
+  assert.match(workflow, /Verify published release notes/u)
   assert.match(
     releaseNotes,
     /https:\/\/download\.eidos\.space\/cli\/install\.sh/u
@@ -192,6 +194,19 @@ test("Eidos Lite releases do not rewrite the CLI version", async () => {
     liteWorkflow,
     /(?:readFileSync|writeFileSync)\(['"]apps\/cli\/Cargo\.toml/u
   )
+})
+
+test("Eidos Lite publishes one audited release-note source", async () => {
+  const liteWorkflow = await read(files.liteWorkflow)
+
+  assert.match(liteWorkflow, /generate_release_notes: false/u)
+  assert.match(
+    liteWorkflow,
+    /body_path: apps\/eidos-lite-desktop\/RELEASE_NOTES\.md/u
+  )
+  assert.doesNotMatch(liteWorkflow, /generate_release_notes: true/u)
+  assert.match(liteWorkflow, /audit-release-notes\.mjs/u)
+  assert.match(liteWorkflow, /Verify published release notes/u)
 })
 
 test("embedded Serve UI tracks every generated asset dependency", async () => {

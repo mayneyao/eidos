@@ -213,6 +213,13 @@ describe("Eidos Lite package identity", () => {
     )
     expect(workflow).toContain("latest-mac.yml mac arm64")
     expect(workflow).toContain("softprops/action-gh-release@v2")
+    expect(workflow).toContain("generate_release_notes: false")
+    expect(workflow).not.toContain("generate_release_notes: true")
+    expect(workflow).toContain(
+      "body_path: apps/eidos-lite-desktop/RELEASE_NOTES.md"
+    )
+    expect(workflow).toContain("audit-release-notes.mjs")
+    expect(workflow).toContain("Verify published release notes")
     expect(workflow).toContain("Verify live update metadata")
     expect(workflow).toContain("--range 0-0 --output /dev/null")
   })

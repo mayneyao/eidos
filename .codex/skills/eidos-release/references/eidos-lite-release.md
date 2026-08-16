@@ -8,9 +8,11 @@ Use this runbook for `apps/eidos-lite-desktop` and `lite-v*` tags.
 - Tags use `lite-v<base>` for stable releases or
   `lite-v<base>-<alpha|beta|rc>.<number>` for prereleases.
 - The tag triggers `.github/workflows/build-and-release-eidos-lite.yml`.
-- `apps/eidos-lite-desktop/RELEASE_NOTES.md` is the exact final GitHub Release
-  body. Create it for the first release after this contract and rewrite it for
-  every later Lite version.
+- `apps/eidos-lite-desktop/RELEASE_NOTES.md` is the exact body for one Lite
+  version. It is a single-release manifest, not a cumulative changelog.
+- The workflow audits that manifest and uses it when the GitHub Release is first
+  created. GitHub-generated monorepo notes and post-publication body repair are
+  forbidden.
 - The workflow builds macOS arm64/x64, Windows x64, and Linux arm64/x64.
 - `apps/download` routes stable and beta updater metadata independently by
   platform and architecture.
@@ -31,7 +33,8 @@ Lite release notes, and commit the preparation coherently.
 
 Write the notes before tagging. Derive them from the previous Lite tag, not the
 repository's latest GitHub Release, because CLI and Lite use independent tag
-namespaces:
+namespaces. Apply the shared release-notes policy and replace the previous
+manifest completely:
 
 ```bash
 git tag --list 'lite-v*' --sort=-v:refname | head -10
@@ -58,6 +61,8 @@ fix; never publish an empty `What's new` section or say only "bug fixes and
 improvements." Do not fill the notes with commit subjects, signing policy,
 internal package versions, or unrelated CLI/Web changes. Mention a migration,
 limitation, or access requirement only when it affects users of this release.
+Do not retain a section merely because it is still important: if it shipped in
+an earlier Lite tag, it belongs in that historical GitHub Release.
 
 Before tagging, require a substantive body:
 
@@ -65,11 +70,16 @@ Before tagging, require a substantive body:
 test -s apps/eidos-lite-desktop/RELEASE_NOTES.md
 rg -n "^## What's new$" apps/eidos-lite-desktop/RELEASE_NOTES.md
 git diff --check -- apps/eidos-lite-desktop/RELEASE_NOTES.md
+node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
+  --surface lite \
+  --tag lite-v<version>
 ```
 
-Read the complete file and compare every claim with the scoped diff and test
-evidence. Treat missing, generic, stale-version, or unsupported notes as a
-release blocker.
+Read the complete file, the previous three Lite Release bodies, and compare
+every claim with the scoped diff and test evidence. Treat missing, generic,
+stale-version, duplicated, or unsupported notes as a release blocker. The
+script detects structural and near-copy duplication; the human review must
+also reject semantic restatements.
 
 Run the focused gates:
 
@@ -105,14 +115,9 @@ gh run watch <run-id> --exit-status
 Do not manually create a duplicate GitHub Release. The workflow verifies the
 tag/base-version contract, builds signed and notarized macOS packages plus
 explicitly unsigned Windows/Linux packages, deploys the update router,
-normalizes update metadata, writes `SHA256SUMS`, and publishes the Release.
-After the workflow has created that Release, replace its generated body with
-the committed curated notes before considering publication complete:
-
-```bash
-gh release edit lite-v<version> \
-  --notes-file apps/eidos-lite-desktop/RELEASE_NOTES.md
-```
+normalizes update metadata, writes `SHA256SUMS`, audits the notes against recent
+Lite tags, and publishes the Release with the committed curated body in the
+same operation. Never run `gh release edit` as the normal publication path.
 
 ## Prove publication
 
@@ -128,6 +133,8 @@ Verify:
 - stable/prerelease classification;
 - a non-empty GitHub Release body that matches the committed
   `apps/eidos-lite-desktop/RELEASE_NOTES.md`;
+- workflow proof that the exact-body comparison passed immediately after
+  Release creation;
 - a downloaded checksum and packaged launch smoke;
 - the relevant `download.eidos.space/lite/updates/...` route.
 
