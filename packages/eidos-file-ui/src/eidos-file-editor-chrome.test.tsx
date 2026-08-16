@@ -12,6 +12,7 @@ import {
   EidosFileSheetTabStrip,
   EidosFileViewTabStrip,
 } from "./eidos-file-editor-chrome"
+import { EidosFileUIProvider } from "./context"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -302,6 +303,50 @@ describe("shared Eidos File editor chrome", () => {
       )
     )
     expect(selected).toEqual(["projects"])
+  })
+
+  it("honors host-configured view cycling shortcuts", () => {
+    const selected: string[] = []
+    act(() => {
+      root.render(
+        <EidosFileUIProvider
+          keyboardShortcuts={{
+            previousView: [],
+            nextView: ["Alt+ArrowRight"],
+          }}
+        >
+          <EidosFileViewTabStrip
+            views={views}
+            activeViewId="grid"
+            onSelect={(id) => selected.push(id)}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    expect(
+      container
+        .querySelector('[aria-label="Eidos File views"]')
+        ?.getAttribute("aria-keyshortcuts")
+    ).toBe("Alt+ArrowRight")
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageDown",
+          ctrlKey: true,
+          bubbles: true,
+        })
+      )
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          altKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(selected).toEqual(["gallery"])
   })
 
   it("leaves cycling keys to typing contexts", () => {

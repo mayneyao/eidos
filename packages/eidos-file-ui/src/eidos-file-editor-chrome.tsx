@@ -36,16 +36,16 @@ import {
   useEidosFileTabStrip,
 } from "./use-eidos-file-tab-strip"
 
-const VIEW_CYCLE_PREVIOUS_BINDINGS = [
+const DEFAULT_VIEW_CYCLE_PREVIOUS_BINDINGS = [
   "Control+PageUp",
   "Meta+Alt+ArrowLeft",
 ] as const
-const VIEW_CYCLE_NEXT_BINDINGS = [
+const DEFAULT_VIEW_CYCLE_NEXT_BINDINGS = [
   "Control+PageDown",
   "Meta+Alt+ArrowRight",
 ] as const
-const TABLE_CYCLE_PREVIOUS_BINDINGS = ["Control+Shift+PageUp"] as const
-const TABLE_CYCLE_NEXT_BINDINGS = ["Control+Shift+PageDown"] as const
+const DEFAULT_TABLE_CYCLE_PREVIOUS_BINDINGS = ["Control+Shift+PageUp"] as const
+const DEFAULT_TABLE_CYCLE_NEXT_BINDINGS = ["Control+Shift+PageDown"] as const
 
 export { exportEidosFileViewCsv } from "./eidos-file-csv-export"
 export type {
@@ -186,7 +186,11 @@ export function EidosFileViewTabStrip({
   onReorder?: (viewIds: string[]) => Promise<void> | void
   renderTab?: (view: EidosFileViewInfo, tab: ReactNode) => ReactNode
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { keyboardShortcuts, translate: t } = useEidosFileUI()
+  const previousBindings =
+    keyboardShortcuts?.previousView ?? DEFAULT_VIEW_CYCLE_PREVIOUS_BINDINGS
+  const nextBindings =
+    keyboardShortcuts?.nextView ?? DEFAULT_VIEW_CYCLE_NEXT_BINDINGS
   const pluginRegistry = useMemo(
     () => createEidosFilePluginRegistry(plugins),
     [plugins]
@@ -206,8 +210,8 @@ export function EidosFileViewTabStrip({
     activeId: activeViewId,
     disabled,
     onSelect,
-    previousBindings: VIEW_CYCLE_PREVIOUS_BINDINGS,
-    nextBindings: VIEW_CYCLE_NEXT_BINDINGS,
+    previousBindings,
+    nextBindings,
   })
 
   return (
@@ -245,7 +249,7 @@ export function EidosFileViewTabStrip({
             "aria-label": t("Eidos File views"),
             "aria-orientation": "horizontal",
             "aria-keyshortcuts":
-              "Control+PageUp Control+PageDown Meta+Alt+ArrowLeft Meta+Alt+ArrowRight",
+              [...previousBindings, ...nextBindings].join(" ") || undefined,
           }}
           renderItem={(view, index) => {
             const tab = (
@@ -324,7 +328,11 @@ export function EidosFileSheetTabStrip({
   onReorder?: (tableIds: string[]) => Promise<void> | void
   renderTab?: (table: EidosFileTableInfo, tab: ReactNode) => ReactNode
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { keyboardShortcuts, translate: t } = useEidosFileUI()
+  const previousBindings =
+    keyboardShortcuts?.previousTable ?? DEFAULT_TABLE_CYCLE_PREVIOUS_BINDINGS
+  const nextBindings =
+    keyboardShortcuts?.nextTable ?? DEFAULT_TABLE_CYCLE_NEXT_BINDINGS
   const createActionRef = useRef<HTMLDivElement>(null)
   const lastTableId = tables.at(-1)?.id
   const {
@@ -342,8 +350,8 @@ export function EidosFileSheetTabStrip({
     activeId: activeTableId,
     disabled,
     onSelect,
-    previousBindings: TABLE_CYCLE_PREVIOUS_BINDINGS,
-    nextBindings: TABLE_CYCLE_NEXT_BINDINGS,
+    previousBindings,
+    nextBindings,
   })
 
   useEffect(() => {
@@ -388,7 +396,8 @@ export function EidosFileSheetTabStrip({
             role: "tablist",
             "aria-label": t("Eidos File tables"),
             "aria-orientation": "horizontal",
-            "aria-keyshortcuts": "Control+Shift+PageUp Control+Shift+PageDown",
+            "aria-keyshortcuts":
+              [...previousBindings, ...nextBindings].join(" ") || undefined,
           }}
           renderItem={(table, index) => {
             const tab = (

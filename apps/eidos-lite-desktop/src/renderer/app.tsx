@@ -2247,6 +2247,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                         activeTableId={activeFile.tableId}
                         disabled={localInteractionBlocked}
                         theme={theme}
+                        keyboardShortcuts={keyboardShortcuts}
+                        macos={macos}
                         onTableSelect={(tableId) =>
                           setCachedFiles((current) =>
                             current.map((file) =>

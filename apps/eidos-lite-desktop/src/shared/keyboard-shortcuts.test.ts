@@ -44,6 +44,35 @@ describe("Eidos Lite keyboard shortcuts", () => {
         true
       )
     ).toBe("new-file")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
+        event({ ctrlKey: true, key: "PageDown" }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("next-view")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
+        event({ key: "F10", shiftKey: true }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("open-cell-actions")
+  })
+
+  it("migrates the previous settings shape without losing custom bindings", () => {
+    const normalized = normalizeEidosLiteKeyboardShortcuts({
+      "new-file": "Mod+N",
+      "quick-open": "Mod+P",
+      "toggle-sidebar": "Mod+Shift+B",
+      "toggle-theme": "Mod+Shift+L",
+      "toggle-version": "Mod+Shift+H",
+      "toggle-sync": "Mod+Shift+S",
+    })
+
+    expect(normalized["toggle-sidebar"]).toBe("Mod+Shift+B")
+    expect(normalized["previous-view"]).toBe("Ctrl+PageUp")
+    expect(normalized["open-cell-actions"]).toBe("Shift+F10")
   })
 
   it("resets obsolete shortcut shapes without retaining removed commands", () => {

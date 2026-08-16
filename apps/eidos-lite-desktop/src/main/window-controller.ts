@@ -27,6 +27,7 @@ import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   eidosLiteShortcutCommandForKeyboardEvent,
+  isEidosLiteWorkspaceShortcutCommand,
 } from "../shared/keyboard-shortcuts"
 import { resolveEidosLiteLocale, translateEidosLite } from "../shared/i18n"
 import {
@@ -473,7 +474,9 @@ export class WindowController {
       this.keyboardShortcuts,
       process.platform === "darwin"
     )
-    if (!command) return
+    // Editor-scoped shortcuts must reach the renderer DOM. Only global
+    // workspace commands are intercepted before Electron dispatches them.
+    if (!command || !isEidosLiteWorkspaceShortcutCommand(command)) return
     event.preventDefault()
     if (!owner.isDestroyed()) {
       owner.send(IPC_CHANNELS.workspaceShortcutCommand, command)

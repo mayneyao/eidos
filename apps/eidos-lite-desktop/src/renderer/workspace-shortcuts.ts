@@ -3,19 +3,12 @@ import {
   eidosLiteShortcutAriaKeyShortcuts,
   eidosLiteShortcutCommandForKeyboardEvent,
   eidosLiteShortcutLabel,
+  isEidosLiteWorkspaceShortcutCommand,
   type EidosLiteKeyboardShortcuts,
-  type EidosLiteShortcutCommand,
+  type EidosLiteWorkspaceShortcutCommand,
 } from "../shared/keyboard-shortcuts"
 
-export type WorkspaceShortcut = Extract<
-  EidosLiteShortcutCommand,
-  | "new-file"
-  | "quick-open"
-  | "toggle-sidebar"
-  | "toggle-theme"
-  | "toggle-version"
-  | "toggle-sync"
->
+export type WorkspaceShortcut = EidosLiteWorkspaceShortcutCommand
 
 type ShortcutKeyboardEvent = Pick<
   KeyboardEvent,
@@ -36,12 +29,7 @@ export function workspaceShortcutForKeyboardEvent(
     shortcuts,
     macos
   )
-  return command === "new-file" ||
-    command === "quick-open" ||
-    command === "toggle-sidebar" ||
-    command === "toggle-theme" ||
-    command === "toggle-version" ||
-    command === "toggle-sync"
+  return command && isEidosLiteWorkspaceShortcutCommand(command)
     ? command
     : null
 }

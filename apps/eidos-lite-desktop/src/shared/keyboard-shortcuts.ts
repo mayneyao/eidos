@@ -1,4 +1,4 @@
-export const EIDOS_LITE_SHORTCUT_COMMANDS = [
+export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
   "new-file",
   "quick-open",
   "toggle-sidebar",
@@ -7,8 +7,23 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   "toggle-sync",
 ] as const
 
+export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
+  "previous-view",
+  "next-view",
+  "previous-table",
+  "next-table",
+  "open-cell-actions",
+] as const
+
+export const EIDOS_LITE_SHORTCUT_COMMANDS = [
+  ...EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS,
+  ...EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS,
+] as const
+
 export type EidosLiteShortcutCommand =
   (typeof EIDOS_LITE_SHORTCUT_COMMANDS)[number]
+export type EidosLiteWorkspaceShortcutCommand =
+  (typeof EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS)[number]
 export type EidosLiteShortcutBinding = string | null
 export type EidosLiteKeyboardShortcuts = Record<
   EidosLiteShortcutCommand,
@@ -23,6 +38,11 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "toggle-theme": "Mod+Shift+L",
     "toggle-version": "Mod+Shift+H",
     "toggle-sync": "Mod+Shift+S",
+    "previous-view": "Ctrl+PageUp",
+    "next-view": "Ctrl+PageDown",
+    "previous-table": "Ctrl+Shift+PageUp",
+    "next-table": "Ctrl+Shift+PageDown",
+    "open-cell-actions": "Shift+F10",
   })
 
 const MODIFIERS = ["Mod", "Ctrl", "Alt", "Shift"] as const
@@ -158,7 +178,13 @@ export function normalizeEidosLiteKeyboardShortcuts(
     typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
       : {}
-  if (!EIDOS_LITE_SHORTCUT_COMMANDS.every((command) => command in candidate)) {
+  const isCurrentShape = EIDOS_LITE_SHORTCUT_COMMANDS.every(
+    (command) => command in candidate
+  )
+  const isPreviousShape = EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS.every(
+    (command) => command in candidate
+  )
+  if (!isCurrentShape && !isPreviousShape) {
     return { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS }
   }
   const normalized = {} as EidosLiteKeyboardShortcuts
@@ -177,6 +203,14 @@ export function normalizeEidosLiteKeyboardShortcuts(
     if (binding) used.add(binding)
   }
   return normalized
+}
+
+export function isEidosLiteWorkspaceShortcutCommand(
+  value: EidosLiteShortcutCommand
+): value is EidosLiteWorkspaceShortcutCommand {
+  return (EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS as readonly string[]).includes(
+    value
+  )
 }
 
 export function isEidosLiteKeyboardShortcuts(

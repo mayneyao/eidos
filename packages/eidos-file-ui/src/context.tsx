@@ -48,6 +48,15 @@ export interface EidosFileUIAssetSession {
   state: HostSessionState
 }
 
+/** Host-configurable shortcuts used by the Eidos File editor surface. */
+export interface EidosFileUIKeyboardShortcuts {
+  previousView?: readonly string[]
+  nextView?: readonly string[]
+  previousTable?: readonly string[]
+  nextTable?: readonly string[]
+  openCellActions?: readonly string[]
+}
+
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
@@ -56,6 +65,7 @@ export interface EidosFileUIHost {
   activateUrl?: (uri: string) => void | Promise<void>
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
+  keyboardShortcuts?: EidosFileUIKeyboardShortcuts
 }
 
 const defaultHost: EidosFileUIHost = {
@@ -76,6 +86,7 @@ export function EidosFileUIProvider({
   activateUrl,
   assetSession,
   assetPresenter,
+  keyboardShortcuts,
 }: Partial<EidosFileUIHost> & {
   children: ReactNode
   messages?: Partial<EidosFileUIMessageOverrides>
@@ -86,6 +97,8 @@ export function EidosFileUIProvider({
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedAssetSession = assetSession ?? parent.assetSession
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
+  const resolvedKeyboardShortcuts =
+    keyboardShortcuts ?? parent.keyboardShortcuts
   const value = useMemo<EidosFileUIHost>(
     () => ({
       themeName: resolvedThemeName,
@@ -101,6 +114,9 @@ export function EidosFileUIProvider({
       ...(resolvedAssetPresenter
         ? { assetPresenter: resolvedAssetPresenter }
         : {}),
+      ...(resolvedKeyboardShortcuts
+        ? { keyboardShortcuts: resolvedKeyboardShortcuts }
+        : {}),
     }),
     [
       locale,
@@ -109,6 +125,7 @@ export function EidosFileUIProvider({
       resolvedActivateUrl,
       resolvedAssetPresenter,
       resolvedAssetSession,
+      resolvedKeyboardShortcuts,
       resolvedLocale,
       resolvedThemeName,
       translateOverride,

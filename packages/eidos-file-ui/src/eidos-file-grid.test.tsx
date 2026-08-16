@@ -1627,6 +1627,62 @@ describe("EidosFileGrid", () => {
     ).toBe(true)
   })
 
+  it("uses the Host-configured shortcut for cell actions", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          keyboardShortcuts={{ openCellActions: ["Alt+Enter"] }}
+        >
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={createLoadPage()}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onRequestDeleteRows={vi.fn()}
+          />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    const gridElement = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )
+
+    act(() => {
+      gridElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(document.body.textContent).not.toContain("Delete record")
+
+    act(() => {
+      gridElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          altKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(document.body.textContent).toContain("Delete record")
+  })
+
   it("forwards the trailing row action", async () => {
     const onAddRow = vi.fn(async () => ({
       tableId: "tasks",

@@ -39,9 +39,14 @@ import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
+  DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  type EidosLiteKeyboardShortcuts,
+} from "../shared/keyboard-shortcuts"
+import {
   createEidosLiteAssetSession,
   eidosLiteAssetPresenter,
 } from "./eidos-file-assets"
+import { eidosFileKeyboardShortcuts } from "./eidos-file-keyboard-shortcuts"
 import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
@@ -59,6 +64,8 @@ export interface EidosFileWorkbenchProps {
   activeTableId: string
   disabled: boolean
   theme: "light" | "dark"
+  keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  macos?: boolean
   onTableSelect(tableId: string): void
   onSnapshot(snapshot: EidosFileSnapshot): void
   onError(error: unknown): void
@@ -71,6 +78,8 @@ export function EidosFileWorkbench({
   activeTableId,
   disabled,
   theme,
+  keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  macos = false,
   onTableSelect,
   onSnapshot,
   onError,
@@ -96,6 +105,10 @@ export function EidosFileWorkbench({
     () =>
       createEidosLiteAssetSession(source.sessionId, snapshot.metadata.fileId),
     [snapshot.metadata.fileId, source.sessionId]
+  )
+  const editorKeyboardShortcuts = useMemo(
+    () => eidosFileKeyboardShortcuts(keyboardShortcuts, macos),
+    [keyboardShortcuts, macos]
   )
   const importFiles = useMemo(
     () => () => window.eidosLite.selectEidosFileAssets(source.sessionId),
@@ -356,6 +369,7 @@ export function EidosFileWorkbench({
       activateUrl={window.eidosLite?.openExternalUrl}
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
+      keyboardShortcuts={editorKeyboardShortcuts}
     >
       <EidosFileEditorShell
         ref={editorRef}

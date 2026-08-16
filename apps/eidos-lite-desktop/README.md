@@ -156,9 +156,9 @@ Simplified Chinese. The preference in **Settings > Appearance > Language** also
 drives the shared Eidos File editor and the native application menu/dialogs.
 Settings uses a persistent category sidebar so new configuration surfaces do
 not lengthen one scrolling form. **Settings > Keyboard Shortcuts** records,
-clears, conflict-checks, and restores the workspace panel and navigation
-bindings; changes are persisted with the other Lite preferences and apply to
-open workspace windows immediately.
+clears, conflict-checks, and restores workspace commands plus table-area view,
+table, and cell-action bindings; changes are persisted with the other Lite
+preferences and apply to open workspace windows immediately.
 
 The standard performance command generates 100k/1m-row Eidos Files and a 1m-row
 CSV, then gates Table open/switch/scroll/query, row and field mutations, field

@@ -65,6 +65,13 @@ describe("Eidos Lite workspace shortcuts", () => {
         shortcutEvent({ key: "h", metaKey: true })
       )
     ).toBeNull()
+    expect(
+      workspaceShortcutForKeyboardEvent(
+        shortcutEvent({ ctrlKey: true, key: "PageDown" }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBeNull()
   })
 
   it("renders platform-appropriate labels", () => {

@@ -13,7 +13,7 @@ import {
 } from "../shared/keyboard-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
 
-const SHORTCUT_GROUPS: Array<{
+export const SHORTCUT_GROUPS: Array<{
   label: string
   commands: EidosLiteShortcutCommand[]
 }> = [
@@ -30,6 +30,16 @@ const SHORTCUT_GROUPS: Array<{
       "toggle-sync",
     ],
   },
+  {
+    label: "Table area",
+    commands: [
+      "previous-view",
+      "next-view",
+      "previous-table",
+      "next-table",
+      "open-cell-actions",
+    ],
+  },
 ]
 
 const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
@@ -39,6 +49,11 @@ const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "toggle-theme": "Toggle theme",
   "toggle-version": "Toggle version history",
   "toggle-sync": "Toggle Sync",
+  "previous-view": "Previous view",
+  "next-view": "Next view",
+  "previous-table": "Previous table",
+  "next-table": "Next table",
+  "open-cell-actions": "Open cell actions",
 }
 
 type ShortcutIssue =
@@ -138,7 +153,7 @@ export function KeyboardShortcutSettings({
       return t("This shortcut is reserved by the application or system.")
     }
     if (issue.type === "modifier") {
-      return t("Include Command, Control, or Alt in the shortcut.")
+      return t("Include Command, Control, Alt, or Shift in the shortcut.")
     }
     return t("Already used by {command}.", {
       command: t(COMMAND_LABELS[issue.conflict]),

@@ -1,8 +1,23 @@
 import { describe, expect, it } from "vitest"
 
-import { keyboardShortcutRowMode } from "./keyboard-shortcut-settings"
+import {
+  keyboardShortcutRowMode,
+  SHORTCUT_GROUPS,
+} from "./keyboard-shortcut-settings"
 
 describe("Keyboard shortcut row actions", () => {
+  it("shows every table-area command in Settings", () => {
+    expect(
+      SHORTCUT_GROUPS.find((group) => group.label === "Table area")?.commands
+    ).toEqual([
+      "previous-view",
+      "next-view",
+      "previous-table",
+      "next-table",
+      "open-cell-actions",
+    ])
+  })
+
   it("offers removal only while the shortcut matches its default", () => {
     expect(keyboardShortcutRowMode("Mod+Backslash", "Mod+Backslash")).toBe(
       "remove"

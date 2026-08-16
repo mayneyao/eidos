@@ -56,6 +56,7 @@ import { useEidosFileUI } from "./context"
 import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { Button } from "./ui/primitives"
 import { useGlideDataGridPortal } from "./use-glide-data-grid-portal"
+import { eidosFileKeyboardEventMatchesBinding } from "./use-eidos-file-tab-strip"
 
 import {
   eidosFileGridColumn,
@@ -467,6 +468,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     activateUrl,
     assetPresenter,
     assetSession,
+    keyboardShortcuts,
     themeName,
     translate: t,
   } = useEidosFileUI()
@@ -2072,13 +2074,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   // actions like Delete stay reachable without a pointer.
   const onGridContainerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const bindings = keyboardShortcuts?.openCellActions ?? ["Shift+F10"]
       const isContextMenuKey =
         event.key === "ContextMenu" ||
-        (event.key === "F10" &&
-          event.shiftKey &&
-          !event.ctrlKey &&
-          !event.altKey &&
-          !event.metaKey)
+        bindings.some((binding) =>
+          eidosFileKeyboardEventMatchesBinding(event, binding)
+        )
       if (!isContextMenuKey) return
       const selection = gridSelectionRef.current
       let target: Item | null = selection?.current?.cell ?? null
@@ -2092,7 +2093,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       event.preventDefault()
       presentCellMenu(target[0], target[1], bounds)
     },
-    [presentCellMenu]
+    [keyboardShortcuts?.openCellActions, presentCellMenu]
   )
 
   const onCellClicked = useCallback<

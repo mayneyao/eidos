@@ -42,6 +42,12 @@ const zh: Record<string, string> = {
   "Toggle theme": "切换主题",
   "Toggle version history": "切换版本历史",
   "Toggle Sync": "切换同步面板",
+  "Table area": "表格区域",
+  "Previous view": "上一个视图",
+  "Next view": "下一个视图",
+  "Previous table": "上一个表格",
+  "Next table": "下一个表格",
+  "Open cell actions": "打开单元格操作菜单",
   "Select a shortcut, then press a new key combination. Press Escape to cancel or Backspace to clear it.":
     "选择一个快捷键，然后按下新的组合键。按 Escape 取消，按 Backspace 清除。",
   "Restore all defaults": "全部恢复默认",
@@ -54,8 +60,8 @@ const zh: Record<string, string> = {
   "Restore default for {command}": "恢复“{command}”的默认快捷键",
   "This shortcut is reserved by the application or system.":
     "此快捷键已被应用或系统保留。",
-  "Include Command, Control, or Alt in the shortcut.":
-    "快捷键需包含 Command、Control 或 Alt。",
+  "Include Command, Control, Alt, or Shift in the shortcut.":
+    "快捷键需包含 Command、Control、Alt 或 Shift。",
   "Already used by {command}.": "已被“{command}”使用。",
   "Custom shortcuts apply to workspace windows. Standard text editing shortcuts remain unchanged inside inputs and editors.":
     "自定义快捷键适用于工作区窗口；输入框和编辑器中的标准文本编辑快捷键保持不变。",
