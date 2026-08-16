@@ -17,6 +17,7 @@ describe("working text diff", () => {
     await fs.writeFile(path.join(space, "README.md"), "Working contents\n")
     const graft = {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: vi.fn(() => "0.3.1"),
       open: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
@@ -93,6 +94,7 @@ describe("working text diff", () => {
     }))
     const graft = {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: vi.fn(() => "0.3.1"),
       open: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
@@ -147,6 +149,7 @@ describe("working text diff", () => {
     const revisionTextDiff = vi.fn()
     const graft = {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: vi.fn(() => "0.3.1"),
       open: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({

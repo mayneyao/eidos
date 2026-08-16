@@ -1,40 +1,30 @@
 ## What's new
 
-### Sync fast-forwards after one fetch
+### Sync recovers after local cleanup and reviewed merges
 
-Pulling Hosted changes now fetches the remote checkpoint once, verifies an
-immutable fast-forward plan, and applies that fetched plan directly. Lite no
-longer starts a second remote fetch inside pull, while any snapshot bytes still
-needed during materialization continue to report concrete download progress.
+After you discard local edits to unblock Sync, the panel now clears the obsolete
+warning and lets the current Hosted state be fetched. Reviewed merges also verify
+their SQLite snapshots before creating the merge checkpoint and recover missing
+snapshot data from the Hosted Space when possible. If neither copy has the data,
+Sync stops retrying and offers the safe Hosted-clone recovery path instead.
 
-### First-version table history stays inspectable
+### Record labels can be reassigned in Table settings
 
-When reviewing the first saved version of an Eidos File, switching between
-tables no longer mistakes Graft's internal root marker for a Space checkpoint.
-Each table can now be opened without an `Invalid Space checkpoint` error.
+Each table now has a dedicated settings dialog for choosing the field used to
+identify records in relations and cards. If the previous label field was deleted,
+you can assign another eligible field from the table tab menu without editing every
+field's configuration.
 
-### Attachments can be previewed safely
+### Editor shortcuts are configurable and repeatable
 
-Images can now be previewed inside Eidos Lite through a Host-issued attachment
-lease. Other attachment types show trusted file metadata and explicit Open or
-Show in Folder actions, and activation failures remain visible in the preview.
+The existing table, view, and cell-actions shortcuts now appear in Settings, where
+they can be customized or cleared. Closing a keyboard-opened cell menu returns
+focus to the Grid, so the same shortcut can be used repeatedly without clicking the
+table again.
 
-### Tables and views are easier to navigate by keyboard
+### Markdown previews can be copied
 
-Table and view tabs can now be cycled from anywhere outside a text editor. The
-shortcuts work without focusing the tab strip first and preserve native typing
-and editing key combinations.
-
-### New rows stay put while you edit
-
-A newly appended row now remains under its active editor while sorting,
-filtering, or background page loading changes the surrounding result set. Lite
-applies the deferred refresh after editing ends, without duplicating the row or
-moving focus unexpectedly.
+Rendered Markdown content can now be selected and copied with the normal platform
+commands while links and other preview interactions continue to work.
 
 No migration is required.
-
-## Release note correction
-
-Corrected on August 17, 2026, to remove changes already documented in Eidos
-Lite 0.1.10.

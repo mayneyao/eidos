@@ -679,7 +679,7 @@ describe("GraftClient", () => {
       command: vi.fn(async (command) => {
         commands.push(command)
         if (command === "sdkVersion") {
-          return "0.3.16"
+          return "0.3.17"
         }
         if (command === "statusIncremental") {
           return {
