@@ -1,5 +1,7 @@
 import { GraftProtocolError } from "@eidos.space/graft-remote"
 
+import { createBurstCachedLoader } from "./burst-cache"
+
 const AUTHENTICATE_HEADERS = {
   "WWW-Authenticate": 'Bearer realm="sync.eidos.space"',
 } as const
@@ -26,6 +28,40 @@ export type IdentityFetch = (
   input: RequestInfo | URL,
   init?: RequestInit
 ) => Promise<Response>
+
+export type EidosAuthenticator = (
+  request: Request,
+  env: Env
+) => Promise<EidosPrincipal>
+
+export const AUTH_BURST_CACHE_TTL_MS = 5_000
+const AUTH_BURST_CACHE_MAX_ENTRIES = 256
+
+export function createCachedEidosAuthenticator(
+  authenticate: EidosAuthenticator = authenticateEidosUser,
+  options: {
+    ttlMs?: number
+    maxEntries?: number
+    now?: () => number
+  } = {}
+): EidosAuthenticator {
+  const cached = createBurstCachedLoader(
+    ({ request, env }: { request: Request; env: Env }) =>
+      authenticate(request, env),
+    async ({ request, env }) => {
+      const authorization = request.headers.get("authorization") ?? ""
+      // Invalid credentials still go through the authoritative validator and
+      // are never retained. This key only bounds work before that rejection.
+      return await sha256Key(env.AUTH_USERINFO_URL + "\0" + authorization)
+    },
+    {
+      ttlMs: options.ttlMs ?? AUTH_BURST_CACHE_TTL_MS,
+      maxEntries: options.maxEntries ?? AUTH_BURST_CACHE_MAX_ENTRIES,
+      now: options.now,
+    }
+  )
+  return async (request, env) => await cached({ request, env })
+}
 
 export async function authenticateEidosUser(
   request: Request,
@@ -249,6 +285,16 @@ async function namespaceForUser(userId: string): Promise<string> {
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("")
   return "u-" + prefix
+}
+
+async function sha256Key(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value)
+  )
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
 }
 
 async function discardBody(response: Response): Promise<void> {

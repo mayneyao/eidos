@@ -75,6 +75,15 @@ grant below. Sync derives an opaque, protocol-safe namespace from the first 96
 bits of `sub`'s SHA-256 digest. The namespace is an identifier, not an
 authorization secret.
 
+Successful identity and repository-directory lookups use a process-local,
+disposable five-second burst cache. Concurrent requests for the same bearer
+fingerprint or owner-scoped repository share one authoritative lookup; errors
+and missing repositories are never cached. The identity key stores only a
+SHA-256 digest of the bearer and authority, caches are entry-bounded, and hits
+do not extend expiry. OAuth expiry, device revocation, and entitlement changes
+therefore have a maximum cache delay of five seconds rather than an unbounded
+session lifetime.
+
 The only commercial input Sync accepts is the versioned `sync_access` grant:
 
     {
@@ -252,13 +261,16 @@ configuration is production.
 - Repository ownership currently depends on the OAuth provider's stable user
   id. An identity-id migration or reassignment needs an explicit directory
   migration before rollout or existing repository URLs will be stranded.
-- Each object request currently validates its bearer token through the public
-  userinfo endpoint. A same-account service binding or short, revocation-aware
-  cache should be considered after measuring real push/clone traffic.
-- The server-side stable-device registry and immediate revocation gate are
-  implemented, but Desktop must persist one UUID and repeat registration after
-  OAuth refresh. Dedicated Sync CLI keys avoid that dependency and have their
-  own access mode, expiry, and immediate revocation lifecycle.
+- Burst caching is isolate-local, so a cold isolate or a request routed to a
+  different isolate still performs the authoritative account and directory
+  lookups. `Server-Timing` must be monitored after rollout before considering
+  a longer-lived repository capability; the five-second revocation bound must
+  not be widened implicitly.
+- The server-side stable-device registry and revocation gate are implemented
+  with the documented five-second burst-cache bound, but Desktop must persist
+  one UUID and repeat registration after OAuth refresh. Dedicated Sync CLI keys
+  avoid that dependency and have the same bounded cache delay for access mode,
+  expiry, and revocation changes.
 - Rate limits, repository deletion, and unreachable object garbage collection
   are not implemented. Until GC exists, unreachable immutable bytes continue
   to consume quota, matching the commercial definition.

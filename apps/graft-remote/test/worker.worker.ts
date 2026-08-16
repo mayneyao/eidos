@@ -7,9 +7,10 @@ import {
 } from "cloudflare:test"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createGraftRemoteWorker } from "../src"
+import { createCachedRepositoryFinder, createGraftRemoteWorker } from "../src"
 import {
   authenticateEidosUser,
+  createCachedEidosAuthenticator,
   requireSyncAccess,
   type EidosPrincipal,
   type SyncAccessGrant,
@@ -108,6 +109,155 @@ describe("eidos.space Graft Remote", () => {
         testIdentityFetch
       )
     ).rejects.toMatchObject({ status: 401, code: "unauthorized" })
+  })
+
+  it("coalesces only a five-second burst of successful authentication", async () => {
+    let now = 1_000
+    let calls = 0
+    let rejectNext = false
+    const cached = createCachedEidosAuthenticator(
+      async () => {
+        calls += 1
+        if (rejectNext) throw new Error("rejected")
+        return {
+          userId: "alice",
+          namespace: "u-alice",
+          syncAccess: activeAccessGrant(),
+        }
+      },
+      { ttlMs: 5_000, maxEntries: 2, now: () => now }
+    )
+    const request = (token: string) =>
+      new Request(ORIGIN, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+    await Promise.all([
+      cached(request("alice-token"), env),
+      cached(request("alice-token"), env),
+    ])
+    expect(calls).toBe(1)
+    now = 5_999
+    await cached(request("alice-token"), env)
+    expect(calls).toBe(1)
+    now = 6_000
+    await cached(request("alice-token"), env)
+    expect(calls).toBe(2)
+
+    rejectNext = true
+    await expect(cached(request("rejected-token"), env)).rejects.toThrow(
+      "rejected"
+    )
+    rejectNext = false
+    await cached(request("rejected-token"), env)
+    expect(calls).toBe(4)
+
+    // The fixed cap evicts the oldest successful key.
+    await cached(request("third-token"), env)
+    await cached(request("alice-token"), env)
+    expect(calls).toBe(6)
+  })
+
+  it("caches only existing owner-scoped repository directory records", async () => {
+    let now = 10_000
+    let calls = 0
+    const find = createCachedRepositoryFinder(
+      async (_workerEnv, principal, name) => {
+        calls += 1
+        return name === "missing"
+          ? null
+          : {
+              name,
+              id: `${principal.namespace}/${name}`,
+              displayName: name,
+              createdAt: 1,
+            }
+      },
+      { ttlMs: 5_000, maxEntries: 2, now: () => now }
+    )
+    const alice: EidosPrincipal = {
+      userId: "alice",
+      namespace: "u-alice",
+      syncAccess: activeAccessGrant(),
+    }
+    const bob: EidosPrincipal = {
+      userId: "bob",
+      namespace: "u-bob",
+      syncAccess: activeAccessGrant(),
+    }
+
+    await Promise.all([find(env, alice, "space"), find(env, alice, "space")])
+    expect(calls).toBe(1)
+    await find(env, bob, "space")
+    expect(calls).toBe(2)
+
+    await find(env, alice, "missing")
+    await find(env, alice, "missing")
+    expect(calls).toBe(4)
+
+    now = 15_000
+    await find(env, alice, "space")
+    expect(calls).toBe(5)
+  })
+
+  it("performs one identity and directory lookup for a protocol request burst", async () => {
+    let now = 20_000
+    let authCalls = 0
+    let directoryCalls = 0
+    const principal: EidosPrincipal = {
+      userId: "burst-user",
+      namespace: "u-burst",
+      syncAccess: activeAccessGrant(),
+    }
+    const worker = createGraftRemoteWorker({
+      authenticate: createCachedEidosAuthenticator(
+        async () => {
+          authCalls += 1
+          return principal
+        },
+        { now: () => now }
+      ),
+      findRepository: createCachedRepositoryFinder(
+        async () => {
+          directoryCalls += 1
+          return {
+            name: "space",
+            id: "u-burst/space",
+            displayName: "Space",
+            createdAt: 1,
+          }
+        },
+        { now: () => now }
+      ),
+    })
+    const request = () =>
+      worker.request(
+        ORIGIN + "/u-burst/space",
+        {
+          headers: {
+            Authorization: "Bearer burst-token",
+            "Graft-Protocol": "1",
+          },
+        },
+        env
+      )
+
+    const responses = await Promise.all(Array.from({ length: 8 }, request))
+    expect(responses.every((response) => response.status === 200)).toBe(true)
+    await Promise.all(responses.map((response) => response.text()))
+    expect({ authCalls, directoryCalls }).toEqual({
+      authCalls: 1,
+      directoryCalls: 1,
+    })
+
+    now += 5_000
+    const expired = await request()
+    expect(expired.status).toBe(200)
+    await expired.text()
+    expect({ authCalls, directoryCalls }).toEqual({
+      authCalls: 2,
+      directoryCalls: 2,
+    })
   })
 
   it("rejects access grants that leak billing fields", async () => {

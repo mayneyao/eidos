@@ -21,9 +21,11 @@ import {
 import {
   authenticateEidosUser,
   accessEnforcementEnabled,
+  createCachedEidosAuthenticator,
   requireSyncAccess,
   type EidosPrincipal,
 } from "./auth"
+import { createBurstCachedLoader } from "./burst-cache"
 import {
   RepositoryDirectoryDurableObject,
   type RepositoryCreateResult,
@@ -62,6 +64,8 @@ const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 const DEFAULT_SYNC_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
 const MAX_GRAFT_REQUEST_BYTES = 64 * 1024 * 1024
 const GRAFT_MULTIPART_PART_BYTES = 16 * 1024 * 1024
+export const DIRECTORY_BURST_CACHE_TTL_MS = 5_000
+const DIRECTORY_BURST_CACHE_MAX_ENTRIES = 512
 
 export interface RemoteServiceDependencies {
   authenticate(request: Request, env: Env): Promise<EidosPrincipal>
@@ -99,6 +103,33 @@ export interface RemoteServiceDependencies {
   ): GraftRepositoryBackend
   usageSummary(env: Env, principal: EidosPrincipal): Promise<SyncUsageSummary>
   recordActivity(env: Env, event: SyncActivityEvent): Promise<void>
+}
+
+type RepositoryFinder = RemoteServiceDependencies["findRepository"]
+
+export function createCachedRepositoryFinder(
+  findRepository: RepositoryFinder,
+  options: {
+    ttlMs?: number
+    maxEntries?: number
+    now?: () => number
+  } = {}
+): RepositoryFinder {
+  const cached = createBurstCachedLoader(
+    (input: { env: Env; principal: EidosPrincipal; name: string }) =>
+      findRepository(input.env, input.principal, input.name),
+    ({ principal, name }) =>
+      principal.namespace + "\0" + principal.userId + "\0" + name,
+    {
+      ttlMs: options.ttlMs ?? DIRECTORY_BURST_CACHE_TTL_MS,
+      maxEntries: options.maxEntries ?? DIRECTORY_BURST_CACHE_MAX_ENTRIES,
+      now: options.now,
+      // A missing repository may be created immediately after this request;
+      // never let a negative lookup obscure that creation.
+      cacheValue: (record) => record !== null,
+    }
+  )
+  return async (env, principal, name) => await cached({ env, principal, name })
 }
 
 const defaultDependencies: RemoteServiceDependencies = {
@@ -166,7 +197,14 @@ const defaultDependencies: RemoteServiceDependencies = {
 export function createGraftRemoteWorker(
   overrides: Partial<RemoteServiceDependencies> = {}
 ): Hono<AppEnv> {
-  const dependencies = { ...defaultDependencies, ...overrides }
+  const dependencies: RemoteServiceDependencies = {
+    ...defaultDependencies,
+    ...overrides,
+    authenticate: overrides.authenticate ?? createCachedEidosAuthenticator(),
+    findRepository:
+      overrides.findRepository ??
+      createCachedRepositoryFinder(defaultDependencies.findRepository),
+  }
   const app = new Hono<AppEnv>()
 
   app.use("*", async (context, next) => {
