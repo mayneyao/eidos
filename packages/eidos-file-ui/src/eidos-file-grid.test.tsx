@@ -1627,6 +1627,74 @@ describe("EidosFileGrid", () => {
     ).toBe(true)
   })
 
+  it("restores Grid focus so the cell actions shortcut can be used repeatedly", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    const gridElement = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )
+    gridElement?.focus()
+
+    act(() => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    const firstMenu = [...document.body.querySelectorAll('[role="menu"]')].find(
+      (candidate) => candidate.textContent?.includes("Copy cell")
+    )
+    const copyCell = [...(firstMenu?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent?.includes("Copy cell")
+    )
+    expect(firstMenu?.contains(document.activeElement)).toBe(true)
+
+    await act(async () => {
+      copyCell?.click()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(document.activeElement).toBe(gridElement)
+
+    act(() => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(
+      [...document.body.querySelectorAll('[role="menu"]')].some((candidate) =>
+        candidate.textContent?.includes("Copy cell")
+      )
+    ).toBe(true)
+  })
+
   it("uses the Host-configured shortcut for cell actions", async () => {
     await act(async () => {
       root.render(

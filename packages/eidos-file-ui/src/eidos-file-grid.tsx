@@ -482,6 +482,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const searchHighlightColor = themeColorWithAlpha(theme.accentColor, 0.14)
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
+  const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
   const attachmentThumbnails = useMemo(
     () =>
       new EidosFileAttachmentThumbnailManager(
@@ -564,6 +565,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const [columnStatMenu, setColumnStatMenu] =
     useState<EidosFileFieldMenuState | null>(null)
   const [cellMenu, setCellMenu] = useState<EidosFileCellMenuState | null>(null)
+  const cellMenuOpenedFromKeyboardRef = useRef(false)
   const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
     null
   )
@@ -2023,11 +2025,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       fieldIndex: number,
       rowIndex: number,
       bounds: Rectangle,
-      point?: { x: number; y: number }
+      point?: { x: number; y: number },
+      openedFromKeyboard = false
     ) => {
       const field = fields[fieldIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
+      cellMenuOpenedFromKeyboardRef.current = openedFromKeyboard
       setFieldMenu(null)
       setColumnStatMenu(null)
       setCellMenu({
@@ -2091,7 +2095,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const bounds = gridRef.current?.getBounds?.(target[0], target[1])
       if (!bounds) return
       event.preventDefault()
-      presentCellMenu(target[0], target[1], bounds)
+      presentCellMenu(target[0], target[1], bounds, undefined, true)
     },
     [keyboardShortcuts?.openCellActions, presentCellMenu]
   )
@@ -2358,7 +2362,17 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           cellText={cellIsEmpty ? "" : cellText}
           canDelete={!gridWriteLocked && Boolean(onRequestDeleteRows)}
           onOpenChange={(open) => {
-            if (!open) setCellMenu(null)
+            if (open) return
+            const shouldRestoreFocus = cellMenuOpenedFromKeyboardRef.current
+            cellMenuOpenedFromKeyboardRef.current = false
+            setCellMenu(null)
+            if (shouldRestoreFocus) {
+              // The menu has no DOM trigger for Radix to return to. Restore
+              // immediately for the next keypress, then once more after its
+              // deferred close-focus phase has completed.
+              restoreGridFocus()
+              requestAnimationFrame(restoreGridFocus)
+            }
           }}
           onOpenRecord={(state) => {
             onPropertyFieldClose?.()
