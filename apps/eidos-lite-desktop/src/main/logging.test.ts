@@ -6,6 +6,7 @@ import {
   createTextLineBuffer,
   EidosLiteLogger,
   logCorrelationKey,
+  sanitizeLogContext,
   sanitizeLogText,
 } from "./logging"
 
@@ -39,6 +40,18 @@ describe("Eidos Lite structured logging", () => {
     expect(message).not.toContain("mayne")
     expect(message).not.toContain("7d2b94")
     expect(message).not.toContain("8H251")
+  })
+
+  it("retains numeric directory timing without exposing directory paths", () => {
+    expect(
+      sanitizeLogContext({
+        serverTimingMs: { auth: 318, directory: 324, total: 811 },
+        directory: "/Users/mayne/private",
+      })
+    ).toEqual({
+      serverTimingMs: { auth: 318, directory: 324, total: 811 },
+      directory: "<path>",
+    })
   })
 
   it("writes JSONL, rotates bounded files, and returns recent safe entries", async () => {

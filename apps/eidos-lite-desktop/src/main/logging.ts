@@ -131,7 +131,10 @@ function sanitizeContextValue(
 ): unknown {
   const sensitivity = sensitiveKey(key)
   if (sensitivity === "secret") return "[redacted]"
-  if (sensitivity === "path") return "<path>"
+  // Timing payloads use `directory` for a numeric repository-lookup duration.
+  // Numbers cannot contain a filesystem path, so retain them for diagnostics
+  // while continuing to redact every string/object path value.
+  if (sensitivity === "path" && typeof value !== "number") return "<path>"
   if (sensitivity === "identifier") return "<id>"
   if (
     value === null ||
