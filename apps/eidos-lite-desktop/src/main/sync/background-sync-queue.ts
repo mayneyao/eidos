@@ -1,4 +1,5 @@
 import type {
+  EidosSyncFailureCode,
   EidosSyncQueueStatus,
   EidosSyncQueueTrigger,
   EidosSyncRunResponse,
@@ -150,6 +151,22 @@ export class BackgroundSyncQueue {
       queuedAtMs: this.now(),
     }
     return this.run(entry)
+  }
+
+  async clearResolvedFailure(
+    spaceId: string,
+    code: EidosSyncFailureCode
+  ): Promise<EidosSyncQueueStatus> {
+    const entry = this.requireEntry(spaceId)
+    if (
+      entry.status.state !== "paused" ||
+      entry.status.lastFailure?.code !== code
+    ) {
+      return entry.status
+    }
+    entry.status = this.idle(spaceId)
+    await this.persistAndEmit(entry)
+    return entry.status
   }
 
   async pause(

@@ -327,6 +327,13 @@ export function classifySyncFailure(
     return failure("protocol-version-mismatch", status)
   }
   if (
+    normalized.includes("snapshot references missing storage commit") ||
+    normalized.includes("snapshot storage commit hash mismatch") ||
+    normalized.includes("snapshot references missing storage commit hash")
+  ) {
+    return failure("repository-invalid", status)
+  }
+  if (
     normalized.includes("remote not found") ||
     normalized.includes("hosted remote is not available")
   ) {

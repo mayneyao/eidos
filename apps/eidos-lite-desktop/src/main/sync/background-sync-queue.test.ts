@@ -104,6 +104,19 @@ function quotaExceeded(): EidosSyncRunResponse {
   }
 }
 
+function localChanges(): EidosSyncRunResponse {
+  const response = failed("local-changes")
+  return {
+    ...response,
+    failure: {
+      ...response.failure,
+      action: "review-local",
+      actionLabel: "Review local changes",
+      retryable: false,
+    },
+  }
+}
+
 describe("BackgroundSyncQueue", () => {
   let directory: string
   let store: SyncQueueStore
@@ -267,6 +280,58 @@ describe("BackgroundSyncQueue", () => {
     expect(execute).toHaveBeenCalledTimes(2)
     expect(syncQueue.status(spaceId).state).toBe("idle")
     await expect(store.read(spaceId)).resolves.toBeNull()
+    await syncQueue.close()
+  })
+
+  it("clears a paused local-changes failure after the worktree becomes clean", async () => {
+    const execute = vi.fn().mockResolvedValue(localChanges())
+    const syncQueue = queue()
+    await syncQueue.attach({
+      spaceId,
+      execute,
+      emit: (status) => statuses.push(status),
+    })
+
+    await syncQueue.runNow(spaceId)
+    expect(syncQueue.status(spaceId)).toMatchObject({
+      state: "paused",
+      lastFailure: { code: "local-changes" },
+    })
+
+    const cleared = await syncQueue.clearResolvedFailure(
+      spaceId,
+      "local-changes"
+    )
+
+    expect(cleared.state).toBe("idle")
+    await expect(store.read(spaceId)).resolves.toBeNull()
+    expect(statuses.at(-1)?.state).toBe("idle")
+    await syncQueue.close()
+  })
+
+  it("does not clear unrelated paused failures when the worktree changes", async () => {
+    const execute = vi.fn().mockResolvedValue(quotaExceeded())
+    const syncQueue = queue()
+    await syncQueue.attach({
+      spaceId,
+      execute,
+      emit: (status) => statuses.push(status),
+    })
+
+    await syncQueue.runNow(spaceId)
+    const unchanged = await syncQueue.clearResolvedFailure(
+      spaceId,
+      "local-changes"
+    )
+
+    expect(unchanged).toMatchObject({
+      state: "paused",
+      lastFailure: { code: "quota-exceeded" },
+    })
+    await expect(store.read(spaceId)).resolves.toMatchObject({
+      state: "paused",
+      lastFailure: { code: "quota-exceeded" },
+    })
     await syncQueue.close()
   })
 

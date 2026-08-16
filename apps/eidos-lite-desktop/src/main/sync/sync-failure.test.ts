@@ -70,6 +70,26 @@ describe("classifySyncFailure", () => {
     expect(JSON.stringify(classified)).not.toContain("do-not-expose")
   })
 
+  it("stops retrying when a local snapshot references missing storage", () => {
+    const classified = classifySyncFailure(
+      Object.assign(
+        new Error(
+          "Command error: snapshot references missing storage commit 4Fe8EPM1JWDDV/15"
+        ),
+        { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+      ),
+      "push"
+    )
+
+    expect(classified).toMatchObject({
+      code: "repository-invalid",
+      action: "clone-hosted",
+      retryable: false,
+      localSafe: true,
+    })
+    expect(JSON.stringify(classified)).not.toContain("4Fe8EPM1JWDDV")
+  })
+
   it("keeps an edge upload limit distinct from account storage quota", () => {
     const classified = classifySyncFailure(
       Object.assign(

@@ -667,6 +667,7 @@ export function registerIpc(
   })
   const attachedSenders = new Set<number>()
   const automaticCheckpointUnsubscribers = new Map<number, () => void>()
+  const spaceChangeUnsubscribers = new Map<number, () => void>()
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
   const csvSourceCleanupSenders = new Set<number>()
   const assetLeases = new Map<string, RegisteredAssetLease>()
@@ -813,10 +814,26 @@ export function registerIpc(
           })()
         })
       )
+      spaceChangeUnsubscribers.set(
+        event.sender.id,
+        session.onChanged((snapshot) => {
+          if (snapshot.graft.clean !== true) return
+          void syncQueue
+            .clearResolvedFailure(session.canonical.id, "local-changes")
+            .catch((error) => {
+              console.warn(
+                "Could not clear the resolved local-changes Sync blocker",
+                error
+              )
+            })
+        })
+      )
       event.sender.once("destroyed", () => {
         attachedSenders.delete(event.sender.id)
         automaticCheckpointUnsubscribers.get(event.sender.id)?.()
         automaticCheckpointUnsubscribers.delete(event.sender.id)
+        spaceChangeUnsubscribers.get(event.sender.id)?.()
+        spaceChangeUnsubscribers.delete(event.sender.id)
         void syncQueue.detach(session.canonical.id)
       })
     }
