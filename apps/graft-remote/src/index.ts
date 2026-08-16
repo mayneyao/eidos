@@ -8,8 +8,16 @@ import {
   RepositoryDurableObject,
 } from "@eidos.space/graft-remote-cloudflare"
 import { createGraftRemote } from "@eidos.space/graft-remote-hono"
+import { WorkerEntrypoint } from "cloudflare:workers"
 import { Hono, type Context } from "hono"
 
+import {
+  SYNC_ACTIVITY_LIMIT_MAX,
+  SyncActivityDurableObject,
+  type SyncActivityEvent,
+  type SyncActivityKind,
+  type SyncActivitySummary,
+} from "./activity"
 import {
   authenticateEidosUser,
   accessEnforcementEnabled,
@@ -32,6 +40,7 @@ import { SyncUsageDurableObject, type SyncUsageSummary } from "./usage"
 export {
   RepositoryDurableObject,
   RepositoryDirectoryDurableObject,
+  SyncActivityDurableObject,
   SyncUsageDurableObject,
 }
 
@@ -43,7 +52,10 @@ interface RequestTiming {
 
 type AppEnv = {
   Bindings: Env
-  Variables: { requestTiming: RequestTiming }
+  Variables: {
+    requestTiming: RequestTiming
+    principal?: EidosPrincipal
+  }
 }
 
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
@@ -86,6 +98,7 @@ export interface RemoteServiceDependencies {
     request: Request
   ): GraftRepositoryBackend
   usageSummary(env: Env, principal: EidosPrincipal): Promise<SyncUsageSummary>
+  recordActivity(env: Env, event: SyncActivityEvent): Promise<void>
 }
 
 const defaultDependencies: RemoteServiceDependencies = {
@@ -145,6 +158,9 @@ const defaultDependencies: RemoteServiceDependencies = {
       principal.syncAccess?.quotaBytes ?? DEFAULT_SYNC_QUOTA_BYTES
     return await usage(env, principal).summary(quotaBytes)
   },
+  async recordActivity(env, event) {
+    await activity(env).record(event)
+  },
 }
 
 export function createGraftRemoteWorker(
@@ -161,6 +177,25 @@ export function createGraftRemoteWorker(
     }
     context.set("requestTiming", timing)
     await next()
+    const principal = context.get("principal")
+    const kind = successfulActivityKind(context.req.raw, context.res.status)
+    if (principal !== undefined && kind !== null) {
+      const persistence = dependencies
+        .recordActivity(context.env, {
+          userId: principal.userId,
+          kind,
+          occurredAt: Date.now(),
+        })
+        .catch(() =>
+          console.error(
+            JSON.stringify({
+              message: "sync activity persistence failed",
+              operation: requestOperation(context.req.raw),
+            })
+          )
+        )
+      await scheduleBackground(context, persistence)
+    }
     context.header(
       "X-Graft-Request-Id",
       safeRequestId(context.req.header("X-Graft-Request-Id"))
@@ -194,6 +229,7 @@ export function createGraftRemoteWorker(
       context.req.raw,
       context.env
     )
+    context.set("principal", principal)
     dependencies.authorizeEntitlement(context.env, principal, "read")
     const repositories = await dependencies.listRepositories(
       context.env,
@@ -219,6 +255,7 @@ export function createGraftRemoteWorker(
       context.req.raw,
       context.env
     )
+    context.set("principal", principal)
     dependencies.authorizeEntitlement(context.env, principal, "write")
     const name = validateRepositoryName(context.req.param("repository"))
     const displayName =
@@ -259,6 +296,7 @@ export function createGraftRemoteWorker(
       context.req.raw,
       context.env
     )
+    context.set("principal", principal)
     dependencies.authorizeEntitlement(context.env, principal, "write")
     const name = validateRepositoryName(context.req.param("repository"))
     const displayName = await requiredDisplayName(context.req.raw)
@@ -296,6 +334,7 @@ export function createGraftRemoteWorker(
       context.req.raw,
       context.env
     )
+    context.set("principal", principal)
     dependencies.authorizeEntitlement(context.env, principal, "read")
     const summary = await dependencies.usageSummary(context.env, principal)
     return jsonResponse({
@@ -311,9 +350,13 @@ export function createGraftRemoteWorker(
       multipartPartBytes: GRAFT_MULTIPART_PART_BYTES,
     },
     async authenticate({ request, adapterContext }) {
-      return await measureRequestPhase(adapterContext, "authMs", () =>
-        dependencies.authenticate(request, adapterContext.env)
+      const principal = await measureRequestPhase(
+        adapterContext,
+        "authMs",
+        () => dependencies.authenticate(request, adapterContext.env)
       )
+      adapterContext.set("principal", principal)
+      return principal
     },
     async authorize({ adapterContext, principal, repository, action }) {
       if (
@@ -403,6 +446,17 @@ function serverTimingHeader(timing: RequestTiming): string {
   ].join(", ")
 }
 
+async function scheduleBackground(
+  context: Context<AppEnv>,
+  operation: Promise<void>
+): Promise<void> {
+  try {
+    context.executionCtx.waitUntil(operation)
+  } catch {
+    await operation
+  }
+}
+
 function directory(
   env: Env,
   principal: EidosPrincipal
@@ -415,6 +469,10 @@ function usage(
   principal: EidosPrincipal
 ): DurableObjectStub<SyncUsageDurableObject> {
   return env.GRAFT_USAGE.getByName(principal.namespace)
+}
+
+function activity(env: Env): DurableObjectStub<SyncActivityDurableObject> {
+  return env.GRAFT_ACTIVITY.getByName("global-v1")
 }
 
 function validateRepositoryName(value: string): string {
@@ -608,6 +666,67 @@ function requestOperation(request: Request): string {
     operation === "list"
     ? "remote_" + operation.replaceAll("-", "_")
     : "unknown"
+}
+
+function successfulActivityKind(
+  request: Request,
+  status: number
+): SyncActivityKind | null {
+  if (status < 200 || status >= 400) return null
+  const operation = requestOperation(request)
+  if (operation === "repository_management") return "manage"
+  if (operation === "remote_list") return "read"
+  if (operation === "remote_cas" || operation === "remote_cad") return "write"
+  return null
+}
+
+export class SyncAdminEntrypoint extends WorkerEntrypoint<Env> {
+  override async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (request.method !== "GET" || url.pathname !== "/v1/sync-activity") {
+      return jsonResponse({ error: { code: "not_found" } }, 404)
+    }
+
+    const limit = parseActivityLimit(url.searchParams.get("limit"))
+    if (limit === null) {
+      return jsonResponse({ error: { code: "invalid_limit" } }, 400)
+    }
+    const summaries = await activity(this.env).listRecent(limit)
+    return jsonResponse({
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      activities: summaries.map(activityPayload),
+    })
+  }
+}
+
+function parseActivityLimit(value: string | null): number | null {
+  if (value === null) return 100
+  if (!/^\d{1,3}$/.test(value)) return null
+  const limit = Number(value)
+  return limit >= 1 && limit <= SYNC_ACTIVITY_LIMIT_MAX ? limit : null
+}
+
+function activityPayload(summary: SyncActivitySummary): {
+  userId: string
+  lastActivityAt: string
+  lastKind: SyncActivityKind
+  lastReadAt: string | null
+  lastWriteAt: string | null
+  lastManageAt: string | null
+} {
+  return {
+    userId: summary.userId,
+    lastActivityAt: new Date(summary.lastActivityAt).toISOString(),
+    lastKind: summary.lastKind,
+    lastReadAt: optionalTimestamp(summary.lastReadAt),
+    lastWriteAt: optionalTimestamp(summary.lastWriteAt),
+    lastManageAt: optionalTimestamp(summary.lastManageAt),
+  }
+}
+
+function optionalTimestamp(value: number | null): string | null {
+  return value === null ? null : new Date(value).toISOString()
 }
 
 export default createGraftRemoteWorker()

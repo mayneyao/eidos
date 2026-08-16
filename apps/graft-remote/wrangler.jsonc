@@ -46,6 +46,10 @@
         "name": "GRAFT_USAGE",
         "class_name": "SyncUsageDurableObject",
       },
+      {
+        "name": "GRAFT_ACTIVITY",
+        "class_name": "SyncActivityDurableObject",
+      },
     ],
   },
   "exports": {
@@ -60,6 +64,13 @@
     "SyncUsageDurableObject": {
       "type": "durable-object",
       "storage": "sqlite",
+    },
+    "SyncActivityDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "SyncAdminEntrypoint": {
+      "type": "worker",
     },
   },
   "observability": {
@@ -116,6 +127,10 @@
           {
             "name": "GRAFT_USAGE",
             "class_name": "SyncUsageDurableObject",
+          },
+          {
+            "name": "GRAFT_ACTIVITY",
+            "class_name": "SyncActivityDurableObject",
           },
         ],
       },

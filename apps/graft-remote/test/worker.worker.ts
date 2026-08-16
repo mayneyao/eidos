@@ -53,6 +53,19 @@ interface SyncUsagePayload {
   usedBytes: number
 }
 
+interface SyncActivityPayload {
+  version: 1
+  generatedAt: string
+  activities: Array<{
+    userId: string
+    lastActivityAt: string
+    lastKind: "read" | "write" | "manage"
+    lastReadAt: string | null
+    lastWriteAt: string | null
+    lastManageAt: string | null
+  }>
+}
+
 beforeEach(() => {
   mockIdentityService()
 })
@@ -161,6 +174,114 @@ describe("eidos.space Graft Remote", () => {
         authority: "https://eidos.space",
       },
     })
+  })
+
+  it("records successful Sync boundaries and exposes only the private summary", async () => {
+    const name = "activity-" + crypto.randomUUID()
+    const created = await createRepository("alice-token", name)
+    expect(created.response.status).toBe(201)
+
+    const ref = "/cas/refs/heads/main"
+    const write = await protocolFetch(created.payload.remote_url, ref, {
+      init: {
+        method: "POST",
+        headers: {
+          "x-graft-expected-present": "false",
+          "x-graft-expected-hex": "",
+        },
+        body: "activity\n",
+      },
+    })
+    expect(write.status).toBe(204)
+    await write.text()
+
+    const failedRetry = await protocolFetch(created.payload.remote_url, ref, {
+      init: {
+        method: "POST",
+        headers: {
+          "x-graft-expected-present": "false",
+          "x-graft-expected-hex": "",
+        },
+        body: "retry\n",
+      },
+    })
+    expect(failedRetry.status).toBe(409)
+    await failedRetry.text()
+
+    const read = await protocolFetch(
+      created.payload.remote_url + "/list?prefix=refs/&limit=10"
+    )
+    expect(read.status).toBe(200)
+    await read.text()
+
+    let privateResponse: Response | undefined
+    let payload: SyncActivityPayload | undefined
+    let alice: SyncActivityPayload["activities"][number] | undefined
+    await vi.waitFor(async () => {
+      privateResponse = await exports.SyncAdminEntrypoint.fetch(
+        new Request("https://sync-admin.internal/v1/sync-activity?limit=200")
+      )
+      payload = (await privateResponse.json()) as SyncActivityPayload
+      alice = payload.activities.find((entry) => entry.userId === "alice")
+      expect(alice).toMatchObject({ userId: "alice", lastKind: "read" })
+      expect(alice?.lastReadAt).not.toBeNull()
+      expect(alice?.lastWriteAt).not.toBeNull()
+      expect(alice?.lastManageAt).not.toBeNull()
+    })
+    expect(privateResponse?.status).toBe(200)
+    expect(privateResponse?.headers.get("cache-control")).toBe("no-store")
+    expect(payload?.version).toBe(1)
+    expect(new Date(payload?.generatedAt ?? "").toISOString()).toBe(
+      payload?.generatedAt
+    )
+    expect(Object.keys(alice ?? {})).toEqual([
+      "userId",
+      "lastActivityAt",
+      "lastKind",
+      "lastReadAt",
+      "lastWriteAt",
+      "lastManageAt",
+    ])
+
+    const publicResponse = await protocolFetch(ORIGIN + "/v1/sync-activity")
+    expect(publicResponse.status).toBe(403)
+    const invalidLimit = await exports.SyncAdminEntrypoint.fetch(
+      new Request("https://sync-admin.internal/v1/sync-activity?limit=201")
+    )
+    expect(invalidLimit.status).toBe(400)
+  })
+
+  it("does not fail Sync when the activity index is unavailable", async () => {
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined)
+    const worker = createGraftRemoteWorker({
+      async authenticate() {
+        return {
+          userId: "activity-fallback-user",
+          namespace: "u-activity-fallback",
+          syncAccess: activeAccessGrant(),
+        }
+      },
+      async listRepositories() {
+        return []
+      },
+      async recordActivity() {
+        throw new Error("simulated activity index outage")
+      },
+    })
+
+    const response = await worker.request(
+      ORIGIN + "/api/graft/repositories",
+      { headers: { Authorization: "Bearer activity-fallback-token" } },
+      env
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ repositories: [] })
+    const logged = errorLog.mock.calls.flat().join("\n")
+    expect(logged).toContain('"message":"sync activity persistence failed"')
+    expect(logged).not.toContain("activity-fallback-user")
+    expect(logged).not.toContain("simulated activity index outage")
   })
 
   it("handles authentication, protocol negotiation, and missing repositories", async () => {
