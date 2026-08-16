@@ -4287,6 +4287,9 @@ body {
   font-size: 0.875rem;
   line-height: 1.72;
   overflow-wrap: anywhere;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .markdown-document > :first-child {

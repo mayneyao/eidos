@@ -98,6 +98,12 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
+  it("lets Markdown preview text be selected and copied", () => {
+    expect(rule(".markdown-document")).toContain("cursor: text")
+    expect(rule(".markdown-document")).toContain("user-select: text")
+    expect(rule(".markdown-document")).toContain("-webkit-user-select: text")
+  })
+
   it("presents recent files as a compact flat list", () => {
     expect(rule(".recent-files-empty-state")).toContain("width: min(32rem")
     expect(rule(".recent-file-list")).toContain(
