@@ -124,6 +124,22 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
   })
 
+  it("keeps the table-level Record Label setting out of field properties", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("text")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    expect(container.textContent).not.toContain("Record label")
+  })
+
   it("keeps a failed field name draft visible and retries it in place", async () => {
     const onUpdate = vi
       .fn<

@@ -227,6 +227,11 @@ const zh: EidosFileUIMessageOverrides = {
   "Delete field “{name}”?": "删除字段“{name}”？",
   "All values stored in this field will be permanently removed from the Eidos File. This cannot be undone from the current view.":
     "此字段中保存的所有值都会从 Eidos File 中永久删除，且无法在当前视图中撤销。",
+  "Table settings": "数据表设置",
+  "Record label field": "记录标题字段",
+  "Used to identify records in relations and cards.":
+    "用于在关联记录和卡片中标识记录。",
+  "Unable to update table settings": "无法更新数据表设置",
   Text: "文本",
   Number: "数字",
   Integer: "整数",

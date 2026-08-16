@@ -765,6 +765,23 @@ describe("EidosRuntimeEditorDataSource", () => {
     )
   })
 
+  it("maps a Record Label Field update to the canonical schema leaf", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateField(PROJECTS, SIGNALS, { isRecordLabel: true })
+
+    expect(fixture.plannedChange()).toEqual({
+      kind: "set-record-label",
+      tableId: PROJECTS,
+      fieldId: SIGNALS,
+    })
+  })
+
   it("stops an explicit-lossy conversion after preflight instead of silently applying it", async () => {
     const fixture = conversionRuntime("explicit-lossy")
     const source = new EidosRuntimeEditorDataSource(

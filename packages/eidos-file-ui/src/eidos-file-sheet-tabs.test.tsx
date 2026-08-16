@@ -1,12 +1,20 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileTableInfo } from "@eidos.space/eidos-file"
+import type {
+  EidosFileFieldInfo,
+  EidosFileTableInfo,
+  EidosFileTableSnapshot,
+} from "@eidos.space/eidos-file"
 
 import { EidosFileSheetTabs } from "./eidos-file-sheet-tabs"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+  configurable: true,
+  value: vi.fn(),
+})
 
 const tables: EidosFileTableInfo[] = [
   {
@@ -30,6 +38,42 @@ const tables: EidosFileTableInfo[] = [
     updatedAt: "2026-07-19T00:00:00.000Z",
   },
 ]
+
+function sourceField(
+  id: string,
+  tableId: string,
+  name: string,
+  isRecordLabel = false
+): EidosFileFieldInfo {
+  return {
+    id,
+    tableId,
+    name,
+    type: "text",
+    tableName: `tb_${tableId}`,
+    tableColumnName: name.toLowerCase(),
+    property: null,
+    storageCodec: "scalar",
+    valueKind: "source",
+    isHidden: false,
+    isDerived: false,
+    isRecordLabel,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  }
+}
+
+const titleField = sourceField("title", "tasks", "Title", true)
+const statusField = sourceField("status", "tasks", "Status")
+const tableSnapshots: EidosFileTableSnapshot[] = tables.map((table) => ({
+  table,
+  fields:
+    table.id === "tasks"
+      ? [titleField, statusField]
+      : [sourceField("project-name", "projects", "Name", true)],
+  views: [],
+  rowCount: 0,
+}))
 
 async function openTableMenu(container: HTMLElement, tableId: string) {
   const tab = container.querySelector<HTMLElement>(
@@ -193,6 +237,78 @@ describe("EidosFileSheetTabs", () => {
       await Promise.resolve()
     })
     expect(onDelete).toHaveBeenCalledWith(tables[1])
+  })
+
+  it("keeps the Record Label Field in table settings", async () => {
+    const onSetRecordLabel = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileSheetTabs
+          tables={tables}
+          tableSnapshots={tableSnapshots}
+          activeTableId="tasks"
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onDelete={vi.fn()}
+          onSetRecordLabel={onSetRecordLabel}
+        />
+      )
+    })
+
+    await openTableMenu(container, "tasks")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Table settings"))
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).toContain("Record label field")
+    const fieldSelect = document.body.querySelector<HTMLElement>(
+      'button[role="combobox"]'
+    )
+    expect(fieldSelect?.textContent).toContain("Title")
+    await act(async () => {
+      fieldSelect?.click()
+      await Promise.resolve()
+    })
+    expect(
+      document.body
+        .querySelector<HTMLElement>('[role="listbox"]')
+        ?.classList.contains("z-[10020]")
+    ).toBe(true)
+    const selectViewport = document.body.querySelector<HTMLElement>(
+      "[data-eidos-file-select-viewport]"
+    )
+    expect(selectViewport?.classList.contains("overflow-y-auto")).toBe(true)
+    expect(
+      selectViewport?.classList.contains(
+        "max-h-[min(20rem,var(--radix-select-content-available-height))]"
+      )
+    ).toBe(true)
+    expect(selectViewport?.classList.contains("[scrollbar-width:thin]")).toBe(
+      true
+    )
+    const statusOption = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Status")
+    await act(async () => {
+      statusOption?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Save")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onSetRecordLabel).toHaveBeenCalledWith(
+      tableSnapshots[0],
+      statusField
+    )
   })
 
   it("protects the only table from deletion", async () => {

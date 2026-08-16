@@ -873,6 +873,17 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         collision: "merge",
       })
     }
+    if (
+      changes.isRecordLabel === true &&
+      this.tables.get(tableId)?.labelFieldId !== fieldId
+    ) {
+      if (field.kind === "lookup") {
+        throw new Error(
+          "Lookup fields cannot be used as the Record Label Field"
+        )
+      }
+      leaves.push({ kind: "set-record-label", tableId, fieldId })
+    }
     if (leaves.length > 0) {
       try {
         await this.commitSchema(

@@ -1043,6 +1043,7 @@ export function ServeApp() {
           sheetTabs={
             <EidosFileSheetTabs
               tables={snapshot.tables.map((table) => table.table)}
+              tableSnapshots={snapshot.tables}
               activeTableId={activeTable.table.id}
               disabled={saving}
               createAction={
@@ -1068,6 +1069,17 @@ export function ServeApp() {
               }}
               onReorder={reorderTables}
               onRename={(table, name) => renameTable(table.id, name)}
+              onSetRecordLabel={async (table, field) => {
+                const current = clientRef.current
+                if (!current) throw new Error("No active Eidos File")
+                const next = await current.updateField(
+                  table.table.id,
+                  field.id ?? field.tableColumnName,
+                  { isRecordLabel: true }
+                )
+                onStructureSnapshot(next)
+                setViewReloadToken((token) => token + 1)
+              }}
               onDelete={(table) => deleteTable(table.id)}
               onExportCsv={(table) => {
                 const tableSnapshot = snapshot.tables.find(

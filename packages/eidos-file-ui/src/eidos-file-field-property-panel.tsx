@@ -142,6 +142,7 @@ export function EidosFileFieldPropertyPanel({
   const physicalColumn =
     field.physicalName ??
     (field.tableColumnName !== field.id ? field.tableColumnName : null)
+  const isRecordLabel = isEidosFileRecordLabelField(field)
 
   useEffect(
     () => setName(field.name),
@@ -549,7 +550,7 @@ export function EidosFileFieldPropertyPanel({
           </details>
         </div>
       </ScrollArea>
-      {!isEidosFileRecordLabelField(field) && field.valueKind !== "system" ? (
+      {!isRecordLabel && field.valueKind !== "system" ? (
         <footer className="border-t p-2">
           <Button
             type="button"

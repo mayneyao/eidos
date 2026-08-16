@@ -463,6 +463,7 @@ export function EidosFileWorkbench({
         sheetTabs={
           <EidosFileSheetTabs
             tables={snapshot.tables.map((table) => table.table)}
+            tableSnapshots={snapshot.tables}
             activeTableId={activeTable.table.id}
             disabled={disabled}
             createAction={
@@ -492,6 +493,15 @@ export function EidosFileWorkbench({
             }
             onRename={async (table, name) => {
               await source.updateTable(table.id, { name })
+            }}
+            onSetRecordLabel={async (table, field) => {
+              const next = await source.updateField(
+                table.table.id,
+                field.id ?? field.tableColumnName,
+                { isRecordLabel: true }
+              )
+              onSnapshot(next)
+              setReloadToken((current) => current + 1)
             }}
             onDelete={async (table) => {
               const next = await source.deleteTable(table.id)

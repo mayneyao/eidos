@@ -214,7 +214,10 @@ export const SelectContent = React.forwardRef<
         data-eidos-file-root=""
         data-theme={themeName}
       >
-        <SelectPrimitive.Viewport className="p-1">
+        <SelectPrimitive.Viewport
+          className="max-h-[min(20rem,var(--radix-select-content-available-height))] overflow-y-auto overscroll-contain p-1 [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]"
+          data-eidos-file-select-viewport=""
+        >
           {children}
         </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>

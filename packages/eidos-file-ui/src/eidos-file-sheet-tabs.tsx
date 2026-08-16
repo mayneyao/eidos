@@ -8,8 +8,12 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react"
-import type { EidosFileTableInfo } from "@eidos.space/eidos-file"
-import { FileDown, LoaderCircle, Pencil, Trash2 } from "lucide-react"
+import type {
+  EidosFileFieldInfo,
+  EidosFileTableInfo,
+  EidosFileTableSnapshot,
+} from "@eidos.space/eidos-file"
+import { FileDown, LoaderCircle, Pencil, Settings2, Trash2 } from "lucide-react"
 
 import { EidosFileSheetTabStrip } from "./eidos-file-editor-chrome"
 import {
@@ -35,8 +39,25 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "./ui/primitives"
 import { useEidosFileUI } from "./context"
+import {
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
+} from "./eidos-file-field-visibility"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog"
 
 export interface EidosFileSheetTabActions {
   canDelete: boolean
@@ -47,6 +68,7 @@ export interface EidosFileSheetTabActions {
   exportDisabled: boolean
   exportingCsv: boolean
   rename: () => void
+  settings?: () => void
 }
 
 export type EidosFileSheetTabRenderer = (
@@ -57,6 +79,7 @@ export type EidosFileSheetTabRenderer = (
 
 export interface EidosFileSheetTabsProps {
   tables: EidosFileTableInfo[]
+  tableSnapshots?: readonly EidosFileTableSnapshot[]
   activeTableId: string | null
   disabled?: boolean
   status?: ReactNode
@@ -66,6 +89,10 @@ export interface EidosFileSheetTabsProps {
   onRename?: (table: EidosFileTableInfo, name: string) => Promise<void> | void
   onDelete?: (table: EidosFileTableInfo) => Promise<void> | void
   onExportCsv?: (table: EidosFileTableInfo) => Promise<void> | void
+  onSetRecordLabel?: (
+    table: EidosFileTableSnapshot,
+    field: EidosFileFieldInfo
+  ) => Promise<void> | void
   onExportError?: (error: unknown) => void
   renderTab?: EidosFileSheetTabRenderer
 }
@@ -114,6 +141,15 @@ function EidosFileSheetTabContextMenu({
           <Pencil />
           {t("Rename table")}
         </ContextMenuItem>
+        {actions.settings ? (
+          <ContextMenuItem
+            disabled={actions.disabled}
+            onSelect={() => afterMenuClose(actions.settings!)}
+          >
+            <Settings2 />
+            {t("Table settings")}
+          </ContextMenuItem>
+        ) : null}
         {actions.exportCsv ? (
           <ContextMenuItem
             disabled={actions.exportDisabled || actions.exportingCsv}
@@ -142,6 +178,7 @@ function EidosFileSheetTabContextMenu({
 
 export function EidosFileSheetTabs({
   tables,
+  tableSnapshots,
   activeTableId,
   disabled = false,
   status,
@@ -151,6 +188,7 @@ export function EidosFileSheetTabs({
   onRename,
   onDelete,
   onExportCsv,
+  onSetRecordLabel,
   onExportError,
   renderTab,
 }: EidosFileSheetTabsProps) {
@@ -161,8 +199,13 @@ export function EidosFileSheetTabs({
     null
   )
   const [exportingTableId, setExportingTableId] = useState<string | null>(null)
+  const [settingsTarget, setSettingsTarget] =
+    useState<EidosFileTableSnapshot | null>(null)
+  const [recordLabelFieldId, setRecordLabelFieldId] = useState("")
   const [name, setName] = useState("")
-  const [busy, setBusy] = useState<"rename" | "delete" | null>(null)
+  const [busy, setBusy] = useState<"rename" | "delete" | "settings" | null>(
+    null
+  )
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
   const errorId = useId()
@@ -173,6 +216,26 @@ export function EidosFileSheetTabs({
     setBusy(null)
     setError(null)
   }, [renameRequest])
+
+  useEffect(() => {
+    if (!settingsTarget) return
+    const label = settingsTarget.fields.find(isEidosFileRecordLabelField)
+    setRecordLabelFieldId(label ? eidosFileFieldKey(label) : "")
+    setBusy(null)
+    setError(null)
+  }, [settingsTarget])
+
+  const recordLabelFields = useMemo(
+    () =>
+      settingsTarget?.fields.filter(
+        (field) => field.valueKind !== "system" && field.type !== "lookup"
+      ) ?? [],
+    [settingsTarget]
+  )
+  const currentRecordLabelFieldId = useMemo(() => {
+    const field = settingsTarget?.fields.find(isEidosFileRecordLabelField)
+    return field ? eidosFileFieldKey(field) : ""
+  }, [settingsTarget])
 
   const renameAnchorStyle = useMemo<CSSProperties | undefined>(() => {
     if (!renameRequest) return undefined
@@ -248,6 +311,28 @@ export function EidosFileSheetTabs({
     }
   }
 
+  const saveTableSettings = async () => {
+    const target = settingsTarget
+    const field = recordLabelFields.find(
+      (candidate) => eidosFileFieldKey(candidate) === recordLabelFieldId
+    )
+    if (!target || !field || !onSetRecordLabel || busy) return
+    setBusy("settings")
+    setError(null)
+    try {
+      await onSetRecordLabel(target, field)
+      setSettingsTarget(null)
+    } catch (settingsError) {
+      setError(
+        settingsError instanceof Error
+          ? settingsError.message
+          : t("Unable to update table settings")
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <>
       <div ref={rootRef} className="contents">
@@ -289,6 +374,17 @@ export function EidosFileSheetTabs({
               exportDisabled: disabled,
               exportingCsv: exportingTableId === table.id,
               rename: () => requestRename(table),
+              settings:
+                tableSnapshots && onSetRecordLabel
+                  ? () => {
+                      const target = tableSnapshots.find(
+                        (candidate) => candidate.table.id === table.id
+                      )
+                      if (!target) return
+                      setError(null)
+                      setSettingsTarget(target)
+                    }
+                  : undefined,
             }
             return renderTab ? (
               renderTab(table, tab, actions)
@@ -385,6 +481,74 @@ export function EidosFileSheetTabs({
           </form>
         </PopoverContent>
       </Popover>
+
+      <Dialog
+        open={Boolean(settingsTarget)}
+        onOpenChange={(open) => {
+          if (!open && busy !== "settings") {
+            setSettingsTarget(null)
+            setError(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm" aria-busy={busy === "settings"}>
+          <DialogHeader>
+            <DialogTitle>{t("Table settings")}</DialogTitle>
+            <DialogDescription>{settingsTarget?.table.name}</DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-1.5 text-xs">
+            <span className="font-medium">{t("Record label field")}</span>
+            <Select
+              value={recordLabelFieldId}
+              disabled={busy === "settings"}
+              onValueChange={setRecordLabelFieldId}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[10020]">
+                {recordLabelFields.map((field) => (
+                  <SelectItem
+                    key={eidosFileFieldKey(field)}
+                    value={eidosFileFieldKey(field)}
+                  >
+                    {field.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[11px] leading-4 text-muted-foreground">
+              {t("Used to identify records in relations and cards.")}
+            </span>
+          </label>
+          {error ? (
+            <p className="break-words text-xs text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy === "settings"}
+              onClick={() => setSettingsTarget(null)}
+            >
+              {t("Cancel")}
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                busy === "settings" ||
+                !recordLabelFieldId ||
+                recordLabelFieldId === currentRecordLabelFieldId
+              }
+              onClick={() => void saveTableSettings()}
+            >
+              {busy === "settings" ? t("Saving…") : t("Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={Boolean(deleteTarget)}
