@@ -1647,6 +1647,62 @@ describe("SyncPanel failure states", () => {
     )
   })
 
+  it("refreshes open files after Sync materializes cloud updates", async () => {
+    const snapshot = {} as SpaceSnapshot
+    const onSpaceChange = vi.fn()
+    const onFilesMaterialized = vi.fn().mockResolvedValue(undefined)
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      runSync: vi.fn().mockResolvedValue({
+        ok: true,
+        result: {
+          state: "synced",
+          message: "Cloud updates were downloaded.",
+          pulled: true,
+          pushed: false,
+          materializedPaths: ["records.eidos", "notes.md"],
+          ahead: 0,
+          behind: 0,
+          snapshot,
+          runId: "sync-pull-1",
+          telemetry: {
+            startedAtMs: 100,
+            completedAtMs: 200,
+            durationMs: 100,
+            phases: [],
+          },
+        },
+      } satisfies EidosSyncRunResponse),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+        })
+      )
+    })
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("[data-sync-run]")?.click()
+    })
+
+    expect(onSpaceChange).toHaveBeenCalledWith(snapshot)
+    expect(onFilesMaterialized).toHaveBeenCalledWith(snapshot, [
+      "records.eidos",
+      "notes.md",
+    ])
+  })
+
   it("keeps the sync direction visible next to any status", async () => {
     const api = {
       getSyncStatus: vi.fn().mockResolvedValue(status),

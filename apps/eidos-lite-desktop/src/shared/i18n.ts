@@ -162,6 +162,8 @@ const zh: Record<string, string> = {
   "Refresh Space Explorer": "刷新空间资源管理器",
   "Loading Space Explorer…": "正在加载空间资源管理器…",
   "Resize Space Explorer": "调整空间资源管理器宽度",
+  "Resize Sync panel": "调整同步面板宽度",
+  "Resize Versions panel": "调整版本面板宽度",
   "Space actions": "空间操作",
   "Dismiss error": "关闭错误",
   "Loading change details…": "正在加载变更详情…",

@@ -1215,6 +1215,7 @@ export class SpaceSession {
     }
 
     let pulled = false
+    let materializedPaths: string[] | null = null
     if (repositorySyncState(relation) === "behind") {
       if (
         !(await this.repository.runForeground(() =>
@@ -1227,7 +1228,6 @@ export class SpaceSession {
       }
       let shouldApplyFastForward = true
       let fastForwardPlan: EidosSyncMergePlan | null = null
-      let materializedPaths: string[] | null = null
       const stopProgress = this.gate.subscribe((state) => {
         if (state.phase === "quiescing") {
           reportProgress(
@@ -1326,7 +1326,8 @@ export class SpaceSession {
           "Hosted updates are applied, but this subscription cannot push local checkpoints.",
           pulled,
           false,
-          relation
+          relation,
+          materializedPaths
         )
       }
       reportProgress("push", "Pushing Local checkpoints to Hosted Space")
@@ -1372,7 +1373,8 @@ export class SpaceSession {
         : "Local and Hosted Space history are up to date.",
       pulled,
       pushed,
-      relation
+      relation,
+      materializedPaths
     )
   }
 
@@ -3019,13 +3021,15 @@ export class SpaceSession {
       behind: number
       currentHead?: string | null
       sync?: SpaceSyncHistoryStatus
-    }
+    },
+    materializedPaths: string[] | null = null
   ): Promise<EidosSyncOutcome> {
     return {
       state,
       message,
       pulled,
       pushed,
+      ...(pulled ? { materializedPaths } : {}),
       ...(relation.sync?.localHead || relation.currentHead
         ? {
             localHead:

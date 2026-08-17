@@ -118,6 +118,7 @@ export function SyncPanel({
   onMergeStatusChange,
   onReviewMerge,
   onSpaceChange,
+  onFilesMaterialized,
 }: {
   mode: "enable" | "clone"
   variant?: "dialog" | "inspector"
@@ -132,6 +133,10 @@ export function SyncPanel({
   onMergeStatusChange?(status: EidosSyncMergeStatus): void
   onReviewMerge?(): void
   onSpaceChange?(snapshot: SpaceSnapshot): void
+  onFilesMaterialized?(
+    snapshot: SpaceSnapshot,
+    materializedPaths: readonly string[] | null
+  ): void | Promise<void>
 }) {
   const [initialSnapshot] = useState(() => readSyncStatusSnapshot(cacheKey))
   const [initialAccountContext] = useState(() => readSyncAccountContext())
@@ -561,6 +566,12 @@ export function SyncPanel({
       if (response.ok) {
         setSyncResult(response.result)
         onSpaceChange?.(response.result.snapshot)
+        if (response.result.pulled) {
+          await onFilesMaterialized?.(
+            response.result.snapshot,
+            response.result.materializedPaths ?? null
+          )
+        }
         rememberStatus(await window.eidosLite.getSyncStatus(), {
           synced: true,
         })

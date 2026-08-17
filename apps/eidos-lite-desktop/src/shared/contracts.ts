@@ -767,6 +767,7 @@ export interface EidosSyncOutcome {
   message: string
   pulled: boolean
   pushed: boolean
+  materializedPaths?: string[] | null
   localHead?: string
   remoteHead?: string
   commonAncestor?: string

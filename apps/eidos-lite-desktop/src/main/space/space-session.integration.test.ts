@@ -1976,6 +1976,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
         state: "synced",
         pulled: true,
         pushed: false,
+        materializedPaths: ["note.txt"],
         ahead: 0,
         behind: 0,
       })

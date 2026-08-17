@@ -4061,7 +4061,59 @@ body {
   --eidos-shell-workbar-height: var(--chrome-header-height);
   --version-header-height: var(--chrome-header-height);
 
-  grid-template-columns: minmax(0, 1fr) clamp(19rem, 30vw, 22rem);
+  grid-template-columns:
+    minmax(19rem, 1fr) 0
+    min(var(--utility-panel-width, 22rem), calc(100% - 19rem));
+}
+
+.editor-work-area.with-utility-panel > .editor-work-content,
+.editor-work-area.with-utility-panel > .sync-merge-editor {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.editor-work-area.with-utility-panel > .version-panel,
+.editor-work-area.with-utility-panel > .sync-inspector-host {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+.utility-panel-resizer {
+  position: relative;
+  z-index: 50;
+  grid-row: 1;
+  grid-column: 2;
+  width: 12px;
+  height: 100%;
+  justify-self: center;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.utility-panel-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: transparent;
+  content: "";
+}
+
+.utility-panel-resizer:hover::after,
+.utility-panel-resizer:focus-visible::after,
+.resizing-utility-panel .utility-panel-resizer::after {
+  background: var(--lite-accent);
+}
+
+.utility-panel-resizer:focus-visible {
+  outline: none;
+}
+
+.resizing-utility-panel,
+.resizing-utility-panel * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .editor-work-content {

@@ -282,6 +282,11 @@ const MIN_SIDEBAR_WIDTH = 208
 const MAX_SIDEBAR_WIDTH = 480
 const SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:space-sidebar-width"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "eidos-lite:space-sidebar-collapsed"
+const DEFAULT_UTILITY_PANEL_WIDTH = 352
+const MIN_UTILITY_PANEL_WIDTH = 304
+const MAX_UTILITY_PANEL_WIDTH = 640
+const MIN_EDITOR_WORK_WIDTH = 304
+const UTILITY_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:utility-panel-width"
 const MAX_CACHED_FILES = 3
 
 function clampSidebarWidth(width: number): number {
@@ -300,6 +305,37 @@ function storedSidebarWidth(): number {
 
 function storedSidebarCollapsed(): boolean {
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
+}
+
+function clampUtilityPanelWidth(
+  width: number,
+  maximum = MAX_UTILITY_PANEL_WIDTH
+): number {
+  return Math.min(
+    Math.max(MIN_UTILITY_PANEL_WIDTH, maximum),
+    Math.max(MIN_UTILITY_PANEL_WIDTH, width)
+  )
+}
+
+function maximumUtilityPanelWidth(container: HTMLElement | null): number {
+  if (!container) return MAX_UTILITY_PANEL_WIDTH
+  return Math.min(
+    MAX_UTILITY_PANEL_WIDTH,
+    Math.max(
+      MIN_UTILITY_PANEL_WIDTH,
+      container.getBoundingClientRect().width - MIN_EDITOR_WORK_WIDTH
+    )
+  )
+}
+
+function storedUtilityPanelWidth(): number {
+  const stored = Number.parseInt(
+    window.localStorage.getItem(UTILITY_PANEL_WIDTH_STORAGE_KEY) ?? "",
+    10
+  )
+  return Number.isFinite(stored)
+    ? clampUtilityPanelWidth(stored)
+    : DEFAULT_UTILITY_PANEL_WIDTH
 }
 
 function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
@@ -647,6 +683,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     storedSidebarCollapsed
   )
+  const [utilityPanelWidth, setUtilityPanelWidth] = useState(
+    storedUtilityPanelWidth
+  )
+  const [utilityPanelResizing, setUtilityPanelResizing] = useState(false)
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
 
@@ -771,16 +811,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const refreshMaterializedFiles = useCallback(
     async (
       snapshot: SpaceSnapshot,
-      materializedPaths: readonly string[] = []
+      materializedPaths: readonly string[] | null = []
     ) => {
-      // Merge apply/resolve/continue/abort all return an authoritative Space
-      // snapshot. Keep the shell's Graft/Sync relationship in step with the
-      // refreshed files so an aborted merge cannot leave a stale divergence
-      // panel behind.
+      // Sync and merge materialization return an authoritative Space snapshot.
+      // Keep the shell's Graft/Sync relationship and open file snapshots in
+      // step with the files that were replaced on disk.
       acceptSpaceSnapshot(snapshot)
       const invalidated = new Set(snapshot.invalidatedSessionIds)
-      const materialized = new Set(materializedPaths)
-      if (materialized.size > 0) {
+      const materialized = materializedPaths ? new Set(materializedPaths) : null
+      if (materialized && materialized.size > 0) {
         setTextFileDrafts((current) => {
           const next = { ...current }
           for (const relativePath of materialized) delete next[relativePath]
@@ -822,7 +861,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         })
       )
       setFileMaterializationKey((current) => current + 1)
-      if (textPreview && materialized.has(textPreview.relativePath)) {
+      if (
+        textPreview &&
+        (!materialized || materialized.has(textPreview.relativePath))
+      ) {
         try {
           const preview = await window.eidosLite.previewTextFile(
             textPreview.relativePath
@@ -948,6 +990,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     )
   }, [sidebarCollapsed])
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      UTILITY_PANEL_WIDTH_STORAGE_KEY,
+      String(utilityPanelWidth)
+    )
+  }, [utilityPanelWidth])
+
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const recentFiles =
@@ -1016,6 +1065,59 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const adjustSidebarWidth = useCallback((delta: number) => {
     setSidebarWidth((current) => clampSidebarWidth(current + delta))
   }, [])
+
+  const startUtilityPanelResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      const pointerId = event.pointerId
+      const resizer = event.currentTarget
+      const maximum = maximumUtilityPanelWidth(resizer.parentElement)
+      const startX = event.clientX
+      const startWidth = clampUtilityPanelWidth(utilityPanelWidth, maximum)
+      resizer.setPointerCapture(pointerId)
+      flushSync(() => setUtilityPanelResizing(true))
+      document.documentElement.classList.add("resizing-utility-panel")
+
+      const move = (pointerEvent: PointerEvent) => {
+        setUtilityPanelWidth(
+          clampUtilityPanelWidth(
+            startWidth + startX - pointerEvent.clientX,
+            maximum
+          )
+        )
+      }
+      const cleanup = () => {
+        document.documentElement.classList.remove("resizing-utility-panel")
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", stop)
+        window.removeEventListener("pointercancel", stop)
+        resizer.removeEventListener("lostpointercapture", cleanup)
+        setUtilityPanelResizing(false)
+      }
+      const stop = () => {
+        cleanup()
+        if (resizer.hasPointerCapture(pointerId)) {
+          resizer.releasePointerCapture(pointerId)
+        }
+      }
+      window.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", stop)
+      window.addEventListener("pointercancel", stop)
+      resizer.addEventListener("lostpointercapture", cleanup)
+    },
+    [utilityPanelWidth]
+  )
+
+  const adjustUtilityPanelWidth = useCallback(
+    (delta: number, container: HTMLElement | null) => {
+      const maximum = maximumUtilityPanelWidth(container)
+      setUtilityPanelWidth((current) =>
+        clampUtilityPanelWidth(current + delta, maximum)
+      )
+    },
+    []
+  )
 
   const copyDiagnostics = useCallback(async () => {
     try {
@@ -1804,6 +1906,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           "--space-sidebar-track-width": sidebarCollapsed
             ? "0px"
             : `${sidebarWidth}px`,
+          "--utility-panel-width": `${utilityPanelWidth}px`,
         } as CSSProperties
       }
     >
@@ -2200,7 +2303,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       nativePreviewSuppressed={
                         quickOpenVisible ||
                         Boolean(pathDialog) ||
-                        sidebarResizing
+                        sidebarResizing ||
+                        utilityPanelResizing
                       }
                       onSaved={(file) =>
                         setTextPreview((current) =>
@@ -2353,8 +2457,44 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   setVersionPanelOpen(true)
                 }}
                 onSpaceChange={acceptSpaceSnapshot}
+                onFilesMaterialized={refreshMaterializedFiles}
               />
             </Suspense>
+          ) : null}
+          {versionPanelOpen || syncPanelMode ? (
+            <div
+              className="utility-panel-resizer"
+              data-utility-panel-resizer
+              role="separator"
+              aria-label={t(
+                syncPanelMode ? "Resize Sync panel" : "Resize Versions panel"
+              )}
+              aria-orientation="vertical"
+              aria-valuemin={MIN_UTILITY_PANEL_WIDTH}
+              aria-valuemax={MAX_UTILITY_PANEL_WIDTH}
+              aria-valuenow={utilityPanelWidth}
+              tabIndex={0}
+              onPointerDown={startUtilityPanelResize}
+              onDoubleClick={(event) =>
+                setUtilityPanelWidth(
+                  clampUtilityPanelWidth(
+                    DEFAULT_UTILITY_PANEL_WIDTH,
+                    maximumUtilityPanelWidth(event.currentTarget.parentElement)
+                  )
+                )
+              }
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+                  return
+                }
+                event.preventDefault()
+                const step = event.shiftKey ? 32 : 16
+                adjustUtilityPanelWidth(
+                  event.key === "ArrowLeft" ? step : -step,
+                  event.currentTarget.parentElement
+                )
+              }}
+            />
           ) : null}
         </div>
       </main>
