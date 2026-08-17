@@ -17,9 +17,9 @@
     "types": "wrangler types worker-configuration.d.ts --include-runtime false"
   },
   "dependencies": {
-    "@eidos.space/graft-remote": "0.2.2",
-    "@eidos.space/graft-remote-cloudflare": "0.2.2",
-    "@eidos.space/graft-remote-hono": "0.2.2",
+    "@eidos.space/graft-remote": "0.2.3",
+    "@eidos.space/graft-remote-cloudflare": "0.2.3",
+    "@eidos.space/graft-remote-hono": "0.2.3",
     "hono": "4.12.31"
   },
   "devDependencies": {

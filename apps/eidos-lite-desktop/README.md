@@ -7,7 +7,7 @@
 > architecture and verification contract.
 
 Eidos Lite 0.1.12 is the current release. Local Spaces, editing, and version
-history require no account. It uses Graft SDK 0.3.17 for durable merge state,
+history require no account. It uses Graft SDK 0.3.18 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -125,7 +125,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.3.17` Node-API SDK.
+Graft runs through the published `@eidos.space/graft@0.3.18` Node-API SDK.
 Opening a Space does not open or classify its repository. The root Explorer and
 local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one

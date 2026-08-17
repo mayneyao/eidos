@@ -1,30 +1,25 @@
 ## What's new
 
-### Sync recovers after local cleanup and reviewed merges
+### Sync fetches Hosted history in fewer requests
 
-After you discard local edits to unblock Sync, the panel now clears the obsolete
-warning and lets the current Hosted state be fetched. Reviewed merges also verify
-their SQLite snapshots before creating the merge checkpoint and recover missing
-snapshot data from the Hosted Space when possible. If neither copy has the data,
-Sync stops retrying and offers the safe Hosted-clone recovery path instead.
+Lite and the Hosted Sync service now transfer reachable Graft objects through one
+bundled fetch when the service supports it, while retaining compatibility with an
+older service. Fast-forward pulls also avoid a redundant history scan. On the
+retained 430.9 MiB staging Space, the median mixed-change fetch-and-pull workflow
+improved from 10.78 seconds to 7.65 seconds across three rounds; actual results
+depend on history size and network latency.
 
-### Record labels can be reassigned in Table settings
+### Open files refresh after a pull
 
-Each table now has a dedicated settings dialog for choosing the field used to
-identify records in relations and cards. If the previous label field was deleted,
-you can assign another eligible field from the table tab menu without editing every
-field's configuration.
+When Sync replaces an Eidos File, Markdown document, or other open file with its
+Hosted version, Lite now invalidates the affected editor cache as part of the same
+operation. The current tab shows the downloaded data immediately instead of
+requiring you to close and reopen the file.
 
-### Editor shortcuts are configurable and repeatable
+### Sync and Versions panels can be resized
 
-The existing table, view, and cell-actions shortcuts now appear in Settings, where
-they can be customized or cleared. Closing a keyboard-opened cell menu returns
-focus to the Grid, so the same shortcut can be used repeatedly without clicking the
-table again.
-
-### Markdown previews can be copied
-
-Rendered Markdown content can now be selected and copied with the normal platform
-commands while links and other preview interactions continue to work.
+Drag the boundary beside Sync or Versions to give detailed history, progress, and
+merge information more room. The shared width is remembered, supports keyboard
+adjustment, and can be reset by double-clicking the boundary.
 
 No migration is required.
