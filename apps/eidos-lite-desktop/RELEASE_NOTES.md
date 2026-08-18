@@ -1,15 +1,17 @@
 ## What's new
 
-### Linux uses the compact Windows-style titlebar
+### Linux window controls follow the desktop theme
 
-Eidos Lite on Linux now hides the traditional menu bar and integrates the system
-window controls into the app titlebar, matching the Windows layout while keeping
-application actions clear of the controls.
+Eidos Lite now uses the Linux system window-control styling and height instead
+of forcing a transparent Windows-style overlay. Minimize, maximize, and close
+controls are easier to see, align with the app titlebar, and show their normal
+hover feedback on Ubuntu and other supported Linux desktops.
 
-### Debian installs show the Eidos Lite icon
+### Smaller Welcome windows keep Recent Spaces visible
 
-The `.deb` package now installs the Eidos Lite launcher icon in a standard Linux
-icon-theme size, so GNOME and other desktop environments no longer fall back to
-a generic gear icon.
+The Welcome screen now stays in its two-column layout until the content actually
+needs to reflow. In narrower windows, the actions and Recent Spaces list share
+the available height with independent scrolling, so the titlebar stays fixed and
+recent folders remain reachable.
 
 No migration is required.
