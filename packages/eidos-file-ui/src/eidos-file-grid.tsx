@@ -2100,24 +2100,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [keyboardShortcuts?.openCellActions, presentCellMenu]
   )
 
-  const onCellClicked = useCallback<
-    NonNullable<DataEditorProps["onCellClicked"]>
-  >(
-    (location, event) => {
-      if (!activateUrl || event.button === 2) return
-      const cell = getCellContent(location)
-      if (
-        cell.kind !== GridCellKind.Uri ||
-        !eidosFileUrlIsActivatable(cell.data)
-      ) {
-        return
-      }
-      event.preventDefault()
-      openUrl(cell.data)
-    },
-    [activateUrl, getCellContent, openUrl]
-  )
-
   const updateView = useCallback(
     (changes: UpdateEidosFileViewInput) => {
       if (!onViewUpdate) return
@@ -2216,7 +2198,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
-          onCellClicked={onCellClicked}
           onCellContextMenu={onCellContextMenu}
           onColumnResize={onColumnResize}
           onColumnMoved={onColumnMoved}

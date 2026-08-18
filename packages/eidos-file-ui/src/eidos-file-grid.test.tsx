@@ -245,7 +245,7 @@ describe("EidosFileGrid", () => {
     )
   })
 
-  it("activates a link-styled URL on one text click without opening its editor", async () => {
+  it("activates only the link text while leaving the rest of a URL cell editable", async () => {
     const uri = "https://example.com/artwork?id=42#preview"
     const activateUrl = vi.fn(async () => undefined)
     const urlTable: EidosFileTableSnapshot = {
@@ -289,11 +289,11 @@ describe("EidosFileGrid", () => {
       hoverEffect: true,
     })
     expect(cell.onClickUri).toEqual(expect.any(Function))
+    expect(mocks.props?.onCellClicked).toBeUndefined()
 
     const preventDefault = vi.fn()
     await act(async () => {
-      mocks.props?.onCellClicked?.([0, 0], {
-        button: 0,
+      cell.onClickUri?.({
         preventDefault,
       } as never)
       await Promise.resolve()
@@ -336,13 +336,7 @@ describe("EidosFileGrid", () => {
       await Promise.resolve()
     })
 
-    const preventDefault = vi.fn()
-    mocks.props?.onCellClicked?.([0, 0], {
-      button: 0,
-      preventDefault,
-    } as never)
-
-    expect(preventDefault).not.toHaveBeenCalled()
+    expect(mocks.props?.onCellClicked).toBeUndefined()
   })
 
   it("updates the mounted Canvas from its scoped semantic theme", async () => {
