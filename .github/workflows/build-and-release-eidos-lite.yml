@@ -57,7 +57,8 @@ jobs:
           node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
             --surface lite \
             --tag "$TAG" \
-            --unpublished-tag lite-v0.1.14
+            --unpublished-tag lite-v0.1.14 \
+            --unpublished-tag lite-v0.1.15
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -129,8 +130,8 @@ jobs:
           fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`)
           NODE
 
-      - name: Install native FPM on Linux arm64
-        if: matrix.platform == 'linux' && matrix.architecture == 'arm64'
+      - name: Install native FPM on Linux
+        if: matrix.platform == 'linux'
         shell: bash
         run: |
           sudo gem install --no-document fpm -v 1.15.1
@@ -169,11 +170,17 @@ jobs:
             --config electron-builder.json \
             --config.mac.notarize.teamId="$APPLE_TEAM_ID"
 
-      - name: Build unsigned Windows or Linux release
-        if: matrix.platform != 'mac'
+      - name: Build unsigned Windows release
+        if: matrix.platform == 'win'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' && matrix.architecture == 'arm64' && 'true' || '' }}
+        run: pnpm build:eidos-lite:release
+
+      - name: Build unsigned Linux release
+        if: matrix.platform == 'linux'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          USE_SYSTEM_FPM: true
         run: pnpm build:eidos-lite:release
 
       - name: Verify macOS signature and notarization
