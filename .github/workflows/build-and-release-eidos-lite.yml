@@ -51,11 +51,13 @@ jobs:
 
       - name: Audit single-release notes
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
             --surface lite \
-            --tag "$TAG"
+            --tag "$TAG" \
+            --unpublished-tag lite-v0.1.14
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck

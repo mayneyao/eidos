@@ -249,6 +249,7 @@ describe("Eidos Lite package identity", () => {
       "body_path: apps/eidos-lite-desktop/RELEASE_NOTES.md"
     )
     expect(workflow).toContain("audit-release-notes.mjs")
+    expect(workflow).toContain("--unpublished-tag lite-v0.1.14")
     expect(workflow).toContain("Verify published release notes")
     expect(workflow).toContain("Verify live update metadata")
     expect(workflow).toContain("--range 0-0 --output /dev/null")

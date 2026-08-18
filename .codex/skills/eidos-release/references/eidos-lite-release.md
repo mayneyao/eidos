@@ -76,6 +76,11 @@ node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
   --tag lite-v<version>
 ```
 
+When a prior immutable tag has build artifacts but no GitHub Release, retain the
+tag, prepare a new version, and pass that prior tag with `--unpublished-tag`.
+The audit verifies the missing Release through `gh`; this is not an exception
+for correcting or hiding published notes.
+
 Read the complete file, the previous three Lite Release bodies, and compare
 every claim with the scoped diff and test evidence. Treat missing, generic,
 stale-version, duplicated, or unsupported notes as a release blocker. The

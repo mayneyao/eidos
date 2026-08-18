@@ -54,6 +54,13 @@ sections found in recent same-surface tags, empty sections, and GitHub's
 generated monorepo-note boilerplate. It is a lower bound, not a substitute for
 the semantic review: rewording an old feature is still a blocker.
 
+If an immutable failed tag must remain but never created a GitHub Release, the
+next candidate may pass `--unpublished-tag <tag>`. The audit requires the tag to
+exist locally and uses `gh release view` to prove that no Release exists before
+excluding it from release history. Export `GH_TOKEN` in CI. Never use this for a
+tag that has a GitHub Release, and never use it to hide previously published
+release notes.
+
 For CLI, stable installer commands and the version-matched Skill link are
 operational reference material. Put them under separate `## Install` and
 `## Use with Codex` headings, not under `## What's new`. Their presence is

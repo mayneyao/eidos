@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import process from "node:process"
 import { fileURLToPath } from "node:url"
@@ -178,7 +178,7 @@ function compareVersions(left, right) {
 }
 
 function readArguments(argv) {
-  const result = { history: 3 }
+  const result = { history: 3, unpublishedTags: [] }
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index]
     const value = argv[index + 1]
@@ -187,6 +187,7 @@ function readArguments(argv) {
     if (name === "--surface") result.surface = value
     else if (name === "--tag") result.tag = value
     else if (name === "--history") result.history = Number(value)
+    else if (name === "--unpublished-tag") result.unpublishedTags.push(value)
     else fail(`unknown argument: ${name}`)
   }
   if (!Number.isInteger(result.history) || result.history < 1)
@@ -194,7 +195,34 @@ function readArguments(argv) {
   return result
 }
 
-function readRecentBodies(contract, candidateTag, limit) {
+function verifyUnpublishedTags(contract, candidateTag, tags, unpublishedTags) {
+  for (const tag of unpublishedTags) {
+    if (tag === candidateTag)
+      fail(`candidate tag cannot be marked unpublished: ${tag}`)
+    if (!parseVersion(tag, contract.prefix))
+      fail(`${tag} is not a valid ${contract.prefix}<semver> tag`)
+    if (!tags.includes(tag)) fail(`unpublished tag does not exist locally: ${tag}`)
+
+    const release = spawnSync("gh", ["release", "view", tag, "--json", "tagName"], {
+      encoding: "utf8",
+    })
+    if (release.error)
+      fail(`could not verify unpublished tag ${tag}: ${release.error.message}`)
+    if (release.status === 0)
+      fail(`${tag} has a GitHub Release and cannot be marked unpublished`)
+    if (!/release not found/iu.test(release.stderr))
+      fail(
+        `could not verify unpublished tag ${tag}: ${release.stderr.trim() || `gh exited ${release.status}`}`
+      )
+  }
+}
+
+function readRecentBodies(
+  contract,
+  candidateTag,
+  limit,
+  unpublishedTags = []
+) {
   const candidateVersion = parseVersion(candidateTag, contract.prefix)
   if (!candidateVersion)
     fail(`${candidateTag} is not a valid ${contract.prefix}<semver> tag`)
@@ -209,8 +237,12 @@ function readRecentBodies(contract, candidateTag, limit) {
     .split("\n")
     .filter(Boolean)
 
+  verifyUnpublishedTags(contract, candidateTag, tags, unpublishedTags)
+  const unpublished = new Set(unpublishedTags)
+
   const eligible = tags.filter((tag) => {
     if (tag === candidateTag) return false
+    if (unpublished.has(tag)) return false
     const version = parseVersion(tag, contract.prefix)
     return (
       version !== undefined &&
@@ -244,7 +276,12 @@ function main() {
   if (!args.tag) fail("--tag is required")
 
   const candidateBody = readFileSync(contract.notes, "utf8")
-  const history = readRecentBodies(contract, args.tag, args.history)
+  const history = readRecentBodies(
+    contract,
+    args.tag,
+    args.history,
+    args.unpublishedTags
+  )
   const result = auditBodies(candidateBody, history)
   process.stdout.write(
     `Release notes audit passed: ${result.sectionCount} new section(s), ` +
