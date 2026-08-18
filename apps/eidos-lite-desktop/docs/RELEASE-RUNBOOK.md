@@ -59,11 +59,11 @@ After publication, require all of the following before reporting success:
 1. The remote `lite-v*` tag points to the approved commit.
 2. The workflow is green for macOS arm64/x64, Windows x64, and Linux
    arm64/x64.
-3. The GitHub Release contains every installer, macOS update ZIP, update
-   metadata file, standalone macOS/Windows blockmap, and `SHA256SUMS`. Linux
-   AppImages carry an embedded blockmap whose size is recorded as
-   `blockMapSize` in their update metadata; they do not produce a separate
-   `.AppImage.blockmap` asset.
+3. The GitHub Release contains every installer, including Linux arm64/x64
+   AppImage and Debian packages, macOS update ZIP, update metadata file,
+   standalone macOS/Windows blockmap, and `SHA256SUMS`. Linux AppImages carry
+   an embedded blockmap whose size is recorded as `blockMapSize` in their
+   update metadata; they do not produce a separate `.AppImage.blockmap` asset.
 4. Stable and beta feed URLs return the matching architecture metadata, and
    every metadata path resolves to an uploaded asset.
 5. A previous published package detects the new version, downloads it,
@@ -119,15 +119,23 @@ After publication, require all of the following before reporting success:
    release gate.
 
 For an automatic upgrade, open **Settings > Updates**, check for the new
-version, wait for the signed payload to finish downloading, then choose
+version, wait for the published payload to finish downloading, then choose
 **Restart to update**. Disabling automatic downloads stops background checks
 and downloads; manual checking and downloading remain available. Update
 failures expose only a safe retry state to the renderer, while detailed errors
 remain in the redacted main-process log.
 
+On Debian, Ubuntu, or Linux Mint, install the architecture-matched package with
+`sudo apt install ./Eidos\ Lite-<version>-linux-<amd64|arm64>.deb`. The direct
+download route keeps AppImage as the default and exposes Debian packages with
+`/lite/linux?arch=<x64|arm64>&format=deb`.
+
 Platform acceptance must cover macOS arm64/x64, Windows x64, and Linux
-arm64/x64 GNU. The current repository packages macOS arm64 locally; the other
-targets require their CI runners and real installers.
+arm64/x64 GNU. Each Linux release job installs its generated Debian package,
+checks the package identity, architecture, executable link, and Chromium SUID
+sandbox, then runs packaged acceptance from the installed executable. The
+current repository packages macOS arm64 locally; the other targets require
+their CI runners and real installers.
 
 ## Rollback
 

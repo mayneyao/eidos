@@ -13,7 +13,8 @@ Use this runbook for `apps/eidos-lite-desktop` and `lite-v*` tags.
 - The workflow audits that manifest and uses it when the GitHub Release is first
   created. GitHub-generated monorepo notes and post-publication body repair are
   forbidden.
-- The workflow builds macOS arm64/x64, Windows x64, and Linux arm64/x64.
+- The workflow builds macOS arm64/x64, Windows x64, and Linux arm64/x64
+  AppImage plus Debian packages.
 - `apps/download` routes stable and beta updater metadata independently by
   platform and architecture.
 - A bundled Graft update changes the Lite dependency and lockfile; it does not
@@ -127,8 +128,9 @@ Verify:
 - successful release and update-router jobs;
 - macOS arm64/x64 DMG and ZIP assets plus standalone blockmaps;
 - Windows x64 EXE plus a standalone blockmap;
-- Linux arm64/x64 AppImage assets with embedded blockmaps whose
-  `blockMapSize` values appear in their per-architecture metadata;
+- Linux arm64/x64 AppImage and Debian assets, with both package types present
+  in their per-architecture update metadata; AppImages have embedded blockmaps
+  whose `blockMapSize` values appear in that metadata;
 - channel-specific metadata for all five targets and `SHA256SUMS`;
 - stable/prerelease classification;
 - a non-empty GitHub Release body that matches the committed

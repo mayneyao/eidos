@@ -42,8 +42,16 @@
     "forceCodeSigning": false
   },
   "linux": {
-    "target": ["AppImage"],
+    "target": ["AppImage", "deb"],
     "icon": "assets/logo.png",
-    "executableName": "eidos-lite-desktop"
+    "executableName": "eidos-lite-desktop",
+    "category": "Utility",
+    "synopsis": "Local-first desktop editor for Eidos File Spaces",
+    "maintainer": "Mayne <i@gine.me>"
+  },
+  "deb": {
+    "packageName": "eidos-lite",
+    "packageCategory": "utils",
+    "priority": "optional"
   }
 }

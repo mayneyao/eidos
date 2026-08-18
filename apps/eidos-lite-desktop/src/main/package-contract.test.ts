@@ -153,6 +153,7 @@ describe("Eidos Lite package identity", () => {
     const mac = builder.mac as Record<string, unknown>
     const win = builder.win as Record<string, unknown>
     const linux = builder.linux as Record<string, unknown>
+    const deb = builder.deb as Record<string, unknown>
     const publish = builder.publish as Record<string, unknown>
     const workflow = await fs.readFile(
       path.resolve(
@@ -177,12 +178,28 @@ describe("Eidos Lite package identity", () => {
     expect(mac.hardenedRuntime).toBe(true)
     expect(mac.notarize).toBe(true)
     expect(win.forceCodeSigning).toBe(false)
+    expect(linux.target).toEqual(["AppImage", "deb"])
     expect(linux.executableName).toBe("eidos-lite-desktop")
+    expect(linux.category).toBe("Utility")
+    expect(linux.synopsis).toBe(
+      "Local-first desktop editor for Eidos File Spaces"
+    )
+    expect(linux.maintainer).toBe("Mayne <i@gine.me>")
+    expect(deb).toEqual({
+      packageName: "eidos-lite",
+      packageCategory: "utils",
+      priority: "optional",
+    })
     expect(workflow).toContain('- "lite-v*"')
     expect(workflow).toContain("pnpm build:eidos-lite:release")
     expect(workflow).toContain("Build signed and notarized macOS release")
     expect(workflow).toContain('--config.mac.notarize.teamId="$APPLE_TEAM_ID"')
     expect(workflow).toContain("Build unsigned Windows or Linux release")
+    expect(workflow).toContain("Install and validate Debian package")
+    expect(workflow).toContain('sudo apt-get install -y "$package"')
+    expect(workflow).toContain("dpkg-query --listfiles eidos-lite")
+    expect(workflow).toContain("dist-app/*.deb")
+    expect(workflow).toContain("-name '*.deb'")
     expect(workflow).not.toContain(
       "matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE"
     )
@@ -207,6 +224,15 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain('wranglerVersion: "4.102.0"')
     expect(workflow).toContain(
       'test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"'
+    )
+    expect(workflow).toContain(
+      'test -f "release-upload/Eidos Lite-${version}-linux-amd64.deb"'
+    )
+    expect(workflow).toContain(
+      'test -f "release-upload/Eidos Lite-${version}-linux-arm64.deb"'
+    )
+    expect(workflow).toContain(
+      'grep -Fq "Eidos Lite-${version}-linux-amd64.deb"'
     )
     expect(workflow).toContain(
       "copy_metadata lite-linux-arm64 latest-linux-arm64.yml linux arm64"
@@ -284,6 +310,8 @@ describe("Eidos Lite package identity", () => {
     expect(runbook).toContain("## Diagnostics and support handoff")
     expect(runbook).toContain("## Uninstall")
     expect(runbook).toContain("## Public-release blockers")
+    expect(runbook).toContain("&format=deb")
+    expect(runbook).toContain("Debian packages")
     expect(runbook).toContain("must leave all ordinary Space folders untouched")
   })
 })

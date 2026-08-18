@@ -96,8 +96,39 @@ export function releaseAssetNameForLiteUpdate(route) {
   return `${metadata[1]}-${platform}-${route.architecture}.yml`
 }
 
-export function releaseArchitectureForPlatform(platform, architecture) {
-  if (platform === "linux" && architecture === "x64") return "x86_64"
+/**
+ * @param {string | undefined} platform
+ * @param {string | null} format
+ * @returns {string | null}
+ */
+export function releaseExtensionForLiteDownload(platform, format) {
+  if (platform === "mac" && (format === null || format === "dmg")) {
+    return ".dmg"
+  }
+  if (platform === "win" && (format === null || format === "exe")) {
+    return ".exe"
+  }
+  if (platform === "linux") {
+    if (format === null || format === "appimage") return ".appimage"
+    if (format === "deb") return ".deb"
+  }
+  return null
+}
+
+/**
+ * @param {string | undefined} platform
+ * @param {string} architecture
+ * @param {string | null} [format]
+ * @returns {string}
+ */
+export function releaseArchitectureForPlatform(
+  platform,
+  architecture,
+  format = null
+) {
+  if (platform === "linux" && architecture === "x64") {
+    return format === "deb" ? "amd64" : "x86_64"
+  }
   return architecture
 }
 

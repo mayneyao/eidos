@@ -3,6 +3,7 @@ import {
   getCliSource,
   getEidosLiteUpdateRoute,
   releaseArchitectureForPlatform,
+  releaseExtensionForLiteDownload,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
@@ -91,6 +92,7 @@ export default {
 
     const platform = url.pathname.split("/").pop()?.toLowerCase()
     const arch = url.searchParams.get("arch")?.toLowerCase()
+    const format = url.searchParams.get("format")?.toLowerCase() ?? null
 
     if (
       !liteUpdateRoute &&
@@ -101,6 +103,16 @@ export default {
       return new Response("Invalid platform. Use /mac or /win or /linux", {
         status: 400,
       })
+    }
+
+    const directDownloadExtension = liteUpdateRoute
+      ? null
+      : releaseExtensionForLiteDownload(platform, format)
+    if (!liteUpdateRoute && directDownloadExtension === null) {
+      return new Response(
+        "Invalid format. Use dmg for mac, exe for win, or appimage or deb for linux",
+        { status: 400 }
+      )
     }
 
     const baseUrl = "https://api.github.com/repos"
@@ -175,26 +187,30 @@ export default {
         return Response.redirect(asset.browser_download_url, 302)
       }
 
+      const releaseExtension = directDownloadExtension
+      if (releaseExtension === null) {
+        return new Response("Eidos Lite download format is unavailable", {
+          status: 404,
+        })
+      }
+
       const latestRelease = selectEidosLiteRelease(releases, "stable")
       if (!latestRelease) {
         return new Response("No stable Eidos Lite release found", {
           status: 404,
         })
       }
-      const extMap = {
-        mac: ".dmg",
-        win: ".exe",
-        linux: ".AppImage".toLowerCase(),
-      }
-
       const asset = latestRelease.assets.find((asset: GitHubAsset) => {
         const name = asset.name.toLowerCase()
-        const ext = extMap[platform as keyof typeof extMap]
         if (arch) {
-          const releaseArch = releaseArchitectureForPlatform(platform, arch)
-          return name.includes(releaseArch) && name.endsWith(ext)
+          const releaseArch = releaseArchitectureForPlatform(
+            platform,
+            arch,
+            format
+          )
+          return name.includes(releaseArch) && name.endsWith(releaseExtension)
         }
-        return name.endsWith(ext)
+        return name.endsWith(releaseExtension)
       })
 
       if (!asset) {

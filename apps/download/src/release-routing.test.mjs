@@ -6,6 +6,7 @@ import {
   getCliSource,
   getEidosLiteUpdateRoute,
   releaseArchitectureForPlatform,
+  releaseExtensionForLiteDownload,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
@@ -87,8 +88,23 @@ test("Lite update routes isolate channel, architecture, and metadata assets", ()
   assert.equal(getEidosLiteUpdateRoute("/lite/updates/stable/x64/../x"), null)
 })
 
-test("direct Linux downloads normalize public x64 architecture names", () => {
+test("direct Lite downloads select package formats and architecture names", () => {
+  assert.equal(releaseExtensionForLiteDownload("mac", null), ".dmg")
+  assert.equal(releaseExtensionForLiteDownload("win", "exe"), ".exe")
+  assert.equal(releaseExtensionForLiteDownload("linux", null), ".appimage")
+  assert.equal(
+    releaseExtensionForLiteDownload("linux", "appimage"),
+    ".appimage"
+  )
+  assert.equal(releaseExtensionForLiteDownload("linux", "deb"), ".deb")
+  assert.equal(releaseExtensionForLiteDownload("linux", "rpm"), null)
+  assert.equal(releaseExtensionForLiteDownload("mac", "deb"), null)
   assert.equal(releaseArchitectureForPlatform("linux", "x64"), "x86_64")
+  assert.equal(
+    releaseArchitectureForPlatform("linux", "x64", "appimage"),
+    "x86_64"
+  )
+  assert.equal(releaseArchitectureForPlatform("linux", "x64", "deb"), "amd64")
   assert.equal(releaseArchitectureForPlatform("linux", "arm64"), "arm64")
   assert.equal(releaseArchitectureForPlatform("mac", "x64"), "x64")
 })

@@ -184,14 +184,27 @@ jobs:
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne "NotSigned") { throw "Expected an unsigned Windows installer, got: $($signature.Status)" }
 
-      - name: Prepare Linux sandbox
+      - name: Install and validate Debian package
         if: matrix.platform == 'linux'
         shell: bash
+        env:
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         run: |
-          sandbox="$(find apps/eidos-lite-desktop/dist-app -type f -name chrome-sandbox -print -quit)"
+          package="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$package"
+          expected_architecture="$EXPECTED_ARCHITECTURE"
+          if [[ "$expected_architecture" == x64 ]]; then
+            expected_architecture=amd64
+          fi
+          test "$(dpkg-deb --field "$package" Package)" = eidos-lite
+          test "$(dpkg-deb --field "$package" Architecture)" = "$expected_architecture"
+          sudo apt-get install -y "$package"
+          test "$(dpkg-query --show --showformat='${Status}' eidos-lite)" = "install ok installed"
+          installed_executable="$(command -v eidos-lite-desktop)"
+          test -x "$installed_executable"
+          sandbox="$(dpkg-query --listfiles eidos-lite | awk '/\/chrome-sandbox$/ { print; exit }')"
           test -n "$sandbox"
-          sudo chown root:root "$sandbox"
-          sudo chmod 4755 "$sandbox"
+          test "$(stat -c '%U:%G:%a' "$sandbox")" = root:root:4755
 
       - name: Validate fresh packaged release
         if: matrix.platform != 'linux'
@@ -211,7 +224,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y dbus-x11 xvfb
           fi
-          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
+          executable="$(command -v eidos-lite-desktop)"
           test -n "$executable"
           executable="$(realpath "$executable")"
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
@@ -233,6 +246,7 @@ jobs:
             apps/eidos-lite-desktop/dist-app/*.zip
             apps/eidos-lite-desktop/dist-app/*.exe
             apps/eidos-lite-desktop/dist-app/*.AppImage
+            apps/eidos-lite-desktop/dist-app/*.deb
             apps/eidos-lite-desktop/dist-app/*.blockmap
             apps/eidos-lite-desktop/dist-app/latest*.yml
 
@@ -284,7 +298,7 @@ jobs:
             prerelease=false
           fi
           mkdir release-upload
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.blockmap' \) -exec cp {} release-upload/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.blockmap' \) -exec cp {} release-upload/ \;
 
           copy_metadata() {
             local artifact="$1"
@@ -314,11 +328,16 @@ jobs:
           # electron-builder renders the Linux x64 `${arch}` macro as `x86_64`.
           test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"
           test -f "release-upload/Eidos Lite-${version}-linux-arm64.AppImage"
+          # Debian uses its canonical x64 architecture name, `amd64`.
+          test -f "release-upload/Eidos Lite-${version}-linux-amd64.deb"
+          test -f "release-upload/Eidos Lite-${version}-linux-arm64.deb"
           test -f "release-upload/${channel}-mac-arm64.yml"
           test -f "release-upload/${channel}-mac-x64.yml"
           test -f "release-upload/${channel}-win-x64.yml"
           test -f "release-upload/${channel}-linux-x64.yml"
           test -f "release-upload/${channel}-linux-arm64.yml"
+          grep -Fq "Eidos Lite-${version}-linux-amd64.deb" "release-upload/${channel}-linux-x64.yml"
+          grep -Fq "Eidos Lite-${version}-linux-arm64.deb" "release-upload/${channel}-linux-arm64.yml"
 
           (cd release-upload && sha256sum * > SHA256SUMS)
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
