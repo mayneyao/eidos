@@ -18,6 +18,7 @@ import {
 } from "@pierre/trees/react"
 
 import type { SpaceTreeEntry } from "../shared/contracts"
+import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
 
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
@@ -278,7 +279,7 @@ export function SpaceFileTree({
     itemHeight: 28,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
-    icons: { set: "standard", colored: false },
+    icons: EIDOS_FILE_TREE_ICONS,
     stickyFolders: false,
     unsafeCSS: TREE_CSS,
     dragAndDrop: {
