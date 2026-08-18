@@ -101,6 +101,21 @@ describe("PierreTextEditorSurface", () => {
     }
   )
 
+  it("wraps long text instead of adding a horizontal scrollbar", () => {
+    renderToStaticMarkup(
+      createElement(PierreTextEditorSurface, {
+        relativePath: "notes/readme.md",
+        content: "A long line",
+        theme: "light",
+        onChange: () => undefined,
+      })
+    )
+
+    expect(pierre.fileOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ overflow: "wrap" })
+    )
+  })
+
   it("recreates the imperative editor with its current buffer when the theme changes", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)

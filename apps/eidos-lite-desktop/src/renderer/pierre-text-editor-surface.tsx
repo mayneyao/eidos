@@ -79,7 +79,7 @@ export default function PierreTextEditorSurface({
             disableLineNumbers:
               shouldDisableTextEditorLineNumbers(relativePath),
             stickyHeader: false,
-            overflow: "scroll",
+            overflow: "wrap",
           }}
         />
       </Virtualizer>
