@@ -127,6 +127,13 @@ jobs:
           fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`)
           NODE
 
+      - name: Install native FPM on Linux arm64
+        if: matrix.platform == 'linux' && matrix.architecture == 'arm64'
+        shell: bash
+        run: |
+          sudo gem install --no-document fpm -v 1.15.1
+          test "$(fpm --version)" = 1.15.1
+
       - name: Require macOS signing inputs
         if: matrix.platform == 'mac'
         shell: bash
@@ -164,6 +171,7 @@ jobs:
         if: matrix.platform != 'mac'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' && matrix.architecture == 'arm64' && 'true' || '' }}
         run: pnpm build:eidos-lite:release
 
       - name: Verify macOS signature and notarization
@@ -192,6 +200,7 @@ jobs:
         run: |
           package="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.deb' -print -quit)"
           test -n "$package"
+          package="$(realpath "$package")"
           expected_architecture="$EXPECTED_ARCHITECTURE"
           if [[ "$expected_architecture" == x64 ]]; then
             expected_architecture=amd64
