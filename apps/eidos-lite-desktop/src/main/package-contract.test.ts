@@ -162,6 +162,10 @@ describe("Eidos Lite package identity", () => {
       ),
       "utf8"
     )
+    const packagedSmoke = await fs.readFile(
+      path.resolve(appRoot, "scripts/packaged-smoke.mjs"),
+      "utf8"
+    )
     const scripts = packageJson.scripts as Record<string, string>
 
     expect(packageJson.dependencies).toMatchObject({
@@ -208,7 +212,11 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).not.toContain(
       "matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE"
     )
-    expect(workflow).toContain('executable="$(realpath "$executable")"')
+    expect(workflow).not.toContain('executable="$(realpath "$executable")"')
+    expect(workflow).toContain('EIDOS_LITE_PACKAGED_APP="$executable"')
+    expect(packagedSmoke).toContain(
+      "const resolvedExecutable = await fs.realpath(executable)"
+    )
     expect(workflow).toContain("EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe")
     expect(workflow).toMatch(
       /name: Enforce packaged macOS release performance\n\s+if: matrix\.platform == 'mac'/
@@ -252,6 +260,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("audit-release-notes.mjs")
     expect(workflow).toContain("--unpublished-tag lite-v0.1.14")
     expect(workflow).toContain("--unpublished-tag lite-v0.1.15")
+    expect(workflow).toContain("--unpublished-tag lite-v0.1.16")
     expect(workflow).toContain("Verify published release notes")
     expect(workflow).toContain("Verify live update metadata")
     expect(workflow).toContain("--range 0-0 --output /dev/null")

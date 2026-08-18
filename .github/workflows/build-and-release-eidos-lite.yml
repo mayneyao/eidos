@@ -58,7 +58,8 @@ jobs:
             --surface lite \
             --tag "$TAG" \
             --unpublished-tag lite-v0.1.14 \
-            --unpublished-tag lite-v0.1.15
+            --unpublished-tag lite-v0.1.15 \
+            --unpublished-tag lite-v0.1.16
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -244,7 +245,6 @@ jobs:
           fi
           executable="$(command -v eidos-lite-desktop)"
           test -n "$executable"
-          executable="$(realpath "$executable")"
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Enforce packaged macOS release performance

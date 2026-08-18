@@ -113,10 +113,11 @@ async function run(executable, space, result) {
   })
 }
 
-function resourcesPath(executable) {
+async function resourcesPath(executable) {
+  const resolvedExecutable = await fs.realpath(executable)
   return process.platform === "darwin"
-    ? path.resolve(path.dirname(executable), "../Resources")
-    : path.join(path.dirname(executable), "resources")
+    ? path.resolve(path.dirname(resolvedExecutable), "../Resources")
+    : path.join(path.dirname(resolvedExecutable), "resources")
 }
 
 const temporaryRoot = await fs.mkdtemp(
@@ -160,7 +161,7 @@ try {
     fs.writeFile(path.join(space, "README.md"), "# Packaged smoke Space\n"),
   ])
   const executable = await executablePath()
-  const packagedCli = path.join(resourcesPath(executable), "graft")
+  const packagedCli = path.join(await resourcesPath(executable), "graft")
   if (
     await fs.stat(packagedCli).then(
       () => true,
