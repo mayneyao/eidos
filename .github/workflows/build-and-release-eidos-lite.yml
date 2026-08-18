@@ -59,7 +59,8 @@ jobs:
             --tag "$TAG" \
             --unpublished-tag lite-v0.1.14 \
             --unpublished-tag lite-v0.1.15 \
-            --unpublished-tag lite-v0.1.16
+            --unpublished-tag lite-v0.1.16 \
+            --unpublished-tag lite-v0.1.17
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -182,7 +183,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           USE_SYSTEM_FPM: true
-        run: pnpm build:eidos-lite:release
+        run: pnpm build:eidos-lite:release:linux
 
       - name: Verify macOS signature and notarization
         if: matrix.platform == 'mac'
@@ -221,6 +222,7 @@ jobs:
           test "$(dpkg-query --show --showformat='${Status}' eidos-lite)" = "install ok installed"
           installed_executable="$(command -v eidos-lite-desktop)"
           test -x "$installed_executable"
+          test "$(realpath "$installed_executable")" = /opt/eidos-lite/eidos-lite-desktop
           sandbox="$(dpkg-query --listfiles eidos-lite | awk '/\/chrome-sandbox$/ { print; exit }')"
           test -n "$sandbox"
           test "$(stat -c '%U:%G:%a' "$sandbox")" = root:root:4755

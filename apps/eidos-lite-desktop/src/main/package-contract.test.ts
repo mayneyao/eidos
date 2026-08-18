@@ -44,6 +44,7 @@ describe("Eidos Lite package identity", () => {
   it("keeps an independent application identity and release metadata", async () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")
+    const linuxBuilder = await readJson("electron-builder.linux.json")
     const scripts = packageJson.scripts as Record<string, string>
 
     expect(packageJson.name).toBe("@eidos.space/eidos-lite-desktop")
@@ -51,6 +52,18 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.homepage).toBe("https://eidos.space")
     expect(builder.appId).toBe("space.eidos.lite")
     expect(builder.productName).toBe("Eidos Lite")
+    expect(linuxBuilder).toMatchObject({
+      extends: "./electron-builder.json",
+      productName: "eidos-lite",
+      artifactName: "Eidos Lite-${version}-${os}-${arch}.${ext}",
+      extraMetadata: { productName: "Eidos Lite" },
+      linux: {
+        desktop: {
+          Name: "Eidos Lite",
+          StartupWMClass: "Eidos Lite",
+        },
+      },
+    })
     expect(builder.protocols).toBeUndefined()
     expect(builder.fileAssociations).toEqual([
       {
@@ -149,6 +162,7 @@ describe("Eidos Lite package identity", () => {
 
   it("ships Lite through an isolated release and update channel", async () => {
     const packageJson = await readJson("package.json")
+    const rootPackageJson = await readJson("../../package.json")
     const builder = await readJson("electron-builder.json")
     const mac = builder.mac as Record<string, unknown>
     const win = builder.win as Record<string, unknown>
@@ -167,12 +181,19 @@ describe("Eidos Lite package identity", () => {
       "utf8"
     )
     const scripts = packageJson.scripts as Record<string, string>
+    const rootScripts = rootPackageJson.scripts as Record<string, string>
 
     expect(packageJson.dependencies).toMatchObject({
       "electron-updater": expect.any(String),
     })
     expect(scripts["build:release"]).toContain("--mode eidos-release")
     expect(scripts["package:release"]).toContain("--publish never")
+    expect(scripts["package:release:linux"]).toContain(
+      "--config electron-builder.linux.json"
+    )
+    expect(rootScripts["build:eidos-lite:release:linux"]).toContain(
+      "package:release:linux"
+    )
     expect(publish).toEqual({
       provider: "generic",
       url: "https://download.eidos.space/lite/updates/stable",
@@ -200,6 +221,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain('--config.mac.notarize.teamId="$APPLE_TEAM_ID"')
     expect(workflow).toContain("Build unsigned Windows release")
     expect(workflow).toContain("Build unsigned Linux release")
+    expect(workflow).toContain("pnpm build:eidos-lite:release:linux")
     expect(workflow).toContain("Install native FPM on Linux")
     expect(workflow).toContain("sudo gem install --no-document fpm -v 1.15.1")
     expect(workflow).toContain("USE_SYSTEM_FPM: true")
@@ -207,6 +229,9 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain('package="$(realpath "$package")"')
     expect(workflow).toContain('sudo apt-get install -y "$package"')
     expect(workflow).toContain("dpkg-query --listfiles eidos-lite")
+    expect(workflow).toContain(
+      'test "$(realpath "$installed_executable")" = /opt/eidos-lite/eidos-lite-desktop'
+    )
     expect(workflow).toContain("dist-app/*.deb")
     expect(workflow).toContain("-name '*.deb'")
     expect(workflow).not.toContain(
@@ -261,6 +286,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("--unpublished-tag lite-v0.1.14")
     expect(workflow).toContain("--unpublished-tag lite-v0.1.15")
     expect(workflow).toContain("--unpublished-tag lite-v0.1.16")
+    expect(workflow).toContain("--unpublished-tag lite-v0.1.17")
     expect(workflow).toContain("Verify published release notes")
     expect(workflow).toContain("Verify live update metadata")
     expect(workflow).toContain("--range 0-0 --output /dev/null")

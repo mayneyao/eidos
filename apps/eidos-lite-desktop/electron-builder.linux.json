@@ -1,0 +1,14 @@
+{
+  "extends": "./electron-builder.json",
+  "productName": "eidos-lite",
+  "artifactName": "Eidos Lite-${version}-${os}-${arch}.${ext}",
+  "extraMetadata": {
+    "productName": "Eidos Lite"
+  },
+  "linux": {
+    "desktop": {
+      "Name": "Eidos Lite",
+      "StartupWMClass": "Eidos Lite"
+    }
+  }
+}

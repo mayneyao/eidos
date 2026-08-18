@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-lite-desktop",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "description": "Independent local-first desktop client for Eidos File Spaces",
   "author": "mayneyao",
@@ -24,6 +24,7 @@
     "package:dir": "node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs && electron-builder --dir --publish never --config electron-builder.dev.json",
     "package:production:dir": "pnpm run build:production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs && electron-builder --dir --publish never --config electron-builder.json",
     "package:release": "pnpm run build:release && electron-builder --publish never --config electron-builder.json",
+    "package:release:linux": "pnpm run build:release && electron-builder --publish never --config electron-builder.linux.json",
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
     "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs"
   },
