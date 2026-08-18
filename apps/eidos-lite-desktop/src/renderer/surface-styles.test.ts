@@ -40,6 +40,14 @@ function rulesContaining(fragment: string, source = styles): string[] {
   return matches
 }
 
+function ruleAfter(selector: string, after: string, source = styles): string {
+  const offset = source.indexOf(after)
+  if (offset < 0) return ""
+  const start = source.indexOf(`${selector} {`, offset)
+  if (start < 0) return ""
+  return source.slice(start, source.indexOf("}", start) + 1)
+}
+
 describe("Eidos Lite surface hierarchy", () => {
   it("reserves the tinted shell background for the file tree sidebar", () => {
     expect(rule(":root", themeStyles)).toContain(
@@ -72,22 +80,25 @@ describe("Eidos Lite surface hierarchy", () => {
       "--chrome-header-height: 2.5rem"
     )
     expect(rule(".welcome-shell")).toContain(
-      "padding-top: var(--chrome-header-height)"
+      "--window-titlebar-height: var(--chrome-header-height)"
+    )
+    expect(rule(".welcome-shell")).toContain(
+      "padding-top: var(--window-titlebar-height)"
     )
     expect(rule(".welcome-titlebar")).toContain(
-      "height: var(--chrome-header-height)"
+      "height: var(--window-titlebar-height)"
     )
     expect(rule(".settings-shell")).toContain(
-      "grid-template-rows: var(--chrome-header-height)"
+      "grid-template-rows: var(--window-titlebar-height)"
     )
     expect(rule(".workbench")).toContain(
-      "--workbench-titlebar-height: var(--chrome-header-height)"
+      "--workbench-titlebar-height: var(--window-titlebar-height)"
     )
     expect(rule(".sync-dialog")).toContain(
-      "grid-template-rows: var(--chrome-header-height)"
+      "grid-template-rows: var(--window-titlebar-height)"
     )
     expect(rule(".sync-dialog > header")).toContain(
-      "height: var(--chrome-header-height)"
+      "height: var(--window-titlebar-height)"
     )
     expect(utilityLayout).toContain(
       "--eidos-shell-workbar-height: var(--chrome-header-height)"
@@ -111,6 +122,39 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(actionRules[1]).toContain(".file-titlebar")
     expect(actionRules[2]).toContain(".sync-dialog")
     expect(actionRules[2]).toContain("> header")
+  })
+
+  it("aligns Linux title rows to the system window controls overlay", () => {
+    const linuxChrome = ruleContaining("--window-titlebar-height: env(")
+
+    expect(linuxChrome).toContain('.welcome-shell[data-platform="linux"]')
+    expect(linuxChrome).toContain('.settings-shell[data-platform="linux"]')
+    expect(linuxChrome).toContain('.workbench[data-platform="linux"]')
+    expect(linuxChrome).toContain("titlebar-area-height")
+    expect(rule(".welcome-titlebar")).toContain(
+      "height: var(--window-titlebar-height)"
+    )
+    expect(rule(".settings-shell")).toContain(
+      "grid-template-rows: var(--window-titlebar-height)"
+    )
+    expect(rule(".workbench")).toContain(
+      "--workbench-titlebar-height: var(--window-titlebar-height)"
+    )
+  })
+
+  it("keeps Recent Spaces visible when the Welcome layout becomes one column", () => {
+    const breakpoint = "@media (max-width: 43rem)"
+    const compactShell = ruleAfter(".welcome-shell", breakpoint)
+    const compactCopy = ruleAfter(".welcome-copy", breakpoint)
+    const compactRecents = ruleAfter(".welcome-principles", breakpoint)
+
+    expect(compactShell).toContain(
+      "grid-template-rows: minmax(0, 0.95fr) minmax(12rem, 1.05fr)"
+    )
+    expect(compactShell).toContain("overflow: hidden")
+    expect(compactCopy).toContain("overflow-y: auto")
+    expect(compactRecents).toContain("overflow: hidden")
+    expect(ruleAfter(".welcome-shell", "@media (max-width: 56rem)")).toBe("")
   })
 
   it("aligns text editor content with the file title without moving the scrollbar", () => {

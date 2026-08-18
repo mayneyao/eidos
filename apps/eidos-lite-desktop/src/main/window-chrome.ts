@@ -5,10 +5,12 @@ export type LiteWindowKind = "welcome" | "space" | "settings"
 export interface LiteWindowChromeOptions {
   titleBarStyle: "default" | "hidden" | "hiddenInset"
   autoHideMenuBar: boolean
-  titleBarOverlay?: {
-    color: string
-    height: number
-  }
+  titleBarOverlay?:
+    | boolean
+    | {
+        color: string
+        height: number
+      }
 }
 
 const WINDOW_CONTROLS_OVERLAY_HEIGHT = 40
@@ -35,7 +37,7 @@ export function liteWindowChromeOptions(
       autoHideMenuBar: false,
     }
   }
-  if (platform === "win32" || platform === "linux") {
+  if (platform === "win32") {
     return {
       titleBarStyle: "hidden",
       autoHideMenuBar: true,
@@ -43,6 +45,13 @@ export function liteWindowChromeOptions(
         color: "#00000000",
         height: WINDOW_CONTROLS_OVERLAY_HEIGHT,
       },
+    }
+  }
+  if (platform === "linux") {
+    return {
+      titleBarStyle: "hidden",
+      autoHideMenuBar: true,
+      titleBarOverlay: true,
     }
   }
   return {

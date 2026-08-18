@@ -46,18 +46,23 @@ describe("Eidos Lite window chrome", () => {
     expect(setWindowButtonPosition).not.toHaveBeenCalled()
   })
 
-  it("integrates Windows and Linux controls into the renderer titlebar", () => {
-    const overlayChrome = {
+  it("keeps the compact Windows controls integrated into the titlebar", () => {
+    expect(liteWindowChromeOptions("win32")).toEqual({
       titleBarStyle: "hidden",
       autoHideMenuBar: true,
       titleBarOverlay: {
         color: "#00000000",
         height: 40,
       },
-    }
+    })
+  })
 
-    expect(liteWindowChromeOptions("win32")).toEqual(overlayChrome)
-    expect(liteWindowChromeOptions("linux")).toEqual(overlayChrome)
+  it("uses the system Linux controls with their native layout and states", () => {
+    expect(liteWindowChromeOptions("linux")).toEqual({
+      titleBarStyle: "hidden",
+      autoHideMenuBar: true,
+      titleBarOverlay: true,
+    })
   })
 
   it("keeps the inset macOS titlebar", () => {
