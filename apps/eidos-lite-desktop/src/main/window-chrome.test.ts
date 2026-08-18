@@ -6,7 +6,7 @@ import {
   macosTrafficLightPosition,
 } from "./window-chrome"
 
-describe("macOS window chrome", () => {
+describe("Eidos Lite window chrome", () => {
   it("aligns the Space traffic lights with the compact title row", () => {
     expect(macosTrafficLightPosition("space")).toEqual({ x: 16, y: 12 })
   })
@@ -46,24 +46,23 @@ describe("macOS window chrome", () => {
     expect(setWindowButtonPosition).not.toHaveBeenCalled()
   })
 
-  it("integrates Windows controls into the renderer titlebar", () => {
-    expect(liteWindowChromeOptions("win32")).toEqual({
+  it("integrates Windows and Linux controls into the renderer titlebar", () => {
+    const overlayChrome = {
       titleBarStyle: "hidden",
       autoHideMenuBar: true,
       titleBarOverlay: {
         color: "#00000000",
         height: 40,
       },
-    })
+    }
+
+    expect(liteWindowChromeOptions("win32")).toEqual(overlayChrome)
+    expect(liteWindowChromeOptions("linux")).toEqual(overlayChrome)
   })
 
-  it("keeps native Linux chrome and the inset macOS titlebar", () => {
+  it("keeps the inset macOS titlebar", () => {
     expect(liteWindowChromeOptions("darwin")).toEqual({
       titleBarStyle: "hiddenInset",
-      autoHideMenuBar: false,
-    })
-    expect(liteWindowChromeOptions("linux")).toEqual({
-      titleBarStyle: "default",
       autoHideMenuBar: false,
     })
   })

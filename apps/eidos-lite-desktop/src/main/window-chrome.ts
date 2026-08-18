@@ -11,7 +11,7 @@ export interface LiteWindowChromeOptions {
   }
 }
 
-const WINDOWS_TITLEBAR_HEIGHT = 40
+const WINDOW_CONTROLS_OVERLAY_HEIGHT = 40
 
 const MACOS_TRAFFIC_LIGHT_POSITION = {
   welcome: { x: 16, y: 15 },
@@ -35,13 +35,13 @@ export function liteWindowChromeOptions(
       autoHideMenuBar: false,
     }
   }
-  if (platform === "win32") {
+  if (platform === "win32" || platform === "linux") {
     return {
       titleBarStyle: "hidden",
       autoHideMenuBar: true,
       titleBarOverlay: {
         color: "#00000000",
-        height: WINDOWS_TITLEBAR_HEIGHT,
+        height: WINDOW_CONTROLS_OVERLAY_HEIGHT,
       },
     }
   }

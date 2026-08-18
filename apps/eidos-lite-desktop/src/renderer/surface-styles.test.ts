@@ -17,6 +17,29 @@ function rule(selector: string, source = styles): string {
   return source.slice(start, source.indexOf("}", start) + 1)
 }
 
+function ruleContaining(fragment: string, source = styles): string {
+  const match = source.indexOf(fragment)
+  if (match < 0) return ""
+  const precedingGap = source.lastIndexOf("\n\n", match)
+  const start = precedingGap < 0 ? 0 : precedingGap + 2
+  return source.slice(start, source.indexOf("}", match) + 1)
+}
+
+function rulesContaining(fragment: string, source = styles): string[] {
+  const matches: string[] = []
+  let offset = 0
+  while (offset < source.length) {
+    const match = source.indexOf(fragment, offset)
+    if (match < 0) break
+    const precedingGap = source.lastIndexOf("\n\n", match)
+    const start = precedingGap < 0 ? 0 : precedingGap + 2
+    const end = source.indexOf("}", match) + 1
+    matches.push(source.slice(start, end))
+    offset = end
+  }
+  return matches
+}
+
 describe("Eidos Lite surface hierarchy", () => {
   it("reserves the tinted shell background for the file tree sidebar", () => {
     expect(rule(":root", themeStyles)).toContain(
@@ -74,21 +97,20 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
-  it("keeps Windows actions clear of the overlaid system controls", () => {
-    expect(
-      rule(
-        '.welcome-shell[data-platform="win32"],\n.settings-shell[data-platform="win32"],\n.workbench[data-platform="win32"],\n.sync-dialog-backdrop[data-platform="win32"]'
-      )
-    ).toContain("--windows-titlebar-controls-width")
-    expect(
-      rule('.welcome-shell[data-platform="win32"] .welcome-settings-button')
-    ).toContain("var(--windows-titlebar-controls-width)")
-    expect(rule('.workbench[data-platform="win32"] .file-titlebar')).toContain(
-      "var(--windows-titlebar-controls-width)"
-    )
-    expect(
-      rule('.sync-dialog-backdrop[data-platform="win32"] .sync-dialog > header')
-    ).toContain("var(--windows-titlebar-controls-width)")
+  it("keeps Windows and Linux actions clear of overlaid system controls", () => {
+    const overlayShells = ruleContaining("--window-controls-overlay-width")
+    const actionRules = rulesContaining("var(--window-controls-overlay-width)")
+
+    expect(actionRules).toHaveLength(3)
+    for (const overlayRule of [overlayShells, ...actionRules]) {
+      expect(overlayRule).toContain('[data-platform="linux"]')
+      expect(overlayRule).toContain('[data-platform="other"]')
+    }
+    expect(overlayShells).toContain("--window-controls-overlay-width")
+    expect(actionRules[0]).toContain(".welcome-settings-button")
+    expect(actionRules[1]).toContain(".file-titlebar")
+    expect(actionRules[2]).toContain(".sync-dialog")
+    expect(actionRules[2]).toContain("> header")
   })
 
   it("aligns text editor content with the file title without moving the scrollbar", () => {

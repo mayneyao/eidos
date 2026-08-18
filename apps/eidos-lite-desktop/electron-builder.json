@@ -43,7 +43,7 @@
   },
   "linux": {
     "target": ["AppImage", "deb"],
-    "icon": "assets/logo.png",
+    "icon": "assets/icons",
     "executableName": "eidos-lite-desktop",
     "category": "Utility",
     "synopsis": "Local-first desktop editor for Eidos File Spaces",

@@ -118,12 +118,11 @@ describe("Eidos Lite package identity", () => {
     const icons = [
       [mac.icon, Buffer.from("icns")],
       [win.icon, Buffer.from([0, 0, 1, 0])],
-      [linux.icon, Buffer.from([0x89, 0x50, 0x4e, 0x47])],
     ] as const
 
     expect(mac.icon).toBe("assets/logo.icns")
     expect(win.icon).toBe("assets/logo.ico")
-    expect(linux.icon).toBe("assets/logo.png")
+    expect(linux.icon).toBe("assets/icons")
 
     for (const [configuredPath, signature] of icons) {
       expect(typeof configuredPath).toBe("string")
@@ -132,6 +131,15 @@ describe("Eidos Lite package identity", () => {
       )
       expect(bytes.subarray(0, signature.length)).toEqual(signature)
     }
+
+    const linuxIcon = await fs.readFile(
+      path.resolve(appRoot, linux.icon as string, "512x512.png")
+    )
+    expect(linuxIcon.subarray(0, 4)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    )
+    expect(linuxIcon.readUInt32BE(16)).toBe(512)
+    expect(linuxIcon.readUInt32BE(20)).toBe(512)
 
     const source = await fs.readFile(
       path.resolve(appRoot, "assets/logo.svg"),
