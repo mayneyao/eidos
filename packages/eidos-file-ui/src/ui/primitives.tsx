@@ -120,7 +120,7 @@ export const PopoverContent = React.forwardRef<
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "eidos-file-root z-50 w-72 rounded-md border border-border/70 bg-popover p-4 text-popover-foreground shadow-xs outline-none",
+          "eidos-file-root z-50 w-72 rounded-md border border-border/70 bg-popover p-4 text-popover-foreground [box-shadow:var(--floating-surface-shadow)] outline-none",
           className
         )}
         data-eidos-file-root=""
@@ -208,7 +208,7 @@ export const SelectContent = React.forwardRef<
         ref={ref}
         position={position}
         className={cn(
-          "eidos-file-root z-50 min-w-32 overflow-hidden rounded-md border border-border/70 bg-popover text-popover-foreground shadow-xs",
+          "eidos-file-root z-50 min-w-32 overflow-hidden rounded-md border border-border/70 bg-popover text-popover-foreground [box-shadow:var(--floating-surface-shadow)]",
           className
         )}
         data-eidos-file-root=""

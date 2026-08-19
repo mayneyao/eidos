@@ -18,7 +18,7 @@ export const ContextMenuContent = React.forwardRef<
         {...props}
         ref={ref}
         className={cn(
-          "eidos-file-root z-50 min-w-44 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border/70 bg-popover p-1 text-popover-foreground shadow-xs",
+          "eidos-file-root z-50 min-w-44 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border/70 bg-popover p-1 text-popover-foreground [box-shadow:var(--floating-surface-shadow)]",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className
         )}

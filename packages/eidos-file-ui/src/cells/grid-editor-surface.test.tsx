@@ -116,7 +116,9 @@ describe("Eidos File Grid popup editors", () => {
     expect(surface?.className).toContain("rounded-md")
     expect(surface?.className).toContain("border")
     expect(surface?.className).toContain("bg-popover")
-    expect(surface?.className).toContain("shadow-xs")
+    expect(surface?.className).toContain(
+      "[box-shadow:var(--floating-surface-shadow)]"
+    )
     expect(EIDOS_FILE_GRID_EDITOR_PORTAL_CLASS_NAME).toContain("shadow-none")
     expect(EIDOS_FILE_GRID_EDITOR_COLLISION_PADDING).toBe(12)
     expect(EIDOS_FILE_GRID_EDITOR_ALIGN_OFFSET).toBe(0)
