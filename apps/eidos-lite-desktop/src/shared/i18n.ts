@@ -43,6 +43,7 @@ const zh: Record<string, string> = {
   "Toggle version history": "切换版本历史",
   "Toggle Sync": "切换同步面板",
   "Table area": "表格区域",
+  "New record": "新建记录",
   "Previous view": "上一个视图",
   "Next view": "下一个视图",
   "Previous table": "上一个表格",

@@ -197,6 +197,14 @@ export function EidosFileDataGrid({
     [query, source, table.table.id]
   )
 
+  const locateRow = useCallback(
+    (rowId: string) =>
+      source.getRowIndex
+        ? source.getRowIndex(table.table.id, rowId, query)
+        : Promise.resolve(null),
+    [query, source, table.table.id]
+  )
+
   const addRow = useCallback((): EidosFileGridAppendResult => {
     const settled = source.insertRow(table.table.id, {}).then((result) => {
       onMutation?.(result)
@@ -320,6 +328,7 @@ export function EidosFileDataGrid({
         reloadToken={reloadToken}
         searchResultIndex={searchResultIndex}
         loadPage={loadPage}
+        locateRow={locateRow}
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
         onCellEdit={editCell}

@@ -13,6 +13,9 @@ export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
   "previous-table",
   "next-table",
   "open-cell-actions",
+  // Keep new commands after established ones so preference migration never
+  // steals an existing custom binding when a new default is introduced.
+  "new-record",
 ] as const
 
 export const EIDOS_LITE_SHORTCUT_COMMANDS = [
@@ -38,6 +41,7 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "toggle-theme": "Mod+Shift+L",
     "toggle-version": "Mod+Shift+H",
     "toggle-sync": "Mod+Shift+S",
+    "new-record": "Mod+Enter",
     "previous-view": "Ctrl+PageUp",
     "next-view": "Ctrl+PageDown",
     "previous-table": "Ctrl+Shift+PageUp",

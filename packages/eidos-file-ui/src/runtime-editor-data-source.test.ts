@@ -20,6 +20,7 @@ const TEAM_ROW = "018f0000-0000-7000-8000-000000000008"
 const MISSING_TEAM_ROW = "018f0000-0000-7000-8000-000000000009"
 const SIGNALS = "018f0000-0000-7000-8000-000000000010"
 const DONE = "018f0000-0000-7000-8000-000000000011"
+const ROW_ID = "018f0000-0000-7000-8000-000000000012"
 
 function conversionRuntime(
   classification: "lossless-rewrite" | "explicit-lossy"
@@ -97,7 +98,7 @@ function conversionRuntime(
         defaultTableId: PROJECTS,
         schemaCounts: {
           tables: "1",
-          fields: "2",
+          fields: "3",
           views: "0",
           features: "0",
         },
@@ -115,6 +116,19 @@ function conversionRuntime(
             labelFieldId: TITLE,
             position: "0",
             settings: {},
+          },
+          {
+            object: "field" as const,
+            id: ROW_ID,
+            tableId: PROJECTS,
+            name: "Row ID",
+            kind: "text" as const,
+            valueType: "row-id" as const,
+            systemRole: "row-id" as const,
+            nullable: false,
+            position: "-1",
+            settings: {},
+            writable: false,
           },
           {
             object: "field" as const,
@@ -195,6 +209,72 @@ function conversionRuntime(
 }
 
 describe("EidosRuntimeEditorDataSource", () => {
+  it("locates a Row ID using the same translated query as the editor view", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    const getRowsById = vi.fn(async () => ({
+      fileId: FILE,
+      tableId: PROJECTS,
+      revision: "1",
+      projectionHash: "title-only",
+      columns: [
+        {
+          fieldId: TITLE,
+          name: "Title",
+          valueType: "text" as const,
+          source: "stored" as const,
+          writable: true,
+        },
+      ],
+      rows: [{ id: PROJECT_ROW, values: ["Roadmap"] }],
+      missingRowIds: [],
+    }))
+    const aggregate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        fileId: FILE,
+        tableId: PROJECTS,
+        revision: "1",
+        results: [{ key: "count", value: "1" }],
+      })
+      .mockResolvedValueOnce({
+        fileId: FILE,
+        tableId: PROJECTS,
+        revision: "1",
+        results: [{ key: "count", value: "7" }],
+      })
+    Object.assign(fixture.runtime, { getRowsById, aggregate })
+
+    await expect(
+      source.getRowIndex(PROJECTS, PROJECT_ROW, {
+        search: "roadmap",
+        sorts: [{ field: TITLE, direction: "desc", nulls: "first" }],
+      })
+    ).resolves.toBe(7)
+    expect(getRowsById).toHaveBeenCalledWith(
+      {
+        tableId: PROJECTS,
+        rowIds: [PROJECT_ROW],
+        projection: { fields: [TITLE], resolveRelations: [] },
+      },
+      expect.objectContaining({
+        requestId: expect.stringMatching(/^locate-row-values-/),
+      })
+    )
+    expect(aggregate).toHaveBeenCalledTimes(2)
+    expect(aggregate.mock.calls[1]?.[0]).toMatchObject({
+      tableId: PROJECTS,
+      query: {
+        search: { text: "roadmap", fields: [ROW_ID, TITLE] },
+        filter: { op: "or" },
+      },
+    })
+  })
+
   it("persists a complete Table drag order with stable IDs", async () => {
     let revision = "1"
     let positions = new Map([

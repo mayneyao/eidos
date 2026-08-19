@@ -169,6 +169,12 @@ async function runtimeCall(
         requireString(args[0], "tableId"),
         requireString(args[1], "rowId")
       )
+    case "getRowIndex":
+      return dataSource.getRowIndex(
+        requireString(args[0], "tableId"),
+        requireString(args[1], "rowId"),
+        objectValue(args[2], "query") as EidosFileRowQuery
+      )
     case "getGroupCounts":
       return dataSource.getGroupCounts(
         requireString(args[0], "tableId"),

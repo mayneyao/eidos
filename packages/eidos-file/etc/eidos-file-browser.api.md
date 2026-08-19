@@ -971,6 +971,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
     // (undocumented)
+    getRowIndex?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
+    // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
     insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;

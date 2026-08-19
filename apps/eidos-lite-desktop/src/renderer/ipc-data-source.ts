@@ -46,6 +46,12 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
   }
 
+  getRowIndex(
+    ...args: Parameters<NonNullable<EidosFileDataSource["getRowIndex"]>>
+  ) {
+    return window.eidosLite.callRuntime(this.sessionId, "getRowIndex", args)
+  }
+
   getGroupCounts(
     ...args: Parameters<NonNullable<EidosFileDataSource["getGroupCounts"]>>
   ) {

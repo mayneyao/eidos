@@ -68,6 +68,25 @@ it("routes CSV preview and import through the opaque runtime session", async () 
   expect(onSnapshot).toHaveBeenCalledWith(snapshot)
 })
 
+it("routes sorted Row ID location through the opaque runtime session", async () => {
+  const callRuntime = vi.fn(async () => 7)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime } as unknown as EidosLiteApi,
+  })
+  const source = new IpcEidosFileDataSource("session-1", snapshot)
+  const query = {
+    sorts: [{ field: "score", direction: "desc" as const }],
+  }
+
+  await expect(source.getRowIndex("tasks", "row-7", query)).resolves.toBe(7)
+  expect(callRuntime).toHaveBeenCalledWith("session-1", "getRowIndex", [
+    "tasks",
+    "row-7",
+    query,
+  ])
+})
+
 it("builds a portable CSV export name from the active file, table, and view", () => {
   expect(
     eidosLiteCsvFileName("project.eidos", "Roadmap / 2026", "Grid: Active")

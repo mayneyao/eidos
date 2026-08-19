@@ -562,6 +562,63 @@ function compileKeysetAfter(
   return { sql: `(${branches.join(" OR ")})`, params }
 }
 
+function compileKeysetBefore(
+  sorts: Array<{ field: EidosFileFieldInfo; sort: EidosFileSort }>,
+  values: EidosFileSqlPrimitive[],
+  firstId: string
+): { sql: string; params: EidosFileSqlPrimitive[] } {
+  if (values.length !== sorts.length) {
+    throw new EidosFileError("invalid-query", "Sort boundary is invalid")
+  }
+  const params: EidosFileSqlPrimitive[] = []
+  const branches: string[] = []
+  sorts.forEach(({ field, sort }, index) => {
+    const expression = eidosFileSortExpression(field)
+    const value = values[index] ?? null
+    let before: string
+    if (value === null) {
+      before = sort.nulls === "last" ? `${expression} IS NOT NULL` : "0"
+    } else {
+      const comparison = sort.direction === "desc" ? ">" : "<"
+      before =
+        sort.nulls === "first"
+          ? `(${expression} ${comparison} ? OR ${expression} IS NULL)`
+          : `${expression} ${comparison} ?`
+    }
+    if (before !== "0") {
+      const parts: string[] = []
+      for (let prefixIndex = 0; prefixIndex < index; prefixIndex += 1) {
+        const prefixExpression = eidosFileSortExpression(
+          sorts[prefixIndex]!.field
+        )
+        const prefixValue = values[prefixIndex] ?? null
+        if (prefixValue === null) parts.push(`${prefixExpression} IS NULL`)
+        else {
+          parts.push(`${prefixExpression} IS ?`)
+          params.push(prefixValue)
+        }
+      }
+      parts.push(before)
+      if (value !== null) params.push(value)
+      branches.push(`(${parts.join(" AND ")})`)
+    }
+  })
+  const finalParts: string[] = []
+  sorts.forEach(({ field }, index) => {
+    const expression = eidosFileSortExpression(field)
+    const value = values[index] ?? null
+    if (value === null) finalParts.push(`${expression} IS NULL`)
+    else {
+      finalParts.push(`${expression} IS ?`)
+      params.push(value)
+    }
+  })
+  finalParts.push('"__base_rowid" < ?')
+  params.push(assertEidosFileUuid(firstId, "Row ID"))
+  branches.push(`(${finalParts.join(" AND ")})`)
+  return { sql: `(${branches.join(" OR ")})`, params }
+}
+
 function filterToStorage(
   filter: EidosFileFilterGroup | null | undefined,
   fields: EidosFileFieldInfo[]
@@ -3232,6 +3289,49 @@ export class EidosFileRuntime {
       rows,
       ...(nextCursor ? { nextCursor } : {}),
     }
+  }
+
+  /** Returns the zero-based position of a Row ID in a filtered/sorted query. */
+  getRowIndex(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery = {}
+  ): number | null {
+    const id = assertEidosFileUuid(rowId, "Row ID")
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const source = this.logicalSource(
+      tableId,
+      this.requiredQueryFieldKeys(fields, compatibleQuery),
+      false,
+      false
+    )
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
+    const targetWhere = compiled.whereSql
+      ? `${compiled.whereSql} AND "__base_rowid" = ?`
+      : 'WHERE "__base_rowid" = ?'
+    const target = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
+      `WITH logical AS (${source.sql})
+       SELECT * FROM logical ${targetWhere} LIMIT 1`,
+      [...compiled.params, id]
+    )
+    if (!target) return null
+
+    const before = compileKeysetBefore(
+      sorts,
+      sorts.map(({ field }) => cursorSortValue(target, field)),
+      id
+    )
+    const beforeWhere = compiled.whereSql
+      ? `${compiled.whereSql} AND ${before.sql}`
+      : `WHERE ${before.sql}`
+    const result = this.connection.get<{ count: number | bigint }>(
+      `WITH logical AS (${source.sql})
+       SELECT COUNT(*) AS count FROM logical ${beforeWhere}`,
+      [...compiled.params, ...before.params]
+    )
+    return Number(result?.count ?? 0)
   }
 
   getRow(tableId: string, rowId: string): EidosFileRow | null {

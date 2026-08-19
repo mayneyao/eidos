@@ -8,6 +8,7 @@ describe("Eidos File editor keyboard shortcuts", () => {
     expect(
       eidosFileKeyboardShortcuts(DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS, true)
     ).toEqual({
+      newRecord: ["Meta+Enter"],
       previousView: ["Control+PageUp", "Meta+Alt+ArrowLeft"],
       nextView: ["Control+PageDown", "Meta+Alt+ArrowRight"],
       previousTable: ["Control+Shift+PageUp"],

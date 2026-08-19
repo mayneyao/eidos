@@ -415,6 +415,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Loading more {group} records": "正在加载{group}中的更多记录",
   "loading records": "正在加载记录",
   "Unable to create record": "无法创建记录",
+  "Pinned while editing. This record may move or leave the view afterward to match the current sort and filters.":
+    "编辑期间暂时固定；结束后可能按当前排序移动，或因筛选离开此视图。",
   "Record title": "记录标题",
   "Record title in {group}": "{group}中的记录标题",
   Add: "添加",

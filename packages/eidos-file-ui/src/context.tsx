@@ -50,6 +50,7 @@ export interface EidosFileUIAssetSession {
 
 /** Host-configurable shortcuts used by the Eidos File editor surface. */
 export interface EidosFileUIKeyboardShortcuts {
+  newRecord?: readonly string[]
   previousView?: readonly string[]
   nextView?: readonly string[]
   previousTable?: readonly string[]

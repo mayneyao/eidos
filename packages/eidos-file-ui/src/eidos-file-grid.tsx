@@ -8,6 +8,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react"
+import { createPortal } from "react-dom"
 import type {
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
@@ -31,6 +32,7 @@ import {
   eidosFileColumnStatTypesForField,
 } from "@eidos.space/eidos-file"
 import DataEditor, {
+  CompactSelection,
   GridCellKind,
   type DataEditorProps,
   type DataEditorRef,
@@ -210,6 +212,7 @@ export interface EidosFileGridProps {
   disabled?: boolean
   reloadToken?: number
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+  locateRow?: (rowId: string) => Promise<number | null>
   loadColumnStats?: (
     configs: EidosFileColumnStatConfig[]
   ) => Promise<EidosFileColumnStatResult[]>
@@ -440,6 +443,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   disabled = false,
   reloadToken = 0,
   loadPage,
+  locateRow,
   loadColumnStats,
   onAddRow,
   onCellEdit,
@@ -517,6 +521,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   // out from under its open editor (Notion/Airtable draft-row behavior).
   const draftRowPinsRef = useRef(new Map<number, { rowId: string }>())
   const deferredRefreshRef = useRef(false)
+  const [draftRowsMayReposition, setDraftRowsMayReposition] = useState(false)
+  const [pendingDraftFollow, setPendingDraftFollow] = useState<{
+    rowId: string
+    columnIndex: number
+    previousIndex: number
+  } | null>(null)
+  const explicitDraftLeaveRef = useRef(false)
+  const followInteractionRevisionRef = useRef(0)
   const gridSelectionRef = useRef<GridSelection | null>(null)
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
@@ -576,6 +588,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [table.fields, view?.hiddenFields, view?.orderMap]
   )
   const [fields, setFields] = useState(availableFields)
+  const newRecordTargetColumn = Math.max(
+    0,
+    fields.findIndex((field) => field.isRecordLabel === true)
+  )
   const [widths, setWidths] = useState<Record<string, number>>(() =>
     viewWidths(view)
   )
@@ -666,20 +682,50 @@ export const EidosFileGrid = memo(function EidosFileGrid({
    * the last pin is released, any revalidation deferred for the draft is
    * applied so the row lands at its truthful sort/filter position.
    */
-  const releaseDraftRowPins = useCallback((selection: GridSelection | null) => {
-    const pins = draftRowPinsRef.current
-    if (pins.size === 0) return
-    for (const [index, pin] of [...pins]) {
-      if (pendingRowCreatesRef.current.has(pin.rowId)) continue
-      if (rowMutationRevisionRef.current.has(index)) continue
-      if (selectionCoversRowIndex(selection, index)) continue
-      pins.delete(index)
-    }
-    if (pins.size === 0 && deferredRefreshRef.current) {
-      deferredRefreshRef.current = false
-      setRefreshToken((token) => token + 1)
-    }
-  }, [])
+  const releaseDraftRowPins = useCallback(
+    (selection: GridSelection | null) => {
+      const pins = draftRowPinsRef.current
+      if (pins.size === 0) return
+      let releasedRowId: string | undefined
+      let releasedIndex: number | undefined
+      for (const [index, pin] of [...pins]) {
+        if (pendingRowCreatesRef.current.has(pin.rowId)) continue
+        if (rowMutationRevisionRef.current.has(index)) continue
+        if (selectionCoversRowIndex(selection, index)) continue
+        releasedRowId = canonicalEidosFileRowId(
+          pin.rowId,
+          rowIdAliasesRef.current
+        )
+        releasedIndex = index
+        pins.delete(index)
+      }
+      if (pins.size !== 0) return
+      const follow =
+        releasedRowId &&
+        releasedIndex !== undefined &&
+        locateRow &&
+        !explicitDraftLeaveRef.current
+          ? {
+              rowId: releasedRowId,
+              columnIndex: newRecordTargetColumn,
+              previousIndex: releasedIndex,
+            }
+          : null
+      setPendingDraftFollow(follow)
+      const hadDeferredRefresh = deferredRefreshRef.current
+      if (hadDeferredRefresh) {
+        deferredRefreshRef.current = false
+        setDraftRowsMayReposition(false)
+      }
+      // Always revalidate a released draft before locating it. This also
+      // covers a fast Enter/Tab that ends editing before the host's mutation
+      // refresh has rendered; if the row did not move, the follow is a no-op.
+      if (hadDeferredRefresh || follow) {
+        setRefreshToken((token) => token + 1)
+      }
+    },
+    [locateRow, newRecordTargetColumn]
+  )
 
   const loadPageIndex = useCallback(
     async (pageIndex: number) => {
@@ -718,6 +764,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           // truthful sorted position or leave a hole after filtering it out.
           // Keep the current coherent snapshot and refresh once editing ends.
           deferredRefreshRef.current = true
+          setDraftRowsMayReposition(true)
           return false
         }
         page.rows.forEach((row, index) => {
@@ -818,9 +865,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       // Defer the revalidation so the sorted/filtered snapshot cannot move or
       // hide the row mid-edit; the refresh is applied once the session ends.
       deferredRefreshRef.current = true
+      setDraftRowsMayReposition(true)
       return
     }
     deferredRefreshRef.current = false
+    setDraftRowsMayReposition(false)
     const pagesToRefresh = preserveData
       ? new Set([0, ...visiblePagesRef.current])
       : new Set([0])
@@ -1643,6 +1692,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       if (draftRowId) {
         // Pin the draft at its creation index so a sorted/filtered
         // revalidation cannot move or hide it while its editor is open.
+        explicitDraftLeaveRef.current = false
         draftRowPinsRef.current.set(index, { rowId: draftRowId })
       }
       if (!result.settled) {
@@ -1748,6 +1798,90 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection
 
+  const followRequestRef = useRef(0)
+
+  useEffect(() => {
+    if (!pendingDraftFollow || !locateRow) return
+    const request = ++followRequestRef.current
+    const interactionRevision = followInteractionRevisionRef.current
+    const { rowId, columnIndex, previousIndex } = pendingDraftFollow
+
+    void locateRow(rowId)
+      .then(async (rowIndex) => {
+        if (
+          request !== followRequestRef.current ||
+          interactionRevision !== followInteractionRevisionRef.current
+        ) {
+          return
+        }
+        if (rowIndex === null) {
+          setPendingDraftFollow((current) =>
+            current?.rowId === rowId ? null : current
+          )
+          return
+        }
+        if (rowIndex === previousIndex) {
+          setPendingDraftFollow((current) =>
+            current?.rowId === rowId ? null : current
+          )
+          return
+        }
+
+        await loadPageIndexRef.current(Math.floor(rowIndex / PAGE_SIZE))
+        if (
+          request !== followRequestRef.current ||
+          interactionRevision !== followInteractionRevisionRef.current
+        ) {
+          return
+        }
+
+        const targetColumn = Math.min(
+          Math.max(0, columnIndex),
+          Math.max(0, fields.length - 1)
+        )
+        const selection: GridSelection = {
+          columns: CompactSelection.empty(),
+          rows: CompactSelection.empty(),
+          current: {
+            cell: [targetColumn, rowIndex],
+            range: {
+              x: targetColumn,
+              y: rowIndex,
+              width: 1,
+              height: 1,
+            },
+            rangeStack: [],
+          },
+        }
+        history.onGridSelectionChange(selection)
+        gridRef.current?.scrollTo(targetColumn, rowIndex, "both", 0, 24, {
+          vAlign: "center",
+        })
+        gridRef.current?.focus()
+        setPendingDraftFollow((current) =>
+          current?.rowId === rowId ? null : current
+        )
+      })
+      .catch((error) => {
+        if (request !== followRequestRef.current) return
+        setPendingDraftFollow((current) =>
+          current?.rowId === rowId ? null : current
+        )
+        onErrorRef.current?.(error)
+      })
+
+    return () => {
+      if (request === followRequestRef.current) {
+        followRequestRef.current += 1
+      }
+    }
+  }, [
+    fields.length,
+    history.onGridSelectionChange,
+    locateRow,
+    pendingDraftFollow,
+  ])
+
   const handleGridSelectionChangeWithDraftRelease = useCallback(
     (selection: GridSelection) => {
       history.onGridSelectionChange(selection)
@@ -1794,6 +1928,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const [fileDropHighlights, setFileDropHighlights] = useState<
     NonNullable<DataEditorProps["highlightRegions"]>
   >([])
+  const [draftMoveTooltip, setDraftMoveTooltip] = useState<{
+    rowIndex: number
+    left: number
+    top: number
+  } | null>(null)
   const searchHighlightRegions = useMemo<
     NonNullable<DataEditorProps["highlightRegions"]>
   >(
@@ -1815,6 +1954,57 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         : [],
     [columns.length, rowCount, searchHighlightColor, searchResultIndex]
   )
+  const draftMoveHighlightRegions: NonNullable<
+    DataEditorProps["highlightRegions"]
+  > = draftRowsMayReposition
+    ? [...draftRowPinsRef.current.keys()].map((rowIndex) => ({
+        color: themeColorWithAlpha(theme.accentColor, 0.1),
+        range: {
+          x: 0,
+          y: rowIndex,
+          width: Math.max(1, columns.length),
+          height: 1,
+        },
+        style: "no-outline" as const,
+      }))
+    : []
+
+  const onItemHovered = useCallback<
+    NonNullable<DataEditorProps["onItemHovered"]>
+  >(
+    (args) => {
+      if (
+        !draftRowsMayReposition ||
+        args.kind !== "cell" ||
+        !draftRowPinsRef.current.has(args.location[1])
+      ) {
+        setDraftMoveTooltip((current) => (current ? null : current))
+        return
+      }
+      const rowIndex = args.location[1]
+      const left = Math.max(
+        8,
+        Math.min(args.bounds.x + 8, window.innerWidth - 296)
+      )
+      const below = args.bounds.y + args.bounds.height + 6
+      const top =
+        below + 64 <= window.innerHeight
+          ? below
+          : Math.max(8, args.bounds.y - 58)
+      setDraftMoveTooltip((current) =>
+        current?.rowIndex === rowIndex &&
+        current.left === left &&
+        current.top === top
+          ? current
+          : { rowIndex, left, top }
+      )
+    },
+    [draftRowsMayReposition]
+  )
+
+  useEffect(() => {
+    if (!draftRowsMayReposition) setDraftMoveTooltip(null)
+  }, [draftRowsMayReposition])
   const onDragOverCell = useCallback<
     NonNullable<DataEditorProps["onDragOverCell"]>
   >(
@@ -2073,6 +2263,59 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [fields, presentCellMenu]
   )
 
+  const markExplicitDraftLeave = useCallback(() => {
+    followInteractionRevisionRef.current += 1
+    setPendingDraftFollow(null)
+    if (draftRowPinsRef.current.size === 0) return
+    explicitDraftLeaveRef.current = true
+    window.setTimeout(() => {
+      explicitDraftLeaveRef.current = false
+    }, 0)
+  }, [])
+
+  // Capture the shortcut before Glide handles primary+Enter as a navigation
+  // command. Calling its public append API preserves the same optimistic row,
+  // scrolling, selection, and editor-opening behavior as the trailing row.
+  const onGridContainerKeyDownCapture = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "Home",
+          "End",
+          "PageUp",
+          "PageDown",
+        ].includes(event.key)
+      ) {
+        markExplicitDraftLeave()
+      }
+      if (gridWriteLocked) return
+      const bindings = keyboardShortcuts?.newRecord ?? [
+        "Meta+Enter",
+        "Control+Enter",
+      ]
+      if (
+        !bindings.some((binding) =>
+          eidosFileKeyboardEventMatchesBinding(event, binding)
+        )
+      ) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      void gridRef.current?.appendRow(newRecordTargetColumn, true)
+    },
+    [
+      gridWriteLocked,
+      keyboardShortcuts?.newRecord,
+      markExplicitDraftLeave,
+      newRecordTargetColumn,
+    ]
+  )
+
   // Keyboard equivalent of a right click (Shift+F10 / the Menu key): opens
   // the cell menu for the focused cell or the first selected row, so row
   // actions like Delete stay reachable without a pointer.
@@ -2174,6 +2417,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     >
       <div
         className="relative min-w-0 flex-1 overflow-hidden"
+        onPointerDownCapture={markExplicitDraftLeave}
+        onKeyDownCapture={onGridContainerKeyDownCapture}
         onKeyDown={onGridContainerKeyDown}
       >
         <DataEditor
@@ -2186,11 +2431,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           freezeColumns={freezeColumns}
           getCellContent={getCellContent}
           onVisibleRegionChanged={onVisibleRegionChanged}
+          onItemHovered={onItemHovered}
           customRenderers={EIDOS_FILE_GRID_CUSTOM_RENDERERS}
           onDragOverCell={onDragOverCell}
           onDragLeave={() => setFileDropHighlights([])}
           onDrop={onDrop}
-          highlightRegions={[...searchHighlightRegions, ...fileDropHighlights]}
+          highlightRegions={[
+            ...searchHighlightRegions,
+            ...draftMoveHighlightRegions,
+            ...fileDropHighlights,
+          ]}
           fillHandle={!gridWriteLocked}
           gridSelection={history.gridSelection ?? undefined}
           onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
@@ -2218,6 +2468,24 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           rightElementProps={{ fill: true }}
         />
+        {draftRowsMayReposition && draftMoveTooltip
+          ? createPortal(
+              <div
+                role="tooltip"
+                data-eidos-file-draft-move-tooltip
+                className="pointer-events-none fixed z-[1000] max-w-72 rounded-md border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-md"
+                style={{
+                  left: draftMoveTooltip.left,
+                  top: draftMoveTooltip.top,
+                }}
+              >
+                {t(
+                  "Pinned while editing. This record may move or leave the view afterward to match the current sort and filters."
+                )}
+              </div>,
+              document.body
+            )
+          : null}
         {failedMutation ? (
           <div
             className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center"

@@ -32,6 +32,7 @@ const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
 
 const mocks = vi.hoisted(() => ({
   props: null as DataEditorProps | null,
+  appendRow: vi.fn(),
   scrollTo: vi.fn(),
   updateCells: vi.fn(),
   focus: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
     default: React.forwardRef((_props: DataEditorProps, ref) => {
       mocks.props = _props
       React.useImperativeHandle(ref, () => ({
+        appendRow: mocks.appendRow,
         scrollTo: mocks.scrollTo,
         updateCells: mocks.updateCells,
         focus: mocks.focus,
@@ -172,6 +174,10 @@ describe("EidosFileGrid", () => {
 
   beforeEach(() => {
     mocks.props = null
+    mocks.appendRow.mockReset()
+    mocks.appendRow.mockImplementation(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
     mocks.scrollTo.mockReset()
     mocks.updateCells.mockReset()
     mocks.focus.mockReset()
@@ -969,6 +975,23 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
       data: "",
     })
+    expect(mocks.props?.highlightRegions).toContainEqual({
+      color: "rgba(43, 81, 128, 0.1)",
+      range: { x: 0, y: 2, width: 2, height: 1 },
+      style: "no-outline",
+    })
+
+    act(() => {
+      mocks.props?.onItemHovered?.({
+        kind: "cell",
+        location: [0, 2],
+        bounds: { x: 100, y: 200, width: 180, height: 36 },
+      } as never)
+    })
+    expect(
+      document.querySelector("[data-eidos-file-draft-move-tooltip]")
+        ?.textContent
+    ).toContain("may move or leave the view")
 
     // DataEditor always offers edits to onCellsEdited first. Exiting the
     // untouched empty editor must not clear the pinned draft row.
@@ -1038,6 +1061,227 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
       data: "Row 1",
     })
+    expect(
+      document.querySelector("[data-eidos-file-draft-move-tooltip]")
+    ).toBeNull()
+    expect(mocks.props?.highlightRegions).not.toContainEqual(
+      expect.objectContaining({
+        range: expect.objectContaining({ y: 2 }),
+        style: "no-outline",
+      })
+    )
+  })
+
+  it("follows a sorted draft to its truthful row when keyboard editing ends", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const appendedRow = { _id: "row_appended", title: "New task", done: 0 }
+    const locateRow = vi.fn(async () => 0)
+    const renderGrid = (rows: EidosFileRow[], reloadToken: number) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: 2 }}
+        view={table.views[0]}
+        reloadToken={reloadToken}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total: rows.length,
+          rows,
+        }))}
+        locateRow={locateRow}
+        onAddRow={vi.fn(async () => ({
+          tableId: "tasks",
+          row: appendedRow,
+          rowCount: 3,
+        }))}
+        onCellEdit={createCellEdit()}
+      />
+    )
+
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB], 0))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 2],
+          range: { x: 0, y: 2, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      root.render(renderGrid([appendedRow, rowA, rowB], 1))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(locateRow).toHaveBeenCalledWith("row_appended")
+    expect(mocks.props?.gridSelection?.current?.cell).toEqual([0, 0])
+    expect(mocks.scrollTo).toHaveBeenCalledWith(0, 0, "both", 0, 24, {
+      vAlign: "center",
+    })
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
+  it("does not reclaim focus when a released draft remains at the same row", async () => {
+    const appendedRow = { _id: "row_appended", title: "New task", done: 0 }
+    let created = false
+    const locateRow = vi.fn(async () => 2)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={{ ...table, rowCount: 2 }}
+          view={table.views[0]}
+          loadPage={vi.fn(async () => ({
+            tableId: "tasks",
+            offset: 0,
+            limit: 100,
+            total: created ? 3 : 2,
+            rows: created
+              ? [rowAt(0), rowAt(1), appendedRow]
+              : [rowAt(0), rowAt(1)],
+          }))}
+          locateRow={locateRow}
+          onAddRow={vi.fn(async () => {
+            created = true
+            return { tableId: "tasks", row: appendedRow, rowCount: 3 }
+          })}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 2],
+          range: { x: 0, y: 2, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(locateRow).toHaveBeenCalledWith("row_appended")
+    expect(mocks.props?.gridSelection?.current?.cell).toEqual([0, 1])
+    expect(mocks.scrollTo).not.toHaveBeenCalled()
+  })
+
+  it("does not follow a sorted draft after the user deliberately clicks away", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const appendedRow = { _id: "row_appended", title: "New task", done: 0 }
+    const locateRow = vi.fn(async () => 0)
+    const renderGrid = (rows: EidosFileRow[], reloadToken: number) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: 2 }}
+        view={table.views[0]}
+        reloadToken={reloadToken}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total: rows.length,
+          rows,
+        }))}
+        locateRow={locateRow}
+        onAddRow={vi.fn(async () => ({
+          tableId: "tasks",
+          row: appendedRow,
+          rowCount: 3,
+        }))}
+        onCellEdit={createCellEdit()}
+      />
+    )
+
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB], 0))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 2],
+          range: { x: 0, y: 2, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      root.render(renderGrid([appendedRow, rowA, rowB], 1))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      container
+        .querySelector('[data-testid="glide-grid"]')
+        ?.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }))
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await Promise.resolve()
+    })
+
+    expect(locateRow).not.toHaveBeenCalled()
+    expect(mocks.props?.gridSelection?.current?.cell).toEqual([0, 1])
   })
 
   it("keeps an appended row visible against a filter while its editor is open", async () => {
@@ -1537,6 +1781,51 @@ describe("EidosFileGrid", () => {
       requestFrame.mockRestore()
       outsideButton.remove()
     }
+  })
+
+  it("creates a record with the Grid shortcut and edits the record label", async () => {
+    const onAddRow = vi.fn(async () => ({
+      tableId: table.table.id,
+      row: { _id: "row_new", title: "", done: 0 },
+      rowCount: table.rowCount + 1,
+    }))
+    const view = {
+      ...table.views[0],
+      orderMap: {
+        "0198c72d-82b5-7000-8000-000000000002": 0,
+        "0198c72d-82b5-7000-8000-000000000001": 1,
+      },
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={view}
+          loadPage={createLoadPage()}
+          onAddRow={onAddRow}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const gridElement = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )
+    await act(async () => {
+      gridElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.appendRow).toHaveBeenCalledWith(1, true)
+    expect(onAddRow).toHaveBeenCalledOnce()
   })
 
   it("keeps cell actions keyboard-accessible from the focused cell", async () => {

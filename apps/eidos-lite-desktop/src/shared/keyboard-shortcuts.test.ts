@@ -46,6 +46,13 @@ describe("Eidos Lite keyboard shortcuts", () => {
     ).toBe("new-file")
     expect(
       eidosLiteShortcutCommandForKeyboardEvent(
+        event({ key: "Enter", metaKey: true }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("new-record")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
         event({ ctrlKey: true, key: "PageDown" }),
         DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         true
@@ -71,8 +78,21 @@ describe("Eidos Lite keyboard shortcuts", () => {
     })
 
     expect(normalized["toggle-sidebar"]).toBe("Mod+Shift+B")
+    expect(normalized["new-record"]).toBe("Mod+Enter")
     expect(normalized["previous-view"]).toBe("Ctrl+PageUp")
     expect(normalized["open-cell-actions"]).toBe("Shift+F10")
+  })
+
+  it("does not let a new default steal an existing custom binding", () => {
+    const { "new-record": _newRecord, ...previousShortcuts } =
+      DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS
+    const normalized = normalizeEidosLiteKeyboardShortcuts({
+      ...previousShortcuts,
+      "previous-view": "Mod+Enter",
+    })
+
+    expect(normalized["previous-view"]).toBe("Mod+Enter")
+    expect(normalized["new-record"]).toBeNull()
   })
 
   it("resets obsolete shortcut shapes without retaining removed commands", () => {

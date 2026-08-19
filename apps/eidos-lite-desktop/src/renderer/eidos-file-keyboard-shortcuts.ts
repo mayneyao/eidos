@@ -26,6 +26,7 @@ export function eidosFileKeyboardShortcuts(
   macos: boolean
 ): EidosFileUIKeyboardShortcuts {
   return {
+    newRecord: editorBindings(shortcuts, "new-record", macos),
     previousView: editorBindings(
       shortcuts,
       "previous-view",

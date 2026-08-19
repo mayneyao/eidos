@@ -1288,6 +1288,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
     // (undocumented)
+    getRowIndex?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
+    // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
     insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
@@ -1968,8 +1970,14 @@ export class EidosFileRuntime {
     deleteView(viewId: string): boolean;
     // (undocumented)
     duplicateView(viewId: string, name?: string): EidosFileViewInfo;
+    // @internal
+    getLogicalRowsByIds(tableId: string, rowIds: string[], options?: {
+        fields?: string[];
+        resolveRelations?: boolean;
+    }): EidosFileLogicalRow[];
     // (undocumented)
     getRow(tableId: string, rowId: string): EidosFileRow | null;
+    getRowIndex(tableId: string, rowId: string, query?: EidosFileRowQuery): number | null;
     // (undocumented)
     getRowPage(tableId: string, offset: number, limit: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
     // (undocumented)
@@ -2100,6 +2108,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
     // (undocumented)
     getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
+    // (undocumented)
+    getRowIndex(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)

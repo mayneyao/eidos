@@ -1223,6 +1223,7 @@ export const RUNTIME_READ_METHODS = [
   "findFileEntry",
   "getPage",
   "getRow",
+  "getRowIndex",
   "getGroupCounts",
   "calculateColumnStats",
   "previewFormula",

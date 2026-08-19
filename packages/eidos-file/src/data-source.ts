@@ -42,6 +42,11 @@ export interface EidosFileDataSource {
     projection?: EidosFileRowPageProjection
   ): Promise<EidosFileRowPage>
   getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>
+  getRowIndex?(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ): Promise<number | null>
   getGroupCounts?(
     tableId: string,
     fieldId: string,
@@ -158,6 +163,14 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async getRow(tableId: string, rowId: string): Promise<EidosFileRow | null> {
     return this.runtime.getRow(tableId, rowId)
+  }
+
+  async getRowIndex(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ): Promise<number | null> {
+    return this.runtime.getRowIndex(tableId, rowId, query)
   }
 
   async getGroupCounts(

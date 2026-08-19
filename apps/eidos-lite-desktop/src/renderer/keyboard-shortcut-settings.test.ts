@@ -10,6 +10,7 @@ describe("Keyboard shortcut row actions", () => {
     expect(
       SHORTCUT_GROUPS.find((group) => group.label === "Table area")?.commands
     ).toEqual([
+      "new-record",
       "previous-view",
       "next-view",
       "previous-table",

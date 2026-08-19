@@ -86,6 +86,68 @@ const INFERRED_OPTION_COLORS = [
   "purple",
 ] as const
 
+function andRuntimeFilters(
+  ...filters: Array<FilterNode | null | undefined>
+): FilterNode | undefined {
+  const args = filters.filter((filter): filter is FilterNode => Boolean(filter))
+  if (args.length === 0) return undefined
+  if (args.length === 1) return args[0]
+  return { op: "and", args }
+}
+
+function runtimeSortBefore(
+  fieldId: string,
+  direction: "asc" | "desc",
+  nulls: "first" | "last",
+  value: LogicalValue
+): FilterNode | null {
+  if (value === null) {
+    return nulls === "last" ? { op: "is-not-null", fieldId } : null
+  }
+  const comparison: FilterNode = {
+    op: direction === "asc" ? "lt" : "gt",
+    fieldId,
+    value: value as FilterOperand,
+  }
+  return nulls === "first"
+    ? { op: "or", args: [{ op: "is-null", fieldId }, comparison] }
+    : comparison
+}
+
+function runtimeSortEqual(fieldId: string, value: LogicalValue): FilterNode {
+  return value === null
+    ? { op: "is-null", fieldId }
+    : { op: "eq", fieldId, value: value as FilterOperand }
+}
+
+function runtimeKeysetBeforeFilter(
+  terms: Array<{
+    fieldId: string
+    direction: "asc" | "desc"
+    nulls: "first" | "last"
+    value: LogicalValue
+  }>
+): FilterNode {
+  const branches = terms.flatMap((term, index) => {
+    const before = runtimeSortBefore(
+      term.fieldId,
+      term.direction,
+      term.nulls,
+      term.value
+    )
+    if (!before) return []
+    return [
+      andRuntimeFilters(
+        ...terms
+          .slice(0, index)
+          .map((prefix) => runtimeSortEqual(prefix.fieldId, prefix.value)),
+        before
+      )!,
+    ]
+  })
+  return branches.length === 1 ? branches[0]! : { op: "or", args: branches }
+}
+
 function conversionErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
   if (
@@ -226,6 +288,85 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       rows: page.rows.map((row) => this.editorRow(row, page, selected)),
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
     }
+  }
+
+  async getRowIndex(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ): Promise<number | null> {
+    this.assertTable(tableId)
+    const fields = this.fieldsByTable.get(tableId) ?? []
+    const rowIdField = fields.find((field) => field.systemRole === "row-id")
+    if (!rowIdField) throw new Error(`Row ID field not found: ${tableId}`)
+    const runtimeQuery = this.runtimeQuery(tableId, query)
+    const sort = runtimeQuery.sort ?? []
+    const effectiveSort =
+      sort.at(-1)?.fieldId === rowIdField.id
+        ? sort
+        : [
+            ...sort,
+            {
+              fieldId: rowIdField.id,
+              direction: "asc" as const,
+              nulls: "last" as const,
+            },
+          ]
+    const projectedFieldIds = effectiveSort
+      .map((term) => term.fieldId)
+      .filter((fieldId) => fieldId !== rowIdField.id)
+    const target = await this.runtime.getRowsById(
+      {
+        tableId,
+        rowIds: [rowId],
+        projection: {
+          fields: projectedFieldIds,
+          resolveRelations: [],
+        },
+      },
+      this.context("locate-row-values")
+    )
+    const targetRow = target.rows[0]
+    if (!targetRow) return null
+    const values = new Map(
+      target.columns.map((column, index) => [
+        column.fieldId,
+        targetRow.values[index] ?? null,
+      ])
+    )
+    const baseQuery = {
+      ...(runtimeQuery.filter ? { filter: runtimeQuery.filter } : {}),
+      ...(runtimeQuery.search ? { search: runtimeQuery.search } : {}),
+    }
+    const membershipFilter = andRuntimeFilters(runtimeQuery.filter, {
+      op: "eq",
+      fieldId: rowIdField.id,
+      value: rowId,
+    })
+    if (
+      (await this.countRows(tableId, {
+        ...baseQuery,
+        ...(membershipFilter ? { filter: membershipFilter } : {}),
+      })) === 0
+    ) {
+      return null
+    }
+
+    const before = runtimeKeysetBeforeFilter(
+      effectiveSort.map((term) => ({
+        fieldId: term.fieldId,
+        direction: term.direction,
+        nulls: term.nulls ?? "last",
+        value:
+          term.fieldId === rowIdField.id
+            ? rowId
+            : (values.get(term.fieldId) ?? null),
+      }))
+    )
+    return this.countRows(tableId, {
+      ...baseQuery,
+      filter: andRuntimeFilters(runtimeQuery.filter, before),
+    })
   }
 
   async getRow(tableId: string, rowId: string): Promise<EidosFileRow | null> {

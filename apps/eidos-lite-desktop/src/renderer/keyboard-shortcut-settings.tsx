@@ -33,6 +33,7 @@ export const SHORTCUT_GROUPS: Array<{
   {
     label: "Table area",
     commands: [
+      "new-record",
       "previous-view",
       "next-view",
       "previous-table",
@@ -49,6 +50,7 @@ const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "toggle-theme": "Toggle theme",
   "toggle-version": "Toggle version history",
   "toggle-sync": "Toggle Sync",
+  "new-record": "New record",
   "previous-view": "Previous view",
   "next-view": "Next view",
   "previous-table": "Previous table",
