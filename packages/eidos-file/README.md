@@ -17,7 +17,7 @@ receives SQL, a database, a path or a native file handle.
 ## Install
 
 ```bash
-pnpm add @eidos.space/eidos-file@2.0.0
+pnpm add @eidos.space/eidos-file@2.0.1
 ```
 
 Add `@eidos.space/eidos-file-ui` for the React Viewer binding.

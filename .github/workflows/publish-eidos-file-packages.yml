@@ -1,0 +1,166 @@
+name: Publish Eidos File Packages
+run-name: Eidos File packages v${{ inputs.version }} (${{ inputs.mode }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact shared package version, without a v prefix
+        required: true
+        type: string
+      mode:
+        description: Build and inspect only, or publish from the immutable tag
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - publish
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eidos-file-packages-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+
+      - name: Require the immutable package tag for publication
+        if: inputs.mode == 'publish'
+        env:
+          EXPECTED_TAG: eidos-file-packages-v${{ inputs.version }}
+        run: >-
+          node -e
+          "if (process.env.GITHUB_REF_TYPE !== 'tag' || process.env.GITHUB_REF_NAME !== process.env.EXPECTED_TAG) {
+          throw new Error('Run publish from the exact tag ' + process.env.EXPECTED_TAG)
+          }"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install release npm CLI
+        run: npm install --global npm@11.18.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify shared source version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          core_version="$(node -p "require('./packages/eidos-file/package.json').version")"
+          ui_version="$(node -p "require('./packages/eidos-file-ui/package.json').version")"
+          test "$core_version" = "$VERSION"
+          test "$ui_version" = "$VERSION"
+
+      - name: Verify version is unpublished
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for package_name in @eidos.space/eidos-file @eidos.space/eidos-file-ui; do
+            versions="$(npm view "$package_name" versions --json)"
+            node -e "const versions = [].concat(JSON.parse(process.argv[1])); if (versions.includes(process.env.VERSION)) throw new Error(process.argv[2] + '@' + process.env.VERSION + ' already exists')" "$versions" "$package_name"
+          done
+
+      - name: Test Eidos File Runtime
+        run: |
+          pnpm --filter @eidos.space/eidos-file test
+          pnpm --filter @eidos.space/eidos-file test:node-sqlite
+
+      - name: Test Eidos File UI
+        run: pnpm --filter @eidos.space/eidos-file-ui test
+
+      - name: Build and audit public APIs
+        run: |
+          pnpm --filter @eidos.space/eidos-file run prepublishOnly
+          pnpm --filter @eidos.space/eidos-file-ui run prepublishOnly
+
+      - name: Pack reviewed artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p package-release
+          pnpm --filter @eidos.space/eidos-file pack --pack-destination "$PWD/package-release"
+          pnpm --filter @eidos.space/eidos-file-ui pack --pack-destination "$PWD/package-release"
+          core_tar="package-release/eidos.space-eidos-file-${VERSION}.tgz"
+          ui_tar="package-release/eidos.space-eidos-file-ui-${VERSION}.tgz"
+          test -f "$core_tar"
+          test -f "$ui_tar"
+          tar -xOf "$ui_tar" package/package.json |
+            node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync(0, 'utf8')); const expected = '^' + process.env.VERSION; if (pkg.dependencies['@eidos.space/eidos-file'] !== expected) throw new Error('UI tarball must depend on @eidos.space/eidos-file@' + expected)"
+          sha256sum "$core_tar" "$ui_tar" > package-release/SHA256SUMS
+
+      - name: Upload reviewed package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eidos-file-packages-${{ inputs.version }}
+          path: package-release/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: inputs.mode == 'publish'
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install release npm CLI
+        run: npm install --global npm@11.18.0
+
+      - name: Download reviewed package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: eidos-file-packages-${{ inputs.version }}
+          path: package-release
+
+      - name: Verify reviewed artifact checksums
+        working-directory: package-release
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish Runtime, then UI
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          core_tar="package-release/eidos.space-eidos-file-${VERSION}.tgz"
+          ui_tar="package-release/eidos.space-eidos-file-ui-${VERSION}.tgz"
+          npm publish "$core_tar" --access public --provenance
+          for attempt in $(seq 1 24); do
+            published="$(npm view "@eidos.space/eidos-file@${VERSION}" version 2>/dev/null || true)"
+            if [ "$published" = "$VERSION" ]; then
+              break
+            fi
+            sleep 5
+          done
+          test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
+          npm publish "$ui_tar" --access public --provenance
+
+      - name: Verify public registry state
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
+          test "$(npm view "@eidos.space/eidos-file-ui@${VERSION}" version)" = "$VERSION"
+          test "$(npm view "@eidos.space/eidos-file-ui@${VERSION}" dependencies.@eidos.space/eidos-file)" = "^${VERSION}"

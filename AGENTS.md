@@ -112,6 +112,11 @@ pnpm --filter @eidos.space/eidos-file-serve build
 
 ## Releases
 
+- `@eidos.space/eidos-file` and `@eidos.space/eidos-file-ui` release as a
+  shared-version cohort. Tags use `eidos-file-packages-v<semver>` and npm
+  publication must run through
+  `.github/workflows/publish-eidos-file-packages.yml` with GitHub OIDC. Never
+  run `npm publish` locally or use a workstation npm token.
 - Eidos Lite versions live in `apps/eidos-lite-desktop/package.json`; tags use
   `lite-v<semver>`.
 - CLI versions live in `apps/cli/Cargo.toml`; tags use `cli-v<semver>` and stable

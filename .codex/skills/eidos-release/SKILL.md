@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Release Eidos Lite, the standalone Eidos CLI, and editor.eidos.space. Use when asked to prepare or publish a Lite or CLI version, write or audit release notes, deploy the Eidos File Web editor, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
+description: Release Eidos File npm packages, Eidos Lite, the standalone Eidos CLI, and editor.eidos.space. Use when asked to prepare or publish packages or a Lite/CLI version, write or audit release notes, deploy the Web editor, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
 ---
 
 # Eidos Release
@@ -11,6 +11,8 @@ publisher, and prove the public result.
 
 ## Select the release surface
 
+- **Eidos File npm packages:** read
+  [references/eidos-file-packages-release.md](references/eidos-file-packages-release.md).
 - **Eidos Lite:** read
   [references/release-notes-policy.md](references/release-notes-policy.md), then
   [references/eidos-lite-release.md](references/eidos-lite-release.md).
@@ -22,13 +24,16 @@ publisher, and prove the public result.
 
 Do not conflate version namespaces or publishers:
 
+- Eidos File packages use `eidos-file-packages-v<semver>` and
+  `.github/workflows/publish-eidos-file-packages.yml`. Publish only through
+  GitHub Actions with npm Trusted Publishing; never run `npm publish` locally.
 - Lite uses `lite-v<semver>` and
   `.github/workflows/build-and-release-eidos-lite.yml`.
 - CLI uses `cli-v<semver>` and
   `.github/workflows/build-and-release-cli.yml`.
 - Web deploys independently through Wrangler to `editor.eidos.space`.
-- `@eidos.space/eidos-file` and `@eidos.space/eidos-file-ui` package publishing
-  is not implied by any of these releases.
+- Package, Lite, CLI, and Web publication remain independent even when the same
+  source changes affect more than one surface.
 
 ## Preserve release invariants
 
