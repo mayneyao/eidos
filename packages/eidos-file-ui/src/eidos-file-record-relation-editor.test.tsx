@@ -9,6 +9,7 @@ import {
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { EidosFileUIProvider } from "./context"
 import { EidosFileRecordRelationEditor } from "./eidos-file-record-relation-editor"
 
 const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
@@ -123,5 +124,50 @@ describe("EidosFileRecordRelationEditor", () => {
     )
     expect(trigger?.textContent).toContain("Unavailable record")
     expect(trigger?.textContent).not.toContain(ADA_ID)
+  })
+
+  it("opens an already linked record without changing the relation", async () => {
+    const openRelationRecord = vi.fn()
+    const onChange = vi.fn(async (_value: string | null) => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider openRelationRecord={openRelationRecord}>
+          <EidosFileRecordRelationEditor
+            row={{
+              _id: "project_1",
+              owners: encodeEidosFileRelationIds([ADA_ID]),
+              owners__display: JSON.stringify([
+                { id: ADA_ID, title: "Ada Lovelace" },
+              ]),
+            }}
+            field={field}
+            disabled={false}
+            onChange={onChange}
+            onSearch={vi.fn(async () => [])}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Owners"]')
+        ?.click()
+    })
+    act(() => {
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open linked record Ada Lovelace"]'
+        )
+        ?.click()
+    })
+
+    expect(openRelationRecord).toHaveBeenCalledWith({
+      tableId: "people",
+      rowId: ADA_ID,
+      title: "Ada Lovelace",
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
   })
 })

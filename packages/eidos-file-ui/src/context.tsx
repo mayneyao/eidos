@@ -58,12 +58,23 @@ export interface EidosFileUIKeyboardShortcuts {
   openCellActions?: readonly string[]
 }
 
+/** Stable identity for a relation record that the Host can present. */
+export interface EidosFileRelationRecordTarget {
+  tableId: string
+  rowId: string
+  title: string
+}
+
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
+  /** Host-owned navigation to a record referenced by a relation field. */
+  openRelationRecord?: (
+    target: EidosFileRelationRecordTarget
+  ) => void | Promise<void>
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
   keyboardShortcuts?: EidosFileUIKeyboardShortcuts
@@ -85,6 +96,7 @@ export function EidosFileUIProvider({
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
+  openRelationRecord,
   assetSession,
   assetPresenter,
   keyboardShortcuts,
@@ -96,6 +108,8 @@ export function EidosFileUIProvider({
   const resolvedThemeName = themeName ?? parent.themeName
   const resolvedLocale = locale ?? parent.locale
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
+  const resolvedOpenRelationRecord =
+    openRelationRecord ?? parent.openRelationRecord
   const resolvedAssetSession = assetSession ?? parent.assetSession
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
   const resolvedKeyboardShortcuts =
@@ -111,6 +125,9 @@ export function EidosFileUIProvider({
               translateEidosFileUI(resolvedLocale, message, values, messages)
           : parent.translate),
       ...(resolvedActivateUrl ? { activateUrl: resolvedActivateUrl } : {}),
+      ...(resolvedOpenRelationRecord
+        ? { openRelationRecord: resolvedOpenRelationRecord }
+        : {}),
       ...(resolvedAssetSession ? { assetSession: resolvedAssetSession } : {}),
       ...(resolvedAssetPresenter
         ? { assetPresenter: resolvedAssetPresenter }
@@ -124,6 +141,7 @@ export function EidosFileUIProvider({
       messages,
       parent.translate,
       resolvedActivateUrl,
+      resolvedOpenRelationRecord,
       resolvedAssetPresenter,
       resolvedAssetSession,
       resolvedKeyboardShortcuts,

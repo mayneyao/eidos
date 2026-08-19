@@ -25,7 +25,7 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const Empty = () => null
   function SearchResultReporter() {
     const navigation = actual.useEidosFileSearchNavigation()
-    const { activateUrl } = actual.useEidosFileUI()
+    const { activateUrl, openRelationRecord } = actual.useEidosFileUI()
     return React.createElement(
       React.Fragment,
       null,
@@ -47,9 +47,41 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
         "Open URL through host"
       ),
       React.createElement(
+        "button",
+        {
+          type: "button",
+          disabled: !openRelationRecord,
+          onClick: () =>
+            openRelationRecord?.({
+              tableId: "people",
+              rowId: "ada",
+              title: "Ada Lovelace",
+            }),
+        },
+        "Open related record through host"
+      ),
+      React.createElement(
         "span",
         { "data-testid": "active-search-result" },
         String(navigation?.searchResultIndex ?? "none")
+      )
+    )
+  }
+  function RelatedRecordReporter({
+    target,
+    onClose,
+  }: {
+    target: { tableId: string; rowId: string; title: string }
+    onClose: () => void
+  }) {
+    return React.createElement(
+      "aside",
+      { "data-testid": "related-record-panel" },
+      `${target.tableId}:${target.rowId}:${target.title}`,
+      React.createElement(
+        "button",
+        { type: "button", onClick: onClose },
+        "Close related record"
       )
     )
   }
@@ -75,6 +107,7 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
     EidosFileFormulaEditorPopover: Empty,
     EidosFileLookupEditorPopover: Empty,
     EidosFilePluginSlot: Empty,
+    EidosFileRelatedRecordPanel: RelatedRecordReporter,
     EidosFileSheetCreatePopover: Empty,
     EidosFileSheetTabs: SheetTabsReporter,
     EidosFileViewFieldsPopover: Empty,
@@ -128,6 +161,21 @@ const snapshot: EidosFileSnapshot = {
         },
       ],
       rowCount: 3,
+    },
+    {
+      table: {
+        id: "people",
+        name: "People",
+        rawTableName: "people",
+        position: 1,
+        icon: null,
+        description: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      fields: [],
+      views: [],
+      rowCount: 1,
     },
   ],
 }
@@ -314,5 +362,44 @@ describe("Eidos Lite Eidos File search navigation", () => {
     expect(openExternalUrl).toHaveBeenCalledWith(
       "https://example.com/image.png"
     )
+  })
+
+  it("opens a related record in the Lite detail panel", async () => {
+    await act(async () => {
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "sample.eidos",
+          snapshot,
+          source: {} as IpcEidosFileDataSource,
+          activeTableId: "tasks",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot: vi.fn(),
+          onError: vi.fn(),
+        })
+      )
+    })
+
+    act(() => {
+      Array.from(host.querySelectorAll("button"))
+        .find(
+          (button) => button.textContent === "Open related record through host"
+        )
+        ?.click()
+    })
+
+    expect(
+      host.querySelector('[data-testid="related-record-panel"]')?.textContent
+    ).toContain("people:ada:Ada Lovelace")
+
+    act(() => {
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent === "Close related record")
+        ?.click()
+    })
+    expect(
+      host.querySelector('[data-testid="related-record-panel"]')
+    ).toBeNull()
   })
 })

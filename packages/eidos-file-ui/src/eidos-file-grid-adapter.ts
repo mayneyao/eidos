@@ -180,6 +180,10 @@ export function eidosFileValueToGridCell(
           title: titleById.get(id) ?? unavailableRelationTitle,
         })),
         multiple: field.property?.multiple !== false,
+        targetTableId:
+          typeof field.property?.targetTableId === "string"
+            ? field.property.targetTableId
+            : undefined,
       },
     } satisfies EidosFileRelationCell
   }

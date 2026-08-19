@@ -380,6 +380,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Unable to save record": "无法保存记录",
   "Record details for {title}": "{title}的记录详情",
   "Open record in tab": "在标签页中打开记录",
+  "Open linked record {title}": "打开关联记录 {title}",
   "Open in tab": "在标签页中打开",
   "Close record details": "关闭记录详情",
   "Loading record details…": "正在加载记录详情…",

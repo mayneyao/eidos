@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -21,6 +21,7 @@ import {
   EidosFileLookupEditorPopover,
   EidosFilePluginSlot,
   EidosFileQueryToolbar,
+  EidosFileRelatedRecordPanel,
   EidosFileSheetCreatePopover,
   EidosFileSheetTabs,
   EidosFileUIProvider,
@@ -29,6 +30,7 @@ import {
   exportEidosFileViewCsv,
   type EidosFilePluginContext,
   type EidosFilePlugin,
+  type EidosFileRelationRecordTarget,
 } from "@eidos.space/eidos-file-ui"
 import {
   createEidosFileCsvImportPlugin,
@@ -100,6 +102,8 @@ export function EidosFileWorkbench({
     null
   )
   const [reloadToken, setReloadToken] = useState(0)
+  const [relatedRecordTarget, setRelatedRecordTarget] =
+    useState<EidosFileRelationRecordTarget | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const assetSession = useMemo(
     () =>
@@ -194,6 +198,31 @@ export function EidosFileWorkbench({
       null,
     [activeTableId, snapshot.tables]
   )
+  const relatedRecordTable = useMemo(
+    () =>
+      relatedRecordTarget
+        ? (snapshot.tables.find(
+            (table) => table.table.id === relatedRecordTarget.tableId
+          ) ?? null)
+        : null,
+    [relatedRecordTarget, snapshot.tables]
+  )
+  const openRelationRecord = useCallback(
+    (target: EidosFileRelationRecordTarget) => {
+      if (!snapshot.tables.some((table) => table.table.id === target.tableId)) {
+        onError(new Error("Linked record table is unavailable"))
+        return
+      }
+      setRelatedRecordTarget(target)
+    },
+    [onError, snapshot.tables]
+  )
+
+  useEffect(() => {
+    if (relatedRecordTarget && !relatedRecordTable) {
+      setRelatedRecordTarget(null)
+    }
+  }, [relatedRecordTable, relatedRecordTarget])
   const currentPropertyField = useMemo(() => {
     if (!propertyField) return null
     return (
@@ -367,6 +396,7 @@ export function EidosFileWorkbench({
       locale={locale}
       themeName={theme}
       activateUrl={window.eidosLite?.openExternalUrl}
+      openRelationRecord={openRelationRecord}
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
@@ -483,6 +513,7 @@ export function EidosFileWorkbench({
             }
             onSelect={(tableId) => {
               onTableSelect(tableId)
+              setRelatedRecordTarget(null)
               setSearch("")
               setPropertyField(null)
               setFormulaTarget(null)
@@ -557,39 +588,55 @@ export function EidosFileWorkbench({
           </>
         }
       >
-        <EidosFileEditorView
-          key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-          plugins={editorPlugins}
-          source={source}
-          table={activeTable}
-          tables={snapshot.tables}
-          view={activeView}
-          search={search}
-          disabled={disabled}
-          reloadToken={reloadToken}
-          propertyField={currentPropertyField}
-          capabilities={{
-            read: true,
-            mutate: !disabled,
-            resolveAssets: true,
-            rawFile: false,
-            nativeFileSystem: false,
-          }}
-          onSnapshot={onSnapshot}
-          onDeleteRow={deleteRow}
-          onDeleteRows={deleteRows}
-          onFieldOpen={setPropertyField}
-          onFieldClose={() => setPropertyField(null)}
-          onEditFormula={setFormulaTarget}
-          onEditLookup={setLookupTarget}
-          onFieldAdd={(position) => {
-            setFieldInsertIndex(position ?? null)
-            setAddPropertyOpen(true)
-          }}
-          onError={onError}
-          onImportFiles={importFiles}
-          onImportDroppedFiles={importDroppedFiles}
-        />
+        <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
+          <EidosFileEditorView
+            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+            plugins={editorPlugins}
+            source={source}
+            table={activeTable}
+            tables={snapshot.tables}
+            view={activeView}
+            search={search}
+            disabled={disabled}
+            reloadToken={reloadToken}
+            propertyField={currentPropertyField}
+            capabilities={{
+              read: true,
+              mutate: !disabled,
+              resolveAssets: true,
+              rawFile: false,
+              nativeFileSystem: false,
+            }}
+            onSnapshot={onSnapshot}
+            onDeleteRow={deleteRow}
+            onDeleteRows={deleteRows}
+            onFieldOpen={setPropertyField}
+            onFieldClose={() => setPropertyField(null)}
+            onEditFormula={setFormulaTarget}
+            onEditLookup={setLookupTarget}
+            onFieldAdd={(position) => {
+              setFieldInsertIndex(position ?? null)
+              setAddPropertyOpen(true)
+            }}
+            onError={onError}
+            onImportFiles={importFiles}
+            onImportDroppedFiles={importDroppedFiles}
+          />
+          {relatedRecordTarget && relatedRecordTable ? (
+            <EidosFileRelatedRecordPanel
+              key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
+              source={source}
+              table={relatedRecordTable}
+              target={relatedRecordTarget}
+              disabled={disabled}
+              onClose={() => setRelatedRecordTarget(null)}
+              onMutation={() => setReloadToken((current) => current + 1)}
+              onError={onError}
+              onImportFiles={importFiles}
+              onImportDroppedFiles={importDroppedFiles}
+            />
+          ) : null}
+        </div>
       </EidosFileEditorShell>
     </EidosFileUIProvider>
   )

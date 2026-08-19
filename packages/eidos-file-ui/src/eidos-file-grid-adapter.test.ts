@@ -334,6 +334,7 @@ describe("Eidos File Grid adapter", () => {
       kind: GridCellKind.Custom,
       data: {
         kind: "eidos-file-relation-cell",
+        targetTableId: "people",
         values: [{ id: ADA_ID, title: "Ada Lovelace" }],
       },
     })

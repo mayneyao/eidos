@@ -1,5 +1,5 @@
 import type { EidosFileRelationValue } from "@eidos.space/eidos-file"
-import { Check } from "lucide-react"
+import { Check, ExternalLink } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
@@ -14,7 +14,9 @@ export function EidosFileRelationOptionList({
   optionId,
   query,
   selectedValues,
+  targetTableId,
   onActiveOptionChange,
+  onOpenRecord,
   onToggle,
 }: {
   accessibleName: string
@@ -26,10 +28,12 @@ export function EidosFileRelationOptionList({
   optionId: (index: number) => string
   query: string
   selectedValues: EidosFileRelationValue[]
+  targetTableId?: string
   onActiveOptionChange: (optionId: string) => void
+  onOpenRecord?: () => void
   onToggle: (option: EidosFileRelationValue) => void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { openRelationRecord, translate: t } = useEidosFileUI()
   return (
     <div
       id={listboxId}
@@ -49,27 +53,52 @@ export function EidosFileRelationOptionList({
             {t("Selected · {count}", { count: selectedValues.length })}
           </p>
           {selectedValues.map((option, index) => (
-            <button
+            <div
               key={option.id}
-              id={optionId(index)}
-              type="button"
-              role="option"
-              aria-selected={true}
-              tabIndex={-1}
               className={cn(
-                "flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent disabled:opacity-50",
+                "group flex h-8 w-full items-center rounded-sm text-xs hover:bg-accent",
                 activeOptionId === option.id && "bg-accent"
               )}
-              disabled={disabled}
-              onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => onActiveOptionChange(option.id)}
-              onClick={() => onToggle(option)}
             >
-              <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-foreground text-background">
-                <Check className="h-3 w-3" />
-              </span>
-              <span className="min-w-0 flex-1 truncate">{option.title}</span>
-            </button>
+              <button
+                id={optionId(index)}
+                type="button"
+                role="option"
+                aria-selected={true}
+                tabIndex={-1}
+                className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-sm px-2 text-left disabled:opacity-50"
+                disabled={disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onToggle(option)}
+              >
+                <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-foreground text-background">
+                  <Check className="h-3 w-3" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{option.title}</span>
+              </button>
+              {openRelationRecord && targetTableId ? (
+                <button
+                  type="button"
+                  className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label={t("Open linked record {title}", {
+                    title: option.title,
+                  })}
+                  disabled={disabled}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    void openRelationRecord({
+                      tableId: targetTableId,
+                      rowId: option.id,
+                      title: option.title,
+                    })
+                    onOpenRecord?.()
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}

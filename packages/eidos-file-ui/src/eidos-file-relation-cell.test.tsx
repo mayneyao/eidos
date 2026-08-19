@@ -9,6 +9,7 @@ import {
   EidosFileRelationCellRenderer,
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
+import { EidosFileUIProvider } from "./context"
 
 const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
 const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
@@ -89,6 +90,11 @@ describe("Eidos File relation cell", () => {
 
     expect(onSearch).toHaveBeenCalledWith("")
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(
+      document.body.querySelector(
+        "[data-eidos-file-grid-editor-popover] [data-eidos-file-grid-editor-surface]"
+      )
+    ).not.toBeNull()
     const combobox =
       document.body.querySelector<HTMLInputElement>('[role="combobox"]')
     const listbox = document.body.querySelector<HTMLElement>('[role="listbox"]')
@@ -132,5 +138,54 @@ describe("Eidos File relation cell", () => {
     expect(onFinishedEditing).toHaveBeenCalledWith(
       expect.objectContaining({ copyData: JSON.stringify([GRACE_ID]) })
     )
+  })
+
+  it("opens an already linked record without unlinking it", async () => {
+    const openRelationRecord = vi.fn()
+    const onChange = vi.fn()
+    const onFinishedEditing = vi.fn()
+    const cell: EidosFileRelationCell = {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      copyData: JSON.stringify([ADA_ID]),
+      data: {
+        kind: "eidos-file-relation-cell",
+        values: [{ id: ADA_ID, title: "Ada Lovelace" }],
+        multiple: true,
+        targetTableId: "people",
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider openRelationRecord={openRelationRecord}>
+          <EidosFileRelationCellEditor
+            value={cell}
+            onChange={onChange}
+            onFinishedEditing={onFinishedEditing}
+            isHighlighted={false}
+            target={{ x: 0, y: 0, width: 240, height: 36 }}
+            forceEditMode={false}
+            theme={{} as Theme}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    act(() => {
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open linked record Ada Lovelace"]'
+        )
+        ?.click()
+    })
+
+    expect(openRelationRecord).toHaveBeenCalledWith({
+      tableId: "people",
+      rowId: ADA_ID,
+      title: "Ada Lovelace",
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onFinishedEditing).toHaveBeenCalledOnce()
   })
 })

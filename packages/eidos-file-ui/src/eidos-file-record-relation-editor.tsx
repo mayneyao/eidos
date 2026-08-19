@@ -218,7 +218,13 @@ export function EidosFileRecordRelationEditor({
             optionId={optionId}
             query={query}
             selectedValues={values}
+            targetTableId={
+              typeof field.property?.targetTableId === "string"
+                ? field.property.targetTableId
+                : undefined
+            }
             onActiveOptionChange={setActiveOptionId}
+            onOpenRecord={() => setOpen(false)}
             onToggle={(option) => void toggle(option)}
           />
           {loading ? (
