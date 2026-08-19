@@ -60,6 +60,7 @@ describe("QuickJS ConnectionPort bridge (Node reference host)", () => {
       }
       expect(report.checks).toEqual([
         "negotiate",
+        "allocate-remote-file-entry",
         "connection-port-conformance",
         "read-transaction-guard",
         "formula-scalar-semantics",
