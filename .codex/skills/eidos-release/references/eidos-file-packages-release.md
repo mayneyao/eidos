@@ -58,8 +58,25 @@ gh run list --workflow publish-eidos-file-packages.yml --limit 10
 gh run watch <run-id> --exit-status
 ```
 
-The plan must upload exactly two reviewed tarballs plus `SHA256SUMS`. Do not tag
-or publish after a failed plan.
+The plan must upload exactly two reviewed tarballs plus `SHA256SUMS`. Download
+that exact run's artifact before tagging; confirm that it contains only those
+three files, verify the checksums from inside the artifact directory, and
+inspect both packed `package.json` files again:
+
+```bash
+artifact_dir="$(mktemp -d)"
+gh run download <run-id> \
+  -n eidos-file-packages-<version> \
+  -D "$artifact_dir"
+find "$artifact_dir" -maxdepth 1 -type f -print
+(cd "$artifact_dir" && sha256sum --check SHA256SUMS)
+tar -xOf "$artifact_dir/eidos.space-eidos-file-<version>.tgz" \
+  package/package.json
+tar -xOf "$artifact_dir/eidos.space-eidos-file-ui-<version>.tgz" \
+  package/package.json
+```
+
+Do not tag or publish after a failed plan or artifact audit.
 
 ## Publish from an immutable tag
 

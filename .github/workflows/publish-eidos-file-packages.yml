@@ -100,7 +100,8 @@ jobs:
           test -f "$ui_tar"
           tar -xOf "$ui_tar" package/package.json |
             node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync(0, 'utf8')); const expected = '^' + process.env.VERSION; if (pkg.dependencies['@eidos.space/eidos-file'] !== expected) throw new Error('UI tarball must depend on @eidos.space/eidos-file@' + expected)"
-          sha256sum "$core_tar" "$ui_tar" > package-release/SHA256SUMS
+          cd package-release
+          sha256sum "$(basename "$core_tar")" "$(basename "$ui_tar")" > SHA256SUMS
 
       - name: Upload reviewed package artifacts
         uses: actions/upload-artifact@v4
