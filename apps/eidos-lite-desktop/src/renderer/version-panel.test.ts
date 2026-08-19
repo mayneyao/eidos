@@ -3,7 +3,7 @@
 import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import type {
   EidosLiteApi,
@@ -94,6 +94,8 @@ const unversionedSpace: SpaceSnapshot = {
 }
 
 describe("VersionPanel table diff", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it("falls back to the other merge parent when the first-parent SQLite diff is physical only", async () => {
     const path = "dev/eidos-project.eidos"
     const firstParent = "a".repeat(64)
@@ -768,6 +770,167 @@ describe("VersionPanel table diff", () => {
     expect(host.textContent).toContain("4 of 4 columns")
     expect(host.querySelector("thead")?.textContent).toContain("name")
     expect(host.querySelector("thead")?.textContent).toContain("updated_at")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("opens a changed record and computes a complete long-text cell diff", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const messages: unknown[] = []
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((event: MessageEvent) => void) | null = null
+        onerror: (() => void) | null = null
+
+        postMessage(message: unknown) {
+          messages.push(message)
+        }
+
+        terminate() {}
+      }
+    )
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const before = "# Project brief\n\nThe original long description.\n"
+    const after =
+      "# Project brief\n\nThe revised long description with context.\n"
+    const table: SpaceVersionTableDiff = {
+      name: "Articles",
+      columns: ["id", "title", "body"],
+      primaryKeyColumns: ["id"],
+      changes: [
+        {
+          op: "update",
+          key: { id: "article-1" },
+          oldValues: ["article-1", "Project brief", before],
+          values: ["article-1", "Project brief", after],
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table, theme: "dark" }))
+    })
+
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Visible table columns"] button'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Changed", "All"])
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open record changes for article-1"]'
+        )
+        ?.click()
+    })
+
+    expect(
+      host.querySelector('[data-version-table-row-detail="true"]')
+    ).not.toBeNull()
+    expect(
+      host.querySelector(
+        '.version-table-diff-toolbar [aria-label="Back to table changes"]'
+      )
+    ).not.toBeNull()
+    const recordToolbar = host.querySelector(".version-table-diff-toolbar")
+    expect(recordToolbar?.firstElementChild?.getAttribute("aria-label")).toBe(
+      "Back to table changes"
+    )
+    expect(recordToolbar?.lastElementChild?.getAttribute("aria-label")).toBe(
+      "Visible record fields"
+    )
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Visible record fields"] button'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Changed", "All"])
+    expect(
+      recordToolbar?.lastElementChild?.previousElementSibling?.getAttribute(
+        "aria-label"
+      )
+    ).toBe("Record diff display")
+    expect(
+      host.querySelectorAll(".version-row-detail-body > nav > div > button")
+        .length
+    ).toBe(1)
+    expect(host.textContent).toContain("body")
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Record diff layout"] button[aria-pressed="true"]'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Unified"])
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Wrap lines"]')
+        ?.getAttribute("aria-checked")
+    ).toBe("true")
+    const recordDisplayControls = host.querySelector(
+      '[aria-label="Record diff display"]'
+    )
+    expect(
+      recordDisplayControls?.firstElementChild?.classList.contains(
+        "version-diff-wrap-control"
+      )
+    ).toBe(true)
+    expect(
+      recordDisplayControls?.lastElementChild?.getAttribute("aria-label")
+    ).toBe("Record diff layout")
+    expect(
+      host.querySelector(
+        '.version-row-cell-text-diff [aria-label="Diff layout"]'
+      )
+    ).toBeNull()
+    expect(messages).toContainEqual({
+      before,
+      after,
+      path: "Articles/body.txt",
+    })
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Visible record fields"] button[aria-pressed="false"]'
+        )
+        ?.click()
+    })
+    expect(
+      host.querySelectorAll(".version-row-detail-body > nav > div > button")
+        .length
+    ).toBe(3)
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Visible record fields"] button:first-child'
+        )
+        ?.click()
+    })
+    expect(
+      host.querySelectorAll(".version-row-detail-body > nav > div > button")
+        .length
+    ).toBe(1)
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Back to table changes"]'
+        )
+        ?.click()
+    })
+    expect(
+      host.querySelector('[data-version-table-row-detail="true"]')
+    ).toBeNull()
 
     await act(async () => root.unmount())
     host.remove()
@@ -1717,6 +1880,137 @@ describe("VersionPanel table diff", () => {
     expect(markup.match(/class="version-table-diff-row"/g)).toHaveLength(2)
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
+  })
+
+  it("moves record navigation into the inspector breadcrumb", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((event: MessageEvent) => void) | null = null
+        onerror: (() => void) | null = null
+        postMessage() {}
+        terminate() {}
+      }
+    )
+    const file = versionDiff.files[0]!
+    const inspection: VersionInspection = {
+      type: "table",
+      key: "data/crm.eidos/Customers",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file,
+      table: customersTable,
+      commit: null,
+    }
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const onClose = vi.fn()
+    const onNavigate = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionDiffPreview, {
+          inspection,
+          theme: "light",
+          onClose,
+          onNavigate,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open record changes for Mei Lin"]'
+        )
+        ?.click()
+    })
+
+    const tableCrumb = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Back to Customers table changes"]'
+    )
+    expect(tableCrumb).not.toBeNull()
+    expect(host.querySelector(".version-inspector-bar")?.textContent).toContain(
+      "Mei Lin"
+    )
+    expect(
+      host.querySelector(
+        '.version-table-diff-toolbar [aria-label="Back to table changes"]'
+      )
+    ).toBeNull()
+
+    await act(async () => tableCrumb?.click())
+    expect(
+      host.querySelector('[data-version-table-row-detail="true"]')
+    ).toBeNull()
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Back to crm.eidos file changes"]'
+        )
+        ?.click()
+    })
+    expect(onNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "file", change: inspection.change })
+    )
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Back to Changes overview"]'
+        )
+        ?.click()
+    })
+    expect(onClose).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("opens a changed table from the file summary", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "data/crm.eidos",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file: versionDiff.files[0]!,
+      commit: null,
+    }
+    const onNavigate = vi.fn()
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        createElement(VersionDiffPreview, {
+          inspection,
+          theme: "light",
+          onClose: () => undefined,
+          onNavigate,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open Customers table changes"]'
+        )
+        ?.click()
+    })
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "table",
+        table: expect.objectContaining({ name: "Customers" }),
+      })
+    )
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("shows an honest loading state while changed tables are being discovered", () => {

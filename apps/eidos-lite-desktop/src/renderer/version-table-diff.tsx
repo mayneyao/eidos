@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { LoaderCircle, RotateCcw } from "lucide-react"
+import { ArrowLeft, ChevronRight, LoaderCircle, RotateCcw } from "lucide-react"
 
 import type {
   SpaceVersionColumnChange,
   SpaceVersionRowChange,
   SpaceVersionTableDiff,
+  SpaceVersionTextContentDiff,
 } from "../shared/contracts"
+import type { ResolvedAppearance } from "./app-appearance"
+import { InlineTextDiff } from "./version-text-diff"
 
 const VERSION_ROW_DIFF_ESTIMATED_HEIGHT = 40
 const VERSION_ROW_DIFF_LOAD_AHEAD = 12
@@ -15,6 +18,11 @@ const VERSION_ROW_DIFF_OVERSCAN = 8
 type ColumnMode = "changed" | "all"
 type RowChangeKind = "insert" | "delete" | "update"
 type RowKindFilter = RowChangeKind | "all"
+
+export type VersionTableRecordSelection = {
+  index: number
+  label: string
+}
 
 const ROW_KIND_FILTER_OPTIONS: Array<{
   value: RowKindFilter
@@ -213,6 +221,258 @@ function RowChangeBadge({ change }: { change: SpaceVersionRowChange }) {
   )
 }
 
+function changedFieldIndexes(
+  table: SpaceVersionTableDiff,
+  change: SpaceVersionRowChange
+): number[] {
+  return table.columns
+    .map((_, index) => index)
+    .filter(
+      (index) =>
+        Boolean(table.columnChanges?.[index]) || columnChanged(change, index)
+    )
+}
+
+function preferredFieldIndex(
+  table: SpaceVersionTableDiff,
+  change: SpaceVersionRowChange,
+  changedIndexes: number[]
+): number {
+  const longText = changedIndexes.find((index) =>
+    [valueBefore(change, index), valueAfter(change, index)].some(
+      (value) =>
+        typeof value === "string" && (value.length > 80 || value.includes("\n"))
+    )
+  )
+  if (longText !== undefined) return longText
+  return (
+    changedIndexes.find(
+      (index) => !table.primaryKeyColumns.includes(table.columns[index]!)
+    ) ??
+    changedIndexes[0] ??
+    (table.columns.length ? 0 : -1)
+  )
+}
+
+function cellChangeLabel(
+  table: SpaceVersionTableDiff,
+  change: SpaceVersionRowChange,
+  index: number
+): string {
+  const schemaChange = table.columnChanges?.[index]
+  if (schemaChange) return columnChangeLabel(schemaChange)
+  if (!columnChanged(change, index)) return "Unchanged"
+  const kind = rowChangeKind(change)
+  if (kind === "insert") return "Added"
+  if (kind === "delete") return "Deleted"
+  return "Changed"
+}
+
+function cellTextDiff(
+  table: SpaceVersionTableDiff,
+  change: SpaceVersionRowChange,
+  index: number
+): SpaceVersionTextContentDiff | null {
+  if (!columnChanged(change, index)) return null
+  const before = valueBefore(change, index)
+  const after = valueAfter(change, index)
+  if (
+    !(
+      (before === undefined || typeof before === "string") &&
+      (after === undefined || typeof after === "string") &&
+      (typeof before === "string" || typeof after === "string")
+    )
+  ) {
+    return null
+  }
+  const state = (value: string | undefined) =>
+    value === undefined
+      ? ({ state: "absent" } as const)
+      : ({
+          state: "utf8" as const,
+          content: value,
+          size: new TextEncoder().encode(value).byteLength,
+        } as const)
+  return {
+    path: `${table.name}/${table.columns[index]}.txt`,
+    before: state(before),
+    after: state(after),
+  }
+}
+
+function FullCellValue({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: unknown
+  tone: "before" | "after" | "current"
+}) {
+  return (
+    <section className="version-row-cell-value" data-value-version={tone}>
+      <span>{label}</span>
+      <pre>{displayValue(value)}</pre>
+    </section>
+  )
+}
+
+function VersionRowDiffDetail({
+  table,
+  change,
+  fallbackIndex,
+  fieldMode,
+  diffLayout,
+  softWrap,
+  theme,
+}: {
+  table: SpaceVersionTableDiff
+  change: SpaceVersionRowChange
+  fallbackIndex: number
+  fieldMode: ColumnMode
+  diffLayout: "split" | "unified"
+  softWrap: boolean
+  theme: ResolvedAppearance
+}) {
+  const changedIndexes = useMemo(
+    () => changedFieldIndexes(table, change),
+    [change, table]
+  )
+  const changedIndexSet = useMemo(
+    () => new Set(changedIndexes),
+    [changedIndexes]
+  )
+  const visibleFieldIndexes = useMemo(
+    () =>
+      fieldMode === "changed"
+        ? changedIndexes
+        : table.columns.map((_, index) => index),
+    [changedIndexes, fieldMode, table.columns]
+  )
+  const preferredIndex = preferredFieldIndex(table, change, changedIndexes)
+  const [activeIndex, setActiveIndex] = useState(preferredIndex)
+  useEffect(() => {
+    if (!visibleFieldIndexes.includes(activeIndex)) {
+      setActiveIndex(preferredIndex)
+    }
+  }, [activeIndex, preferredIndex, visibleFieldIndexes])
+  const identity = rowIdentity(change, fallbackIndex)
+  const activeColumn = table.columns[activeIndex]
+  const before = valueBefore(change, activeIndex)
+  const after = valueAfter(change, activeIndex)
+  const changed = activeIndex >= 0 && columnChanged(change, activeIndex)
+  const textDiff =
+    activeIndex >= 0 ? cellTextDiff(table, change, activeIndex) : null
+
+  return (
+    <div
+      className="version-table-row-detail"
+      data-version-table-row-detail="true"
+    >
+      {activeColumn ? (
+        <div className="version-row-detail-body">
+          <nav aria-label={`Fields in row ${identity.value}`}>
+            <header>
+              <strong>Field</strong>
+              <span>{visibleFieldIndexes.length.toLocaleString()}</span>
+            </header>
+            <div>
+              {visibleFieldIndexes.map((index) => {
+                const column = table.columns[index]!
+                const fieldChanged = changedIndexSet.has(index)
+                const afterValue = valueAfter(change, index)
+                const preview = fieldChanged
+                  ? afterValue === undefined
+                    ? valueBefore(change, index)
+                    : afterValue
+                  : afterValue
+                return (
+                  <button
+                    key={`${column}-${index}`}
+                    type="button"
+                    aria-pressed={activeIndex === index}
+                    data-field-changed={fieldChanged ? "true" : "false"}
+                    onClick={() => setActiveIndex(index)}
+                  >
+                    <span>
+                      <strong>{column}</strong>
+                      <small>{cellChangeLabel(table, change, index)}</small>
+                    </span>
+                    <code title={displayValue(preview)}>
+                      {displayValue(preview)}
+                    </code>
+                  </button>
+                )
+              })}
+            </div>
+          </nav>
+          <section
+            className="version-row-cell-detail"
+            data-text-diff={textDiff ? "true" : "false"}
+            aria-label={`Changes for field ${activeColumn}`}
+          >
+            {textDiff ? (
+              <div
+                className="version-row-cell-text-diff"
+                data-version-cell-text-diff
+              >
+                <InlineTextDiff
+                  content={textDiff}
+                  theme={theme}
+                  title={activeColumn}
+                  fixedLayout={diffLayout}
+                  fixedSoftWrap={softWrap}
+                />
+              </div>
+            ) : changed ? (
+              <>
+                <header>
+                  <div>
+                    <strong>{activeColumn}</strong>
+                    {table.primaryKeyColumns.includes(activeColumn) ? (
+                      <small>Key</small>
+                    ) : null}
+                  </div>
+                  <span data-field-change="changed">
+                    {cellChangeLabel(table, change, activeIndex)}
+                  </span>
+                </header>
+                <div className="version-row-cell-comparison">
+                  <FullCellValue label="Before" value={before} tone="before" />
+                  <FullCellValue label="After" value={after} tone="after" />
+                </div>
+              </>
+            ) : (
+              <>
+                <header>
+                  <div>
+                    <strong>{activeColumn}</strong>
+                    {table.primaryKeyColumns.includes(activeColumn) ? (
+                      <small>Key</small>
+                    ) : null}
+                  </div>
+                  <span data-field-change="unchanged">Unchanged</span>
+                </header>
+                <div className="version-row-cell-comparison">
+                  <FullCellValue
+                    label="Value"
+                    value={after === undefined ? before : after}
+                    tone="current"
+                  />
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="version-table-diff-empty">
+          This changed record has no reported fields.
+        </div>
+      )}
+    </div>
+  )
+}
+
 function changedRowsSummary(table: SpaceVersionTableDiff): string {
   const loaded = table.changes.length
   const total = table.summary
@@ -245,27 +505,60 @@ function filteredRowsSummary(
 
 export function VersionTableDiff({
   table,
+  theme = "light",
   showHeading = true,
   identityKey = table.name,
   onLoadMore,
   loadingMore = false,
   loadError,
   onRetryLoad,
+  recordSelection,
+  onRecordSelectionChange,
 }: {
   table: SpaceVersionTableDiff
+  theme?: ResolvedAppearance
   showHeading?: boolean
   identityKey?: string
   onLoadMore?(): Promise<boolean>
   loadingMore?: boolean
   loadError?: string
   onRetryLoad?(): void
+  recordSelection?: VersionTableRecordSelection | null
+  onRecordSelectionChange?(selection: VersionTableRecordSelection | null): void
 }) {
   const [columnMode, setColumnMode] = useState<ColumnMode>("changed")
+  const [fieldMode, setFieldMode] = useState<ColumnMode>("changed")
+  const [recordDiffLayout, setRecordDiffLayout] = useState<"split" | "unified">(
+    "unified"
+  )
+  const [recordSoftWrap, setRecordSoftWrap] = useState(true)
   const [kindFilter, setKindFilter] = useState<RowKindFilter>("all")
+  const [internalRecordSelection, setInternalRecordSelection] =
+    useState<VersionTableRecordSelection | null>(null)
+  const recordSelectionIsControlled = recordSelection !== undefined
+  const activeRecordSelection = recordSelectionIsControlled
+    ? recordSelection
+    : internalRecordSelection
+  const selectedRowIndex = activeRecordSelection?.index ?? null
+  const setRecordSelection = useCallback(
+    (selection: VersionTableRecordSelection | null) => {
+      if (!recordSelectionIsControlled) {
+        setInternalRecordSelection(selection)
+      }
+      onRecordSelectionChange?.(selection)
+    },
+    [onRecordSelectionChange, recordSelectionIsControlled]
+  )
   const [automaticLoadingPaused, setAutomaticLoadingPaused] = useState(false)
   const viewportRef = useRef<HTMLDivElement>(null)
   const loadInFlightRef = useRef(false)
   const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
+  const selectedChange =
+    selectedRowIndex === null ? null : (table.changes[selectedRowIndex] ?? null)
+  const selectedIdentity =
+    selectedChange && selectedRowIndex !== null
+      ? rowIdentity(selectedChange, selectedRowIndex + 1)
+      : null
   const kindCounts = useMemo(() => {
     // The backend summary is authoritative for the whole change set; counts
     // derived from loaded rows would shift as pages stream in and hide the
@@ -347,14 +640,18 @@ export function VersionTableDiff({
 
   useEffect(() => {
     setColumnMode("changed")
+    setFieldMode("changed")
+    setRecordDiffLayout("unified")
+    setRecordSoftWrap(true)
     setKindFilter("all")
+    if (!recordSelectionIsControlled) setInternalRecordSelection(null)
     setAutomaticLoadingPaused(false)
     loadInFlightRef.current = false
     if (viewportRef.current) {
       viewportRef.current.scrollTop = 0
       viewportRef.current.scrollLeft = 0
     }
-  }, [identityKey])
+  }, [identityKey, recordSelectionIsControlled])
 
   useEffect(() => {
     if (viewportRef.current) {
@@ -403,85 +700,189 @@ export function VersionTableDiff({
     <section className="version-table-diff" data-version-table-diff>
       {showHeading ? <h4>{table.name}</h4> : null}
       <header className="version-inspector-diff-bar version-text-diff-toolbar version-table-diff-toolbar">
-        <div className="version-table-diff-toolbar-summary" aria-live="polite">
-          <strong>Row changes</strong>
-          <span>
-            {filteredRowsSummary(
-              table,
-              kindFilter,
-              visibleChanges.length,
-              kindFilter === "all" ? 0 : kindCounts[kindFilter]
-            )}
-          </span>
-          <span>
-            {visibleColumnIndexes.length.toLocaleString()} of{" "}
-            {table.columns.length.toLocaleString()} columns
-          </span>
-          {loadingMore ? (
-            <span data-load-state="loading">
-              <LoaderCircle className="spin" aria-hidden="true" />
-              Loading…
-            </span>
-          ) : loadError && onRetryLoad ? (
-            <button
-              type="button"
-              className="version-table-diff-load-retry"
-              onClick={onRetryLoad}
-              aria-label={`Retry loading rows: ${loadError}`}
-              title={loadError}
+        {selectedChange && selectedIdentity ? (
+          <>
+            {!recordSelectionIsControlled ? (
+              <button
+                type="button"
+                className="version-table-diff-back"
+                aria-label="Back to table changes"
+                onClick={() => setRecordSelection(null)}
+              >
+                <ArrowLeft aria-hidden="true" />
+                Table changes
+              </button>
+            ) : null}
+            <div
+              className="version-table-diff-toolbar-summary"
+              aria-live="polite"
             >
-              <RotateCcw aria-hidden="true" />
-              Retry
-            </button>
-          ) : null}
-        </div>
-        <div
-          className="version-text-diff-layout version-table-kind-filter"
-          aria-label="Row change types"
-        >
-          {ROW_KIND_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={kindFilter === option.value}
-              onClick={() => setKindFilter(option.value)}
+              <strong>Record changes</strong>
+              <span title={selectedIdentity.fields}>
+                {selectedIdentity.value}
+              </span>
+              <span>
+                {changedFieldIndexes(
+                  table,
+                  selectedChange
+                ).length.toLocaleString()}{" "}
+                of {table.columns.length.toLocaleString()} fields changed
+              </span>
+            </div>
+            <div
+              className="version-text-diff-display-controls"
+              aria-label="Record diff display"
             >
-              {option.label}
-              {option.value !== "all" ? (
-                <small>{kindCounts[option.value].toLocaleString()}</small>
+              <div className="version-diff-wrap-control">
+                <span>Wrap</span>
+                <button
+                  type="button"
+                  role="switch"
+                  className="version-diff-wrap-switch"
+                  aria-label="Wrap lines"
+                  aria-checked={recordSoftWrap}
+                  onClick={() => setRecordSoftWrap((current) => !current)}
+                >
+                  <span />
+                </button>
+              </div>
+              <div
+                className="version-text-diff-layout"
+                aria-label="Record diff layout"
+              >
+                <button
+                  type="button"
+                  aria-pressed={recordDiffLayout === "split"}
+                  onClick={() => setRecordDiffLayout("split")}
+                >
+                  Split
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={recordDiffLayout === "unified"}
+                  onClick={() => setRecordDiffLayout("unified")}
+                >
+                  Unified
+                </button>
+              </div>
+            </div>
+            <div
+              className="version-text-diff-layout"
+              aria-label="Visible record fields"
+            >
+              <button
+                type="button"
+                aria-pressed={fieldMode === "changed"}
+                onClick={() => setFieldMode("changed")}
+              >
+                Changed
+              </button>
+              <button
+                type="button"
+                aria-pressed={fieldMode === "all"}
+                onClick={() => setFieldMode("all")}
+              >
+                All
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="version-table-diff-toolbar-summary"
+              aria-live="polite"
+            >
+              <strong>Row changes</strong>
+              <span>
+                {filteredRowsSummary(
+                  table,
+                  kindFilter,
+                  visibleChanges.length,
+                  kindFilter === "all" ? 0 : kindCounts[kindFilter]
+                )}
+              </span>
+              <span>
+                {visibleColumnIndexes.length.toLocaleString()} of{" "}
+                {table.columns.length.toLocaleString()} columns
+              </span>
+              {loadingMore ? (
+                <span data-load-state="loading">
+                  <LoaderCircle className="spin" aria-hidden="true" />
+                  Loading…
+                </span>
+              ) : loadError && onRetryLoad ? (
+                <button
+                  type="button"
+                  className="version-table-diff-load-retry"
+                  onClick={onRetryLoad}
+                  aria-label={`Retry loading rows: ${loadError}`}
+                  title={loadError}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Retry
+                </button>
               ) : null}
-            </button>
-          ))}
-        </div>
-        <div
-          className="version-text-diff-layout"
-          aria-label="Visible table columns"
-          title={
-            columnsAreFiltered || columnMode === "all"
-              ? undefined
-              : "All columns changed"
-          }
-        >
-          <button
-            type="button"
-            aria-pressed={columnMode === "changed"}
-            disabled={!columnsAreFiltered && columnMode === "changed"}
-            onClick={() => setColumnMode("changed")}
-          >
-            Changed
-          </button>
-          <button
-            type="button"
-            aria-pressed={columnMode === "all"}
-            disabled={!columnsAreFiltered && columnMode === "changed"}
-            onClick={() => setColumnMode("all")}
-          >
-            All columns
-          </button>
-        </div>
+            </div>
+            <div
+              className="version-text-diff-layout version-table-kind-filter"
+              aria-label="Row change types"
+            >
+              {ROW_KIND_FILTER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={kindFilter === option.value}
+                  onClick={() => setKindFilter(option.value)}
+                >
+                  {option.label}
+                  {option.value !== "all" ? (
+                    <small>{kindCounts[option.value].toLocaleString()}</small>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div
+              className="version-text-diff-layout"
+              aria-label="Visible table columns"
+              title={
+                columnsAreFiltered || columnMode === "all"
+                  ? undefined
+                  : "All columns changed"
+              }
+            >
+              <button
+                type="button"
+                aria-pressed={columnMode === "changed"}
+                disabled={!columnsAreFiltered && columnMode === "changed"}
+                onClick={() => setColumnMode("changed")}
+              >
+                Changed
+              </button>
+              <button
+                type="button"
+                aria-pressed={columnMode === "all"}
+                disabled={!columnsAreFiltered && columnMode === "changed"}
+                onClick={() => setColumnMode("all")}
+              >
+                All
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
-      {visibleChanges.length ? (
+      {selectedChange && selectedRowIndex !== null ? (
+        <VersionRowDiffDetail
+          key={`${identityKey}:${selectedRowIndex}`}
+          table={table}
+          change={selectedChange}
+          fallbackIndex={selectedRowIndex + 1}
+          fieldMode={fieldMode}
+          diffLayout={recordDiffLayout}
+          softWrap={recordSoftWrap}
+          theme={theme}
+        />
+      ) : visibleChanges.length ? (
         <div
           ref={viewportRef}
           className="version-table-diff-viewport"
@@ -544,6 +945,7 @@ export function VersionTableDiff({
                 const change = visibleChanges[virtualRow.index]!
                 const kind = rowChangeKind(change)
                 const identity = rowIdentity(change, virtualRow.index + 1)
+                const sourceIndex = table.changes.indexOf(change)
                 return (
                   <tr
                     key={virtualRow.key}
@@ -556,8 +958,31 @@ export function VersionTableDiff({
                       <RowChangeBadge change={change} />
                     </th>
                     <td className="version-table-key-column">
-                      <span title={identity.value}>{identity.value}</span>
-                      <small title={identity.fields}>{identity.fields}</small>
+                      <button
+                        type="button"
+                        className="version-table-row-open"
+                        aria-label={`Open record changes for ${identity.value}`}
+                        title="Open record changes"
+                        onClick={() => {
+                          setFieldMode("changed")
+                          setRecordDiffLayout("unified")
+                          setRecordSoftWrap(true)
+                          setRecordSelection({
+                            index: sourceIndex,
+                            label: identity.value,
+                          })
+                        }}
+                      >
+                        <span>
+                          <strong title={identity.value}>
+                            {identity.value}
+                          </strong>
+                          <small title={identity.fields}>
+                            {identity.fields}
+                          </small>
+                        </span>
+                        <ChevronRight aria-hidden="true" />
+                      </button>
                     </td>
                     {visibleColumnIndexes.map((index) => (
                       <DiffCell

@@ -101,18 +101,27 @@ export function InlineTextDiff({
   content,
   theme,
   title = "Text changes",
+  defaultLayout,
+  defaultSoftWrap,
   fixedLayout,
+  fixedSoftWrap,
   toolbarEnd,
 }: {
   content: SpaceVersionTextContentDiff
   theme: ResolvedAppearance
   title?: string
+  defaultLayout?: "split" | "unified"
+  defaultSoftWrap?: boolean
   fixedLayout?: "split" | "unified"
+  fixedSoftWrap?: boolean
   toolbarEnd?: ReactNode
 }) {
   const [layout, setLayout] = useState<"split" | "unified">(
-    fixedLayout ?? "split"
+    fixedLayout ?? defaultLayout ?? "split"
   )
+  const [softWrap, setSoftWrap] = useState(defaultSoftWrap ?? false)
+  const resolvedLayout = fixedLayout ?? layout
+  const resolvedSoftWrap = fixedSoftWrap ?? softWrap
   const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const before = contentValue(content.before)
@@ -165,24 +174,46 @@ export function InlineTextDiff({
           </span>
         </div>
         {toolbarEnd ??
-          (fixedLayout ? null : (
-            <div className="version-text-diff-layout" aria-label="Diff layout">
-              <button
-                type="button"
-                aria-pressed={layout === "split"}
-                onClick={() => setLayout("split")}
-              >
-                Split
-              </button>
-              <button
-                type="button"
-                aria-pressed={layout === "unified"}
-                onClick={() => setLayout("unified")}
-              >
-                Unified
-              </button>
+          (!fixedLayout ||
+          (defaultSoftWrap !== undefined && fixedSoftWrap === undefined) ? (
+            <div className="version-text-diff-display-controls">
+              {!fixedLayout ? (
+                <div
+                  className="version-text-diff-layout"
+                  aria-label="Diff layout"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={resolvedLayout === "split"}
+                    onClick={() => setLayout("split")}
+                  >
+                    Split
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={resolvedLayout === "unified"}
+                    onClick={() => setLayout("unified")}
+                  >
+                    Unified
+                  </button>
+                </div>
+              ) : null}
+              {defaultSoftWrap !== undefined && fixedSoftWrap === undefined ? (
+                <div
+                  className="version-text-diff-layout"
+                  aria-label="Line wrapping"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={resolvedSoftWrap}
+                    onClick={() => setSoftWrap((current) => !current)}
+                  >
+                    Wrap
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ))}
+          ) : null)}
       </header>
       <div className="version-text-diff-surface">
         {failure ? (
@@ -202,7 +233,12 @@ export function InlineTextDiff({
               </div>
             }
           >
-            <PierreTextDiffSurface diff={diff} layout={layout} theme={theme} />
+            <PierreTextDiffSurface
+              diff={diff}
+              layout={resolvedLayout}
+              softWrap={resolvedSoftWrap}
+              theme={theme}
+            />
           </Suspense>
         ) : (
           <div className="version-text-diff-loading" role="status">

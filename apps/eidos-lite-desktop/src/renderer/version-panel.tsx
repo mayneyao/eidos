@@ -41,7 +41,10 @@ import {
   type VersionChangeDiscardTarget,
   type VersionInspection,
 } from "./version-change-tree"
-import { VersionTableDiff } from "./version-table-diff"
+import {
+  VersionTableDiff,
+  type VersionTableRecordSelection,
+} from "./version-table-diff"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
@@ -502,10 +505,12 @@ export function withCommitTableSummaries(
 export function VersionDiffPreview({
   inspection,
   onClose,
+  onNavigate,
   theme,
 }: {
   inspection: VersionInspection
   onClose(): void
+  onNavigate?(inspection: VersionInspection): void
   theme: ResolvedAppearance
 }) {
   const inspectionTable = inspection.type === "table" ? inspection.table : null
@@ -517,9 +522,12 @@ export function VersionDiffPreview({
     | { phase: "loading" }
     | { phase: "error"; message: string }
   >({ phase: "idle" })
+  const [recordSelection, setRecordSelection] =
+    useState<VersionTableRecordSelection | null>(null)
   useEffect(() => {
     setPagedTable(inspectionTable)
     setRowLoadState({ phase: "idle" })
+    setRecordSelection(null)
   }, [inspection.key, inspectionTable])
   const activeTable = inspection.type === "table" ? pagedTable : null
   const title =
@@ -588,6 +596,28 @@ export function VersionDiffPreview({
   const retryLoadingRows = () => {
     void loadMoreRows().catch(() => undefined)
   }
+  const fileInspection = (): VersionInspection => ({
+    type: "file",
+    key: `${inspection.mode}:${inspection.commit?.id ?? inspection.diff.currentHead ?? "working"}:${inspection.change.path}`,
+    mode: inspection.mode,
+    diff: inspection.diff,
+    change: inspection.change,
+    file: inspection.file,
+    commit: inspection.commit,
+  })
+  const tableInspection = (
+    file: SpaceVersionFileDiff,
+    table: SpaceVersionTableDiff
+  ): VersionInspection => ({
+    type: "table",
+    key: `${inspection.mode}:${inspection.commit?.id ?? inspection.diff.currentHead ?? "working"}:${inspection.change.path}:${table.name}`,
+    mode: inspection.mode,
+    diff: inspection.diff,
+    change: inspection.change,
+    file,
+    table,
+    commit: inspection.commit,
+  })
 
   return (
     <section
@@ -597,13 +627,50 @@ export function VersionDiffPreview({
     >
       <header className="version-inspector-bar">
         <div>
-          <span>{inspection.mode === "changes" ? "Changes" : "History"}</span>
+          <button
+            type="button"
+            className="version-inspector-crumb"
+            aria-label={`Back to ${inspection.mode === "changes" ? "Changes" : "History"} overview`}
+            onClick={onClose}
+          >
+            {inspection.mode === "changes" ? "Changes" : "History"}
+          </button>
           <ChevronRight aria-hidden="true" />
-          <span>{fileName(inspection.change.path)}</span>
+          {inspection.type === "table" ? (
+            <button
+              type="button"
+              className="version-inspector-crumb"
+              aria-label={`Back to ${fileName(inspection.change.path)} file changes`}
+              onClick={() => onNavigate?.(fileInspection())}
+            >
+              {fileName(inspection.change.path)}
+            </button>
+          ) : (
+            <strong>{fileName(inspection.change.path)}</strong>
+          )}
           {inspection.type === "table" ? (
             <>
               <ChevronRight aria-hidden="true" />
-              <strong>{inspection.table.name}</strong>
+              {recordSelection ? (
+                <button
+                  type="button"
+                  className="version-inspector-crumb"
+                  aria-label={`Back to ${inspection.table.name} table changes`}
+                  onClick={() => setRecordSelection(null)}
+                >
+                  {inspection.table.name}
+                </button>
+              ) : (
+                <strong>{inspection.table.name}</strong>
+              )}
+              {recordSelection ? (
+                <>
+                  <ChevronRight aria-hidden="true" />
+                  <strong title={recordSelection.label}>
+                    {recordSelection.label}
+                  </strong>
+                </>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -649,6 +716,7 @@ export function VersionDiffPreview({
               <div className="version-inspector-table">
                 <VersionTableDiff
                   table={activeTable ?? inspection.table}
+                  theme={theme}
                   showHeading={false}
                   identityKey={inspection.key}
                   onLoadMore={loadMoreRows}
@@ -659,6 +727,8 @@ export function VersionDiffPreview({
                       : undefined
                   }
                   onRetryLoad={retryLoadingRows}
+                  recordSelection={recordSelection}
+                  onRecordSelectionChange={setRecordSelection}
                 />
               </div>
             )}
@@ -740,19 +810,29 @@ export function VersionDiffPreview({
                   const stats = tableStats(table)
                   return (
                     <li key={table.name}>
-                      <Table2 />
-                      <strong>{table.name}</strong>
-                      <span>
-                        {stats.inserts ? `+${stats.inserts}` : ""}
-                        {stats.deletes ? ` −${stats.deletes}` : ""}
-                        {stats.updates ? ` ~${stats.updates}` : ""}
-                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Open ${table.name} table changes`}
+                        onClick={() =>
+                          onNavigate?.(tableInspection(inspection.file!, table))
+                        }
+                      >
+                        <Table2 />
+                        <strong>{table.name}</strong>
+                        <span>
+                          {stats.inserts ? `+${stats.inserts}` : ""}
+                          {stats.deletes ? ` −${stats.deletes}` : ""}
+                          {stats.updates ? ` ~${stats.updates}` : ""}
+                        </span>
+                        <ChevronRight aria-hidden="true" />
+                      </button>
                     </li>
                   )
                 })}
                 {inspection.file.schemaChanges?.map((change) => (
                   <li
                     key={`schema:${change.entryType}:${change.name}:${change.operation}`}
+                    className="version-inspector-schema-change"
                   >
                     <Database />
                     <strong>

@@ -2281,6 +2281,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       inspection={versionInspection}
                       theme={theme}
                       onClose={() => setVersionInspection(null)}
+                      onNavigate={setVersionInspection}
                     />
                   </Suspense>
                 ) : textPreview ? (

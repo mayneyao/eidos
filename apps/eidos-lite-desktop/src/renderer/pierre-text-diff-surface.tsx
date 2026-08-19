@@ -6,10 +6,12 @@ import type { ResolvedAppearance } from "./app-appearance"
 export default function PierreTextDiffSurface({
   diff,
   layout,
+  softWrap = false,
   theme,
 }: {
   diff: FileDiffMetadata
   layout: "split" | "unified"
+  softWrap?: boolean
   theme: ResolvedAppearance
 }) {
   return (
@@ -23,7 +25,7 @@ export default function PierreTextDiffSurface({
           themeType: theme,
           disableFileHeader: true,
           stickyHeader: false,
-          overflow: "scroll",
+          overflow: softWrap ? "wrap" : "scroll",
         }}
       />
     </Virtualizer>

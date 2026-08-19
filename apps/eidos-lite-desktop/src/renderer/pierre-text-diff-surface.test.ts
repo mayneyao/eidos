@@ -34,4 +34,19 @@ describe("PierreTextDiffSurface", () => {
       )
     }
   )
+
+  it("uses wrapped overflow when soft wrapping is enabled", () => {
+    renderToStaticMarkup(
+      createElement(PierreTextDiffSurface, {
+        diff: {} as FileDiffMetadata,
+        layout: "unified",
+        softWrap: true,
+        theme: "light",
+      })
+    )
+
+    expect(fileDiffOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ overflow: "wrap" })
+    )
+  })
 })
