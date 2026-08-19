@@ -1151,7 +1151,6 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.375rem 0.5rem 0.5rem;
-  border-top: 1px solid var(--hairline);
   background: color-mix(in oklab, var(--lite-sidebar) 94%, transparent);
 }
 

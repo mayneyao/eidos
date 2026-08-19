@@ -182,9 +182,7 @@ describe("Eidos Lite surface hierarchy", () => {
 
   it("groups updates above the persistent sidebar Settings entry", () => {
     expect(rule(".sidebar-footer")).toContain("flex-direction: column")
-    expect(rule(".sidebar-footer")).toContain(
-      "border-top: 1px solid var(--hairline)"
-    )
+    expect(rule(".sidebar-footer")).not.toContain("border-top")
     expect(rule(".sidebar-settings-button")).toContain(
       "background: transparent"
     )
