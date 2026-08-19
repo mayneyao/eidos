@@ -1,30 +1,15 @@
 ## What's new
 
-### Inspect table changes down to individual fields
+### Undo deleted table records
 
-Version History can now open a changed record from a table diff and show each
-field in detail. Text changes support unified or split layouts, optional line
-wrapping, and a changed-fields filter, while clickable breadcrumbs make it easy
-to move back through the record, table, file, and history levels.
+Deleting one or more records from a table now participates in the normal Undo
+and Redo history. Undo restores the deleted records and affected Relation links,
+while switching to a different table query or schema safely clears history that
+no longer applies.
 
-### Open linked records without leaving the table
+### Cleaner Space sidebar
 
-Relation editors now include an action for opening a linked record in a detail
-panel. You can inspect or edit the related record while keeping the source table
-in place, then close the panel to return to the same context.
-
-### New records stay understandable in sorted and filtered views
-
-The configurable new-record shortcut now follows the same complete creation
-flow as the grid action. A new row stays pinned while you edit it and explains
-that it may move; after editing, Eidos Lite follows it to its correct sorted
-position or lets it leave the view when it no longer matches the filter.
-
-### Grid values and floating editors are easier to scan
-
-Record IDs and dates now use stable monospace formatting so repeated values
-align consistently. Grid editors, relation pickers, menus, and selects also use
-one restrained elevation style that separates them from the table without a
-heavy shadow.
+The persistent Settings action now blends into the Space sidebar without an
+extra divider.
 
 No migration is required.
