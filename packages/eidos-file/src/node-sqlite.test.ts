@@ -57,8 +57,13 @@ describe.runIf(supportsElectron43NodeSqlite)(
       )
       try {
         await expectConnectionPortConformance(connection)
+        const sqliteVersion = connection.get("SELECT sqlite_version()").row[0]
+        expect(sqliteVersion).toMatchObject({ tag: "text" })
+        if (sqliteVersion?.tag !== "text") {
+          throw new Error("sqlite_version() must return text")
+        }
         expect(connection.capabilities()).toMatchObject({
-          sqliteVersion: "3.53.1",
+          sqliteVersion: sqliteVersion.value,
           interrupt: false,
           defensiveMode: true,
         })

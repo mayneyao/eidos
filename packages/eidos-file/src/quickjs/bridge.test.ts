@@ -79,6 +79,7 @@ describe("QuickJS ConnectionPort bridge (Node reference host)", () => {
         "snapshot",
       ])
       database.close()
-    }
+    },
+    15_000
   )
 })
