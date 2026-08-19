@@ -8,6 +8,7 @@ import { GridCellKind, drawTextCell } from "@glideapps/glide-data-grid"
 import { CalendarDays } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
+import { formatEidosFileGridDate } from "../eidos-file-grid-date-format"
 import { Button, Calendar } from "../ui/primitives"
 import { Popover, PopoverTrigger } from "../ui/primitives"
 
@@ -43,16 +44,6 @@ function toDatetimeLocalValue(date: Date): string {
   const hours = String(date.getHours()).padStart(2, "0")
   const minutes = String(date.getMinutes()).padStart(2, "0")
   return `${y}-${m}-${d}T${hours}:${minutes}`
-}
-
-function formatDateForDisplay(
-  date: Date,
-  format: "date" | "datetime-local"
-): string {
-  if (format === "date") {
-    return date.toLocaleDateString()
-  }
-  return date.toLocaleString()
 }
 
 interface DatePickerEditorProps {
@@ -226,7 +217,9 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
       data: {
         ...p.value.data,
         date: finalDate,
-        displayDate: finalDate ? formatDateForDisplay(finalDate, format) : "",
+        displayDate: finalDate
+          ? formatEidosFileGridDate(finalDate, format)
+          : "",
       },
     }
     p.onFinishedEditing(newCell, [0, 1])
@@ -274,7 +267,7 @@ const renderer: CustomRenderer<DatePickerCell> = {
       date: Number.isNaN(newDate.getTime()) ? undefined : newDate,
       displayDate: Number.isNaN(newDate.getTime())
         ? ""
-        : formatDateForDisplay(newDate, format),
+        : formatEidosFileGridDate(newDate, format),
     }
   },
   onDelete: (d) => {

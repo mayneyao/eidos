@@ -33,6 +33,7 @@ import {
   eidosFileFieldDisplayName,
   isOptionalEidosFileSystemField,
 } from "./eidos-file-field-visibility"
+import { formatEidosFileGridDate } from "./eidos-file-grid-date-format"
 import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
@@ -45,6 +46,9 @@ export interface EidosFileGridSelectOption {
   name: string
   color: string
 }
+
+const EIDOS_FILE_GRID_MONO_FONT_FAMILY =
+  '"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace'
 
 function scalarText(value: EidosFileRowValue | undefined): string {
   if (value === null || value === undefined) return ""
@@ -259,13 +263,12 @@ export function eidosFileValueToGridCell(
       allowOverlay: !cellReadonly,
       readonly: cellReadonly,
       copyData: typeof value === "string" ? value : "",
+      themeOverride: { fontFamily: EIDOS_FILE_GRID_MONO_FONT_FAMILY },
       data: {
         kind: "date-picker-cell",
         date,
         displayDate: date
-          ? dateOnly
-            ? date.toLocaleDateString()
-            : date.toLocaleString()
+          ? formatEidosFileGridDate(date, dateOnly ? "date" : "datetime-local")
           : "",
         format: dateOnly ? "date" : "datetime-local",
       },
@@ -339,6 +342,10 @@ export function eidosFileValueToGridCell(
     readonly: readonly || isOptionalEidosFileSystemField(field),
     data: text,
     displayData: text,
+    themeOverride:
+      field.type === "row-id"
+        ? { fontFamily: EIDOS_FILE_GRID_MONO_FONT_FAMILY }
+        : undefined,
   }
 }
 

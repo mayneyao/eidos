@@ -9,6 +9,7 @@ import renderer, {
   EidosFileDatePickerCellEditor,
   type DatePickerCell,
 } from "./date-picker-cell"
+import { formatEidosFileGridDate } from "../eidos-file-grid-date-format"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -24,7 +25,7 @@ function dateCell(readonly: boolean): DatePickerCell {
     data: {
       kind: "date-picker-cell",
       date,
-      displayDate: date.toLocaleString(),
+      displayDate: formatEidosFileGridDate(date, "datetime-local"),
       format: "datetime-local",
     },
   }

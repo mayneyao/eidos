@@ -209,9 +209,29 @@ describe("Eidos File Grid adapter", () => {
     expect(eidosFileValueToGridCell(field("date"), "2026-07-12")).toMatchObject(
       {
         kind: GridCellKind.Custom,
-        data: { kind: "date-picker-cell", format: "date" },
+        themeOverride: {
+          fontFamily: expect.stringContaining("monospace"),
+        },
+        data: {
+          kind: "date-picker-cell",
+          format: "date",
+          displayDate: "2026-07-12",
+        },
       }
     )
+    expect(
+      eidosFileValueToGridCell(field("datetime"), "2026-07-12T03:04:05")
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      themeOverride: {
+        fontFamily: expect.stringContaining("monospace"),
+      },
+      data: {
+        kind: "date-picker-cell",
+        format: "datetime-local",
+        displayDate: "2026-07-12 03:04:05",
+      },
+    })
   })
 
   it("maps file fields to portable multi-attachment cells", () => {
@@ -424,6 +444,13 @@ describe("Eidos File Grid adapter", () => {
       kind: GridCellKind.Text,
       readonly: true,
       data: "row_1",
+      themeOverride: {
+        fontFamily: expect.stringContaining("monospace"),
+      },
     })
+
+    expect(eidosFileValueToGridCell(field("text"), "row_1")).not.toHaveProperty(
+      "themeOverride.fontFamily"
+    )
   })
 })
