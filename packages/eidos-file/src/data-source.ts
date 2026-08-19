@@ -17,6 +17,7 @@ import type {
   EidosFileRowQuery,
   EidosFileRowRange,
   EidosFileRowsDeleteResult,
+  EidosFileRowsUndoResult,
   EidosFileSnapshot,
   UpdateEidosFileFieldInput,
   UpdateEidosFileTableInput,
@@ -84,6 +85,11 @@ export interface EidosFileDataSource {
     tableId: string,
     rowIds: string[]
   ): Promise<EidosFileRowsDeleteResult>
+  /** Undo a reversible row mutation. The returned token performs its inverse. */
+  revertRowMutation?(
+    tableId: string,
+    undoToken: string
+  ): Promise<EidosFileRowsUndoResult>
   updateField(
     tableId: string,
     fieldId: string,
@@ -229,18 +235,43 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery
   ): Promise<EidosFileRowsDeleteResult> {
-    const deletedCount = this.runtime.deleteRowRanges(tableId, ranges, query)
-    return this.deleteResult(tableId, deletedCount)
+    const result = this.runtime.deleteRowRangesReversible(
+      tableId,
+      ranges,
+      query
+    )
+    return this.deleteResult(
+      tableId,
+      result.deleted.length,
+      result.rowCount,
+      result.undoToken
+    )
   }
 
   async deleteRows(
     tableId: string,
     rowIds: string[]
   ): Promise<EidosFileRowsDeleteResult> {
+    const result = this.runtime.deleteRowsReversible(tableId, rowIds)
     return this.deleteResult(
       tableId,
-      this.runtime.deleteRows(tableId, rowIds).length
+      result.deleted.length,
+      result.rowCount,
+      result.undoToken
     )
+  }
+
+  async revertRowMutation(
+    tableId: string,
+    undoToken: string
+  ): Promise<EidosFileRowsUndoResult> {
+    const result = this.runtime.revertRowMutation(undoToken)
+    return {
+      tableId,
+      rowCount: result.rowCount,
+      revision: result.revision,
+      undoToken: result.undoToken,
+    }
   }
 
   async updateField(
@@ -340,13 +371,16 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   private deleteResult(
     tableId: string,
-    deletedCount: number
+    deletedCount: number,
+    rowCount: number,
+    undoToken?: string
   ): EidosFileRowsDeleteResult {
     return {
       tableId,
       deletedCount,
-      rowCount: this.runtime.countRows(tableId),
+      rowCount,
       revision: this.runtime.info().revision,
+      ...(undoToken ? { undoToken } : {}),
     }
   }
 }

@@ -15,6 +15,55 @@ import {
 } from "./eidos-file-runtime"
 
 describe("Eidos Lite Runtime 1.0 editor adapter", () => {
+  it("undoes and redoes record deletion through the local editor Runtime", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-row-undo-"))
+    const filePath = path.join(root, "row-undo.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "Row undo")
+    try {
+      const snapshot = await opened.source.getSnapshot()
+      const table = snapshot.tables[0]!
+      const name = table.fields.find((field) => field.name === "Name")!
+      const inserted = await opened.source.insertRow(table.table.id, {
+        [name.id!]: "Restore me",
+      })
+      const rowId = String(inserted.row._id)
+
+      const deleted = await opened.source.deleteRows(table.table.id, [rowId])
+      expect(deleted).toMatchObject({
+        deletedCount: 1,
+        rowCount: 0,
+        undoToken: expect.any(String),
+      })
+      await expect(
+        opened.source.getRow(table.table.id, rowId)
+      ).resolves.toBeNull()
+
+      const restored = await opened.source.revertRowMutation(
+        table.table.id,
+        deleted.undoToken!
+      )
+      expect(restored.rowCount).toBe(1)
+      expect(restored.undoToken).toEqual(expect.any(String))
+      await expect(
+        opened.source.getRow(table.table.id, rowId)
+      ).resolves.toMatchObject({
+        [name.id!]: "Restore me",
+      })
+
+      const redone = await opened.source.revertRowMutation(
+        table.table.id,
+        restored.undoToken!
+      )
+      expect(redone.rowCount).toBe(0)
+      await expect(
+        opened.source.getRow(table.table.id, rowId)
+      ).resolves.toBeNull()
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("allocates canonical remote File entries through the Runtime host bridge", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-remote-file-"))
     const filePath = path.join(root, "remote.eidos")

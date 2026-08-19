@@ -5,6 +5,7 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowRange,
   EidosFileRowQuery,
+  EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
@@ -41,7 +42,7 @@ export interface EidosFileViewRendererProps {
   onDeleteRows?: (
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery
-  ) => Promise<void>
+  ) => Promise<EidosFileRowsDeleteResult | void>
   onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void

@@ -359,10 +359,7 @@ export function EidosFileWorkbench({
   const deleteRows = async (
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery
-  ) => {
-    await source.deleteRowRanges(activeTable.table.id, ranges, query)
-    setReloadToken((current) => current + 1)
-  }
+  ) => source.deleteRowRanges(activeTable.table.id, ranges, query)
 
   const deleteRow = async (row: EidosFileRow) => {
     if (row._id == null) return

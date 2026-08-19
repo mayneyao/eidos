@@ -87,6 +87,29 @@ it("routes sorted Row ID location through the opaque runtime session", async () 
   ])
 })
 
+it("routes deletion undo through the opaque runtime session", async () => {
+  const result = {
+    tableId: "tasks",
+    rowCount: 2,
+    revision: 4,
+    undoToken: "redo-delete",
+  }
+  const callRuntime = vi.fn(async () => result)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime } as unknown as EidosLiteApi,
+  })
+  const source = new IpcEidosFileDataSource("session-1", snapshot)
+
+  await expect(source.revertRowMutation("tasks", "undo-delete")).resolves.toBe(
+    result
+  )
+  expect(callRuntime).toHaveBeenCalledWith("session-1", "revertRowMutation", [
+    "tasks",
+    "undo-delete",
+  ])
+})
+
 it("builds a portable CSV export name from the active file, table, and view", () => {
   expect(
     eidosLiteCsvFileName("project.eidos", "Roadmap / 2026", "Grid: Active")

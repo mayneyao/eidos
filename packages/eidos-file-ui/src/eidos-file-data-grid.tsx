@@ -6,6 +6,7 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowQuery,
   EidosFileRowRange,
+  EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
@@ -18,6 +19,8 @@ import type {
 import {
   EidosFileGrid,
   type EidosFileGridAppendResult,
+  type EidosFileGridDeleteResult,
+  type EidosFileGridUndoCommand,
 } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
@@ -48,7 +51,7 @@ export interface EidosFileDataGridProps {
   onDeleteRows?: (
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery
-  ) => Promise<void>
+  ) => Promise<EidosFileRowsDeleteResult | void>
   onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
@@ -318,6 +321,49 @@ export function EidosFileDataGrid({
     [source]
   )
 
+  const deleteUndoCommand = useCallback(
+    (undoToken: string, deletedCount: number): EidosFileGridUndoCommand => {
+      const wrap = (
+        token: string,
+        rowCountDelta: number
+      ): EidosFileGridUndoCommand => ({
+        rowCountDelta,
+        apply: async () => {
+          if (!source.revertRowMutation) {
+            throw new Error("This data source no longer supports row undo")
+          }
+          const result = await source.revertRowMutation(table.table.id, token)
+          if (!result.undoToken) {
+            throw new Error("The Runtime did not return a redo token")
+          }
+          return wrap(result.undoToken, -rowCountDelta)
+        },
+      })
+      return wrap(undoToken, deletedCount)
+    },
+    [source, table.table.id]
+  )
+
+  const deleteRows = useCallback(
+    async (
+      ranges: EidosFileRowRange[]
+    ): Promise<EidosFileGridDeleteResult | void> => {
+      if (!onDeleteRows) return
+      const rowCountBefore = (await source.getPage(table.table.id, 0, 1, query))
+        .total
+      const result = await onDeleteRows(ranges, query)
+      if (!result) return
+      const rowCount = Math.max(0, rowCountBefore - result.deletedCount)
+      return {
+        rowCount,
+        ...(result.undoToken && source.revertRowMutation
+          ? { undo: deleteUndoCommand(result.undoToken, result.deletedCount) }
+          : {}),
+      }
+    },
+    [deleteUndoCommand, onDeleteRows, query, source, table.table.id]
+  )
+
   return (
     <>
       <EidosFileGrid
@@ -326,6 +372,7 @@ export function EidosFileDataGrid({
         view={view}
         disabled={disabled}
         reloadToken={reloadToken}
+        historyScopeKey={JSON.stringify(query)}
         searchResultIndex={searchResultIndex}
         loadPage={loadPage}
         locateRow={locateRow}
@@ -344,11 +391,7 @@ export function EidosFileDataGrid({
         onSearchRelation={searchRelation}
         onImportFiles={onImportFiles}
         onImportDroppedFiles={onImportDroppedFiles}
-        onRequestDeleteRows={
-          onDeleteRows
-            ? (ranges) => void onDeleteRows(ranges, query)
-            : undefined
-        }
+        onRequestDeleteRows={onDeleteRows ? deleteRows : undefined}
         onViewUpdate={view ? updateView : undefined}
         onError={onError}
       />

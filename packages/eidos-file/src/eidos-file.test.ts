@@ -158,6 +158,208 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
+  it("undoes and redoes row deletion with exact relation detach state", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Teams",
+        fields: [{ name: "Name", type: "text" }],
+      },
+    })
+    try {
+      const teams = runtime.schema()[0]!
+      const alpha = runtime.insertRow(teams.table.id, { Name: "Alpha" })
+      const beta = runtime.insertRow(teams.table.id, { Name: "Beta" })
+      const alphaId = String(alpha._id)
+      const betaId = String(beta._id)
+      const projects = runtime.createTable({
+        name: "Projects",
+        fields: [
+          { name: "Name", type: "text", isRecordLabel: true },
+          {
+            name: "Teams",
+            type: "relation",
+            property: {
+              targetTableId: teams.table.id,
+              direction: "forward",
+              cardinality: "many",
+              onDelete: "detach",
+            },
+          },
+        ],
+      })
+      const project = runtime.insertRow(projects.id, {
+        Name: "Sync",
+        Teams: JSON.stringify([alphaId, betaId]),
+      })
+      const projectId = String(project._id)
+      const projectBefore = runtime.connection.get<{ Teams: string }>(
+        `SELECT "Teams" FROM "Projects" WHERE "_id" = ?`,
+        [projectId]
+      )!
+      const teamBefore = runtime.connection.get<Record<string, unknown>>(
+        `SELECT * FROM "Teams" WHERE "_id" = ?`,
+        [alphaId]
+      )!
+
+      const deleted = runtime.deleteRowsReversible(teams.table.id, [alphaId])
+      expect(deleted.deleted).toEqual([alphaId])
+      expect(deleted.undoToken).toBeTruthy()
+      expect(runtime.getRow(teams.table.id, alphaId)).toBeNull()
+      expect(runtime.getRow(projects.id, projectId)?.Teams).toBe(
+        JSON.stringify([betaId])
+      )
+
+      const restored = runtime.revertRowMutation(deleted.undoToken!)
+      expect(restored.undoToken).toBeTruthy()
+      const restoredTeam = runtime.connection.get<Record<string, unknown>>(
+        `SELECT * FROM "Teams" WHERE "_id" = ?`,
+        [alphaId]
+      )!
+      expect({ ...restoredTeam, _updated_at: undefined }).toEqual({
+        ...teamBefore,
+        _updated_at: undefined,
+      })
+      expect(
+        runtime.connection.get<{ Teams: string }>(
+          `SELECT "Teams" FROM "Projects" WHERE "_id" = ?`,
+          [projectId]
+        )
+      ).toEqual(projectBefore)
+      expect(() => runtime.revertRowMutation(deleted.undoToken!)).toThrow(
+        /can no longer be undone/
+      )
+
+      const redone = runtime.revertRowMutation(restored.undoToken!)
+      expect(redone.undoToken).toBeTruthy()
+      expect(runtime.getRow(teams.table.id, alphaId)).toBeNull()
+      expect(runtime.getRow(projects.id, projectId)?.Teams).toBe(
+        JSON.stringify([betaId])
+      )
+      runtime.updateRow(projects.id, projectId, { Teams: "[]" })
+      expect(() => runtime.revertRowMutation(redone.undoToken!)).toThrow(
+        /changed after the deletion/
+      )
+      expect(runtime.getRow(teams.table.id, alphaId)).toBeNull()
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("restores mutually-related deleted rows without insertion-order failures", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "People",
+        fields: [{ name: "Name", type: "text" }],
+      },
+    })
+    try {
+      const people = runtime.schema()[0]!
+      const friends = runtime.addField(people.table.id, {
+        name: "Friends",
+        type: "relation",
+        property: {
+          targetTableId: people.table.id,
+          direction: "forward",
+          cardinality: "many",
+          onDelete: "detach",
+        },
+      })
+      const first = runtime.insertRow(people.table.id, { Name: "First" })
+      const second = runtime.insertRow(people.table.id, { Name: "Second" })
+      const firstId = String(first._id)
+      const secondId = String(second._id)
+      runtime.updateRows(people.table.id, [
+        {
+          rowId: firstId,
+          changes: { [friends.id!]: JSON.stringify([secondId]) },
+        },
+        {
+          rowId: secondId,
+          changes: { [friends.id!]: JSON.stringify([firstId]) },
+        },
+      ])
+
+      const deleted = runtime.deleteRowsReversible(people.table.id, [
+        firstId,
+        secondId,
+      ])
+      runtime.revertRowMutation(deleted.undoToken!)
+
+      expect(runtime.getRow(people.table.id, firstId)?.Friends).toBe(
+        JSON.stringify([secondId])
+      )
+      expect(runtime.getRow(people.table.id, secondId)?.Friends).toBe(
+        JSON.stringify([firstId])
+      )
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("locates a Row ID inside the current filtered and sorted query", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Tasks",
+        fields: [
+          { name: "Name", type: "text" },
+          { name: "Score", type: "number" },
+        ],
+      },
+    })
+    try {
+      const schema = runtime.schema()[0]!
+      const score = schema.fields.find((field) => field.name === "Score")!
+      const rows = [
+        runtime.insertRow(schema.table.id, { Name: "One", Score: 2 }),
+        runtime.insertRow(schema.table.id, { Name: "Two", Score: 1 }),
+        runtime.insertRow(schema.table.id, { Name: "Three", Score: 2 }),
+        runtime.insertRow(schema.table.id, { Name: "No score", Score: null }),
+      ]
+      const query = {
+        sorts: [{ field: score.id!, direction: "asc" as const }],
+      }
+      const ordered = runtime.getRowPage(schema.table.id, 0, 100, query).rows
+
+      expect(
+        ordered.map((row) =>
+          runtime.getRowIndex(schema.table.id, String(row._id), query)
+        )
+      ).toEqual([0, 1, 2, 3])
+
+      const filteredQuery = {
+        ...query,
+        filter: {
+          type: "group" as const,
+          conjunction: "and" as const,
+          children: [
+            {
+              type: "rule" as const,
+              field: score.id!,
+              operator: "greater-than-or-equal" as const,
+              value: 2,
+            },
+          ],
+        },
+      }
+      expect(
+        runtime.getRowIndex(
+          schema.table.id,
+          String(rows[1]!._id),
+          filteredQuery
+        )
+      ).toBeNull()
+      expect(
+        runtime.getRowIndex(
+          schema.table.id,
+          String(rows[0]!._id),
+          filteredQuery
+        )
+      ).toBe(0)
+    } finally {
+      runtime.close()
+    }
+  })
+
   it("uses identical UUIDv7 TEXT for metadata, rows, Relations, and joins", () => {
     const runtime = createEidosFile(filePath(), {
       defaultTable: {

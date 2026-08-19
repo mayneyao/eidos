@@ -22,10 +22,23 @@ export interface UndoRedoEdit {
   newValue: EditableGridCell
 }
 
-interface Batch {
+export interface UndoRedoCommand {
+  apply(): Promise<UndoRedoCommand>
+  onError?(error: unknown): void
+}
+
+interface EditBatch {
+  kind: "edits"
   edits: UndoRedoEdit[]
   selection: GridSelection
 }
+
+interface CommandBatch {
+  kind: "command"
+  command: UndoRedoCommand
+}
+
+type Batch = EditBatch | CommandBatch
 
 interface ReducerState {
   undoHistory: Batch[]
@@ -47,7 +60,12 @@ const initialState: ReducerState = {
   isApplyingRedo: false,
 }
 
-type Action = UndoRedoAction | EditAction | ResetAction
+type Action =
+  | UndoRedoAction
+  | EditAction
+  | CommandAppliedAction
+  | CommandFailedAction
+  | ResetAction
 
 interface UndoRedoAction {
   type: "undo" | "redo" | "operationApplied"
@@ -57,6 +75,16 @@ interface EditAction {
   type: "edit"
   batch: Batch
   maxBatches: number
+}
+
+interface CommandAppliedAction {
+  type: "commandApplied"
+  inverse: CommandBatch
+  maxBatches: number
+}
+
+interface CommandFailedAction {
+  type: "commandFailed"
 }
 
 interface ResetAction {
@@ -84,7 +112,7 @@ function reducer(state: ReducerState, action: Action) {
       }
 
     case "undo":
-      if (state.canUndo) {
+      if (state.canUndo && !state.isApplyingUndo && !state.isApplyingRedo) {
         newState.undoHistory = [...state.undoHistory]
         const operation = newState.undoHistory.pop()
         newState.operation = operation
@@ -96,7 +124,7 @@ function reducer(state: ReducerState, action: Action) {
       return state
 
     case "redo":
-      if (state.canRedo) {
+      if (state.canRedo && !state.isApplyingUndo && !state.isApplyingRedo) {
         newState.redoHistory = [...state.redoHistory]
         const operation = newState.redoHistory.pop()
         newState.operation = operation
@@ -112,6 +140,50 @@ function reducer(state: ReducerState, action: Action) {
       newState.isApplyingRedo = false
       newState.isApplyingUndo = false
 
+      return newState
+
+    case "commandApplied":
+      if (state.isApplyingUndo) {
+        newState.redoHistory = appendHistoryBatch(
+          state.redoHistory,
+          action.inverse,
+          action.maxBatches
+        )
+      } else if (state.isApplyingRedo) {
+        newState.undoHistory = appendHistoryBatch(
+          state.undoHistory,
+          action.inverse,
+          action.maxBatches
+        )
+      }
+      newState.operation = undefined
+      newState.isApplyingRedo = false
+      newState.isApplyingUndo = false
+      newState.canUndo = newState.undoHistory.length > 0
+      newState.canRedo = newState.redoHistory.length > 0
+      return newState
+
+    case "commandFailed":
+      if (state.operation) {
+        if (state.isApplyingUndo) {
+          newState.undoHistory = appendHistoryBatch(
+            state.undoHistory,
+            state.operation,
+            Number.POSITIVE_INFINITY
+          )
+        } else if (state.isApplyingRedo) {
+          newState.redoHistory = appendHistoryBatch(
+            state.redoHistory,
+            state.operation,
+            Number.POSITIVE_INFINITY
+          )
+        }
+      }
+      newState.operation = undefined
+      newState.isApplyingRedo = false
+      newState.isApplyingUndo = false
+      newState.canUndo = newState.undoHistory.length > 0
+      newState.canRedo = newState.redoHistory.length > 0
       return newState
 
     case "edit":
@@ -162,7 +234,7 @@ export function useUndoRedo(
 ) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const currentBatch = useRef<Batch | null>(null)
+  const currentBatch = useRef<EditBatch | null>(null)
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isApplyingUndoRef = useRef(false)
@@ -196,6 +268,7 @@ export function useUndoRedo(
 
         if (currentBatch.current === null) {
           currentBatch.current = {
+            kind: "edits",
             edits: [],
             selection: gridSelectionRef.current,
           }
@@ -241,6 +314,7 @@ export function useUndoRedo(
         dispatch({
           type: "edit",
           batch: {
+            kind: "edits",
             edits: edits.map(({ cell }) => ({
               cell,
               newValue: getCellContent(cell) as EditableGridCell,
@@ -275,6 +349,27 @@ export function useUndoRedo(
     dispatch({ type: "reset" })
   }, [dispatch])
 
+  const recordCommand = useCallback(
+    (command: UndoRedoCommand) => {
+      if (timeout.current) clearTimeout(timeout.current)
+      timeout.current = null
+      if (currentBatch.current) {
+        dispatch({
+          type: "edit",
+          batch: currentBatch.current,
+          maxBatches: maxHistoryBatches,
+        })
+        currentBatch.current = null
+      }
+      dispatch({
+        type: "edit",
+        batch: { kind: "command", command },
+        maxBatches: maxHistoryBatches,
+      })
+    },
+    [maxHistoryBatches]
+  )
+
   useEffect(
     () => () => {
       if (timeout.current) clearTimeout(timeout.current)
@@ -282,11 +377,42 @@ export function useUndoRedo(
     []
   )
 
-  // Apply a batch of edits to the grid
+  // Apply an asynchronous semantic command. Keeping this separate from the
+  // cell effect prevents a page refresh from restarting an in-flight command.
   useEffect(() => {
-    if (state.operation && gridSelectionRef.current && gridRef.current) {
+    if (state.operation?.kind !== "command") return
+    let disposed = false
+    const { command } = state.operation
+    void command
+      .apply()
+      .then((inverse) => {
+        if (disposed) return
+        dispatch({
+          type: "commandApplied",
+          inverse: { kind: "command", command: inverse },
+          maxBatches: maxHistoryBatches,
+        })
+      })
+      .catch((error) => {
+        if (disposed) return
+        command.onError?.(error)
+        dispatch({ type: "commandFailed" })
+      })
+    return () => {
+      disposed = true
+    }
+  }, [maxHistoryBatches, state.operation])
+
+  // Apply a batch of cell edits to the grid.
+  useEffect(() => {
+    if (
+      state.operation?.kind === "edits" &&
+      gridSelectionRef.current &&
+      gridRef.current
+    ) {
       const cells = [] as { cell: Item }[]
       const previousState: Batch = {
+        kind: "edits",
         edits: [],
         selection: gridSelectionRef.current,
       }
@@ -336,6 +462,7 @@ export function useUndoRedo(
       ...(state.operation ? [state.operation] : []),
     ]
     for (const batch of batches) {
+      if (batch.kind !== "edits") continue
       for (const edit of batch.edits) rows.add(edit.cell[1])
     }
     return rows
@@ -370,6 +497,7 @@ export function useUndoRedo(
       undo,
       redo,
       reset,
+      recordCommand,
       canUndo: state.canUndo,
       canRedo: state.canRedo,
       onCellEdited: wrappedOnCellEdited,
@@ -382,6 +510,7 @@ export function useUndoRedo(
     undo,
     redo,
     reset,
+    recordCommand,
     wrappedOnCellEdited,
     wrappedOnCellsEdited,
     state.canUndo,

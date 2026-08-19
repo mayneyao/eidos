@@ -218,6 +218,10 @@ async function runtimeCall(
       return dataSource.deleteRowRanges(...methodArgs<"deleteRowRanges">(args))
     case "deleteRows":
       return dataSource.deleteRows(...methodArgs<"deleteRows">(args))
+    case "revertRowMutation":
+      return dataSource.revertRowMutation(
+        ...methodArgs<"revertRowMutation">(args)
+      )
     case "updateField":
       return dataSource.updateField(...methodArgs<"updateField">(args))
     case "addField":

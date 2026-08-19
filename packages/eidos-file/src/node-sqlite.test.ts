@@ -13,6 +13,7 @@ import {
 } from "./node-sqlite"
 import { EidosFileRuntime } from "./runtime"
 import { Runtime } from "./runtime-service"
+import type { EidosRuntimeService } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
 const sqliteFeatureProbe = new DatabaseSync(":memory:") as DatabaseSync & {
@@ -143,6 +144,250 @@ describe.runIf(supportsElectron43NodeSqlite)(
           opened.close()
         }
       } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("undoes and redoes a deletion with exact Relation detach state", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-row-undo-")
+      )
+      const filePath = path.join(directory, "row-undo.eidos")
+      const runtime = createEidosFile(filePath, {
+        defaultTable: {
+          name: "Teams",
+          fields: [{ name: "Name", type: "text" }],
+        },
+      })
+      try {
+        const teams = runtime.schema()[0]!
+        const alphaId = String(
+          runtime.insertRow(teams.table.id, { Name: "Alpha" })._id
+        )
+        const betaId = String(
+          runtime.insertRow(teams.table.id, { Name: "Beta" })._id
+        )
+        const projects = runtime.createTable({
+          name: "Projects",
+          fields: [
+            { name: "Name", type: "text", isRecordLabel: true },
+            {
+              name: "Teams",
+              type: "relation",
+              property: {
+                targetTableId: teams.table.id,
+                direction: "forward",
+                cardinality: "many",
+                onDelete: "detach",
+              },
+            },
+          ],
+        })
+        const projectId = String(
+          runtime.insertRow(projects.id, {
+            Name: "Sync",
+            Teams: JSON.stringify([alphaId, betaId]),
+          })._id
+        )
+
+        const deleted = runtime.deleteRowsReversible(teams.table.id, [alphaId])
+        expect(deleted.rowCount).toBe(1)
+        expect(runtime.getRow(teams.table.id, alphaId)).toBeNull()
+        expect(runtime.getRow(projects.id, projectId)?.Teams).toBe(
+          JSON.stringify([betaId])
+        )
+
+        const restored = runtime.revertRowMutation(deleted.undoToken!)
+        expect(restored.rowCount).toBe(2)
+        expect(runtime.getRow(teams.table.id, alphaId)?.Name).toBe("Alpha")
+        expect(runtime.getRow(projects.id, projectId)?.Teams).toBe(
+          JSON.stringify([alphaId, betaId])
+        )
+
+        const redone = runtime.revertRowMutation(restored.undoToken!)
+        expect(redone.rowCount).toBe(1)
+        expect(redone.undoToken).toBeTruthy()
+        expect(runtime.getRow(teams.table.id, alphaId)).toBeNull()
+        expect(runtime.getRow(projects.id, projectId)?.Teams).toBe(
+          JSON.stringify([betaId])
+        )
+      } finally {
+        runtime.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("invalidates deletion undo only after a successful schema mutation", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-row-undo-schema-")
+      )
+      const filePath = path.join(directory, "row-undo-schema.eidos")
+      const runtime = createEidosFile(filePath, {
+        defaultTable: {
+          name: "Tasks",
+          fields: [{ name: "Name", type: "text" }],
+        },
+      })
+      try {
+        const table = runtime.schema()[0]!.table
+        const rowId = String(runtime.insertRow(table.id, { Name: "One" })._id)
+        const deleted = runtime.deleteRowsReversible(table.id, [rowId])
+
+        expect(() =>
+          runtime.addField(table.id, { name: "Name", type: "text" })
+        ).toThrow(/Duplicate Field name/)
+        expect(
+          runtime.revertRowMutation(deleted.undoToken!).undoToken
+        ).toBeTruthy()
+
+        const deletedAgain = runtime.deleteRowsReversible(table.id, [rowId])
+        runtime.addField(table.id, { name: "Notes", type: "text" })
+        expect(() =>
+          runtime.revertRowMutation(deletedAgain.undoToken!)
+        ).toThrow(/can no longer be undone/)
+      } finally {
+        runtime.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("treats deletion ranges as half-open and restores exactly that range", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-row-undo-range-")
+      )
+      const filePath = path.join(directory, "row-undo-range.eidos")
+      const runtime = createEidosFile(filePath, {
+        defaultTable: {
+          name: "Tasks",
+          fields: [{ name: "Name", type: "text" }],
+        },
+      })
+      try {
+        const table = runtime.schema()[0]!
+        for (const name of ["One", "Two", "Three"]) {
+          runtime.insertRow(table.table.id, { Name: name })
+        }
+        const firstId = String(
+          runtime.getRowPage(table.table.id, 0, 1).rows[0]!._id
+        )
+
+        const deleted = runtime.deleteRowRangesReversible(table.table.id, [
+          { startIndex: 0, endIndex: 1 },
+        ])
+        expect(deleted.deleted).toEqual([firstId])
+        expect(runtime.countRows(table.table.id)).toBe(2)
+
+        runtime.revertRowMutation(deleted.undoToken!)
+        expect(runtime.countRows(table.table.id)).toBe(3)
+      } finally {
+        runtime.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("preserves the oldest live undo when stale redo tokens fill retention", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-row-undo-retention-")
+      )
+      const filePath = path.join(directory, "row-undo-retention.eidos")
+      const runtime = createEidosFile(filePath, {
+        defaultTable: {
+          name: "Tasks",
+          fields: [{ name: "Name", type: "text" }],
+        },
+      })
+      try {
+        const table = runtime.schema()[0]!.table
+        const rowIds = Array.from({ length: 51 }, (_, index) =>
+          String(runtime.insertRow(table.id, { Name: `Task ${index}` })._id)
+        )
+        const undoTokens = rowIds
+          .slice(0, 50)
+          .map(
+            (rowId) =>
+              runtime.deleteRowsReversible(table.id, [rowId]).undoToken!
+          )
+        for (let index = 49; index >= 25; index -= 1) {
+          runtime.revertRowMutation(undoTokens[index]!)
+        }
+
+        runtime.deleteRowsReversible(table.id, [rowIds[50]!])
+        expect(runtime.revertRowMutation(undoTokens[0]!).undoToken).toBeTruthy()
+        expect(runtime.getRow(table.id, rowIds[0]!)?.Name).toBe("Task 0")
+      } finally {
+        runtime.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("keeps Runtime 1.0 mutationUndo disabled while exposing the local deletion bridge", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-runtime-row-undo-")
+      )
+      const filePath = path.join(directory, "runtime-row-undo.eidos")
+      const created = createEidosFile(filePath, {
+        defaultTable: {
+          name: "Tasks",
+          fields: [{ name: "Name", type: "text" }],
+        },
+      })
+      const table = created.schema()[0]!.table
+      const rowId = String(created.insertRow(table.id, { Name: "One" })._id)
+      created.close()
+
+      const connection = new NodeSqliteConnectionPort(
+        new DatabaseSync(filePath)
+      )
+      const binding = await Runtime.open(
+        connection,
+        runtimeEnvironment(),
+        "readwrite",
+        runtimeFactoryContext
+      )
+      const runtime = binding.service as EidosRuntimeService
+      try {
+        const negotiated = await runtime.negotiate(
+          { protocol: "eidos-runtime", versions: ["1.0"] },
+          runtimeContext("negotiate-row-undo")
+        )
+        expect(negotiated.capabilities.mutationUndo).toBe(false)
+        expect("revertMutation" in runtime).toBe(false)
+
+        const snapshot = await runtime.getSnapshot(
+          {},
+          runtimeContext("row-undo-snapshot")
+        )
+        const deleted = await runtime.mutateRowsWithUndo(
+          {
+            tableId: table.id,
+            expectedRevision: snapshot.revision,
+            changes: [{ kind: "delete", rowId }],
+          },
+          runtimeContext("delete-with-row-undo")
+        )
+        expect(deleted.undoToken).toBeTruthy()
+
+        const restored = await runtime.revertRowDeletion(
+          {
+            undoToken: deleted.undoToken!,
+            expectedRevision: deleted.revision,
+          },
+          runtimeContext("restore-row-deletion")
+        )
+        expect(restored.undoToken).toBeTruthy()
+        expect(restored.rowCount).toBe("1")
+        const rows = await runtime.getRowsById(
+          {
+            tableId: table.id,
+            rowIds: [rowId],
+            projection: { fields: [], resolveRelations: [] },
+          },
+          runtimeContext("verify-restored-row")
+        )
+        expect(rows.rows.map((row) => row.id)).toEqual([rowId])
+      } finally {
+        await runtime.close(runtimeContext("close-runtime-row-undo"))
+        connection.close()
         await rm(directory, { recursive: true, force: true })
       }
     })

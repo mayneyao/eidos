@@ -36,6 +36,7 @@ import {
   type EidosFileRowQuery,
   type EidosFileRowRange,
   type EidosFileRowsDeleteResult,
+  type EidosFileRowsUndoResult,
   type EidosFileSnapshot,
   type EidosFileTableInfo,
   type EidosFileTableSnapshot,
@@ -70,6 +71,19 @@ import {
 } from "@eidos.space/eidos-file"
 
 import type { EidosFileEditorDataSource } from "./data-source"
+
+interface RowDeletionUndoRuntimeClient extends RuntimeClient {
+  mutateRowsWithUndo?(
+    request: Parameters<RuntimeClient["mutateRows"]>[0],
+    context: Parameters<RuntimeClient["mutateRows"]>[1]
+  ): ReturnType<RuntimeClient["mutateRows"]>
+  revertRowDeletion?(
+    request: { undoToken: string; expectedRevision: string },
+    context: Parameters<RuntimeClient["mutateRows"]>[1]
+  ): Promise<
+    Awaited<ReturnType<RuntimeClient["mutateRows"]>> & { rowCount: string }
+  >
+}
 
 const DEFAULT_PAGE_SIZE = 250
 const MAX_INFERRED_FIELD_OPTIONS = 1_000
@@ -642,8 +656,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         "deleteRows accepts at most 500 Row IDs per atomic operation"
       )
     }
+    const rowCountBefore = await this.countRows(tableId, {})
+    let undoToken: string | undefined
     if (ids.length > 0) {
-      const result = await this.runtime.mutateRows(
+      const undoRuntime = this.runtime as RowDeletionUndoRuntimeClient
+      const mutateRows =
+        undoRuntime.mutateRowsWithUndo?.bind(undoRuntime) ??
+        this.runtime.mutateRows.bind(this.runtime)
+      const result = await mutateRows(
         {
           tableId,
           expectedRevision: this.revision(),
@@ -652,12 +672,35 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         this.context("delete-rows")
       )
       this.acceptRevision(result.revision)
+      undoToken = result.undoToken
     }
     return {
       tableId,
       deletedCount: ids.length,
-      rowCount: await this.countRows(tableId, {}),
+      rowCount: Math.max(0, rowCountBefore - ids.length),
       revision: this.editorRevision(),
+      ...(undoToken ? { undoToken } : {}),
+    }
+  }
+
+  async revertRowMutation(
+    tableId: string,
+    undoToken: string
+  ): Promise<EidosFileRowsUndoResult> {
+    const undoRuntime = this.runtime as RowDeletionUndoRuntimeClient
+    if (!undoRuntime.revertRowDeletion) {
+      throw new Error("This Runtime does not support row undo")
+    }
+    const result = await undoRuntime.revertRowDeletion(
+      { undoToken, expectedRevision: this.revision() },
+      this.context("revert-row-mutation")
+    )
+    this.acceptRevision(result.revision)
+    return {
+      tableId,
+      rowCount: Number(result.rowCount),
+      revision: this.editorRevision(),
+      ...(result.undoToken ? { undoToken: result.undoToken } : {}),
     }
   }
 

@@ -53,7 +53,11 @@ import RatingCell from "./cells/rating-cell"
 import RangeCell from "./cells/range-cell"
 import { defaultConfig } from "./grid-default-config"
 import { EIDOS_FILE_EMPTY_STAT_ICON } from "./header-icons"
-import { type UndoRedoEdit, useUndoRedo } from "./use-undo-redo"
+import {
+  type UndoRedoCommand,
+  type UndoRedoEdit,
+  useUndoRedo,
+} from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { Button } from "./ui/primitives"
@@ -211,6 +215,8 @@ export interface EidosFileGridProps {
   gridTheme?: Partial<Theme>
   disabled?: boolean
   reloadToken?: number
+  /** Stable identity for the active row query; changing it invalidates positional history. */
+  historyScopeKey?: string
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
   locateRow?: (rowId: string) => Promise<number | null>
   loadColumnStats?: (
@@ -251,9 +257,25 @@ export interface EidosFileGridProps {
   onEditFormula?: (field: EidosFileFieldInfo) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onDeleteField?: (field: EidosFileFieldInfo) => void
-  onRequestDeleteRows?: (ranges: EidosFileRowRange[]) => void
+  onRequestDeleteRows?: (
+    ranges: EidosFileRowRange[]
+  ) => Promise<EidosFileGridDeleteResult | void> | void
   onViewUpdate?: (changes: UpdateEidosFileViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
+}
+
+export interface EidosFileGridUndoCommand {
+  /** Change to the current row count after applying this command. */
+  rowCountDelta: number
+  /** Apply this inverse and return the next inverse (redo/undo). */
+  apply(): Promise<EidosFileGridUndoCommand>
+}
+
+export interface EidosFileGridDeleteResult {
+  /** Authoritative row count after the deletion. */
+  rowCount: number
+  /** Present only when the deletion can be undone in this session. */
+  undo?: EidosFileGridUndoCommand
 }
 
 export interface EidosFileGridAppendResult extends EidosFileRowMutationResult {
@@ -442,6 +464,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   gridTheme,
   disabled = false,
   reloadToken = 0,
+  historyScopeKey,
   loadPage,
   locateRow,
   loadColumnStats,
@@ -587,6 +610,19 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     () => orderedEidosFileFields(table.fields, view),
     [table.fields, view?.hiddenFields, view?.orderMap]
   )
+  const rowHistorySchemaKey = useMemo(
+    () =>
+      JSON.stringify({
+        table: {
+          id: table.table.id,
+          name: table.table.name,
+          physicalName: table.table.physicalName,
+          rawTableName: table.table.rawTableName,
+        },
+        fields: table.fields,
+      }),
+    [table.fields, table.table]
+  )
   const [fields, setFields] = useState(availableFields)
   const newRecordTargetColumn = Math.max(
     0,
@@ -610,6 +646,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const failedMutationRef = useRef<EidosFileGridFailedMutation | null>(null)
   const [failedMutation, setFailedMutation] =
     useState<EidosFileGridFailedMutation | null>(null)
+  const rowCommandInFlightRef = useRef(false)
+  const [rowCommandInFlight, setRowCommandInFlight] = useState(false)
+  const beginRowCommand = useCallback(() => {
+    if (rowCommandInFlightRef.current) return false
+    rowCommandInFlightRef.current = true
+    setRowCommandInFlight(true)
+    return true
+  }, [])
+  const endRowCommand = useCallback(() => {
+    rowCommandInFlightRef.current = false
+    setRowCommandInFlight(false)
+  }, [])
   const updateFailedMutation = useCallback(
     (next: EidosFileGridFailedMutation | null) => {
       failedMutationRef.current = next
@@ -617,7 +665,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     },
     []
   )
-  const gridWriteLocked = disabled || failedMutation !== null
+  const gridWriteLocked =
+    disabled || failedMutation !== null || rowCommandInFlight
   const freezeColumns = eidosFileViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
@@ -1798,6 +1847,62 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection
 
+  const refreshAfterRowCommand = useCallback((nextRowCount: number) => {
+    rowCountRef.current = nextRowCount
+    setRowCount(nextRowCount)
+    onRowCountChangeRef.current?.(nextRowCount)
+    setInspectedRowIndex(null)
+    setRefreshToken((token) => token + 1)
+  }, [])
+
+  const rowHistoryCommand = useCallback(
+    (command: EidosFileGridUndoCommand): UndoRedoCommand => {
+      const wrap = (current: EidosFileGridUndoCommand): UndoRedoCommand => ({
+        apply: async () => {
+          if (!beginRowCommand()) {
+            throw new Error("Another record operation is still in progress")
+          }
+          try {
+            const inverse = await current.apply()
+            refreshAfterRowCommand(
+              Math.max(0, rowCountRef.current + current.rowCountDelta)
+            )
+            return wrap(inverse)
+          } finally {
+            endRowCommand()
+          }
+        },
+        onError: (error) => onErrorRef.current?.(error),
+      })
+      return wrap(command)
+    },
+    [beginRowCommand, endRowCommand, refreshAfterRowCommand]
+  )
+
+  const requestDeleteRows = useCallback(
+    (ranges: EidosFileRowRange[]) => {
+      if (!onRequestDeleteRows || !beginRowCommand()) return
+      void Promise.resolve(onRequestDeleteRows(ranges))
+        .then((result) => {
+          if (!result) return
+          refreshAfterRowCommand(result.rowCount)
+          if (result.undo) {
+            history.recordCommand(rowHistoryCommand(result.undo))
+          }
+        })
+        .catch((error) => onErrorRef.current?.(error))
+        .finally(endRowCommand)
+    },
+    [
+      beginRowCommand,
+      endRowCommand,
+      history.recordCommand,
+      onRequestDeleteRows,
+      refreshAfterRowCommand,
+      rowHistoryCommand,
+    ]
+  )
+
   const followRequestRef = useRef(0)
 
   useEffect(() => {
@@ -1892,7 +1997,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   useEffect(() => {
     history.reset()
-  }, [history.reset, reloadToken, table.table.id, view?.id])
+  }, [
+    history.reset,
+    historyScopeKey,
+    reloadToken,
+    rowHistorySchemaKey,
+    table.table.id,
+    view?.id,
+  ])
 
   useEffect(() => {
     if (prunePageCache()) {
@@ -2630,7 +2742,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCopyCell={copyText}
           onCopyRecordId={copyText}
           onOpenUrl={activateUrl ? openUrl : undefined}
-          onDeleteRows={(ranges) => onRequestDeleteRows?.(ranges)}
+          onDeleteRows={requestDeleteRows}
         />
       </div>
       {propertyField &&

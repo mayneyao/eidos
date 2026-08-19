@@ -1888,7 +1888,11 @@ describe("EidosFileGrid", () => {
       )
     })
     expect(document.activeElement).toBe(deleteItem)
-    act(() => deleteItem?.click())
+    await act(async () => {
+      deleteItem?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(onRequestDeleteRows).toHaveBeenCalledWith([
       { startIndex: 1, endIndex: 2 },
     ])
@@ -1908,6 +1912,129 @@ describe("EidosFileGrid", () => {
         candidate.textContent?.includes("Delete record")
       )
     ).toBe(true)
+  })
+
+  it("undoes and redoes a deleted record through the asynchronous row command", async () => {
+    let authoritativeRowCount = 250
+    const loadPage = vi.fn((offset: number, limit: number) =>
+      createLoadPage({ ...table, rowCount: authoritativeRowCount })(
+        offset,
+        limit
+      )
+    )
+    const undoApply = vi.fn()
+    const redoApply = vi.fn()
+    undoApply.mockImplementation(async () => {
+      authoritativeRowCount = 250
+      return { rowCountDelta: -1, apply: redoApply }
+    })
+    redoApply.mockImplementation(async () => {
+      authoritativeRowCount = 249
+      return { rowCountDelta: 1, apply: undoApply }
+    })
+    const onRequestDeleteRows = vi.fn(async () => {
+      authoritativeRowCount = 249
+      return {
+        rowCount: 249,
+        undo: { rowCountDelta: 1, apply: undoApply },
+      }
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRequestDeleteRows={onRequestDeleteRows}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+      mocks.props?.onCellContextMenu?.([0, 0], {
+        bounds: { x: 40, y: 56, width: 180, height: 36 },
+        localEventX: 30,
+        localEventY: 18,
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    const deleteRecord = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Delete record")
+    )
+    await act(async () => {
+      deleteRecord?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onRequestDeleteRows).toHaveBeenCalledWith([
+      { startIndex: 0, endIndex: 1 },
+    ])
+    expect(mocks.props?.rows).toBe(249)
+
+    const gridElement = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )!
+    gridElement.focus()
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(undoApply).toHaveBeenCalledOnce()
+    expect(mocks.props?.rows).toBe(250)
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "z",
+          metaKey: true,
+          shiftKey: true,
+        })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(redoApply).toHaveBeenCalledOnce()
+    expect(mocks.props?.rows).toBe(249)
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          historyScopeKey="filtered-query"
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRequestDeleteRows={onRequestDeleteRows}
+        />
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+    })
+    expect(undoApply).toHaveBeenCalledOnce()
   })
 
   it("restores Grid focus so the cell actions shortcut can be used repeatedly", async () => {
@@ -2714,7 +2841,11 @@ describe("EidosFileGrid", () => {
       (button) => button.textContent?.includes("Delete record")
     )
     expect(deleteRecord).toBeTruthy()
-    act(() => deleteRecord?.click())
+    await act(async () => {
+      deleteRecord?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(onRequestDeleteRows).toHaveBeenCalledWith([
       { startIndex: 0, endIndex: 1 },
     ])

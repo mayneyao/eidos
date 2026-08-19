@@ -228,6 +228,69 @@ describe("EidosFileDataGrid", () => {
     expect(mocks.props?.onRowCountChange).toBe(onSearchResultCountChange)
   })
 
+  it("returns authoritative row counts with and without a deletion undo token", async () => {
+    const revertRowMutation = vi.fn().mockResolvedValue({
+      tableId: "tasks",
+      rowCount: 4,
+      revision: 3,
+      undoToken: "redo-delete",
+    })
+    const source = {
+      revertRowMutation,
+      getPage: vi
+        .fn()
+        .mockResolvedValueOnce({ total: 4 })
+        .mockResolvedValueOnce({ total: 3 }),
+    } as unknown as EidosFileDataSource
+    const onDeleteRows = vi
+      .fn()
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        deletedCount: 1,
+        rowCount: 3,
+        revision: 2,
+      })
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        deletedCount: 1,
+        rowCount: 2,
+        revision: 3,
+        undoToken: "undo-delete",
+      })
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={{ ...table, rowCount: 4 }}
+          onDeleteRows={onDeleteRows}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const requestDeleteRows = mocks.props?.onRequestDeleteRows as
+      | ((ranges: Array<{ startIndex: number; endIndex: number }>) => Promise<{
+          rowCount: number
+          undo?: { apply(): Promise<unknown> }
+        }>)
+      | undefined
+    expect(typeof requestDeleteRows).toBe("function")
+
+    const withoutUndo = await requestDeleteRows!([
+      { startIndex: 0, endIndex: 1 },
+    ])
+    expect(withoutUndo).toEqual({ rowCount: 3 })
+
+    const withUndo = await requestDeleteRows!([{ startIndex: 1, endIndex: 2 }])
+    expect(withUndo.rowCount).toBe(2)
+    expect(withUndo.undo).toBeTruthy()
+    const redo = await withUndo.undo!.apply()
+    expect(revertRowMutation).toHaveBeenCalledWith("tasks", "undo-delete")
+    expect(withUndo.undo).toMatchObject({ rowCountDelta: 1 })
+    expect(redo).toMatchObject({ rowCountDelta: -1 })
+  })
+
   it("returns an optimistic row while the Runtime insert is pending", async () => {
     let resolveInsert:
       | ((result: EidosFileRowMutationResult) => void)

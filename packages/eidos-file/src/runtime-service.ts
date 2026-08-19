@@ -959,6 +959,22 @@ export class EidosRuntimeService implements RuntimeClient {
     request: RowMutation,
     context: RequestContext
   ): Promise<MutationResult> {
+    return this.mutateRowsRequest(request, context, false)
+  }
+
+  /** @internal Host/editor bridge for deletion-only undo while Runtime 1.0 mutationUndo remains disabled. */
+  mutateRowsWithUndo(
+    request: RowMutation,
+    context: RequestContext
+  ): Promise<MutationResult> {
+    return this.mutateRowsRequest(request, context, true)
+  }
+
+  private mutateRowsRequest(
+    request: RowMutation,
+    context: RequestContext,
+    reversibleDeletes: boolean
+  ): Promise<MutationResult> {
     return this.invoke(
       context,
       async () => {
@@ -1060,13 +1076,26 @@ export class EidosRuntimeService implements RuntimeClient {
           beforeRevision,
           context,
           async () => {
-            const result = this.core.mutateRows({
-              tableId: request.tableId,
-              insert: inserts,
-              update: updates,
-              delete: deletes,
-              expectedRevision: parseRevision(request.expectedRevision),
-            })
+            const reversibleDelete =
+              reversibleDeletes &&
+              inserts.length === 0 &&
+              updates.length === 0 &&
+              deletes.length > 0
+                ? this.core.deleteRowsReversible(
+                    request.tableId,
+                    deletes,
+                    parseRevision(request.expectedRevision)
+                  )
+                : null
+            const result = reversibleDelete
+              ? { ...reversibleDelete, rows: [] }
+              : this.core.mutateRows({
+                  tableId: request.tableId,
+                  insert: inserts,
+                  update: updates,
+                  delete: deletes,
+                  expectedRevision: parseRevision(request.expectedRevision),
+                })
             const after = this.core.info()
             const createdChanges = request.changes.filter(
               (change) => change.kind === "create"
@@ -1082,6 +1111,9 @@ export class EidosRuntimeService implements RuntimeClient {
               changed: String(after.revision) !== beforeRevision,
               created,
               affectedRows,
+              ...(reversibleDelete?.undoToken
+                ? { undoToken: reversibleDelete.undoToken }
+                : {}),
             }
             if (request.returning) {
               const returnedRowIds = request.changes.flatMap((change) => {
@@ -1107,6 +1139,55 @@ export class EidosRuntimeService implements RuntimeClient {
           },
           (result) => ({
             operation: "mutateRows",
+            result: {
+              fileId: result.fileId,
+              revision: result.revision,
+              changed: true,
+              created: result.created,
+              affectedRows: result.affectedRows,
+            },
+          })
+        )
+      },
+      false,
+      request
+    )
+  }
+
+  /** @internal Inverse of mutateRowsWithUndo; not the negotiated Runtime 1.0 extension. */
+  revertRowDeletion(
+    request: { undoToken: string; expectedRevision: string },
+    context: RequestContext
+  ): Promise<MutationResult & { rowCount: string }> {
+    return this.invoke(
+      context,
+      async () => {
+        this.assertWritable("revertRowDeletion")
+        const current = this.core.info()
+        assertCurrentRevision(
+          request.expectedRevision,
+          String(current.revision)
+        )
+        const beforeRevision = String(current.revision)
+        return this.withCommitBarrier(
+          "revertMutation",
+          beforeRevision,
+          context,
+          async () => {
+            const result = this.core.revertRowMutation(request.undoToken)
+            const after = this.core.info()
+            return {
+              fileId: after.fileId,
+              revision: String(after.revision),
+              changed: String(after.revision) !== beforeRevision,
+              created: [],
+              affectedRows: result.affected,
+              rowCount: String(result.rowCount),
+              ...(result.undoToken ? { undoToken: result.undoToken } : {}),
+            }
+          },
+          (result) => ({
+            operation: "revertMutation",
             result: {
               fileId: result.fileId,
               revision: result.revision,

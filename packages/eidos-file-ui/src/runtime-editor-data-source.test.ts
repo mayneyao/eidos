@@ -915,4 +915,51 @@ describe("EidosRuntimeEditorDataSource", () => {
     ).rejects.toThrow(/at most 500/i)
     expect(fixture.mutateRows).toHaveBeenCalledTimes(1)
   })
+
+  it("uses the local deletion undo bridge and returns its inverse token", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const mutateRowsWithUndo = vi.fn(async () => ({
+      fileId: FILE,
+      revision: "2",
+      changed: true,
+      created: [],
+      affectedRows: [{ tableId: PROJECTS, rowId: PROJECT_ROW }],
+      undoToken: "undo-delete",
+    }))
+    const revertRowDeletion = vi.fn(async () => ({
+      fileId: FILE,
+      revision: "3",
+      changed: true,
+      created: [],
+      affectedRows: [{ tableId: PROJECTS, rowId: PROJECT_ROW }],
+      rowCount: "1",
+      undoToken: "redo-delete",
+    }))
+    Object.assign(fixture.runtime, {
+      mutateRowsWithUndo,
+      revertRowDeletion,
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await expect(
+      source.deleteRows(PROJECTS, [PROJECT_ROW])
+    ).resolves.toMatchObject({
+      deletedCount: 1,
+      undoToken: "undo-delete",
+    })
+    expect(mutateRowsWithUndo).toHaveBeenCalledOnce()
+    expect(fixture.mutateRows).not.toHaveBeenCalled()
+
+    await expect(
+      source.revertRowMutation(PROJECTS, "undo-delete")
+    ).resolves.toMatchObject({ undoToken: "redo-delete" })
+    expect(revertRowDeletion).toHaveBeenCalledWith(
+      { undoToken: "undo-delete", expectedRevision: "2" },
+      expect.any(Object)
+    )
+  })
 })

@@ -1241,6 +1241,7 @@ export const RUNTIME_MUTATION_METHODS = [
   "updateRow",
   "deleteRowRanges",
   "deleteRows",
+  "revertRowMutation",
   "updateField",
   "addField",
   "deleteField",

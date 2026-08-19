@@ -637,6 +637,17 @@ export interface EidosFileRowsDeleteResult {
   tableId: string
   deletedCount: number
   rowCount: number
+  /** Opaque, session-local token used to undo this deletion. */
+  undoToken?: string
+  /** Eidos File metadata revision after the committed mutation. */
+  revision?: number | bigint
+}
+
+export interface EidosFileRowsUndoResult {
+  tableId: string
+  rowCount: number
+  /** Opaque token that reverses this operation, enabling redo. */
+  undoToken?: string
   /** Eidos File metadata revision after the committed mutation. */
   revision?: number | bigint
 }

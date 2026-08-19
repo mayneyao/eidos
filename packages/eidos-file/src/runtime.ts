@@ -126,6 +126,45 @@ interface RelationRow {
   on_delete: "restrict" | "detach" | "preserve" | null
 }
 
+interface DeletedPhysicalRowState {
+  tableId: string
+  physicalTable: string
+  row: Record<string, EidosFileSqlPrimitive>
+}
+
+interface DetachedRelationState {
+  tableId: string
+  physicalTable: string
+  physicalColumn: string
+  rowId: string
+  value: EidosFileSqlPrimitive
+  detachedValue: EidosFileSqlPrimitive
+}
+
+interface RowDeletionUndoState {
+  tableId: string
+  rowIds: string[]
+  rows: DeletedPhysicalRowState[]
+  detachedRelations: DetachedRelationState[]
+}
+
+type RowMutationUndoEntry =
+  | { kind: "restore-delete"; state: RowDeletionUndoState }
+  | { kind: "repeat-delete"; state: RowDeletionUndoState }
+
+interface RetainedRowMutationUndoEntry {
+  entry: RowMutationUndoEntry
+  bytes: number
+}
+
+interface PreparedRowMutationUndoEntry {
+  token: string
+  retained: RetainedRowMutationUndoEntry
+}
+
+const ROW_MUTATION_UNDO_ENTRIES_MAX = 50
+const ROW_MUTATION_UNDO_BYTES_MAX = 64 * 1024 * 1024
+
 interface FormulaRow {
   field_id: string
   source_text: string
@@ -696,6 +735,12 @@ function filterFromStorage(
 export class EidosFileRuntime {
   private mutationDepth = 0
   private mutationInstant: string | null = null
+  private readonly rowMutationUndoEntries = new Map<
+    string,
+    RetainedRowMutationUndoEntry
+  >()
+  private rowMutationUndoBytes = 0
+  private nestedMutationInvalidatesRowUndo = false
   private schemaCache:
     | { dataVersion: number; schema: RuntimeSchema }
     | undefined
@@ -721,6 +766,7 @@ export class EidosFileRuntime {
   }
 
   close(): void {
+    this.clearRowMutationUndoEntries()
     if (this.ownsConnection) this.connection.close?.()
   }
 
@@ -1022,52 +1068,75 @@ export class EidosFileRuntime {
     )
   }
 
-  private mutate<T>(operation: () => T, expectedRevision?: number | bigint): T {
-    if (this.mutationDepth > 0) return operation()
-    return this.connection.transaction(() => {
-      this.schemaCache = undefined
-      const revision = this.info().revision ?? 0
-      if (
-        expectedRevision !== undefined &&
-        BigInt(revision) !== BigInt(expectedRevision)
-      ) {
-        throw new EidosFileError(
-          "stale-revision",
-          `Expected revision ${expectedRevision}, found ${revision}`
-        )
-      }
-      const totalChangesBefore =
-        this.connection.get<{ total: number | bigint }>(
-          "SELECT total_changes() AS total"
-        )?.total ?? 0
-      this.mutationInstant = this.nowInstant()
-      this.mutationDepth += 1
-      try {
-        const result = operation()
-        const totalChangesAfter =
-          this.connection.get<{ total: number | bigint }>(
-            "SELECT total_changes() AS total"
-          )?.total ?? totalChangesBefore
-        if (BigInt(totalChangesAfter) === BigInt(totalChangesBefore)) {
-          return result
-        }
-        const validation = validateEidosFile(this.connection, {
-          level: "semantic",
-        })
-        if (!validation.valid) {
+  private mutate<T>(
+    operation: () => T,
+    expectedRevision?: number | bigint,
+    invalidatesRowUndo = false
+  ): T {
+    if (this.mutationDepth > 0) {
+      const result = operation()
+      if (invalidatesRowUndo) this.nestedMutationInvalidatesRowUndo = true
+      return result
+    }
+    const previousInvalidation = this.nestedMutationInvalidatesRowUndo
+    this.nestedMutationInvalidatesRowUndo = false
+    let clearRowUndoAfterCommit = false
+    try {
+      const result = this.connection.transaction(() => {
+        this.schemaCache = undefined
+        const revision = this.info().revision ?? 0
+        if (
+          expectedRevision !== undefined &&
+          BigInt(revision) !== BigInt(expectedRevision)
+        ) {
           throw new EidosFileError(
-            "invalid-schema",
-            validation.errors.map((issue) => issue.message).join("; ")
+            "stale-revision",
+            `Expected revision ${expectedRevision}, found ${revision}`
           )
         }
-        incrementEidosFileRevision(this.connection, this.operationInstant())
-        return result
-      } finally {
-        this.mutationDepth -= 1
-        this.mutationInstant = null
-        this.schemaCache = undefined
-      }
-    })
+        const totalChangesBefore =
+          this.connection.get<{ total: number | bigint }>(
+            "SELECT total_changes() AS total"
+          )?.total ?? 0
+        this.mutationInstant = this.nowInstant()
+        this.mutationDepth += 1
+        try {
+          const operationResult = operation()
+          const totalChangesAfter =
+            this.connection.get<{ total: number | bigint }>(
+              "SELECT total_changes() AS total"
+            )?.total ?? totalChangesBefore
+          if (BigInt(totalChangesAfter) === BigInt(totalChangesBefore)) {
+            return operationResult
+          }
+          const validation = validateEidosFile(this.connection, {
+            level: "semantic",
+          })
+          if (!validation.valid) {
+            throw new EidosFileError(
+              "invalid-schema",
+              validation.errors.map((issue) => issue.message).join("; ")
+            )
+          }
+          incrementEidosFileRevision(this.connection, this.operationInstant())
+          clearRowUndoAfterCommit =
+            invalidatesRowUndo || this.nestedMutationInvalidatesRowUndo
+          return operationResult
+        } finally {
+          this.mutationDepth -= 1
+          this.mutationInstant = null
+          this.schemaCache = undefined
+        }
+      })
+      if (clearRowUndoAfterCommit) this.clearRowMutationUndoEntries()
+      return result
+    } finally {
+      this.nestedMutationInvalidatesRowUndo = previousInvalidation
+    }
+  }
+
+  private mutateSchemaState<T>(operation: () => T): T {
+    return this.mutate(operation, undefined, true)
   }
 
   private operationInstant(): string {
@@ -1176,7 +1245,7 @@ export class EidosFileRuntime {
     assertEidosFileUuid(tableId, "Table ID")
     const fields = this.prepareFields(input)
     const position = this.listTables().length
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       const now = this.operationInstant()
       const definitions = fields.flatMap((field) => {
         const definition = fieldColumnSql(field)
@@ -1475,7 +1544,7 @@ export class EidosFileRuntime {
     changes: UpdateEidosFileTableInput
   ): EidosFileTableInfo {
     const table = this.getTable(tableId)
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       let name = table.name
       let physicalName = table.physicalName ?? table.rawTableName
       if (changes.name !== undefined && changes.name !== table.name) {
@@ -1565,7 +1634,7 @@ export class EidosFileRuntime {
 
   deleteTable(tableId: string): boolean {
     const table = this.getTable(tableId)
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       this.connection.exec(
         `DROP TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}`
       )
@@ -1637,7 +1706,7 @@ export class EidosFileRuntime {
         "A populated Table cannot add a non-null scalar Field without a default"
       )
     }
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       if (prepared.isRecordLabel && prepared.type === "lookup") {
         throw new EidosFileError(
           "invalid-schema",
@@ -1730,7 +1799,7 @@ export class EidosFileRuntime {
         "Field type conversion requires an explicit canonical conversion operation"
       )
     }
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       let name = field.name
       let physicalName: string | null = field.physicalName ?? null
       if (changes.name !== undefined && changes.name !== field.name) {
@@ -2044,7 +2113,7 @@ export class EidosFileRuntime {
       )
     }
     if ((field.nullable ?? true) === nullable) return field
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       const table = this.getTable(field.tableId)
       if (!nullable) {
         const nulls =
@@ -2091,7 +2160,7 @@ export class EidosFileRuntime {
         "Metadata-only conversion requires an unchanged Text, Select, or URL storage shape"
       )
     }
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       this.connection.run(
         `UPDATE ${EIDOS_FILE_FIELDS_TABLE} SET type = ? WHERE id = ?`,
         [targetType, fieldId]
@@ -2158,7 +2227,7 @@ export class EidosFileRuntime {
         "Conversion rows no longer match the Table"
       )
     }
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       const relationFieldIdsBefore = Array.from(
         this.allSchema().relations.keys()
       )
@@ -2430,7 +2499,7 @@ export class EidosFileRuntime {
         "The replacement Record Label Field must be a different Field"
       )
     }
-    return this.mutate(() => {
+    return this.mutateSchemaState(() => {
       if (field.isRecordLabel && replacement?.id) {
         this.connection.run(
           `UPDATE ${EIDOS_FILE_TABLES_TABLE}
@@ -4227,6 +4296,441 @@ export class EidosFileRuntime {
     return ids.map((id) => this.getRow(tableId, id)!)
   }
 
+  private rowMutationUndoEntryBytes(entry: RowMutationUndoEntry): number {
+    const json = JSON.stringify(entry, (_key, value: unknown) => {
+      if (typeof value === "bigint") {
+        return { $int64: value.toString() }
+      }
+      if (value instanceof Uint8Array) {
+        return { $blob: Array.from(value) }
+      }
+      return value
+    })
+    return new TextEncoder().encode(json).byteLength
+  }
+
+  private prepareRowMutationUndo(
+    entry: RowMutationUndoEntry
+  ): PreparedRowMutationUndoEntry {
+    const bytes = this.rowMutationUndoEntryBytes(entry)
+    if (bytes > ROW_MUTATION_UNDO_BYTES_MAX) {
+      throw new EidosFileError(
+        "resource-limit",
+        "This deletion is too large to retain for undo"
+      )
+    }
+    const base = `row-undo:${this.allocateId()}`
+    let token = base
+    let suffix = 1
+    while (this.rowMutationUndoEntries.has(token)) {
+      token = `${base}:${suffix}`
+      suffix += 1
+    }
+    return { token, retained: { entry, bytes } }
+  }
+
+  private deleteRowMutationUndoEntry(token: string): boolean {
+    const retained = this.rowMutationUndoEntries.get(token)
+    if (!retained) return false
+    this.rowMutationUndoEntries.delete(token)
+    this.rowMutationUndoBytes = Math.max(
+      0,
+      this.rowMutationUndoBytes - retained.bytes
+    )
+    return true
+  }
+
+  private clearRowMutationUndoEntries(): void {
+    this.rowMutationUndoEntries.clear()
+    this.rowMutationUndoBytes = 0
+  }
+
+  private commitRowMutationUndo(
+    prepared: PreparedRowMutationUndoEntry,
+    consumedToken?: string
+  ): string {
+    if (consumedToken) this.deleteRowMutationUndoEntry(consumedToken)
+    this.rowMutationUndoEntries.set(prepared.token, prepared.retained)
+    this.rowMutationUndoBytes += prepared.retained.bytes
+    while (
+      this.rowMutationUndoEntries.size > ROW_MUTATION_UNDO_ENTRIES_MAX ||
+      this.rowMutationUndoBytes > ROW_MUTATION_UNDO_BYTES_MAX
+    ) {
+      // A new edit clears the UI redo stack. Prefer dropping those stale redo
+      // tokens before an older undo token that the UI may still expose.
+      const redoToken = Array.from(this.rowMutationUndoEntries).find(
+        ([token, retained]) =>
+          token !== prepared.token && retained.entry.kind === "repeat-delete"
+      )?.[0]
+      const oldestToken = this.rowMutationUndoEntries.keys().next().value
+      const token = redoToken ?? oldestToken
+      if (typeof token !== "string" || token === prepared.token) break
+      this.deleteRowMutationUndoEntry(token)
+    }
+    return prepared.token
+  }
+
+  private captureRowDeletionUndoState(
+    tableId: string,
+    rowIds: string[]
+  ): RowDeletionUndoState {
+    const ids = Array.from(
+      new Set(rowIds.map((id) => assertEidosFileUuid(id, "Row ID")))
+    )
+    const table = this.getTable(tableId)
+    const physicalTable = table.physicalName ?? table.rawTableName
+    const rawRows =
+      ids.length === 0
+        ? []
+        : this.connection.query<Record<string, EidosFileSqlPrimitive>>(
+            `SELECT * FROM ${quoteIdentifier(physicalTable)} WHERE "_id" IN (${ids.map(() => "?").join(", ")})`,
+            ids
+          )
+    const rawById = new Map(
+      rawRows.flatMap((row) =>
+        typeof row._id === "string" ? [[row._id, row] as const] : []
+      )
+    )
+    for (const rowId of ids) {
+      if (!rawById.has(rowId)) {
+        throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
+      }
+    }
+
+    const deleteSet = new Set(ids)
+    const detachedRelations: DetachedRelationState[] = []
+    const schema = this.allSchema()
+    for (const [fieldId, relation] of schema.relations) {
+      if (
+        relation.direction !== "forward" ||
+        relation.on_delete !== "detach" ||
+        uuid(relation.target_table_id) !== tableId
+      ) {
+        continue
+      }
+      const field = Array.from(schema.fieldsByTable.values())
+        .flat()
+        .find((candidate) => candidate.id === fieldId)
+      if (!field?.tableId || !field.physicalName) continue
+      const sourceTable = schema.tables.get(field.tableId)
+      if (!sourceTable) continue
+      const sourceRows = this.connection.query<{
+        _id: string
+        relation_value: EidosFileSqlPrimitive
+      }>(
+        `SELECT "_id", ${quoteIdentifier(field.physicalName)} AS relation_value FROM ${quoteIdentifier(sourceTable.physical_name)} ORDER BY "_id" COLLATE BINARY`
+      )
+      for (const sourceRow of sourceRows) {
+        if (field.tableId === tableId && deleteSet.has(sourceRow._id)) continue
+        if (typeof sourceRow.relation_value !== "string") {
+          throw new EidosFileError(
+            "invalid-value",
+            `Relation ${fieldId} has a non-text stored value`
+          )
+        }
+        const parsed = parseEidosFileJson(sourceRow.relation_value)
+        if (!Array.isArray(parsed)) {
+          throw new EidosFileError(
+            "invalid-value",
+            `Relation ${fieldId} has a non-array stored value`
+          )
+        }
+        if (
+          !parsed.some(
+            (entry) => typeof entry === "string" && deleteSet.has(entry)
+          )
+        ) {
+          continue
+        }
+        const survivors = parsed.filter(
+          (entry) => typeof entry !== "string" || !deleteSet.has(entry)
+        )
+        detachedRelations.push({
+          tableId: field.tableId,
+          physicalTable: sourceTable.physical_name,
+          physicalColumn: field.physicalName,
+          rowId: sourceRow._id,
+          value: sourceRow.relation_value,
+          detachedValue: canonicalizeEidosFileJson(survivors),
+        })
+      }
+    }
+
+    return {
+      tableId,
+      rowIds: ids,
+      rows: ids.map((rowId) => ({
+        tableId,
+        physicalTable,
+        row: rawById.get(rowId)!,
+      })),
+      detachedRelations,
+    }
+  }
+
+  private sameUndoPhysicalRow(
+    left: Record<string, EidosFileSqlPrimitive>,
+    right: Record<string, EidosFileSqlPrimitive>
+  ): boolean {
+    const leftKeys = Object.keys(left)
+      .filter((key) => key !== "_updated_at")
+      .sort()
+    const rightKeys = Object.keys(right)
+      .filter((key) => key !== "_updated_at")
+      .sort()
+    return (
+      leftKeys.length === rightKeys.length &&
+      leftKeys.every(
+        (key, index) =>
+          key === rightKeys[index] && sameSqlValue(left[key], right[key]!)
+      )
+    )
+  }
+
+  private assertRepeatRowDeletionApplicable(state: RowDeletionUndoState): void {
+    const current = this.captureRowDeletionUndoState(
+      state.tableId,
+      state.rowIds
+    )
+    if (
+      current.rows.length !== state.rows.length ||
+      current.rows.some((entry, index) => {
+        const expected = state.rows[index]
+        return (
+          !expected ||
+          entry.physicalTable !== expected.physicalTable ||
+          !this.sameUndoPhysicalRow(entry.row, expected.row)
+        )
+      })
+    ) {
+      throw new EidosFileError(
+        "file-conflict",
+        "The restored records changed and cannot be redone"
+      )
+    }
+    const relationKey = (entry: DetachedRelationState) =>
+      `${entry.tableId}\u0000${entry.rowId}\u0000${entry.physicalColumn}`
+    const expectedRelations = new Map(
+      state.detachedRelations.map((entry) => [relationKey(entry), entry])
+    )
+    if (
+      current.detachedRelations.length !== expectedRelations.size ||
+      current.detachedRelations.some((entry) => {
+        const expected = expectedRelations.get(relationKey(entry))
+        return !expected || !sameSqlValue(entry.value, expected.value)
+      })
+    ) {
+      throw new EidosFileError(
+        "file-conflict",
+        "Related records changed and this deletion cannot be redone"
+      )
+    }
+  }
+
+  private restoreRowDeletionUndoState(state: RowDeletionUndoState): Array<{
+    tableId: string
+    rowId: string
+  }> {
+    return this.mutate(() => {
+      const table = this.getTable(state.tableId)
+      const physicalTable = table.physicalName ?? table.rawTableName
+      if (state.rows.some((entry) => entry.physicalTable !== physicalTable)) {
+        throw new EidosFileError(
+          "stale-revision",
+          "The table changed after these rows were deleted"
+        )
+      }
+      if (state.rowIds.length > 0) {
+        const existing = this.connection.get<{ count: number }>(
+          `SELECT count(*) AS count FROM ${quoteIdentifier(physicalTable)} WHERE "_id" IN (${state.rowIds.map(() => "?").join(", ")})`,
+          state.rowIds
+        )?.count
+        if (Number(existing ?? 0) !== 0) {
+          throw new EidosFileError(
+            "file-conflict",
+            "A deleted Row ID is already in use"
+          )
+        }
+      }
+      for (const relation of state.detachedRelations) {
+        const current = this.connection.get<{
+          value: EidosFileSqlPrimitive
+        }>(
+          `SELECT ${quoteIdentifier(relation.physicalColumn)} AS value FROM ${quoteIdentifier(relation.physicalTable)} WHERE "_id" = ?`,
+          [relation.rowId]
+        )
+        if (!current || !sameSqlValue(current.value, relation.detachedValue)) {
+          throw new EidosFileError(
+            "file-conflict",
+            `Related Row ${relation.rowId} changed after the deletion`
+          )
+        }
+      }
+      const schema = this.allSchema()
+      const outgoingRelationColumns = new Set(
+        (schema.fieldsByTable.get(state.tableId) ?? []).flatMap((field) => {
+          const relation = field.id ? schema.relations.get(field.id) : undefined
+          return relation?.direction === "forward" && field.physicalName
+            ? [field.physicalName]
+            : []
+        })
+      )
+
+      // Insert every deleted identity first with empty outgoing relations. This
+      // lets records that referenced one another be restored without depending
+      // on insertion order or weakening the relation safety triggers.
+      for (const entry of state.rows) {
+        const keys = Object.keys(entry.row)
+        const values = keys.map((key) =>
+          outgoingRelationColumns.has(key) ? "[]" : entry.row[key]!
+        )
+        this.connection.run(
+          `INSERT INTO ${quoteIdentifier(physicalTable)} (${keys.map(quoteIdentifier).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
+          values
+        )
+      }
+      for (const entry of state.rows) {
+        const rowId = entry.row._id
+        if (typeof rowId !== "string") {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Deleted row state is missing its Row ID"
+          )
+        }
+        const keys = Object.keys(entry.row).filter((key) => key !== "_id")
+        if (keys.length > 0) {
+          const response = this.connection.run(
+            `UPDATE ${quoteIdentifier(physicalTable)} SET ${keys.map((key) => `${quoteIdentifier(key)} = ?`).join(", ")} WHERE "_id" = ?`,
+            [
+              ...keys.map((key) =>
+                key === "_updated_at"
+                  ? this.operationInstant()
+                  : entry.row[key]!
+              ),
+              rowId,
+            ]
+          )
+          if (response.changes === 0) {
+            throw new EidosFileError(
+              "stale-revision",
+              `Could not restore Row ${rowId}`
+            )
+          }
+        }
+      }
+      for (const relation of state.detachedRelations) {
+        const response = this.connection.run(
+          `UPDATE ${quoteIdentifier(relation.physicalTable)} SET ${quoteIdentifier(relation.physicalColumn)} = ?, "_updated_at" = ? WHERE "_id" = ?`,
+          [relation.value, this.operationInstant(), relation.rowId]
+        )
+        if (response.changes === 0) {
+          throw new EidosFileError(
+            "stale-revision",
+            `Could not restore Relation on Row ${relation.rowId}`
+          )
+        }
+      }
+      return [
+        ...state.rows.map((entry) => ({
+          tableId: entry.tableId,
+          rowId: String(entry.row._id),
+        })),
+        ...state.detachedRelations.map((entry) => ({
+          tableId: entry.tableId,
+          rowId: entry.rowId,
+        })),
+      ]
+    })
+  }
+
+  deleteRowsReversible(
+    tableId: string,
+    rowIds: string[],
+    expectedRevision?: number | bigint,
+    consumedUndoToken?: string
+  ): {
+    revision: number | bigint
+    deleted: string[]
+    affected: Array<{ tableId: string; rowId: string }>
+    rowCount: number
+    undoToken?: string
+  } {
+    if (rowIds.length === 0) {
+      return {
+        revision: this.info().revision ?? 0,
+        deleted: [],
+        affected: [],
+        rowCount: this.countRows(tableId),
+      }
+    }
+    const rowCountBefore = this.countRows(tableId)
+    const state = this.captureRowDeletionUndoState(tableId, rowIds)
+    const preparedUndo = this.prepareRowMutationUndo({
+      kind: "restore-delete",
+      state,
+    })
+    const result = this.mutateRows({
+      tableId,
+      delete: state.rowIds,
+      expectedRevision,
+    })
+    const undoToken = this.commitRowMutationUndo(
+      preparedUndo,
+      consumedUndoToken
+    )
+    return {
+      revision: result.revision,
+      deleted: result.deleted,
+      affected: result.affected ?? [],
+      rowCount: rowCountBefore - result.deleted.length,
+      undoToken,
+    }
+  }
+
+  revertRowMutation(undoToken: string): {
+    revision: number | bigint
+    affected: Array<{ tableId: string; rowId: string }>
+    rowCount: number
+    undoToken?: string
+  } {
+    const retained = this.rowMutationUndoEntries.get(undoToken)
+    if (!retained) {
+      throw new EidosFileError(
+        "stale-revision",
+        "This row change can no longer be undone"
+      )
+    }
+    const entry = retained.entry
+    if (entry.kind === "restore-delete") {
+      const rowCount =
+        this.countRows(entry.state.tableId) + entry.state.rowIds.length
+      const preparedUndo = this.prepareRowMutationUndo({
+        kind: "repeat-delete",
+        state: entry.state,
+      })
+      const affected = this.restoreRowDeletionUndoState(entry.state)
+      return {
+        revision: this.info().revision ?? 0,
+        affected,
+        rowCount,
+        undoToken: this.commitRowMutationUndo(preparedUndo, undoToken),
+      }
+    }
+    this.assertRepeatRowDeletionApplicable(entry.state)
+    const result = this.deleteRowsReversible(
+      entry.state.tableId,
+      entry.state.rowIds,
+      undefined,
+      undoToken
+    )
+    return {
+      revision: result.revision,
+      affected: result.affected,
+      rowCount: result.rowCount,
+      undoToken: result.undoToken,
+    }
+  }
+
   deleteRow(tableId: string, rowId: string): boolean {
     return this.deleteRows(tableId, [rowId]).length === 1
   }
@@ -4245,28 +4749,45 @@ export class EidosFileRuntime {
     return this.mutateRows({ tableId, delete: ids }).deleted
   }
 
+  private rowIdsForRanges(
+    tableId: string,
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery
+  ): string[] {
+    const rowIdField = this.listFields(tableId).find(
+      (field) => field.type === "row-id"
+    )!
+    return ranges.flatMap((range) => {
+      const start = Math.max(0, Math.trunc(range.startIndex))
+      const end = Math.max(start, Math.trunc(range.endIndex))
+      if (end === start) return []
+      return this.getRowPage(tableId, start, end - start, query).rows.flatMap(
+        (row) => {
+          const id = row[rowIdField.tableColumnName]
+          return typeof id === "string" ? [id] : []
+        }
+      )
+    })
+  }
+
   deleteRowRanges(
     tableId: string,
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery = {}
   ): number {
-    const rowIdField = this.listFields(tableId).find(
-      (field) => field.type === "row-id"
-    )!
-    const ids = ranges.flatMap((range) => {
-      const start = Math.max(0, Math.trunc(range.startIndex))
-      const end = Math.max(start, Math.trunc(range.endIndex))
-      return this.getRowPage(
-        tableId,
-        start,
-        end - start + 1,
-        query
-      ).rows.flatMap((row) => {
-        const id = row[rowIdField.tableColumnName]
-        return typeof id === "string" ? [id] : []
-      })
-    })
+    const ids = this.rowIdsForRanges(tableId, ranges, query)
     return this.deleteRows(tableId, ids).length
+  }
+
+  deleteRowRangesReversible(
+    tableId: string,
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery = {}
+  ) {
+    return this.deleteRowsReversible(
+      tableId,
+      this.rowIdsForRanges(tableId, ranges, query)
+    )
   }
 
   previewFormula(

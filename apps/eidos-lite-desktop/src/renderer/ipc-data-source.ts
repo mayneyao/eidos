@@ -113,6 +113,12 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return this.mutate("deleteRows", args)
   }
 
+  revertRowMutation(
+    ...args: Parameters<NonNullable<EidosFileDataSource["revertRowMutation"]>>
+  ) {
+    return this.mutate("revertRowMutation", args)
+  }
+
   updateField(...args: Parameters<EidosFileDataSource["updateField"]>) {
     return this.mutate("updateField", args)
   }
