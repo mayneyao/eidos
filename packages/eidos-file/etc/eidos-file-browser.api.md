@@ -979,6 +979,7 @@ export interface EidosFileDataSource {
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>;
+    revertRowMutation?(tableId: string, undoToken: string): Promise<EidosFileRowsUndoResult>;
     // (undocumented)
     updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1435,6 +1436,7 @@ export interface EidosFileRowsDeleteResult {
     rowCount: number;
     // (undocumented)
     tableId: string;
+    undoToken?: string;
 }
 
 // @public (undocumented)
@@ -1460,6 +1462,16 @@ export interface EidosFileRowsMutationResult {
     rows: EidosFileRow[];
     // (undocumented)
     tableId: string;
+}
+
+// @public (undocumented)
+export interface EidosFileRowsUndoResult {
+    revision?: number | bigint;
+    // (undocumented)
+    rowCount: number;
+    // (undocumented)
+    tableId: string;
+    undoToken?: string;
 }
 
 // @public (undocumented)
