@@ -1395,7 +1395,7 @@ export { EidosFileSheetCreatePopover };
 ## ./eidos-file-sheet-tabs
 
 ```ts
-import { EidosFileTableInfo } from "@eidos.space/eidos-file";
+import { EidosFileFieldInfo, EidosFileTableInfo, EidosFileTableSnapshot } from "@eidos.space/eidos-file";
 import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 
@@ -1409,10 +1409,12 @@ interface EidosFileSheetTabActions {
   exportDisabled: boolean;
   exportingCsv: boolean;
   rename: () => void;
+  settings?: () => void;
 }
 type EidosFileSheetTabRenderer = (table: EidosFileTableInfo, tab: ReactNode, actions: EidosFileSheetTabActions) => ReactNode;
 interface EidosFileSheetTabsProps {
   tables: EidosFileTableInfo[];
+  tableSnapshots?: readonly EidosFileTableSnapshot[];
   activeTableId: string | null;
   disabled?: boolean;
   status?: ReactNode;
@@ -1422,11 +1424,13 @@ interface EidosFileSheetTabsProps {
   onRename?: (table: EidosFileTableInfo, name: string) => Promise<void> | void;
   onDelete?: (table: EidosFileTableInfo) => Promise<void> | void;
   onExportCsv?: (table: EidosFileTableInfo) => Promise<void> | void;
+  onSetRecordLabel?: (table: EidosFileTableSnapshot, field: EidosFileFieldInfo) => Promise<void> | void;
   onExportError?: (error: unknown) => void;
   renderTab?: EidosFileSheetTabRenderer;
 }
 declare function EidosFileSheetTabs({
   tables,
+  tableSnapshots,
   activeTableId,
   disabled,
   status,
@@ -1436,6 +1440,7 @@ declare function EidosFileSheetTabs({
   onRename,
   onDelete,
   onExportCsv,
+  onSetRecordLabel,
   onExportError,
   renderTab
 }: EidosFileSheetTabsProps): _$react_jsx_runtime0.JSX.Element;
