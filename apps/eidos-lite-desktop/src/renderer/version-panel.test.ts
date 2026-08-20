@@ -936,6 +936,152 @@ describe("VersionPanel table diff", () => {
     host.remove()
   })
 
+  it("pretty-prints JSON configuration fields in Eidos metadata diffs", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const messages: unknown[] = []
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((event: MessageEvent) => void) | null = null
+        onerror: (() => void) | null = null
+
+        postMessage(message: unknown) {
+          messages.push(message)
+        }
+
+        terminate() {}
+      }
+    )
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const before = '{"filter":{"conjunction":"and","conditions":[]},"sorts":[]}'
+    const after =
+      '{"filter":{"conjunction":"and","conditions":[{"field":"status","operator":"is","value":"open"}]},"sorts":[]}'
+    const table: SpaceVersionTableDiff = {
+      name: "eidos__views",
+      columns: ["id", "query_json"],
+      primaryKeyColumns: ["id"],
+      changes: [
+        {
+          op: "update",
+          key: { id: "view-1" },
+          oldValues: ["view-1", before],
+          values: ["view-1", after],
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table }))
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open record changes for view-1"]'
+        )
+        ?.click()
+    })
+
+    expect(messages).toContainEqual({
+      before: `${JSON.stringify(JSON.parse(before), null, 2)}\n`,
+      after: `${JSON.stringify(JSON.parse(after), null, 2)}\n`,
+      path: "eidos__views/query_json.json",
+    })
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Record diff layout"] button[aria-pressed="true"]'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Split"])
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Record diff layout"] button:last-child'
+        )
+        ?.click()
+    })
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Record diff layout"] button[aria-pressed="true"]'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Unified"])
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table: { ...table } }))
+    })
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[aria-label="Record diff layout"] button[aria-pressed="true"]'
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["Unified"])
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("falls back to plain text when Eidos metadata JSON is invalid", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const messages: unknown[] = []
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((event: MessageEvent) => void) | null = null
+        onerror: (() => void) | null = null
+
+        postMessage(message: unknown) {
+          messages.push(message)
+        }
+
+        terminate() {}
+      }
+    )
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const before = '{"filter":'
+    const after = '{"filter":{"conjunction":"and"}}'
+    const table: SpaceVersionTableDiff = {
+      name: "eidos__views",
+      columns: ["id", "query_json"],
+      primaryKeyColumns: ["id"],
+      changes: [
+        {
+          op: "update",
+          key: { id: "view-1" },
+          oldValues: ["view-1", before],
+          values: ["view-1", after],
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table }))
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open record changes for view-1"]'
+        )
+        ?.click()
+    })
+
+    expect(messages).toContainEqual({
+      before,
+      after,
+      path: "eidos__views/query_json.txt",
+    })
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("renders added, deleted, and updated rows as distinct table tracks", () => {
     const table: SpaceVersionTableDiff = {
       name: "Customers",

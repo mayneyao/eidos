@@ -45,6 +45,22 @@ function displayValue(value: unknown): string {
   }
 }
 
+function isEidosMetadataJsonColumn(
+  tableName: string,
+  columnName: string
+): boolean {
+  return tableName.startsWith("eidos__") && columnName.endsWith("_json")
+}
+
+function formatJsonForDiff(value: string): string | null {
+  try {
+    const formatted = JSON.stringify(JSON.parse(value), null, 2)
+    return formatted === undefined ? null : `${formatted}\n`
+  } catch {
+    return null
+  }
+}
+
 function rowChangeKind(change: SpaceVersionRowChange): RowChangeKind {
   const op = change.op.toLocaleLowerCase()
   if (op === "insert" || op === "add" || op === "added") return "insert"
@@ -285,6 +301,21 @@ function cellTextDiff(
   ) {
     return null
   }
+  const column = table.columns[index]!
+  let beforeContent = before
+  let afterContent = after
+  let extension = "txt"
+  if (isEidosMetadataJsonColumn(table.name, column)) {
+    const formattedBefore =
+      before === undefined ? undefined : formatJsonForDiff(before)
+    const formattedAfter =
+      after === undefined ? undefined : formatJsonForDiff(after)
+    if (formattedBefore !== null && formattedAfter !== null) {
+      beforeContent = formattedBefore
+      afterContent = formattedAfter
+      extension = "json"
+    }
+  }
   const state = (value: string | undefined) =>
     value === undefined
       ? ({ state: "absent" } as const)
@@ -294,10 +325,20 @@ function cellTextDiff(
           size: new TextEncoder().encode(value).byteLength,
         } as const)
   return {
-    path: `${table.name}/${table.columns[index]}.txt`,
-    before: state(before),
-    after: state(after),
+    path: `${table.name}/${column}.${extension}`,
+    before: state(beforeContent),
+    after: state(afterContent),
   }
+}
+
+function defaultRecordDiffLayout(
+  table: SpaceVersionTableDiff,
+  change: SpaceVersionRowChange,
+  index: number
+): "split" | "unified" {
+  return cellTextDiff(table, change, index)?.path.endsWith(".json")
+    ? "split"
+    : "unified"
 }
 
 function FullCellValue({
@@ -325,6 +366,7 @@ function VersionRowDiffDetail({
   diffLayout,
   softWrap,
   theme,
+  onDefaultDiffLayoutChange,
 }: {
   table: SpaceVersionTableDiff
   change: SpaceVersionRowChange
@@ -333,6 +375,7 @@ function VersionRowDiffDetail({
   diffLayout: "split" | "unified"
   softWrap: boolean
   theme: ResolvedAppearance
+  onDefaultDiffLayoutChange(layout: "split" | "unified"): void
 }) {
   const changedIndexes = useMemo(
     () => changedFieldIndexes(table, change),
@@ -363,6 +406,12 @@ function VersionRowDiffDetail({
   const changed = activeIndex >= 0 && columnChanged(change, activeIndex)
   const textDiff =
     activeIndex >= 0 ? cellTextDiff(table, change, activeIndex) : null
+
+  useEffect(() => {
+    onDefaultDiffLayoutChange(
+      defaultRecordDiffLayout(table, change, activeIndex)
+    )
+  }, [activeIndex, change, onDefaultDiffLayoutChange, table])
 
   return (
     <div
@@ -531,6 +580,7 @@ export function VersionTableDiff({
   const [recordDiffLayout, setRecordDiffLayout] = useState<"split" | "unified">(
     "unified"
   )
+  const recordDiffLayoutIsManualRef = useRef(false)
   const [recordSoftWrap, setRecordSoftWrap] = useState(true)
   const [kindFilter, setKindFilter] = useState<RowKindFilter>("all")
   const [internalRecordSelection, setInternalRecordSelection] =
@@ -559,6 +609,16 @@ export function VersionTableDiff({
     selectedChange && selectedRowIndex !== null
       ? rowIdentity(selectedChange, selectedRowIndex + 1)
       : null
+  const selectedRecordKey =
+    selectedRowIndex === null ? null : `${identityKey}:${selectedRowIndex}`
+  const applyDefaultRecordDiffLayout = useCallback(
+    (layout: "split" | "unified") => {
+      if (!recordDiffLayoutIsManualRef.current) {
+        setRecordDiffLayout(layout)
+      }
+    },
+    []
+  )
   const kindCounts = useMemo(() => {
     // The backend summary is authoritative for the whole change set; counts
     // derived from loaded rows would shift as pages stream in and hide the
@@ -642,6 +702,7 @@ export function VersionTableDiff({
     setColumnMode("changed")
     setFieldMode("changed")
     setRecordDiffLayout("unified")
+    recordDiffLayoutIsManualRef.current = false
     setRecordSoftWrap(true)
     setKindFilter("all")
     if (!recordSelectionIsControlled) setInternalRecordSelection(null)
@@ -652,6 +713,19 @@ export function VersionTableDiff({
       viewportRef.current.scrollLeft = 0
     }
   }, [identityKey, recordSelectionIsControlled])
+
+  useEffect(() => {
+    recordDiffLayoutIsManualRef.current = false
+    if (!selectedChange) return
+    const preferredIndex = preferredFieldIndex(
+      table,
+      selectedChange,
+      changedFieldIndexes(table, selectedChange)
+    )
+    setRecordDiffLayout(
+      defaultRecordDiffLayout(table, selectedChange, preferredIndex)
+    )
+  }, [selectedRecordKey])
 
   useEffect(() => {
     if (viewportRef.current) {
@@ -753,14 +827,20 @@ export function VersionTableDiff({
                 <button
                   type="button"
                   aria-pressed={recordDiffLayout === "split"}
-                  onClick={() => setRecordDiffLayout("split")}
+                  onClick={() => {
+                    recordDiffLayoutIsManualRef.current = true
+                    setRecordDiffLayout("split")
+                  }}
                 >
                   Split
                 </button>
                 <button
                   type="button"
                   aria-pressed={recordDiffLayout === "unified"}
-                  onClick={() => setRecordDiffLayout("unified")}
+                  onClick={() => {
+                    recordDiffLayoutIsManualRef.current = true
+                    setRecordDiffLayout("unified")
+                  }}
                 >
                   Unified
                 </button>
@@ -881,6 +961,7 @@ export function VersionTableDiff({
           diffLayout={recordDiffLayout}
           softWrap={recordSoftWrap}
           theme={theme}
+          onDefaultDiffLayoutChange={applyDefaultRecordDiffLayout}
         />
       ) : visibleChanges.length ? (
         <div
@@ -965,7 +1046,6 @@ export function VersionTableDiff({
                         title="Open record changes"
                         onClick={() => {
                           setFieldMode("changed")
-                          setRecordDiffLayout("unified")
                           setRecordSoftWrap(true)
                           setRecordSelection({
                             index: sourceIndex,
