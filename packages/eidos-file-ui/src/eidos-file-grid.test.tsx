@@ -251,6 +251,49 @@ describe("EidosFileGrid", () => {
     )
   })
 
+  it("opens a Formula cell editor with the activated record as preview", async () => {
+    const formulaField: EidosFileFieldInfo = {
+      ...table.fields[1],
+      id: "0198c72d-82b5-7000-8000-000000000003",
+      name: "Score",
+      type: "formula",
+      tableColumnName: "score",
+      property: { formula: '"Done" + 1', displayType: "number" },
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: [table.fields[1]!.id],
+    }
+    const formulaTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [table.fields[0]!, formulaField],
+      rowCount: 1,
+    }
+    const onEditFormula = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={formulaTable}
+          loadPage={createLoadPage(formulaTable)}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit(formulaTable)}
+          onEditFormula={onEditFormula}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onCellActivated?.([1, 0])
+    })
+
+    expect(onEditFormula).toHaveBeenCalledWith(formulaField, "row_0", {
+      left: 100,
+      top: 32,
+      width: 100,
+      height: 32,
+    })
+  })
+
   it("activates only the link text while leaving the rest of a URL cell editable", async () => {
     const uri = "https://example.com/artwork?id=42#preview"
     const activateUrl = vi.fn(async () => undefined)
@@ -2268,6 +2311,85 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
       data: "Draft task",
     })
+  })
+
+  it("does not replace a filtered result count with the full table count after insert", async () => {
+    let resolveInsert:
+      | ((result: EidosFileRowMutationResult) => void)
+      | undefined
+    const settled = new Promise<EidosFileRowMutationResult>((resolve) => {
+      resolveInsert = resolve
+    })
+    const onAddRow = vi.fn(() => ({
+      tableId: "tasks",
+      row: { _id: "optimistic:filtered-row" },
+      rowCount: 14,
+      settled,
+    }))
+    const filteredRows = Array.from({ length: 10 }, (_, index) => rowAt(index))
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={{ ...table, rowCount: 13 }}
+          view={{
+            ...table.views[0]!,
+            filter: {
+              type: "group",
+              conjunction: "and",
+              children: [
+                {
+                  type: "rule",
+                  field: table.fields[0]!.id,
+                  operator: "is-not-empty",
+                },
+              ],
+            },
+          }}
+          loadPage={vi.fn(async (offset: number, limit: number) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: filteredRows.length,
+            rows: filteredRows.slice(offset, offset + limit),
+          }))}
+          onAddRow={onAddRow}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.rows).toBe(10)
+
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    expect(mocks.props?.rows).toBe(11)
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 10],
+          range: { x: 0, y: 10, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    await act(async () => {
+      resolveInsert?.({
+        tableId: "tasks",
+        row: { _id: "row_filtered", title: null, done: 0 },
+        rowCount: 14,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.rows).toBe(11)
   })
 
   it("opens routine field actions from the column header", async () => {

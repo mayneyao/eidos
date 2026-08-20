@@ -1096,7 +1096,7 @@ export interface EidosFileFilterGroup {
 }
 
 // @public (undocumented)
-export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of";
+export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of" | "is-between" | "is-relative-to-today";
 
 // @public (undocumented)
 export interface EidosFileFilterRule {
@@ -1107,8 +1107,11 @@ export interface EidosFileFilterRule {
     // (undocumented)
     type: "rule";
     // (undocumented)
-    value?: EidosFileFilterValue | EidosFileFilterValue[];
+    value?: EidosFileFilterRuleValue;
 }
+
+// @public (undocumented)
+export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterValue[] | EidosFileRelativeDateValue;
 
 // @public (undocumented)
 export type EidosFileFilterValue = string | number | boolean | null;
@@ -1144,6 +1147,7 @@ export interface EidosFileFormulaPreviewInput {
     formula: string;
     // (undocumented)
     name: string;
+    rowIds?: string[];
 }
 
 // @public (undocumented)
@@ -1336,6 +1340,20 @@ export interface EidosFileRelationValue {
     id: string;
     // (undocumented)
     title: string;
+}
+
+// @public (undocumented)
+export type EidosFileRelativeDateDirection = "past" | "next" | "this";
+
+// @public (undocumented)
+export type EidosFileRelativeDateUnit = "day" | "week" | "month" | "year";
+
+// @public (undocumented)
+export interface EidosFileRelativeDateValue {
+    // (undocumented)
+    direction: EidosFileRelativeDateDirection;
+    // (undocumented)
+    unit: EidosFileRelativeDateUnit;
 }
 
 // @public (undocumented)
@@ -1773,6 +1791,11 @@ export type FilterNode = {
     op: "relation-has";
     fieldId: string;
     rowId: string;
+} | {
+    op: "relative-date";
+    fieldId: string;
+    direction: "past" | "next" | "this";
+    unit: "day" | "week" | "month" | "year";
 };
 
 // @public (undocumented)

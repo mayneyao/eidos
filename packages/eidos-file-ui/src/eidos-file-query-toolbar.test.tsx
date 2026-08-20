@@ -373,6 +373,51 @@ describe("shared EidosFileQueryToolbar", () => {
     ).toBe(true)
   })
 
+  it("saves rolling date shortcuts without freezing an absolute date", async () => {
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const filterField =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+    await act(async () => filterField?.click())
+    const createdAt = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Created at")
+    await act(async () => createdAt?.click())
+
+    const operator =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+    await act(async () => operator?.click())
+    const relative = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "is relative to today")
+    await act(async () => relative?.click())
+    expect(
+      document.body.querySelector('input[type="datetime-local"]')
+    ).toBeNull()
+    const relativeHint = Array.from(
+      document.body.querySelectorAll<HTMLElement>("span")
+    ).find(
+      (element) =>
+        element.textContent?.trim() === "Filter updates with the current date."
+    )
+    expect(relativeHint?.parentElement?.classList).not.toContain("col-span-2")
+    await act(async () => button("Apply")?.click())
+
+    expect(onFilterChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: fields[3].id,
+          operator: "is-relative-to-today",
+          value: { direction: "this", unit: "week" },
+        },
+      ],
+    })
+  })
+
   it("builds multi-field sort state in an anchored popover", async () => {
     await act(async () => button("Sort")?.click())
     await act(async () => button("Add sort")?.click())

@@ -4,7 +4,10 @@ import type {
   EidosFileFilterGroup,
   EidosFileFilterOperator,
   EidosFileFilterRule,
+  EidosFileFilterRuleValue,
   EidosFileFilterValue,
+  EidosFileRelativeDateDirection,
+  EidosFileRelativeDateUnit,
   EidosFileSort,
 } from "@eidos.space/eidos-file"
 import {
@@ -66,12 +69,28 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-any-of": "has any of",
   "is-all-of": "has all of",
   "is-none-of": "has none of",
+  "is-between": "is between",
+  "is-relative-to-today": "is relative to today",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
   "is-empty",
   "is-not-empty",
 ])
+
+const relativeDirectionLabels: Record<EidosFileRelativeDateDirection, string> =
+  {
+    past: "Past",
+    next: "Future",
+    this: "Current",
+  }
+
+const relativeUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
+  day: "day",
+  week: "week",
+  month: "month",
+  year: "year",
+}
 
 function filterableFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
@@ -139,9 +158,12 @@ function operatorsForField(
   if (displayType === "date" || displayType === "datetime") {
     return [
       "equals",
-      "not-equals",
-      "greater-than",
       "less-than",
+      "greater-than",
+      "less-than-or-equal",
+      "greater-than-or-equal",
+      "is-between",
+      "is-relative-to-today",
       "is-empty",
       "is-not-empty",
     ]
@@ -156,6 +178,24 @@ function operatorsForField(
     "is-empty",
     "is-not-empty",
   ]
+}
+
+function operatorLabel(
+  field: EidosFileFieldInfo,
+  operator: EidosFileFilterOperator
+): string {
+  const displayType = fieldDisplayType(field)
+  if (displayType === "date" || displayType === "datetime") {
+    const labels: Partial<Record<EidosFileFilterOperator, string>> = {
+      equals: "is",
+      "less-than": "is before",
+      "greater-than": "is after",
+      "less-than-or-equal": "is on or before",
+      "greater-than-or-equal": "is on or after",
+    }
+    return labels[operator] ?? operatorLabels[operator]
+  }
+  return operatorLabels[operator]
 }
 
 function fieldOptions(field: EidosFileFieldInfo) {
@@ -194,13 +234,79 @@ function FilterValueEditor({
 }: {
   field: EidosFileFieldInfo
   rule: EidosFileFilterRule
-  onChange: (value: EidosFileFilterValue | EidosFileFilterValue[]) => void
+  onChange: (value: EidosFileFilterRuleValue) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const [optionsOpen, setOptionsOpen] = useState(false)
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
+  if (rule.operator === "is-relative-to-today") {
+    const candidate =
+      rule.value && typeof rule.value === "object" && !Array.isArray(rule.value)
+        ? rule.value
+        : null
+    const direction: EidosFileRelativeDateDirection =
+      candidate?.direction === "past" ||
+      candidate?.direction === "next" ||
+      candidate?.direction === "this"
+        ? candidate.direction
+        : "this"
+    const unit: EidosFileRelativeDateUnit =
+      candidate?.unit === "day" ||
+      candidate?.unit === "week" ||
+      candidate?.unit === "month" ||
+      candidate?.unit === "year"
+        ? candidate.unit
+        : "week"
+    return (
+      <div className="grid min-w-0 grid-cols-2 gap-1.5">
+        <Select
+          value={direction}
+          onValueChange={(next: EidosFileRelativeDateDirection) =>
+            onChange({ direction: next, unit })
+          }
+        >
+          <SelectTrigger className="h-7 min-w-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(
+              Object.keys(
+                relativeDirectionLabels
+              ) as EidosFileRelativeDateDirection[]
+            ).map((entry) => (
+              <SelectItem key={entry} value={entry}>
+                {t(relativeDirectionLabels[entry])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={unit}
+          onValueChange={(next: EidosFileRelativeDateUnit) =>
+            onChange({ direction, unit: next })
+          }
+        >
+          <SelectTrigger className="h-7 min-w-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(
+              Object.keys(relativeUnitLabels) as EidosFileRelativeDateUnit[]
+            ).map((entry) => (
+              <SelectItem key={entry} value={entry}>
+                {t(relativeUnitLabels[entry])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="col-span-2 text-[11px] text-muted-foreground">
+          {t("Filter updates with the current date.")}
+        </span>
+      </div>
+    )
+  }
   if (
     field.type === "multi-select" &&
     (rule.operator === "is-any-of" || rule.operator === "is-none-of")
@@ -306,9 +412,48 @@ function FilterValueEditor({
     )
   }
   if (displayType === "date" || displayType === "datetime") {
-    const rawValue = Array.isArray(rule.value)
+    const inputValue = (value: EidosFileFilterValue): string =>
+      displayType === "datetime"
+        ? datetimeLocalFromFilterInstant(value)
+        : String(value ?? "")
+    const committedValue = (value: string): string =>
+      displayType === "datetime" && value
+        ? filterInstantFromDatetimeLocal(value)
+        : value
+    if (rule.operator === "is-between") {
+      const range = Array.isArray(rule.value) ? rule.value : ["", ""]
+      return (
+        <div className="grid min-w-0 grid-cols-2 gap-1.5">
+          {[0, 1].map((index) => (
+            <Input
+              key={index}
+              className="h-7 min-w-0 text-xs"
+              type={displayType === "date" ? "date" : "datetime-local"}
+              step={displayType === "datetime" ? 1 : undefined}
+              aria-label={t(index === 0 ? "Starting date" : "Ending date")}
+              value={inputValue(
+                (range[index] as EidosFileFilterValue | undefined) ?? ""
+              )}
+              onChange={(event) => {
+                const next: EidosFileFilterValue[] = [
+                  (range[0] as EidosFileFilterValue | undefined) ?? "",
+                  (range[1] as EidosFileFilterValue | undefined) ?? "",
+                ]
+                next[index] = committedValue(event.target.value)
+                onChange(next)
+              }}
+            />
+          ))}
+        </div>
+      )
+    }
+    const candidateValue = Array.isArray(rule.value)
       ? (rule.value[0] ?? "")
       : (rule.value ?? "")
+    const rawValue: EidosFileFilterValue =
+      candidateValue !== null && typeof candidateValue === "object"
+        ? ""
+        : candidateValue
     return (
       <Input
         className="h-7 min-w-0 text-xs"
@@ -384,7 +529,7 @@ function EidosFileFilterRuleEditor({
     fields[0]
   if (!field) return null
   return (
-    <div className="grid grid-cols-[110px_150px_minmax(120px,1fr)_28px] items-start gap-1.5">
+    <div className="grid grid-cols-[110px_172px_minmax(120px,1fr)_28px] items-start gap-1.5">
       <Select
         value={eidosFileFieldKey(field)}
         onValueChange={(fieldId) => {
@@ -410,19 +555,30 @@ function EidosFileFilterRuleEditor({
       </Select>
       <Select
         value={rule.operator}
-        onValueChange={(operator: EidosFileFilterOperator) =>
+        onValueChange={(operator: EidosFileFilterOperator) => {
+          const relative = operator === "is-relative-to-today"
+          const between = operator === "is-between"
+          const currentIsStructured =
+            rule.value !== null &&
+            typeof rule.value === "object" &&
+            !Array.isArray(rule.value)
           onChange({
             ...rule,
             operator,
             ...(emptyOperators.has(operator)
               ? { value: undefined }
-              : rule.value === undefined
-                ? {
-                    value: fieldDisplayType(field) === "checkbox" ? true : "",
-                  }
-                : {}),
+              : relative
+                ? { value: { direction: "this", unit: "week" } }
+                : between
+                  ? { value: ["", ""] }
+                  : rule.value === undefined || currentIsStructured
+                    ? {
+                        value:
+                          fieldDisplayType(field) === "checkbox" ? true : "",
+                      }
+                    : {}),
           })
-        }
+        }}
       >
         <SelectTrigger className="h-7 min-w-0 text-xs">
           <SelectValue />
@@ -430,7 +586,7 @@ function EidosFileFilterRuleEditor({
         <SelectContent>
           {operatorsForField(field).map((operator) => (
             <SelectItem key={operator} value={operator}>
-              {t(operatorLabels[operator])}
+              {t(operatorLabel(field, operator))}
             </SelectItem>
           ))}
         </SelectContent>

@@ -744,6 +744,7 @@ SQLite storage class:
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | typed `eq`/`ne`/`in`, `distinct-count`       | every `TypeRef`; objects compare RFC 8785 JCS bytes and lists compare length plus ordered typed elements |
 | ordered comparison, sort, group, `min`/`max` | `text`, `url`, `select`, `row-id`, `integer`, `number`, `checkbox`, `date`, `datetime`                   |
+| relative week/month windows                  | `date`, `datetime`                                                                                       |
 | `contains`/`starts-with`/`ends-with`         | `text`, `url`, `select`, `row-id`                                                                        |
 | search                                       | Field-aware Search Fragments in Sections 5.2 and 7.1; never inferred from SQLite storage class           |
 | `sum`/`average`                              | `integer`, `number`                                                                                      |
@@ -775,8 +776,8 @@ the latter uses Section 7.3's Field-aware scalar or exploded value domain.
 | Number           | finite REAL / `number`                         | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O/N              | null/distinct/min/max/sum/average                                 | yes                  | `number` atom        | eligible         | canonical finite number             | formatting is UI state                                                 |
 | Integer          | INTEGER / int64 decimal string                 | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O/N              | null/distinct/min/max/sum/average                                 | yes                  | `integer` atom       | eligible         | canonical int64 decimal             | `rating` is only an Integer display setting                            |
 | Checkbox         | INTEGER 0/1 / Boolean                          | writable  | equality, `in`                                | yes  | yes   | only `true`/`false` when it is the Record Label     | C/D/O                | null/true/false counts and ratios                                 | yes                  | `checkbox` atom      | eligible         | `true` / `false`                    | Checkbox presentation is UI-owned                                      |
-| Date             | `YYYY-MM-DD` TEXT / `date`                     | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit buckets                  | yes                  | `date` atom          | eligible         | canonical date                      | no timezone; calendar presentation is UI-owned                         |
-| Datetime         | UTC instant TEXT / `datetime`                  | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit UTC buckets              | yes                  | `datetime` atom      | eligible         | canonical UTC datetime              | UI localizes; import normalizes before mutation                        |
+| Date             | `YYYY-MM-DD` TEXT / `date`                     | writable  | equality, `in`, ordered and relative range    | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit buckets                  | yes                  | `date` atom          | eligible         | canonical date                      | no timezone; calendar presentation is UI-owned                         |
+| Datetime         | UTC instant TEXT / `datetime`                  | writable  | equality, `in`, ordered and relative range    | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit UTC buckets              | yes                  | `datetime` atom      | eligible         | canonical UTC datetime              | UI localizes; import normalizes before mutation                        |
 | URL              | URI-reference TEXT / `url`                     | writable  | equality, `in`, contains/prefix/suffix        | yes  | yes   | raw URI-reference                                   | C/D/O                | null/empty/non-empty/distinct; optional raw-scheme facet          | yes                  | `url` atom           | eligible         | raw URI-reference                   | explicit policy-checked link/copy; image display uses a Host lease     |
 | Select           | Option-name TEXT / `select`                    | writable  | equality, `in`, contains                      | yes  | yes   | Option name                                         | C/D/O                | null, observed Option facets, uncatalogued raw values             | text                 | `select` atom        | eligible         | Option name                         | color/icon and zero-use catalog entries are UI state                   |
 | Multi-select     | unique Option-name JSON array / `multi-select` | writable  | whole equality/`in`; `has-any`/`has-all`      | no   | no    | each Option name                                    | C/D on whole array   | empty rows, selection count, distinct Options, Option facets      | no                   | list of `select`     | no               | JCS string array                    | UI renders chips and adds zero-use catalog entries                     |
@@ -1080,6 +1081,12 @@ type FilterNode =
     }
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
+  | {
+      op: "relative-date"
+      fieldId: string
+      direction: "past" | "next" | "this"
+      unit: "day" | "week" | "month" | "year"
+    }
 ```
 
 The following Draft 2020-12 JSON Schema is executable structural validation
@@ -1209,6 +1216,17 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
             "fieldId": { "$ref": "#/$defs/id" },
             "rowId": { "$ref": "#/$defs/id" }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "direction", "unit"],
+          "properties": {
+            "op": { "const": "relative-date" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "direction": { "enum": ["past", "next", "this"] },
+            "unit": { "enum": ["day", "week", "month", "year"] }
+          }
         }
       ]
     }
@@ -1234,13 +1252,13 @@ A null query operand is invalid; clients use `is-null` or `is-not-null`
 explicitly. Given valid non-null operands, a null Field value has this exact
 result:
 
-| Leaf operation                                                                           | Result on null Field |
-| ---------------------------------------------------------------------------------------- | -------------------- |
-| `is-null`                                                                                | TRUE                 |
-| `is-not-null`                                                                            | FALSE                |
-| `ne`                                                                                     | TRUE                 |
-| `eq`, ordered comparisons, `between`, `in`, string predicates, `has-any`, `relation-has` | FALSE                |
-| `has-all` with one or more operands                                                      | FALSE                |
+| Leaf operation                                                                                             | Result on null Field |
+| ---------------------------------------------------------------------------------------------------------- | -------------------- |
+| `is-null`                                                                                                  | TRUE                 |
+| `is-not-null`                                                                                              | FALSE                |
+| `ne`                                                                                                       | TRUE                 |
+| `eq`, ordered comparisons, `between`, `in`, string predicates, relative windows, `has-any`, `relation-has` | FALSE                |
+| `has-all` with one or more operands                                                                        | FALSE                |
 
 The operand-independent identities still apply: empty `in` and empty `has-any`
 are FALSE; empty `has-all` is TRUE. Consequently `not(eq(field, value))`,
@@ -1258,6 +1276,7 @@ Operator/type compatibility is normative:
 | `contains`, `starts-with`, `ends-with`     | `text`, `url`, `select`, `row-id`                           |
 | `has-any`, `has-all`                       | Multi-select, Relation, File, and every public list TypeRef |
 | `relation-has`                             | forward or inverse Relation                                 |
+| `relative-date`                            | `date`, `datetime`                                          |
 
 Operands MUST have the Field's exact logical type; Runtime performs no string,
 number, Boolean, date, or ID coercion. `eq` uses typed exact equality and `ne`
@@ -1267,6 +1286,24 @@ ordered typed element equality. `in` is the Boolean OR of typed `eq`
 comparisons. `contains`, `starts-with`, and `ends-with` compare Unicode scalar
 sequences after folding ASCII `A..Z` to `a..z`; non-ASCII is unchanged. This
 same portable fold is used by `search`.
+
+`relative-date` composes a direction and unit instead of enumerating shortcuts.
+Runtime captures one canonical UTC reference instant `R` when the root query
+request begins and uses that same `R` for every relative leaf in the request.
+For `past` and `next`, day and week mean one or seven exact 24-hour days; month
+and year shift `R` by one UTC calendar unit and clamp the day to the last valid
+day of the target month. Past and next windows are inclusive
+`[boundary,R]` and `[R,boundary]`.
+
+For `this`, Runtime selects the UTC calendar period containing `R`: day is
+00:00 through the final millisecond of that day, week is ISO Monday through
+Sunday, month is the current calendar month, and year is the current calendar
+year. Datetime compares exact canonical instants. Date projects both bounds to
+UTC `YYYY-MM-DD` dates before inclusive comparison. A continuation cursor MUST
+bind the original `R`, so paging one query never moves its window. A new root
+request, including re-opening a saved View, captures a new `R`; saved relative
+filters therefore remain relative and MUST NOT be replaced with persisted
+absolute dates.
 
 Multi-select, File, Relation, and list results use `[]`, never null. The empty
 list is therefore distinct from null: `eq []` is TRUE for an empty list,
@@ -2288,10 +2325,15 @@ other Tables as specified below.
 Create/update `values` is a sparse Field-ID map. Runtime rejects display names,
 physical names, unknown Fields, system Fields, Formula, Lookup, and inverse
 Relation keys. It validates the complete logical value before opening a write
-transaction. Missing nullable Fields become null. Missing Multi-select, File,
-and forward Relation Fields use `[]`. Every other missing non-null user Field
-is `invalid-value`; there is no hidden type default. Runtime fills Row ID and
-created/updated timestamps.
+transaction. Missing Select Fields with a valid File Format
+`settings.defaultOption` use that exact option name. This rule runs only for
+create and only when the Field ID is absent from `values`; an explicit null on
+a nullable Select suppresses the default. Other missing nullable Fields become
+null. Missing Multi-select, File, and forward Relation Fields use `[]`. Every
+other missing non-null user Field is `invalid-value`; there is no implicit type
+default. Runtime fills Row ID and created/updated timestamps. CSV
+import/replay preserves its explicit input contract and MUST NOT infer this
+create-time default unless it invokes the ordinary row-create operation.
 
 Select values absent from the display catalog remain valid. Multi-select and
 Relation values must already be ordered/unique; Runtime does not silently
@@ -2638,8 +2680,10 @@ fixed non-null.
 Creating a stored Field on a populated Table has exact fill behavior. A
 nullable scalar Field fills every existing row with SQL NULL. A
 non-nullable scalar Field is permitted only when the Table has zero rows;
-there is no default/initial-value member in Runtime 1.0. Multi-select, File,
-and forward Relation Fields fill every existing row with canonical `[]`.
+there is no general default/initial-value member in Runtime 1.0. A Select
+`settings.defaultOption` affects only later row creates and never backfills
+existing rows. Multi-select, File, and forward Relation Fields fill every
+existing row with canonical `[]`.
 Formula, Lookup, and inverse Relation Fields add no user-table column.
 
 `convert-field.fieldId` must currently identify a stored scalar,
@@ -3052,7 +3096,9 @@ valid replacement. Runtime revalidates the entire affected cross-table DAG.
 `rename-option` applies only to Select/Multi-select. `from` and `to` are exact
 valid option strings and MUST differ; equality is `invalid-request`. An
 occurrence means the catalog `name`, a Select cell, a Multi-select element, or
-a typed saved-View operand for that Field. With `collision:"reject"`, the
+a typed saved-View operand for that Field. A matching Select
+`settings.defaultOption` is also an occurrence and is renamed atomically. With
+`collision:"reject"`, the
 destination MUST have no occurrence anywhere; otherwise preflight is
 `forbidden`. Runtime replaces every exact source occurrence. Multi-select and
 catalog order are preserved, and a catalog entry keeps all members except its

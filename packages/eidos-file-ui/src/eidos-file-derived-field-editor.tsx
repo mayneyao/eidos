@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
@@ -41,9 +41,18 @@ const AGGREGATES: Array<{
   { value: "max", label: "Maximum" },
 ]
 
+export interface EidosFileFormulaEditorAnchor {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
 export function EidosFileFormulaEditorPopover({
   field,
   fields,
+  previewRowId,
+  anchor,
   open,
   onOpenChange,
   onPreview,
@@ -51,6 +60,8 @@ export function EidosFileFormulaEditorPopover({
 }: {
   field: EidosFileFieldInfo | null
   fields: EidosFileFieldInfo[]
+  previewRowId?: string
+  anchor?: EidosFileFormulaEditorAnchor
   open: boolean
   onOpenChange: (open: boolean) => void
   onPreview?: (
@@ -71,6 +82,18 @@ export function EidosFileFormulaEditorPopover({
   const sessionKey = field
     ? `${field.tableName}:${field.tableColumnName}`
     : null
+  const previewFormula = useCallback(
+    (input: EidosFileFormulaPreviewInput) => {
+      if (!onPreview) {
+        return Promise.reject(new Error("Formula preview is unavailable"))
+      }
+      return onPreview({
+        ...input,
+        ...(previewRowId ? { rowIds: [previewRowId] } : {}),
+      })
+    },
+    [onPreview, previewRowId]
+  )
 
   useEffect(() => {
     if (!open) {
@@ -132,11 +155,30 @@ export function EidosFileFormulaEditorPopover({
   return (
     <Popover open={open} onOpenChange={requestOpenChange}>
       <PopoverAnchor asChild>
-        <span className="pointer-events-none fixed right-4 top-16 h-px w-px" />
+        <span
+          aria-hidden="true"
+          data-eidos-file-formula-editor-anchor={anchor ? "cell" : "global"}
+          className={
+            anchor
+              ? "pointer-events-none fixed"
+              : "pointer-events-none fixed right-4 top-16 h-px w-px"
+          }
+          style={
+            anchor
+              ? {
+                  left: anchor.left,
+                  top: anchor.top,
+                  width: anchor.width,
+                  height: anchor.height,
+                }
+              : undefined
+          }
+        />
       </PopoverAnchor>
       <PopoverContent
-        align="end"
+        align={anchor ? "start" : "end"}
         side="bottom"
+        sideOffset={anchor ? 2 : 0}
         collisionPadding={12}
         data-eidos-file-formula-editor
         className="max-h-[var(--radix-popover-content-available-height)] w-[600px] max-w-[calc(100vw-24px)] overflow-y-auto p-0"
@@ -188,7 +230,7 @@ export function EidosFileFormulaEditorPopover({
               setError(null)
             }}
             onDisplayTypeChange={setDisplayType}
-            onPreview={onPreview}
+            onPreview={onPreview ? previewFormula : undefined}
             onValidityChange={setFormulaValid}
             onEscape={() => requestOpenChange(false)}
             onSaveShortcut={() => void save()}

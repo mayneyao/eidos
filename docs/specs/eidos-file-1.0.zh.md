@@ -840,6 +840,7 @@ Multi-select：
 
 ```json
 {
+  "defaultOption": "Todo",
   "options": [
     { "color": "gray", "name": "Todo" },
     { "color": "blue", "name": "In Progress" },
@@ -856,11 +857,19 @@ string unique。`color` 与额外成员没有 raw-value 或 identity 语义；�
 使用 fallback decoration。其他 Field type 上的 `options` 只是未知但需保留的 settings
 data，不是 option catalog。
 
+Select Field 还可以包含 string member `defaultOption`。若存在，它必须按 exact
+Unicode string 等于同一 Field `options` array 中某一 entry 的 `name`。core 1.0
+禁止在 Multi-select 上使用 `defaultOption`；在其他 Field type 上，它只是没有
+default semantics 的 unknown preserved settings data。缺少该 member 表示未声明
+Select create-time default。它是 canonical Field metadata，不会填充或改写任何
+existing cell；create-time mutation 行为由 Eidos Runtime 1.0 定义。
+
 cell value 即使不在 catalog 里仍然是有效 canonical data，必须原样保留；如何呈现
 unconfigured value 归 UI 规范。删除 catalog metadata 不能静默删除 cell data。
 
-只修改 catalog 不会 rename 或 invalidate cell。atomic option rename/merge、cell 与 View
-query rewrite 由 Runtime 规范定义；Formula string literal 不是结构化 option reference。
+只修改 catalog 不会 rename 或 invalidate cell。atomic option rename/merge 对 cell、
+View query 与 `defaultOption` 的 rewrite 由 Runtime 规范定义；Formula string literal
+不是结构化 option reference。
 Select 普通 SQLite index 可以作为 in-file generated access state；Multi-select reverse
 index 必须可由 JSON column 重建，且不能引入 Option ID。
 

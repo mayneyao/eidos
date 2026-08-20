@@ -24,7 +24,11 @@ import {
   quoteIdentifier,
 } from "./identifiers"
 import { isCanonicalEidosFileJson, parseEidosFileJson } from "./canonical-json"
-import { assertEidosFileSelectOptions } from "./select-options"
+import {
+  assertEidosFileMultiSelectHasNoDefaultOption,
+  assertEidosFileSelectDefaultOption,
+  assertEidosFileSelectOptions,
+} from "./select-options"
 import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
@@ -255,7 +259,10 @@ const FILTER_OPERATORS = new Set([
   "is-empty",
   "is-not-empty",
   "is-any-of",
+  "is-all-of",
   "is-none-of",
+  "is-between",
+  "is-relative-to-today",
 ])
 
 const LEVELS: Record<EidosFileValidationLevel, number> = {
@@ -829,6 +836,11 @@ export function validateEidosFile(
       if (row.type === "select" || row.type === "multi-select") {
         try {
           assertEidosFileSelectOptions(settings)
+          if (row.type === "select") {
+            assertEidosFileSelectDefaultOption(settings)
+          } else {
+            assertEidosFileMultiSelectHasNoDefaultOption(settings)
+          }
         } catch (error) {
           add(
             errors,
@@ -1630,6 +1642,39 @@ export function validateEidosFile(
                 throw new Error(
                   "View Relation filter values must be canonical Row IDs"
                 )
+              }
+            }
+            if (node.op === "is-between") {
+              if (!Array.isArray(node.value) || node.value.length !== 2) {
+                throw new Error(
+                  "View between filter must contain exactly two values"
+                )
+              }
+            }
+            if (node.op === "is-relative-to-today") {
+              if (
+                field.type !== "date" &&
+                field.type !== "datetime" &&
+                field.type !== "created-time" &&
+                field.type !== "last-edited-time"
+              ) {
+                throw new Error(
+                  "View relative filter requires a Date or Datetime Field"
+                )
+              }
+              const relative = node.value
+              if (
+                !relative ||
+                typeof relative !== "object" ||
+                Array.isArray(relative) ||
+                !["past", "next", "this"].includes(
+                  String((relative as Record<string, unknown>).direction)
+                ) ||
+                !["day", "week", "month", "year"].includes(
+                  String((relative as Record<string, unknown>).unit)
+                )
+              ) {
+                throw new Error("View relative filter value is invalid")
               }
             }
           }

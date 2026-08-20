@@ -54,3 +54,49 @@ export function assertEidosFileSelectOptions(
   }
   return options
 }
+
+/** Returns the configured create-time default for a Select Field, if present. */
+export function parseEidosFileSelectDefaultOption(
+  property: Record<string, unknown> | null | undefined
+): string | null {
+  return typeof property?.defaultOption === "string"
+    ? property.defaultOption
+    : null
+}
+
+/**
+ * Validates that a Select create-time default names an option in the same
+ * catalog. An absent member means that newly created Rows receive no Select
+ * default.
+ */
+export function assertEidosFileSelectDefaultOption(
+  property: Record<string, unknown> | null | undefined
+): string | null {
+  const rawDefault = property?.defaultOption
+  if (rawDefault === undefined) return null
+  if (typeof rawDefault !== "string") {
+    throw new EidosFileError(
+      "invalid-schema",
+      "Select Field settings.defaultOption must be a string"
+    )
+  }
+  const options = assertEidosFileSelectOptions(property)
+  if (!options.some((option) => option.name === rawDefault)) {
+    throw new EidosFileError(
+      "invalid-schema",
+      "Select Field settings.defaultOption must name a configured option"
+    )
+  }
+  return rawDefault
+}
+
+export function assertEidosFileMultiSelectHasNoDefaultOption(
+  property: Record<string, unknown> | null | undefined
+): void {
+  if (property?.defaultOption !== undefined) {
+    throw new EidosFileError(
+      "invalid-schema",
+      "Multi-select Field settings.defaultOption is not supported"
+    )
+  }
+}

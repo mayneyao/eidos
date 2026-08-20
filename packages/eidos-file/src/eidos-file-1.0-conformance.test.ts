@@ -15,7 +15,10 @@ import {
   decodeEidosFileRelationIds,
   encodeEidosFileRelationIds,
 } from "./relation-values"
-import { assertEidosFileSelectOptions } from "./select-options"
+import {
+  assertEidosFileSelectDefaultOption,
+  assertEidosFileSelectOptions,
+} from "./select-options"
 
 const ID = "0198c72d-82b5-7968-b163-98be4b7477df"
 const OTHER_ID = "0198c72d-82b5-7968-a163-98be4b7477df"
@@ -79,6 +82,18 @@ describe("Eidos File 1.0 primitive contracts", () => {
       ],
     })
     expect(options.map((option) => option.name)).toEqual(["Todo", "Done"])
+    expect(
+      assertEidosFileSelectDefaultOption({
+        defaultOption: "Todo",
+        options,
+      })
+    ).toBe("Todo")
+    expect(() =>
+      assertEidosFileSelectDefaultOption({
+        defaultOption: "Missing",
+        options,
+      })
+    ).toThrow(/configured option/)
     expect(() =>
       assertEidosFileSelectOptions({
         options: [{ name: "Todo" }, { name: "Todo" }],

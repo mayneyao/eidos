@@ -209,6 +209,59 @@ function conversionRuntime(
 }
 
 describe("EidosRuntimeEditorDataSource", () => {
+  it("forwards selected Formula preview Row IDs to Runtime", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const previewFormula = vi.fn(async () => ({
+      fileId: FILE,
+      revision: "1",
+      valid: true,
+      inferredType: "number" as const,
+      dependencies: [],
+      rows: [{ rowId: PROJECT_ROW, value: 12 }],
+      diagnostics: [],
+      diagnosticsTruncated: false,
+    }))
+    const getRowsById = vi.fn(async () => ({
+      fileId: FILE,
+      tableId: PROJECTS,
+      revision: "1",
+      projectionHash: "formula-preview-label",
+      columns: [
+        {
+          fieldId: TITLE,
+          name: "Title",
+          valueType: "text" as const,
+          source: "stored" as const,
+          writable: true,
+        },
+      ],
+      rows: [{ id: PROJECT_ROW, values: ["Current project"] }],
+      missingRowIds: [],
+    }))
+    Object.assign(fixture.runtime, { previewFormula, getRowsById })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await expect(
+      source.previewFormula(PROJECTS, {
+        name: "Score",
+        columnName: "score",
+        formula: '"Done" + 12',
+        displayType: "number",
+        rowIds: [PROJECT_ROW],
+      })
+    ).resolves.toMatchObject({
+      samples: [{ rowId: PROJECT_ROW, title: "Current project", value: 12 }],
+    })
+    expect(previewFormula).toHaveBeenCalledWith(
+      expect.objectContaining({ rowIds: [PROJECT_ROW] }),
+      expect.any(Object)
+    )
+  })
+
   it("locates a Row ID using the same translated query as the editor view", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const source = new EidosRuntimeEditorDataSource(

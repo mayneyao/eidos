@@ -557,6 +557,19 @@ describe.runIf(supportsElectron43NodeSqlite)(
                   kind: "multi-select",
                   position: "2",
                 },
+                {
+                  clientKey: "status",
+                  name: "Status",
+                  kind: "select",
+                  position: "3",
+                  settings: {
+                    options: [
+                      { color: "gray", name: "Todo" },
+                      { color: "green", name: "Done" },
+                    ],
+                    defaultOption: "Todo",
+                  },
+                },
               ],
               labelFieldClientKey: "title",
             },
@@ -579,6 +592,7 @@ describe.runIf(supportsElectron43NodeSqlite)(
         const titleId = id("title")
         const notesId = id("notes")
         const tagsId = id("tags")
+        const statusId = id("status")
 
         await expect(
           runtime.mutateRows(
@@ -611,7 +625,7 @@ describe.runIf(supportsElectron43NodeSqlite)(
               },
             ],
             returning: {
-              fields: [titleId, notesId, tagsId],
+              fields: [titleId, notesId, tagsId, statusId],
               resolveRelations: [],
             },
           },
@@ -623,6 +637,7 @@ describe.runIf(supportsElectron43NodeSqlite)(
             "First",
             null,
             [],
+            "Todo",
           ])
         } finally {
           queryRows.mockRestore()
@@ -632,13 +647,36 @@ describe.runIf(supportsElectron43NodeSqlite)(
             tableId,
             rowIds: [inserted.created[0]!.rowId],
             projection: {
-              fields: [titleId, notesId, tagsId],
+              fields: [titleId, notesId, tagsId, statusId],
               resolveRelations: [],
             },
           },
           runtimeContext("created-default-values")
         )
-        expect(rows.rows[0]!.values).toEqual(["First", null, []])
+        expect(rows.rows[0]!.values).toEqual(["First", null, [], "Todo"])
+
+        const explicitEmpty = await runtime.mutateRows(
+          {
+            tableId,
+            expectedRevision: inserted.revision,
+            changes: [
+              {
+                kind: "create",
+                clientKey: "explicit-empty-select",
+                values: { [titleId]: "Second", [statusId]: null },
+              },
+            ],
+            returning: {
+              fields: [titleId, statusId],
+              resolveRelations: [],
+            },
+          },
+          runtimeContext("explicit-empty-select")
+        )
+        expect(explicitEmpty.returnedRows?.rows[0]?.values).toEqual([
+          "Second",
+          null,
+        ])
       } finally {
         await runtime.close(runtimeContext("close-required-values"))
         connection.close()

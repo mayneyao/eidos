@@ -18,6 +18,7 @@ import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
+import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
 
 export interface EidosFileViewRendererProps {
   source: EidosFileEditorDataSource
@@ -47,7 +48,11 @@ export interface EidosFileViewRendererProps {
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
   onFieldAdd?: (position?: number) => void
-  onEditFormula?: (field: EidosFileFieldInfo) => void
+  onEditFormula?: (
+    field: EidosFileFieldInfo,
+    previewRowId?: string,
+    anchor?: EidosFileFormulaEditorAnchor
+  ) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<FileEntry[]>

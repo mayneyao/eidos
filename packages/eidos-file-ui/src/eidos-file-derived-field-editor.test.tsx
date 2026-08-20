@@ -108,6 +108,31 @@ describe("EidosFileFormulaEditorPopover", () => {
     container.remove()
   })
 
+  it("anchors a record-triggered editor to the Formula cell", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileFormulaEditorPopover
+          field={total}
+          fields={[estimate, total]}
+          anchor={{ left: 120, top: 80, width: 180, height: 36 }}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const anchor = document.body.querySelector<HTMLElement>(
+      '[data-eidos-file-formula-editor-anchor="cell"]'
+    )
+    expect(anchor).not.toBeNull()
+    expect(anchor?.style.left).toBe("120px")
+    expect(anchor?.style.top).toBe("80px")
+    expect(anchor?.style.width).toBe("180px")
+    expect(anchor?.style.height).toBe("36px")
+  })
+
   it("saves with Mod-S through the public editor contract", async () => {
     const onOpenChange = vi.fn()
     const onSave = vi.fn(() => Promise.resolve())
@@ -174,5 +199,37 @@ describe("EidosFileFormulaEditorPopover", () => {
       await Promise.resolve()
     })
     expect(expression.value).toBe('"Estimate" * 3')
+  })
+
+  it("previews against the record that opened the Formula editor", async () => {
+    vi.useFakeTimers()
+    const previewRowId = "0198c72d-82b5-7968-b163-98be4b7477df"
+    const onPreview = vi.fn(async () => ({
+      expression: '"Estimate" * 2',
+      dependencies: [{ name: "Estimate", columnName: "estimate" }],
+      samples: [{ rowId: previewRowId, title: "Current row", value: 8 }],
+    }))
+    await act(async () => {
+      root.render(
+        <EidosFileFormulaEditorPopover
+          field={total}
+          fields={[estimate, total]}
+          previewRowId={previewRowId}
+          open
+          onOpenChange={vi.fn()}
+          onPreview={onPreview}
+          onSave={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    expect(onPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ rowIds: [previewRowId] })
+    )
+    expect(document.body.textContent).toContain("Preview · Current row: 8")
   })
 })

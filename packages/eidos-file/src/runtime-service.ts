@@ -34,6 +34,7 @@ import type {
   EidosFileFilterOperator,
   EidosFileFilterRule,
   EidosFileFilterValue,
+  EidosFileRelativeDateValue,
   EidosFileLookupAggregate,
   EidosFileLogicalRow,
 } from "./types"
@@ -111,6 +112,7 @@ import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
 } from "./temporal"
+import { parseEidosFileSelectDefaultOption } from "./select-options"
 import { cancellationPortFromSignal } from "./protocol-types"
 import { validateEidosFile } from "./validation"
 
@@ -887,6 +889,20 @@ export class EidosRuntimeService implements RuntimeClient {
           throw runtimeError("unsupported", "formulaPreview is unavailable")
         }
         return this.read(() => {
+          if (
+            request.rowIds !== undefined &&
+            (request.rowIds.length >
+              EIDOS_RUNTIME_LIMITS.formulaPreviewRowsMax ||
+              new Set(request.rowIds).size !== request.rowIds.length)
+          ) {
+            throw runtimeError(
+              "invalid-request",
+              "rowIds must be unique and within formulaPreviewRowsMax"
+            )
+          }
+          request.rowIds?.forEach((id) =>
+            assertEidosFileUuid(id, "Formula preview Row ID")
+          )
           const name =
             request.fieldId === undefined
               ? request.candidateName
@@ -905,6 +921,9 @@ export class EidosRuntimeService implements RuntimeClient {
               columnName: name,
               formula: request.sourceText,
               displayType: request.declaredResultType,
+              ...(request.rowIds === undefined
+                ? {}
+                : { rowIds: request.rowIds }),
             })
             const metadata = this.core.info()
             return {
@@ -1272,6 +1291,15 @@ export class EidosRuntimeService implements RuntimeClient {
       for (const field of tableFields) {
         const fieldId = field.id!
         if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.type === "select") {
+          const defaultOption = parseEidosFileSelectDefaultOption(
+            field.settings
+          )
+          if (defaultOption !== null) {
+            normalized[fieldId] = defaultOption
+            continue
+          }
+        }
         if (field.nullable) {
           normalized[fieldId] = null
           continue
@@ -4129,6 +4157,24 @@ function assertRuntimeRowQuery(
     }
     const type = fieldValueType(field)
     if (node.op === "is-null" || node.op === "is-not-null") return
+    if (node.op === "relative-date") {
+      if (type !== "date" && type !== "datetime") {
+        throw runtimeError(
+          "invalid-query",
+          "Relative date Filter requires Date or Datetime"
+        )
+      }
+      if (
+        !["past", "next", "this"].includes(node.direction) ||
+        !["day", "week", "month", "year"].includes(node.unit)
+      ) {
+        throw runtimeError(
+          "invalid-query",
+          "Relative date Filter direction or unit is invalid"
+        )
+      }
+      return
+    }
     if (
       node.op === "contains" ||
       node.op === "starts-with" ||
@@ -4332,20 +4378,23 @@ function runtimeFilterNodeToCompatibility(
     }
   }
   if (node.op === "between") {
-    return group("and", [
-      {
-        type: "rule",
-        field: node.fieldId,
-        operator: "greater-than-or-equal",
-        value: node.lower as string | number | boolean | null,
-      },
-      {
-        type: "rule",
-        field: node.fieldId,
-        operator: "less-than-or-equal",
-        value: node.upper as string | number | boolean | null,
-      },
-    ])
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-between",
+      value: [
+        node.lower as EidosFileFilterValue,
+        node.upper as EidosFileFilterValue,
+      ],
+    }
+  }
+  if (node.op === "relative-date") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-relative-to-today",
+      value: { direction: node.direction, unit: node.unit },
+    }
   }
   if (node.op === "has-all") {
     return {
@@ -4376,7 +4425,11 @@ function runtimeFilterNodeToCompatibility(
   }
   const leaf = node as Exclude<
     FilterNode,
-    { op: "and" | "or" } | { op: "not" } | { op: "between" } | { op: "has-all" }
+    | { op: "and" | "or" }
+    | { op: "not" }
+    | { op: "between" }
+    | { op: "has-all" }
+    | { op: "relative-date" }
   >
   const operatorMap: Partial<
     Record<FilterNode["op"], EidosFileFilterOperator>
@@ -4466,6 +4519,42 @@ function compatibilityFilterRuleToRuntime(
     list
       ? { op: "has-any", fieldId: rule.field, values: requireValues() }
       : { op: "in", fieldId: rule.field, values: requireValues() }
+
+  if (rule.operator === "is-relative-to-today") {
+    const relative = rule.value as EidosFileRelativeDateValue | undefined
+    if (
+      !relative ||
+      !["past", "next", "this"].includes(relative.direction) ||
+      !["day", "week", "month", "year"].includes(relative.unit)
+    ) {
+      throw runtimeError(
+        "corrupt-file",
+        "Stored relative date filter is invalid"
+      )
+    }
+    return {
+      op: "relative-date",
+      fieldId: rule.field,
+      direction: relative.direction,
+      unit: relative.unit,
+    }
+  }
+
+  if (rule.operator === "is-between") {
+    if (!Array.isArray(rule.value) || rule.value.length !== 2) {
+      throw runtimeError("corrupt-file", "Stored between filter is invalid")
+    }
+    const [lower, upper] = rule.value
+    if (lower === null || upper === null) {
+      throw runtimeError("corrupt-file", "Stored between filter is null")
+    }
+    return {
+      op: "between",
+      fieldId: rule.field,
+      lower: lower as FilterOperand,
+      upper: upper as FilterOperand,
+    }
+  }
 
   switch (rule.operator) {
     case "is-empty":

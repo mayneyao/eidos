@@ -2,10 +2,17 @@ import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EidosFileError } from "./errors"
 import { quoteIdentifier } from "./identifiers"
-import { normalizeEidosFileDate, normalizeEidosFileInstant } from "./temporal"
+import {
+  currentEidosFileInstant,
+  normalizeEidosFileDate,
+  normalizeEidosFileInstant,
+} from "./temporal"
 import type {
   EidosFileFieldInfo,
   EidosFileFilterGroup,
+  EidosFileFilterOperator,
+  EidosFileFilterRuleValue,
+  EidosFileRelativeDateValue,
   EidosFileFilterRule,
   EidosFileFilterValue,
   EidosFileRowQuery,
@@ -28,6 +35,8 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-any-of",
   "is-all-of",
   "is-none-of",
+  "is-between",
+  "is-relative-to-today",
 ])
 
 const MAX_QUERY_DEPTH = 8
@@ -106,6 +115,15 @@ export function assertEidosFileRowQuery(value: unknown): void {
     ) {
       throw new EidosFileError("invalid-query", "Invalid filter rule")
     }
+    if (filter.operator === "is-relative-to-today") {
+      if (!isRelativeDateValue(filter.value)) {
+        throw new EidosFileError(
+          "invalid-query",
+          "Relative date filter value is invalid"
+        )
+      }
+      return
+    }
     const values = Array.isArray(filter.value) ? filter.value : [filter.value]
     if (
       values.length > 500 ||
@@ -121,6 +139,12 @@ export function assertEidosFileRowQuery(value: unknown): void {
       throw new EidosFileError(
         "query-limit",
         "Filter values exceed the query limit"
+      )
+    }
+    if (filter.operator === "is-between" && values.length !== 2) {
+      throw new EidosFileError(
+        "invalid-query",
+        "Between filter requires exactly two values"
       )
     }
   }
@@ -143,6 +167,17 @@ function filterValue(value: unknown): EidosFileFilterValue | undefined {
     : undefined
 }
 
+function isRelativeDateValue(
+  value: unknown
+): value is EidosFileRelativeDateValue {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const candidate = value as Record<string, unknown>
+  return (
+    ["past", "next", "this"].includes(String(candidate.direction)) &&
+    ["day", "week", "month", "year"].includes(String(candidate.unit))
+  )
+}
+
 function normalizeFilterNode(
   value: unknown,
   depth: number
@@ -159,12 +194,19 @@ function normalizeFilterNode(
     ) {
       return null
     }
-    const values = Array.isArray(candidate.value)
-      ? candidate.value.flatMap((entry) => {
-          const normalized = filterValue(entry)
-          return normalized === undefined ? [] : [normalized]
-        })
-      : filterValue(candidate.value)
+    const values: EidosFileFilterRuleValue | undefined =
+      candidate.operator === "is-relative-to-today" &&
+      isRelativeDateValue(candidate.value)
+        ? {
+            direction: candidate.value.direction,
+            unit: candidate.value.unit,
+          }
+        : Array.isArray(candidate.value)
+          ? candidate.value.flatMap((entry) => {
+              const normalized = filterValue(entry)
+              return normalized === undefined ? [] : [normalized]
+            })
+          : filterValue(candidate.value)
     return {
       type: "rule",
       field: candidate.field,
@@ -457,6 +499,110 @@ function sqlFieldValue(
   return sqlValue(value)
 }
 
+function temporalFieldType(
+  field: EidosFileFieldInfo
+): "date" | "datetime" | null {
+  const type =
+    (field.type === "formula" || field.type === "lookup") &&
+    typeof field.property?.displayType === "string"
+      ? field.property.displayType
+      : field.type
+  if (type === "date") return "date"
+  if (
+    type === "datetime" ||
+    type === "created-time" ||
+    type === "last-edited-time"
+  ) {
+    return "datetime"
+  }
+  return null
+}
+
+function shiftUtcMonth(instant: Date, amount: -1 | 1): Date {
+  const result = new Date(instant.getTime())
+  const day = result.getUTCDate()
+  result.setUTCDate(1)
+  result.setUTCMonth(result.getUTCMonth() + amount)
+  const endOfTargetMonth = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)
+  ).getUTCDate()
+  result.setUTCDate(Math.min(day, endOfTargetMonth))
+  return result
+}
+
+function shiftUtcYear(instant: Date, amount: -1 | 1): Date {
+  const result = new Date(instant.getTime())
+  const month = result.getUTCMonth()
+  const day = result.getUTCDate()
+  result.setUTCDate(1)
+  result.setUTCFullYear(result.getUTCFullYear() + amount)
+  result.setUTCMonth(month)
+  const endOfTargetMonth = new Date(
+    Date.UTC(result.getUTCFullYear(), month + 1, 0)
+  ).getUTCDate()
+  result.setUTCDate(Math.min(day, endOfTargetMonth))
+  return result
+}
+
+function shiftUtcUnit(
+  instant: Date,
+  unit: EidosFileRelativeDateValue["unit"],
+  amount: -1 | 1
+): Date {
+  if (unit === "day" || unit === "week") {
+    const days = unit === "day" ? 1 : 7
+    return new Date(instant.getTime() + amount * days * 86_400_000)
+  }
+  return unit === "month"
+    ? shiftUtcMonth(instant, amount)
+    : shiftUtcYear(instant, amount)
+}
+
+function utcPeriodStart(
+  instant: Date,
+  unit: EidosFileRelativeDateValue["unit"]
+): Date {
+  const year = instant.getUTCFullYear()
+  const month = instant.getUTCMonth()
+  const day = instant.getUTCDate()
+  if (unit === "year") return new Date(Date.UTC(year, 0, 1))
+  if (unit === "month") return new Date(Date.UTC(year, month, 1))
+  const start = new Date(Date.UTC(year, month, day))
+  if (unit === "week") {
+    const daysSinceMonday = (start.getUTCDay() + 6) % 7
+    start.setUTCDate(start.getUTCDate() - daysSinceMonday)
+  }
+  return start
+}
+
+function relativeTemporalBounds(
+  relative: EidosFileRelativeDateValue,
+  referenceInstant: string,
+  type: "date" | "datetime"
+): [string, string] {
+  const reference = new Date(
+    normalizeEidosFileInstant(referenceInstant, "Relative filter reference")
+  )
+  const ordered = (() => {
+    if (relative.direction === "this") {
+      const start = utcPeriodStart(reference, relative.unit)
+      const nextStart =
+        relative.unit === "day" || relative.unit === "week"
+          ? new Date(
+              start.getTime() + (relative.unit === "day" ? 1 : 7) * 86_400_000
+            )
+          : shiftUtcUnit(start, relative.unit, 1)
+      return [start, new Date(nextStart.getTime() - 1)]
+    }
+    const past = relative.direction === "past"
+    const boundary = shiftUtcUnit(reference, relative.unit, past ? -1 : 1)
+    return past ? [boundary, reference] : [reference, boundary]
+  })()
+  return ordered.map((value) =>
+    type === "date" ? value.toISOString().slice(0, 10) : value.toISOString()
+  ) as [string, string]
+}
+
 function likeExpression(
   field: EidosFileFieldInfo,
   operator: EidosFileFilterRule["operator"],
@@ -500,7 +646,8 @@ function likeExpression(
 function compileRule(
   rule: EidosFileFilterRule,
   fields: Map<string, EidosFileFieldInfo>,
-  params: EidosFileSqlPrimitive[]
+  params: EidosFileSqlPrimitive[],
+  referenceInstant: string
 ): string {
   const field = requireField(fields, rule.field)
   const column = quoteIdentifier(field.tableColumnName)
@@ -515,6 +662,47 @@ function compileRule(
   }
   if (rule.operator === "is-not-empty") {
     return `NOT ${empty}`
+  }
+
+  if (rule.operator === "is-relative-to-today") {
+    const type = temporalFieldType(field)
+    if (!type) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} does not support relative date filters`
+      )
+    }
+    if (!isRelativeDateValue(rule.value)) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} relative date filter is invalid`
+      )
+    }
+    const [lower, upper] = relativeTemporalBounds(
+      rule.value,
+      referenceInstant,
+      type
+    )
+    params.push(lower, upper)
+    return `COALESCE(${column} >= ? AND ${column} <= ?, 0)`
+  }
+
+  if (rule.operator === "is-between") {
+    if (!Array.isArray(rule.value) || rule.value.length !== 2) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} between filter requires two values`
+      )
+    }
+    const [lower, upper] = rule.value
+    if (lower === null || upper === null) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} between filter values cannot be null`
+      )
+    }
+    params.push(sqlFieldValue(field, lower), sqlFieldValue(field, upper))
+    return `COALESCE(${column} >= ? AND ${column} <= ?, 0)`
   }
 
   if (
@@ -562,6 +750,12 @@ function compileRule(
   }
 
   const value = Array.isArray(rule.value) ? rule.value[0] : rule.value
+  if (value !== null && typeof value === "object") {
+    throw new EidosFileError(
+      "invalid-query",
+      `${field.name} filter has an invalid structured operand`
+    )
+  }
   if (rule.operator === "equals" || rule.operator === "not-equals") {
     if (arrayCodec && Array.isArray(rule.value)) {
       params.push(canonicalizeEidosFileJson(rule.value))
@@ -588,12 +782,13 @@ function compileRule(
   }
 
   if (value === null || value === undefined) return "0"
-  const comparison = {
+  const comparisons: Partial<Record<EidosFileFilterOperator, string>> = {
     "greater-than": ">",
     "greater-than-or-equal": ">=",
     "less-than": "<",
     "less-than-or-equal": "<=",
-  }[rule.operator]
+  }
+  const comparison = comparisons[rule.operator]
   if (!comparison) return "0"
   params.push(sqlFieldValue(field, value))
   return `COALESCE(${column} ${comparison} ?, 0)`
@@ -602,12 +797,13 @@ function compileRule(
 function compileGroup(
   group: EidosFileFilterGroup,
   fields: Map<string, EidosFileFieldInfo>,
-  params: EidosFileSqlPrimitive[]
+  params: EidosFileSqlPrimitive[],
+  referenceInstant: string
 ): string {
   const children = group.children.map((child) =>
     child.type === "group"
-      ? compileGroup(child, fields, params)
-      : compileRule(child, fields, params)
+      ? compileGroup(child, fields, params, referenceInstant)
+      : compileRule(child, fields, params, referenceInstant)
   )
   const expression =
     children.length === 0
@@ -650,7 +846,8 @@ function compileSorts(
 
 export function compileEidosFileRowQuery(
   fields: EidosFileFieldInfo[],
-  query: EidosFileRowQuery = {}
+  query: EidosFileRowQuery = {},
+  context: { referenceInstant?: string } = {}
 ): CompiledEidosFileRowQuery {
   query = normalizeEidosFileRowQuery(query)
   const byColumn = new Map(
@@ -672,7 +869,16 @@ export function compileEidosFileRowQuery(
     )
     if (searchClauses.length > 0) where.push(`(${searchClauses.join(" OR ")})`)
   }
-  if (query.filter) where.push(compileGroup(query.filter, byColumn, params))
+  if (query.filter) {
+    where.push(
+      compileGroup(
+        query.filter,
+        byColumn,
+        params,
+        context.referenceInstant ?? currentEidosFileInstant()
+      )
+    )
+  }
   return {
     whereSql: where.length > 0 ? `WHERE ${where.join(" AND ")}` : "",
     orderSql: compileSorts(query.sorts, byColumn),

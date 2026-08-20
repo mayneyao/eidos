@@ -89,6 +89,12 @@ describe("Runtime list-filter regression", () => {
                 kind: "multi-select",
                 position: "1",
               },
+              {
+                clientKey: "day",
+                name: "Day",
+                kind: "date",
+                position: "2",
+              },
             ],
             labelFieldClientKey: "title",
           },
@@ -112,6 +118,9 @@ describe("Runtime list-filter regression", () => {
       const signalsFieldId = schema.createdObjects.find(
         (entry) => "clientKey" in entry && entry.clientKey === "signals"
       )!.id
+      const dayFieldId = schema.createdObjects.find(
+        (entry) => "clientKey" in entry && entry.clientKey === "day"
+      )!.id
 
       const rows = await runtime.mutateRows(
         {
@@ -124,6 +133,7 @@ describe("Runtime list-filter regression", () => {
               values: {
                 [titleFieldId]: "Alpha",
                 [signalsFieldId]: ["Quality", "Speed"],
+                [dayFieldId]: "2026-07-20",
               },
             },
             {
@@ -132,6 +142,7 @@ describe("Runtime list-filter regression", () => {
               values: {
                 [titleFieldId]: "Beta",
                 [signalsFieldId]: ["Cost"],
+                [dayFieldId]: "2026-07-10",
               },
             },
           ],
@@ -184,6 +195,30 @@ describe("Runtime list-filter regression", () => {
 
       expect(wholeList.rows).toHaveLength(1)
       expect(wholeList.rows[0]?.values).toEqual(["Alpha", ["Quality", "Speed"]])
+
+      const recent = await runtime.queryRows(
+        {
+          tableId,
+          query: {
+            filter: {
+              op: "relative-date",
+              fieldId: dayFieldId,
+              direction: "this",
+              unit: "week",
+            },
+          },
+          projection: {
+            fields: [titleFieldId, dayFieldId],
+            resolveRelations: [],
+          },
+          limit: 25,
+          direction: "forward",
+        },
+        context("relative-date-query")
+      )
+
+      expect(recent.rows).toHaveLength(1)
+      expect(recent.rows[0]?.values).toEqual(["Alpha", "2026-07-20"])
     } finally {
       await runtime.close(context("close"))
       connection.close()

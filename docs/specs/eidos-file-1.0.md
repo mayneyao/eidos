@@ -957,6 +957,7 @@ The optional display catalog is part of Field `settings_json`:
 
 ```json
 {
+  "defaultOption": "Todo",
   "options": [
     { "color": "gray", "name": "Todo" },
     { "color": "blue", "name": "In Progress" },
@@ -975,14 +976,23 @@ the empty string. Names in one catalog MUST be unique by exact Unicode string.
 that does not recognize them uses its fallback decoration. On other Field
 types an `options` setting is unknown preserved settings data, not a catalog.
 
+A Select Field MAY additionally have string member `defaultOption`. When
+present, it MUST equal the `name` of one entry in that Field's `options` array
+by exact Unicode string. `defaultOption` is forbidden on Multi-select in core
+1.0; on other Field types it is unknown preserved settings data without
+default semantics. Absence means that no Select create-time default is
+declared. This member is canonical Field metadata; it does not populate or
+rewrite any existing cell. Its create-time mutation behavior is owned by Eidos
+Runtime 1.0.
+
 A stored value not
 present in the catalog remains valid canonical data and MUST be preserved.
 Presentation of an unconfigured value is owned by Eidos UI 1.0. Removing
 catalog metadata MUST NOT silently delete cell data.
 
 Editing the catalog alone does not rename or invalidate stored values. The
-atomic option-rename and merge operations, including their treatment of cells
-and View query documents, are defined by Eidos Runtime 1.0. Their committed
+atomic option-rename and merge operations, including their treatment of cells,
+View query documents, and `defaultOption`, are defined by Eidos Runtime 1.0. Their committed
 result remains subject to the raw encodings above. Formula string literals are
 ordinary source text and are never structural option references.
 

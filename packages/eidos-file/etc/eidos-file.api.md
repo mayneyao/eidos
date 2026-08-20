@@ -320,8 +320,14 @@ export function assertEidosFileColumnName(columnName: string): string;
 // @public (undocumented)
 export function assertEidosFileDisplayName(name: string, label: string): string;
 
+// @public (undocumented)
+export function assertEidosFileMultiSelectHasNoDefaultOption(property: Record<string, unknown> | null | undefined): void;
+
 // @public
 export function assertEidosFileRowQuery(value: unknown): void;
+
+// @public
+export function assertEidosFileSelectDefaultOption(property: Record<string, unknown> | null | undefined): string | null;
 
 // @public (undocumented)
 export function assertEidosFileSelectOptions(property: Record<string, unknown> | null | undefined): EidosFileSelectOption[];
@@ -582,7 +588,9 @@ export function compileEidosFileFormulaSource(source: string, fields: EidosFileF
 };
 
 // @public (undocumented)
-export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: EidosFileRowQuery): CompiledEidosFileRowQuery;
+export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: EidosFileRowQuery, context?: {
+    referenceInstant?: string;
+}): CompiledEidosFileRowQuery;
 
 // @public (undocumented)
 export function configureEidosFileConnection(connection: EidosFileConnection): void;
@@ -1453,7 +1461,7 @@ export interface EidosFileFilterGroup {
 }
 
 // @public (undocumented)
-export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of";
+export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of" | "is-between" | "is-relative-to-today";
 
 // @public (undocumented)
 export interface EidosFileFilterRule {
@@ -1464,8 +1472,11 @@ export interface EidosFileFilterRule {
     // (undocumented)
     type: "rule";
     // (undocumented)
-    value?: EidosFileFilterValue | EidosFileFilterValue[];
+    value?: EidosFileFilterRuleValue;
 }
+
+// @public (undocumented)
+export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterValue[] | EidosFileRelativeDateValue;
 
 // @public (undocumented)
 export type EidosFileFilterValue = string | number | boolean | null;
@@ -1501,6 +1512,7 @@ export interface EidosFileFormulaPreviewInput {
     formula: string;
     // (undocumented)
     name: string;
+    rowIds?: string[];
 }
 
 // @public (undocumented)
@@ -1766,6 +1778,20 @@ export interface EidosFileRelationValue {
 }
 
 // @public (undocumented)
+export type EidosFileRelativeDateDirection = "past" | "next" | "this";
+
+// @public (undocumented)
+export type EidosFileRelativeDateUnit = "day" | "week" | "month" | "year";
+
+// @public (undocumented)
+export interface EidosFileRelativeDateValue {
+    // (undocumented)
+    direction: EidosFileRelativeDateDirection;
+    // (undocumented)
+    unit: EidosFileRelativeDateUnit;
+}
+
+// @public (undocumented)
 export interface EidosFileResolvedRelationValue {
     // (undocumented)
     id: string;
@@ -1959,7 +1985,7 @@ export class EidosFileRuntime {
     // @internal
     convertStoredFieldMetadataOnly(fieldId: string, targetType: "text" | "select" | "url", nullable: boolean): EidosFileFieldInfo;
     // (undocumented)
-    countRows(tableId: string, query?: EidosFileRowQuery): number;
+    countRows(tableId: string, query?: EidosFileRowQuery, referenceInstant?: string): number;
     // (undocumented)
     countRowsByField(tableId: string, fieldKey: string, query?: EidosFileRowQuery): EidosFileRowGroupCount[];
     // @internal
@@ -2807,6 +2833,11 @@ export type FilterNode = {
     op: "relation-has";
     fieldId: string;
     rowId: string;
+} | {
+    op: "relative-date";
+    fieldId: string;
+    direction: "past" | "next" | "this";
+    unit: "day" | "week" | "month" | "year";
 };
 
 // @public (undocumented)
@@ -3423,6 +3454,9 @@ export function parseEidosFileCsvRows(file: {
 
 // @public (undocumented)
 export function parseEidosFileJson(text: string): EidosFileJsonValue;
+
+// @public
+export function parseEidosFileSelectDefaultOption(property: Record<string, unknown> | null | undefined): string | null;
 
 // @public (undocumented)
 export function parseEidosFileSelectOptions(property: Record<string, unknown> | null | undefined): EidosFileSelectOption[];

@@ -1373,6 +1373,13 @@ Option catalog 只是 decoration/input assistance。Catalog 中不存在的 valu
 unconfigured raw value，不能 replace/drop。Option rename 调用 Runtime 的 option-rename
 schema/data migration；UI 不得把它实现成 label-only edit。
 
+Select Field property surface 必须把 create-time default 展示为**无默认值**或恰好
+一个 configured option。选择后通过 ordinary revision-checked schema path 提交
+`settings.defaultOption`。rename 当前 default option 时，必须在同一 atomic option
+rename 中 retarget default；删除当前 default catalog entry 时，必须在同一 metadata
+mutation 中清除 default。Multi-select 不得显示此控件。UI 不通过预填 draft cell
+模拟该行为：只有 create mutation 省略该 Field 时，Runtime 才应用 default。
+
 Select 或 Multi-select editor 中显式的“新建选项”操作必须先提交完整、更新后的 Field
 option catalog。只有 metadata mutation 成功后，UI 才能使用其返回的 revision 提交 cell
 value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之后的 cell mutation
@@ -1625,6 +1632,16 @@ scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 
 内部 compatibility model 使用不同 operator name，加载和保存 View 时也必须保留
 这些语义。
 
+Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**、**不晚于**、
+**不早于**、**介于**、**相对今天**、**为空**与**不为空**。**介于**接收有顺序且包含
+首尾的 lower/upper value，并发送 `between`。
+
+**相对今天**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
+**月**或**年**），并发送一个 `relative-date` leaf。控件必须把 direction 与 unit 持久
+保存在 View 中，绝不能把条件冻结为 absolute date。重新打开时必须保留两个选择；
+reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
+应说明结果会随当前日期更新，也可以用日历预览计算区间，但预览不能成为 canonical state。
+
 Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban 控件是 Editor required
 surface，不是 optional authoring convenience。每个控件通过一次 revision-checked
 View mutation 提交；当前 renderer 没有 row 或 visible Field 时仍须可用；成功或
@@ -1670,7 +1687,11 @@ Kanban Row move 是 semantic operation，不会因此变成结构 reorder contro
 Formula editor 展示并提交 Runtime `sourceText`，其中 reference 是 quoted human
 Field name。Autocomplete 按 Runtime grammar 插入 escaped quoted form；不得把
 generated SQL、compiled AST 或 Field ID 当 human source 展示。Existing Formula 用
-`fieldId` preview；新 Formula 用 `candidateName`。Resolved preview 的
+`fieldId` preview；新 Formula 用 `candidateName`。通过双击、Enter 或 Space 激活只读
+Formula result cell 时，必须打开该 Formula editor。编辑器由记录单元格打开时，preview
+request 必须把该记录放入 `rowIds`，使可见示例保持在用户当前上下文；编辑器还必须锚定
+该来源单元格，并通过碰撞处理留在可见 workbench 内。从 Field settings 打开时可以使用
+Runtime sample order 和 host 的全局编辑器位置。Resolved preview 的
 `valid:false` 是 candidate-analysis result，不是 failed request；UI 展示 diagnostic，
 不得读取省略的 inferred-type/dependency/row member。Thrown Runtime error 走普通
 request handling；`diagnosticsTruncated` 始终披露。Preview diagnostic/sample value 对

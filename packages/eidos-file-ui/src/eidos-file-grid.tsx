@@ -63,6 +63,7 @@ import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { Button } from "./ui/primitives"
 import { useGlideDataGridPortal } from "./use-glide-data-grid-portal"
 import { eidosFileKeyboardEventMatchesBinding } from "./use-eidos-file-tab-strip"
+import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
 
 import {
   eidosFileGridColumn,
@@ -254,7 +255,11 @@ export interface EidosFileGridProps {
     changes: UpdateEidosFileFieldInput
   ) => Promise<void> | void
   onAddField?: (position?: number) => void
-  onEditFormula?: (field: EidosFileFieldInfo) => void
+  onEditFormula?: (
+    field: EidosFileFieldInfo,
+    previewRowId?: string,
+    anchor?: EidosFileFormulaEditorAnchor
+  ) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onDeleteField?: (field: EidosFileFieldInfo) => void
   onRequestDeleteRows?: (
@@ -1772,11 +1777,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             })
             break
           }
-          rowCountRef.current = Math.max(
-            rowCountRef.current,
-            settled.rowCount + pendingRowCreatesRef.current.size
-          )
-          setRowCount(rowCountRef.current)
+          // The mutation result reports the full table count, while this Grid
+          // may be rendering a filtered or searched query. The optimistic row
+          // was already included above, so keep the query-local count until a
+          // page revalidation returns its authoritative `total`.
           setCacheRevision((current) => current + 1)
           refreshColumnStats()
           releaseDraftRowPins(gridSelectionRef.current)
@@ -2150,6 +2154,31 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       history.onCellEdited(target, cell)
     },
     [history.onCellEdited, retargetEditedCellLocation]
+  )
+  const onCellActivated = useCallback<
+    NonNullable<DataEditorProps["onCellActivated"]>
+  >(
+    ([columnIndex, rowIndex]) => {
+      const field = fields[columnIndex]
+      const row = rowsRef.current.get(rowIndex)
+      if (field?.type !== "formula" || !row || !onEditFormula) return
+      const rowId = canonicalEidosFileRowId(row._id, rowIdAliasesRef.current)
+      const bounds = gridRef.current?.getBounds?.(columnIndex, rowIndex)
+      onPropertyFieldClose?.()
+      onEditFormula(
+        field,
+        rowId?.startsWith("optimistic:") ? undefined : rowId,
+        bounds
+          ? {
+              left: bounds.x,
+              top: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+            }
+          : undefined
+      )
+    },
+    [fields, onEditFormula, onPropertyFieldClose]
   )
 
   const importFilesIntoAttachmentCell = useCallback(
@@ -2558,6 +2587,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
           onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
           onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
+          onCellActivated={onEditFormula ? onCellActivated : undefined}
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
           onCellContextMenu={onCellContextMenu}

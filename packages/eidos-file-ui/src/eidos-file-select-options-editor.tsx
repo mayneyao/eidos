@@ -20,15 +20,25 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, Plus, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, GripVertical, Plus, Trash2 } from "lucide-react"
 import { useEidosFileUI } from "./context"
+import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
 import { cn } from "./lib/cn"
-import { Button, Input } from "./ui/primitives"
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
+import {
+  Button,
+  CommandGroup,
+  CommandItem,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./ui/primitives"
+import { SelectOptionItem } from "./ui/select-option-item"
 
 import {
   EIDOS_FILE_OPTION_COLORS,
   eidosFileOptionColor,
+  eidosFileSelectDefaultOption,
   eidosFileSelectOptions,
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
@@ -353,17 +363,132 @@ export function EidosFileSelectOptionsEditor({
     optionValueChanges?: EidosFileOptionValueChange[]
   ) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
+  const [defaultOptionsOpen, setDefaultOptionsOpen] = useState(false)
   const options = useMemo(() => eidosFileSelectOptions(field), [field])
+  const defaultOption = useMemo(
+    () => eidosFileSelectDefaultOption(field),
+    [field]
+  )
+  const selectedDefaultOption = options.find(
+    (option) => option.value === defaultOption
+  )
+  const noDefaultValue = useMemo(() => {
+    let value = "__eidos_no_default_option__"
+    const names = new Set(options.map((option) => option.value))
+    while (names.has(value)) value += "_"
+    return value
+  }, [options])
+  const save = (
+    next: EidosFileSelectOption[],
+    optionValueChanges?: EidosFileOptionValueChange[]
+  ) => {
+    const property: Record<string, unknown> = {
+      ...(field.property ?? {}),
+      options: next,
+    }
+    let nextDefault = defaultOption
+    for (const change of optionValueChanges ?? []) {
+      if (nextDefault === change.from) nextDefault = change.to
+    }
+    if (
+      nextDefault !== null &&
+      next.some((option) => option.value === nextDefault)
+    ) {
+      property.defaultOption = nextDefault
+    } else {
+      delete property.defaultOption
+    }
+    return onChange(property, optionValueChanges)
+  }
+  const selectDefaultOption = (value: string | null) => {
+    setDefaultOptionsOpen(false)
+    if (value === defaultOption) return
+    const property: Record<string, unknown> = {
+      ...(field.property ?? {}),
+      options,
+    }
+    if (value === null) {
+      delete property.defaultOption
+    } else {
+      property.defaultOption = value
+    }
+    void onChange(property)
+  }
   return (
-    <EidosFileOptionsEditor
-      options={options}
-      disabled={disabled}
-      onChange={(next, optionValueChanges) =>
-        onChange(
-          { ...(field.property ?? {}), options: next },
-          optionValueChanges
-        )
-      }
-    />
+    <div>
+      <EidosFileOptionsEditor
+        options={options}
+        disabled={disabled}
+        onChange={save}
+      />
+      {field.type === "select" ? (
+        <div className="mt-3 grid gap-1.5 border-t pt-3 text-xs">
+          <span className="font-medium">{t("Default option")}</span>
+          <EidosFileCommandCombobox
+            open={defaultOptionsOpen}
+            onOpenChange={setDefaultOptionsOpen}
+            searchPlaceholder={t("Search options…")}
+            emptyText={t("No results")}
+            contentClassName="w-[var(--radix-popover-trigger-width)] min-w-[220px]"
+            trigger={
+              <button
+                type="button"
+                role="combobox"
+                aria-expanded={defaultOptionsOpen}
+                aria-label={t("Default option for new records")}
+                disabled={disabled}
+                className={cn(
+                  "flex h-8 w-full min-w-0 items-center justify-between gap-1 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none",
+                  "focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                  !selectedDefaultOption && "text-muted-foreground"
+                )}
+              >
+                <span className="min-w-0 truncate">
+                  {selectedDefaultOption ? (
+                    <SelectOptionItem
+                      option={selectedDefaultOption}
+                      className="max-w-[240px]"
+                    />
+                  ) : (
+                    t("No default")
+                  )}
+                </span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </button>
+            }
+          >
+            <CommandGroup>
+              <CommandItem
+                value={noDefaultValue}
+                onSelect={() => selectDefaultOption(null)}
+                className="text-xs"
+              >
+                <span>{t("No default")}</span>
+                {defaultOption === null ? (
+                  <Check className="ml-auto h-3.5 w-3.5" />
+                ) : null}
+              </CommandItem>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => selectDefaultOption(option.value)}
+                  className="text-xs"
+                >
+                  <SelectOptionItem option={option} className="max-w-[220px]" />
+                  {option.value === defaultOption ? (
+                    <Check className="ml-auto h-3.5 w-3.5" />
+                  ) : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </EidosFileCommandCombobox>
+          <span className="text-[11px] text-muted-foreground">
+            {t("Applied when a new record omits this field.")}
+          </span>
+        </div>
+      ) : null}
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 import {
+  parseEidosFileSelectDefaultOption,
   parseEidosFileSelectOptions,
   type EidosFileFieldInfo,
   type EidosFileSelectOption as EidosFileCanonicalSelectOption,
@@ -84,6 +85,17 @@ export function eidosFileSelectOptions(
     ...option,
     value: option.name,
   }))
+}
+
+export function eidosFileSelectDefaultOption(
+  field: EidosFileFieldInfo
+): string | null {
+  if (field.type !== "select") return null
+  const value = parseEidosFileSelectDefaultOption(field.property)
+  return value !== null &&
+    eidosFileSelectOptions(field).some((option) => option.value === value)
+    ? value
+    : null
 }
 
 export function eidosFileNumberProperty(

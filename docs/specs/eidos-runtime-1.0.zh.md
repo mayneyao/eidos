@@ -708,6 +708,7 @@ storage class：
 | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | typed `eq`/`ne`/`in`、`distinct-count`       | 每个 `TypeRef`；object 比较 RFC 8785 JCS byte，list 比较 length 与 ordered typed element |
 | ordered comparison、sort、group、`min`/`max` | `text`、`url`、`select`、`row-id`、`integer`、`number`、`checkbox`、`date`、`datetime`   |
+| relative week/month window                   | `date`、`datetime`                                                                       |
 | `contains`/`starts-with`/`ends-with`         | `text`、`url`、`select`、`row-id`                                                        |
 | search                                       | 第 5.2 与 7.1 节 Field-aware Search Fragment；绝不从 SQLite storage class 推断           |
 | `sum`/`average`                              | `integer`、`number`                                                                      |
@@ -736,8 +737,8 @@ exploded value domain。
 | Number           | finite REAL / `number`                         | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O/N              | null/distinct/min/max/sum/average                             | 是                   | `number` atom        | 可用         | canonical finite number           | formatting 属于 UI state                                         |
 | Integer          | INTEGER / int64 decimal string                 | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O/N              | null/distinct/min/max/sum/average                             | 是                   | `integer` atom       | 可用         | canonical int64 decimal           | `rating` 仅是 Integer display setting                            |
 | Checkbox         | INTEGER 0/1 / Boolean                          | 可写     | equality、`in`                                | 是   | 是    | 仅在充当 Record Label 时使用 `true`/`false`       | C/D/O                | null/true/false count 与 ratio                                | 是                   | `checkbox` atom      | 可用         | `true` / `false`                  | Checkbox presentation 归 UI                                      |
-| Date             | `YYYY-MM-DD` TEXT / `date`                     | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit bucket               | 是                   | `date` atom          | 可用         | canonical date                    | 无 timezone；calendar presentation 归 UI                         |
-| Datetime         | UTC instant TEXT / `datetime`                  | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit UTC bucket           | 是                   | `datetime` atom      | 可用         | canonical UTC datetime            | UI localize；import 在 mutation 前 normalize                     |
+| Date             | `YYYY-MM-DD` TEXT / `date`                     | 可写     | equality、`in`、ordered/relative range        | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit bucket               | 是                   | `date` atom          | 可用         | canonical date                    | 无 timezone；calendar presentation 归 UI                         |
+| Datetime         | UTC instant TEXT / `datetime`                  | 可写     | equality、`in`、ordered/relative range        | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit UTC bucket           | 是                   | `datetime` atom      | 可用         | canonical UTC datetime            | UI localize；import 在 mutation 前 normalize                     |
 | URL              | URI-reference TEXT / `url`                     | 可写     | equality、`in`、contains/prefix/suffix        | 是   | 是    | raw URI-reference                                 | C/D/O                | null/empty/non-empty/distinct；optional raw-scheme facet      | 是                   | `url` atom           | 可用         | raw URI-reference                 | explicit policy-checked link/copy；image display 使用 Host lease |
 | Select           | Option-name TEXT / `select`                    | 可写     | equality、`in`、contains                      | 是   | 是    | Option name                                       | C/D/O                | null、observed Option facet、uncatalogued raw value           | text                 | `select` atom        | 可用         | Option name                       | color/icon 与 zero-use catalog entry 属于 UI state               |
 | Multi-select     | unique Option-name JSON array / `multi-select` | 可写     | whole equality/`in`；`has-any`/`has-all`      | 否   | 否    | 每个 Option name                                  | C/D on whole array   | empty row、selection count、distinct Option、Option facet     | 否                   | list of `select`     | 否           | JCS string array                  | UI 渲染 chips 并补充 zero-use catalog entry                      |
@@ -1032,6 +1033,12 @@ type FilterNode =
     }
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
+  | {
+      op: "relative-date"
+      fieldId: string
+      direction: "past" | "next" | "this"
+      unit: "day" | "week" | "month" | "year"
+    }
 ```
 
 以下 Draft 2020-12 JSON Schema 是 `RowQuery` 可执行的 structural validation。
@@ -1161,6 +1168,17 @@ Runtime 还会执行 Field/type/limit validation。
             "fieldId": { "$ref": "#/$defs/id" },
             "rowId": { "$ref": "#/$defs/id" }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "direction", "unit"],
+          "properties": {
+            "op": { "const": "relative-date" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "direction": { "enum": ["past", "next", "this"] },
+            "unit": { "enum": ["day", "week", "month", "year"] }
+          }
         }
       ]
     }
@@ -1184,13 +1202,13 @@ storage engine 的 SQL NULL/UNKNOWN 暴露为第三种 filter truth value。empt
 null query operand 无效；client 必须明确使用 `is-null` 或 `is-not-null`。在 operand
 valid 且 non-null 时，null Field value 的结果严格如下：
 
-| Leaf operation                                                                         | null Field 上的结果 |
-| -------------------------------------------------------------------------------------- | ------------------- |
-| `is-null`                                                                              | TRUE                |
-| `is-not-null`                                                                          | FALSE               |
-| `ne`                                                                                   | TRUE                |
-| `eq`、ordered comparison、`between`、`in`、string predicate、`has-any`、`relation-has` | FALSE               |
-| 带一个或多个 operand 的 `has-all`                                                      | FALSE               |
+| Leaf operation                                                                                          | null Field 上的结果 |
+| ------------------------------------------------------------------------------------------------------- | ------------------- |
+| `is-null`                                                                                               | TRUE                |
+| `is-not-null`                                                                                           | FALSE               |
+| `ne`                                                                                                    | TRUE                |
+| `eq`、ordered comparison、`between`、`in`、string predicate、relative window、`has-any`、`relation-has` | FALSE               |
+| 带一个或多个 operand 的 `has-all`                                                                       | FALSE               |
 
 与 operand 无关的恒等式仍然成立：empty `in` 与 empty `has-any` 为 FALSE；empty
 `has-all` 为 TRUE。因此 `not(eq(field, value))`、`not(contains(field, text))` 与
@@ -1207,6 +1225,7 @@ Operator/type compatibility 是 normative：
 | `contains`、`starts-with`、`ends-with`     | `text`、`url`、`select`、`row-id`                       |
 | `has-any`、`has-all`                       | Multi-select、Relation、File 与每个 public list TypeRef |
 | `relation-has`                             | forward 或 inverse Relation                             |
+| `relative-date`                            | `date`、`datetime`                                      |
 
 Operand MUST 具有 Field 的精确 logical type；Runtime 不执行 string、number、
 Boolean、date 或 ID coercion。`eq` 使用 typed exact equality，`ne` 使用其
@@ -1215,6 +1234,21 @@ list/Multi-select/File/Relation 使用 length 加 ordered typed element equality
 `in` 是 typed `eq` comparison 的 Boolean OR。`contains`、`starts-with` 与
 `ends-with` 在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode scalar sequence；
 非 ASCII 保持不变。`search` 使用同一 portable fold。
+
+`relative-date` 通过 direction 与 unit 组合能力，而不是枚举每个快捷条件。Runtime
+在 root query request 开始时捕获一个 canonical UTC reference instant `R`，同一
+request 的所有 relative leaf 使用同一个 `R`。对于 `past` 与 `next`，day 和 week
+分别是一个或七个精确的 24-hour day；month 和 year 将 `R` 按 UTC calendar 移动
+一个单位，并把 day clamp 到 target month 最后一个 valid day。past 与 next window
+均包含首尾，分别为 `[boundary,R]` 与 `[R,boundary]`。
+
+对于 `this`，Runtime 选择包含 `R` 的 UTC calendar period：day 从 00:00 到当天最后
+一毫秒；week 使用 ISO 周一到周日；month 是当前 calendar month；year 是当前 calendar
+year。Datetime 比较 exact canonical instant；Date 则先把两个 bound 投影为 UTC
+`YYYY-MM-DD` date，再进行 inclusive comparison。continuation cursor 必须绑定原始
+`R`，同一 query 的分页不能让 window 移动。新的 root request（包括重新打开 saved
+View）捕获新的 `R`；saved relative filter 因而持续保持 relative，绝不能被替换为
+persisted absolute date。
 
 Multi-select、File、Relation 与 list result 使用 `[]`，绝不使用 null。因此 empty
 list 与 null 不同：empty list 上 `eq []` 为 TRUE、`is-null` 为 FALSE，与 non-empty
@@ -2180,10 +2214,14 @@ Table。
 
 Create/update `values` 是 sparse Field-ID map。Runtime 拒绝 display name、
 physical name、unknown Field、system Field、Formula、Lookup 与 inverse Relation
-key。它在打开 write transaction 前验证完整 logical value。missing nullable Field
-成为 null。missing Multi-select、File 与 forward Relation Field 使用 `[]`。
-其他所有 missing non-null user Field 都是 `invalid-value`；不存在 hidden type
-default。Runtime 填充 Row ID 与 created/updated timestamp。
+key。它在打开 write transaction 前验证完整 logical value。具有有效 File Format
+`settings.defaultOption` 的 missing Select Field 使用该 exact option name。此规则
+只用于 create，且只在 `values` 中没有该 Field ID 时运行；nullable Select 的显式
+null 会抑制 default。其他 missing nullable Field 成为 null。missing Multi-select、
+File 与 forward Relation Field 使用 `[]`。其他所有 missing non-null user Field
+都是 `invalid-value`；不存在 implicit type default。Runtime 填充 Row ID 与
+created/updated timestamp。CSV import/replay 保持其 explicit input contract；除非
+它调用 ordinary row-create operation，否则不得推断此 create-time default。
 
 display catalog 中不存在的 Select value 仍然有效。Multi-select 与 Relation value
 必须已 ordered/unique；Runtime 不会默默 deduplicate。JSON Field input 是 JCS
@@ -2508,9 +2546,11 @@ required `toNullable`；list/forward-Relation destination 固定 non-null。
 
 在 populated Table 上创建 stored Field 有精确的 fill behavior。nullable scalar
 Field 以 SQL NULL 填充每个 existing row。只有 Table 为零行时才允许创建
-non-nullable scalar Field；Runtime 1.0 中没有 default/initial-value member。
-Multi-select、File 与 forward Relation Field 以 canonical `[]` 填充每个 existing
-row。Formula、Lookup 与 inverse Relation Field 不添加 user-table column。
+non-nullable scalar Field；Runtime 1.0 中没有 general default/initial-value
+member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
+existing row。Multi-select、File 与 forward Relation Field 以 canonical `[]`
+填充每个 existing row。Formula、Lookup 与 inverse Relation Field 不添加
+user-table column。
 
 `convert-field.fieldId` 当前必须标识 stored scalar、Multi-select、File 或
 forward Relation Field。system Field、Formula、Lookup 或 inverse Relation 以
@@ -2888,8 +2928,9 @@ Relation/Lookup/Formula reference。如果 dependent Formula、Lookup、Record L
 
 `rename-option` 仅适用于 Select/Multi-select。`from` 与 `to` 是精确的 valid option
 string，且 MUST 不同；相等时为 `invalid-request`。occurrence 指该 Field 的 catalog
-`name`、Select cell、Multi-select element 或 typed saved-View operand。使用
-`collision:"reject"` 时，destination MUST 在任何位置都没有 occurrence；否则
+`name`、Select cell、Multi-select element 或 typed saved-View operand。匹配的
+Select `settings.defaultOption` 也是 occurrence，必须在同一 atomic operation 中
+rename。使用 `collision:"reject"` 时，destination MUST 在任何位置都没有 occurrence；否则
 preflight 为 `forbidden`。Runtime 替换每个精确 source occurrence。Multi-select
 与 catalog order 保持不变，且 catalog entry 保留除其 `name` 外的全部 member。
 存在 source occurrence 时为 lossless-rewrite。不存在时，preflight 为

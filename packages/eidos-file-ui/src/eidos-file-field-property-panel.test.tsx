@@ -18,6 +18,14 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   configurable: true,
   value: vi.fn(),
 })
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+)
 
 function field(
   type: EidosFileFieldInfo["type"],
@@ -307,6 +315,150 @@ describe("EidosFileFieldPropertyPanel", () => {
       property: {
         options: [{ name: "Done", color: "green" }],
       },
+    })
+  })
+
+  it("configures a create-time default for a Select field", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("select", {
+            options: [
+              { name: "Todo", color: "blue" },
+              { name: "Done", color: "green" },
+            ],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Default option for new records"]'
+        )
+        ?.click()
+    )
+    expect(
+      document.body.querySelector<HTMLInputElement>(
+        'input[placeholder="Search options…"]'
+      )
+    ).not.toBeNull()
+    const todo = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Todo")
+    expect(
+      todo?.querySelector('[data-eidos-file-option-color="blue"]')
+    ).not.toBeNull()
+    await act(async () => {
+      todo?.click()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      property: {
+        options: [
+          { name: "Todo", color: "blue" },
+          { name: "Done", color: "green" },
+        ],
+        defaultOption: "Todo",
+      },
+    })
+  })
+
+  it("clears a Select default from the searchable option picker", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("select", {
+            options: [
+              { name: "Todo", color: "blue" },
+              { name: "Done", color: "green" },
+            ],
+            defaultOption: "Todo",
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    expect(
+      container
+        .querySelector('[aria-label="Default option for new records"]')
+        ?.querySelector('[data-eidos-file-option-color="blue"]')
+    ).not.toBeNull()
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Default option for new records"]'
+        )
+        ?.click()
+    )
+    const noDefault = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "No default")
+    await act(async () => {
+      noDefault?.click()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      property: {
+        options: [
+          { name: "Todo", color: "blue" },
+          { name: "Done", color: "green" },
+        ],
+      },
+    })
+  })
+
+  it("renames the Select default together with its option", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("select", {
+            options: [{ name: "Todo", color: "blue" }],
+            defaultOption: "Todo",
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const optionInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Todo option value"]'
+    )
+    await act(async () => {
+      optionInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(optionInput, "Backlog")
+      optionInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      optionInput?.blur()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      property: {
+        options: [{ name: "Backlog", color: "blue" }],
+        defaultOption: "Backlog",
+      },
+      optionValueChanges: [{ from: "Todo", to: "Backlog" }],
     })
   })
 

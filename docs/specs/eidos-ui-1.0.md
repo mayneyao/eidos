@@ -1489,6 +1489,15 @@ catalog is shown as an unconfigured raw value, not replaced or dropped.
 Renaming an option invokes Runtime's option-rename schema/data migration; a UI
 MUST NOT implement it as a label-only edit.
 
+A Select Field property surface MUST expose its create-time default as either
+**No default** or exactly one configured option. Choosing it commits
+`settings.defaultOption` through the ordinary revision-checked schema path.
+Renaming the selected option retargets the default in the same atomic option
+rename; deleting the selected catalog entry clears the default in the same
+metadata mutation. Multi-select MUST NOT expose this control. The UI does not
+pre-fill a draft cell to simulate the behavior: Runtime applies the default
+only when a create mutation omits the Field.
+
 An explicit Create option action in a Select or Multi-select editor first
 commits the complete updated Field option catalog. Only after that metadata
 mutation succeeds may UI submit the cell value against the returned revision.
@@ -1801,6 +1810,20 @@ an empty list is not represented as null. The editor MUST preserve these
 meanings when loading and saving a View even if its internal compatibility
 model uses different operator names.
 
+Date and Datetime filter controls MUST expose **is**, **is before**, **is
+after**, **is on or before**, **is on or after**, **is between**, **is relative
+to today**, **is empty**, and **is not empty**. **Is between** accepts an
+ordered inclusive lower and upper value and emits `between`.
+
+**Is relative to today** exposes a direction (**past**, **next**, or **this**)
+and a unit (**day**, **week**, **month**, or **year**) and emits one
+`relative-date` leaf. The control persists direction and unit in the View and
+MUST NOT freeze the condition into absolute dates. Reopening it preserves both
+selections while Runtime remains authoritative for the reference instant,
+calendar-period rules, and inclusive boundaries. UI SHOULD explain that the
+result updates with the current date and MAY preview the computed interval in
+a calendar without making that preview canonical state.
+
 The common Fields control and the applicable Grid/Card/Kanban controls from
 Section 8 are required Editor surfaces, not optional authoring conveniences.
 Each control commits one revision-checked View mutation, remains usable when
@@ -1860,7 +1883,14 @@ A Formula editor shows and submits Runtime `sourceText`, whose references are
 quoted human Field names. Autocomplete inserts the Runtime grammar's escaped
 quoted form; it never shows generated SQL, a compiled AST, or Field IDs as the
 human source. For an existing Formula it previews with `fieldId`; for a new
-Formula it previews with `candidateName`. A resolved preview with
+Formula it previews with `candidateName`. Activating a read-only Formula result
+cell by double click, Enter, or Space MUST open that Formula editor. When the
+editor originates from a record cell, its preview request MUST set `rowIds` to
+that record so the visible sample remains anchored to the user's current
+context. The editor MUST also anchor to that originating cell and use collision
+handling to remain inside the visible workbench; opening from Field settings MAY
+use Runtime sample order and the host's global editor position instead. A
+resolved preview with
 `valid:false` is a candidate-analysis result, not a failed request; UI renders
 its diagnostics and does not read absent inferred-type, dependency, or row
 members. A thrown Runtime error instead follows ordinary request handling.

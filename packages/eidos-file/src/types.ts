@@ -280,6 +280,8 @@ export interface EidosFileFormulaPreviewInput {
   columnName: string
   formula: string
   displayType: EidosFileFormulaResultType
+  /** Restrict preview samples to these records, preserving UI context. */
+  rowIds?: string[]
 }
 
 export interface EidosFileFormulaPreviewDependency {
@@ -483,14 +485,30 @@ export type EidosFileFilterOperator =
   | "is-any-of"
   | "is-all-of"
   | "is-none-of"
+  | "is-between"
+  | "is-relative-to-today"
 
 export type EidosFileFilterValue = string | number | boolean | null
+
+export type EidosFileRelativeDateDirection = "past" | "next" | "this"
+
+export type EidosFileRelativeDateUnit = "day" | "week" | "month" | "year"
+
+export interface EidosFileRelativeDateValue {
+  direction: EidosFileRelativeDateDirection
+  unit: EidosFileRelativeDateUnit
+}
+
+export type EidosFileFilterRuleValue =
+  | EidosFileFilterValue
+  | EidosFileFilterValue[]
+  | EidosFileRelativeDateValue
 
 export interface EidosFileFilterRule {
   type: "rule"
   field: string
   operator: EidosFileFilterOperator
-  value?: EidosFileFilterValue | EidosFileFilterValue[]
+  value?: EidosFileFilterRuleValue
 }
 
 export interface EidosFileFilterGroup {

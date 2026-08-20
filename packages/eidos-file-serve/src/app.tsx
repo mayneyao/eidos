@@ -37,6 +37,7 @@ import { EidosFileViewTabs } from "@eidos.space/eidos-file-ui/eidos-file-view-ta
 import {
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
+  type EidosFileFormulaEditorAnchor,
 } from "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor"
 import {
   createEidosFilePluginRegistry,
@@ -77,6 +78,12 @@ const EidosFileEditorView = lazy(() =>
     })
   )
 )
+
+interface FormulaEditorTarget {
+  field: EidosFileFieldInfo
+  previewRowId?: string
+  anchor?: EidosFileFormulaEditorAnchor
+}
 
 type Theme = "light" | "dark"
 
@@ -187,9 +194,8 @@ export function ServeApp() {
     null
   )
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
-  const [formulaTarget, setFormulaTarget] = useState<EidosFileFieldInfo | null>(
-    null
-  )
+  const [formulaTarget, setFormulaTarget] =
+    useState<FormulaEditorTarget | null>(null)
   const [lookupTarget, setLookupTarget] = useState<EidosFileFieldInfo | null>(
     null
   )
@@ -564,6 +570,16 @@ export function ServeApp() {
       return current.previewFormula(activeTable.table.id, input)
     },
     [activeTable]
+  )
+  const openFormulaEditor = useCallback(
+    (
+      field: EidosFileFieldInfo,
+      previewRowId?: string,
+      anchor?: EidosFileFormulaEditorAnchor
+    ) => {
+      setFormulaTarget({ field, previewRowId, anchor })
+    },
+    []
   )
 
   const saveDerivedProperty = useCallback(
@@ -1116,15 +1132,17 @@ export function ServeApp() {
           overlays={
             <>
               <EidosFileFormulaEditorPopover
-                field={formulaTarget}
+                field={formulaTarget?.field ?? null}
                 fields={activeTable.fields}
+                previewRowId={formulaTarget?.previewRowId}
+                anchor={formulaTarget?.anchor}
                 open={formulaTarget !== null}
                 onOpenChange={(open) => {
                   if (!open) setFormulaTarget(null)
                 }}
                 onPreview={previewActiveFormula}
                 onSave={(property) =>
-                  saveDerivedProperty(formulaTarget, property)
+                  saveDerivedProperty(formulaTarget?.field ?? null, property)
                 }
               />
               <EidosFileLookupEditorPopover
@@ -1173,7 +1191,7 @@ export function ServeApp() {
               onDeleteRows={deleteRowRanges}
               onFieldOpen={setPropertyField}
               onFieldClose={() => setPropertyField(null)}
-              onEditFormula={setFormulaTarget}
+              onEditFormula={openFormulaEditor}
               onEditLookup={setLookupTarget}
               onFieldAdd={(position) => {
                 setFieldInsertIndex(position ?? null)

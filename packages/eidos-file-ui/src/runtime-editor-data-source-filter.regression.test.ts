@@ -148,4 +148,34 @@ describe("Runtime editor filter regression", () => {
 
     expect(boundary.editorFilter(runtimeFilter)).toEqual(editorFilter)
   })
+
+  it("round-trips composable relative date filters without an absolute operand", () => {
+    const boundary = filterBoundary()
+    const editorFilter: EidosFileFilterGroup = {
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: TITLE,
+          operator: "is-relative-to-today",
+          value: { direction: "past", unit: "month" },
+        },
+      ],
+    }
+
+    const runtimeFilter = boundary.runtimeFilter(editorFilter)
+    expect(runtimeFilter).toEqual({
+      op: "and",
+      args: [
+        {
+          op: "relative-date",
+          fieldId: TITLE,
+          direction: "past",
+          unit: "month",
+        },
+      ],
+    })
+    expect(boundary.editorFilter(runtimeFilter)).toEqual(editorFilter)
+  })
 })

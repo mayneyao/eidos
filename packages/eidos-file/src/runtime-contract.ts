@@ -364,6 +364,12 @@ export type FilterNode =
     }
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
+  | {
+      op: "relative-date"
+      fieldId: string
+      direction: "past" | "next" | "this"
+      unit: "day" | "week" | "month" | "year"
+    }
 
 export interface QueryRowsRequest {
   tableId: string

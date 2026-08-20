@@ -46,7 +46,12 @@ import {
   encodeEidosFileRelationIds,
 } from "./relation-values"
 import { incrementEidosFileRevision } from "./schema"
-import { assertEidosFileSelectOptions } from "./select-options"
+import {
+  assertEidosFileMultiSelectHasNoDefaultOption,
+  assertEidosFileSelectDefaultOption,
+  assertEidosFileSelectOptions,
+  parseEidosFileSelectDefaultOption,
+} from "./select-options"
 import { scanStableRowPages } from "./stable-row-scan"
 import {
   currentEidosFileInstant,
@@ -415,6 +420,13 @@ function presentationSettings(
       color: option.color,
       name: option.name,
     }))
+    if (input.type === "select") {
+      const defaultOption = assertEidosFileSelectDefaultOption(property)
+      if (defaultOption === null) delete property.defaultOption
+      else property.defaultOption = defaultOption
+    } else {
+      assertEidosFileMultiSelectHasNoDefaultOption(property)
+    }
   }
   return property
 }
@@ -1857,14 +1869,6 @@ export class EidosFileRuntime {
       if (changes.property !== undefined) {
         settings = presentationSettingsObject(changes.property)
       }
-      if (field.type === "select" || field.type === "multi-select") {
-        settings.options = assertEidosFileSelectOptions(settings).map(
-          (option) => ({
-            color: option.color,
-            name: option.name,
-          })
-        )
-      }
       if (changes.optionValueChanges && changes.optionValueChanges.length > 0) {
         if (field.type !== "select" && field.type !== "multi-select") {
           throw new EidosFileError(
@@ -1872,6 +1876,41 @@ export class EidosFileRuntime {
             "Only Select Fields have option values"
           )
         }
+        const replacements = new Map(
+          changes.optionValueChanges.map((change) => [change.from, change.to])
+        )
+        const options = assertEidosFileSelectOptions(settings)
+        const existingNames = new Set(options.map((option) => option.name))
+        settings.options = options.flatMap((option) => {
+          const replacement = replacements.get(option.name)
+          if (replacement === undefined) return [option]
+          if (existingNames.has(replacement)) return []
+          return [{ ...option, name: replacement }]
+        })
+        if (
+          field.type === "select" &&
+          typeof settings.defaultOption === "string"
+        ) {
+          settings.defaultOption =
+            replacements.get(settings.defaultOption) ?? settings.defaultOption
+        }
+      }
+      if (field.type === "select" || field.type === "multi-select") {
+        settings.options = assertEidosFileSelectOptions(settings).map(
+          (option) => ({
+            color: option.color,
+            name: option.name,
+          })
+        )
+        if (field.type === "select") {
+          const defaultOption = assertEidosFileSelectDefaultOption(settings)
+          if (defaultOption === null) delete settings.defaultOption
+          else settings.defaultOption = defaultOption
+        } else {
+          assertEidosFileMultiSelectHasNoDefaultOption(settings)
+        }
+      }
+      if (changes.optionValueChanges && changes.optionValueChanges.length > 0) {
         const replacements = new Map(
           changes.optionValueChanges.map((change) => [change.from, change.to])
         )
@@ -3238,13 +3277,13 @@ export class EidosFileRuntime {
       projection?.includeRecordLabel !== false,
       projection?.includeRelationDisplays !== false
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
     const querySignature = canonicalizeEidosFileJson(compatibleQuery)
     const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
     const revision = String(this.info().revision ?? 0)
     let effectiveOffset = offset
     let cursorWhere = ""
     let cursorParams: EidosFileSqlPrimitive[] = []
+    let referenceInstant = this.nowInstant()
     if (cursor) {
       try {
         const payload = JSON.parse(decodeURIComponent(cursor)) as {
@@ -3256,6 +3295,7 @@ export class EidosFileRuntime {
           values: unknown[]
           lastId: string
           direction: "forward"
+          referenceInstant?: string
         }
         if (
           payload.version !== 1 ||
@@ -3268,6 +3308,12 @@ export class EidosFileRuntime {
           throw new Error("cursor binding mismatch")
         }
         effectiveOffset = payload.offset
+        if (payload.referenceInstant !== undefined) {
+          referenceInstant = normalizeEidosFileInstant(
+            payload.referenceInstant,
+            "Cursor reference instant"
+          )
+        }
         const keyset = compileKeysetAfter(
           sorts,
           payload.values.map(decodeCursorSqlValue),
@@ -3282,6 +3328,9 @@ export class EidosFileRuntime {
         )
       }
     }
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant,
+    })
     const whereSql = cursorWhere
       ? compiled.whereSql
         ? `${compiled.whereSql} AND ${cursorWhere}`
@@ -3330,7 +3379,7 @@ export class EidosFileRuntime {
         Object.entries(mapped).filter(([key]) => selected.has(key))
       )
     })
-    const total = totalHint ?? this.countRows(tableId, query)
+    const total = totalHint ?? this.countRows(tableId, query, referenceInstant)
     const nextOffset = effectiveOffset + rawRows.length
     const lastRawRow = rawRows.at(-1)
     const nextCursor =
@@ -3347,6 +3396,7 @@ export class EidosFileRuntime {
               ),
               lastId: String(lastRawRow.__base_rowid),
               direction: "forward",
+              referenceInstant,
             })
           )
         : undefined
@@ -3375,7 +3425,9 @@ export class EidosFileRuntime {
       false,
       false
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
     const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
     const targetWhere = compiled.whereSql
       ? `${compiled.whereSql} AND "__base_rowid" = ?`
@@ -3594,7 +3646,9 @@ export class EidosFileRuntime {
   ): EidosFileLogicalRow[] {
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const source = this.logicalSource(tableId, fieldIds, false, false)
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
     const selectedFields = fieldIds.map((fieldId) =>
       this.fieldByKey(tableId, fieldId)
     )
@@ -3748,11 +3802,16 @@ export class EidosFileRuntime {
         ),
         lastId: row.id,
         direction: "forward",
+        referenceInstant: this.nowInstant(),
       })
     )
   }
 
-  countRows(tableId: string, query: EidosFileRowQuery = {}): number {
+  countRows(
+    tableId: string,
+    query: EidosFileRowQuery = {},
+    referenceInstant = this.nowInstant()
+  ): number {
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
     const source = this.logicalSource(
@@ -3761,7 +3820,9 @@ export class EidosFileRuntime {
       false,
       false
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant,
+    })
     return (
       this.connection.get<{ count: number }>(
         `WITH logical AS (${source.sql}) SELECT count(*) AS count FROM logical ${compiled.whereSql}`,
@@ -3784,7 +3845,9 @@ export class EidosFileRuntime {
       false,
       false
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
     const column = quoteIdentifier(field.tableColumnName)
     if (
       field.storageCodec === "json_array" ||
@@ -3831,7 +3894,9 @@ export class EidosFileRuntime {
       false,
       false
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
     return configs.map((config) => {
       const field = this.fieldByKey(tableId, config.fieldId)
       const column = quoteIdentifier(field.tableColumnName)
@@ -4059,7 +4124,8 @@ export class EidosFileRuntime {
   private rowChanges(
     tableId: string,
     row: EidosFileRow,
-    allowUnresolvedRelations: boolean
+    allowUnresolvedRelations: boolean,
+    applyCreateDefaults = false
   ): Array<{ field: EidosFileFieldInfo; value: EidosFileSqlPrimitive }> {
     const changes: Array<{
       field: EidosFileFieldInfo
@@ -4083,13 +4149,37 @@ export class EidosFileRuntime {
         ),
       })
     }
+    if (applyCreateDefaults) {
+      const suppliedFieldIds = new Set(changes.map((change) => change.field.id))
+      for (const field of this.listFields(tableId)) {
+        if (
+          field.type !== "select" ||
+          !field.id ||
+          !field.physicalName ||
+          suppliedFieldIds.has(field.id)
+        ) {
+          continue
+        }
+        const defaultOption = parseEidosFileSelectDefaultOption(field.settings)
+        if (defaultOption === null) continue
+        changes.push({
+          field,
+          value: this.normalizeStoredValue(
+            field,
+            defaultOption,
+            allowUnresolvedRelations
+          ),
+        })
+      }
+    }
     return changes
   }
 
   private insertRowInTransaction(
     tableId: string,
     row: EidosFileRow,
-    allowUnresolvedRelations: boolean
+    allowUnresolvedRelations: boolean,
+    applyCreateDefaults: boolean
   ): string {
     const table = this.getTable(tableId)
     const requestedId = row._id ?? row.id
@@ -4098,7 +4188,12 @@ export class EidosFileRuntime {
         ? assertEidosFileUuid(requestedId, "Row ID")
         : this.allocateId()
     const now = this.operationInstant()
-    const changes = this.rowChanges(tableId, row, allowUnresolvedRelations)
+    const changes = this.rowChanges(
+      tableId,
+      row,
+      allowUnresolvedRelations,
+      applyCreateDefaults
+    )
     const columns = [
       "_id",
       "_created_at",
@@ -4218,14 +4313,14 @@ export class EidosFileRuntime {
 
   insertRow(tableId: string, row: EidosFileRow): EidosFileRow {
     const id = this.mutate(() =>
-      this.insertRowInTransaction(tableId, row, true)
+      this.insertRowInTransaction(tableId, row, true, true)
     )
     return this.getRow(tableId, id)!
   }
 
   insertImportedRow(tableId: string, row: EidosFileRow): EidosFileRow {
     const id = this.mutate(() =>
-      this.insertRowInTransaction(tableId, row, true)
+      this.insertRowInTransaction(tableId, row, true, false)
     )
     return this.getRow(tableId, id)!
   }
@@ -4828,6 +4923,22 @@ export class EidosFileRuntime {
     )
     const table = this.getTable(tableId)
     const label = fields.find((field) => field.isRecordLabel)!
+    const previewRowIds =
+      input.rowIds === undefined
+        ? undefined
+        : Array.from(
+            new Set(
+              input.rowIds.map((rowId) =>
+                assertEidosFileUuid(rowId, "Formula preview Row ID")
+              )
+            )
+          ).slice(0, 100)
+    const rowFilter =
+      previewRowIds === undefined
+        ? ""
+        : previewRowIds.length === 0
+          ? "WHERE 0"
+          : `WHERE base."_id" IN (${previewRowIds.map(() => "?").join(", ")})`
     const samples = this.connection.query<{
       row_id: string
       title: EidosFileSqlPrimitive
@@ -4837,7 +4948,9 @@ export class EidosFileRuntime {
               ${this.fieldExpression(label, "base", schema)} AS title,
               ${sampleExpression} AS value
          FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} base
-        ORDER BY base."_id" LIMIT 5`
+        ${rowFilter}
+        ORDER BY base."_id" LIMIT ${previewRowIds?.length || 5}`,
+      previewRowIds ?? []
     )
     return {
       expression,
@@ -5094,7 +5207,8 @@ export class EidosFileRuntime {
         this.insertRowInTransaction(
           input.tableId,
           this.logicalMutationFields(input.tableId, row.fields, row.id),
-          false
+          false,
+          true
         )
       )
       const changedUpdates: string[] = []

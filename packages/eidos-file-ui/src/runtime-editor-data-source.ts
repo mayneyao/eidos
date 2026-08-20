@@ -24,6 +24,7 @@ import {
   type EidosFileFilterGroup,
   type EidosFileFilterOperator,
   type EidosFileFilterRule,
+  type EidosFileRelativeDateValue,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
   type EidosFileLogicalValue,
@@ -524,6 +525,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           : { candidateName: input.name }),
         sourceText: input.formula,
         declaredResultType: input.displayType,
+        ...(input.rowIds === undefined ? {} : { rowIds: input.rowIds }),
       },
       this.context("formula-preview")
     )
@@ -1918,6 +1920,40 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                     : field.valueType,
         }
       : undefined
+    if (operator === "is-relative-to-today") {
+      const relative = raw as EidosFileRelativeDateValue | null
+      if (
+        !relative ||
+        !["past", "next", "this"].includes(relative.direction) ||
+        !["day", "week", "month", "year"].includes(relative.unit)
+      ) {
+        throw new TypeError(
+          "Relative date filter requires a direction and unit"
+        )
+      }
+      return {
+        op: "relative-date",
+        fieldId,
+        direction: relative.direction,
+        unit: relative.unit,
+      }
+    }
+    if (operator === "is-between") {
+      if (!Array.isArray(raw) || raw.length !== 2) {
+        throw new TypeError("Between filter requires two operands")
+      }
+      const [rawLower, rawUpper] = raw
+      const lower = elementField
+        ? this.runtimeValue(elementField, rawLower)
+        : (rawLower as LogicalValue)
+      const upper = elementField
+        ? this.runtimeValue(elementField, rawUpper)
+        : (rawUpper as LogicalValue)
+      if (lower === null || upper === null) {
+        throw new TypeError("Between filter requires non-null operands")
+      }
+      return { op: "between", fieldId, lower, upper }
+    }
     const values = (Array.isArray(raw) ? raw : [raw ?? null]).map((value) =>
       elementField
         ? this.runtimeValue(elementField, value)
@@ -2035,6 +2071,22 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           const filter = this.editorFilterNode(child)
           return filter ? [filter] : []
         }),
+      }
+    }
+    if (node.op === "between") {
+      return {
+        type: "rule",
+        field: node.fieldId,
+        operator: "is-between",
+        value: [node.lower, node.upper] as never,
+      }
+    }
+    if (node.op === "relative-date") {
+      return {
+        type: "rule",
+        field: node.fieldId,
+        operator: "is-relative-to-today",
+        value: { direction: node.direction, unit: node.unit },
       }
     }
     const operators: Partial<

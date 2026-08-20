@@ -122,7 +122,10 @@ describe("Eidos File 1.0 native Runtime", () => {
           {
             name: "Status",
             type: "select",
-            property: { options: [{ name: "Todo" }, { name: "Done" }] },
+            property: {
+              options: [{ name: "Todo" }, { name: "Done" }],
+              defaultOption: "Todo",
+            },
           },
         ],
       },
@@ -136,7 +139,7 @@ describe("Eidos File 1.0 native Runtime", () => {
         tableId: schema.table.id,
         expectedRevision: revision,
         insert: [
-          { fields: { [name.id]: "One", [status.id]: "Todo" } },
+          { fields: { [name.id]: "One" } },
           { fields: { [name.id]: "Two", [status.id]: "Done" } },
         ],
       })
@@ -145,6 +148,21 @@ describe("Eidos File 1.0 native Runtime", () => {
         "One",
         "Two",
       ])
+      expect(result.rows.map((row) => row.fields[status.id])).toEqual([
+        "Todo",
+        "Done",
+      ])
+      runtime.updateField(schema.table.id, status.id, {
+        optionValueChanges: [{ from: "Todo", to: "Backlog" }],
+      })
+      expect(
+        runtime
+          .listFields(schema.table.id)
+          .find((field) => field.id === status.id)?.property
+      ).toMatchObject({
+        defaultOption: "Backlog",
+        options: [{ name: "Backlog" }, { name: "Done" }],
+      })
       expect(runtime.queryRows(schema.table.id).rows).toHaveLength(2)
       expect(() =>
         runtime.mutateRows({
@@ -735,6 +753,53 @@ describe("Eidos File 1.0 native Runtime", () => {
           ["2026-02-30"]
         )
       ).toThrow()
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("previews a Formula against the requested record", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Orders",
+        fields: [
+          { name: "Name", type: "text", isRecordLabel: true },
+          { name: "Amount", type: "number" },
+        ],
+      },
+    })
+    try {
+      const schema = runtime.schema()[0]!
+      const name = schema.fields.find((field) => field.name === "Name")!
+      const amount = schema.fields.find((field) => field.name === "Amount")!
+      runtime.insertRow(schema.table.id, {
+        [name.tableColumnName]: "First order",
+        [amount.tableColumnName]: 2,
+      })
+      runtime.insertRow(schema.table.id, {
+        [name.tableColumnName]: "Selected order",
+        [amount.tableColumnName]: 7,
+      })
+      const selected = runtime
+        .listRows(schema.table.id)
+        .find((row) => row[name.tableColumnName] === "Selected order")!
+      const selectedRowId = String(selected._id)
+
+      expect(
+        runtime.previewFormula(schema.table.id, {
+          name: "Doubled",
+          columnName: "preview_doubled",
+          formula: '"Amount" * 2',
+          displayType: "number",
+          rowIds: [selectedRowId],
+        }).samples
+      ).toEqual([
+        {
+          rowId: selectedRowId,
+          title: "Selected order",
+          value: 14,
+        },
+      ])
     } finally {
       runtime.close()
     }

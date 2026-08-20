@@ -26,6 +26,7 @@ import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
+import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
 
 let optimisticRowSequence = 0
 
@@ -56,7 +57,11 @@ export interface EidosFileDataGridProps {
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
   onFieldAdd?: (position?: number) => void
-  onEditFormula?: (field: EidosFileFieldInfo) => void
+  onEditFormula?: (
+    field: EidosFileFieldInfo,
+    previewRowId?: string,
+    anchor?: EidosFileFormulaEditorAnchor
+  ) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onSearchResultCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
