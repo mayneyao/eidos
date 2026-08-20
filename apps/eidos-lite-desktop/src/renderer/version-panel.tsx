@@ -45,6 +45,7 @@ import {
   VersionTableDiff,
   type VersionTableRecordSelection,
 } from "./version-table-diff"
+import { VersionWorkingMediaPreview } from "./version-media-preview"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
@@ -542,6 +543,12 @@ export function VersionDiffPreview({
     inspection.type === "file" &&
     Boolean(inspection.change.previousPath) &&
     changeLabel(inspection.change.change) === "Renamed"
+  const showsWorkingBinaryPreview =
+    inspection.type === "file" &&
+    inspection.mode === "changes" &&
+    inspection.change.kind === "binary_file" &&
+    changeLabel(inspection.change.change) !== "Deleted" &&
+    !showsRename
   const comparesAlternateMergeParent = Boolean(
     inspection.mode === "history" &&
     inspection.commit &&
@@ -686,7 +693,7 @@ export function VersionDiffPreview({
       </header>
 
       <div
-        className={`version-inspector-scroll${inspection.type === "table" ? " version-inspector-table-layout" : ""}${showsTextDiff ? " version-inspector-text-layout" : ""}`}
+        className={`version-inspector-scroll${inspection.type === "table" ? " version-inspector-table-layout" : ""}${showsTextDiff ? " version-inspector-text-layout" : ""}${showsWorkingBinaryPreview ? " version-inspector-media-layout" : ""}`}
       >
         {inspection.type === "table" ? (
           <>
@@ -752,6 +759,8 @@ export function VersionDiffPreview({
               theme={theme}
             />
           )
+        ) : showsWorkingBinaryPreview ? (
+          <VersionWorkingMediaPreview path={inspection.change.path} />
         ) : inspection.loadingDetails ? (
           <div
             className="version-inspector-loading"
@@ -871,9 +880,13 @@ export function VersionDiffPreview({
                 <>
                   <strong>File change recorded</strong>
                   <p>
-                    {inspection.commit?.parent
-                      ? "Detailed content changes are not available for this saved version."
-                      : "This first version shows file metadata only."}
+                    {inspection.mode === "changes"
+                      ? changeLabel(inspection.change.change) === "Deleted"
+                        ? "This file was deleted locally. Its previous binary content is not available in this preview."
+                        : "Content preview is not available for this local file."
+                      : inspection.commit?.parent
+                        ? "Detailed content changes are not available for this saved version."
+                        : "This first saved version shows file metadata only."}
                   </p>
                 </>
               )}

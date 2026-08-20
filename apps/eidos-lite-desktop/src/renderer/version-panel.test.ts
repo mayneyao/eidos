@@ -2093,6 +2093,63 @@ describe("VersionPanel table diff", () => {
     expect(markup).not.toContain("metadata only")
   })
 
+  it("loads local media instead of calling an added image a first version", () => {
+    const image = {
+      path: "dev/assets/image.png",
+      change: "added",
+      kind: "binary_file",
+    }
+    const inspection: VersionInspection = {
+      type: "file",
+      key: image.path,
+      mode: "changes",
+      diff: { ...versionDiff, paths: [image], files: [] },
+      change: image,
+      file: null,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        theme: "light",
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Loading local media…")
+    expect(markup).not.toContain("File change recorded")
+    expect(markup).not.toContain("first version")
+  })
+
+  it("describes a deleted local binary without calling it a first version", () => {
+    const deleted = {
+      path: "dev/assets/old-image.png",
+      change: "deleted",
+      kind: "binary_file",
+    }
+    const inspection: VersionInspection = {
+      type: "file",
+      key: deleted.path,
+      mode: "changes",
+      diff: { ...versionDiff, paths: [deleted], files: [] },
+      change: deleted,
+      file: null,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        theme: "light",
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("This file was deleted locally")
+    expect(markup).not.toContain("first version")
+  })
+
   it("reduces a pure rename to its old and new paths", () => {
     const renamed = {
       path: "docs/new-name.png",

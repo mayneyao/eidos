@@ -6337,6 +6337,12 @@ body {
   overflow: hidden;
 }
 
+.version-inspector-scroll.version-inspector-media-layout {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .version-inspector-diff-bar {
   display: flex;
   min-width: 0;

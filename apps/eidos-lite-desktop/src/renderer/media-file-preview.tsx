@@ -18,8 +18,8 @@ export function MediaFilePreview({
   onReveal,
 }: {
   preview: MediaPreview
-  platform: string
-  onReveal(): void
+  platform?: string
+  onReveal?(): void
 }) {
   const { t } = useEidosLiteI18n()
   const kindLabel =
@@ -51,13 +51,16 @@ export function MediaFilePreview({
           {kindLabel}
         </span>
         <span>{formatBytes(preview.size)}</span>
-        <button
-          type="button"
-          className="editor-empty-action media-preview-reveal"
-          onClick={onReveal}
-        >
-          <FolderOpen aria-hidden="true" /> {t(fileManagerMessage(platform))}
-        </button>
+        {onReveal ? (
+          <button
+            type="button"
+            className="editor-empty-action media-preview-reveal"
+            onClick={onReveal}
+          >
+            <FolderOpen aria-hidden="true" />
+            {t(fileManagerMessage(platform ?? ""))}
+          </button>
+        ) : null}
       </header>
       <div className="media-preview-stage">
         {preview.mediaKind === "image" ? (
