@@ -100,8 +100,11 @@ gh run list --workflow publish-eidos-file-packages.yml --limit 10
 gh run watch <run-id> --exit-status
 ```
 
-The workflow rebuilds and rechecks the plan on the tag, publishes Runtime first,
-waits for it to become readable from npm, and then publishes UI. It publishes
+The workflow rebuilds and rechecks the plan on the tag, publishes UI first,
+waits for it to become readable from npm, and then publishes Runtime. UI is the
+less frequently exercised Trusted Publisher, while Runtime is already proven;
+this order avoids leaving a new Runtime-only cohort when UI authorization is
+incomplete. It publishes
 the reviewed tarballs with provenance; it does not rebuild between review and
 registry writes. Paths passed to `npm publish` must be explicitly relative
 (`./package-release/<tarball>.tgz`); without the `./` prefix, npm can interpret

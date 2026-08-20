@@ -164,7 +164,7 @@ jobs:
         working-directory: package-release
         run: sha256sum --check SHA256SUMS
 
-      - name: Publish Runtime, then UI
+      - name: Publish UI, then Runtime
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -185,16 +185,20 @@ jobs:
             fi
             npm publish "./$tarball" --access public --provenance
           }
-          publish_or_verify "@eidos.space/eidos-file" "$core_tar"
+          # Publish UI first because it is the package whose Trusted Publisher
+          # configuration must be proven. Runtime has already published through
+          # this workflow successfully, so this ordering avoids leaving a new
+          # Runtime-only cohort when UI authorization is incomplete.
+          publish_or_verify "@eidos.space/eidos-file-ui" "$ui_tar"
           for attempt in $(seq 1 24); do
-            published="$(npm view "@eidos.space/eidos-file@${VERSION}" version 2>/dev/null || true)"
+            published="$(npm view "@eidos.space/eidos-file-ui@${VERSION}" version 2>/dev/null || true)"
             if [ "$published" = "$VERSION" ]; then
               break
             fi
             sleep 5
           done
-          test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
-          publish_or_verify "@eidos.space/eidos-file-ui" "$ui_tar"
+          test "$(npm view "@eidos.space/eidos-file-ui@${VERSION}" version)" = "$VERSION"
+          publish_or_verify "@eidos.space/eidos-file" "$core_tar"
 
       - name: Verify public registry state
         env:
