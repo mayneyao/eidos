@@ -16,6 +16,7 @@ const pierre = vi.hoisted(() => ({
   editorInstances: vi.fn(),
   fileContents: vi.fn(),
   fileLifecycle: vi.fn(),
+  fileLineMarkup: vi.fn(),
   fileOptions: vi.fn(),
   onEditorChange: undefined as
     | ((file: { contents: string }) => void)
@@ -57,10 +58,21 @@ vi.mock("@pierre/diffs/react", () => ({
       onChange(file: { contents: string }): void
     }
     file: { contents: string }
-    options: { themeType: "light" | "dark" }
+    options: {
+      themeType: "light" | "dark"
+      onPostRender?(node: HTMLElement): void
+    }
   }) => {
     pierre.fileContents(file.contents)
     pierre.fileOptions(options)
+    const fileContainer = document.createElement("div")
+    const shadowRoot = fileContainer.attachShadow({ mode: "open" })
+    shadowRoot.innerHTML =
+      '<div data-line="1" data-line-type="context"><span data-char="0"></span></div>'
+    options.onPostRender?.(fileContainer)
+    pierre.fileLineMarkup(
+      shadowRoot.querySelector('[data-line="1"]')?.innerHTML
+    )
     pierre.onEditorChange = editorOptions.onChange
     useEffect(() => {
       const editor = pierre.createEditor?.(editorOptions)
@@ -84,6 +96,7 @@ describe("PierreTextEditorSurface", () => {
     pierre.editorInstances.mockClear()
     pierre.fileContents.mockClear()
     pierre.fileLifecycle.mockClear()
+    pierre.fileLineMarkup.mockClear()
     pierre.fileOptions.mockClear()
     pierre.onEditorChange = undefined
   })
@@ -277,7 +290,23 @@ describe("PierreTextEditorSurface", () => {
       lineNumber: 1,
       character: 0,
     })
+    expect(pierre.fileLineMarkup).toHaveBeenCalledWith("<br>")
 
     await act(async () => root.unmount())
+  })
+
+  it("does not rewrite the first line of a non-empty file", () => {
+    renderToStaticMarkup(
+      createElement(PierreTextEditorSurface, {
+        relativePath: "notes/readme.md",
+        content: "# Readme",
+        theme: "light",
+        onChange: () => undefined,
+      })
+    )
+
+    expect(pierre.fileLineMarkup).toHaveBeenCalledWith(
+      '<span data-char="0"></span>'
+    )
   })
 })

@@ -5,6 +5,31 @@ import { EditProvider, File, Virtualizer } from "@pierre/diffs/react"
 import type { ResolvedAppearance } from "./app-appearance"
 import { shouldDisableTextEditorLineNumbers } from "./text-editor-options"
 
+function ensureEmptyEditorCaretTarget(
+  fileContainer: HTMLElement,
+  content: string
+) {
+  if (content !== "") return
+
+  const emptyLine = fileContainer.shadowRoot?.querySelector<HTMLElement>(
+    '[data-line="1"][data-line-type="context"]'
+  )
+  if (
+    !emptyLine ||
+    emptyLine.textContent !== "" ||
+    emptyLine.querySelector("br")
+  ) {
+    return
+  }
+
+  // Pierre renders a brand-new empty file as an empty token span. Chromium
+  // can focus the contenteditable host, but it cannot place a DOM caret in
+  // that span, so real keyboard input never reaches the editor. Pierre uses a
+  // <br> for empty lines after edits, so normalize the initial row to the same
+  // caret-bearing shape before the editor attaches.
+  emptyLine.replaceChildren(document.createElement("br"))
+}
+
 export default function PierreTextEditorSurface({
   relativePath,
   content,
@@ -56,6 +81,9 @@ export default function PierreTextEditorSurface({
     }),
     [content, relativePath, theme]
   )
+  const handlePostRender = useCallback((fileContainer: HTMLElement) => {
+    ensureEmptyEditorCaretTarget(fileContainer, currentContentRef.current)
+  }, [])
   return (
     <EditProvider createEditor={createEditor}>
       <Virtualizer
@@ -90,6 +118,7 @@ export default function PierreTextEditorSurface({
               shouldDisableTextEditorLineNumbers(relativePath),
             stickyHeader: false,
             overflow: "wrap",
+            onPostRender: handlePostRender,
           }}
         />
       </Virtualizer>
