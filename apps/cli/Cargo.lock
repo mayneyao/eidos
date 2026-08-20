@@ -343,7 +343,7 @@ dependencies = [
 
 [[package]]
 name = "eidos"
-version = "0.36.9"
+version = "0.36.10"
 dependencies = [
  "anyhow",
  "base64",

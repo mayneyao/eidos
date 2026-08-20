@@ -1,25 +1,24 @@
 ## What's new
 
-### Verified self-upgrade
+### Plan records on a calendar
 
-Eidos CLI can now upgrade its own standalone installation to the latest stable
-release:
+The editor embedded in the CLI now includes Calendar views. Choose a date or
+datetime field, search and filter the same records as other views, move between
+months, and create a record directly on an eligible day. A new preference also
+lets each user start the week on Monday or Sunday.
 
-```bash
-eidos upgrade
-```
+### Faster table setup
 
-The command resolves the same stable version and platform archive as the public
-installers. It verifies the archive against the Release `SHA256SUMS`, extracts
-the candidate into a private temporary directory, and requires the candidate's
-own `eidos --version` output to match before replacing the running executable.
-An already-current installation is a no-op.
+Date filters now cover relative periods such as the current, previous, or next
+day, week, month, and year. Select fields can assign a default option to newly
+created records, and records created in sorted or filtered views stay in a
+predictable position.
 
-Use `eidos upgrade --version <semver>` to install an exact release. Reinstalling
-the current version or intentionally downgrading also requires `--force`. On
-Windows, a one-time helper completes the verified replacement after the running
-CLI process exits; macOS and Linux replace it atomically while preserving its
-executable permissions.
+### Adaptive cards and record details
+
+Gallery and Kanban cards, together with expanded record fields, now size long
+text to its actual content up to a bounded maximum. Gallery cards remain aligned
+within each row, while compact floating actions leave more room for content.
 
 ## Use with Codex
 
@@ -27,7 +26,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.9/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.10/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -44,5 +43,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.9 and verify the downloaded archive against the
+The installers select v0.36.10 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
