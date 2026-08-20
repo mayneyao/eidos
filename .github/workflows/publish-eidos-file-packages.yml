@@ -147,7 +147,7 @@ jobs:
         run: |
           core_tar="package-release/eidos.space-eidos-file-${VERSION}.tgz"
           ui_tar="package-release/eidos.space-eidos-file-ui-${VERSION}.tgz"
-          npm publish "$core_tar" --access public --provenance
+          npm publish "./$core_tar" --access public --provenance
           for attempt in $(seq 1 24); do
             published="$(npm view "@eidos.space/eidos-file@${VERSION}" version 2>/dev/null || true)"
             if [ "$published" = "$VERSION" ]; then
@@ -156,7 +156,7 @@ jobs:
             sleep 5
           done
           test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
-          npm publish "$ui_tar" --access public --provenance
+          npm publish "./$ui_tar" --access public --provenance
 
       - name: Verify public registry state
         env:

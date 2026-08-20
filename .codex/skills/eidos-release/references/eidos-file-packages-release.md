@@ -103,7 +103,14 @@ gh run watch <run-id> --exit-status
 The workflow rebuilds and rechecks the plan on the tag, publishes Runtime first,
 waits for it to become readable from npm, and then publishes UI. It publishes
 the reviewed tarballs with provenance; it does not rebuild between review and
-registry writes.
+registry writes. Paths passed to `npm publish` must be explicitly relative
+(`./package-release/<tarball>.tgz`); without the `./` prefix, npm can interpret
+the tarball path as a Git dependency instead of a local package archive.
+
+If a publication workflow fails after an immutable package tag is pushed but
+before either package reaches npm, keep that tag in place, fix the workflow,
+bump both packages to the next patch version, and repeat plan, artifact review,
+tag, and publish. Never move or replace the failed tag.
 
 ## Prove the public result
 
