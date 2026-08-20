@@ -56,6 +56,6 @@ describe("first-party Eidos File UI configuration", () => {
       "packages/eidos-file-serve/vite.config.ts"
     )
     expect(serveConfig).toContain('import tailwindcss from "@tailwindcss/vite"')
-    expect(serveConfig).toContain("plugins: [tailwindcss(), react()]")
+    expect(serveConfig).toContain("plugins: [tailwindcss(), react(),")
   })
 })
