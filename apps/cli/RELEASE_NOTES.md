@@ -1,5 +1,12 @@
 ## What's new
 
+### Create and manage saved Views from automation
+
+The new revision-checked `view-apply` command creates, updates, reorders, and
+deletes saved Views atomically. Agents can now create a Calendar from stable
+Table and date Field IDs, receive the allocated View ID, and keep the same
+layout contract used by Eidos Lite, Web, and Serve.
+
 ### Preserve views created by newer Eidos versions
 
 The embedded editor now keeps unfamiliar view, filter, and sort configuration
