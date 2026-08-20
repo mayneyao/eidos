@@ -1,21 +1,46 @@
 ---
-title: Use Eidos
-description: Everyday guidance for editing, saving, recovering, and organizing Eidos Files.
+title: Eidos user guide
+description: Task-based guidance for organizing, editing, querying, importing, saving, and syncing Eidos data.
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos stores structured data in `.eidos` files. The Web Editor opens one file
-in the browser, CLI Serve opens one local file, and Eidos Lite manages files in
-an ordinary folder.
+Eidos stores structured data in portable `.eidos` files. This guide follows
+the work you do with those files: design a table, enter and connect records,
+build useful views, move data in and out, and keep the result safe.
+
+The editing model is shared by the Web Editor, CLI Serve, and Eidos Lite.
+Host-specific differences—such as where files are saved, whether attachments
+can be acquired, and whether local history or Sync is available—are called out
+where they matter.
 
 <CardGrid>
   <LinkCard
-    title="Eidos File basics"
-    description="Learn how tables, fields, records, views, and search work."
+    title="Start with an Eidos File"
+    description="Learn the file model and complete a first table-to-view workflow."
     href="/user-guide/eidos-file-basics/"
+  />
+  <LinkCard
+    title="Tables and fields"
+    description="Choose field types, configure record labels and defaults, and change a schema safely."
+    href="/user-guide/tables-and-fields/"
+  />
+  <LinkCard
+    title="Records and editing"
+    description="Create, edit, inspect, relate, attach, copy, delete, undo, and recover record changes."
+    href="/user-guide/records-and-editing/"
+  />
+  <LinkCard
+    title="Views, search, filters, and sorts"
+    description="Turn the same records into focused Grid, Gallery, and Kanban workflows."
+    href="/user-guide/views-and-querying/"
+  />
+  <LinkCard
+    title="Import and export"
+    description="Create a table from CSV and export a whole table or the current view."
+    href="/user-guide/import-and-export/"
   />
   <LinkCard
     title="Data location and safety"
@@ -34,8 +59,15 @@ an ordinary folder.
   />
 </CardGrid>
 
-## Files and applications
+## Pick the right starting point
 
-Your data is stored in the `.eidos` file. An application may keep a temporary
-working or recovery copy while you edit, so check its save state before closing
-the file.
+- New to the data model? Start with [Eidos File basics](/user-guide/eidos-file-basics/).
+- Designing a database? Go to [Tables and fields](/user-guide/tables-and-fields/).
+- Looking for rows or building a workflow? Use [Views and querying](/user-guide/views-and-querying/).
+- Unsure whether a change is durable? Read [Data location and safety](/user-guide/data-safety/).
+- Connecting more than one device? Read [History, recovery, and Sync](/user-guide/history-and-sync/)
+  before enabling Sync.
+
+Your canonical data is stored in the `.eidos` file. An application may keep a
+temporary working or recovery copy while you edit, so always understand the
+current Host's save state before closing the file.

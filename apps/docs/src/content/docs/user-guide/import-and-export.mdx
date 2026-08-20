@@ -1,0 +1,85 @@
+---
+title: Import and export
+description: Create a table from CSV and export a whole table or the current view.
+sidebar:
+  order: 50
+---
+
+CSV is useful for exchanging flat tabular data. It cannot preserve every Eidos
+concept, so keep the `.eidos` file when you need relations, views, option
+catalogs, formulas, history, or exact attachment metadata.
+
+## Import a CSV as a new table
+
+Choose **Import CSV**, then review the analysis before applying it:
+
+1. Select the CSV file.
+2. Confirm the proposed table name.
+3. Choose which source column becomes the Record Label Field.
+4. Review each field name and inferred type.
+5. Correct ambiguous Text, Number, Checkbox, Date, Date & time, or URL choices.
+6. Start the import and watch byte progress until it finishes.
+
+CSV import creates a new table. It does not guess an existing field from a
+matching header, mutate another table, or silently split one logical import
+into partially committed row batches.
+
+## Understand import boundaries
+
+- Header text is a suggestion, not a stable Field ID.
+- Select and Multi-select option catalogs are not inferred implicitly.
+- A Select create-time default is not applied to imported rows.
+- Formula, Relation, Lookup, and File semantics require explicit Eidos setup
+  after a flat CSV import.
+- Invalid dates, numbers, names, or resource limits stop validation instead of
+  coercing data silently.
+- Canceling analysis or import reports whether cancellation completed; do not
+  assume closing a popover rolled back an unknown operation.
+
+After import, open field properties to add controlled option catalogs, create
+Relations, and choose better presentation settings.
+
+## Export the current View
+
+Use the View menu and choose **Export current view as CSV**. The export follows:
+
+- the View's filter and sort;
+- temporary search text when it is active;
+- visible field order;
+- all matching rows, read through bounded pages.
+
+Relation values become current human-readable labels. File values become
+attachment names. Multi-select values become a comma-separated display value.
+This makes the CSV useful to people but not sufficient for reconstructing
+stable Relation IDs or complete File entries.
+
+## Export the entire table
+
+Use the table menu and choose **Export entire table as CSV** when a View's
+filter or hidden fields should not restrict the result. Review the downloaded
+file before treating it as a backup.
+
+## CSV is not a backup format
+
+CSV does not retain:
+
+- stable Table, Field, View, or Row identities;
+- View definitions and layouts;
+- Select colors and defaults;
+- Formula, Relation, and Lookup definitions;
+- exact logical list boundaries in every ambiguous text value;
+- attachment URI, media type, size, and history as a complete unit.
+
+For recovery, copy the `.eidos` file or the whole Eidos Lite Space and test the
+restore. See [Data location and safety](/user-guide/data-safety/).
+
+## Validate after automated data movement
+
+When a script or external workflow has produced a File, run full validation:
+
+```bash
+eidos imported.eidos validate --level full
+```
+
+For repeatable pipelines and JSON output, continue with the
+[CLI automation workflow](/cli/automation-workflow/).

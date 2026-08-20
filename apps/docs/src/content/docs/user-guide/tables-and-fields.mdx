@@ -1,0 +1,133 @@
+---
+title: Tables and fields
+description: Design a useful schema, choose field types, and change it safely.
+sidebar:
+  order: 20
+---
+
+A table should describe one kind of thing: Tasks, People, Books, Orders, or
+Projects. Fields describe the properties shared by those records. Keeping that
+boundary clear makes filters, relations, imports, and automation predictable.
+
+## Create and name a table
+
+Use the table tabs to create, rename, reorder, or remove tables. Names are
+human-readable and may change later; Eidos keeps stable internal IDs so saved
+views and relations do not depend on a displayed name.
+
+Choose concise singular or plural naming and use it consistently. A table
+called **Projects** should contain one project per record, not a mixture of
+projects, clients, and free-form notes.
+
+## Choose the Record Label Field
+
+Every table has exactly one Record Label Field. Eidos uses it for record
+titles, Gallery and Kanban cards, Relation choices, and linked-record labels.
+
+Open the table menu and choose **Table settings** to change it. Good label
+fields are recognizable and usually unique enough for a person to distinguish
+records. Changing the label field does not rewrite Relation IDs; linked labels
+refresh from the newly selected field.
+
+If the current label field is being deleted, select a replacement first. Eidos
+will not leave a table without a record label.
+
+## Pick a field type
+
+| Field type      | Use it for                                   | Important behavior                                  |
+| --------------- | -------------------------------------------- | --------------------------------------------------- |
+| Text            | Titles, notes, codes, and free-form values   | Searchable; preserves entered text                  |
+| Number          | Measurements and decimal values              | Finite decimal number                               |
+| Integer         | Counts and exact whole numbers               | Exact signed 64-bit value                           |
+| Select          | One controlled state or category             | One option; may have a create-time default          |
+| Multi-select    | Tags and multiple controlled categories      | Ordered option list; no implicit default            |
+| Checkbox        | Yes/no state                                 | Can be empty when the field is nullable             |
+| Rating          | A five-star presentation                     | Stored as an integer-style value                    |
+| URL             | A web address                                | Clickable only after Host policy checks             |
+| Date            | A calendar day without a time zone           | Use when time-of-day does not matter                |
+| Date & time     | An exact moment                              | Stored canonically and displayed in a chosen zone   |
+| File            | Portable attachment and image references     | Acquisition and preview depend on Host capabilities |
+| Formula         | A value calculated from fields in this table | Read-only result                                    |
+| Relation        | Records in another table                     | Stores stable target record IDs                     |
+| Lookup / rollup | Values read or aggregated through a Relation | Read-only derived result                            |
+
+Prefer the narrowest type that expresses the data. A status should normally be
+Select, not Text. A birthday should be Date, not Datetime. A relationship to a
+person should be Relation, not a copied name.
+
+## Configure Select options and a default
+
+Field properties let you add, rename, recolor, reorder, and remove Select or
+Multi-select options. The option name is the stored logical value; color is
+presentation.
+
+For a Select field, **Default option** controls new record creation:
+
+- **No default** leaves an omitted field empty.
+- Choosing an option assigns it when a create action omits the field.
+- Explicitly clearing or supplying a value overrides the default.
+- Existing records are not backfilled.
+- CSV import does not infer the default.
+- Renaming the chosen option retargets the default atomically.
+- Deleting the chosen option clears the default.
+
+Multi-select does not have this setting because an implicit list can hide
+whether a creator actually chose a tag.
+
+## Connect tables with Relation and Lookup
+
+A forward Relation points from this table to one or more records in a target
+table. The stored value is an ordered list of stable Row IDs; the editor
+resolves the target's current Record Label for display.
+
+Use a Lookup when you need to show or aggregate a field reached through that
+Relation. A Lookup is derived: edit the source record or the Relation rather
+than trying to type over the Lookup result.
+
+Before deleting a related table or field, read the dependency report. Hidden
+views and derived fields may still depend on it.
+
+## Calculate values with Formula
+
+Formula fields calculate a declared result from fields in the same table. The
+editor previews and validates the expression before committing its definition.
+Formula results are read-only and refresh when their dependencies change.
+
+Double-click a Formula cell, or select it and press Enter or Space, to open the
+Formula editor beside that cell. The selected record becomes the preview
+example, so changes to the expression can be checked against the row you were
+already inspecting. Opening the editor from Field settings uses the Runtime's
+ordinary sample rows.
+
+Use Formula for repeatable derivation, not for values a person must override.
+Use Lookup for data across a Relation.
+
+## Rename, reorder, convert, or delete fields
+
+- **Rename** changes the displayed and physical field name while Runtime
+  rewrites supported references by stable ID.
+- **Reorder** changes presentation, not record values.
+- **Hide** belongs to a View and does not remove the field or its data.
+- **Convert** may be metadata-only, lossless, explicitly lossy, or forbidden.
+  Review the preflight impact instead of trusting a small sample.
+- **Delete** permanently removes stored values and may affect dependencies.
+
+Schema changes use revision checks. If another edit changed the file after the
+plan was prepared, Eidos refreshes the plan instead of applying it to stale
+state.
+
+## A useful task table
+
+A practical Tasks table might contain:
+
+| Field     | Type         | Configuration                       |
+| --------- | ------------ | ----------------------------------- |
+| Title     | Text         | Record Label Field                  |
+| Status    | Select       | Todo, Doing, Done; default Todo     |
+| Assignee  | Relation     | Links to People                     |
+| Due       | Date         | No time-of-day                      |
+| Tags      | Multi-select | Controlled topic names              |
+| Days open | Formula      | Derived from creation time          |
+| Team      | Lookup       | Read from Assignee's related record |
+
+Next, learn how to [create and edit records](/user-guide/records-and-editing/).

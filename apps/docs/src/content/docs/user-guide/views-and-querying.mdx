@@ -1,0 +1,127 @@
+---
+title: Views, search, filters, and sorts
+description: Build focused Grid, Gallery, and Kanban workflows over the same records.
+sidebar:
+  order: 40
+---
+
+A View is a saved way to read and work with one table. It does not duplicate
+records. Changing a value in one View changes that record everywhere.
+
+## What a View saves
+
+A View can save its name, type, filter, sort order, visible fields, field order,
+and type-specific layout. It does not save temporary search text, selection,
+scroll position, hover state, or an open detail panel.
+
+Create separate Views for separate jobs—for example **All tasks**, **My open
+work**, **Due this week**, and **Archive**—instead of repeatedly rebuilding one
+complex filter.
+
+## Choose Grid, Gallery, or Kanban
+
+| View    | Best for                                               |
+| ------- | ------------------------------------------------------ |
+| Grid    | Dense entry, comparison, sorting, and field operations |
+| Gallery | Browsing records as cards with a cover and key fields  |
+| Kanban  | Moving records between groups such as Select states    |
+
+Changing View type or card layout affects presentation only. Kanban movement
+may update the configured grouping field because moving a card expresses a
+data change.
+
+## Search temporarily
+
+Search finds matching display fragments in supported fields and Record Labels.
+It narrows the active View without changing its saved filter. Clear the search
+box to return to the View's full saved result.
+
+Use search when you know part of a title, option, related-record label, or file
+name. Use a saved filter when the condition should still exist tomorrow.
+
+## Build filter groups
+
+Open **Filter**, add a condition, and choose **All match** for AND or **Any
+match** for OR. Nested groups let you express conditions such as:
+
+> Status is not Done AND (Priority is High OR Due is relative to the current week)
+
+Empty and negative conditions use total Boolean logic. In particular, “is not”
+and “does not contain” can include empty scalar values; they are not raw SQL
+operators leaking an unknown third truth value.
+
+## Date and time conditions
+
+Date and Datetime fields offer:
+
+- **is**
+- **is before** / **is after**
+- **is on or before** / **is on or after**
+- **is between** two inclusive endpoints
+- **is relative to today**
+- **is empty** / **is not empty**
+
+Relative conditions combine a direction and unit:
+
+| Direction | Meaning                                                         |
+| --------- | --------------------------------------------------------------- |
+| Past      | One rolling day, week, month, or year ending at the reference   |
+| Future    | One rolling day, week, month, or year starting at the reference |
+| Current   | The calendar day, ISO week, month, or year containing today     |
+
+Weeks in **Current** use Monday through Sunday. Month and year shifts clamp
+month-end dates, so one year after February 29 lands on February 28 when
+needed. The condition is saved as direction + unit and recalculated on a new
+query; it is never frozen into the dates shown in a preview.
+
+One query captures a single reference instant. Every relative condition and
+every continuation page uses that same reference, so records do not jump
+between pages while time advances.
+
+## Add more than one sort
+
+Sorts are evaluated in order. The first sort is primary, the second breaks
+ties, and so on. Direction changes row order without changing the record.
+
+If an edit changes a sorted value, the row may move. When it remains in the
+View, the editor can navigate to its new position; when it no longer matches a
+filter, it leaves the View because the saved query is now false.
+
+## Choose visible fields
+
+Open **Fields** to:
+
+- show or hide fields in this View;
+- drag fields into the desired View order;
+- open field properties without hunting through a column menu.
+
+Hiding a field does not delete data. Grid can additionally freeze a leading
+region and store field widths. Gallery and Kanban store their card-field order,
+cover, and other applicable layout properties.
+
+## Example Views
+
+### Due this week
+
+- Status **is not** Done
+- Due **is relative to today → Current → week**
+- Sort Due ascending, then Priority descending
+
+### Recently active
+
+- Updated at **is relative to today → Past → week**
+- Sort Updated at descending
+
+### Scheduled range
+
+- Start date **is between** the chosen starting and ending dates
+- Sort Start date ascending
+
+## Understand saved state
+
+Applying Filter, Sort, or Fields changes the View and therefore the File
+revision. Typing temporary search text does not. If another editor changes the
+same View first, Eidos refreshes rather than silently replacing the newer
+definition.
+
+To move data between systems, continue with [Import and export](/user-guide/import-and-export/).

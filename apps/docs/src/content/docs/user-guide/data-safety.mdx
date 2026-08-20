@@ -2,7 +2,7 @@
 title: Data location and safety
 description: Know where your Eidos data lives and when writes become durable.
 sidebar:
-  order: 20
+  order: 60
 ---
 
 ## Where data lives
@@ -17,6 +17,17 @@ sidebar:
 
 No supported host requires uploading a file merely to query or edit it.
 
+## Read the save state correctly
+
+A successful cell commit means Runtime accepted the mutation. Whether that
+mutation has reached the original file depends on the Host in the table above.
+In particular, an in-browser working copy can be valid and fully editable while
+still requiring **Save As** before it exists outside browser storage.
+
+If the original file changed outside the current editor, stop and choose an
+explicit reload, overwrite, or Save As path. Do not assume the most recently
+visible window owns the newest complete state.
+
 ## Safe habits
 
 1. Keep ordinary backups of important `.eidos` files or the whole Space.
@@ -30,6 +41,26 @@ No supported host requires uploading a file merely to query or edit it.
 ```bash
 eidos important.eidos validate --level full
 ```
+
+## Back up and test a restore
+
+A useful backup contains the `.eidos` file and every ordinary Space asset you
+expect to keep. Copy it while no writer is actively committing, then verify the
+copy by opening it or running validation. A backup process that has never
+restored a file is only an assumption.
+
+CSV export is for exchange, not backup. It omits identities, View definitions,
+Relations, Formulas, option metadata, and complete File entries.
+
+## Attachment safety
+
+A File field stores portable entry metadata. The referenced bytes may be inline,
+relative to the Host's asset area, or available through an explicitly authorized
+HTTPS resource. Backing up only the database file is insufficient when your
+workflow uses separate relative assets; back up the whole Space layout.
+
+Previewing an attachment is not the same as validating or trusting its content.
+Open untrusted documents with the same care you would use outside Eidos.
 
 ## Raw SQLite access
 

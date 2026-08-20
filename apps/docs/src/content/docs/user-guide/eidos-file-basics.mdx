@@ -1,11 +1,15 @@
 ---
-title: Eidos File basics
-description: Learn how tables, fields, records, views, and search work.
+title: Start with an Eidos File
+description: Understand the file model and complete a first table-to-view workflow.
 sidebar:
   order: 10
 ---
 
-## The parts of a file
+An Eidos File is a SQLite-backed document with a defined data model. You can
+copy it like an ordinary file, inspect it with familiar SQLite tools, and edit
+it through any conforming Eidos Runtime without changing its meaning.
+
+## Understand the parts
 
 | Part   | Meaning                                                                                        |
 | ------ | ---------------------------------------------------------------------------------------------- |
@@ -14,10 +18,26 @@ sidebar:
 | Record | One row with a stable identity                                                                 |
 | View   | A saved presentation of a table, including visible fields, filters, sorts, and view properties |
 
+The file also owns stable IDs, revision metadata, relations, derived-field
+definitions, and attachment references. Applications use these to preserve
+meaning across renames, different views, and different devices.
+
 Grid, Gallery, and Kanban are views over the same records. Editing a record in
 one view changes the record, so the result is visible in every other view.
 
-## Start a useful file
+## Choose how to open it
+
+| Host       | Best for                                                       |
+| ---------- | -------------------------------------------------------------- |
+| Web Editor | Opening or creating one file without installing an application |
+| CLI Serve  | Editing one local file through a browser UI                    |
+| Eidos Lite | Managing a folder with files, local history, and optional Sync |
+| Eidos CLI  | Scripts, validation, repeatable imports, and automation        |
+
+All Hosts use the same File and Runtime semantics. They differ in file access,
+asset acquisition, save flow, and optional history services.
+
+## Create the first table
 
 In the Web Editor, choose **New** or a template. In the CLI, create the first
 table as part of the file command:
@@ -29,10 +49,69 @@ eidos create tasks.eidos \
   --fields '[{"name":"Title","type":"text"},{"name":"Priority","type":"select"}]'
 ```
 
-Every table has one record-label field. This is the human-readable value Eidos
-uses when another table refers to the record.
+Every table has one Record Label Field. This is the human-readable value Eidos
+uses in record details, cards, and relations. Choose a field that identifies a
+record to a person—such as **Title**, **Name**, or **Order number**—rather than
+an internal status or timestamp.
 
-## Views and search
+Continue in the editor:
+
+1. Add fields for the properties you actually query or display.
+2. Create a record and fill its Record Label first.
+3. Add a Select option catalog for controlled states such as Todo, Doing, and Done.
+4. Create a second view when you need a different filter, sort, or layout.
+
+For the complete field-type guide, see [Tables and fields](/user-guide/tables-and-fields/).
+
+For a Select field, open field properties to choose an optional **Default
+option**. Eidos assigns it only when a create action omits that field. Clearing
+the value explicitly suppresses the default. Existing rows and imported CSV
+rows are not backfilled. Renaming the option keeps the default attached to it;
+deleting the option clears the default.
+
+## Enter and inspect records
+
+Grid is the fastest place to enter repeated values. Open a record when a long
+text value, relation, or attachment needs more space than a cell. Record
+details and cards edit the same underlying row, so there is no separate “card
+copy” to reconcile later.
+
+Relation fields store stable target record IDs and display the target table's
+current Record Label. A label rename changes presentation, not the relation.
+See [Records and editing](/user-guide/records-and-editing/) for linking,
+attachments, multi-cell paste, and undo behavior.
+
+## Build a focused view
 
 A view remembers its filters, sort order, visible fields, and layout. Search is
 temporary: clearing the search box returns to the saved view.
+
+Date and Datetime filters include before/after, inclusive boundaries, a
+two-ended range, and relative conditions. A relative condition combines past,
+future, or the current period with day, week, month, or year. It stays relative
+when saved in a view instead of becoming a fixed date.
+
+Use [Views, search, filters, and sorts](/user-guide/views-and-querying/) for
+filter groups, multiple sorts, visible fields, Grid/Gallery/Kanban layout, and
+examples such as “open work updated this month.”
+
+## Know when the file is saved
+
+The editor surface is shared, but saving is Host-specific:
+
+- Direct-file Web mode writes only after browser permission and conflict checks.
+- Imported-copy Web mode requires **Save As** or downloading a copy.
+- CLI Serve and successful CLI mutations write to the path you opened.
+- Eidos Lite writes the local file; local history and Sync are separate layers.
+
+Before closing, check the save state and understand which copy is durable. The
+full matrix is in [Data location and safety](/user-guide/data-safety/).
+
+## A practical first-file checklist
+
+- The table name describes one kind of thing.
+- The Record Label Field makes every row recognizable.
+- Controlled states use Select or Multi-select instead of inconsistent text.
+- Dates use Date when time-of-day does not matter and Datetime when it does.
+- A saved view expresses the workflow; temporary search is not mistaken for a view.
+- Important files have an ordinary backup outside the active working copy.

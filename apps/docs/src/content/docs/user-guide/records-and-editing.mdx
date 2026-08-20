@@ -1,0 +1,107 @@
+---
+title: Records and editing
+description: Create, inspect, relate, attach, copy, delete, undo, and recover record changes.
+sidebar:
+  order: 30
+---
+
+A record is one typed row with a stable identity. Grid cells, cards, and the
+record detail panel are different editors for that same row.
+
+## Create a record
+
+Use **Add record** where it appears. In Grid, the default shortcut is
+
+<kbd>⌘</kbd> + <kbd>Enter</kbd> on macOS or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>
+elsewhere; a Host may expose shortcut customization in Settings.
+
+After creation, Grid focuses an editable field. If a Select field has a
+default option, Runtime fills it only when the create action omitted that
+field. Formula, Lookup, system timestamps, and Row ID are generated rather
+than entered.
+
+## Edit cells without losing context
+
+Open a cell editor, enter a value, then commit it. Escape cancels the current
+draft. The editor distinguishes a draft from canonical data and replaces it
+with the Runtime-returned row after a successful commit.
+
+Multi-cell paste is one atomic edit when it fits the negotiated limits. If one
+value is invalid, the operation does not silently commit the other cells. For
+larger structured data, use CSV import instead of an enormous paste.
+
+## Open the complete record
+
+Use **Open record** when a row contains long text, several relations, or files
+that do not fit comfortably in Grid. The detail panel shows every applicable
+field and can open the record in its own tab. Editing there updates the same
+row shown in the current view.
+
+The record title always comes from the table's current Record Label Field.
+
+## Link and open related records
+
+In a Relation editor:
+
+1. Search the target table by its Record Label.
+2. Select one or more records according to the field's cardinality.
+3. Use the open-record action beside a selected item to inspect the target
+   without changing the Relation.
+4. Deselect an item to remove that exact stable Row ID.
+
+If a target can no longer be resolved, Eidos shows its Row ID as unavailable
+instead of silently dropping the link.
+
+## Add files and images
+
+File fields contain portable file-entry metadata. Depending on Host policy,
+you can choose local files or explicitly add an HTTPS URL. Preview, open, and
+download are explicit Host-authorized actions; merely showing or scrolling a
+row does not grant general file or network access.
+
+An image may appear as a thumbnail. The original filename, media type, size,
+and URI remain available through details or copy actions even when preview is
+unavailable.
+
+## Copy values
+
+Copy exposes the complete logical value even when Grid visually truncates it.
+For Relation fields, the visible label helps people recognize the record while
+the underlying relation remains a stable ID. CSV export intentionally uses
+human-readable Relation labels and attachment names; it is a data exchange
+format, not a lossless clone of the Eidos File.
+
+## Undo and redo
+
+Undo and redo are new validated Runtime mutations, not byte-level rollback.
+They are available for supported row edits while the session retains the
+required undo token. A schema change clears row undo history because the old
+field shape may no longer be valid.
+
+If a later edit overlaps the affected values, Undo can become a conflict
+instead of overwriting newer data. Canceling an editor before submission is
+not Undo—it simply discards the draft.
+
+## Delete records carefully
+
+Delete targets stable Row IDs captured from the current selection. Confirm the
+count and any Relation consequences before applying it. When the active Host
+and Runtime expose mutation undo, a successful delete can participate in the
+same undo flow; do not rely on that as a backup.
+
+Deleting a record does not mean “delete whichever row is now at this visual
+position.” Sorts and filters may move rows, so Eidos resolves the selection to
+IDs first.
+
+## When an edit is rejected
+
+- **Invalid value:** correct the draft using the field's type and constraints.
+- **Stale revision:** refresh, compare the current value, and reapply only when
+  it is safe.
+- **Unknown outcome:** let the Host reconcile before submitting the same edit
+  again.
+- **Read-only field:** edit the source field, Relation, or Formula/Lookup
+  definition instead.
+
+Use [Views and querying](/user-guide/views-and-querying/) to control which
+records and fields appear while you work.

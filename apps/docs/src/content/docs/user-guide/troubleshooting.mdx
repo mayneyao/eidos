@@ -2,7 +2,7 @@
 title: Troubleshooting
 description: Resolve common Eidos File, Web Editor, CLI, and save problems.
 sidebar:
-  order: 40
+  order: 80
 ---
 
 ## A file will not open
@@ -52,6 +52,33 @@ CLI commands emit readable terminal output by default. Automation must pass
 `--json` to receive one JSON document on stdout or one JSON error document on
 stderr. Failures return a nonzero status in either mode. Preserve stderr and
 the exit code; do not parse human terminal text.
+
+## A new record did not receive its Select default
+
+Confirm that the field is Select—not Multi-select—and that its **Default
+option** still names a configured option. Defaults apply only when an ordinary
+create action omits the field. Explicitly clearing it, importing CSV, or looking
+at an existing record does not trigger backfill.
+
+## A record moved or disappeared after editing
+
+Check the active View's filters and sorts. Editing a sort value can move the row
+to a new position. Editing a value used by the filter can make the record leave
+the View entirely. Clear temporary search or open an unfiltered View to confirm
+the record still exists.
+
+## A relative date filter returns an unexpected boundary
+
+Check whether you chose Past, Future, or Current and whether the unit is day,
+week, month, or year. Current weeks use Monday through Sunday. Between, on-or-
+before, and on-or-after include the selected endpoint. Saved relative filters
+recalculate on a new query instead of preserving yesterday's preview dates.
+
+## CSV did not preserve a Relation or attachment
+
+CSV is flat exchange data. Relation labels and attachment names are readable
+exports, not complete stable IDs or File entries. Keep or transfer the `.eidos`
+file when those semantics must survive.
 
 If the problem remains, include the CLI version, operating system, validation
 output, and minimal reproduction in a
