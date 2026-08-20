@@ -115,6 +115,11 @@ an already-published package, it must compare npm's `dist.shasum` with the exact
 reviewed tarball and stop on any mismatch. This permits a failed UI publication
 to resume without attempting to overwrite an immutable Runtime version.
 
+When verifying the UI package's scoped Runtime dependency, read the complete
+`dependencies` object as JSON and select `@eidos.space/eidos-file` with `jq`.
+Do not pass `dependencies.@eidos.space/eidos-file` as an npm field selector:
+npm parses the scoped package name as path segments and returns an empty value.
+
 If a publication workflow fails after an immutable package tag is pushed but
 before either package reaches npm, keep that tag in place, fix the workflow,
 bump both packages to the next patch version, and repeat plan, artifact review,

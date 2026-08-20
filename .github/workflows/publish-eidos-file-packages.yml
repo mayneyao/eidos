@@ -206,4 +206,8 @@ jobs:
         run: |
           test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
           test "$(npm view "@eidos.space/eidos-file-ui@${VERSION}" version)" = "$VERSION"
-          test "$(npm view "@eidos.space/eidos-file-ui@${VERSION}" dependencies.@eidos.space/eidos-file)" = "^${VERSION}"
+          ui_runtime_dependency="$(
+            npm view "@eidos.space/eidos-file-ui@${VERSION}" dependencies --json |
+              jq --raw-output '.["@eidos.space/eidos-file"]'
+          )"
+          test "$ui_runtime_dependency" = "^${VERSION}"
