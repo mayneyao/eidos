@@ -245,9 +245,15 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
         '[role="menuitem"][aria-haspopup="menu"]'
       )
       for (let index = 0; index < (await submenuTriggers.count()); index += 1) {
-        await submenuTriggers.nth(index).hover()
+        await submenuTriggers
+          .nth(index)
+          .hover({ timeout: 1_000 })
+          .catch(() => undefined)
         if (await item.isVisible().catch(() => false)) break
       }
+    }
+    if (!(await item.isVisible().catch(() => false))) {
+      throw new Error(`File menu item "${name}" is not ready`)
     }
     await item.click({ timeout: 5_000 })
   }).toPass({ timeout: 30_000 })
@@ -1301,23 +1307,12 @@ test("persists a Grid multi-select edit when its popover closes", async ({
     `[data-testid='glide-cell-${signalsColumn}-0']`
   )
   const titleCell = page.locator(`[data-testid='glide-cell-${titleColumn}-0']`)
-  const canvas = page.locator(
-    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
-  )
   const openSignalsCell = async () => {
-    const bounds = await canvas.boundingBox()
-    if (!bounds) throw new Error("Feature Lab Grid is not visible")
-    await page.mouse.click(bounds.x + 44 + 140, bounds.y + 54)
-    await canvas.focus()
-    await expect(canvas).toBeFocused()
+    await titleCell.focus()
     await expect(titleCell).toHaveAttribute("aria-selected", "true")
-    for (let column = titleColumn + 1; column <= signalsColumn; column += 1) {
-      await page.keyboard.press("ArrowRight")
-      await expect(
-        page.locator(`[data-testid='glide-cell-${column}-0']`)
-      ).toHaveAttribute("aria-selected", "true")
-    }
-    await page.keyboard.press("Enter")
+    await signalsCell.focus()
+    await expect(signalsCell).toHaveAttribute("aria-selected", "true")
+    await signalsCell.press("Enter")
   }
   await expect(signalsCell).toBeAttached()
   await openSignalsCell()

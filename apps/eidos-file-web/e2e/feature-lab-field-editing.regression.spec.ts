@@ -77,6 +77,13 @@ async function selectRelationOption(
   await option.click()
 }
 
+async function openGalleryRecord(page: Page, title: string): Promise<void> {
+  const open = page.getByRole("button", { name: `Open ${title}` })
+  const card = page.locator("[data-eidos-file-row-id]").filter({ has: open })
+  await card.hover()
+  await open.click()
+}
+
 test("edits every writable Feature Lab field through the Chromium editor", async ({
   page,
   browserName,
@@ -103,7 +110,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   )
 
   await page.getByRole("tab", { name: "Lab gallery", exact: true }).click()
-  await page.getByRole("button", { name: "Open Feature Lab launch" }).click()
+  await openGalleryRecord(page, "Feature Lab launch")
   const inspector = page.locator('[data-eidos-file-detail-panel="record"]')
   await expect(inspector).toBeVisible()
 
@@ -256,7 +263,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   ).toHaveCount(0)
 
   await page.getByRole("button", { name: "Close record details" }).click()
-  await page.getByRole("button", { name: "Open QA all-field record" }).click()
+  await openGalleryRecord(page, "QA all-field record")
   await expect(inspector.getByRole("textbox", { name: "Samples" })).toHaveValue(
     "41"
   )
