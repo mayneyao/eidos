@@ -193,11 +193,13 @@ function SortableSelectorRow({
   id,
   label,
   disabled,
+  selected = false,
   children,
 }: {
   id: string
   label: string
   disabled: boolean
+  selected?: boolean
   children: ReactNode
 }) {
   const sortable = useSortable({ id, disabled })
@@ -205,7 +207,8 @@ function SortableSelectorRow({
     <div
       ref={sortable.setNodeRef}
       className={cn(
-        "group flex min-w-0 items-center rounded-md",
+        "group flex min-w-0 items-center rounded-md transition-colors hover:bg-accent",
+        selected && "bg-accent text-accent-foreground",
         sortable.isDragging && "z-10 bg-accent shadow-sm"
       )}
       style={{
@@ -587,13 +590,11 @@ export function EidosFileViewSelector({
                     id={view.id}
                     label={t("Reorder {name} view", { name: view.name })}
                     disabled={Boolean(disabled) || busy}
+                    selected={view.id === activeView?.id}
                   >
                     <button
                       type="button"
-                      className={cn(
-                        "flex h-8 min-w-0 flex-1 items-center gap-2 px-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-55",
-                        view.id === activeView?.id && "bg-accent"
-                      )}
+                      className="flex h-8 min-w-0 flex-1 items-center gap-2 px-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-55"
                       disabled={!supported}
                       onClick={() => {
                         onSelect(view.id)
@@ -619,7 +620,7 @@ export function EidosFileViewSelector({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="mr-0.5 h-7 w-7 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="mr-0.5 h-7 w-7 shrink-0 text-muted-foreground opacity-0 hover:bg-background group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label={t("Manage {name} view", { name: view.name })}
                       onClick={() => openManage(view)}
                     >

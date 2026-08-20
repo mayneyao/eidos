@@ -87,7 +87,7 @@ function FieldValue({
   row: EidosFileRow
   onError?: (error: unknown) => void
 }) {
-  const { activateUrl, translate: t } = useEidosFileUI()
+  const { activateUrl, timeZone, translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (field.type === "checkbox") {
     const checked = value === true || value === 1 || value === "1"
@@ -138,7 +138,7 @@ function FieldValue({
       </button>
     )
   }
-  const display = eidosFileRecordFieldText(row, field)
+  const display = eidosFileRecordFieldText(row, field, timeZone)
   const empty = display === "Empty"
   return (
     <AutosizedRecordFieldText
@@ -325,7 +325,8 @@ export function EidosFileRecordInspector({
                 "line-clamp-3 min-w-0 flex-1 break-words font-medium",
                 variant === "page" ? "text-lg" : "text-sm"
               )}
-              style={measuredTitle.style}
+              style={{ ...measuredTitle.style, overflowY: "hidden" }}
+              data-eidos-file-record-title=""
               title={measuredTitle.overflowing ? title : undefined}
             >
               {title}

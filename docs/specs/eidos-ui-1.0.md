@@ -1376,6 +1376,21 @@ without changing the saved type or layout. Conversion to a standard View is
 an explicit, revision-checked mutation. Unrelated View edits MUST preserve the
 unknown type and layout exactly in logical content.
 
+### 8.5 Views with newer query semantics
+
+When `ViewDescriptor.queryStatus="unsupported"`, the View remains present in
+every View tab, menu, and navigation surface. UI MUST show an accessible
+update-required state and MUST NOT issue `queryRows`, `groupRows`, aggregate,
+or export requests using the `{}` query placeholder. Saved Filter and Sort
+controls are disabled for that View. Rename, reorder, layout, and other
+unrelated patches MAY remain available because they omit `query`; they MUST NOT
+reconstruct the View from the understood subset. Replacing the query requires
+an explicit user action that states the newer query will be removed.
+
+An unknown renderer and an unsupported query are independent. The UI reports
+the query incompatibility first because a Grid fallback would otherwise show
+an incorrect row set.
+
 ## 9. Bounded reads, projection, and rendering
 
 ### 9.1 Request construction
@@ -1540,7 +1555,12 @@ user- or Host-selected IANA time-zone identifier and clearly exposes it near
 the editor. Input in a DST overlap or gap MUST require an unambiguous instant
 or offset before submission. The submitted value follows Runtime's canonical
 UTC binding. Locale and timezone choices are UI state unless an extension
-explicitly defines canonical settings.
+explicitly defines canonical settings. A Host MAY expose that choice as a
+system-following preference or a fixed IANA zone. After resolving the
+preference, standard Grid, card, record-detail, filter-input, and Calendar
+surfaces MUST use the same zone for Datetime, created-time, and updated-time
+presentation and Calendar day grouping. Changing that UI preference MUST NOT
+rewrite stored instants or date-only values.
 
 For the standard text presentation, a non-empty absolute `http:` or `https:`
 URL without user information is eligible for activation. Grid MUST render an

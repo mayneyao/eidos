@@ -2066,25 +2066,29 @@ export class EidosRuntimeService implements RuntimeClient {
         tableId: view.tableId,
         name: view.name,
         type: view.type,
-        query: {
-          ...(view.filter
-            ? {
-                filter: compatibilityFilterToRuntime(
-                  view.filter,
-                  this.core.listFields(view.tableId)
-                ),
-              }
-            : {}),
-          ...(view.sorts.length > 0
-            ? {
-                sort: view.sorts.map((sort) => ({
-                  fieldId: sort.field,
-                  direction: sort.direction,
-                  ...(sort.nulls ? { nulls: sort.nulls } : {}),
-                })),
-              }
-            : {}),
-        } satisfies SavedViewQuery,
+        queryStatus: view.queryStatus,
+        query:
+          view.queryStatus === "unsupported"
+            ? {}
+            : ({
+                ...(view.filter
+                  ? {
+                      filter: compatibilityFilterToRuntime(
+                        view.filter,
+                        this.core.listFields(view.tableId)
+                      ),
+                    }
+                  : {}),
+                ...(view.sorts.length > 0
+                  ? {
+                      sort: view.sorts.map((sort) => ({
+                        fieldId: sort.field,
+                        direction: sort.direction,
+                        ...(sort.nulls ? { nulls: sort.nulls } : {}),
+                      })),
+                    }
+                  : {}),
+              } satisfies SavedViewQuery),
         layout: objectValue(view.properties ?? {}),
         position: String(view.position ?? 0),
       }))

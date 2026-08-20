@@ -340,6 +340,25 @@ describe("EidosFileEditorView registry", () => {
     expect(gridMock.props?.onImportFiles).toBe(onImportFiles)
     expect(gridMock.props?.onImportDroppedFiles).toBe(onImportDroppedFiles)
   })
+
+  it("does not execute a saved query from a newer client as an empty query", () => {
+    act(() => {
+      root.render(
+        <EidosFileEditorView
+          source={source}
+          table={table}
+          view={{ ...view, type: "grid", queryStatus: "unsupported" }}
+        />
+      )
+    })
+
+    expect(gridMock.props).toBeUndefined()
+    expect(
+      container.querySelector("[data-eidos-file-unsupported-query]")
+    ).not.toBeNull()
+    expect(container.textContent).toContain("newer Eidos version")
+    expect(container.textContent).toContain("preserved")
+  })
 })
 
 describe("Eidos File view query helpers", () => {

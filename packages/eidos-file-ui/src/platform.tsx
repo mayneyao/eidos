@@ -58,6 +58,7 @@ export function EidosFileProvider({
   themeName = "light",
   locale,
   weekStartsOnMonday,
+  timeZone,
   translate,
   assetSession,
   assetPresenter,
@@ -84,6 +85,7 @@ export function EidosFileProvider({
         themeName={themeName}
         locale={locale}
         weekStartsOnMonday={weekStartsOnMonday}
+        timeZone={timeZone}
         translate={translate}
         assetSession={assetSession}
         assetPresenter={assetPresenter}

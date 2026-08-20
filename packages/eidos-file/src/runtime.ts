@@ -37,6 +37,7 @@ import {
   assertEidosFileRowQuery,
   compileEidosFileRowQuery,
   eidosFileSortExpression,
+  isEidosFileFilterOperator,
   normalizeEidosFileFilter,
   normalizeEidosFileRowQuery,
   normalizeEidosFileSorts,
@@ -742,6 +743,102 @@ function filterFromStorage(
     }
   }
   return normalizeEidosFileFilter(convert(value))
+}
+
+function storedViewQueryStatus(
+  query: Record<string, unknown>,
+  fields: EidosFileFieldInfo[]
+): "supported" | "unsupported" {
+  const fieldIds = new Set(
+    fields.flatMap((field) => (field.id ? [field.id] : []))
+  )
+  if (Object.keys(query).some((key) => key !== "filter" && key !== "sort")) {
+    return "unsupported"
+  }
+  const supportedScalar = (value: unknown): boolean =>
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  const supportedRuleValue = (
+    operator: EidosFileFilterRule["operator"],
+    value: unknown
+  ): boolean => {
+    if (operator === "is-relative-to-today") {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false
+      }
+      const relative = value as Record<string, unknown>
+      return (
+        Object.keys(relative).every(
+          (key) => key === "direction" || key === "unit"
+        ) &&
+        ["past", "next", "this"].includes(String(relative.direction)) &&
+        ["day", "week", "month", "year"].includes(String(relative.unit))
+      )
+    }
+    if (operator === "is-between") {
+      return (
+        Array.isArray(value) &&
+        value.length === 2 &&
+        value.every(supportedScalar)
+      )
+    }
+    return (
+      value === undefined ||
+      supportedScalar(value) ||
+      (Array.isArray(value) && value.every(supportedScalar))
+    )
+  }
+  const filterSupported = (value: unknown): boolean => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return false
+    const node = value as Record<string, unknown>
+    if (Array.isArray(node.args)) {
+      return (
+        (node.op === "and" || node.op === "or") &&
+        Object.keys(node).every((key) => key === "op" || key === "args") &&
+        node.args.every(filterSupported)
+      )
+    }
+    if (
+      typeof node.field !== "string" ||
+      !fieldIds.has(node.field) ||
+      !isEidosFileFilterOperator(node.op) ||
+      Object.keys(node).some(
+        (key) => key !== "field" && key !== "op" && key !== "value"
+      )
+    ) {
+      return false
+    }
+    return supportedRuleValue(node.op, node.value)
+  }
+  if ("filter" in query && !filterSupported(query.filter)) {
+    return "unsupported"
+  }
+  if ("sort" in query) {
+    if (!Array.isArray(query.sort)) return "unsupported"
+    for (const value of query.sort) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return "unsupported"
+      }
+      const sort = value as Record<string, unknown>
+      if (
+        typeof sort.field !== "string" ||
+        !fieldIds.has(sort.field) ||
+        (sort.direction !== "asc" && sort.direction !== "desc") ||
+        (sort.nulls !== undefined &&
+          sort.nulls !== "first" &&
+          sort.nulls !== "last") ||
+        Object.keys(sort).some(
+          (key) => key !== "field" && key !== "direction" && key !== "nulls"
+        )
+      ) {
+        return "unsupported"
+      }
+    }
+  }
+  return "supported"
 }
 
 export class EidosFileRuntime {
@@ -2609,6 +2706,7 @@ export class EidosFileRuntime {
     const fields = this.listFields(tableId)
     const query = jsonObject(row.query_json)
     const layout = jsonObject(row.layout_json)
+    const queryStatus = storedViewQueryStatus(query, fields)
     const storedSorts = normalizeEidosFileSorts(query.sort)
     const fieldIds = new Set(
       fields.flatMap((field) => (field.id ? [field.id] : []))
@@ -2624,10 +2722,17 @@ export class EidosFileRuntime {
       name: row.name,
       type: row.type,
       tableId,
-      query: "",
+      queryStatus,
+      query: row.query_json,
       properties,
-      filter: filterFromStorage(query.filter, fields),
-      sorts: storedSorts.filter((sort) => fieldIds.has(sort.field)),
+      filter:
+        queryStatus === "supported"
+          ? filterFromStorage(query.filter, fields)
+          : null,
+      sorts:
+        queryStatus === "supported"
+          ? storedSorts.filter((sort) => fieldIds.has(sort.field))
+          : [],
       orderMap: Object.fromEntries(
         fieldOrder.map((fieldId, index) => [fieldId, index])
       ),
@@ -2773,7 +2878,8 @@ export class EidosFileRuntime {
     viewId: string,
     changes: UpdateEidosFileViewInput
   ): EidosFileViewInfo {
-    const current = this.mapView(this.viewRow(viewId))
+    const currentRow = this.viewRow(viewId)
+    const current = this.mapView(currentRow)
     const fields = this.listFields(current.tableId)
     const name = assertEidosFileDisplayName(
       changes.name ?? current.name,
@@ -2813,6 +2919,12 @@ export class EidosFileRuntime {
           ? current.hiddenFields
           : changes.hiddenFields,
     }
+    const queryChanged =
+      changes.filter !== undefined || changes.sorts !== undefined
+    const layoutChanged =
+      changes.properties !== undefined ||
+      changes.orderMap !== undefined ||
+      changes.hiddenFields !== undefined
     return this.mutate(() => {
       const fieldByKey = new Map(
         fields.flatMap((field) =>
@@ -2854,13 +2966,17 @@ export class EidosFileRuntime {
         [
           next.name,
           next.type,
-          canonicalizeEidosFileJson({
-            ...(filterToStorage(next.filter, fields)
-              ? { filter: filterToStorage(next.filter, fields) }
-              : {}),
-            ...(sorts.length ? { sort: sorts } : {}),
-          }),
-          canonicalizeEidosFileJson(layout),
+          queryChanged
+            ? canonicalizeEidosFileJson({
+                ...(filterToStorage(next.filter, fields)
+                  ? { filter: filterToStorage(next.filter, fields) }
+                  : {}),
+                ...(sorts.length ? { sort: sorts } : {}),
+              })
+            : currentRow.query_json,
+          layoutChanged
+            ? canonicalizeEidosFileJson(layout)
+            : currentRow.layout_json,
           stablePosition(next.position, current.position ?? 0),
           this.operationInstant(),
           viewId,
@@ -2872,6 +2988,12 @@ export class EidosFileRuntime {
 
   duplicateView(viewId: string, name?: string): EidosFileViewInfo {
     const view = this.mapView(this.viewRow(viewId))
+    if (view.queryStatus === "unsupported") {
+      throw new EidosFileError(
+        "unsupported-feature",
+        "This View uses a saved query from a newer Eidos version"
+      )
+    }
     return this.createView(view.tableId, {
       name: name ?? `${view.name} copy`,
       type: view.type,

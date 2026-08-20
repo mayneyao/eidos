@@ -634,6 +634,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [weekStartsOnMonday, setWeekStartsOnMonday] = useState(
     DEFAULT_RENDERER_PREFERENCES.weekStartsOnMonday
   )
+  const [timeZone, setTimeZone] = useState(
+    DEFAULT_RENDERER_PREFERENCES.timeZone
+  )
   const versionShortcutLabel = workspaceShortcutLabel(
     "toggle-version",
     macos,
@@ -717,10 +720,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     void window.eidosLite.getPreferences().then((preferences) => {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+      setTimeZone(preferences.timeZone)
     })
     return window.eidosLite.onPreferencesChanged((preferences) => {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+      setTimeZone(preferences.timeZone)
     })
   }, [])
 
@@ -2356,6 +2361,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                         disabled={localInteractionBlocked}
                         theme={theme}
                         weekStartsOnMonday={weekStartsOnMonday}
+                        timeZone={timeZone === "system" ? undefined : timeZone}
                         keyboardShortcuts={keyboardShortcuts}
                         macos={macos}
                         onTableSelect={(tableId) =>

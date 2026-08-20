@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
 
+import { EidosFileUIProvider } from "./context"
 import { EidosFileRecordFieldEditor } from "./eidos-file-record-field-editor"
 
 ;(
@@ -31,6 +32,25 @@ function optionField(type: "select" | "multi-select"): EidosFileFieldInfo {
     sourceTableColumnName: null,
     dependsOn: null,
   }
+}
+
+function datetimeField(): EidosFileFieldInfo {
+  return {
+    ...optionField("select"),
+    id: "field-scheduled-at",
+    name: "Scheduled at",
+    type: "datetime",
+    tableColumnName: "scheduled_at",
+    property: null,
+  }
+}
+
+function enterInputValue(element: HTMLInputElement, value: string): void {
+  Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )?.set?.call(element, value)
+  element.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
 describe("EidosFileRecordFieldEditor option presentation", () => {
@@ -100,5 +120,37 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     expect(
       trigger?.querySelector('[data-eidos-file-option-color="green"]')
     ).toBeTruthy()
+  })
+
+  it("edits date-time values in the Host-selected time zone", async () => {
+    const onChange = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider timeZone="America/Los_Angeles">
+          <EidosFileRecordFieldEditor
+            field={datetimeField()}
+            row={{
+              id: "row-1",
+              scheduled_at: "2026-01-01T00:30:00.000Z",
+            }}
+            disabled={false}
+            onChange={onChange}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    )!
+    expect(input.value).toBe("2025-12-31T16:30")
+    expect(container.textContent).toContain("America/Los_Angeles")
+    await act(async () => {
+      input.focus()
+      enterInputValue(input, "2025-12-31T17:30")
+      input.blur()
+      await Promise.resolve()
+    })
+    expect(onChange).toHaveBeenCalledWith("2026-01-01T01:30:00.000Z")
   })
 })

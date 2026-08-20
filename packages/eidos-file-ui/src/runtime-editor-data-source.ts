@@ -1249,6 +1249,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     name?: string
   ): Promise<EidosFileSnapshot> {
     const view = this.assertView(viewId)
+    if (view.queryStatus === "unsupported") {
+      throw new Error(
+        "This View uses a saved query from a newer Eidos version and cannot be duplicated safely"
+      )
+    }
     return this.createView(view.tableId, {
       name: name ?? `${view.name} copy`,
       type: view.type,
@@ -1622,6 +1627,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       name: view.name,
       type: view.type,
       tableId: view.tableId,
+      queryStatus: view.queryStatus,
       query: canonicalizeEidosFileJson(view.query),
       properties: { ...view.layout },
       filter: this.editorFilter(view.query.filter),

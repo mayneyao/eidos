@@ -20,7 +20,8 @@ function scalarText(value: EidosFileRowValue | undefined): string {
 
 function dateText(
   value: EidosFileRowValue | undefined,
-  dateOnly: boolean
+  dateOnly: boolean,
+  timeZone?: string
 ): string {
   if (typeof value !== "string" || value.length === 0) return "Empty"
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -29,14 +30,22 @@ function dateText(
       ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
       : new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return dateOnly ? parsed.toLocaleDateString() : parsed.toLocaleString()
+  return dateOnly
+    ? parsed.toLocaleDateString()
+    : parsed.toLocaleString(undefined, timeZone ? { timeZone } : undefined)
 }
 
 export function eidosFileRecordFieldText(
   row: EidosFileRow,
-  field: EidosFileFieldInfo
+  field: EidosFileFieldInfo,
+  timeZone?: string
 ): string {
   const value = row[field.tableColumnName]
+  const displayType =
+    (field.type === "formula" || field.type === "lookup") &&
+    typeof field.property?.displayType === "string"
+      ? field.property.displayType
+      : field.type
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const values = decodeEidosFileJsonArray(value)
     return values.length > 0
@@ -73,13 +82,13 @@ export function eidosFileRecordFieldText(
       ? files.map((entry) => entry.name).join(", ")
       : "Empty"
   }
-  if (field.type === "date") return dateText(value, true)
+  if (displayType === "date") return dateText(value, true)
   if (
-    field.type === "datetime" ||
-    field.type === "created-time" ||
-    field.type === "last-edited-time"
+    displayType === "datetime" ||
+    displayType === "created-time" ||
+    displayType === "last-edited-time"
   ) {
-    return dateText(value, false)
+    return dateText(value, false, timeZone)
   }
   return scalarText(value)
 }

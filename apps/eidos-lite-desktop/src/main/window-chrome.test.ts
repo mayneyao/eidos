@@ -2,11 +2,23 @@ import { describe, expect, it } from "vitest"
 
 import {
   applyMacosTrafficLightPosition,
+  liteCompactWindowDefaultSize,
   liteWindowChromeOptions,
   macosTrafficLightPosition,
 } from "./window-chrome"
 
 describe("Eidos Lite window chrome", () => {
+  it("gives Settings enough default width for its two-column layout", () => {
+    expect(liteCompactWindowDefaultSize("settings")).toEqual({
+      width: 960,
+      height: 680,
+    })
+    expect(liteCompactWindowDefaultSize("welcome")).toEqual({
+      width: 920,
+      height: 620,
+    })
+  })
+
   it("aligns the Space traffic lights with the compact title row", () => {
     expect(macosTrafficLightPosition("space")).toEqual({ x: 16, y: 12 })
   })

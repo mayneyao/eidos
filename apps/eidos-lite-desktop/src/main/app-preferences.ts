@@ -4,6 +4,7 @@ import path from "node:path"
 import type {
   EidosLiteAppearance,
   EidosLitePreferences,
+  EidosLiteTimeZone,
 } from "../shared/contracts"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -13,6 +14,7 @@ import {
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
+  timeZone: "system",
   weekStartsOnMonday: true,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
@@ -32,6 +34,19 @@ function language(value: unknown): EidosLitePreferences["language"] {
     : DEFAULT_EIDOS_LITE_PREFERENCES.language
 }
 
+export function normalizeEidosLiteTimeZone(value: unknown): EidosLiteTimeZone {
+  if (value === "system") return value
+  if (typeof value !== "string" || value.length === 0) {
+    return DEFAULT_EIDOS_LITE_PREFERENCES.timeZone
+  }
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format(0)
+    return value
+  } catch {
+    return DEFAULT_EIDOS_LITE_PREFERENCES.timeZone
+  }
+}
+
 export function normalizeEidosLitePreferences(
   value: unknown
 ): EidosLitePreferences {
@@ -43,6 +58,7 @@ export function normalizeEidosLitePreferences(
   return {
     appearance: appearance(candidate.appearance),
     language: language(candidate.language),
+    timeZone: normalizeEidosLiteTimeZone(candidate.timeZone),
     weekStartsOnMonday:
       typeof candidate.weekStartsOnMonday === "boolean"
         ? candidate.weekStartsOnMonday

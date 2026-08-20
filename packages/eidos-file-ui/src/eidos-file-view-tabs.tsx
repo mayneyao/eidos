@@ -12,8 +12,6 @@ import { EidosFileViewTabStrip } from "./eidos-file-editor-chrome"
 import { useEidosFileUI } from "./context"
 import {
   EidosFileViewSelector,
-  eidosFileExtensionContributionId,
-  isEidosFileBuiltInViewType,
   type EidosFileViewSelectorRequest,
 } from "./eidos-file-view-selector"
 import {
@@ -134,11 +132,6 @@ export function EidosFileViewTabs({
   const [selectorRequest, setSelectorRequest] =
     useState<EidosFileViewSelectorRequest | null>(null)
   const [exportingViewId, setExportingViewId] = useState<string | null>(null)
-  const supportedViews = views.filter(
-    (view) =>
-      isEidosFileBuiltInViewType(view.type) ||
-      eidosFileExtensionContributionId(view.type)
-  )
   const gridViewCount = views.filter((view) => view.type === "grid").length
 
   const requestPanel = (
@@ -171,7 +164,7 @@ export function EidosFileViewTabs({
   return (
     <div ref={rootRef} className="contents">
       <EidosFileViewTabStrip
-        views={supportedViews}
+        views={views}
         activeViewId={activeView?.id}
         disabled={disabled}
         onSelect={onSelect}
@@ -197,15 +190,16 @@ export function EidosFileViewTabs({
                   ? t("A table must keep one view")
                   : undefined,
             disabled: Boolean(disabled),
-            exportCsv: onExportCsv
-              ? () => {
-                  if (disabled || exportingViewId) return
-                  setExportingViewId(view.id)
-                  void Promise.resolve(onExportCsv(view))
-                    .catch((error) => onExportError?.(error))
-                    .finally(() => setExportingViewId(null))
-                }
-              : undefined,
+            exportCsv:
+              onExportCsv && view.queryStatus !== "unsupported"
+                ? () => {
+                    if (disabled || exportingViewId) return
+                    setExportingViewId(view.id)
+                    void Promise.resolve(onExportCsv(view))
+                      .catch((error) => onExportError?.(error))
+                      .finally(() => setExportingViewId(null))
+                  }
+                : undefined,
             exportingCsv: exportingViewId === view.id,
             rename: () => {
               if (!disabled) requestPanel(view, "manage", true)

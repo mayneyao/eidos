@@ -101,6 +101,8 @@ export interface EidosFileViewInfo {
   name: string
   type: string
   tableId: string
+  /** Whether this Runtime can execute the complete saved query. */
+  queryStatus?: "supported" | "unsupported"
   query: string
   properties: Record<string, unknown> | null
   filter: EidosFileFilterGroup | null

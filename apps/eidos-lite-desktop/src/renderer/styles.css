@@ -560,6 +560,214 @@ body {
   font-weight: 600;
 }
 
+.time-zone-trigger {
+  width: min(18rem, 42vw);
+  min-height: 1.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex: 0 1 auto;
+  padding: 0.28rem 0.5rem 0.28rem 0.6rem;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-zone-trigger:hover,
+.time-zone-trigger[aria-expanded="true"] {
+  border-color: color-mix(
+    in oklab,
+    var(--control-border) 45%,
+    var(--ink-muted)
+  );
+}
+
+.time-zone-trigger:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.time-zone-trigger-copy,
+.time-zone-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.time-zone-trigger-copy strong,
+.time-zone-option-copy strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 550;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-zone-trigger-copy small,
+.time-zone-option-copy small {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-zone-trigger > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform 120ms ease-out;
+}
+
+.time-zone-trigger[aria-expanded="true"] > svg {
+  transform: rotate(180deg);
+}
+
+.time-zone-popover {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--control-border);
+  border-radius: 0.5rem;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--floating-surface-shadow);
+}
+
+.time-zone-search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.45rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  background: var(--control-fill);
+}
+
+.time-zone-search:focus-within {
+  border-color: var(--focus);
+  outline: 1px solid var(--focus);
+}
+
+.time-zone-search > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.time-zone-search input {
+  min-width: 0;
+  height: 2rem;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.time-zone-search input::placeholder {
+  color: var(--ink-faint);
+}
+
+.time-zone-search input::-webkit-search-cancel-button {
+  opacity: 0.55;
+}
+
+.time-zone-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 0.35rem 0.35rem;
+  scrollbar-color: var(--control-border) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.time-zone-section + .time-zone-section,
+.time-zone-section + div:not(.time-zone-section) {
+  margin-top: 0.25rem;
+}
+
+.time-zone-group-label {
+  display: block;
+  padding: 0.45rem 0.55rem 0.25rem;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.time-zone-option {
+  width: 100%;
+  min-height: 2.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.38rem 0.55rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.time-zone-option[data-active] {
+  background: var(--surface-hover);
+}
+
+.time-zone-option[aria-selected="true"] {
+  background: var(--surface-selected);
+}
+
+.time-zone-option[aria-selected="true"][data-active] {
+  background: color-mix(
+    in oklab,
+    var(--surface-selected) 78%,
+    var(--surface-hover)
+  );
+}
+
+.time-zone-option:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.time-zone-option > svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+}
+
+.time-zone-empty {
+  margin: 0;
+  padding: 1.4rem 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+
 .settings-switch,
 .version-diff-wrap-switch {
   position: relative;
@@ -7295,8 +7503,13 @@ body {
   }
 
   .settings-row-actions,
-  .settings-segmented-control {
+  .settings-segmented-control,
+  .time-zone-trigger {
     align-self: stretch;
+  }
+
+  .time-zone-trigger {
+    width: 100%;
   }
 
   .settings-row-actions {

@@ -743,6 +743,7 @@ describe("EidosFileGalleryView", () => {
     const virtualList = container.querySelector<HTMLElement>(
       '[role="list"][data-eidos-file-physical-size]'
     )
+    expect(virtualList?.dataset.eidosFileEndPadding).toBe("48")
     expect(Number(virtualList?.dataset.eidosFileLogicalSize)).toBeGreaterThan(
       EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE
     )

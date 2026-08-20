@@ -76,6 +76,7 @@ export interface EidosFileWorkbenchProps {
   disabled: boolean
   theme: "light" | "dark"
   weekStartsOnMonday?: boolean
+  timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
   macos?: boolean
   onTableSelect(tableId: string): void
@@ -91,6 +92,7 @@ export function EidosFileWorkbench({
   disabled,
   theme,
   weekStartsOnMonday = true,
+  timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   macos = false,
   onTableSelect,
@@ -413,6 +415,7 @@ export function EidosFileWorkbench({
       locale={locale}
       themeName={theme}
       weekStartsOnMonday={weekStartsOnMonday}
+      timeZone={timeZone}
       activateUrl={window.eidosLite?.openExternalUrl}
       openRelationRecord={openRelationRecord}
       assetSession={assetSession}
@@ -469,7 +472,7 @@ export function EidosFileWorkbench({
             sorts={activeView?.sorts ?? []}
             search={search}
             focusSearchToken={focusSearchToken}
-            disabled={disabled}
+            disabled={disabled || activeView?.queryStatus === "unsupported"}
             onSearchChange={setSearch}
             onFilterChange={(filter) => updateActiveView({ filter })}
             onSortsChange={(sorts) => updateActiveView({ sorts })}

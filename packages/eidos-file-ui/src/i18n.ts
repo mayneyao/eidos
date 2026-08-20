@@ -32,6 +32,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Hide field": "隐藏字段",
   System: "系统",
   Filter: "筛选",
+  "This view uses filter or sort rules from a newer Eidos version. Update Eidos to open it. Its saved configuration has been preserved.":
+    "此视图使用了较新 Eidos 版本的筛选或排序规则。请更新 Eidos 后打开；已保存的配置仍会完整保留。",
   "Filter Eidos File rows": "筛选 Eidos File 记录",
   "Add filter": "添加筛选",
   "Add condition": "添加条件",
@@ -410,6 +412,9 @@ const zh: EidosFileUIMessageOverrides = {
   "Select options": "选择多个选项",
   "Choose date": "选择日期",
   "Choose date & time": "选择日期与时间",
+  "Time zone: {timeZone}": "时区：{timeZone}",
+  "This time is ambiguous or unavailable in {timeZone}. Choose another time.":
+    "这个时间在 {timeZone} 中重复或不存在，请选择其他时间。",
   "Manage files": "管理文件",
   Files: "文件",
   "Preview unavailable": "预览不可用",

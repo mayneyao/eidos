@@ -25,13 +25,20 @@ import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
+import {
+  eidosFileDateTimeInputValue,
+  eidosFileInstantFromInputValue,
+  eidosFileResolvedTimeZone,
+} from "./eidos-file-date-time"
 
-function dateTimeInputValue(value: EidosFileRow[string]): string {
+function dateTimeInputValue(
+  value: EidosFileRow[string],
+  timeZone?: string
+): string {
   if (typeof value !== "string" || value.length === 0) return ""
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  return eidosFileDateTimeInputValue(date, timeZone)
 }
 
 export function EidosFileRecordFieldEditor({
@@ -45,15 +52,16 @@ export function EidosFileRecordFieldEditor({
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { timeZone, translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   const [draft, setDraft] = useState(
     field.type === "datetime"
-      ? dateTimeInputValue(value)
+      ? dateTimeInputValue(value, timeZone)
       : value === null || value === undefined
         ? ""
         : String(value)
   )
+  const [datetimeError, setDatetimeError] = useState<string | null>(null)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
     text: draft,
     maxLines: field.isRecordLabel ? 3 : 12,
@@ -62,12 +70,13 @@ export function EidosFileRecordFieldEditor({
   useEffect(() => {
     setDraft(
       field.type === "datetime"
-        ? dateTimeInputValue(value)
+        ? dateTimeInputValue(value, timeZone)
         : value === null || value === undefined
           ? ""
           : String(value)
     )
-  }, [field.type, value])
+    setDatetimeError(null)
+  }, [field.type, timeZone, value])
 
   const commitDraft = () => {
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
@@ -79,9 +88,19 @@ export function EidosFileRecordFieldEditor({
         ? BigInt(draft.trim())
         : draft
     } else if (field.type === "datetime" && draft) {
-      const date = new Date(draft)
-      next = Number.isNaN(date.getTime()) ? null : date.toISOString()
+      const date = eidosFileInstantFromInputValue(draft, timeZone)
+      if (!date) {
+        setDatetimeError(
+          t(
+            "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
+            { timeZone: eidosFileResolvedTimeZone(timeZone) }
+          )
+        )
+        return
+      }
+      next = date.toISOString()
     }
+    setDatetimeError(null)
     if (!Object.is(value, next)) void onChange(next)
   }
 
@@ -231,7 +250,7 @@ export function EidosFileRecordFieldEditor({
     "datetime",
   ])
   if (supportedInput.has(field.type)) {
-    return (
+    const input = (
       <Input
         type={
           field.type === "number" || field.type === "rating"
@@ -246,20 +265,51 @@ export function EidosFileRecordFieldEditor({
         }
         value={draft}
         aria-label={field.name}
+        aria-invalid={field.type === "datetime" && Boolean(datetimeError)}
         disabled={disabled}
         inputMode={field.type === "integer" ? "numeric" : undefined}
         className="h-8 text-xs"
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          if (field.type === "datetime") setDatetimeError(null)
+        }}
         onBlur={commitDraft}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
-            setDraft(value === null || value === undefined ? "" : String(value))
+            setDraft(
+              field.type === "datetime"
+                ? dateTimeInputValue(value, timeZone)
+                : value === null || value === undefined
+                  ? ""
+                  : String(value)
+            )
+            setDatetimeError(null)
             event.currentTarget.blur()
           }
         }}
       />
     )
+    if (field.type === "datetime") {
+      return (
+        <div>
+          {input}
+          <p
+            className={
+              datetimeError
+                ? "mt-1 text-[10px] leading-4 text-destructive"
+                : "mt-1 text-[10px] text-muted-foreground"
+            }
+          >
+            {datetimeError ??
+              t("Time zone: {timeZone}", {
+                timeZone: eidosFileResolvedTimeZone(timeZone),
+              })}
+          </p>
+        </div>
+      )
+    }
+    return input
   }
 
   return null

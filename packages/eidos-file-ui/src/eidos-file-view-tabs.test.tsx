@@ -258,6 +258,44 @@ describe("EidosFileViewTabs", () => {
     expect(onExportCsv).toHaveBeenCalledWith(views[1])
   })
 
+  it("keeps a View from a newer client visible in navigation", async () => {
+    const futureView: EidosFileViewInfo = {
+      ...views[1]!,
+      id: "timeline",
+      name: "Timeline",
+      type: "future-timeline",
+      queryStatus: "unsupported",
+      position: 2,
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileViewTabs
+          views={[...views, futureView]}
+          fields={[]}
+          activeView={futureView}
+          onSelect={vi.fn()}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onUpdate={vi.fn()}
+          onReorder={vi.fn()}
+          onExportCsv={vi.fn()}
+        />
+      )
+    })
+
+    expect(
+      container.querySelector('[data-eidos-file-view-id="timeline"]')
+    ).not.toBeNull()
+    expect(container.textContent).toContain("Timeline")
+
+    await openViewMenu(container, "timeline")
+    expect(document.body.textContent).not.toContain(
+      "Export current view as CSV"
+    )
+  })
+
   it("creates a Calendar when the table has a temporal field", async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined)
     await act(async () => {

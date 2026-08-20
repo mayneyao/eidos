@@ -8,6 +8,8 @@ import type {
 } from "@eidos.space/eidos-file"
 import { CalendarDays } from "lucide-react"
 
+import { useEidosFileUI } from "../context"
+import { eidosFileInstantFromWallDate } from "../eidos-file-date-time"
 import {
   EidosFileCalendarView,
   eidosFileCalendarCreateValue,
@@ -34,13 +36,23 @@ function localDateValue(date: Date): string {
 export function eidosFileCalendarRangeFilter(
   current: EidosFileFilterGroup | null | undefined,
   field: EidosFileFieldInfo,
-  range: EidosFileCalendarRange
+  range: EidosFileCalendarRange,
+  timeZone?: string
 ): EidosFileFilterGroup {
   const dateOnly = eidosFileCalendarFieldType(field) === "date"
+  const rangeStart = dateOnly
+    ? undefined
+    : eidosFileInstantFromWallDate(range.start, timeZone)
+  const rangeEnd = dateOnly
+    ? undefined
+    : eidosFileInstantFromWallDate(range.end, timeZone)
+  if (!dateOnly && (!rangeStart || !rangeEnd)) {
+    throw new Error("The Calendar range has no unambiguous time-zone boundary")
+  }
   const start = dateOnly
     ? localDateValue(range.start)
-    : range.start.toISOString()
-  const end = dateOnly ? localDateValue(range.end) : range.end.toISOString()
+    : rangeStart!.toISOString()
+  const end = dateOnly ? localDateValue(range.end) : rangeEnd!.toISOString()
   return {
     type: "group",
     conjunction: "and",
@@ -63,6 +75,7 @@ export function eidosFileCalendarRangeFilter(
 }
 
 function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
+  const { timeZone } = useEidosFileUI()
   const {
     source,
     table,
@@ -71,6 +84,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
     disabled,
     reloadToken,
     onMutation,
+    onDeleteRow,
     onError,
   } = props
   const labelField = table.fields.find((field) => field.isRecordLabel)
@@ -78,7 +92,12 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
     async (field: EidosFileFieldInfo, range: EidosFileCalendarRange) => {
       const scopedQuery: EidosFileRowQuery = {
         ...query,
-        filter: eidosFileCalendarRangeFilter(query.filter, field, range),
+        filter: eidosFileCalendarRangeFilter(
+          query.filter,
+          field,
+          range,
+          timeZone
+        ),
       }
       const projection = {
         columns: [
@@ -109,7 +128,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       }
       return rows
     },
-    [labelField, query, source, table.table.id]
+    [labelField, query, source, table.table.id, timeZone]
   )
   const editCell = useCallback(
     async (
@@ -127,14 +146,14 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
   )
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, day: Date) => {
-      const value = eidosFileCalendarCreateValue(field, day)
+      const value = eidosFileCalendarCreateValue(field, day, timeZone)
       const result = await source.insertRow(table.table.id, {
         ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
       })
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id]
+    [onMutation, source, table.table.id, timeZone]
   )
   const searchRelation = useCallback(
     (field: EidosFileFieldInfo, relationQuery: string) =>
@@ -160,6 +179,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       loadRow={loadRow}
       onCellEdit={editCell}
       onAddRow={addRow}
+      onDeleteRow={onDeleteRow}
       onImportFiles={props.onImportFiles}
       onImportDroppedFiles={props.onImportDroppedFiles}
       onSearchRelation={searchRelation}

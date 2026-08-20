@@ -8,6 +8,15 @@ import { GridCellKind, drawTextCell } from "@glideapps/glide-data-grid"
 import { CalendarDays } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
+import {
+  eidosFileDateTimeInputValue,
+  eidosFileDateTimeParts,
+  eidosFileInstantFromInputValue,
+  eidosFileInstantFromWallDate,
+  eidosFileResolvedTimeZone,
+  eidosFileWallDate,
+  eidosFileWallDateFromInputValue,
+} from "../eidos-file-date-time"
 import { formatEidosFileGridDate } from "../eidos-file-grid-date-format"
 import { Button, Calendar } from "../ui/primitives"
 import { Popover, PopoverTrigger } from "../ui/primitives"
@@ -26,6 +35,7 @@ interface DatePickerCellProps {
   readonly date: Date | undefined
   readonly displayDate: string
   readonly format: "date" | "datetime-local"
+  readonly timeZone?: string
 }
 
 export type DatePickerCell = CustomCell<DatePickerCellProps>
@@ -37,58 +47,60 @@ function toDateInputValue(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function toDatetimeLocalValue(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-  return `${y}-${m}-${d}T${hours}:${minutes}`
-}
-
 interface DatePickerEditorProps {
   format: "date" | "datetime-local"
   date: Date | undefined
+  timeZone?: string
   onFinishedEditing: (date: Date | undefined) => void
   onCancelEditing: () => void
 }
 
 function DatePickerEditor(props: DatePickerEditorProps) {
   const { locale, translate: t } = useEidosFileUI()
-  const { format, date, onFinishedEditing, onCancelEditing } = props
+  const { format, date, timeZone, onFinishedEditing, onCancelEditing } = props
 
-  const defaultDate = date ?? new Date()
+  const defaultDate =
+    format === "datetime-local"
+      ? eidosFileWallDate(date ?? new Date(), timeZone)
+      : (date ?? new Date())
   const [open, setOpen] = React.useState(true)
 
   const [inputValue, setInputValue] = React.useState(
     date
       ? format === "date"
         ? toDateInputValue(date)
-        : toDatetimeLocalValue(date)
+        : eidosFileDateTimeInputValue(date, timeZone)
       : ""
   )
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date)
   const [month, setMonth] = React.useState<Date>(defaultDate)
+  const [inputError, setInputError] = React.useState<string | null>(null)
 
   const commitDate = React.useCallback(
     (d: Date | undefined) => {
       setSelectedDate(d)
+      setInputError(null)
       if (d) {
-        setMonth(d)
+        setMonth(
+          format === "datetime-local" ? eidosFileWallDate(d, timeZone) : d
+        )
         setInputValue(
-          format === "date" ? toDateInputValue(d) : toDatetimeLocalValue(d)
+          format === "date"
+            ? toDateInputValue(d)
+            : eidosFileDateTimeInputValue(d, timeZone)
         )
       } else {
         setInputValue("")
       }
     },
-    [format]
+    [format, timeZone]
   )
 
   const handleSave = React.useCallback(() => {
+    if (inputError) return
     setOpen(false)
     onFinishedEditing(selectedDate)
-  }, [selectedDate, onFinishedEditing])
+  }, [inputError, selectedDate, onFinishedEditing])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
@@ -145,27 +157,75 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                 }
                 const d =
                   format === "date"
-                    ? new Date(
-                        Number(v.slice(0, 4)),
-                        Number(v.slice(5, 7)) - 1,
-                        Number(v.slice(8, 10))
-                      )
-                    : new Date(v)
-                if (!Number.isNaN(d.getTime())) {
+                    ? eidosFileWallDateFromInputValue(v)
+                    : eidosFileInstantFromInputValue(v, timeZone)
+                if (d) {
                   commitDate(d)
+                } else {
+                  setInputError(
+                    t(
+                      "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
+                      { timeZone: eidosFileResolvedTimeZone(timeZone) }
+                    )
+                  )
                 }
               }}
               className="h-8 w-full rounded-md border bg-background px-2.5 text-xs outline-none focus:border-ring focus:ring-0"
             />
+            {format === "datetime-local" ? (
+              <p
+                className={
+                  inputError
+                    ? "mt-1 text-[10px] leading-4 text-destructive"
+                    : "mt-1 text-[10px] text-muted-foreground"
+                }
+              >
+                {inputError ??
+                  t("Time zone: {timeZone}", {
+                    timeZone: eidosFileResolvedTimeZone(timeZone),
+                  })}
+              </p>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             <Calendar
               mode="single"
-              selected={selectedDate}
+              selected={
+                selectedDate && format === "datetime-local"
+                  ? eidosFileWallDate(selectedDate, timeZone)
+                  : selectedDate
+              }
               month={month}
               onMonthChange={setMonth}
-              onSelect={commitDate}
+              onSelect={(nextDate) => {
+                if (!nextDate || format === "date") {
+                  commitDate(nextDate)
+                  return
+                }
+                const current = eidosFileDateTimeParts(
+                  selectedDate ?? new Date(),
+                  timeZone
+                )
+                const wallDate = new Date(
+                  nextDate.getFullYear(),
+                  nextDate.getMonth(),
+                  nextDate.getDate(),
+                  current.hour,
+                  current.minute,
+                  current.second
+                )
+                const instant = eidosFileInstantFromWallDate(wallDate, timeZone)
+                if (instant) commitDate(instant)
+                else {
+                  setInputError(
+                    t(
+                      "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
+                      { timeZone: eidosFileResolvedTimeZone(timeZone) }
+                    )
+                  )
+                }
+              }}
               formatters={
                 locale === "zh"
                   ? {
@@ -209,7 +269,7 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
   DatePickerCell
 > = (p) => {
   const cellData = p.value.data
-  const { format, date } = cellData
+  const { format, date, timeZone } = cellData
 
   const handleFinishedEditing = (finalDate: Date | undefined) => {
     const newCell = {
@@ -218,7 +278,7 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
         ...p.value.data,
         date: finalDate,
         displayDate: finalDate
-          ? formatEidosFileGridDate(finalDate, format)
+          ? formatEidosFileGridDate(finalDate, format, timeZone)
           : "",
       },
     }
@@ -233,6 +293,7 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
     <DatePickerEditor
       format={format}
       date={date}
+      timeZone={timeZone}
       onFinishedEditing={handleFinishedEditing}
       onCancelEditing={handleCancelEditing}
     />
@@ -260,14 +321,14 @@ const renderer: CustomRenderer<DatePickerCell> = {
     const newDate =
       format === "date" && date
         ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
-        : new Date(v)
+        : eidosFileInstantFromInputValue(v, d.timeZone)
 
     return {
       ...d,
-      date: Number.isNaN(newDate.getTime()) ? undefined : newDate,
-      displayDate: Number.isNaN(newDate.getTime())
-        ? ""
-        : formatEidosFileGridDate(newDate, format),
+      date: newDate,
+      displayDate: newDate
+        ? formatEidosFileGridDate(newDate, format, d.timeZone)
+        : "",
     }
   },
   onDelete: (d) => {

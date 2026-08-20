@@ -71,4 +71,24 @@ describe("eidosFileRecordFieldText", () => {
       eidosFileRecordFieldText({ ...row, _created_time: value }, created)
     ).toBe(new Date(value).toLocaleString())
   })
+
+  it("formats date-time values in the Host-selected time zone", () => {
+    const created = {
+      ...field("created-time", "_created_time"),
+      valueKind: "system" as const,
+      isHidden: true,
+    }
+    const value = "2026-01-01T00:30:00.000Z"
+    expect(
+      eidosFileRecordFieldText(
+        { ...row, _created_time: value },
+        created,
+        "America/Los_Angeles"
+      )
+    ).toBe(
+      new Date(value).toLocaleString(undefined, {
+        timeZone: "America/Los_Angeles",
+      })
+    )
+  })
 })

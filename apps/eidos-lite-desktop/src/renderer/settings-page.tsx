@@ -31,6 +31,7 @@ import {
   readSyncAccountContext,
   writeSyncStatusSnapshot,
 } from "./sync-status-cache"
+import { TimeZonePicker } from "./time-zone-picker"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -85,7 +86,6 @@ export function SettingsPage() {
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
-
   useEffect(() => {
     const previousTitle = document.title
     document.title = `${t("Settings")} — Eidos Lite`
@@ -370,6 +370,24 @@ export function SettingsPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("Time zone")}</strong>
+                    <small>
+                      {t(
+                        "Follow the system time zone or choose a fixed zone for date and time displays."
+                      )}
+                    </small>
+                  </div>
+                  <TimeZonePicker
+                    value={preferences.timeZone}
+                    label={t("Time zone")}
+                    t={t}
+                    onChange={(timeZone) =>
+                      void updatePreferences({ timeZone })
+                    }
+                  />
                 </div>
                 <div className="settings-row">
                   <div className="settings-row-copy">

@@ -29,6 +29,7 @@ import {
   type AssetPresenter,
 } from "./context"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
+import { eidosFileDateKey } from "./eidos-file-date-time"
 
 export interface EidosUIRuntimeContextValue {
   kernel: EidosUIKernel
@@ -43,6 +44,8 @@ export interface EidosUIRuntimeProviderProps {
   kernel: EidosUIKernel
   children: ReactNode
   themeName?: "light" | "dark"
+  /** Host-selected IANA time zone; absent follows the current system zone. */
+  timeZone?: string
   assetPresenter?: AssetPresenter<ReactNode>
   className?: string
   style?: CSSProperties
@@ -53,6 +56,7 @@ export function EidosUIRuntimeProvider({
   kernel,
   children,
   themeName = "light",
+  timeZone,
   assetPresenter,
   className,
   style,
@@ -83,6 +87,7 @@ export function EidosUIRuntimeProvider({
     <EidosUIRuntimeContext.Provider value={value}>
       <EidosFileUIProvider
         themeName={themeName}
+        timeZone={timeZone}
         assetSession={assetSession}
         assetPresenter={assetPresenter}
       >
@@ -131,6 +136,7 @@ export function EidosStandardView({
   renderEmpty,
 }: EidosStandardViewProps) {
   const { kernel, state } = useEidosUIRuntime()
+  const { timeZone } = useEidosFileUI()
   const schema = state.schema
   const table =
     (tableId ? schema?.tables.get(tableId) : undefined) ??
@@ -180,7 +186,12 @@ export function EidosStandardView({
   }, [identity])
 
   useEffect(() => {
-    if (!table || !view || state.phase !== "ready") {
+    if (
+      !table ||
+      !view ||
+      view.queryStatus === "unsupported" ||
+      state.phase !== "ready"
+    ) {
       setPage(null)
       setGroups(null)
       return
@@ -264,6 +275,17 @@ export function EidosStandardView({
             ? "The Eidos File could not be presented."
             : "Open an Eidos File to begin."}
       </div>
+    )
+  }
+  if (view.queryStatus === "unsupported") {
+    return (
+      <section className={className} aria-label={view.name}>
+        <h2>{view.name}</h2>
+        <p role="status">
+          This View uses a saved query from a newer Eidos version. Its
+          configuration has been preserved.
+        </p>
+      </section>
     )
   }
   if (!["grid", "gallery", "kanban", "calendar"].includes(view.type)) {
@@ -374,7 +396,7 @@ export function EidosStandardView({
     const rowsByDate = new Map<string, NonNullable<typeof page>["rows"]>()
     for (const row of page?.rows ?? []) {
       const raw = row.values[dateFieldIndex]
-      const key = runtimeCalendarDateKey(raw)
+      const key = runtimeCalendarDateKey(raw, timeZone)
       if (!key) continue
       const rows = rowsByDate.get(key)
       if (rows) rows.push(row)
@@ -463,16 +485,14 @@ function isRuntimeFileEntry(value: LogicalValue): value is FileEntry {
 }
 
 function runtimeCalendarDateKey(
-  value: LogicalValue | undefined
+  value: LogicalValue | undefined,
+  timeZone?: string
 ): string | null {
   if (typeof value !== "string" || value.length === 0) return null
   if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) return value
   const instant = new Date(value)
   if (Number.isNaN(instant.getTime())) return null
-  const year = String(instant.getFullYear()).padStart(4, "0")
-  const month = String(instant.getMonth() + 1).padStart(2, "0")
-  const day = String(instant.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  return eidosFileDateKey(instant, timeZone)
 }
 
 function RuntimeValue({
@@ -482,6 +502,7 @@ function RuntimeValue({
   field: FieldDescriptor
   value: LogicalValue
 }) {
+  const { timeZone } = useEidosFileUI()
   const fileEntries =
     field.valueType === "file" ||
     (typeof field.valueType === "object" &&
@@ -502,6 +523,19 @@ function RuntimeValue({
     ) : (
       <>—</>
     )
+  }
+  if (field.valueType === "datetime" && typeof value === "string") {
+    const instant = new Date(value)
+    if (!Number.isNaN(instant.getTime())) {
+      return (
+        <>
+          {instant.toLocaleString(
+            undefined,
+            timeZone ? { timeZone } : undefined
+          )}
+        </>
+      )
+    }
   }
   return <>{eidosUIPresentValue(value)}</>
 }

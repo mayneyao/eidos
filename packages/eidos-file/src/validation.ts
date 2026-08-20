@@ -1593,14 +1593,23 @@ export function validateEidosFile(
           if (!layout || Array.isArray(layout) || typeof layout !== "object") {
             throw new Error("View layout_json must be an object")
           }
+          let unsupportedQuery = Object.keys(query).some(
+            (key) => key !== "filter" && key !== "sort"
+          )
           const checkFilter = (value: unknown): void => {
             if (!value || typeof value !== "object" || Array.isArray(value)) {
               throw new Error("View filter nodes must be objects")
             }
             const node = value as Record<string, unknown>
             if (Array.isArray(node.args)) {
-              if (node.op !== "and" && node.op !== "or") {
+              if (typeof node.op !== "string") {
                 throw new Error("View filter group has an invalid op")
+              }
+              if (
+                (node.op !== "and" && node.op !== "or") ||
+                Object.keys(node).some((key) => key !== "op" && key !== "args")
+              ) {
+                unsupportedQuery = true
               }
               node.args.forEach(checkFilter)
               return
@@ -1608,8 +1617,19 @@ export function validateEidosFile(
             if (typeof node.field !== "string" || !fieldIds.has(node.field)) {
               throw new Error("View filter references an unknown Field ID")
             }
-            if (typeof node.op !== "string" || !FILTER_OPERATORS.has(node.op)) {
+            if (typeof node.op !== "string") {
               throw new Error("View filter rule has an invalid operator")
+            }
+            if (!FILTER_OPERATORS.has(node.op)) {
+              unsupportedQuery = true
+              return
+            }
+            if (
+              Object.keys(node).some(
+                (key) => key !== "field" && key !== "op" && key !== "value"
+              )
+            ) {
+              unsupportedQuery = true
             }
             const field = fieldsById.get(node.field)!
             const list =
@@ -1666,15 +1686,27 @@ export function validateEidosFile(
               if (
                 !relative ||
                 typeof relative !== "object" ||
-                Array.isArray(relative) ||
-                !["past", "next", "this"].includes(
-                  String((relative as Record<string, unknown>).direction)
-                ) ||
-                !["day", "week", "month", "year"].includes(
-                  String((relative as Record<string, unknown>).unit)
-                )
+                Array.isArray(relative)
               ) {
                 throw new Error("View relative filter value is invalid")
+              }
+              const relativeValue = relative as Record<string, unknown>
+              if (
+                typeof relativeValue.direction !== "string" ||
+                typeof relativeValue.unit !== "string"
+              ) {
+                throw new Error("View relative filter value is invalid")
+              }
+              if (
+                !["past", "next", "this"].includes(relativeValue.direction) ||
+                !["day", "week", "month", "year"].includes(
+                  relativeValue.unit
+                ) ||
+                Object.keys(relativeValue).some(
+                  (key) => key !== "direction" && key !== "unit"
+                )
+              ) {
+                unsupportedQuery = true
               }
             }
           }
@@ -1688,15 +1720,32 @@ export function validateEidosFile(
                 Array.isArray(item) ||
                 typeof item !== "object" ||
                 typeof item.field !== "string" ||
-                !fieldIds.has(item.field) ||
-                (item.direction !== "asc" && item.direction !== "desc") ||
-                (item.nulls !== "first" && item.nulls !== "last")
+                !fieldIds.has(item.field)
               ) {
                 throw new Error(
                   "View sort contains an invalid Field reference or direction"
                 )
               }
+              if (
+                (item.direction !== "asc" && item.direction !== "desc") ||
+                (item.nulls !== undefined &&
+                  item.nulls !== "first" &&
+                  item.nulls !== "last") ||
+                Object.keys(item).some(
+                  (key) =>
+                    key !== "field" && key !== "direction" && key !== "nulls"
+                )
+              ) {
+                unsupportedQuery = true
+              }
             }
+          }
+          if (unsupportedQuery) {
+            add(
+              warnings,
+              "view-query-unsupported",
+              `View ${view.id} uses query semantics from a newer Eidos version`
+            )
           }
           for (const key of [
             "cardFields",

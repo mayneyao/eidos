@@ -23,6 +23,16 @@ const zh: Record<string, string> = {
   Language: "语言",
   "Use the system language or choose one for Eidos Lite.":
     "跟随系统语言，或为 Eidos Lite 指定语言。",
+  "Time zone": "时区",
+  "Follow the system time zone or choose a fixed zone for date and time displays.":
+    "跟随系统时区，或为日期和时间显示指定固定时区。",
+  "System — {timeZone}": "跟随系统 — {timeZone}",
+  "Search cities and time zones": "搜索城市和时区",
+  "Search cities, time zones…": "搜索城市、时区…",
+  "Current time zone": "当前时区",
+  "Select a time zone": "选择时区",
+  "System time zone": "系统时区",
+  "No matching time zones": "没有匹配的时区",
   "Start week on Monday": "每周从周一开始",
   "Show Monday as the first day in Calendar views.":
     "在日历视图中将周一显示为每周的第一天。",

@@ -121,7 +121,8 @@ export function eidosFileValueToGridCell(
   readonly = false,
   row?: EidosFileRow,
   unavailableRelationTitle = "Unavailable record",
-  allowWrapping = false
+  allowWrapping = false,
+  timeZone?: string
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const values = decodeEidosFileJsonArray(value)
@@ -159,7 +160,8 @@ export function eidosFileValueToGridCell(
       true,
       row,
       unavailableRelationTitle,
-      allowWrapping
+      allowWrapping,
+      timeZone
     )
   }
   if (field.type === "relation") {
@@ -272,9 +274,14 @@ export function eidosFileValueToGridCell(
         kind: "date-picker-cell",
         date,
         displayDate: date
-          ? formatEidosFileGridDate(date, dateOnly ? "date" : "datetime-local")
+          ? formatEidosFileGridDate(
+              date,
+              dateOnly ? "date" : "datetime-local",
+              timeZone
+            )
           : "",
         format: dateOnly ? "date" : "datetime-local",
+        ...(dateOnly || !timeZone ? {} : { timeZone }),
       },
     }
   }

@@ -58,6 +58,7 @@ import {
 } from "./sync/space-clone-coordinator"
 import {
   applyMacosTrafficLightPosition,
+  liteCompactWindowDefaultSize,
   liteWindowChromeOptions,
   macosTrafficLightPosition,
   type LiteWindowKind,
@@ -867,11 +868,9 @@ export class WindowController {
   ): BrowserWindow {
     const compact = kind !== "space"
     const bounds =
-      kind === "welcome"
-        ? { width: 920, height: 620 }
-        : kind === "settings"
-          ? { width: 780, height: 640 }
-          : this.resolveSpaceWindowBounds()
+      kind === "space"
+        ? this.resolveSpaceWindowBounds()
+        : liteCompactWindowDefaultSize(kind)
     const chrome = liteWindowChromeOptions()
     const window = new BrowserWindow({
       ...bounds,

@@ -28,6 +28,11 @@ import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import {
+  eidosFileDateTimeInputValue,
+  eidosFileInstantFromInputValue,
+  eidosFileResolvedTimeZone,
+} from "./eidos-file-date-time"
+import {
   Button,
   CommandGroup,
   CommandItem,
@@ -211,20 +216,21 @@ function defaultRule(field: EidosFileFieldInfo): EidosFileFilterRule {
   }
 }
 
-function padTimeUnit(unit: number): string {
-  return String(unit).padStart(2, "0")
-}
-
-function datetimeLocalFromFilterInstant(value: EidosFileFilterValue): string {
+function datetimeLocalFromFilterInstant(
+  value: EidosFileFilterValue,
+  timeZone?: string
+): string {
   if (typeof value !== "string" || value.length === 0) return ""
   const timestamp = Date.parse(value)
   if (Number.isNaN(timestamp)) return ""
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())}T${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}:${padTimeUnit(date.getSeconds())}`
+  return eidosFileDateTimeInputValue(new Date(timestamp), timeZone, true)
 }
 
-function filterInstantFromDatetimeLocal(value: string): string {
-  return new Date(value).toISOString()
+function filterInstantFromDatetimeLocal(
+  value: string,
+  timeZone?: string
+): string {
+  return eidosFileInstantFromInputValue(value, timeZone)?.toISOString() ?? ""
 }
 
 function FilterValueEditor({
@@ -236,8 +242,9 @@ function FilterValueEditor({
   rule: EidosFileFilterRule
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { timeZone, translate: t } = useEidosFileUI()
   const [optionsOpen, setOptionsOpen] = useState(false)
+  const [datetimeError, setDatetimeError] = useState<string | null>(null)
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
@@ -414,36 +421,67 @@ function FilterValueEditor({
   if (displayType === "date" || displayType === "datetime") {
     const inputValue = (value: EidosFileFilterValue): string =>
       displayType === "datetime"
-        ? datetimeLocalFromFilterInstant(value)
+        ? datetimeLocalFromFilterInstant(value, timeZone)
         : String(value ?? "")
-    const committedValue = (value: string): string =>
+    const committedValue = (value: string): string | undefined =>
       displayType === "datetime" && value
-        ? filterInstantFromDatetimeLocal(value)
+        ? filterInstantFromDatetimeLocal(value, timeZone) || undefined
         : value
+    const timezoneHint =
+      datetimeError ??
+      t("Time zone: {timeZone}", {
+        timeZone: eidosFileResolvedTimeZone(timeZone),
+      })
     if (rule.operator === "is-between") {
       const range = Array.isArray(rule.value) ? rule.value : ["", ""]
       return (
-        <div className="grid min-w-0 grid-cols-2 gap-1.5">
-          {[0, 1].map((index) => (
-            <Input
-              key={index}
-              className="h-7 min-w-0 text-xs"
-              type={displayType === "date" ? "date" : "datetime-local"}
-              step={displayType === "datetime" ? 1 : undefined}
-              aria-label={t(index === 0 ? "Starting date" : "Ending date")}
-              value={inputValue(
-                (range[index] as EidosFileFilterValue | undefined) ?? ""
+        <div className="min-w-0">
+          <div className="grid min-w-0 grid-cols-2 gap-1.5">
+            {[0, 1].map((index) => (
+              <Input
+                key={index}
+                className="h-7 min-w-0 text-xs"
+                type={displayType === "date" ? "date" : "datetime-local"}
+                step={displayType === "datetime" ? 1 : undefined}
+                aria-label={t(index === 0 ? "Starting date" : "Ending date")}
+                aria-invalid={
+                  displayType === "datetime" && Boolean(datetimeError)
+                }
+                value={inputValue(
+                  (range[index] as EidosFileFilterValue | undefined) ?? ""
+                )}
+                onChange={(event) => {
+                  const committed = committedValue(event.target.value)
+                  if (committed === undefined) {
+                    setDatetimeError(
+                      t(
+                        "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
+                        { timeZone: eidosFileResolvedTimeZone(timeZone) }
+                      )
+                    )
+                    return
+                  }
+                  setDatetimeError(null)
+                  const next: EidosFileFilterValue[] = [
+                    (range[0] as EidosFileFilterValue | undefined) ?? "",
+                    (range[1] as EidosFileFilterValue | undefined) ?? "",
+                  ]
+                  next[index] = committed
+                  onChange(next)
+                }}
+              />
+            ))}
+          </div>
+          {displayType === "datetime" ? (
+            <p
+              className={cn(
+                "mt-1 text-[10px]",
+                datetimeError ? "text-destructive" : "text-muted-foreground"
               )}
-              onChange={(event) => {
-                const next: EidosFileFilterValue[] = [
-                  (range[0] as EidosFileFilterValue | undefined) ?? "",
-                  (range[1] as EidosFileFilterValue | undefined) ?? "",
-                ]
-                next[index] = committedValue(event.target.value)
-                onChange(next)
-              }}
-            />
-          ))}
+            >
+              {timezoneHint}
+            </p>
+          ) : null}
         </div>
       )
     }
@@ -454,29 +492,55 @@ function FilterValueEditor({
       candidateValue !== null && typeof candidateValue === "object"
         ? ""
         : candidateValue
-    return (
+    const input = (
       <Input
         className="h-7 min-w-0 text-xs"
         type={displayType === "date" ? "date" : "datetime-local"}
         step={displayType === "datetime" ? 1 : undefined}
+        aria-invalid={displayType === "datetime" && Boolean(datetimeError)}
         value={
           displayType === "datetime"
-            ? datetimeLocalFromFilterInstant(rawValue)
+            ? datetimeLocalFromFilterInstant(rawValue, timeZone)
             : String(rawValue)
         }
         placeholder={t("Value")}
         onChange={(event) => {
           if (displayType === "datetime") {
-            onChange(
-              event.target.value
-                ? filterInstantFromDatetimeLocal(event.target.value)
-                : ""
-            )
+            const committed = event.target.value
+              ? filterInstantFromDatetimeLocal(event.target.value, timeZone) ||
+                undefined
+              : ""
+            if (committed === undefined) {
+              setDatetimeError(
+                t(
+                  "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
+                  { timeZone: eidosFileResolvedTimeZone(timeZone) }
+                )
+              )
+              return
+            }
+            setDatetimeError(null)
+            onChange(committed)
           } else {
             onChange(event.target.value)
           }
         }}
       />
+    )
+    return displayType === "datetime" ? (
+      <div className="min-w-0">
+        {input}
+        <p
+          className={cn(
+            "mt-1 text-[10px]",
+            datetimeError ? "text-destructive" : "text-muted-foreground"
+          )}
+        >
+          {timezoneHint}
+        </p>
+      </div>
+    ) : (
+      input
     )
   }
   return (

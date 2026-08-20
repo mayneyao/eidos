@@ -47,6 +47,7 @@ const GALLERY_PAGE_SIZE = 100
 const GALLERY_MAX_WINDOW_ROWS = 300
 const GALLERY_GAP = 12
 const GALLERY_HORIZONTAL_PADDING = 32
+const GALLERY_END_PADDING = 48
 const GALLERY_OVERSCAN_ROWS = 2
 const GALLERY_PREFETCH_ROWS = Math.floor(GALLERY_PAGE_SIZE / 2)
 
@@ -421,6 +422,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     estimatedItemSize: uniformGalleryCardHeight(cardLayout),
     getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
+    paddingEnd: GALLERY_END_PADDING,
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,
     useAnimationFrameWithResizeObserver: true,
@@ -678,6 +680,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             aria-label={t("{view} records", { view: view.name })}
             data-eidos-file-logical-size={logicalVirtualSize}
             data-eidos-file-physical-size={physicalVirtualSize}
+            data-eidos-file-end-padding={GALLERY_END_PADDING}
             data-eidos-file-measurement-count={measurementCount}
             style={{
               height: physicalVirtualSize,

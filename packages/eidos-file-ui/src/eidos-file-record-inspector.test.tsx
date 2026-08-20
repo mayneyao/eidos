@@ -107,6 +107,10 @@ describe("EidosFileRecordInspector", () => {
       container.querySelector('[data-eidos-file-detail-panel="record"]')
         ?.classList
     ).toContain("eidos-file-record-panel")
+    expect(
+      container.querySelector<HTMLElement>("[data-eidos-file-record-title]")
+        ?.style.overflowY
+    ).toBe("hidden")
     const title = container.querySelector<HTMLTextAreaElement>("textarea")
     expect(title?.rows).toBe(1)
     expect(title?.classList).toContain("resize-none")

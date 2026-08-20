@@ -1680,6 +1680,7 @@ export interface EidosFileViewInfo {
     properties: Record<string, unknown> | null;
     // (undocumented)
     query: string;
+    queryStatus?: "supported" | "unsupported";
     // (undocumented)
     sorts: EidosFileSort[];
     // (undocumented)
@@ -3349,6 +3350,7 @@ export interface ViewDescriptor {
     position: string;
     // (undocumented)
     query: SavedViewQuery;
+    queryStatus?: "supported" | "unsupported";
     // (undocumented)
     tableId: string;
     // (undocumented)

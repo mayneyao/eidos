@@ -19,11 +19,15 @@ import {
 } from "./eidos-file-calendar-view"
 import { eidosFileCalendarRangeFilter } from "./plugins/calendar"
 
-const contextMocks = vi.hoisted(() => ({ weekStartsOnMonday: true }))
+const contextMocks = vi.hoisted(() => ({
+  weekStartsOnMonday: true,
+  timeZone: undefined as string | undefined,
+}))
 
 vi.mock("./context", () => ({
   useEidosFileUI: () => ({
     weekStartsOnMonday: contextMocks.weekStartsOnMonday,
+    timeZone: contextMocks.timeZone,
     translate: (
       message: string,
       values: Record<string, string | number> = {}
@@ -149,6 +153,7 @@ describe("EidosFileCalendarView", () => {
 
   beforeEach(() => {
     contextMocks.weekStartsOnMonday = true
+    contextMocks.timeZone = undefined
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 7, 21, 12))
     container = document.createElement("div")
@@ -178,6 +183,38 @@ describe("EidosFileCalendarView", () => {
     expect(eidosFileCalendarCreateMode(fields[2]!)).toBe("none")
     expect(eidosFileCalendarCreateMode(createdField)).toBe("today")
     expect(eidosFileCalendarCreateValue(createdField, day)).toBeUndefined()
+  })
+
+  it("groups and creates date-time records in the Host-selected zone", () => {
+    const datetimeField = { ...fields[1]!, type: "datetime" as const }
+    expect(
+      eidosFileCalendarRowDateKey(
+        { _id: "one", due: "2026-01-01T00:30:00.000Z" },
+        datetimeField,
+        "America/Los_Angeles"
+      )
+    ).toBe("2025-12-31")
+    expect(
+      eidosFileCalendarCreateValue(
+        datetimeField,
+        new Date(2026, 0, 1),
+        "Asia/Shanghai"
+      )
+    ).toBe("2025-12-31T16:00:00.000Z")
+
+    const filter = eidosFileCalendarRangeFilter(
+      null,
+      datetimeField,
+      {
+        start: new Date(2026, 0, 1),
+        end: new Date(2026, 0, 2),
+      },
+      "Asia/Shanghai"
+    )
+    expect(filter.children).toMatchObject([
+      { value: "2025-12-31T16:00:00.000Z" },
+      { value: "2026-01-01T16:00:00.000Z" },
+    ])
   })
 
   it("adds the visible range without replacing the saved filter", () => {
@@ -329,6 +366,64 @@ describe("EidosFileCalendarView", () => {
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
     ).toBe("New task")
+  })
+
+  it("opens record actions from a calendar item context menu", async () => {
+    const row = {
+      _id: "context-record",
+      title: "Context action task",
+      due: "2026-08-24",
+    }
+    const onDeleteRow = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={async () => [row]}
+          onDeleteRow={onDeleteRow}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[title="Context action task"]')
+        ?.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            button: 2,
+            clientX: 80,
+            clientY: 80,
+          })
+        )
+      await Promise.resolve()
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      "[data-eidos-file-calendar-record-menu]"
+    )
+    expect(menu?.textContent).toContain("Open record")
+    expect(menu?.textContent).toContain("Copy record ID")
+    expect(menu?.textContent).toContain("Delete record")
+    await act(async () => {
+      Array.from(menu?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+        .find((item) => item.textContent?.includes("Delete record"))
+        ?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Delete record")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onDeleteRow).toHaveBeenCalledWith(row)
+    expect(container.textContent).not.toContain("Context action task")
   })
 
   it("only offers today when the selected field is Created at", async () => {

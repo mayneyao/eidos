@@ -1129,10 +1129,12 @@ Runtime 判断 core `query_json` 是否是可用 Query Document并拥有其含�
 `grid`、`gallery`、`kanban`、`calendar` 的 `layout_json` 做同样工作。empty query object
 表示 Runtime default query。EF 层只负责 JCS storage、stable-ID reference 和 unknown
 member/type preservation，不重复上层 JSON schema。selected View 是 UI state，不保存在
-`eidos__meta`。Reader 必须保留 unknown View type 与 unknown JSON members。改变 query
-meaning 的 extension
-必须在 `eidos__features` 声明 `required=1`；不支持该 exact feature tuple 的 Reader/
-Writer 不能进行 semantic access 或 canonical write。
+`eidos__meta`。Reader 必须保留 unknown View type 与 unknown JSON members。若
+Runtime 无法完整解释 query document，可以把 incompatibility 限定在所属 View：把该
+View 作为 opaque metadata 暴露、拒绝执行 saved query，并在 unrelated write 中原样
+保留 `query_json`。显式替换 query 是 semantic mutation。无法隔离到单个 opaque View
+的 extension 必须在 `eidos__features` 声明 `required=1`；不支持该 exact feature tuple
+的 Reader/Writer 不能进行 semantic access 或 canonical write。
 
 ## 14. Canonical write 与 revision
 

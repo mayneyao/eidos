@@ -40,6 +40,9 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain('t("Preferences")')
     expect(settings).toContain("<KeyboardShortcutSettings")
     expect(settings).toContain('t("Start week on Monday")')
+    expect(settings).toContain('t("Time zone")')
+    expect(settings).toContain("<TimeZonePicker")
+    expect(settings).toContain("timeZone })")
     expect(settings).toContain(
       "weekStartsOnMonday: !preferences.weekStartsOnMonday"
     )

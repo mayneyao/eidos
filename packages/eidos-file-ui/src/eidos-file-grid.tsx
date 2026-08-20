@@ -502,6 +502,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     assetSession,
     keyboardShortcuts,
     themeName,
+    timeZone,
     translate: t,
   } = useEidosFileUI()
   useGlideDataGridPortal(themeName)
@@ -1164,7 +1165,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         gridWriteLocked,
         row,
         t("Unavailable record"),
-        view?.properties?.textWrapping === true
+        view?.properties?.textWrapping === true,
+        timeZone
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -1290,6 +1292,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       onError,
       onSearchRelation,
       t,
+      timeZone,
+      view?.properties?.textWrapping,
     ]
   )
 
@@ -2544,7 +2548,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       )?.type
     : undefined
   const cellText = cellMenu
-    ? eidosFileRecordFieldText(cellMenu.row, cellMenu.field)
+    ? eidosFileRecordFieldText(cellMenu.row, cellMenu.field, timeZone)
     : ""
   const cellIsEmpty =
     !cellMenu ||

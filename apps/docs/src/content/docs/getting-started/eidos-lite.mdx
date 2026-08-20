@@ -36,9 +36,15 @@ signing out or going offline does not make local files unreadable.
 
 ## Global preferences
 
-Open **Settings → Preferences** to choose the theme, language, and whether
-Calendar weeks start on Monday. The calendar preference applies immediately to
-every open Eidos File, but remains an app preference rather than file metadata.
+Open **Settings → Preferences** to choose the theme, language, time zone, and
+whether Calendar weeks start on Monday. Time zone defaults to **System**, so
+Eidos Lite follows operating-system changes; choose an IANA zone such as
+`Asia/Shanghai` when the same fixed zone should be used everywhere. Created,
+updated, and Date & time values then use that zone in Grid, cards, record
+details, editors, filters, and Calendar grouping. These choices apply
+immediately to every open Eidos File, but remain app preferences rather than
+file metadata. Saved Date & time values remain canonical UTC instants, and
+date-only values keep their exact saved day.
 
 Developers who need to run the current source can use the
 [Eidos Lite workspace guide](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop).

@@ -36,11 +36,14 @@ created/updated system field. New Calendar Views choose the first eligible
 field; open **Configure view → Date field** to change it. **Today** returns to
 the current month, and the arrow buttons move one month at a time. Search and
 the saved filter still apply. Date & time values appear on the local day for
-your current time zone, while date-only values keep their exact saved day.
+the time zone selected under **Settings → Preferences**. **System** follows the
+operating-system zone; a fixed IANA zone keeps the same presentation when the
+system zone changes. Date-only values keep their exact saved day.
 Records with no value in the configured field do not appear on the calendar.
 Click a calendar item to open the same record detail panel used by other
-Views. With a writable Date or Date & time field, use the add action in any day
-cell to create a record already assigned to that day. With **Created at** or
+Views. Right-click an item to open its record actions. With a writable Date or
+Date & time field, use the add action in any day cell to create a record already
+assigned to that day. With **Created at** or
 **Updated at**, creation is available only on today because Runtime owns those
 timestamps. Derived Formula and Lookup dates cannot create records from a day
 cell. Eidos Lite starts Calendar weeks on Monday by default; turn off **Start
@@ -141,5 +144,17 @@ Applying Filter, Sort, or Fields changes the View and therefore the File
 revision. Typing temporary search text does not. If another editor changes the
 same View first, Eidos refreshes rather than silently replacing the newer
 definition.
+
+## Work across Eidos versions
+
+Views created by a newer Eidos version stay visible in older compatible
+clients. If that client does not understand the View renderer, filter, or sort
+rule, it shows an update-required state instead of hiding the View or treating
+the unknown filter as no filter. This avoids showing the wrong records.
+
+The saved configuration remains in the file. Renaming or reordering the View,
+or changing unrelated layout, does not rewrite the newer query. Update Eidos to
+use the View normally. Explicitly replacing an unsupported filter or sort is
+the only action that removes the newer query definition.
 
 To move data between systems, continue with [Import and export](/user-guide/import-and-export/).

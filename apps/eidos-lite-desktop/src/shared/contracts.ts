@@ -500,10 +500,13 @@ export interface EidosLiteAppInfo {
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
 export type EidosLiteLanguage = "system" | "en" | "zh"
+/** `system` follows the operating system; every other value is an IANA zone. */
+export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
+  timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   automaticUpdates: boolean

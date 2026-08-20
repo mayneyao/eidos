@@ -2227,7 +2227,10 @@ export function App() {
             sorts={activeView?.sorts ?? []}
             search={search}
             focusSearchToken={focusSearchToken}
-            disabled={saveState.phase === "saving"}
+            disabled={
+              saveState.phase === "saving" ||
+              activeView?.queryStatus === "unsupported"
+            }
             onSearchChange={setSearch}
             onFilterChange={(filter) => updateActiveView({ filter })}
             onSortsChange={(sorts) => updateActiveView({ sorts })}

@@ -160,6 +160,7 @@ interface EidosFileBoundedVirtualizerOptions<
   estimatedItemSize: number
   getItemKey: (globalIndex: number) => number | string | bigint
   gap?: number
+  paddingEnd?: number
   initialRect: Rect
   overscan?: number
   useAnimationFrameWithResizeObserver?: boolean
@@ -221,6 +222,7 @@ export function useEidosFileBoundedVirtualizer<
   estimatedItemSize,
   getItemKey,
   gap = 0,
+  paddingEnd = 0,
   initialRect,
   overscan,
   useAnimationFrameWithResizeObserver,
@@ -229,8 +231,10 @@ export function useEidosFileBoundedVirtualizer<
   TItemElement
 >): EidosFileBoundedVirtualizerResult<TScrollElement, TItemElement> {
   const safeItemSize = Math.max(1, finiteNonNegative(estimatedItemSize))
+  const safePaddingEnd = finiteNonNegative(paddingEnd)
   const estimatedStride = safeItemSize + Math.max(0, gap)
-  const estimatedLogicalSize = estimatedWindowSize(count, estimatedStride, gap)
+  const estimatedLogicalSize =
+    estimatedWindowSize(count, estimatedStride, gap) + safePaddingEnd
   const element = getScrollElement()
   const viewportSize = element?.clientHeight || initialRect.height
   const physicalScrollOffset = element?.scrollTop ?? 0
@@ -244,11 +248,12 @@ export function useEidosFileBoundedVirtualizer<
     estimatedStride,
     estimatedLogicalOffset
   )
-  const initialEstimatedWindowSize = estimatedWindowSize(
-    virtualWindow.count,
-    estimatedStride,
-    gap
-  )
+  const virtualWindowIncludesEnd =
+    virtualWindow.start + virtualWindow.count >= count
+  const localPaddingEnd = virtualWindowIncludesEnd ? safePaddingEnd : 0
+  const initialEstimatedWindowSize =
+    estimatedWindowSize(virtualWindow.count, estimatedStride, gap) +
+    localPaddingEnd
   const geometryRef = useRef<EidosFileBoundedVirtualizerGeometry>({
     bounded: count > EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
     totalCount: count,
@@ -284,11 +289,11 @@ export function useEidosFileBoundedVirtualizer<
         )
         const estimatedLocalOffset =
           globalLogicalOffset - nextWindow.start * geometry.estimatedStride
-        const nextEstimatedWindowSize = estimatedWindowSize(
-          nextWindow.count,
-          geometry.estimatedStride,
-          gap
-        )
+        const nextEstimatedWindowSize =
+          estimatedWindowSize(nextWindow.count, geometry.estimatedStride, gap) +
+          (nextWindow.start + nextWindow.count >= geometry.totalCount
+            ? safePaddingEnd
+            : 0)
         const nextLocalSize =
           geometry.bounded && nextWindow.start === geometry.windowStart
             ? instance.getTotalSize()
@@ -305,7 +310,7 @@ export function useEidosFileBoundedVirtualizer<
           isScrolling
         )
       }),
-    [gap, initialRect.height]
+    [gap, initialRect.height, safePaddingEnd]
   )
 
   const scrollToOffset = useCallback(
@@ -356,6 +361,7 @@ export function useEidosFileBoundedVirtualizer<
     estimateSize: () => safeItemSize,
     getItemKey: localItemKey,
     gap,
+    paddingEnd: localPaddingEnd,
     initialRect,
     overscan,
     useAnimationFrameWithResizeObserver,
@@ -381,11 +387,9 @@ export function useEidosFileBoundedVirtualizer<
     viewportSize
   )
   const bounded = count > EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS
-  const currentEstimatedWindowSize = estimatedWindowSize(
-    virtualWindow.count,
-    estimatedStride,
-    gap
-  )
+  const currentEstimatedWindowSize =
+    estimatedWindowSize(virtualWindow.count, estimatedStride, gap) +
+    localPaddingEnd
   const estimatedLocalScrollOffset =
     logicalScrollOffset - virtualWindow.start * estimatedStride
   const localScrollOffset = bounded

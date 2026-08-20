@@ -814,6 +814,7 @@ interface ViewDescriptor {
   tableId: string
   name: string
   type: string
+  queryStatus?: "supported" | "unsupported"
   query: SavedViewQuery
   layout: JsonObject
   position: string
@@ -2969,9 +2970,20 @@ interface SavedViewQuery {
 
 有意不包含 ephemeral search text。UI 把 saved `SavedViewQuery` 与 current
 search 合并为 `RowQuery` request，但不持久化 search。Runtime 针对 View 的 Table
-验证每个 saved Field ID/operator/value。unknown query member 无效，除非某个
-required、supported File feature 拥有其 semantics；Runtime 不能先 preserve 再
-默默忽略会改变 meaning 的 query member。
+验证每个 saved Field ID/operator/value。
+
+Runtime 能理解完整 stored query 时，`ViewDescriptor.queryStatus` 为
+`"supported"`，`query` 可执行。该 member 仅为 transport compatibility 而 optional；
+缺省等同 `"supported"`。若 stored operator、sort semantic 或 query member 来自更新
+Runtime，Runtime 返回 `queryStatus:"unsupported"`，在 `query` 中返回不可执行的
+`{}` placeholder，并在内部保留原始 canonical query document。不得把 placeholder
+当作该 View query 执行。省略 `query` 的 `mutateView` patch 必须原样保留原 document；
+显式提供 `query` 才替换它。duplicate 必须原样保留 opaque document，或以
+`unsupported` 失败；不得创建 partial copy。
+
+malformed known syntax 仍是 `view-query-invalid`。unsupported query 不得被默默忽略，
+也不得让 unrelated Table/View 不可用。无法安全隔离到 opaque View boundary 的
+semantics 仍由 required File feature 拥有。
 
 Runtime 把 `layout_json` 当作 JCS object，并保留 unknown member。它不解释 grid
 width、hidden Field、grouping presentation、card layout、selection、focus、scroll

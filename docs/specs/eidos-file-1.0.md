@@ -1311,11 +1311,15 @@ query object denotes the Runtime default query. The selected View is UI state
 and is not stored in `eidos__meta`. EF conformance requires JCS storage and
 stable-ID references, but does not duplicate either upper-layer JSON schema.
 
-A Reader MUST preserve unknown View types and unknown JSON members. An
-extension that changes query meaning rather than adding ignorable presentation
-metadata MUST declare a corresponding `required=1` row in `eidos__features`;
-a Reader or Writer that does not support that exact feature tuple MUST refuse
-semantic access or canonical writes as specified in Section 20.
+A Reader MUST preserve unknown View types and unknown JSON members. A Runtime
+that cannot interpret the complete query document MAY scope that incompatibility
+to the owning View: it exposes the View as opaque metadata, refuses to execute
+the saved query, and preserves `query_json` exactly across unrelated writes.
+Explicitly replacing that query is a semantic mutation. An extension whose
+meaning cannot be isolated to one opaque View MUST declare a corresponding
+`required=1` row in `eidos__features`; a Reader or Writer that does not support
+that exact feature tuple MUST refuse semantic access or canonical writes as
+specified in Section 20.
 
 ## 14. Canonical Write and Revision Postconditions
 

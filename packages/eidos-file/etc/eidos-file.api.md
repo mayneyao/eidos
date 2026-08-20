@@ -2455,6 +2455,7 @@ export interface EidosFileViewInfo {
     properties: Record<string, unknown> | null;
     // (undocumented)
     query: string;
+    queryStatus?: "supported" | "unsupported";
     // (undocumented)
     sorts: EidosFileSort[];
     // (undocumented)
@@ -3319,6 +3320,9 @@ export function isCanonicalEidosFileInstant(value: unknown): value is string;
 
 // @public (undocumented)
 export function isCanonicalEidosFileJson(text: string): boolean;
+
+// @public
+export function isEidosFileFilterOperator(value: unknown): value is EidosFileFilterRule["operator"];
 
 // @public (undocumented)
 export function isEidosFileReservedTableName(name: string): boolean;
@@ -4502,6 +4506,7 @@ export interface ViewDescriptor {
     position: string;
     // (undocumented)
     query: SavedViewQuery;
+    queryStatus?: "supported" | "unsupported";
     // (undocumented)
     tableId: string;
     // (undocumented)

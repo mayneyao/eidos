@@ -124,6 +124,7 @@ function CardFieldValue({
   row,
   theme,
   translate,
+  timeZone,
   cardWidth,
   compact,
 }: {
@@ -131,6 +132,7 @@ function CardFieldValue({
   row: EidosFileRow
   theme: "dark" | "light"
   translate: EidosFileUIHost["translate"]
+  timeZone?: string
   cardWidth?: number
   compact: boolean
 }) {
@@ -216,7 +218,7 @@ function CardFieldValue({
     )
   }
 
-  const text = eidosFileRecordFieldText(row, field)
+  const text = eidosFileRecordFieldText(row, field, timeZone)
   const displayText = text === "Empty" ? translate("Empty") : text
   const textLayout =
     cardWidth && cardWidth > 0
@@ -302,7 +304,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
 }) {
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
-  const { themeName: theme, translate: t } = useEidosFileUI()
+  const { themeName: theme, timeZone, translate: t } = useEidosFileUI()
   const uniformFields = view.type === "gallery" || fixedHeight !== undefined
   const visibleFields = uniformFields
     ? layout.fields.slice(0, layout.fieldLimit)
@@ -502,6 +504,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                     row={row}
                     theme={theme}
                     translate={t}
+                    timeZone={timeZone}
                     cardWidth={cardWidth}
                     compact={compact}
                   />

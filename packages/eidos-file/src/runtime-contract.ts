@@ -241,6 +241,8 @@ export interface ViewDescriptor {
   tableId: string
   name: string
   type: string
+  /** Absent means supported for compatibility with older Runtime transports. */
+  queryStatus?: "supported" | "unsupported"
   query: SavedViewQuery
   layout: JsonObject
   position: string

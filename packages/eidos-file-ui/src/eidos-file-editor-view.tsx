@@ -16,6 +16,7 @@ import { Puzzle } from "lucide-react"
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
+import { useEidosFileUI } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -186,6 +187,29 @@ export function EidosFileUnsupportedView({
   )
 }
 
+export function EidosFileUnsupportedQuery({ name }: { name: string }) {
+  const { translate: t } = useEidosFileUI()
+  return (
+    <div
+      className="flex h-full min-h-48 items-center justify-center p-6 text-center"
+      role="status"
+      data-eidos-file-unsupported-query
+    >
+      <div className="max-w-sm">
+        <span className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Puzzle className="h-4 w-4" />
+        </span>
+        <p className="text-sm font-medium">{name}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          {t(
+            "This view uses filter or sort rules from a newer Eidos version. Update Eidos to open it. Its saved configuration has been preserved."
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Public Eidos File view router shared by Desktop, browser editors, and embedders.
  * It never interprets SQL or schema details; those stay in `@eidos.space/eidos-file`.
@@ -250,6 +274,9 @@ export function EidosFileEditorView({
     renderers?.[type] ??
     pluginRegistry.viewRenderers[type] ??
     builtInEidosFileViewRenderers[type]
+  if (view?.queryStatus === "unsupported") {
+    return <EidosFileUnsupportedQuery name={view.name} />
+  }
   if (Renderer) return <Renderer {...props} />
   if (renderUnsupportedView) return renderUnsupportedView(props)
   return (

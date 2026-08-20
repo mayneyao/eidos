@@ -1274,6 +1274,19 @@ UI 可以提供不改 saved type/layout 的 ephemeral read-only Grid fallback。
 standard View 是 explicit、revision-checked mutation。Unrelated View edit 必须在
 logical content 上原样保留 unknown type/layout。
 
+### 8.5 使用更新 query semantics 的 View
+
+当 `ViewDescriptor.queryStatus="unsupported"` 时，该 View 必须继续出现在所有 View
+tab、menu 与 navigation surface。UI 必须显示 accessible 的 update-required state，
+不得使用 `{}` query placeholder 发起 `queryRows`、`groupRows`、aggregate 或 export
+request。该 View 的 saved Filter 与 Sort control 必须 disabled。rename、reorder、
+layout 等 unrelated patch 因为省略 `query`，可以继续提供；但不得用客户端能理解的
+subset 重建 View。替换 query 必须是 explicit user action，并说明会移除更新版本的
+query。
+
+unknown renderer 与 unsupported query 相互独立。UI 先报告 query incompatibility，
+因为 Grid fallback 否则会展示错误 row set。
+
 ## 9. Bounded read、projection 与 rendering
 
 ### 9.1 Request construction
@@ -1410,7 +1423,11 @@ implicit option inference。
 Date input 原样发送 calendar value。Datetime display 使用 user/Host 选择的 IANA
 timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input 必须先得到
 unambiguous instant 或 offset；提交值遵守 Runtime canonical UTC binding。Locale 与
-timezone 是 UI state，除非 extension 明确定义 canonical setting。
+timezone 是 UI state，除非 extension 明确定义 canonical setting。Host 可以把该选择
+暴露为跟随系统的 preference 或固定 IANA zone。解析 preference 后，标准 Grid、card、
+record detail、filter input 与 Calendar surface 必须对 Datetime、created-time、
+updated-time 的展示及 Calendar day grouping 使用同一 zone。修改该 UI preference 不得
+重写已存储的 instant 或 date-only value。
 
 在标准文本展示中，不包含 user information 的非空 absolute `http:` 或 `https:` URL
 可以激活。Grid 必须用 link affordance 展示合格 value，包括 link color，以及 pointer

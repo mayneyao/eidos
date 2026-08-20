@@ -855,6 +855,7 @@ interface ViewDescriptor {
   tableId: string
   name: string
   type: string
+  queryStatus?: "supported" | "unsupported"
   query: SavedViewQuery
   layout: JsonObject
   position: string
@@ -3142,9 +3143,23 @@ interface SavedViewQuery {
 Ephemeral search text is deliberately absent. A UI combines a saved
 `SavedViewQuery` with current search into a `RowQuery` request without
 persisting search. Runtime validates every saved Field ID/operator/value
-against the View's Table. Unknown query members are invalid unless a required,
-supported File feature owns their semantics; Runtime cannot preserve and then
-silently ignore meaning-changing query members.
+against the View's Table.
+
+When Runtime understands the entire stored query, `ViewDescriptor.queryStatus`
+is `"supported"` and `query` is executable. The member is optional only for
+transport compatibility; absence means `"supported"`. When a stored operator,
+sort semantic, or query member is from a newer Runtime, Runtime returns
+`queryStatus:"unsupported"`, returns `{}` as a non-executable placeholder in
+`query`, and retains the original canonical query document internally. It MUST
+NOT execute the placeholder as the View's query. A `mutateView` patch that
+omits `query` preserves the original document exactly; one that supplies
+`query` explicitly replaces it. Duplication MUST preserve the opaque document
+exactly or fail with `unsupported`—it MUST NOT create a partial copy.
+
+Malformed known syntax remains `view-query-invalid`. An unsupported query is
+not silently ignored and does not make unrelated Tables or Views inaccessible.
+A required File feature still owns semantics that cannot be safely isolated to
+the opaque View boundary.
 
 Runtime treats `layout_json` as a JCS object and preserves unknown members. It
 does not interpret grid widths, hidden Fields, grouping presentation, card

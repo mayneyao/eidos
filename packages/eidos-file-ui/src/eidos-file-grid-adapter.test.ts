@@ -232,6 +232,23 @@ describe("Eidos File Grid adapter", () => {
         displayDate: "2026-07-12 03:04:05",
       },
     })
+    expect(
+      eidosFileValueToGridCell(
+        field("datetime"),
+        "2026-01-01T00:30:00.000Z",
+        false,
+        undefined,
+        "Unavailable record",
+        false,
+        "America/Los_Angeles"
+      )
+    ).toMatchObject({
+      data: {
+        kind: "date-picker-cell",
+        displayDate: "2025-12-31 16:30:00",
+        timeZone: "America/Los_Angeles",
+      },
+    })
   })
 
   it("maps file fields to portable multi-attachment cells", () => {

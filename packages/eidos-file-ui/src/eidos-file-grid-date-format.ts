@@ -1,26 +1,14 @@
 export type EidosFileGridDateFormat = "date" | "datetime-local"
 
-function twoDigits(value: number): string {
-  return String(value).padStart(2, "0")
-}
+import { eidosFileDateKey, eidosFileDateTimeText } from "./eidos-file-date-time"
 
-/** Formats a local date with a stable, fixed-width representation for the Grid. */
+/** Formats a date with a stable, fixed-width representation for the Grid. */
 export function formatEidosFileGridDate(
   date: Date,
-  format: EidosFileGridDateFormat
+  format: EidosFileGridDateFormat,
+  timeZone?: string
 ): string {
-  const datePart = [
-    date.getFullYear(),
-    twoDigits(date.getMonth() + 1),
-    twoDigits(date.getDate()),
-  ].join("-")
-
-  if (format === "date") return datePart
-
-  const timePart = [
-    twoDigits(date.getHours()),
-    twoDigits(date.getMinutes()),
-    twoDigits(date.getSeconds()),
-  ].join(":")
-  return `${datePart} ${timePart}`
+  return format === "date"
+    ? eidosFileDateKey(date)
+    : eidosFileDateTimeText(date, timeZone)
 }

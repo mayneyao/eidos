@@ -70,6 +70,8 @@ export interface EidosFileUIHost {
   locale: EidosFileUILocale
   /** Host preference controlling the first visible weekday in Calendar views. */
   weekStartsOnMonday?: boolean
+  /** Host-selected IANA time zone; absent means follow the current system zone. */
+  timeZone?: string
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
@@ -97,6 +99,7 @@ export function EidosFileUIProvider({
   themeName,
   locale,
   weekStartsOnMonday,
+  timeZone,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
@@ -113,6 +116,7 @@ export function EidosFileUIProvider({
   const resolvedLocale = locale ?? parent.locale
   const resolvedWeekStartsOnMonday =
     weekStartsOnMonday ?? parent.weekStartsOnMonday ?? true
+  const resolvedTimeZone = timeZone ?? parent.timeZone
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
@@ -125,6 +129,7 @@ export function EidosFileUIProvider({
       themeName: resolvedThemeName,
       locale: resolvedLocale,
       weekStartsOnMonday: resolvedWeekStartsOnMonday,
+      ...(resolvedTimeZone ? { timeZone: resolvedTimeZone } : {}),
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -154,6 +159,7 @@ export function EidosFileUIProvider({
       resolvedKeyboardShortcuts,
       resolvedLocale,
       resolvedThemeName,
+      resolvedTimeZone,
       resolvedWeekStartsOnMonday,
       translateOverride,
     ]

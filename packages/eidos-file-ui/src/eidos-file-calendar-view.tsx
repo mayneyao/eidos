@@ -20,20 +20,36 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Copy,
   LoaderCircle,
+  PanelRightOpen,
   Plus,
+  Trash2,
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import {
+  eidosFileDateKey,
+  eidosFileInstantFromWallDate,
+  eidosFileWallDate,
+} from "./eidos-file-date-time"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import {
   eidosFileFieldKey,
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
+import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "./ui/context-menu"
 import { Button } from "./ui/primitives"
 
 export interface EidosFileCalendarRange {
@@ -92,15 +108,19 @@ export function eidosFileCalendarCreateMode(
 
 export function eidosFileCalendarCreateValue(
   field: EidosFileFieldInfo,
-  day: Date
+  day: Date,
+  timeZone?: string
 ): string | undefined {
   if (eidosFileCalendarCreateMode(field) !== "all-days") return undefined
   if (field.type === "date") return localDateKey(day)
-  return new Date(
-    day.getFullYear(),
-    day.getMonth(),
-    day.getDate()
-  ).toISOString()
+  const instant = eidosFileInstantFromWallDate(
+    new Date(day.getFullYear(), day.getMonth(), day.getDate()),
+    timeZone
+  )
+  if (!instant) {
+    throw new Error("The selected day has no unambiguous midnight instant")
+  }
+  return instant.toISOString()
 }
 
 function localDateKey(date: Date): string {
@@ -113,7 +133,8 @@ function localDateKey(date: Date): string {
 
 export function eidosFileCalendarRowDateKey(
   row: EidosFileRow,
-  field: EidosFileFieldInfo
+  field: EidosFileFieldInfo,
+  timeZone?: string
 ): string | null {
   const value = row[field.tableColumnName]
   if (typeof value !== "string" || value.length === 0) return null
@@ -121,7 +142,9 @@ export function eidosFileCalendarRowDateKey(
     return /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : null
   }
   const instant = new Date(value)
-  return Number.isNaN(instant.getTime()) ? null : localDateKey(instant)
+  return Number.isNaN(instant.getTime())
+    ? null
+    : eidosFileDateKey(instant, timeZone)
 }
 
 function startOfMonth(date: Date): Date {
@@ -163,6 +186,7 @@ export function EidosFileCalendarView({
   loadRow,
   onCellEdit,
   onAddRow,
+  onDeleteRow,
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
@@ -188,6 +212,7 @@ export function EidosFileCalendarView({
     field: EidosFileFieldInfo,
     day: Date
   ) => Promise<EidosFileRowMutationResult>
+  onDeleteRow?: (row: EidosFileRow) => Promise<void>
   onImportFiles?: () => Promise<FileEntry[]>
   onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onSearchRelation?: (
@@ -198,7 +223,7 @@ export function EidosFileCalendarView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const { translate: t, weekStartsOnMonday = true } = useEidosFileUI()
+  const { timeZone, translate: t, weekStartsOnMonday = true } = useEidosFileUI()
   const dateFields = useMemo(
     () => eidosFileCalendarDateFields(table.fields),
     [table.fields]
@@ -212,12 +237,15 @@ export function EidosFileCalendarView({
       (field) => eidosFileFieldKey(field) === configuredDateField
     ) ?? dateFields[0]
   const dateFieldKey = dateField ? eidosFileFieldKey(dateField) : null
-  const [month, setMonth] = useState(() => startOfMonth(new Date()))
+  const [month, setMonth] = useState(() =>
+    startOfMonth(eidosFileWallDate(new Date(), timeZone))
+  )
   const [rows, setRows] = useState<EidosFileRow[]>([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [expandedDay, setExpandedDay] = useState<string | null>(null)
   const [creatingDay, setCreatingDay] = useState<string | null>(null)
+  const [deleteRow, setDeleteRow] = useState<EidosFileRow | null>(null)
   const requestGenerationRef = useRef(0)
   const range = useMemo(
     () => calendarRange(month, weekStartsOnMonday),
@@ -285,14 +313,14 @@ export function EidosFileCalendarView({
     if (!dateField) return new Map<string, EidosFileRow[]>()
     const result = new Map<string, EidosFileRow[]>()
     for (const row of rows) {
-      const key = eidosFileCalendarRowDateKey(row, dateField)
+      const key = eidosFileCalendarRowDateKey(row, dateField, timeZone)
       if (!key) continue
       const current = result.get(key)
       if (current) current.push(row)
       else result.set(key, [row])
     }
     return result
-  }, [dateField, rows])
+  }, [dateField, rows, timeZone])
 
   const editRecord = async (
     row: EidosFileRow,
@@ -319,7 +347,9 @@ export function EidosFileCalendarView({
     setCreatingDay(dayKey)
     try {
       const result = await onAddRow(dateField, day)
-      if (eidosFileCalendarRowDateKey(result.row, dateField) === dayKey) {
+      if (
+        eidosFileCalendarRowDateKey(result.row, dateField, timeZone) === dayKey
+      ) {
         setRows((current) => {
           const next = current.some(
             (candidate) => String(candidate._id) === String(result.row._id)
@@ -346,6 +376,20 @@ export function EidosFileCalendarView({
     void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
   }
 
+  const deleteRecord = async (row: EidosFileRow) => {
+    if (disabled || !onDeleteRow) return
+    await onDeleteRow(row)
+    const rowId = String(row._id)
+    setRows((current) => {
+      const next = current.filter(
+        (candidate) => String(candidate._id) !== rowId
+      )
+      onRowCountChange?.(next.length)
+      return next
+    })
+    if (inspectedRow && String(inspectedRow._id) === rowId) closeInspectorRow()
+  }
+
   if (!dateField) {
     return (
       <div className="flex h-full min-h-48 items-center justify-center p-6 text-center">
@@ -362,7 +406,7 @@ export function EidosFileCalendarView({
     )
   }
 
-  const todayKey = localDateKey(new Date())
+  const todayKey = eidosFileDateKey(new Date(), timeZone)
   const createMode = eidosFileCalendarCreateMode(dateField)
   const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
     const firstWeekday = new Date(2026, 0, (weekStartsOnMonday ? 5 : 4) + index)
@@ -402,7 +446,9 @@ export function EidosFileCalendarView({
               variant="outline"
               size="sm"
               className="h-7 w-fit px-2.5 text-xs"
-              onClick={() => setMonth(startOfMonth(new Date()))}
+              onClick={() =>
+                setMonth(startOfMonth(eidosFileWallDate(new Date(), timeZone)))
+              }
             >
               {t("Today")}
             </Button>
@@ -510,7 +556,9 @@ export function EidosFileCalendarView({
                         <button
                           type="button"
                           className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 outline-hidden hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100 disabled:cursor-wait disabled:opacity-50"
-                          aria-label={t("New record on {date}", { date: key })}
+                          aria-label={t("New record on {date}", {
+                            date: key,
+                          })}
                           title={t("New record")}
                           disabled={creatingDay !== null}
                           onClick={() => void createRecord(day)}
@@ -527,15 +575,50 @@ export function EidosFileCalendarView({
                       {visibleRows.map((row) => {
                         const title = eidosFileRecordTitle(row, table.fields)
                         return (
-                          <button
-                            key={String(row._id)}
-                            type="button"
-                            className="truncate rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring"
-                            title={title}
-                            onClick={() => openInspectorRow(row)}
-                          >
-                            {title === "Empty" ? t("Untitled") : title}
-                          </button>
+                          <ContextMenu key={String(row._id)}>
+                            <ContextMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="truncate rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring"
+                                title={title}
+                                onClick={() => openInspectorRow(row)}
+                              >
+                                {title === "Empty" ? t("Untitled") : title}
+                              </button>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent
+                              className="w-44"
+                              data-eidos-file-calendar-record-menu=""
+                              onCloseAutoFocus={(event) =>
+                                event.preventDefault()
+                              }
+                            >
+                              <ContextMenuItem
+                                onSelect={() => openInspectorRow(row)}
+                              >
+                                <PanelRightOpen />
+                                {t("Open record")}
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onSelect={() => copyRecordId(String(row._id))}
+                              >
+                                <Copy />
+                                {t("Copy record ID")}
+                              </ContextMenuItem>
+                              {onDeleteRow && !disabled ? (
+                                <>
+                                  <ContextMenuSeparator />
+                                  <ContextMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={() => setDeleteRow(row)}
+                                  >
+                                    <Trash2 />
+                                    {t("Delete record")}
+                                  </ContextMenuItem>
+                                </>
+                              ) : null}
+                            </ContextMenuContent>
+                          </ContextMenu>
                         )
                       })}
                       {dayRows.length > 3 ? (
@@ -577,6 +660,18 @@ export function EidosFileCalendarView({
             onSearchRelation={onSearchRelation}
           />
         ) : null)}
+      {onDeleteRow ? (
+        <EidosFileRecordDeleteDialog
+          row={deleteRow}
+          fields={table.fields}
+          disabled={disabled}
+          onOpenChange={(open) => {
+            if (!open) setDeleteRow(null)
+          }}
+          onDelete={deleteRecord}
+          onError={onError}
+        />
+      ) : null}
     </div>
   )
 }

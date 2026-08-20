@@ -39,6 +39,13 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-relative-to-today",
 ])
 
+/** Returns whether a persisted compatibility filter operator is executable. */
+export function isEidosFileFilterOperator(
+  value: unknown
+): value is EidosFileFilterRule["operator"] {
+  return FILTER_OPERATORS.has(value as EidosFileFilterRule["operator"])
+}
+
 const MAX_QUERY_DEPTH = 8
 const MAX_QUERY_FILTER_NODES = 100
 const MAX_QUERY_SORTS = 32
@@ -111,7 +118,7 @@ export function assertEidosFileRowQuery(value: unknown): void {
     if (
       filter.type !== "rule" ||
       typeof filter.field !== "string" ||
-      !FILTER_OPERATORS.has(filter.operator as EidosFileFilterRule["operator"])
+      !isEidosFileFilterOperator(filter.operator)
     ) {
       throw new EidosFileError("invalid-query", "Invalid filter rule")
     }
@@ -188,9 +195,7 @@ function normalizeFilterNode(
   if (candidate.type === "rule") {
     if (
       typeof candidate.field !== "string" ||
-      !FILTER_OPERATORS.has(
-        candidate.operator as EidosFileFilterRule["operator"]
-      )
+      !isEidosFileFilterOperator(candidate.operator)
     ) {
       return null
     }
