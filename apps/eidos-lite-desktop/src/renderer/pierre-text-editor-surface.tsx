@@ -10,12 +10,14 @@ export default function PierreTextEditorSurface({
   content,
   theme,
   persistEditorState = true,
+  autoFocus = false,
   onChange,
 }: {
   relativePath: string
   content: string
   theme: ResolvedAppearance
   persistEditorState?: boolean
+  autoFocus?: boolean
   onChange(content: string): void
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
@@ -67,6 +69,9 @@ export default function PierreTextEditorSurface({
           editorOptions={{
             clipboard: {
               readText: () => window.eidosLite.readClipboardText(),
+            },
+            onAttach: (editor) => {
+              if (autoFocus) editor.focus()
             },
             onChange: (nextFile) => {
               currentContentRef.current = nextFile.contents

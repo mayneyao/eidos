@@ -117,6 +117,7 @@ function EditableTextFile({
   preview,
   draft,
   theme,
+  autoFocus = false,
   onSaved,
   onReload,
   onDraftChange,
@@ -124,6 +125,7 @@ function EditableTextFile({
   preview: TextPreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  autoFocus?: boolean
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -294,6 +296,7 @@ function EditableTextFile({
           relativePath={preview.relativePath}
           content={editorContent}
           theme={theme}
+          autoFocus={autoFocus}
           onChange={handleChange}
         />
       </Suspense>
@@ -568,6 +571,7 @@ function DocumentFilePreview({
             preview={preview}
             draft={draft}
             theme={theme}
+            autoFocus
             onSaved={onSaved}
             onReload={onReload}
             onDraftChange={onDraftChange}

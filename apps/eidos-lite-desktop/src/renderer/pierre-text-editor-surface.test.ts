@@ -26,6 +26,7 @@ vi.mock("@pierre/diffs/edit", () => ({
   Editor: class Editor {
     initialOptions: Record<string, unknown>
     cleanUp = vi.fn()
+    focus = vi.fn()
     setOptions = vi.fn()
 
     constructor(options: Record<string, unknown>) {
@@ -51,7 +52,10 @@ vi.mock("@pierre/diffs/react", () => ({
     file,
     options,
   }: {
-    editorOptions: { onChange(file: { contents: string }): void }
+    editorOptions: {
+      onAttach?(editor: { focus(): void }): void
+      onChange(file: { contents: string }): void
+    }
     file: { contents: string }
     options: { themeType: "light" | "dark" }
   }) => {
@@ -61,6 +65,7 @@ vi.mock("@pierre/diffs/react", () => ({
     useEffect(() => {
       const editor = pierre.createEditor?.(editorOptions)
       pierre.editorInstances(editor)
+      editorOptions.onAttach?.(editor as { focus(): void })
       pierre.fileLifecycle(`mount:${options.themeType}`)
       return () => {
         ;(editor as { cleanUp?(): void } | undefined)?.cleanUp?.()
@@ -245,6 +250,30 @@ describe("PierreTextEditorSurface", () => {
         }
       ).setOptions
     ).toHaveBeenLastCalledWith({ persistState: true })
+
+    await act(async () => root.unmount())
+  })
+
+  it("focuses the editable surface after an auto-focused attach", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "notes/new.md",
+          content: "",
+          theme: "light",
+          autoFocus: true,
+          onChange: () => undefined,
+        })
+      )
+    })
+
+    const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
+      focus: ReturnType<typeof vi.fn>
+    }
+    expect(editor.focus).toHaveBeenCalledOnce()
 
     await act(async () => root.unmount())
   })
