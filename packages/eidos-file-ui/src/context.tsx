@@ -68,6 +68,8 @@ export interface EidosFileRelationRecordTarget {
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
+  /** Host preference controlling the first visible weekday in Calendar views. */
+  weekStartsOnMonday?: boolean
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
@@ -83,6 +85,7 @@ export interface EidosFileUIHost {
 const defaultHost: EidosFileUIHost = {
   themeName: "light",
   locale: "en",
+  weekStartsOnMonday: true,
   translate: (message, values) => translateEidosFileUI("en", message, values),
 }
 
@@ -93,6 +96,7 @@ export function EidosFileUIProvider({
   children,
   themeName,
   locale,
+  weekStartsOnMonday,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
@@ -107,6 +111,8 @@ export function EidosFileUIProvider({
   const parent = useContext(EidosFileUIContext)
   const resolvedThemeName = themeName ?? parent.themeName
   const resolvedLocale = locale ?? parent.locale
+  const resolvedWeekStartsOnMonday =
+    weekStartsOnMonday ?? parent.weekStartsOnMonday ?? true
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
@@ -118,6 +124,7 @@ export function EidosFileUIProvider({
     () => ({
       themeName: resolvedThemeName,
       locale: resolvedLocale,
+      weekStartsOnMonday: resolvedWeekStartsOnMonday,
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -147,6 +154,7 @@ export function EidosFileUIProvider({
       resolvedKeyboardShortcuts,
       resolvedLocale,
       resolvedThemeName,
+      resolvedWeekStartsOnMonday,
       translateOverride,
     ]
   )

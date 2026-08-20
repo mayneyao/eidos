@@ -335,6 +335,98 @@ describe("EidosFileRecordCard", () => {
     expect(onOpen).toHaveBeenCalledTimes(2)
   })
 
+  it("floats the shared Gallery and Kanban actions above card content", () => {
+    act(() => {
+      root.render(
+        <EidosFileRecordCard
+          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          onOpen={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const actions = container.querySelector<HTMLElement>(
+      "[data-eidos-file-card-actions]"
+    )
+    expect(actions?.classList).toContain("absolute")
+    expect(actions?.classList).toContain("border")
+    expect(actions?.classList).toContain("opacity-0")
+    expect(actions?.classList).toContain("group-hover/card:opacity-100")
+    expect(actions?.querySelectorAll("button")).toHaveLength(2)
+    expect(actions?.parentElement?.querySelector("h3")?.contains(actions)).toBe(
+      false
+    )
+  })
+
+  it("uses natural title height up to the three-line card limit", () => {
+    const renderTitle = (title: string) =>
+      root.render(
+        <EidosFileRecordCard
+          row={{ _id: "row_1", title, cover: null }}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          cardWidth={220}
+          onOpen={vi.fn()}
+        />
+      )
+
+    act(() => renderTitle("Short title"))
+    const heading = container.querySelector<HTMLHeadingElement>("h3")
+    expect(heading?.style.height).toBe("20px")
+    expect(heading?.getAttribute("title")).toBeNull()
+
+    const longTitle =
+      "A long card title that needs several wrapped lines and must stop growing after reaching the configured maximum height"
+    act(() => renderTitle(longTitle))
+    expect(heading?.style.height).toBe("60px")
+    expect(heading?.getAttribute("title")).toBe(longTitle)
+  })
+
+  it("uses natural field text height up to the two-line card limit", () => {
+    const notesField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000003",
+      name: "Notes",
+      isRecordLabel: false,
+      tableColumnName: "notes",
+    }
+    const cardView: EidosFileViewInfo = {
+      ...view,
+      properties: {
+        cardFields: [notesField.id],
+        hideEmptyFields: false,
+      },
+    }
+    const renderNotes = (notes: string) =>
+      root.render(
+        <EidosFileRecordCard
+          row={{ _id: "row_1", title: "Short title", notes }}
+          fields={[fields[0], notesField]}
+          view={cardView}
+          cardWidth={220}
+          onOpen={vi.fn()}
+        />
+      )
+
+    act(() => renderNotes("Brief note"))
+    const shortText = container.querySelector<HTMLElement>(
+      "[data-eidos-file-card-text]"
+    )
+    expect(shortText?.style.height).toBe("16px")
+
+    const longText =
+      "A much longer field value that wraps beyond the maximum visible card text height"
+    act(() => renderNotes(longText))
+    const clampedText = container.querySelector<HTMLElement>(
+      "[data-eidos-file-card-text]"
+    )
+    expect(clampedText?.getAttribute("title")).toBe(longText)
+    expect(clampedText?.style.height).toBe("32px")
+  })
+
   it("does not open a record from card actions or a drag gesture", () => {
     const onOpen = vi.fn()
     const row = { _id: "row_1", title: "Write RFC", cover: null }

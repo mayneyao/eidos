@@ -18,7 +18,7 @@ publication、conflict、recovery 与 asset 则独立通过 `HostServices`。UI 
 得到 SQLite statement、physical identifier、generated SQL、Host filesystem path、
 native handle 或 canonical-file write primitive。
 
-本文拥有标准 Grid、Gallery、Kanban 的 layout 含义、async consumption、交互状态、
+本文拥有标准 Grid、Gallery、Kanban、Calendar 的 layout 含义、async consumption、交互状态、
 编辑 affordance、accessibility 与 renderer isolation 契约。Logical value、query、
 mutation、revision 与 error 的含义归
 [Eidos Runtime 1.0](./eidos-runtime-1.0.md)；文件字节和持久编码归
@@ -118,7 +118,7 @@ capability 缺失而失败的 control。
 - **optimistic overlay**：Runtime mutation 未完成时展示的可撤销、仅 UI projection。
 - **revision**：lossless Runtime revision。UI 把它当作 opaque monotonic
   concurrency token，绝不能对它做 binary64 arithmetic。
-- **standard View**：type 为 `grid`、`gallery` 或 `kanban` 的 View。
+- **standard View**：type 为 `grid`、`gallery`、`kanban` 或 `calendar` 的 View。
 - **renderer**：把 View 和 Runtime result 转为 interactive surface 的代码；可能是
   trusted application code，也可能是 isolated third-party code。
 - **asset lease**：用于展示一个 File entry 的、time- and purpose-scoped Host result，
@@ -1031,7 +1031,7 @@ known key 时，必须保留所有 unknown member 和未更新 known member。�
 Runtime 支持的 member patch，或在 `expectedRevision` 下 merge 到最新 object；不得
 parse 后 rewrite stale copy。
 
-`grid`、`gallery`、`kanban` 共用唯一 root schema。对当前 type 不适用的 key 仍保留、
+`grid`、`gallery`、`kanban`、`calendar` 共用唯一 root schema。对当前 type 不适用的 key 仍保留、
 但 rendering 时忽略，因此 explicit type change 及 reversal 不丢 layout intent。
 
 View 配置有两个彼此独立的分类维度。`query.filter` 与 `query.sort` 是通用功能配置，
@@ -1049,22 +1049,23 @@ hover、open editor 或 collapsed transient group；它们是 query result 或 U
 并且只在相应 key 适用时暴露 View 专用控件。不适用于当前 type 的 key 必须保留，但不
 影响 rendering 或 request。
 
-| Key                   | Type                             | Default                                | 适用 View      | 分类               | 含义                                                                    |
-| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ------------------ | ----------------------------------------------------------------------- |
-| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示           | 从前到后的 Field 顺序                                                   |
-| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 从 View 省略的普通 Field，不是删除                                      |
-| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 在当前 View 明确展示的 optional hidden system Field                     |
-| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示          | dimensionless preferred relative width，范围 `0.25..8`                  |
-| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示          | semantic row-density hint                                               |
-| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示          | 冻结 leading visible Field 的数量，并按 visible count clamp             |
-| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe   | 每列 aggregate footer 请求；value 由 Runtime 生成                       |
-| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示          | 有序 secondary card Field；Record Label 始终是 title                    |
-| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示          | 作为 card cover 的 File Field 或 image-display URL-capable scalar Field |
-| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示          | semantic cover fitting hint                                             |
-| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示          | semantic card-size hint                                                 |
-| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示          | configured secondary Field 的 logical value 为空时从该 card 省略        |
-| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe | grouping Field；`null` 是 incomplete configuration                      |
-| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能   | 展示从 grouping Field canonical option catalog 派生的 zero-row group    |
+| Key                   | Type                             | Default                                | 适用 View      | 分类                 | 含义                                                                    |
+| --------------------- | -------------------------------- | -------------------------------------- | -------------- | -------------------- | ----------------------------------------------------------------------- |
+| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示             | 从前到后的 Field 顺序                                                   |
+| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示             | 从 View 省略的普通 Field，不是删除                                      |
+| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示             | 在当前 View 明确展示的 optional hidden system Field                     |
+| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示            | dimensionless preferred relative width，范围 `0.25..8`                  |
+| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示            | semantic row-density hint                                               |
+| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示            | 冻结 leading visible Field 的数量，并按 visible count clamp             |
+| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe     | 每列 aggregate footer 请求；value 由 Runtime 生成                       |
+| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示            | 有序 secondary card Field；Record Label 始终是 title                    |
+| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示            | 作为 card cover 的 File Field 或 image-display URL-capable scalar Field |
+| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示            | semantic cover fitting hint                                             |
+| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示            | semantic card-size hint                                                 |
+| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示            | configured secondary Field 的 logical value 为空时从该 card 省略        |
+| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe   | grouping Field；`null` 是 incomplete configuration                      |
+| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能     | 展示从 grouping Field canonical option catalog 派生的 zero-row group    |
+| `dateField`           | Field ID 或 `null`               | `null`                                 | Calendar       | Calendar 功能 recipe | 用于把记录放到日期上的时间字段；`null` 表示配置不完整                   |
 
 `columnStats[*].type` 只能是 `count-all`、`count-non-null`、
 `count-distinct`、`count-empty`、`percent-checked`、`percent-unchecked`、
@@ -1121,6 +1122,22 @@ Card 配置不得让它重新可见。编辑当前可用 member 时，unknown �
 move target；成功 move 后 group 重新可见。Count resolve 前的省略只是 provisional UI
 state，绝不能持久化。`freezeColumns` 在 visibility 与 ordering 之后计算。
 
+Calendar 把每个非空 `dateField` 值映射到本地日历日期。可用字段包括 Date、Date &
+time、显示类型为其中之一的 Formula/Lookup，以及创建/更新时间系统字段。Date 直接使用
+canonical `YYYY-MM-DD`；Date & time 按 Editor 当前本地时区归入日期。当前月份、today、
+展开日期和滚动位置属于临时 UI state，绝不能持久化。Calendar 读取必须把可见日期范围
+与已保存 filter 和 search 组合，不能替换其中任何一个。若 `dateField` 缺失、被删除、
+不是时间类型或为 `null`，必须显示可访问的配置提示。日期为空的记录不放入日历。Host
+可以提供全局的每周首日偏好；Calendar 必须同时用它排列星期列和计算请求的可见范围，默认
+从周一开始。该 Host 偏好不是 View layout，绝不能写入 Eidos File。
+
+Calendar 新建记录取决于所选 Field 是否可写。对 writable stored Date 或 Date & time
+Field，每个可见日期格都必须提供新建操作；Runtime 新建 Record 时把该 Field 设为
+所选 canonical 日期，Date & time 使用本地零点并编码为 canonical instant。对创建或更新
+时间系统 Field，只有 today 提供新建操作，时间戳由 Runtime 填充。Formula 和 Lookup
+日期 Field 的值是 derived，绝不得提供按日新建。新建成功后，Editor 打开新 Record 的标准
+Record inspector。
+
 只有 `groupField` 是 writable stored scalar 且 Runtime 提供 destination exact logical
 group value 时，Kanban 才能 move card。Move 是一个带 `expectedRevision` 的 sparse
 `mutateRows` update；UI 绝不能把 display label 写成 group value。Formula、Lookup、
@@ -1140,7 +1157,7 @@ envelope 本身不存储。
   "type": "object",
   "required": ["type", "layout"],
   "properties": {
-    "type": { "enum": ["grid", "gallery", "kanban"] },
+    "type": { "enum": ["grid", "gallery", "kanban", "calendar"] },
     "layout": {
       "type": "object",
       "properties": {
@@ -1197,7 +1214,11 @@ envelope 本身不存储。
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
         },
-        "showEmptyGroups": { "type": "boolean", "default": true }
+        "showEmptyGroups": { "type": "boolean", "default": true },
+        "dateField": {
+          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
+          "default": null
+        }
       },
       "additionalProperties": true
     }
@@ -1289,7 +1310,7 @@ Group-page cursor 继续 `groupRows`；组内 row cursor 只能通过 `queryGrou
 
 ### 9.2 Virtualization
 
-Grid、Gallery、Kanban 在不 materialize 所有 row 的情况下仍须可交互。
+Grid、Gallery、Kanban、Calendar 在不 materialize 所有 row 的情况下仍须可交互。
 Virtualization 是实现技术，不是 canonical state。Virtual item 用 Row ID 而不是
 visual index 作 key，因而 reorder/filter/new revision 不能把 draft 或 selection
 转移到另一个 row。
@@ -1642,7 +1663,7 @@ Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**�
 reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
 应说明结果会随当前日期更新，也可以用日历预览计算区间，但预览不能成为 canonical state。
 
-Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban 控件是 Editor required
+Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban/Calendar 控件是 Editor required
 surface，不是 optional authoring convenience。每个控件通过一次 revision-checked
 View mutation 提交；当前 renderer 没有 row 或 visible Field 时仍须可用；成功或
 conflict 后都必须反映最新返回的 View descriptor。
@@ -2326,7 +2347,7 @@ zero direct URI fetch/navigation，以及 isolated-renderer capability revocatio
 三种 outcome；必须断言 fatal 旧 RuntimeClient 上没有任何 read/retry，并对每个 returned
 replacement client 完整执行 negotiation/snapshot/schema bootstrap。Editor 还须覆盖
 Table、View、`fieldOrder`、`cardFields` 的 pointer 与 keyboard drag completion，并断言
-不存在结构性的 up/down control；还须覆盖 Grid、Gallery、Kanban 的通用 Field
+不存在结构性的 up/down control；还须覆盖 Grid、Gallery、Kanban、Calendar 的通用 Field
 visibility/order、Section 8.2 每个 View 专用 key、
 type change 时 non-applicable/unknown key 的保留，以及 generated aggregate/group result
 绝不进入 layout。Schema 还须覆盖

@@ -1,6 +1,9 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
+import type {
+  EidosFileFieldInfo,
+  EidosFileViewInfo,
+} from "@eidos.space/eidos-file"
 
 import { EidosFileViewTabs } from "./eidos-file-view-tabs"
 
@@ -41,6 +44,21 @@ const views: EidosFileViewInfo[] = [
     updatedAt: now,
   },
 ]
+const dueField: EidosFileFieldInfo = {
+  id: "0198c72d-82b5-7000-8000-000000000002",
+  tableId: "tasks",
+  name: "Due",
+  type: "date",
+  tableName: "tb_tasks",
+  tableColumnName: "due",
+  property: null,
+  storageCodec: "scalar",
+  valueKind: "source",
+  isHidden: false,
+  isDerived: false,
+  sourceTableColumnName: null,
+  dependsOn: null,
+}
 
 function renderViewTabs(root: Root, onDelete = vi.fn(), onReorder = vi.fn()) {
   root.render(
@@ -238,6 +256,51 @@ describe("EidosFileViewTabs", () => {
     })
 
     expect(onExportCsv).toHaveBeenCalledWith(views[1])
+  })
+
+  it("creates a Calendar when the table has a temporal field", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileViewTabs
+          views={views}
+          fields={[dueField]}
+          activeView={views[0]}
+          onSelect={vi.fn()}
+          onCreate={onCreate}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onUpdate={vi.fn()}
+          onReorder={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Add Eidos File view"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Calendar")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(
+      document.body.querySelector<HTMLInputElement>("#eidos-file-view-name")
+        ?.value
+    ).toBe("Calendar 1")
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Create")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onCreate).toHaveBeenCalledWith("Calendar 1", "calendar")
   })
 
   it("protects the required Grid view and confirms deletable views", async () => {

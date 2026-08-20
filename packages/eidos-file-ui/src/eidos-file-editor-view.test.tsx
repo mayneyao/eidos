@@ -37,6 +37,7 @@ import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, defineEidosFilePlugin } from "./plugin"
 import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import { eidosFileKanbanPlugin } from "./plugins/kanban"
+import { eidosFileCalendarPlugin } from "./plugins/calendar"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -136,13 +137,18 @@ describe("EidosFileEditorView registry", () => {
     container.remove()
   })
 
-  it("keeps Grid in core and exposes card layouts only through plugins", () => {
+  it("keeps Grid in core and exposes alternate layouts through plugins", () => {
     expect(Object.keys(builtInEidosFileViewRenderers)).toEqual(["grid"])
     const registry = createEidosFilePluginRegistry([
       eidosFileGalleryPlugin,
       eidosFileKanbanPlugin,
+      eidosFileCalendarPlugin,
     ])
-    expect(Object.keys(registry.viewRenderers)).toEqual(["gallery", "kanban"])
+    expect(Object.keys(registry.viewRenderers)).toEqual([
+      "gallery",
+      "kanban",
+      "calendar",
+    ])
   })
 
   it("rejects duplicate plugin and persisted view identifiers", () => {

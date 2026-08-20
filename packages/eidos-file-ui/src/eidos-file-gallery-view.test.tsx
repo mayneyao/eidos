@@ -291,7 +291,7 @@ describe("EidosFileGalleryView", () => {
     expect(container.textContent).toContain("Review UX")
   })
 
-  it("renders every Gallery card at the same fixed height", async () => {
+  it("stretches cards to the tallest card in each Gallery row", async () => {
     const loadPage = vi.fn(
       async (offset: number, limit: number, _totalHint?: number) => ({
         tableId: "tasks",
@@ -325,9 +325,10 @@ describe("EidosFileGalleryView", () => {
       container.querySelectorAll<HTMLElement>('[role="listitem"]')
     )
     expect(cards.length).toBeGreaterThan(1)
-    const heights = new Set(cards.map((card) => card.style.height))
-    expect(cards[0]?.style.height).not.toBe("")
-    expect(heights.size).toBe(1)
+    const virtualRow = cards[0]?.parentElement
+    expect(virtualRow?.classList).toContain("grid")
+    expect(virtualRow?.classList).toContain("items-stretch")
+    expect(cards.every((card) => card.style.height === "")).toBe(true)
   })
 
   it("loads the complete Gallery record only when its inspector opens", async () => {

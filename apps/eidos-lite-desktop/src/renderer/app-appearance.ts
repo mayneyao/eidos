@@ -34,6 +34,7 @@ export function applyAppearance(
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
+  weekStartsOnMonday: true,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
   automaticCheckpoints: false,

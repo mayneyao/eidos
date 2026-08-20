@@ -108,6 +108,8 @@ describe("EidosFileRecordInspector", () => {
         ?.classList
     ).toContain("eidos-file-record-panel")
     const title = container.querySelector<HTMLTextAreaElement>("textarea")
+    expect(title?.rows).toBe(1)
+    expect(title?.classList).toContain("resize-none")
     await act(async () => {
       if (!title) return
       const setter = Object.getOwnPropertyDescriptor(

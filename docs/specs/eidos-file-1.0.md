@@ -1305,7 +1305,8 @@ focus, scroll position, drafts, or open-panel state.
 
 For a core View, Eidos Runtime 1.0 determines whether `query_json` is a usable
 Query Document and owns its meaning. Eidos UI 1.0 does the same for
-`layout_json` and the standard `grid`, `gallery`, and `kanban` types. The empty
+`layout_json` and the standard `grid`, `gallery`, `kanban`, and `calendar`
+types. The empty
 query object denotes the Runtime default query. The selected View is UI state
 and is not stored in `eidos__meta`. EF conformance requires JCS storage and
 stable-ID references, but does not duplicate either upper-layer JSON schema.

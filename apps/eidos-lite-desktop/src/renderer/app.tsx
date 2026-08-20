@@ -631,6 +631,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteKeyboardShortcuts>({
       ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
     })
+  const [weekStartsOnMonday, setWeekStartsOnMonday] = useState(
+    DEFAULT_RENDERER_PREFERENCES.weekStartsOnMonday
+  )
   const versionShortcutLabel = workspaceShortcutLabel(
     "toggle-version",
     macos,
@@ -711,14 +714,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
 
   useEffect(() => {
-    void window.eidosLite
-      .getPreferences()
-      .then((preferences) =>
-        setKeyboardShortcuts(preferences.keyboardShortcuts)
-      )
-    return window.eidosLite.onPreferencesChanged((preferences) =>
+    void window.eidosLite.getPreferences().then((preferences) => {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
-    )
+      setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+    })
+    return window.eidosLite.onPreferencesChanged((preferences) => {
+      setKeyboardShortcuts(preferences.keyboardShortcuts)
+      setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+    })
   }, [])
 
   useEffect(() => {
@@ -2352,6 +2355,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                         activeTableId={activeFile.tableId}
                         disabled={localInteractionBlocked}
                         theme={theme}
+                        weekStartsOnMonday={weekStartsOnMonday}
                         keyboardShortcuts={keyboardShortcuts}
                         macos={macos}
                         onTableSelect={(tableId) =>

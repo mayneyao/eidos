@@ -33,7 +33,7 @@ tasks.eidos (SQLite)
 EidosFileEditorDataSource      worker/RPC adapter; no SQLite on the React thread
           │
           ▼
-@eidos.space/eidos-file-ui      Grid, Gallery, Kanban, or a registered renderer
+@eidos.space/eidos-file-ui      Grid, Gallery, Kanban, Calendar, or a registered renderer
 ```
 
 The complete metadata schema is defined by [Eidos File Format
@@ -50,10 +50,10 @@ and future hosts compatible with the same file.
 
 `eidos__views.type` is an open string. `query_json` stores the Runtime query;
 `layout_json` stores UI layout. Runtime exposes these as `filter`, `sorts`,
-`properties`, `orderMap`, and `hiddenFields`. Eidos ships `grid`, `gallery`, and
-`kanban`, while a host can persist another type such as `timeline`. Unknown view
-types and unknown layout members must be preserved even when the current host
-cannot render them.
+`properties`, `orderMap`, and `hiddenFields`. Eidos ships `grid`, `gallery`,
+`kanban`, and `calendar`, while a host can persist another type such as
+`timeline`. Unknown view types and unknown layout members must be preserved even
+when the current host cannot render them.
 
 The runtime exposes each row as `EidosFileViewInfo`:
 

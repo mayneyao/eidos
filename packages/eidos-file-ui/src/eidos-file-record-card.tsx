@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type AriaRole,
@@ -58,6 +59,11 @@ import {
   eidosFileRecordTitle,
 } from "./eidos-file-record-format"
 import { EidosFileUrlImageCoverSurface } from "./eidos-file-url-image-cover"
+import {
+  EIDOS_FILE_RECORD_CARD_TITLE_LINE_HEIGHT,
+  eidosFileRecordCardFieldTextHeight,
+  eidosFileRecordCardTitleHeight,
+} from "./eidos-file-text-height"
 
 const CARD_INTERACTIVE_TARGET =
   'button, a, input, select, textarea, summary, [role="button"], [role="menuitem"], [contenteditable="true"]'
@@ -118,11 +124,15 @@ function CardFieldValue({
   row,
   theme,
   translate,
+  cardWidth,
+  compact,
 }: {
   layout: EidosFileRecordCardFieldLayout
   row: EidosFileRow
   theme: "dark" | "light"
   translate: EidosFileUIHost["translate"]
+  cardWidth?: number
+  compact: boolean
 }) {
   const { field, optionByValue } = layout
   const value = row[field.tableColumnName]
@@ -207,14 +217,22 @@ function CardFieldValue({
   }
 
   const text = eidosFileRecordFieldText(row, field)
+  const displayText = text === "Empty" ? translate("Empty") : text
+  const textLayout =
+    cardWidth && cardWidth > 0
+      ? eidosFileRecordCardFieldTextHeight(displayText, cardWidth, compact)
+      : null
   return (
     <span
+      data-eidos-file-card-text
       className={cn(
         "line-clamp-2 break-words text-xs leading-4",
         text === "Empty" && "text-muted-foreground"
       )}
+      style={textLayout ? { height: textLayout.height } : undefined}
+      title={textLayout?.overflowing ? displayText : undefined}
     >
-      {text === "Empty" ? translate("Empty") : text}
+      {displayText}
     </span>
   )
 }
@@ -252,6 +270,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   layout: providedLayout,
   compact = false,
   fixedHeight,
+  cardWidth,
   onOpen,
   onDelete,
   moveOptions,
@@ -269,6 +288,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   layout?: EidosFileRecordCardLayout
   compact?: boolean
   fixedHeight?: number
+  cardWidth?: number
   onOpen: (row: EidosFileRow) => void
   onDelete?: (row: EidosFileRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
@@ -283,11 +303,19 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
   const { themeName: theme, translate: t } = useEidosFileUI()
-  const uniform = fixedHeight !== undefined
-  const visibleFields = uniform
+  const uniformFields = view.type === "gallery" || fixedHeight !== undefined
+  const visibleFields = uniformFields
     ? layout.fields.slice(0, layout.fieldLimit)
     : selectEidosFileRecordCardFields(layout, row)
   const title = eidosFileRecordTitle(row, fields)
+  const titleLayout = useMemo(
+    () =>
+      cardWidth && cardWidth > 0
+        ? eidosFileRecordCardTitleHeight(title, cardWidth, compact)
+        : null,
+    [cardWidth, compact, title]
+  )
+  const [actionsOpen, setActionsOpen] = useState(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const suppressPointerOpenRef = useRef(false)
   const openFromCard = useCallback(
@@ -337,7 +365,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
         focused &&
           "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
       )}
-      style={uniform ? { height: fixedHeight } : undefined}
+      style={fixedHeight !== undefined ? { height: fixedHeight } : undefined}
       aria-current={focused ? "true" : undefined}
       aria-posinset={role === "listitem" ? positionInSet : undefined}
       aria-setsize={role === "listitem" ? setSize : undefined}
@@ -363,80 +391,93 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
         />
       ) : null}
       <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>
+        <span
+          data-eidos-file-card-actions
+          className={cn(
+            "pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-0.5 rounded-md border border-border/70 bg-card/95 p-0.5 opacity-0 transition-opacity",
+            "group-hover/card:pointer-events-auto group-hover/card:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+            actionsOpen && "pointer-events-auto opacity-100"
+          )}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label={t("Open {title}", { title })}
+            onClick={() => onOpen(row)}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          {onDelete || (onMove && moveOptions?.length) ? (
+            <DropdownMenu onOpenChange={setActionsOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  aria-label={t("More actions for {title}", { title })}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onSelect={() => onOpen(row)}>
+                  <Eye className="mr-2 h-3.5 w-3.5" />
+                  {t("Open details")}
+                </DropdownMenuItem>
+                {onMove && moveOptions?.length ? (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <MoveRight className="mr-2 h-3.5 w-3.5" />
+                      {t("Move to")}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-44">
+                      <DropdownMoveItems
+                        row={row}
+                        moveOptions={moveOptions}
+                        disabledMoveOptionId={disabledMoveOptionId}
+                        moveDisabled={moveDisabled}
+                        onMove={onMove}
+                      />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ) : null}
+                {onDelete ? (
+                  <>
+                    {onMove && moveOptions?.length ? (
+                      <DropdownMenuSeparator />
+                    ) : null}
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => onDelete(row)}
+                    >
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                      {t("Delete record")}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </span>
         <div className="flex min-w-0 items-start gap-2">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <h3
-            className={cn(
-              "min-w-0 flex-1 text-sm font-medium leading-5",
-              uniform ? "truncate" : "break-words"
-            )}
+            className="line-clamp-3 min-w-0 flex-1 break-words text-sm font-medium leading-5"
+            style={
+              titleLayout
+                ? {
+                    height: titleLayout.height,
+                    maxHeight: EIDOS_FILE_RECORD_CARD_TITLE_LINE_HEIGHT * 3,
+                  }
+                : undefined
+            }
+            title={titleLayout?.overflowing ? title : undefined}
           >
             {title}
           </h3>
-          <span className="-mr-1 -mt-1 flex shrink-0 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
-              aria-label={t("Open {title}", { title })}
-              onClick={() => onOpen(row)}
-            >
-              <Eye className="h-3.5 w-3.5" />
-            </Button>
-            {onDelete || (onMove && moveOptions?.length) ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 opacity-0 group-hover/card:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100"
-                    aria-label={t("More actions for {title}", { title })}
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onSelect={() => onOpen(row)}>
-                    <Eye className="mr-2 h-3.5 w-3.5" />
-                    {t("Open details")}
-                  </DropdownMenuItem>
-                  {onMove && moveOptions?.length ? (
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <MoveRight className="mr-2 h-3.5 w-3.5" />
-                        {t("Move to")}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-44">
-                        <DropdownMoveItems
-                          row={row}
-                          moveOptions={moveOptions}
-                          disabledMoveOptionId={disabledMoveOptionId}
-                          moveDisabled={moveDisabled}
-                          onMove={onMove}
-                        />
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ) : null}
-                  {onDelete ? (
-                    <>
-                      {onMove && moveOptions?.length ? (
-                        <DropdownMenuSeparator />
-                      ) : null}
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onSelect={() => onDelete(row)}
-                      >
-                        <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        {t("Delete record")}
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </span>
         </div>
         {visibleFields.length > 0 ? (
           <div className="grid gap-2">
@@ -451,7 +492,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                 <span
                   className={cn(
                     "min-w-0",
-                    uniform && "block max-h-6 truncate overflow-hidden"
+                    fixedHeight !== undefined &&
+                      cardWidth === undefined &&
+                      "block max-h-6 truncate overflow-hidden"
                   )}
                 >
                   <CardFieldValue
@@ -459,6 +502,8 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                     row={row}
                     theme={theme}
                     translate={t}
+                    cardWidth={cardWidth}
+                    compact={compact}
                   />
                 </span>
               </div>

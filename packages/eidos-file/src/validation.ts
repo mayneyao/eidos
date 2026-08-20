@@ -1717,7 +1717,11 @@ export function validateEidosFile(
               )
             }
           }
-          for (const key of ["coverField", "groupField"] as const) {
+          for (const key of [
+            "coverField",
+            "groupField",
+            "dateField",
+          ] as const) {
             const value = layout[key]
             if (
               value !== undefined &&

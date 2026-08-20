@@ -11,6 +11,7 @@ import type {
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import {
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -116,6 +117,7 @@ export function EidosFileViewTypeIcon({
   // is not installed in this host.
   if (type === "gallery") return <LayoutGrid className={className} />
   if (type === "kanban") return <SquareKanban className={className} />
+  if (type === "calendar") return <CalendarDays className={className} />
   if (!type || type === "grid") return <Table2 className={className} />
   return <Puzzle className={className} />
 }

@@ -39,6 +39,7 @@ import {
 } from "@eidos.space/eidos-file-ui/plugins/csv-import"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
+import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
@@ -57,6 +58,7 @@ import type { IpcEidosFileDataSource } from "./ipc-data-source"
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
   eidosFileKanbanPlugin,
+  eidosFileCalendarPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
 
@@ -73,6 +75,7 @@ export interface EidosFileWorkbenchProps {
   activeTableId: string
   disabled: boolean
   theme: "light" | "dark"
+  weekStartsOnMonday?: boolean
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
   macos?: boolean
   onTableSelect(tableId: string): void
@@ -87,6 +90,7 @@ export function EidosFileWorkbench({
   activeTableId,
   disabled,
   theme,
+  weekStartsOnMonday = true,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   macos = false,
   onTableSelect,
@@ -408,6 +412,7 @@ export function EidosFileWorkbench({
     <EidosFileUIProvider
       locale={locale}
       themeName={theme}
+      weekStartsOnMonday={weekStartsOnMonday}
       activateUrl={window.eidosLite?.openExternalUrl}
       openRelationRecord={openRelationRecord}
       assetSession={assetSession}

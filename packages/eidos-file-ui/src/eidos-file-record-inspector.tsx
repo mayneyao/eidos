@@ -32,6 +32,7 @@ import {
   eidosFileRecordTitle,
 } from "./eidos-file-record-format"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
+import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 
 interface FailedRecordEdit {
   field: EidosFileFieldInfo
@@ -45,6 +46,36 @@ function recordEditErrorMessage(error: unknown, fallback: string): string {
   return message
     .replace(/^Error invoking remote method '[^']+':\s*/i, "")
     .replace(/^Error:\s*/i, "")
+}
+
+function AutosizedRecordFieldText({
+  display,
+  empty,
+}: {
+  display: string
+  empty: boolean
+}) {
+  const measured = useEidosFileAutosizedText<HTMLParagraphElement>({
+    text: display,
+    maxLines: 12,
+  })
+  return (
+    <p
+      ref={measured.ref}
+      className={cn(
+        empty
+          ? "text-xs text-muted-foreground"
+          : "whitespace-pre-wrap break-words text-xs leading-5",
+        measured.overflowing && "overscroll-contain pr-1"
+      )}
+      style={measured.style}
+      data-eidos-file-text-overflow={
+        measured.overflowing ? "scroll" : undefined
+      }
+    >
+      {display}
+    </p>
+  )
 }
 
 function FieldValue({
@@ -108,16 +139,12 @@ function FieldValue({
     )
   }
   const display = eidosFileRecordFieldText(row, field)
+  const empty = display === "Empty"
   return (
-    <p
-      className={
-        display === "Empty"
-          ? "text-xs text-muted-foreground"
-          : "whitespace-pre-wrap break-words text-xs leading-5"
-      }
-    >
-      {display === "Empty" ? t("Empty") : display}
-    </p>
+    <AutosizedRecordFieldText
+      display={empty ? t("Empty") : display}
+      empty={empty}
+    />
   )
 }
 
@@ -193,6 +220,11 @@ export function EidosFileRecordInspector({
     }
   }, [row, rowId, updateFailedEdit])
   const title = eidosFileRecordTitle(currentRow, fields)
+  const measuredTitle = useEidosFileAutosizedText<HTMLHeadingElement>({
+    text: title,
+    maxLines: 3,
+    whiteSpace: "normal",
+  })
   const currentRowId =
     typeof currentRow._id === "string"
       ? currentRow._id
@@ -288,10 +320,13 @@ export function EidosFileRecordInspector({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
             <h2
+              ref={measuredTitle.ref}
               className={cn(
-                "truncate font-medium",
+                "line-clamp-3 min-w-0 flex-1 break-words font-medium",
                 variant === "page" ? "text-lg" : "text-sm"
               )}
+              style={measuredTitle.style}
+              title={measuredTitle.overflowing ? title : undefined}
             >
               {title}
             </h2>

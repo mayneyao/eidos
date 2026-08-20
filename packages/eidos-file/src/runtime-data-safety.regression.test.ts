@@ -167,6 +167,7 @@ describe("Eidos Runtime P0 data safety regressions", () => {
               layout: {
                 cardFields: [statusId, titleId],
                 coverField: statusId,
+                dateField: statusId,
                 fieldOrder: [titleId, statusId],
                 fieldWidths: { [titleId]: 180, [statusId]: 120 },
                 groupField: statusId,
@@ -210,6 +211,7 @@ describe("Eidos Runtime P0 data safety regressions", () => {
         layout: {
           cardFields: [titleId],
           coverField: null,
+          dateField: null,
           fieldOrder: [titleId],
           fieldWidths: { [titleId]: 180 },
           groupField: null,

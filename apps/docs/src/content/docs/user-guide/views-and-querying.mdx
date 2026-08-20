@@ -1,6 +1,6 @@
 ---
 title: Views, search, filters, and sorts
-description: Build focused Grid, Gallery, and Kanban workflows over the same records.
+description: Build focused Grid, Gallery, Kanban, and Calendar workflows over the same records.
 sidebar:
   order: 40
 ---
@@ -18,17 +18,34 @@ Create separate Views for separate jobs—for example **All tasks**, **My open
 work**, **Due this week**, and **Archive**—instead of repeatedly rebuilding one
 complex filter.
 
-## Choose Grid, Gallery, or Kanban
+## Choose Grid, Gallery, Kanban, or Calendar
 
-| View    | Best for                                               |
-| ------- | ------------------------------------------------------ |
-| Grid    | Dense entry, comparison, sorting, and field operations |
-| Gallery | Browsing records as cards with a cover and key fields  |
-| Kanban  | Moving records between groups such as Select states    |
+| View     | Best for                                               |
+| -------- | ------------------------------------------------------ |
+| Grid     | Dense entry, comparison, sorting, and field operations |
+| Gallery  | Browsing records as cards with a cover and key fields  |
+| Kanban   | Moving records between groups such as Select states    |
+| Calendar | Planning records on a month using a date field         |
 
 Changing View type or card layout affects presentation only. Kanban movement
 may update the configured grouping field because moving a card expresses a
 data change.
+
+Calendar requires a Date, Date & time, compatible Formula/Lookup, or
+created/updated system field. New Calendar Views choose the first eligible
+field; open **Configure view → Date field** to change it. **Today** returns to
+the current month, and the arrow buttons move one month at a time. Search and
+the saved filter still apply. Date & time values appear on the local day for
+your current time zone, while date-only values keep their exact saved day.
+Records with no value in the configured field do not appear on the calendar.
+Click a calendar item to open the same record detail panel used by other
+Views. With a writable Date or Date & time field, use the add action in any day
+cell to create a record already assigned to that day. With **Created at** or
+**Updated at**, creation is available only on today because Runtime owns those
+timestamps. Derived Formula and Lookup dates cannot create records from a day
+cell. Eidos Lite starts Calendar weeks on Monday by default; turn off **Start
+week on Monday** under **Settings → Preferences** to use Sunday instead. This is
+a global display preference and is not saved into the View or Eidos File.
 
 ## Search temporarily
 
@@ -97,7 +114,8 @@ Open **Fields** to:
 
 Hiding a field does not delete data. Grid can additionally freeze a leading
 region and store field widths. Gallery and Kanban store their card-field order,
-cover, and other applicable layout properties.
+cover, and other applicable layout properties. Calendar stores only its chosen
+date Field; the month being viewed is temporary.
 
 ## Example Views
 

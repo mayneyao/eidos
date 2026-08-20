@@ -597,6 +597,12 @@ function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
     }
     patch.language = candidate.language
   }
+  if ("weekStartsOnMonday" in candidate) {
+    if (typeof candidate.weekStartsOnMonday !== "boolean") {
+      throw new Error("Invalid first day of week preference")
+    }
+    patch.weekStartsOnMonday = candidate.weekStartsOnMonday
+  }
   if ("keyboardShortcuts" in candidate) {
     if (!isEidosLiteKeyboardShortcuts(candidate.keyboardShortcuts)) {
       throw new Error("Invalid keyboard shortcut preferences")

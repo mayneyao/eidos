@@ -9,9 +9,9 @@ import {
   LogIn,
   LogOut,
   MonitorCog,
-  Palette,
   RefreshCw,
   RotateCcw,
+  SlidersHorizontal,
 } from "lucide-react"
 
 import type {
@@ -41,7 +41,7 @@ const LANGUAGE_OPTIONS: Array<{
 }> = [{ value: "system" }, { value: "en" }, { value: "zh" }]
 
 const SETTINGS_PAGES = [
-  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
   { id: "account-sync", label: "Account & Sync", icon: Cloud },
   { id: "spaces", label: "Spaces", icon: FolderOpen },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
@@ -71,7 +71,7 @@ function platformLabel(appInfo: EidosLiteAppInfo): string {
 
 export function SettingsPage() {
   const { t } = useEidosLiteI18n()
-  const [activePage, setActivePage] = useState<SettingsPageId>("appearance")
+  const [activePage, setActivePage] = useState<SettingsPageId>("preferences")
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
@@ -296,10 +296,10 @@ export function SettingsPage() {
         <div className="settings-content">
           <div className="settings-page" data-settings-page={activePage}>
             <section
-              aria-labelledby="settings-appearance"
-              hidden={activePage !== "appearance"}
+              aria-labelledby="settings-preferences"
+              hidden={activePage !== "preferences"}
             >
-              <h2 id="settings-appearance">{t("Appearance")}</h2>
+              <h2 id="settings-preferences">{t("Preferences")}</h2>
               <div className="settings-group">
                 <div className="settings-row settings-row-stacked">
                   <div className="settings-row-copy">
@@ -370,6 +370,28 @@ export function SettingsPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("Start week on Monday")}</strong>
+                    <small>
+                      {t("Show Monday as the first day in Calendar views.")}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    className="settings-switch"
+                    aria-label={t("Start week on Monday")}
+                    aria-checked={preferences.weekStartsOnMonday}
+                    onClick={() =>
+                      void updatePreferences({
+                        weekStartsOnMonday: !preferences.weekStartsOnMonday,
+                      })
+                    }
+                  >
+                    <span />
+                  </button>
                 </div>
               </div>
             </section>

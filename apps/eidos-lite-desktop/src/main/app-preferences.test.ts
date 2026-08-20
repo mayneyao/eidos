@@ -22,7 +22,7 @@ describe("Eidos Lite preferences", () => {
     ).toEqual(DEFAULT_EIDOS_LITE_PREFERENCES)
   })
 
-  it("persists appearance, language, shortcuts, and Space defaults", async () => {
+  it("persists appearance, calendar, language, shortcuts, and Space defaults", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-preferences-")
     )
@@ -34,6 +34,7 @@ describe("Eidos Lite preferences", () => {
       store.update({
         appearance: "dark",
         language: "zh",
+        weekStartsOnMonday: false,
         keyboardShortcuts: {
           ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
           "toggle-sidebar": "Mod+Shift+B",
@@ -45,6 +46,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      weekStartsOnMonday: false,
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         "toggle-sidebar": "Mod+Shift+B",
@@ -59,6 +61,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      weekStartsOnMonday: false,
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         "toggle-sidebar": "Mod+Shift+B",

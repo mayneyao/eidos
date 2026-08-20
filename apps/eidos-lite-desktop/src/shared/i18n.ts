@@ -14,7 +14,7 @@ const zh: Record<string, string> = {
   "Eidos Website": "Eidos 官网",
   Settings: "设置",
   "Settings sections": "设置分类",
-  Appearance: "外观",
+  Preferences: "偏好设置",
   Theme: "主题",
   "Follow the system or keep one appearance.": "跟随系统，或始终使用指定外观。",
   System: "跟随系统",
@@ -23,6 +23,9 @@ const zh: Record<string, string> = {
   Language: "语言",
   "Use the system language or choose one for Eidos Lite.":
     "跟随系统语言，或为 Eidos Lite 指定语言。",
+  "Start week on Monday": "每周从周一开始",
+  "Show Monday as the first day in Calendar views.":
+    "在日历视图中将周一显示为每周的第一天。",
   English: "English",
   Chinese: "简体中文",
   "Account & Sync": "账户与同步",

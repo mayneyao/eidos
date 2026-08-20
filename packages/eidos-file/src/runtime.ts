@@ -2485,7 +2485,7 @@ export class EidosFileRuntime {
           layout[key] = layout[key].filter((value) => value !== fieldId)
         }
       }
-      for (const key of ["coverField", "groupField"] as const) {
+      for (const key of ["coverField", "groupField", "dateField"] as const) {
         if (layout[key] === fieldId) layout[key] = null
       }
       if (
@@ -2754,6 +2754,7 @@ export class EidosFileRuntime {
             ...properties,
             cardFields: mapFieldList(properties.cardFields),
             coverField: mappedLayoutField(properties.coverField),
+            dateField: mappedLayoutField(properties.dateField),
             fieldOrder,
             fieldWidths,
             groupField: mappedLayoutField(properties.groupField),

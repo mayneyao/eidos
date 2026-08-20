@@ -300,6 +300,7 @@ const EidosFileKanbanCardItem = memo(function EidosFileKanbanCardItem({
         view={view}
         layout={cardLayout}
         compact
+        cardWidth={cardWidth(view) - 20}
         focused={focused}
         onOpen={onOpen}
         onDelete={disabled ? undefined : onDelete}

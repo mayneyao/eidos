@@ -13,6 +13,7 @@ import {
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
+  weekStartsOnMonday: true,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
   automaticCheckpoints: false,
@@ -42,6 +43,10 @@ export function normalizeEidosLitePreferences(
   return {
     appearance: appearance(candidate.appearance),
     language: language(candidate.language),
+    weekStartsOnMonday:
+      typeof candidate.weekStartsOnMonday === "boolean"
+        ? candidate.weekStartsOnMonday
+        : DEFAULT_EIDOS_LITE_PREFERENCES.weekStartsOnMonday,
     keyboardShortcuts: normalizeEidosLiteKeyboardShortcuts(
       candidate.keyboardShortcuts
     ),

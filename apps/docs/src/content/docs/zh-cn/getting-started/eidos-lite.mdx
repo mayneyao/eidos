@@ -20,7 +20,7 @@ Eidos Lite 是把普通文件夹作为 Space 使用的主力桌面产品。一�
 ## Lite 增加了什么
 
 - 在一个 Explorer 中管理 Eidos File、文件夹和普通文件；
-- 通过 `eidos-file-ui` 共享 Grid、Gallery 与 Kanban 编辑体验；
+- 通过 `eidos-file-ui` 共享 Grid、Gallery、Kanban 与 Calendar 编辑体验；
 - 通过 Graft 提供本地 Space 历史和记录级变更；
 - 从 Explorer 删除的文件会移到系统废纸篓；
 - 邀请制的认证 Sync，同时本地工作仍无需账号。
@@ -29,6 +29,11 @@ Eidos Lite 是把普通文件夹作为 Space 使用的主力桌面产品。一�
 
 你选择的文件夹始终是普通文件夹，`.eidos` 也始终是 SQLite application file。本地历史
 metadata 与数据模型分离；退出账号或离线不会使本地文件不可读。
+
+## 全局偏好
+
+打开**设置 → 偏好设置**可以选择主题、语言，以及日历是否从周一开始显示每周。日历偏好会立即
+应用到所有已打开的 Eidos File，但它属于应用偏好，不是文件 metadata。
 
 需要运行当前源码的开发者可以阅读
 [Eidos Lite workspace 指南](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop)。

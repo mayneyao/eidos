@@ -504,6 +504,7 @@ export type EidosLiteLanguage = "system" | "en" | "zh"
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
+  weekStartsOnMonday: boolean
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   automaticUpdates: boolean
   automaticCheckpoints: boolean

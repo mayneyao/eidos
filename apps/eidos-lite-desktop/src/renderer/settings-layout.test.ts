@@ -36,7 +36,13 @@ describe("Settings responsive layout", () => {
     )
     expect(settings).toContain('className="settings-sidebar"')
     expect(settings).toContain('id: "shortcuts"')
+    expect(settings).toContain('id: "preferences"')
+    expect(settings).toContain('t("Preferences")')
     expect(settings).toContain("<KeyboardShortcutSettings")
+    expect(settings).toContain('t("Start week on Monday")')
+    expect(settings).toContain(
+      "weekStartsOnMonday: !preferences.weekStartsOnMonday"
+    )
     expect(settings).toContain("data-settings-page={activePage}")
   })
 })

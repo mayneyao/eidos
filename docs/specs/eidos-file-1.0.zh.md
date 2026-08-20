@@ -1126,7 +1126,7 @@ View 是 `eidos__views` 中以 stable View ID 标识的 row。`query_json` 与
 scroll、draft 或 open-panel state。
 
 Runtime 判断 core `query_json` 是否是可用 Query Document并拥有其含义；UI 对
-`grid`、`gallery`、`kanban` 的 `layout_json` 做同样工作。empty query object
+`grid`、`gallery`、`kanban`、`calendar` 的 `layout_json` 做同样工作。empty query object
 表示 Runtime default query。EF 层只负责 JCS storage、stable-ID reference 和 unknown
 member/type preservation，不重复上层 JSON schema。selected View 是 UI state，不保存在
 `eidos__meta`。Reader 必须保留 unknown View type 与 unknown JSON members。改变 query

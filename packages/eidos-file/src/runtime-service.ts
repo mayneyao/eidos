@@ -3996,6 +3996,7 @@ function knownViewLayoutReferencesField(
   if (
     layout.coverField === fieldId ||
     layout.groupField === fieldId ||
+    layout.dateField === fieldId ||
     (layout.fieldWidths !== null &&
       typeof layout.fieldWidths === "object" &&
       !Array.isArray(layout.fieldWidths) &&

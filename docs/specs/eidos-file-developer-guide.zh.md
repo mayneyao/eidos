@@ -743,7 +743,7 @@ export function Viewer({
 
 `sourceToken` 是 Host 发放的 opaque token，不是文件路径。Kernel 会按顺序完成 Host negotiation、Runtime negotiation、snapshot 和 schema bootstrap。
 
-标准 View 消费 Runtime 返回的 Grid、Gallery 或 Kanban 数据，不会在 React 中重新实现 Formula、Lookup、Relation、filter 或 group 语义。
+标准 View 消费 Runtime 返回的 Grid、Gallery、Kanban 或 Calendar 数据，不会在 React 中重新实现 Formula、Lookup、Relation、filter 或 group 语义。
 
 ## 调试时怎样查看底层数据
 

@@ -119,7 +119,7 @@ export interface EidosStandardViewProps {
 }
 
 /**
- * Accessible EU-Viewer-1.0 renderer for the three standard View types. All
+ * Accessible EU-Viewer-1.0 renderer for the four standard View types. All
  * rows, order, groups, derived values and Relation labels come from Runtime.
  */
 export function EidosStandardView({
@@ -145,6 +145,15 @@ export function EidosStandardView({
     views[0]
   const fields = table ? (schema?.fieldsByTable.get(table.id) ?? []) : []
   const visibleFields = table ? eidosUIVisibleFields(table, fields, view) : []
+  const calendarDateField =
+    view?.type === "calendar" && typeof view.layout.dateField === "string"
+      ? fields.find((field) => field.id === view.layout.dateField)
+      : undefined
+  const projectedFields =
+    calendarDateField &&
+    !visibleFields.some((field) => field.id === calendarDateField.id)
+      ? [...visibleFields, calendarDateField]
+      : visibleFields
   const [cursor, setCursor] = useState<string | undefined>()
   const [direction, setDirection] = useState<"forward" | "backward">("forward")
   const [page, setPage] = useState<RowPage | null>(null)
@@ -156,12 +165,12 @@ export function EidosStandardView({
   )
   const projection = useMemo(
     () => ({
-      fields: visibleFields.map((field) => field.id),
-      resolveRelations: visibleFields
+      fields: projectedFields.map((field) => field.id),
+      resolveRelations: projectedFields
         .filter((field) => field.kind === "relation")
         .map((field) => field.id),
     }),
-    [visibleFields]
+    [projectedFields]
   )
   const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}`
 
@@ -257,7 +266,7 @@ export function EidosStandardView({
       </div>
     )
   }
-  if (!["grid", "gallery", "kanban"].includes(view.type)) {
+  if (!["grid", "gallery", "kanban", "calendar"].includes(view.type)) {
     return (
       <section className={className} aria-label={view.name}>
         <h2>{view.name}</h2>
@@ -349,6 +358,58 @@ export function EidosStandardView({
       </section>
     )
   }
+  if (view.type === "calendar") {
+    const dateFieldId =
+      typeof view.layout.dateField === "string" ? view.layout.dateField : null
+    const dateFieldIndex = projectedFields.findIndex(
+      (field) => field.id === dateFieldId
+    )
+    if (!dateFieldId || dateFieldIndex < 0) {
+      return (
+        <div className={className} role="status">
+          Configure a date field to present this Calendar View.
+        </div>
+      )
+    }
+    const rowsByDate = new Map<string, NonNullable<typeof page>["rows"]>()
+    for (const row of page?.rows ?? []) {
+      const raw = row.values[dateFieldIndex]
+      const key = runtimeCalendarDateKey(raw)
+      if (!key) continue
+      const rows = rowsByDate.get(key)
+      if (rows) rows.push(row)
+      else rowsByDate.set(key, [row])
+    }
+    return (
+      <section className={className} aria-label={view.name}>
+        <h2>{view.name}</h2>
+        <div className="eidos-standard-calendar">
+          {[...rowsByDate.entries()]
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([date, rows]) => (
+              <section key={date} aria-label={date}>
+                <h3>
+                  <time dateTime={date}>{date}</time>
+                </h3>
+                {rows.map((row) => (
+                  <article key={row.id}>
+                    {rowLabel(row.values, projectedFields, table.labelFieldId)}
+                  </article>
+                ))}
+              </section>
+            ))}
+        </div>
+        <Pagination
+          next={page?.nextCursor ?? null}
+          previous={page?.previousCursor ?? null}
+          onMove={(nextCursor, nextDirection) => {
+            setCursor(nextCursor)
+            setDirection(nextDirection)
+          }}
+        />
+      </section>
+    )
+  }
   return (
     <section className={className} aria-label={view.name}>
       <h2>{view.name}</h2>
@@ -399,6 +460,19 @@ function isRuntimeFileEntry(value: LogicalValue): value is FileEntry {
     typeof value.size === "string" &&
     typeof value.uri === "string"
   )
+}
+
+function runtimeCalendarDateKey(
+  value: LogicalValue | undefined
+): string | null {
+  if (typeof value !== "string" || value.length === 0) return null
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) return value
+  const instant = new Date(value)
+  if (Number.isNaN(instant.getTime())) return null
+  const year = String(instant.getFullYear()).padStart(4, "0")
+  const month = String(instant.getMonth() + 1).padStart(2, "0")
+  const day = String(instant.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
 function RuntimeValue({

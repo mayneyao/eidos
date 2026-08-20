@@ -52,6 +52,7 @@ import {
 } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
+import { eidosFileCalendarDateFields } from "./eidos-file-calendar-view"
 
 export interface EidosFileExternalViewContribution {
   id: string
@@ -71,7 +72,11 @@ export interface EidosFileViewSelectorRequest {
   requestId: number
   viewId: string
 }
-export type EidosFileBuiltInViewType = "grid" | "gallery" | "kanban"
+export type EidosFileBuiltInViewType =
+  | "grid"
+  | "gallery"
+  | "kanban"
+  | "calendar"
 export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = "extension:"
 
 export function eidosFileExtensionViewType(contributionId: string): string {
@@ -92,6 +97,11 @@ const VIEW_TYPES: Array<{
   { type: "grid", label: "Grid", description: "Rows and columns" },
   { type: "gallery", label: "Gallery", description: "Responsive cards" },
   { type: "kanban", label: "Kanban", description: "Grouped by Select" },
+  {
+    type: "calendar",
+    label: "Calendar",
+    description: "Records arranged by date",
+  },
 ]
 
 function defaultViewName(
@@ -110,30 +120,39 @@ function defaultViewName(
 export function isEidosFileBuiltInViewType(
   type: string
 ): type is EidosFileBuiltInViewType {
-  return type === "grid" || type === "gallery" || type === "kanban"
+  return (
+    type === "grid" ||
+    type === "gallery" ||
+    type === "kanban" ||
+    type === "calendar"
+  )
 }
 
 function EidosFileViewLayoutPicker({
   value,
   disabled,
   hasSelectField,
+  hasDateField,
   onChange,
 }: {
   value: EidosFileBuiltInViewType | null
   disabled: boolean
   hasSelectField: boolean
+  hasDateField: boolean
   onChange: (type: EidosFileBuiltInViewType) => void
 }) {
   const { translate: t } = useEidosFileUI()
   return (
     <div className="grid gap-1.5">
       <div
-        className="grid grid-cols-3 gap-1.5"
+        className="grid grid-cols-4 gap-1.5"
         role="group"
         aria-label={t("View layout")}
       >
         {VIEW_TYPES.map((candidate) => {
-          const unavailable = candidate.type === "kanban" && !hasSelectField
+          const unavailable =
+            (candidate.type === "kanban" && !hasSelectField) ||
+            (candidate.type === "calendar" && !hasDateField)
           return (
             <button
               key={candidate.type}
@@ -159,6 +178,11 @@ function EidosFileViewLayoutPicker({
       {!hasSelectField ? (
         <p className="text-[11px] leading-4 text-muted-foreground">
           {t("Add a Select field to enable Kanban.")}
+        </p>
+      ) : null}
+      {!hasDateField ? (
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          {t("Add a Date or Date & time field to enable Calendar.")}
         </p>
       ) : null}
     </div>
@@ -261,6 +285,7 @@ export function EidosFileViewSelector({
   )
   const gridViewCount = views.filter((view) => view.type === "grid").length
   const selectFields = fields.filter((field) => field.type === "select")
+  const dateFields = eidosFileCalendarDateFields(fields)
   const visibleFieldIds = new Set(
     visibleEidosFileFields(
       fields,
@@ -428,8 +453,31 @@ export function EidosFileViewSelector({
     ) {
       return
     }
-    if (type !== "kanban") {
+    if (type !== "kanban" && type !== "calendar") {
       void run(() => onUpdate(managedView.id, { type }))
+      return
+    }
+    if (type === "calendar") {
+      const currentDateField = managedView.properties?.dateField
+      const dateField =
+        typeof currentDateField === "string" &&
+        dateFields.some(
+          (field) => eidosFileFieldKey(field) === currentDateField
+        )
+          ? currentDateField
+          : dateFields[0]
+            ? eidosFileFieldKey(dateFields[0])
+            : undefined
+      if (!dateField) return
+      void run(() =>
+        onUpdate(managedView.id, {
+          type,
+          properties: {
+            ...(managedView.properties ?? {}),
+            dateField,
+          },
+        })
+      )
       return
     }
     const currentGroup = managedView.properties?.groupField
@@ -632,6 +680,7 @@ export function EidosFileViewSelector({
                 }
                 disabled={busy}
                 hasSelectField={selectFields.length > 0}
+                hasDateField={dateFields.length > 0}
                 onChange={(type) => {
                   selectCreateType(
                     type,
@@ -753,6 +802,7 @@ export function EidosFileViewSelector({
                   value={managedView.type}
                   disabled={busy}
                   hasSelectField={selectFields.length > 0}
+                  hasDateField={dateFields.length > 0}
                   onChange={changeManagedLayout}
                 />
               </div>
@@ -858,6 +908,46 @@ export function EidosFileViewSelector({
                     }
                   />
                 </label>
+              </div>
+            ) : null}
+            {managedView.type === "calendar" ? (
+              <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">{t("Date field")}</p>
+                <Select
+                  value={
+                    typeof managedView.properties?.dateField === "string"
+                      ? managedView.properties.dateField
+                      : dateFields[0]
+                        ? eidosFileFieldKey(dateFields[0])
+                        : undefined
+                  }
+                  disabled={busy || dateFields.length === 0}
+                  onValueChange={(dateField) => updateProperties({ dateField })}
+                >
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    aria-label={t("Calendar date field")}
+                  >
+                    <SelectValue placeholder={t("Choose a date field")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dateFields.map((field) => (
+                      <SelectItem
+                        key={eidosFileFieldKey(field)}
+                        value={eidosFileFieldKey(field)}
+                      >
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {dateFields.length === 0 ? (
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    {t(
+                      "Add a Date or Date & time field before configuring this Calendar."
+                    )}
+                  </p>
+                ) : null}
               </div>
             ) : null}
             {managedView.type === "gallery" || managedView.type === "kanban" ? (

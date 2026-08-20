@@ -51,6 +51,7 @@ import {
 } from "@eidos.space/eidos-file-ui/plugins/csv-import"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
+import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
 import { AlertTriangle, Check, LoaderCircle, X } from "lucide-react"
 
 import {
@@ -321,6 +322,7 @@ export function ServeApp() {
     () => [
       eidosFileGalleryPlugin,
       eidosFileKanbanPlugin,
+      eidosFileCalendarPlugin,
       createEidosFileCsvImportPlugin(
         {
           async pickFile() {

@@ -72,6 +72,7 @@ interface EidosFileGalleryVirtualRowProps {
   virtualIndex: number
   offset: number
   columnCount: number
+  cardWidth: number
   total: number
   fields: EidosFileFieldInfo[]
   view: EidosFileViewInfo
@@ -92,6 +93,7 @@ function galleryVirtualRowPropsEqual(
     previous.virtualIndex !== next.virtualIndex ||
     previous.offset !== next.offset ||
     previous.columnCount !== next.columnCount ||
+    previous.cardWidth !== next.cardWidth ||
     previous.total !== next.total ||
     previous.fields !== next.fields ||
     previous.view !== next.view ||
@@ -132,6 +134,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
   virtualIndex,
   offset,
   columnCount,
+  cardWidth,
   total,
   fields,
   view,
@@ -167,7 +170,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               fields={fields}
               view={view}
               layout={layout}
-              fixedHeight={uniformGalleryCardHeight(layout)}
+              cardWidth={cardWidth}
               role="listitem"
               positionInSet={absoluteIndex + 1}
               setSize={total}
@@ -180,7 +183,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               key={`gallery-placeholder-${absoluteIndex}`}
               data-eidos-file-gallery-placeholder
               className="min-h-24 rounded-lg border bg-muted/20"
-              style={{ height: uniformGalleryCardHeight(layout) }}
+              style={{ minHeight: uniformGalleryCardHeight(layout) }}
               aria-hidden="true"
             />
           )
@@ -399,6 +402,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     1,
     Math.floor((availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP))
   )
+  const renderedCardWidth =
+    (availableWidth - GALLERY_GAP * (columnCount - 1)) / columnCount
   const virtualRowCount = Math.ceil(total / columnCount)
   const {
     virtualizer: rowVirtualizer,
@@ -688,6 +693,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   virtualIndex={virtualRow.index}
                   offset={virtualRowOffset(virtualRow)}
                   columnCount={columnCount}
+                  cardWidth={renderedCardWidth}
                   total={total}
                   fields={table.fields}
                   view={view}

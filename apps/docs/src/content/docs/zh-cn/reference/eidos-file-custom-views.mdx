@@ -31,7 +31,7 @@ tasks.eidos (SQLite)
 EidosFileEditorDataSource      worker/RPC adapter；React 主线程不运行 SQLite
           │
           ▼
-@eidos.space/eidos-file-ui      Grid、Gallery、Kanban 或宿主注册的 renderer
+@eidos.space/eidos-file-ui      Grid、Gallery、Kanban、Calendar 或宿主注册的 renderer
 ```
 
 完整 metadata schema 由 [Eidos File Format
@@ -47,8 +47,8 @@ Desktop 和未来宿主才能安全编辑同一份文件。
 
 `eidos__views.type` 是开放字符串；`query_json` 保存 Runtime query，`layout_json` 保存 UI
 layout。Runtime 将它们暴露为 `filter`、`sorts`、`properties`、`orderMap` 与
-`hiddenFields`。Eidos 内置 `grid`、`gallery`、`kanban`，Host 也可以保存 `timeline` 等新
-类型。即使当前 Host 无法渲染，仍必须保留未知 View type 与 layout member。
+`hiddenFields`。Eidos 内置 `grid`、`gallery`、`kanban`、`calendar`，Host 也可以保存
+`timeline` 等新类型。即使当前 Host 无法渲染，仍必须保留未知 View type 与 layout member。
 
 Runtime 将视图暴露为 `EidosFileViewInfo`：
 

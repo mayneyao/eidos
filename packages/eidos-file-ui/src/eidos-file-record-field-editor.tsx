@@ -24,6 +24,7 @@ import { Switch, Textarea } from "./ui/primitives"
 import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 
 function dateTimeInputValue(value: EidosFileRow[string]): string {
   if (typeof value !== "string" || value.length === 0) return ""
@@ -53,6 +54,10 @@ export function EidosFileRecordFieldEditor({
         ? ""
         : String(value)
   )
+  const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
+    text: draft,
+    maxLines: field.isRecordLabel ? 3 : 12,
+  })
 
   useEffect(() => {
     setDraft(
@@ -196,11 +201,16 @@ export function EidosFileRecordFieldEditor({
   if (field.type === "text") {
     return (
       <Textarea
+        ref={measuredText.ref}
         value={draft}
-        rows={field.isRecordLabel ? 1 : 3}
+        rows={1}
         aria-label={field.name}
         disabled={disabled}
-        className="min-h-8 resize-y text-xs"
+        className="min-h-8 resize-none text-xs leading-5"
+        style={measuredText.style}
+        data-eidos-file-text-overflow={
+          measuredText.overflowing ? "scroll" : undefined
+        }
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}
         onKeyDown={(event) => {
