@@ -69,9 +69,10 @@ from guessed or partially parsed output.
 
 ## Lower-level operations
 
-`rows add`, `rows update`, `rows delete`, and `schema-apply` remain available
-for automation that already owns stable IDs and revision state. Schema changes
-support dry-run execution against the real transaction path before commit.
+`rows add`, `rows update`, `rows delete`, `schema-apply`, and `view-apply`
+remain available for automation that already owns stable IDs and revision
+state. Schema changes support dry-run execution against the real transaction
+path before commit.
 
 ```bash
 eidos --json schema-apply tracker.eidos \
@@ -79,3 +80,29 @@ eidos --json schema-apply tracker.eidos \
   --op @schema-change.json \
   --dry-run
 ```
+
+Create a Calendar View from the stable Table and date/datetime Field IDs in
+`schema` output:
+
+```bash
+eidos --json view-apply tracker.eidos - <<'JSON'
+{
+  "expectedRevision": "2",
+  "changes": [{
+    "kind": "create-view",
+    "clientKey": "calendar",
+    "tableId": "019...",
+    "name": "Calendar",
+    "type": "calendar",
+    "query": {},
+    "layout": { "dateField": "019..." },
+    "position": "1"
+  }]
+}
+JSON
+```
+
+The CLI allocates the View ID and returns it under `createdViews`. View query
+and layout references use stable Field IDs; display names are not accepted in
+the persisted View document. `update-view` supports explicit name, type,
+query, layout, and position patches; `delete-view` removes the stable View ID.

@@ -10,6 +10,7 @@
 - [Atomic matched update](#atomic-matched-update)
 - [Row mutations](#row-mutations)
 - [Schema mutations](#schema-mutations)
+- [View mutations](#view-mutations)
 - [Validation](#validation)
 - [Local web editor](#local-web-editor)
 - [Logical values](#logical-values)
@@ -253,6 +254,48 @@ Forward Relation field:
 ```
 
 Formula, Lookup, and inverse Relation creation is intentionally rejected in the alpha.
+
+## View mutations
+
+Use `schema` first and keep the current revision plus the stable Table, View,
+and Field IDs. `view-apply` accepts the exact Runtime `ViewMutationRequest` and
+commits all changes in one revision-checked transaction:
+
+```bash
+eidos --json view-apply file.eidos - <<'JSON'
+{
+  "expectedRevision": "8",
+  "changes": [{
+    "kind": "create-view",
+    "clientKey": "calendar",
+    "tableId": "019...",
+    "name": "Calendar",
+    "type": "calendar",
+    "query": {},
+    "layout": {"dateField": "019..."},
+    "position": "1"
+  }]
+}
+JSON
+```
+
+For Calendar, choose a same-Table `date` or `datetime` Field ID. The system
+created-time or updated-time Field ID is also valid when the intended calendar
+uses those values. If no suitable Field exists, create one first with
+`schema-apply`, read its real ID from the result/schema, then create the View.
+
+Update, reorder, and delete use stable View IDs:
+
+```json
+{"expectedRevision":"9","changes":[{"kind":"update-view","viewId":"019...","patch":{"name":"Schedule","position":"0"}}]}
+{"expectedRevision":"10","changes":[{"kind":"delete-view","viewId":"019..."}]}
+```
+
+Create positions are required canonical int64 strings. Reordering is explicit:
+submit one `update-view` position patch per affected View in the same request.
+Saved query filter/sort references and standard layout field references must be
+stable Field IDs, not display names. Unknown View types and layout keys remain
+preserved without interpretation by the CLI Runtime layer.
 
 ## Validation
 

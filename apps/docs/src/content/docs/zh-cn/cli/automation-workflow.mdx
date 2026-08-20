@@ -65,8 +65,8 @@ eidos --json validate tracker.eidos --level full
 ## 低层操作
 
 已经掌握 stable ID 与 revision state 的自动化仍可以使用 `rows add`、`rows update`、
-`rows delete` 与 `schema-apply`。Schema change 支持在提交前通过真实 transaction path
-执行 dry run。
+`rows delete`、`schema-apply` 与 `view-apply`。Schema change 支持在提交前通过真实
+transaction path 执行 dry run。
 
 ```bash
 eidos --json schema-apply tracker.eidos \
@@ -74,3 +74,28 @@ eidos --json schema-apply tracker.eidos \
   --op @schema-change.json \
   --dry-run
 ```
+
+从 `schema` 输出中取得稳定的 Table ID 与 `date` / `datetime` Field ID，即可创建
+Calendar View：
+
+```bash
+eidos --json view-apply tracker.eidos - <<'JSON'
+{
+  "expectedRevision": "2",
+  "changes": [{
+    "kind": "create-view",
+    "clientKey": "calendar",
+    "tableId": "019...",
+    "name": "Calendar",
+    "type": "calendar",
+    "query": {},
+    "layout": { "dateField": "019..." },
+    "position": "1"
+  }]
+}
+JSON
+```
+
+CLI 分配 View ID，并通过 `createdViews` 返回。持久化 View document 中的 query 与
+layout 引用必须使用稳定 Field ID，不能使用显示名称。`update-view` 可以显式修改名称、
+类型、query、layout 与 position；`delete-view` 删除指定的稳定 View ID。

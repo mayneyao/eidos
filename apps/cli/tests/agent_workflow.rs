@@ -139,6 +139,68 @@ fn agent_can_create_query_mutate_and_validate_a_file() {
 }
 
 #[test]
+fn agent_can_create_a_calendar_view_from_stable_schema_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("calendar.eidos"));
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Tasks",
+        "--label-field",
+        "Title",
+        "--fields",
+        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Due","type":"date"}]"#,
+    ]);
+    let schema = success(&[&file, "schema", "Tasks"]);
+    let table_id = schema["tables"][0]["id"].as_str().unwrap();
+    let due_id = schema["tables"][0]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|field| field["name"] == "Due")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let request = json!({
+        "expectedRevision": "1",
+        "changes": [{
+            "kind": "create-view",
+            "clientKey": "calendar",
+            "tableId": table_id,
+            "name": "Calendar",
+            "type": "calendar",
+            "query": {},
+            "layout": {"dateField": due_id},
+            "position": "1"
+        }]
+    })
+    .to_string();
+    let applied = success(&[&file, "view-apply", &request]);
+    assert_eq!(applied["revision"], "2");
+    assert_eq!(applied["changed"], true);
+    assert_eq!(applied["createdViews"][0]["clientKey"], "calendar");
+
+    let schema = success(&[&file, "schema", "Tasks"]);
+    let calendar = schema["views"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|view| view["name"] == "Calendar")
+        .unwrap();
+    assert_eq!(calendar["type"], "calendar");
+    assert_eq!(calendar["layout"]["dateField"], due_id);
+    assert_eq!(
+        success(&[&file, "inspect"])["capabilities"]["mutateView"],
+        true
+    );
+    assert_eq!(
+        success(&[&file, "validate", "--level", "full"])["valid"],
+        true
+    );
+}
+
+#[test]
 fn compact_context_and_atomic_apply_cover_the_common_agent_loop() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("agent-loop.eidos"));

@@ -9,7 +9,7 @@ default, and does not require a running Eidos application.
 - Create and inspect Eidos Files.
 - Read logical tables, fields, relations, views, and file metadata.
 - Query rows through the Eidos query model rather than raw SQL.
-- Apply atomic row and schema mutations with optimistic revision checks.
+- Apply atomic row, saved View, and schema mutations with optimistic revision checks.
 - Validate file identity, structure, content, and supported semantics.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
 - Upgrade its own installation from a verified standalone release.
@@ -137,6 +137,31 @@ target/debug/eidos tracker.eidos rows add Tasks \
 target/debug/eidos tracker.eidos validate --level full
 ```
 
+Create a Calendar View from the stable Table and date Field IDs returned by
+`schema`:
+
+```bash
+target/debug/eidos tracker.eidos view-apply - <<'JSON'
+{
+  "expectedRevision": "2",
+  "changes": [{
+    "kind": "create-view",
+    "clientKey": "calendar",
+    "tableId": "019...",
+    "name": "Calendar",
+    "type": "calendar",
+    "query": {},
+    "layout": {"dateField": "019..."},
+    "position": "1"
+  }]
+}
+JSON
+```
+
+The same command supports `update-view` and `delete-view`; explicit position
+patches reorder Views. View queries and Calendar layout references use stable
+Field IDs so renames do not change their meaning.
+
 Both `eidos tracker.eidos inspect` and `eidos inspect tracker.eidos` are
 supported. Commands print readable key-value sections and tables by default.
 With `--json`, successful commands write one JSON document to stdout and
@@ -228,10 +253,13 @@ Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](.
 - `context` combines compact schema discovery with a bounded logical query.
 - `apply` validates the proposed final state before committing matched updates.
 - `schema-apply --dry-run` executes and rolls back the exact schema transaction.
+- `view-apply` uses the Runtime View mutation document and one revision-checked transaction.
 - `validate --level full` should follow a completed write workflow.
 - Raw SQLite writes are unsupported.
 
-The alpha supports stored scalar/list fields and forward Relations. It preserves and reports existing Formula, Lookup, inverse Relation, and view metadata but does not create or evaluate virtual fields yet.
+The alpha supports stored scalar/list fields, forward Relations, and saved View
+lifecycle operations. It preserves and reports existing Formula, Lookup, and
+inverse Relation metadata but does not create or evaluate virtual fields yet.
 
 ## Development
 

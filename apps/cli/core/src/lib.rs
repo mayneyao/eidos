@@ -18,9 +18,10 @@
 //! - [`rows`]: revision-checked atomic row reads and mutations.
 //! - [`relation`]: §10.4 triggers and delete-policy preflight.
 //! - [`schema_ops`]: stored-field schema mutations used by the agent CLI.
+//! - [`view_ops`]: canonical saved-View mutations used by the agent CLI.
 //!
-//! Formula, Lookup, inverse-Relation creation/evaluation, View mutation, and
-//! the full Runtime conformance surface are intentionally outside this alpha.
+//! Formula, Lookup, inverse-Relation creation/evaluation, and the full Runtime
+//! conformance surface are intentionally outside this alpha.
 
 pub mod ddl;
 pub mod error;
@@ -35,5 +36,6 @@ pub mod schema_ops;
 pub mod time;
 pub mod validate;
 pub mod values;
+pub mod view_ops;
 
 pub use error::{EidosError, Result};

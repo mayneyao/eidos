@@ -132,6 +132,14 @@ mod tests {
         ]);
         assert!(matches!(apply.command, Command::Apply(_)));
 
+        let view_apply = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "view-apply",
+            r#"{"expectedRevision":"0","changes":[]}"#,
+        ]);
+        assert!(matches!(view_apply.command, Command::ViewApply(_)));
+
         let serve = parse_ok(&[
             "eidos",
             "tasks.eidos",

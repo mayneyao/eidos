@@ -51,6 +51,9 @@ pub enum Command {
     /// Apply one revision-checked schema operation.
     #[command(name = "schema-apply")]
     SchemaApply(SchemaApplyArgs),
+    /// Create, update, delete, or reorder saved Views atomically.
+    #[command(name = "view-apply")]
+    ViewApply(ViewApplyArgs),
     /// Serve a local web editor for one file over HTTP.
     Serve(ServeArgs),
 }
@@ -285,6 +288,13 @@ pub struct SchemaApplyArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct ViewApplyArgs {
+    pub file: PathBuf,
+    /// View mutation request JSON. Accepts inline JSON, @path, or stdin (-).
+    pub request: String,
+}
+
 const COMMANDS: &[&str] = &[
     "create",
     "inspect",
@@ -296,6 +306,7 @@ const COMMANDS: &[&str] = &[
     "rows",
     "validate",
     "schema-apply",
+    "view-apply",
     "serve",
 ];
 

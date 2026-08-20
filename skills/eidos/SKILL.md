@@ -42,10 +42,12 @@ Match stable `_id` values when available. Keep `expect` exact; never broaden a z
 
 ## Use the guarded legacy path when needed
 
-`apply` currently updates existing rows only. For creates, deletes, and schema changes:
+`apply` currently updates existing rows only. For creates, deletes, schema
+changes, and saved View lifecycle changes:
 
 1. Use the revision returned by the newest `context` or `inspect`.
-2. Use `rows add`, `rows delete`, or `schema-apply --expected-revision`.
+2. Use `rows add`, `rows delete`, `schema-apply --expected-revision`, or
+   `view-apply` with a `ViewMutationRequest`.
 3. Dry-run schema changes, especially deletions.
 4. Run `validate --level full` after the final committed mutation.
 
@@ -55,4 +57,7 @@ Before destructive changes, identify exact IDs and summarize impact. Never mutat
 
 Do not automatically retry `stale-revision`. Re-run `context`, reconcile the affected rows, and form a new request. Do not write an existing File while Eidos Lite, Eidos File Web, or another editor has it open during the alpha.
 
-Read [references/cli.md](references/cli.md) only for advanced filters, logical value types, creation, or the complete command grammar. Read [references/operations.md](references/operations.md) only for relations, schema changes, deletion, recovery, or Graft workflows.
+Read [references/cli.md](references/cli.md) only for advanced filters, logical
+value types, saved Views, creation, or the complete command grammar. Read
+[references/operations.md](references/operations.md) only for relations,
+Calendar creation, schema changes, deletion, recovery, or Graft workflows.

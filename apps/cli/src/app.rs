@@ -18,6 +18,7 @@ use eidos_file_core::schema_ops::{
     SchemaLeafChange, apply_initial_table, apply_schema_change, preview_schema_change,
 };
 use eidos_file_core::validate::{ValidationLevel, validate};
+use eidos_file_core::view_ops::{ViewMutationRequest, mutate_views};
 use eidos_file_core::{EidosError, Result as CoreResult};
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use serde::Deserialize;
@@ -26,7 +27,7 @@ use serde_json::{Map, Value, json};
 use crate::cli::{
     AccountArgs, ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs,
     RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs,
-    UpgradeArgs, ValidateArgs, ValidationLevelArg,
+    UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -61,6 +62,7 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::Rows(args) => rows(args),
         Command::Validate(args) => validate_file(args),
         Command::SchemaApply(args) => schema_apply(args),
+        Command::ViewApply(args) => view_apply(args),
         Command::Serve(args) => serve_file(args),
     }
 }
@@ -255,6 +257,7 @@ fn inspect(FileArgs { file }: FileArgs) -> Result<CommandOutput> {
         "capabilities": {
             "query": true,
             "mutateRows": true,
+            "mutateView": true,
             "mutateSchema": true,
             "validate": true,
             "formulaEvaluation": false,
@@ -960,6 +963,14 @@ fn rows_delete(file: PathBuf, args: RowDeleteArgs) -> Result<CommandOutput> {
         },
     )?;
     Ok(CommandOutput::success(json!(result)))
+}
+
+fn view_apply(args: ViewApplyArgs) -> Result<CommandOutput> {
+    let request: ViewMutationRequest = serde_json::from_value(read_json_source(&args.request)?)?;
+    let mut conn = open_file(&args.file, true)?;
+    Ok(CommandOutput::success(json!(mutate_views(
+        &mut conn, &request
+    )?)))
 }
 
 fn validate_file(args: ValidateArgs) -> Result<CommandOutput> {

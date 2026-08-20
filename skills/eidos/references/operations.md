@@ -6,6 +6,7 @@
 - [Create a tracker](#create-a-tracker)
 - [Safe row update](#safe-row-update)
 - [Safe schema change](#safe-schema-change)
+- [Create a Calendar view](#create-a-calendar-view)
 - [Forward Relation](#forward-relation)
 - [Delete data](#delete-data)
 - [Recover from errors](#recover-from-errors)
@@ -84,6 +85,37 @@ eidos --json validate tracker.eidos --level full
 Treat every `createdObjects[].id` returned by the dry run as ephemeral. The real apply allocates different stable IDs.
 
 Adding a non-null scalar field to a non-empty table is rejected because existing rows would have no valid value. Add it nullable, populate it, and only use a later supported migration to strengthen the constraint.
+
+## Create a Calendar view
+
+Read the full schema, select the owning Table ID and a same-Table `date` or
+`datetime` Field ID, then submit one View mutation at that revision:
+
+```bash
+eidos --json schema tracker.eidos Tasks
+
+eidos --json view-apply tracker.eidos - <<'JSON'
+{
+  "expectedRevision": "13",
+  "changes": [{
+    "kind": "create-view",
+    "clientKey": "delivery-calendar",
+    "tableId": "019-table...",
+    "name": "Delivery calendar",
+    "type": "calendar",
+    "query": {},
+    "layout": {"dateField": "019-due-field..."},
+    "position": "1"
+  }]
+}
+JSON
+
+eidos --json validate tracker.eidos --level full
+```
+
+Do not substitute the displayed Table/Field names in the View document. Stable
+IDs keep the Calendar valid across renames. If the File changed after schema
+inspection, handle `stale-revision` by re-reading and replanning.
 
 ## Forward Relation
 
