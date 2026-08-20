@@ -1,24 +1,18 @@
 ## What's new
 
-### Plan records on a calendar
+### Preserve views created by newer Eidos versions
 
-The editor embedded in the CLI now includes Calendar views. Choose a date or
-datetime field, search and filter the same records as other views, move between
-months, and create a record directly on an eligible day. A new preference also
-lets each user start the week on Monday or Sunday.
+The embedded editor now keeps unfamiliar view, filter, and sort configuration
+intact. Unsupported views remain visible with an update-required explanation,
+while partial queries and exports are blocked instead of silently displaying
+incorrect rows or replacing settings the installed CLI does not understand.
 
-### Faster table setup
+### Keep date and time behavior consistent
 
-Date filters now cover relative periods such as the current, previous, or next
-day, week, month, and year. Select fields can assign a default option to newly
-created records, and records created in sorted or filtered views stay in a
-predictable position.
-
-### Adaptive cards and record details
-
-Gallery and Kanban cards, together with expanded record fields, now size long
-text to its actual content up to a bounded maximum. Gallery cards remain aligned
-within each row, while compact floating actions leave more room for content.
+Date-time values, editors, record details, and Calendar grouping now agree on
+the Serve host's time zone, including daylight-saving transitions. Calendar
+records also expose their normal open, copy-ID, and delete actions from the
+context menu.
 
 ## Use with Codex
 
@@ -26,7 +20,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.10/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.11/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -43,5 +37,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.10 and verify the downloaded archive against the
+The installers select v0.36.11 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.

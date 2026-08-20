@@ -1,30 +1,18 @@
 ## What's new
 
-### Plan records with Calendar views
+### Use one time zone throughout Eidos Lite
 
-Tables can now add Calendar views backed by a date, datetime, or creation-time
-field. Search and saved filters carry across, eligible days can create records
-in place, and the global Preferences page lets you start each week on Monday or
-Sunday.
+Preferences now includes a searchable time-zone picker that follows the system
+by default or can stay fixed to a chosen city. Created, updated, date-time,
+record-detail, and Calendar values all use the same selected zone when they are
+displayed or edited, including daylight-saving transitions.
 
-### See the content behind changed files
+### Keep newer views safe on older clients
 
-New and modified images can now be previewed directly from Changes. JSON values
-in Eidos system metadata are formatted and expanded before comparison, with a
-split view by default, so configuration changes are readable instead of
-appearing as one opaque line.
-
-### Set up tables and cards with less cleanup
-
-Select fields can assign a default option to new records, while relative date
-filters cover the current, previous, or next day, week, month, and year. Gallery
-and Kanban cards, together with expanded record fields, now fit text to its
-actual height up to a bounded maximum and keep each Gallery row aligned.
-
-### Type into completely empty Markdown sources
-
-A brand-new zero-byte Markdown file now establishes a real source-editor caret
-target before the first character. The first keystroke is no longer dropped,
-and the temporary editing anchor is never written into the document.
+Views created with newer filter, sort, or view features now remain visible when
+this version cannot interpret them. Eidos Lite preserves the saved
+configuration, explains that an update is required, and blocks partial queries
+or exports instead of displaying incorrect rows or overwriting settings it does
+not understand.
 
 No migration is required.
