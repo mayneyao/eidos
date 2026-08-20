@@ -1,21 +1,30 @@
 ## What's new
 
-### Edit new Markdown files immediately in Source
+### Plan records with Calendar views
 
-When you switch a newly created Markdown file from Preview to Source, the text
-editor now receives focus automatically so you can start typing without an
-extra click.
+Tables can now add Calendar views backed by a date, datetime, or creation-time
+field. Search and saved filters carry across, eligible days can create records
+in place, and the global Preferences page lets you start each week on Monday or
+Sunday.
 
-### Undo deleted table records
+### See the content behind changed files
 
-Deleting one or more records from a table now participates in the normal Undo
-and Redo history. Undo restores the deleted records and affected Relation links,
-while switching to a different table query or schema safely clears history that
-no longer applies.
+New and modified images can now be previewed directly from Changes. JSON values
+in Eidos system metadata are formatted and expanded before comparison, with a
+split view by default, so configuration changes are readable instead of
+appearing as one opaque line.
 
-### Cleaner Space sidebar
+### Set up tables and cards with less cleanup
 
-The persistent Settings action now blends into the Space sidebar without an
-extra divider.
+Select fields can assign a default option to new records, while relative date
+filters cover the current, previous, or next day, week, month, and year. Gallery
+and Kanban cards, together with expanded record fields, now fit text to its
+actual height up to a bounded maximum and keep each Gallery row aligned.
+
+### Type into completely empty Markdown sources
+
+A brand-new zero-byte Markdown file now establishes a real source-editor caret
+target before the first character. The first keystroke is no longer dropped,
+and the temporary editing anchor is never written into the document.
 
 No migration is required.
