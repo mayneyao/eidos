@@ -111,6 +111,7 @@ interface RendererSmokeResult {
   textEditor: {
     surface: boolean
     pierreRendered: boolean
+    emptyFileKeyboardEditable: boolean
     createApi: boolean
     saveApi: boolean
     saved: boolean
@@ -1387,6 +1388,70 @@ const rendererProbe = `
       candidate.shadowRoot?.querySelector('[contenteditable="true"]')
     )
   }, "Pierre editable text surface")
+  const emptyItem = await revealTreeItem("Empty.md")
+  emptyItem.click()
+  const emptyDocument = await waitFor(
+    () => document.querySelector('[data-document-file-preview="Empty.md"]'),
+    "empty Markdown preview"
+  )
+  const emptySourceMode = await waitFor(
+    () =>
+      emptyDocument.querySelector(
+        '[data-document-preview-mode="source"]'
+      ),
+    "empty Markdown source action"
+  )
+  emptySourceMode.click()
+  const emptyEditorSurface = await waitFor(
+    () => document.querySelector('[data-text-file-editor="Empty.md"]'),
+    "empty Markdown editor"
+  )
+  const emptyEditable = await waitFor(() => {
+    const surface = emptyEditorSurface.querySelector(
+      ".text-file-editor-virtualizer"
+    )
+    if (!surface) return false
+    for (const candidate of surface.querySelectorAll("*")) {
+      const editable = candidate.shadowRoot?.querySelector(
+        '[contenteditable="true"]'
+      )
+      if (editable instanceof HTMLElement) return editable
+    }
+    return false
+  }, "empty Markdown editable surface")
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  const emptyContents = "# Empty Markdown is editable\\n"
+  emptyEditable.dispatchEvent(
+    new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      data: emptyContents,
+      inputType: "insertText",
+    })
+  )
+  emptyEditable.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      key: "s",
+      metaKey: true,
+    })
+  )
+  let savedEmpty = false
+  const emptySaveDeadline = Date.now() + 15000
+  while (Date.now() < emptySaveDeadline) {
+    const current = await window.eidosLite.previewTextFile("Empty.md")
+    if (current.type === "text" && current.content === emptyContents) {
+      savedEmpty = true
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  if (!savedEmpty) {
+    throw new Error("Empty Markdown keyboard input was not saved")
+  }
   const editedReadme = readmePreview.content + "Edited in packaged smoke.\\n"
   const savedReadme = await window.eidosLite.saveTextFile({
     relativePath: "README.md",
@@ -1402,6 +1467,7 @@ const rendererProbe = `
   const textEditor = {
     surface: Boolean(textEditorSurface),
     pierreRendered: Boolean(pierreEditor),
+    emptyFileKeyboardEditable: Boolean(savedEmpty),
     createApi: typeof window.eidosLite.createTextFile === "function",
     saveApi: typeof window.eidosLite.saveTextFile === "function",
     saved:

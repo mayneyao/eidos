@@ -159,6 +159,7 @@ try {
       path.join(nested, "archive.eidos")
     ),
     fs.writeFile(path.join(space, "README.md"), "# Packaged smoke Space\n"),
+    fs.writeFile(path.join(space, "Empty.md"), ""),
   ])
   const executable = await executablePath()
   const packagedCli = path.join(await resourcesPath(executable), "graft")

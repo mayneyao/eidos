@@ -273,7 +273,10 @@ describe("PierreTextEditorSurface", () => {
     const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
       focus: ReturnType<typeof vi.fn>
     }
-    expect(editor.focus).toHaveBeenCalledOnce()
+    expect(editor.focus).toHaveBeenCalledWith({
+      lineNumber: 1,
+      character: 0,
+    })
 
     await act(async () => root.unmount())
   })

@@ -71,7 +71,12 @@ export default function PierreTextEditorSurface({
               readText: () => window.eidosLite.readClipboardText(),
             },
             onAttach: (editor) => {
-              if (autoFocus) editor.focus()
+              if (!autoFocus) return
+              if (content.length === 0) {
+                editor.focus({ lineNumber: 1, character: 0 })
+                return
+              }
+              editor.focus()
             },
             onChange: (nextFile) => {
               currentContentRef.current = nextFile.contents
