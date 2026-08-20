@@ -41,7 +41,7 @@ The short URLs are served by the `apps/download` Worker.
 Pin a version or installation directory with environment variables:
 
 ```bash
-EIDOS_VERSION=0.36.10 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
+EIDOS_VERSION=0.36.11 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
 ```
 
 Standalone assets currently cover macOS arm64/x64, Linux x64, and Windows x64.
@@ -70,7 +70,7 @@ stable CLI:
 
 ```bash
 npx skills add \
-  https://github.com/mayneyao/eidos/tree/cli-v0.36.10/skills/eidos \
+  https://github.com/mayneyao/eidos/tree/cli-v0.36.11/skills/eidos \
   --skill eidos -g -a codex -y
 ```
 
