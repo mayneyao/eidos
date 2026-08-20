@@ -65,13 +65,15 @@ jobs:
           test "$core_version" = "$VERSION"
           test "$ui_version" = "$VERSION"
 
-      - name: Verify version is unpublished
+      - name: Inspect existing registry versions
         env:
           VERSION: ${{ inputs.version }}
         run: |
           for package_name in @eidos.space/eidos-file @eidos.space/eidos-file-ui; do
-            versions="$(npm view "$package_name" versions --json)"
-            node -e "const versions = [].concat(JSON.parse(process.argv[1])); if (versions.includes(process.env.VERSION)) throw new Error(process.argv[2] + '@' + process.env.VERSION + ' already exists')" "$versions" "$package_name"
+            published="$(npm view "$package_name@$VERSION" version 2>/dev/null || true)"
+            if [ "$published" = "$VERSION" ]; then
+              echo "::notice::$package_name@$VERSION already exists; its tarball will be verified before publication continues"
+            fi
           done
 
       - name: Test Eidos File Runtime
@@ -102,6 +104,27 @@ jobs:
             node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync(0, 'utf8')); const expected = '^' + process.env.VERSION; if (pkg.dependencies['@eidos.space/eidos-file'] !== expected) throw new Error('UI tarball must depend on @eidos.space/eidos-file@' + expected)"
           cd package-release
           sha256sum "$(basename "$core_tar")" "$(basename "$ui_tar")" > SHA256SUMS
+
+      - name: Reject conflicting registry artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          verify_existing() {
+            package_name="$1"
+            tarball="$2"
+            published_shasum="$(npm view "$package_name@$VERSION" dist.shasum 2>/dev/null || true)"
+            if [ -z "$published_shasum" ]; then
+              return
+            fi
+            reviewed_shasum="$(sha1sum "$tarball" | cut -d ' ' -f 1)"
+            test "$published_shasum" = "$reviewed_shasum" || {
+              echo "Registry collision for $package_name@$VERSION: reviewed $reviewed_shasum, published $published_shasum" >&2
+              exit 1
+            }
+            echo "$package_name@$VERSION already matches the reviewed tarball"
+          }
+          verify_existing "@eidos.space/eidos-file" "package-release/eidos.space-eidos-file-${VERSION}.tgz"
+          verify_existing "@eidos.space/eidos-file-ui" "package-release/eidos.space-eidos-file-ui-${VERSION}.tgz"
 
       - name: Upload reviewed package artifacts
         uses: actions/upload-artifact@v4
@@ -147,7 +170,22 @@ jobs:
         run: |
           core_tar="package-release/eidos.space-eidos-file-${VERSION}.tgz"
           ui_tar="package-release/eidos.space-eidos-file-ui-${VERSION}.tgz"
-          npm publish "./$core_tar" --access public --provenance
+          publish_or_verify() {
+            package_name="$1"
+            tarball="$2"
+            reviewed_shasum="$(sha1sum "$tarball" | cut -d ' ' -f 1)"
+            published_shasum="$(npm view "$package_name@$VERSION" dist.shasum 2>/dev/null || true)"
+            if [ -n "$published_shasum" ]; then
+              test "$published_shasum" = "$reviewed_shasum" || {
+                echo "Refusing to replace $package_name@$VERSION: reviewed $reviewed_shasum, published $published_shasum" >&2
+                exit 1
+              }
+              echo "$package_name@$VERSION already matches the reviewed tarball; skipping publish"
+              return
+            fi
+            npm publish "./$tarball" --access public --provenance
+          }
+          publish_or_verify "@eidos.space/eidos-file" "$core_tar"
           for attempt in $(seq 1 24); do
             published="$(npm view "@eidos.space/eidos-file@${VERSION}" version 2>/dev/null || true)"
             if [ "$published" = "$VERSION" ]; then
@@ -156,7 +194,7 @@ jobs:
             sleep 5
           done
           test "$(npm view "@eidos.space/eidos-file@${VERSION}" version)" = "$VERSION"
-          npm publish "./$ui_tar" --access public --provenance
+          publish_or_verify "@eidos.space/eidos-file-ui" "$ui_tar"
 
       - name: Verify public registry state
         env:

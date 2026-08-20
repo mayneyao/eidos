@@ -107,10 +107,20 @@ registry writes. Paths passed to `npm publish` must be explicitly relative
 (`./package-release/<tarball>.tgz`); without the `./` prefix, npm can interpret
 the tarball path as a Git dependency instead of a local package archive.
 
+The workflow is retry-safe across partial cohort publication. Before skipping
+an already-published package, it must compare npm's `dist.shasum` with the exact
+reviewed tarball and stop on any mismatch. This permits a failed UI publication
+to resume without attempting to overwrite an immutable Runtime version.
+
 If a publication workflow fails after an immutable package tag is pushed but
 before either package reaches npm, keep that tag in place, fix the workflow,
 bump both packages to the next patch version, and repeat plan, artifact review,
 tag, and publish. Never move or replace the failed tag.
+
+If an older, non-retry-safe workflow publishes only part of the cohort, repair
+the workflow and trusted-publisher configuration, then bump the complete cohort
+to the next patch version. Treat the partial version as immutable registry
+history; never overwrite it or publish a newly built counterpart by hand.
 
 ## Prove the public result
 
