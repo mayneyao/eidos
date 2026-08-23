@@ -154,9 +154,7 @@ export const KanbanCard = ({
       className={cn(
         "overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xs",
         "transition-[box-shadow,opacity] duration-150 ease-out hover:shadow-sm motion-reduce:transition-none",
-        disabled
-          ? "cursor-default opacity-60"
-          : "cursor-grab active:cursor-grabbing",
+        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-45",
         isRecentlyMoved && "ring-1 ring-ring/30",
         className
