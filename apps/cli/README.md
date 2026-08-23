@@ -12,6 +12,7 @@ default, and does not require a running Eidos application.
 - Apply atomic row, saved View, and schema mutations with optimistic revision checks.
 - Validate file identity, structure, content, and supported semantics.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
+- Publish immutable Eidos File or Markdown Versions, including attachments, to a stable read-only URL.
 - Upgrade its own installation from a verified standalone release.
 
 The CLI does not manage Space lifecycle, ordinary documents, application RPC,
@@ -216,7 +217,7 @@ target/debug/eidos whoami
 target/debug/eidos serve tracker.eidos --relay --open
 ```
 
-Relay assigns the account a stable opaque `u-….eidos.ink` hostname and uses an
+Relay assigns the account a stable opaque `r-….eidos.ink` hostname and uses an
 outbound WebSocket, so the CLI does not bind a public interface. `eidos login`
 stores a renewable session in an owner-only user configuration file; later
 Relay commands silently reuse or refresh it without an operating-system
@@ -244,6 +245,88 @@ one. The embedded editor is available in the published macOS, Linux, and
 Windows builds.
 
 Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](../../skills/eidos/SKILL.md) for the complete command and safe-agent workflow.
+
+## Hosted Publish access
+
+Eidos Publish is currently a staging preview. Sign in to the
+[staging Publish account page](https://staging.eidos.space/account?tab=publish),
+create a Publish CLI key, store it as `EIDOS_PUBLISH_TOKEN`, and point the CLI
+at staging:
+
+```bash
+export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
+```
+
+The key is shown only once and grants write access only to the Publish control
+plane. Keep it in the current shell or a secret manager; never commit it.
+Confirm the installed build has `eidos publish --help` before following the
+preview workflow.
+
+Publish a public resource with a tenant-local slug:
+
+```bash
+eidos publish tracker.eidos --slug tracker
+```
+
+Markdown uses the same command. Relative links and images are discovered from
+the document directory and uploaded as immutable attachments:
+
+```bash
+eidos publish docs/guide.md --slug guide
+```
+
+Markdown must be UTF-8 and no larger than 16 MiB. It is rendered once as a
+script-free static page; raw HTML is not executed. Each source object or
+attachment is limited to 1 GiB and equal SHA-256 content is stored once per
+account.
+
+Publish a local Form View, then collect completed responses into its original
+Table with the Publication ID from the publish result:
+
+```bash
+eidos publish feedback.eidos --slug feedback --form-view "Public feedback"
+eidos collect feedback.eidos \
+  --publication 7300a083-df92-49d8-945d-1e0bae0eac18
+```
+
+The Collector imports each Row and its retry receipt atomically. Submitted
+attachments are verified and deduplicated in a local content-addressed asset
+directory. Republish after changing the Form View or target schema; collection
+fails closed when the local schema no longer matches the published revision.
+
+The CLI displays hashing, upload, preparation, and activation progress. The
+slug becomes the URL path, contains 1–64 lowercase letters, digits, or hyphens,
+and identifies one long-lived resource. Publishing new bytes to the same slug
+creates an immutable Version while preserving the URL and current access
+policy. The complete canonical Source Bundle fingerprint includes attachment
+digests; an identical active fingerprint reuses the current Version instead of
+creating redundant history. A different slug creates another resource. Resource and Version counts
+are not quotas; deduplicated account storage and inactive history age are.
+
+Publish Pro can protect a resource with a password. The CLI prompts twice
+without echo and never places the password in the URL or command arguments:
+
+```bash
+eidos publish tracker.eidos --slug tracker --password
+```
+
+For non-interactive automation, set `EIDOS_PUBLISH_PASSWORD` and still pass
+`--password`. Remove password protection explicitly with `--remove-password`.
+Republishing without either option preserves the resource's existing access
+policy. Password sessions last up to 12 hours, and rotating or removing the
+password invalidates existing sessions immediately.
+
+Owner-only account access remains available through:
+
+```bash
+eidos publish tracker.eidos --slug tracker --visibility private
+```
+
+Use the global `--json` flag for one stable result document in automation;
+interactive progress is intentionally omitted in JSON mode. The result includes
+`publishFingerprint` and `versionCreated` for deterministic change detection. The complete
+Free/Pro limits, access behavior, staging setup, and troubleshooting guide is
+in [Publish a file](../docs/src/content/docs/cli/publish.mdx).
 
 ## Safety model
 

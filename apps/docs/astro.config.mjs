@@ -15,7 +15,7 @@ export default defineConfig({
     starlight({
       title: "Eidos Docs",
       description:
-        "Documentation for Eidos Lite, Eidos File Web, the CLI, and the Eidos File format.",
+        "Documentation for Eidos Lite, Eidos File Web, Eidos Publish, the CLI, and the Eidos File format.",
       favicon: "/favicon.svg",
       lastUpdated: true,
       social: [

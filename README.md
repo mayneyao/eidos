@@ -70,18 +70,27 @@ eidos serve example.eidos --open
 See the [Eidos CLI guide](./apps/cli/README.md) for querying, automation, and
 safe mutation workflows.
 
+### Publish a read-only copy (preview)
+
+Eidos Publish uploads immutable Eidos File or Markdown Versions, including
+local attachments, to a stable `*.eidos.ink` URL while the local source remains yours. The staging preview supports public
+access for Free accounts and adds password or owner-only access for Publish
+Pro. Follow [Publish a file](./apps/docs/src/content/docs/cli/publish.mdx)
+for CLI key setup, resource slugs, limits, and staging commands.
+
 ## Current product line
 
 This repository contains the active Eidos File and Eidos Lite product line,
-plus the standalone read-only SQLite Web Viewer. The retired application is
-archived on the `legacy/0.32` branch and is not part of current builds, tests,
-or releases.
+the Eidos Publish preview, plus the standalone read-only SQLite Web Viewer. The
+retired application is archived on the `legacy/0.32` branch and is not part of
+current builds, tests, or releases.
 
 | Product                 | Purpose                                                                | Location                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | **Eidos Lite**          | Desktop Spaces, local files, version history, and private-preview Sync | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
 | **Eidos File Web**      | Open and edit one `.eidos` file in a browser                           | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
-| **Eidos CLI**           | Create, inspect, automate, and serve `.eidos` files                    | [`apps/cli`](./apps/cli)                                                                              |
+| **Eidos CLI**           | Create, inspect, automate, serve, and publish local files              | [`apps/cli`](./apps/cli)                                                                              |
+| **Eidos Publish**       | Host immutable, read-only Eidos File or Markdown Versions (preview)    | [`apps/eidos-publish`](./apps/eidos-publish)                                                          |
 | **Eidos File packages** | Portable Runtime and shared React UI                                   | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
 | **SQLite Web Viewer**   | Inspect SQLite-compatible files without editing them                   | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
 

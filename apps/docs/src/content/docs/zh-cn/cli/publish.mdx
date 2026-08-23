@@ -1,0 +1,259 @@
+---
+title: 发布文件
+description: 把带附件的 Eidos File 或 Markdown 文档发布到稳定、只读的地址。
+sidebar:
+  order: 30
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳定的托管地址。
+内容变化时会创建不可变 Version，并将它激活到一个资源 slug；完整 Source Bundle 未变化时
+继续使用当前 Version。Eidos File 通过
+只读 Eidos Runtime 提供访问；Markdown 会在发布时一次性渲染成不含脚本的静态页面。
+本地文件仍是源文件；发布完成后 CLI 可以退出。
+
+<Aside type="caution" title="Staging 预览">
+  Publish 目前仅向 staging 预览账户开放。请使用下文的 staging
+  账号页和服务地址；默认的 production 地址尚未开放，Publish Pro
+  购买也仍然只对受邀测试账户可用。
+</Aside>
+
+## 发布前准备
+
+1. 登录 [staging Publish 账号页](https://staging.eidos.space/account?tab=publish)。
+2. 创建一个 **Publish CLI 密钥**，并在显示时立即复制。服务端只保存哈希，之后无法再次
+   显示同一个密钥。
+3. 在当前 Shell 或 Secret Manager 中把密钥保存为 `EIDOS_PUBLISH_TOKEN`。不要把它写进
+   共享脚本，也不要提交到代码仓库。
+4. 让预览版 CLI 使用 staging：
+
+```bash
+export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
+```
+
+确认当前 CLI build 包含预览命令：
+
+```bash
+eidos publish --help
+```
+
+## 发布公开资源
+
+为资源选择一个 slug，然后发布文件：
+
+```bash
+eidos publish tracker.eidos --slug tracker
+```
+
+slug 会成为 URL path。它包含 1–64 个小写字母、数字或连字符，并且必须以字母或数字开头
+和结尾。例如，上面的命令可能得到：
+
+```text
+https://u-…-staging.eidos.ink/tracker
+```
+
+普通终端输出会持续展示文件校验、附件发现、逐对象哈希、内容去重、待上传总字节、
+Serving Target 准备和 Version 激活进度。Version 就绪并激活后命令才会成功返回；失败时返回非零
+exit code。
+CLI 会为包含附件 digest 的完整 canonical Source Bundle 计算 fingerprint。对相同内容重复
+执行发布时，只核对线上活动 fingerprint，不会制造重复的 Version 历史。
+
+如果需要直接链接到发布文件中的指定表格或视图，可在 URL 中添加稳定的 Eidos UUIDv7
+ID：
+
+```text
+https://u-…-staging.eidos.ink/tracker?table={table-id}&view={view-id}
+```
+
+`view` 参数也可以单独使用；无法找到 ID 时会回退到默认表格和默认视图。
+
+## 发布 Form View
+
+Eidos File 可以包含一个向目标表格创建 Row 的 Form View。使用稳定的 View ID 或名称，把它
+发布为托管表单：
+
+```bash
+eidos publish feedback.eidos --slug feedback --form-view "公开反馈"
+```
+
+该命令会创建一个新的不可变 Form revision。访客只能看到 Form View 选中的字段；浏览器拿到
+的公开 definition 不包含内部 File、Table、View 或 Field ID。公开、密码保护和账号私有访问
+继续使用其他 Publish 资源相同的参数。
+
+已完成的回复会等待在私有 Publish Inbox，不会修改托管快照，也不会修改某份云端数据集副本。
+使用发布结果中的 Publication ID，把回复收回原来的本地文件：
+
+```bash
+eidos collect feedback.eidos \
+  --publication 7300a083-df92-49d8-945d-1e0bae0eac18
+```
+
+每条回复都通过 Eidos Runtime 导入。新 Row 与本地导入回执在同一个 SQLite transaction 中
+提交，然后再确认云端回复；即使在本地提交后崩溃或 ACK 丢失，重试也不会创建重复 Row。
+
+Form 支持 File 字段。Collector 会下载提交附件，核对大小与 SHA-256，再把它保存到源文件
+目录下的 `.eidos-assets/publish/sha256/`。相同附件 bytes 会复用同一个本地内容寻址文件。
+
+本地 schema 变化不会自动修改线上 Form。需要显式重新发布才能激活新 revision。当前预览版
+Collector 如果发现 Table 或 Form View 自该 revision 后已经变化，会停止并报告 schema 错误，
+避免静默丢字段或执行不安全转换。
+
+## 发布 Markdown
+
+Markdown 使用相同的命令与 slug 模型：
+
+```bash
+eidos publish docs/guide.md --slug guide
+```
+
+发布端支持 CommonMark，以及 GitHub 风格的表格、删除线、任务列表和自动链接。文档必须是
+UTF-8，正文最多 16 MiB。原始 HTML 会作为文本显示而不会执行，页面不允许 JavaScript，
+并使用严格的 Content Security Policy。
+
+相对链接和图片地址会成为附件：
+
+```md
+![架构图](assets/architecture.png)
+[下载工作簿](files/example.xlsx)
+```
+
+CLI 会以 Markdown 文件所在目录解析这些路径，把附件随 Version 上传，再将页面中的地址
+重写为绑定 Version 和内容摘要的不可变 URL。`https:`、`mailto:`、内联图片 `data:` 和
+`#fragment` 不会上传；renderer 会移除不安全的链接协议。绝对路径、其他 URL scheme、
+带 query 的本地路径、目录逃逸和符号链接会在激活前被拒绝。
+
+## 一并发布本地附件
+
+Eidos File 的相对 File 字段条目会成为附件；Markdown 的相对链接和图片地址也会成为附件。
+CLI 以源文件所在目录为根目录解析附件，确认路径不越界、每一层都不是符号链接且目标是
+普通文件。Eidos File 附件还会核对 File entry 声明的精确大小。
+
+同一账号内，相同 SHA-256 的内容只上传和存储一次；多个 File entry、路径、slug 或 Version
+引用相同 bytes 都不会重复占用存储。发布后的附件继承资源的公开、密码或私有访问策略。文件
+缺失、大小变化、路径越界、包含符号链接或单个对象超过 1 GiB 时，发布会在激活前失败。
+
+## 选择访问方式
+
+访问策略属于每个资源 slug，而不是整个账号。
+
+| 访问方式 | 发布参数               | 谁能打开                                  | 套餐        |
+| -------- | ---------------------- | ----------------------------------------- | ----------- |
+| 公开     | 不传访问参数           | 任何持有 URL 的人                         | Free 或 Pro |
+| 密码保护 | `--password`           | 知道密码的人；不需要 Eidos 账号           | Pro         |
+| 账号私有 | `--visibility private` | 已登录资源所有者 eidos.space 账号的发布者 | Pro         |
+
+再次发布同一个 slug 时，如果不传访问参数，会保留当前访问策略。
+
+### 添加或轮换密码
+
+```bash
+eidos publish tracker.eidos --slug tracker --password
+```
+
+CLI 会无回显地要求输入两次密码。密码必须包含 8–128 个 Unicode 字符、最多占用 256 个
+UTF-8 bytes，并且不能包含控制字符。密码不会进入 URL 或命令行参数。
+
+自动化时，把密码放入 CI 或 Shell Secret `EIDOS_PUBLISH_PASSWORD`，并仍然传入
+`--password`：
+
+```bash
+# EIDOS_PUBLISH_PASSWORD 由 Secret Manager 注入。
+eidos publish tracker.eidos --slug tracker --password
+```
+
+使用新密码再次执行命令就会轮换密码，已有浏览器会话会立即失效。正确密码会创建最长
+12 小时、仅限当前 Host 的 HttpOnly 浏览器会话；连续失败会被临时限流。
+
+显式移除密码并恢复公开访问：
+
+```bash
+eidos publish tracker.eidos --slug tracker --remove-password
+```
+
+### 设为账号私有
+
+```bash
+eidos publish tracker.eidos --slug tracker --visibility private
+```
+
+账号私有模式目前仅限所有者本人。打开 URL 时会跳转到 eidos.space 登录；确认是资源所属
+账号后再返回资源。如果要分享给没有发布者账号的人，请使用密码保护。
+
+## 发布多个资源
+
+一个 slug 表示一个长期存在的资源。使用新 slug 发布另一个文件，会在同一个 canonical
+hostname 下创建新资源：
+
+```bash
+eidos publish roadmap.eidos --slug roadmap
+eidos publish inventory.eidos --slug inventory
+```
+
+把新内容发布到已有 slug 会创建新的不可变 Version，同时保持 URL 不变；source bytes 与附件
+引用都相同时，不会创建新 Version。资源数和 Version 数
+不作为商业额度，实际限制是去重后的总存储与历史时长。当前预览额度为：
+
+| 限制                |                      Free |                                        Pro |
+| ------------------- | ------------------------: | -----------------------------------------: |
+| 账号去重后总存储    |                     1 GiB |                                     10 GiB |
+| 单个 source 或附件  |                     1 GiB |                                      1 GiB |
+| Markdown 正文       |                    16 MiB |                                     16 MiB |
+| 未激活 Version 历史 |                      7 天 |                                      90 天 |
+| 资源数              |                  不限数量 |                                   不限数量 |
+| 访问方式            |                    仅公开 |                   公开、密码保护、账号私有 |
+| Canonical hostname  | 系统分配的 `u-*` hostname | 设置 username 后使用账号 username hostname |
+| Runtime 空闲休眠    |                     60 秒 |                                     600 秒 |
+| 每月 Form 回复      |                       100 |                                      5,000 |
+| Collect Inbox       |                   256 MiB |                                      5 GiB |
+| 单个提交附件        |                    10 MiB |                                    100 MiB |
+| 已导入回复保留      |                      7 天 |                                      30 天 |
+
+历史保留期只作用于未激活 Version。当前活动 Version 即使超过该时长也会继续保留；旧历史到期
+时，只会释放已经没有任何 Version 引用的内容对象。
+
+账号页展示的套餐和实时用量是最终依据。Publish 1.0 不包含外部自定义域名。
+
+## 人类输出与自动化
+
+交互发布时使用普通输出，CLI 会持续展示进度。脚本需要稳定的单一结果 document 时，使用
+全局 `--json`：
+
+```bash
+eidos --json publish tracker.eidos --slug tracker
+```
+
+JSON 模式向 stdout 写一个结果，错误写到 stderr；它不会渲染交互式进度展示。
+`publishFingerprint` 表示完整 Source Bundle，`versionCreated` 表示本次是创建了新 Version，
+还是继续使用活动 Version。
+
+## Publish 还是 Relay？
+
+- **Publish** 适合稳定、托管、只读的快照；本地 CLI 不需要持续在线。
+- [`eidos serve --relay`](/zh-cn/cli/serve/#eidos-relay-访问) 适合由本机文件驱动的实时
+  编辑器；Serve 进程必须保持运行。
+
+## 常见问题
+
+**当前套餐不允许密码或私有访问**
+
+账号使用 Free。请选择公开访问，或把受邀账号升级到 Publish Pro。
+
+**已达到存储上限**
+
+删除不需要的未激活 Version，或减少数据库/附件体积。相同内容不会重复计量；Pro 会提高总
+存储，但单个对象仍限制为 1 GiB。
+
+**附件无法发布**
+
+确认附件使用的是目录内相对 URI，文件确实位于源文件旁的对应路径，并且路径中没有符号链接。
+对于 Eidos File，还需要确认实际大小仍与 File entry 一致。
+
+**浏览器再次要求输入密码**
+
+密码可能已轮换、访问方式可能已变化，或者 12 小时会话已经过期。请重新输入当前密码。
+
+**无法识别 `eidos publish`**
+
+已安装的 stable CLI 还不包含 staging 预览。测试 staging 时，请使用提供给受邀测试者的
+preview build，或构建当前仓库版本。

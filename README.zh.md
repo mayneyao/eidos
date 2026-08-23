@@ -68,18 +68,27 @@ eidos serve example.eidos --open
 
 查询、自动化与安全写入流程详见 [Eidos CLI 指南](./apps/cli/README.md)。
 
+### 发布只读副本（预览）
+
+Eidos Publish 把不可变的 Eidos File 或 Markdown Version 连同本地附件上传到稳定的
+`*.eidos.ink` URL，同时保留用户拥有的本地源文件。Staging 预览为 Free 账号提供公开访问，
+Publish Pro 还支持密码保护和仅所有者访问。CLI 密钥、资源 slug、额度与 staging 命令见
+[发布文件](./apps/docs/src/content/docs/zh-cn/cli/publish.mdx)。
+
 ## 当前产品线
 
-本仓库包含仍在开发的 Eidos File 与 Eidos Lite 产品线，以及独立的只读 SQLite Web
-Viewer。已停止迭代的旧应用保存在 `legacy/0.32` 分支，不再参与当前构建、测试和发布。
+本仓库包含仍在开发的 Eidos File 与 Eidos Lite 产品线、Eidos Publish 预览，以及独立的
+只读 SQLite Web Viewer。已停止迭代的旧应用保存在 `legacy/0.32` 分支，不再参与当前构建、
+测试和发布。
 
-| 产品                    | 用途                                           | 位置                                                                                                  |
-| ----------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Eidos Lite**          | 桌面 Space、本地文件、版本历史与邀请制 Sync    | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
-| **Eidos File Web**      | 在浏览器中打开和编辑单个 `.eidos` 文件         | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
-| **Eidos CLI**           | 创建、检查、自动化处理和本地服务 `.eidos` 文件 | [`apps/cli`](./apps/cli)                                                                              |
-| **Eidos File packages** | 可移植 Runtime 与共享 React UI                 | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
-| **SQLite Web Viewer**   | 只读检查 SQLite 兼容文件                       | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
+| 产品                    | 用途                                               | 位置                                                                                                  |
+| ----------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Eidos Lite**          | 桌面 Space、本地文件、版本历史与邀请制 Sync        | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
+| **Eidos File Web**      | 在浏览器中打开和编辑单个 `.eidos` 文件             | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
+| **Eidos CLI**           | 创建、检查、自动化、服务和发布本地文件             | [`apps/cli`](./apps/cli)                                                                              |
+| **Eidos Publish**       | 在稳定 URL 托管只读 Eidos File 或 Markdown（预览） | [`apps/eidos-publish`](./apps/eidos-publish)                                                          |
+| **Eidos File packages** | 可移植 Runtime 与共享 React UI                     | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
+| **SQLite Web Viewer**   | 只读检查 SQLite 兼容文件                           | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
 
 ## Eidos Lite
 

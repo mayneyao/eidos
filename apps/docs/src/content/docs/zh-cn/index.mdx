@@ -1,6 +1,6 @@
 ---
 title: Eidos 文档
-description: Eidos Lite、Eidos File Web、CLI 与 Eidos File 格式文档。
+description: Eidos Lite、Eidos File Web、Eidos Publish、CLI 与 Eidos File 格式文档。
 template: splash
 hero:
   title: 开放格式。本地优先。基于文件的多维表格。
@@ -37,11 +37,17 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components"
     description="把普通文件夹作为 Space，管理 Eidos File、其他文件和本地历史。"
     href="/zh-cn/getting-started/eidos-lite/"
   />
+  <LinkCard
+    title="Eidos Publish 预览"
+    description="把不可变 Version 上传到稳定、只读的托管 URL。"
+    href="/zh-cn/cli/publish/"
+  />
 </CardGrid>
 
 Web Editor、CLI 与 Eidos Lite 0.1.3 现在即可使用。Lite 0.1.3 增加带缓存的 URL
 图片、远程 File 附件和更稳定的 Explorer 刷新体验。Sync 仍是仅限邀请的 Private
-Preview。
+Preview。Publish 目前作为 staging 预览单独开放，production 托管和公开 Pro 购买尚未
+开放。
 
 ## Eidos File
 
@@ -56,7 +62,7 @@ Editor、Eidos Lite 与 `eidos serve` 使用同一个编辑器和 Runtime。
   />
   <LinkCard
     title="CLI 参考"
-    description="使用 JSON 命令执行查询、校验与原子修改。"
+    description="使用 JSON 命令执行查询、原子修改、Serve 与 Publish。"
     href="/zh-cn/cli/"
   />
   <LinkCard

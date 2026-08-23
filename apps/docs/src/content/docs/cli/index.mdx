@@ -7,8 +7,9 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-`eidos` is an agent-first Rust CLI for the open Eidos File format. It reads and
-modifies files directly and does not connect to a running Eidos application.
+`eidos` is an agent-first Rust CLI for the open Eidos File format. Most commands
+read and modify files locally; Relay and Publish connect only when you choose
+those hosted workflows explicitly.
 
 <CardGrid>
   <LinkCard
@@ -25,6 +26,11 @@ modifies files directly and does not connect to a running Eidos application.
     title="Serve the local editor"
     description="Open the shared Eidos File UI for one path on localhost."
     href="/cli/serve/"
+  />
+  <LinkCard
+    title="Publish a hosted copy"
+    description="Upload immutable Versions to a stable, read-only URL."
+    href="/cli/publish/"
   />
 </CardGrid>
 
@@ -57,8 +63,9 @@ evolve for readability.
 ## Supported responsibility
 
 The CLI creates, inspects, queries, mutates, validates, and serves Eidos Files.
-It does not manage Eidos Lite Space lifecycle, ordinary documents, application
-RPC, version history, or Sync. Use normal file tools for ordinary files and
-Graft-aware workflows for history.
+Publish accepts both Eidos Files and Markdown documents with local attachments.
+The CLI does not otherwise manage ordinary documents, Eidos Lite Space
+lifecycle, application RPC, local version history, or Sync. Use normal file
+tools for ordinary files and Graft-aware workflows for history.
 
 Raw SQLite writes are not a supported automation interface.

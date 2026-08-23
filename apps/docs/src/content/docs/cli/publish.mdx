@@ -1,0 +1,293 @@
+---
+title: Publish a file
+description: Publish an Eidos File or Markdown document with attachments to a stable, read-only URL.
+sidebar:
+  order: 30
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Eidos Publish turns a local `.eidos`, `.md`, or `.markdown` file into a stable
+hosted URL. Changed content creates and activates an immutable Version for one
+resource slug; an unchanged Source Bundle reuses the active Version. Eidos Files use the read-only Eidos Runtime; Markdown
+is rendered once into a script-free static page. Your local file remains the
+source of truth and the CLI can exit after publishing.
+
+<Aside type="caution" title="Staging preview">
+  Publish is currently available to preview accounts on staging. Use the staging
+  account page and origin shown below. The default production origin is not open
+  yet, and Publish Pro checkout remains invitation-only.
+</Aside>
+
+## Before you publish
+
+1. Sign in to the [staging Publish account page](https://staging.eidos.space/account?tab=publish).
+2. Create a **Publish CLI key** and copy it when it is shown. The service keeps
+   only its hash, so the same key cannot be displayed again.
+3. Store the key as `EIDOS_PUBLISH_TOKEN` in your current shell or secret
+   manager. Do not pass it in a shared script or commit it to a repository.
+4. Point the preview CLI at staging:
+
+```bash
+export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
+```
+
+Confirm that your CLI build includes the preview command:
+
+```bash
+eidos publish --help
+```
+
+## Publish a public resource
+
+Choose a slug for this resource and publish the file:
+
+```bash
+eidos publish tracker.eidos --slug tracker
+```
+
+The slug becomes the URL path. It contains 1–64 lowercase letters, digits, or
+hyphens, and must start and end with a letter or digit. For example, the
+command above can produce a URL such as:
+
+```text
+https://u-…-staging.eidos.ink/tracker
+```
+
+The normal terminal output shows progress while the CLI validates the file,
+discovers local attachments, hashes and deduplicates source objects, uploads
+the pending bytes, prepares the serving target, and activates the Version. The command returns
+only after the Version is ready and active, or exits nonzero with an error.
+The CLI fingerprints the complete canonical Source Bundle, including attachment
+digests. Repeating the command with identical content verifies the active
+fingerprint and does not create redundant Version history.
+
+To link directly to a table or view in the published file, append its stable
+Eidos UUIDv7 IDs:
+
+```text
+https://u-…-staging.eidos.ink/tracker?table={table-id}&view={view-id}
+```
+
+The `view` parameter can be used by itself. Unknown IDs fall back to the
+default table and view.
+
+## Publish a Form View
+
+An Eidos File can contain a Form View that writes new rows into one of its
+Tables. Publish that view as a hosted form by its stable View ID or name:
+
+```bash
+eidos publish feedback.eidos --slug feedback --form-view "Public feedback"
+```
+
+The command publishes a new immutable Form revision. Visitors see only the
+fields selected by that Form View; internal File, Table, View, and Field IDs
+are not exposed in the browser definition. Public, password, and
+account-private access use the same options as other Publish resources.
+
+Completed responses wait in a private Publish Inbox. They do not modify the
+hosted snapshot or a cloud copy of your dataset. Pull them into the original
+local file with the Publication ID returned by the publish command:
+
+```bash
+eidos collect feedback.eidos \
+  --publication 7300a083-df92-49d8-945d-1e0bae0eac18
+```
+
+Each response is imported through the Eidos Runtime. The new Row and a local
+import receipt are committed in one SQLite transaction, then the cloud response
+is acknowledged. Retrying after a crash or lost acknowledgement does not create
+a duplicate Row.
+
+File fields are supported. Submitted attachments are downloaded, verified by
+size and SHA-256, and stored beneath the source directory in
+`.eidos-assets/publish/sha256/`. Identical attachment bytes reuse one local
+content-addressed file.
+
+The published Form does not change automatically when the local schema changes.
+Republish explicitly to activate a new revision. The current preview collector
+stops with a schema error if the Table or Form View has changed since that
+revision; this prevents silent field loss or unsafe conversion.
+
+## Publish Markdown
+
+Publish Markdown with the same command and slug model:
+
+```bash
+eidos publish docs/guide.md --slug guide
+```
+
+Markdown uses CommonMark with GitHub-style tables, strikethrough, task lists,
+and autolinks. The document must be UTF-8 and at most 16 MiB. Raw HTML is
+displayed as text rather than executed, no page JavaScript is allowed, and the
+published page receives a restrictive Content Security Policy.
+
+Relative link and image destinations become attachments:
+
+```md
+![Architecture](assets/architecture.png)
+[Download the workbook](files/example.xlsx)
+```
+
+The paths are resolved from the Markdown file's directory, uploaded with the
+Version, and rewritten to immutable Version-bound URLs. `https:`, `mailto:`,
+inline image `data:`, and `#fragment` destinations are not uploaded. Unsafe
+link protocols are removed by the renderer. Absolute
+paths, other URL schemes, query-bearing local paths, escaping paths, and
+symlinks are rejected before activation.
+
+## Publish local attachments
+
+For Eidos Files, relative File-field entries are attachments. For Markdown,
+relative link and image destinations are attachments. The CLI resolves them
+from the source file's directory, verifies that each path is an ordinary file
+without symlink components, and uploads it with the source snapshot. Eidos File
+entries also have their declared byte count checked exactly.
+
+Objects with the same SHA-256 are uploaded and stored once per account, even
+when several File entries, paths, slugs, or Versions reference those bytes.
+Published attachments use the same public, password, or private authorization
+as their resource. Missing files, changed sizes, escaping paths, symlinks, and
+objects larger than 1 GiB fail the publish before activation.
+
+## Choose who can open it
+
+Access belongs to each resource slug, not to the whole account.
+
+| Access             | Publish option         | Who can open it                                                 | Plan        |
+| ------------------ | ---------------------- | --------------------------------------------------------------- | ----------- |
+| Public             | No access option       | Anyone with the URL                                             | Free or Pro |
+| Password protected | `--password`           | Anyone who knows the password; no Eidos account required        | Pro         |
+| Account private    | `--visibility private` | The publisher while signed in to the owning eidos.space account | Pro         |
+
+Publishing the same slug again without an access option preserves its current
+access mode.
+
+### Add or rotate a password
+
+```bash
+eidos publish tracker.eidos --slug tracker --password
+```
+
+The CLI asks for the password twice without echo. A password must contain 8–128
+Unicode characters, use at most 256 UTF-8 bytes, and contain no control
+characters. It is never added to the URL or command arguments.
+
+For automation, put the password in a CI or shell secret named
+`EIDOS_PUBLISH_PASSWORD`, then still pass `--password`:
+
+```bash
+# EIDOS_PUBLISH_PASSWORD is supplied by the secret manager.
+eidos publish tracker.eidos --slug tracker --password
+```
+
+Running the command again with a new password rotates it. Existing browser
+sessions stop working immediately. A correct password creates a host-only,
+HttpOnly browser session for up to 12 hours; repeated failures are temporarily
+rate-limited.
+
+Remove password protection and make the resource public explicitly:
+
+```bash
+eidos publish tracker.eidos --slug tracker --remove-password
+```
+
+### Keep a resource account-private
+
+```bash
+eidos publish tracker.eidos --slug tracker --visibility private
+```
+
+Account-private access is currently owner-only. Opening the URL redirects to
+eidos.space sign-in and returns to the resource after the owning account is
+verified. Use password protection instead when sharing with people who do not
+have the publisher's account.
+
+## Publish more than one resource
+
+A slug identifies one long-lived resource. Publishing another file with a new
+slug creates another resource under the same canonical hostname:
+
+```bash
+eidos publish roadmap.eidos --slug roadmap
+eidos publish inventory.eidos --slug inventory
+```
+
+Publishing new bytes to an existing slug creates a new immutable Version while
+keeping its URL stable. Publishing the same bytes and attachment references is
+a no-op for Version history. Resource and Version counts are not commercial quotas;
+storage and history age are. Current preview limits are:
+
+| Limit                        |                    Free |                                              Pro |
+| ---------------------------- | ----------------------: | -----------------------------------------------: |
+| Deduplicated account storage |                   1 GiB |                                           10 GiB |
+| One source or attachment     |                   1 GiB |                                            1 GiB |
+| Markdown document            |                  16 MiB |                                           16 MiB |
+| Inactive Version history     |                  7 days |                                          90 days |
+| Resources                    |                No quota |                                         No quota |
+| Access modes                 |                  Public |                Public, password, account-private |
+| Canonical hostname           | Assigned `u-*` hostname | Account username hostname when a username is set |
+| Runtime idle sleep           |              60 seconds |                                      600 seconds |
+| Form responses per month     |                     100 |                                            5,000 |
+| Collect Inbox                |                 256 MiB |                                            5 GiB |
+| One submitted attachment     |                  10 MiB |                                          100 MiB |
+| Imported response retention  |                  7 days |                                          30 days |
+
+History retention applies to inactive Versions. The currently active Version
+is kept even after that age; replacing it starts a new immutable Version, and
+expired history releases only content no remaining Version references.
+
+The account page is authoritative for the current plan and usage. External
+custom domains are not part of Publish 1.0.
+
+## Human output and automation
+
+Use normal output when publishing interactively so progress remains visible.
+Use global `--json` when a script needs one stable result document:
+
+```bash
+eidos --json publish tracker.eidos --slug tracker
+```
+
+JSON mode writes one result to stdout and errors to stderr. It does not render
+the interactive progress display. `publishFingerprint` identifies the complete
+Source Bundle, while `versionCreated` tells automation whether this run created
+a Version or reused the active one.
+
+## Publish or Relay?
+
+- Use **Publish** for a stable, hosted, read-only snapshot. The local CLI does
+  not need to remain online.
+- Use [`eidos serve --relay`](/cli/serve/#eidos-relay-access) for a live editor
+  backed by the file on your computer. The Serve process must keep running.
+
+## Troubleshooting
+
+**The plan does not allow password or private access**
+
+The account is on Free. Use public access or upgrade an invited account to
+Publish Pro.
+
+**The storage limit has been reached**
+
+Delete unneeded inactive Versions or reduce database/attachment bytes. Reusing
+identical content does not consume storage twice. Pro increases total storage,
+but the per-object limit remains 1 GiB.
+
+**An attachment cannot be published**
+
+Confirm that it uses a contained relative URI, exists next to the source at
+that path, and has no symlink path component. For Eidos Files, also confirm the
+actual size still matches the File entry.
+
+**The browser asks for the password again**
+
+The password may have been rotated, access may have changed, or the 12-hour
+session may have expired. Enter the current password again.
+
+**`eidos publish` is not recognized**
+
+The installed stable CLI does not yet include the staging preview. Use the
+preview build supplied to invited testers, or build the current repository
+version while testing staging.

@@ -1,7 +1,7 @@
 # Eidos documentation
 
 This Astro/Starlight site is the unified documentation for current Eidos File,
-Eidos CLI, Web Editor, and Eidos Lite work. It is published at
+Eidos CLI, Web Editor, Eidos Lite, and Eidos Publish work. It is published at
 [docs.eidos.space](https://docs.eidos.space).
 
 ## Information architecture
@@ -12,8 +12,8 @@ The top navigation follows what a reader is trying to do:
    concepts;
 2. **Use Eidos** — editing, data location, safety, history, recovery, Sync, and
    troubleshooting;
-3. **CLI & automation** — JSON command behavior and the safe context → apply →
-   validate workflow;
+3. **CLI & automation** — JSON command behavior, the safe context → apply →
+   validate workflow, local/Relay Serve, and hosted Publish;
 4. **Build with Eidos** — integration decisions, Runtime/Host boundaries, and
    package references;
 5. **Specifications** — searchable site pages generated from the normative

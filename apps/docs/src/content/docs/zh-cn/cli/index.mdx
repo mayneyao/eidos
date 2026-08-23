@@ -7,8 +7,8 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-`eidos` 是面向 Agent 的 Rust CLI，直接读写开放的 Eidos File，不连接正在运行的 Eidos
-应用。
+`eidos` 是面向 Agent 的 Rust CLI。大多数命令直接在本地读写开放的 Eidos File；只有在
+显式选择 Relay 或 Publish 工作流时才连接对应托管服务。
 
 <CardGrid>
   <LinkCard
@@ -25,6 +25,11 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components"
     title="启动本地编辑器"
     description="为一个本地路径打开共享 Eidos File UI。"
     href="/zh-cn/cli/serve/"
+  />
+  <LinkCard
+    title="发布托管副本"
+    description="把不可变 Version 上传到稳定、只读的 URL。"
+    href="/zh-cn/cli/publish/"
   />
 </CardGrid>
 
@@ -53,8 +58,8 @@ error document，并返回非零 exit status。JSON schema 是稳定的自动化
 
 ## 支持边界
 
-CLI 负责 Eidos File 的创建、检查、查询、修改、校验与服务。它不管理 Eidos Lite Space
-生命周期、普通文档、应用 RPC、版本历史或同步。普通文件使用普通文件工具，历史使用
-Graft-aware 工作流。
+CLI 负责 Eidos File 的创建、检查、查询、修改、校验与服务。Publish 同时接受带本地附件的
+Eidos File 和 Markdown 文档。除此以外，CLI 不管理普通文档、Eidos Lite Space 生命周期、
+应用 RPC、本地版本历史或同步。普通文件使用普通文件工具，历史使用 Graft-aware 工作流。
 
 Raw SQLite write 不是受支持的自动化接口。
