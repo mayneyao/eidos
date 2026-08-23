@@ -1,0 +1,242 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eidos-publish",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../cli/qjs-host/ui",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "run_worker_first": true,
+  },
+  "routes": [
+    {
+      "pattern": "publish.eidos.space",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "*.eidos.ink/*",
+      "zone_name": "eidos.ink",
+    },
+  ],
+  "vars": {
+    "AUTH_USERINFO_URL": "https://eidos.space/api/publish/userinfo",
+    "CONTROL_HOST": "publish.eidos.space",
+    "PUBLISH_ROOT": "eidos.ink",
+    "PUBLISH_HOST_LABEL_SUFFIX": "",
+    "RELAY_CONTROL_HOST": "relay.eidos.ink",
+    "ORCHESTRATION_MODE": "workflow",
+    "RUNTIME_SHARD_COUNT": "8",
+    "RUNTIME_MAX_ACTIVE_VERSIONS": "6",
+    "RUNTIME_MAX_CACHE_BYTES": "3221225472",
+    "RUNTIME_MAX_INFLIGHT_REQUESTS": "32",
+  },
+  "r2_buckets": [
+    {
+      "binding": "PUBLISH_OBJECTS",
+      "bucket_name": "eidos-publish-objects",
+      "preview_bucket_name": "eidos-publish-objects-preview",
+    },
+  ],
+  "services": [
+    {
+      "binding": "EIDOS_ACCOUNT",
+      "service": "eidos-space",
+    },
+    {
+      "binding": "EIDOS_RELAY",
+      "service": "eidos-file-relay",
+    },
+  ],
+  "workflows": [
+    {
+      "binding": "PUBLISH_WORKFLOW",
+      "name": "eidos-publish-version",
+      "class_name": "PublishWorkflow",
+    },
+  ],
+  "containers": [
+    {
+      "name": "eidos-publish-runtime",
+      "class_name": "EidosRuntimeContainer",
+      "image": "./container/Dockerfile",
+      "image_build_context": "../..",
+      "max_instances": 1000,
+      "instance_type": "basic",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TENANT_LOCATORS",
+        "class_name": "TenantLocatorDurableObject",
+      },
+      {
+        "name": "PUBLIC_SITE_CLAIMS",
+        "class_name": "PublicSiteClaimDurableObject",
+      },
+      {
+        "name": "PUBLISH_TENANTS",
+        "class_name": "PublishTenant",
+      },
+      {
+        "name": "PUBLISH_HANDLES",
+        "class_name": "PublishHandleDurableObject",
+      },
+      {
+        "name": "FORM_INBOXES",
+        "class_name": "FormInboxDurableObject",
+      },
+      {
+        "name": "EIDOS_RUNTIMES",
+        "class_name": "EidosRuntimeContainer",
+      },
+    ],
+  },
+  "exports": {
+    "TenantLocatorDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "PublicSiteClaimDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "PublishHandleDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "PublishTenantDurableObject": {
+      "type": "durable-object",
+      "state": "deleted",
+    },
+    "PublishTenant": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "FormInboxDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "EidosRuntimeContainer": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+  "env": {
+    "staging": {
+      "name": "eidos-publish-staging",
+      "compatibility_date": "2026-08-22",
+      "compatibility_flags": ["nodejs_compat"],
+      "routes": [
+        {
+          "pattern": "publish-staging.eidos.space",
+          "custom_domain": true,
+        },
+        {
+          "pattern": "*-staging.eidos.ink/*",
+          "zone_name": "eidos.ink",
+        },
+      ],
+      "vars": {
+        "AUTH_USERINFO_URL": "https://staging.eidos.space/api/publish/userinfo",
+        "CONTROL_HOST": "publish-staging.eidos.space",
+        "PUBLISH_ROOT": "eidos.ink",
+        "PUBLISH_HOST_LABEL_SUFFIX": "-staging",
+        "RELAY_CONTROL_HOST": "relay-staging.eidos.ink",
+        "ORCHESTRATION_MODE": "workflow",
+        "RUNTIME_SHARD_COUNT": "2",
+        "RUNTIME_MAX_ACTIVE_VERSIONS": "6",
+        "RUNTIME_MAX_CACHE_BYTES": "3221225472",
+        "RUNTIME_MAX_INFLIGHT_REQUESTS": "32",
+      },
+      "r2_buckets": [
+        {
+          "binding": "PUBLISH_OBJECTS",
+          "bucket_name": "eidos-publish-staging-objects",
+        },
+      ],
+      "services": [
+        {
+          "binding": "EIDOS_ACCOUNT",
+          "service": "eidos-space-staging",
+        },
+        {
+          "binding": "EIDOS_RELAY",
+          "service": "eidos-file-relay-staging",
+        },
+      ],
+      "workflows": [
+        {
+          "binding": "PUBLISH_WORKFLOW",
+          "name": "eidos-publish-version-staging",
+          "class_name": "PublishWorkflow",
+        },
+      ],
+      "containers": [
+        {
+          "name": "eidos-publish-runtime-staging",
+          "class_name": "EidosRuntimeContainer",
+          "image": "./container/Dockerfile",
+          "image_build_context": "../..",
+          "max_instances": 100,
+          "instance_type": "basic",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "TENANT_LOCATORS",
+            "class_name": "TenantLocatorDurableObject",
+          },
+          {
+            "name": "PUBLIC_SITE_CLAIMS",
+            "class_name": "PublicSiteClaimDurableObject",
+          },
+          {
+            "name": "PUBLISH_TENANTS",
+            "class_name": "PublishTenant",
+          },
+          {
+            "name": "PUBLISH_HANDLES",
+            "class_name": "PublishHandleDurableObject",
+          },
+          {
+            "name": "FORM_INBOXES",
+            "class_name": "FormInboxDurableObject",
+          },
+          {
+            "name": "EIDOS_RUNTIMES",
+            "class_name": "EidosRuntimeContainer",
+          },
+        ],
+      },
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "invocation_logs": true,
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 0.01,
+        },
+      },
+    },
+  },
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@eidos.space/publish-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "wrangler types worker-configuration.d.ts --include-runtime false --check && tsc --noEmit",
+    "container:build": "docker build --file container/Dockerfile --tag eidos-publish-runtime:dev ../..",
+    "dev": "wrangler dev",
+    "dev:staging": "wrangler dev --env staging",
+    "dry-run:production": "wrangler deploy --env=\"\" --dry-run --strict",
+    "dry-run:staging": "wrangler deploy --env staging --dry-run",
+    "test": "vitest run --config vitest.config.ts",
+    "types": "wrangler types worker-configuration.d.ts --include-runtime false"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260821.1",
+    "@vitest/expect": "4.1.10",
+    "@vitest/mocker": "4.1.10",
+    "@vitest/pretty-format": "4.1.10",
+    "@vitest/runner": "4.1.10",
+    "@vitest/snapshot": "4.1.10",
+    "@vitest/spy": "4.1.10",
+    "@vitest/utils": "4.1.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.124.0"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
+    "@noble/hashes": "2.3.0",
+    "mdast-util-from-markdown": "2.0.3",
+    "micromark": "4.0.2",
+    "micromark-extension-gfm": "3.0.0"
+  }
+}
