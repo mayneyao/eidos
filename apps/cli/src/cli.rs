@@ -56,6 +56,10 @@ pub enum Command {
     ViewApply(ViewApplyArgs),
     /// Serve a local web editor for one file over HTTP.
     Serve(ServeArgs),
+    /// Publish an immutable Eidos File or Markdown document.
+    Publish(PublishArgs),
+    /// Import committed responses from a published Form into its Eidos File.
+    Collect(CollectArgs),
 }
 
 #[derive(Debug, Args)]
@@ -105,6 +109,12 @@ pub struct ServeArgs {
     /// Open the served URL in the default browser.
     #[arg(long)]
     pub open: bool,
+    /// Run the strict read-only profile used by the hosted Publish service.
+    #[arg(
+        long,
+        conflicts_with_all = ["lan", "relay", "share", "host", "ui_dir", "assets_dir", "open"]
+    )]
+    pub publish: bool,
     /// Eidos account issuer used by --relay.
     #[arg(
         long,
@@ -121,6 +131,96 @@ pub struct ServeArgs {
         requires = "relay"
     )]
     pub relay_origin: String,
+}
+
+#[derive(Debug, Args)]
+pub struct PublishArgs {
+    /// Local .eidos, .md, or .markdown source.
+    pub file: PathBuf,
+    /// Publish one Form View from an Eidos File instead of the whole File.
+    #[arg(long, value_name = "VIEW_ID_OR_NAME")]
+    pub form_view: Option<String>,
+    /// Filesystem root used to resolve relative attachments.
+    #[arg(long, value_name = "DIR", hide = true)]
+    pub attachment_root: Option<PathBuf>,
+    /// Tenant-local URL path for this published resource.
+    #[arg(long)]
+    pub slug: String,
+    /// Public or private viewer access. Private requires Publish Pro.
+    #[arg(long, value_enum, default_value_t = PublishVisibilityArg::Public)]
+    pub visibility: PublishVisibilityArg,
+    /// Protect this Publication with a password. The CLI prompts without echo.
+    #[arg(long, conflicts_with = "remove_password")]
+    pub password: bool,
+    /// Remove password protection and make this Publication public.
+    #[arg(long, conflicts_with = "password")]
+    pub remove_password: bool,
+    /// Create a ready Version without moving the Publication pointer.
+    #[arg(long)]
+    pub no_activate: bool,
+    /// Publish control origin.
+    #[arg(
+        long,
+        env = "EIDOS_PUBLISH_ORIGIN",
+        default_value = "https://publish.eidos.space"
+    )]
+    pub publish_origin: String,
+    /// Publish CLI key. Prefer the EIDOS_PUBLISH_TOKEN environment variable.
+    #[arg(long, env = "EIDOS_PUBLISH_TOKEN", hide_env_values = true)]
+    pub token: String,
+    /// Maximum time to wait for validation, Runtime preparation, and activation.
+    #[arg(long, default_value_t = 1_800)]
+    pub wait_seconds: u64,
+    /// Emit newline-delimited Publish progress events to stderr.
+    #[arg(long, hide = true)]
+    pub progress_json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CollectArgs {
+    /// Local .eidos file that owns the published Form View.
+    pub file: PathBuf,
+    /// Stable Publication ID returned by `eidos publish --form-view`.
+    #[arg(long, value_name = "UUID")]
+    pub publication: String,
+    /// Filesystem root used for downloaded File-field attachments.
+    #[arg(long, value_name = "DIR")]
+    pub attachment_root: Option<PathBuf>,
+    /// Stable Collector ID. Lite persists this; a one-shot CLI run generates one.
+    #[arg(long, value_name = "ID", hide = true)]
+    pub collector_id: Option<String>,
+    /// Existing Collector generation. Lite uses this for background collection without takeover.
+    #[arg(long, value_name = "NUMBER", hide = true)]
+    pub collector_generation: Option<u64>,
+    /// Maximum submissions imported per lease request.
+    #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u16).range(1..=100))]
+    pub batch_size: u16,
+    /// Publish control origin.
+    #[arg(
+        long,
+        env = "EIDOS_PUBLISH_ORIGIN",
+        default_value = "https://publish.eidos.space"
+    )]
+    pub publish_origin: String,
+    /// Publish CLI key. Prefer the EIDOS_PUBLISH_TOKEN environment variable.
+    #[arg(long, env = "EIDOS_PUBLISH_TOKEN", hide_env_values = true)]
+    pub token: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum PublishVisibilityArg {
+    Public,
+    Private,
+}
+
+impl PublishVisibilityArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private => "private",
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -308,6 +408,7 @@ const COMMANDS: &[&str] = &[
     "schema-apply",
     "view-apply",
     "serve",
+    "publish",
 ];
 
 /// Accept the ergonomic `eidos file.eidos query ...` form while keeping the
@@ -345,4 +446,145 @@ pub fn normalize_args(mut args: Vec<OsString>) -> Vec<OsString> {
     let adjusted_command_index = command_index - 1;
     args.insert(adjusted_command_index + 1, file);
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_publish_command() {
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--attachment-root",
+            "/workspace",
+            "--token",
+            "secret",
+            "--no-activate",
+        ])
+        .expect("parse Publish command");
+        let Command::Publish(args) = cli.command else {
+            panic!("expected Publish command")
+        };
+        assert_eq!(args.file, PathBuf::from("example.eidos"));
+        assert_eq!(args.form_view, None);
+        assert_eq!(args.slug, "team-wiki");
+        assert_eq!(args.attachment_root, Some(PathBuf::from("/workspace")));
+        assert!(args.no_activate);
+        assert_eq!(args.visibility, PublishVisibilityArg::Public);
+        assert!(!args.password);
+        assert!(!args.remove_password);
+        assert_eq!(args.wait_seconds, 1_800);
+        assert!(!args.progress_json);
+    }
+
+    #[test]
+    fn parses_machine_readable_publish_progress() {
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "--json",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--token",
+            "secret",
+            "--progress-json",
+        ])
+        .expect("parse Publish progress mode");
+        let Command::Publish(args) = cli.command else {
+            panic!("expected Publish command")
+        };
+        assert!(args.progress_json);
+    }
+
+    #[test]
+    fn parses_password_protected_publish_without_exposing_a_cli_value() {
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--token",
+            "secret",
+            "--password",
+        ])
+        .expect("parse password Publish command");
+        let Command::Publish(args) = cli.command else {
+            panic!("expected Publish command")
+        };
+        assert!(args.password);
+        let error = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--password-value",
+            "must-not-be-accepted",
+        ])
+        .expect_err("password values must not be accepted as command arguments");
+        assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+
+    #[test]
+    fn parses_form_publish_and_collect_commands() {
+        let publish = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "forms.eidos",
+            "--form-view",
+            "Feedback",
+            "--slug",
+            "feedback",
+            "--token",
+            "secret",
+        ])
+        .expect("parse Form Publish command");
+        let Command::Publish(args) = publish.command else {
+            panic!("expected Publish command")
+        };
+        assert_eq!(args.form_view.as_deref(), Some("Feedback"));
+
+        let collect = Cli::try_parse_from([
+            "eidos",
+            "collect",
+            "forms.eidos",
+            "--publication",
+            "7300a083-df92-49d8-945d-1e0bae0eac18",
+            "--token",
+            "secret",
+        ])
+        .expect("parse Collect command");
+        let Command::Collect(args) = collect.command else {
+            panic!("expected Collect command")
+        };
+        assert_eq!(args.batch_size, 50);
+        assert_eq!(args.file, PathBuf::from("forms.eidos"));
+        assert_eq!(args.collector_generation, None);
+
+        let background_collect = Cli::try_parse_from([
+            "eidos",
+            "collect",
+            "forms.eidos",
+            "--publication",
+            "7300a083-df92-49d8-945d-1e0bae0eac18",
+            "--collector-id",
+            "eidos-lite-12345678901234567890123456789012",
+            "--collector-generation",
+            "7",
+            "--token",
+            "secret",
+        ])
+        .expect("parse background Collect command");
+        let Command::Collect(args) = background_collect.command else {
+            panic!("expected Collect command")
+        };
+        assert_eq!(args.collector_generation, Some(7));
+    }
 }

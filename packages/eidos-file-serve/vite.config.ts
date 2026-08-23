@@ -5,13 +5,19 @@ import { defineConfig, type Plugin } from "vite"
 import { eidosFileUiSourceAliases } from "../eidos-file-ui/vite-source-aliases"
 
 function stripEmbeddedChunkTrailingWhitespace(): Plugin {
+  const strip = (code: string) => code.replace(/[\t ]+$/gmu, "")
   return {
     name: "strip-embedded-chunk-trailing-whitespace",
     enforce: "post",
     renderChunk(code) {
       return {
-        code: code.replace(/[\t ]+$/gmu, ""),
+        code: strip(code),
         map: null,
+      }
+    },
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (output.type === "chunk") output.code = strip(output.code)
       }
     },
   }

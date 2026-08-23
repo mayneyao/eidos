@@ -29,6 +29,7 @@ fn main() -> anyhow::Result<()> {
             let mut open_browser = false;
             let mut lan = false;
             let mut host: Option<std::net::IpAddr> = None;
+            let mut publish = false;
             while let Some(flag) = args.next() {
                 match flag.as_str() {
                     "--port" => {
@@ -52,6 +53,7 @@ fn main() -> anyhow::Result<()> {
                     }
                     "--open" => open_browser = true,
                     "--lan" => lan = true,
+                    "--publish" => publish = true,
                     "--host" => {
                         host = Some(
                             args.next()
@@ -66,6 +68,17 @@ fn main() -> anyhow::Result<()> {
             if host.is_some() && !lan {
                 return Err(anyhow!("--host requires --lan"));
             }
+            if publish
+                && (lan
+                    || host.is_some()
+                    || ui_dir.is_some()
+                    || assets_dir.is_some()
+                    || open_browser)
+            {
+                return Err(anyhow!(
+                    "--publish cannot be combined with --lan, --host, --ui-dir, --assets-dir, or --open"
+                ));
+            }
             qjs_host::serve::run_serve(
                 std::path::Path::new(&db_path),
                 qjs_host::serve::ServeOptions {
@@ -76,6 +89,7 @@ fn main() -> anyhow::Result<()> {
                     lan,
                     requested_host: host,
                     relay: None,
+                    publish,
                 },
             )
         }
@@ -85,7 +99,7 @@ fn main() -> anyhow::Result<()> {
         }
         other => {
             eprintln!(
-                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--lan [--host IP]] [--ui-dir DIR] [--assets-dir DIR] [--open]"
+                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--publish | --lan [--host IP]] [--ui-dir DIR] [--assets-dir DIR] [--open]"
             );
             std::process::exit(2)
         }

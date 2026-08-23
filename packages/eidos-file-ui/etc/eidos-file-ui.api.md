@@ -1326,6 +1326,7 @@ declare function EidosFileQueryToolbar({
   sorts,
   search,
   disabled,
+  mutationsDisabled,
   focusSearchToken,
   searchResultCount,
   searchResultIndex,
@@ -1339,6 +1340,7 @@ declare function EidosFileQueryToolbar({
   sorts: EidosFileSort[];
   search: string;
   disabled?: boolean;
+  mutationsDisabled?: boolean;
   focusSearchToken?: number;
   searchResultCount?: number | null;
   searchResultIndex?: number | null;

@@ -1,7 +1,9 @@
 mod app;
 mod cli;
+mod collect;
 mod error;
 mod output;
+mod publish;
 mod relay_auth;
 mod upgrade;
 
@@ -49,7 +51,7 @@ fn main() -> ExitCode {
     };
     let json = cli.json;
 
-    match app::run(cli.command) {
+    match app::run(cli.command, !json) {
         Ok(CommandOutput { value, success }) => {
             let result = if json {
                 write_json(io::stdout().lock(), &value)
@@ -185,6 +187,12 @@ mod tests {
             Command::Serve(ref args) if args.relay && args.share
         ));
 
+        let publish = parse_ok(&["eidos", "serve", "tasks.eidos", "--publish"]);
+        assert!(matches!(
+            publish.command,
+            Command::Serve(ref args) if args.publish && !args.lan && !args.relay
+        ));
+
         let login = parse_ok(&[
             "eidos",
             "login",
@@ -222,6 +230,15 @@ mod tests {
                 "tasks.eidos",
                 "--account-origin",
                 "https://staging.eidos.space",
+            ],
+            vec!["eidos", "serve", "tasks.eidos", "--publish", "--lan"],
+            vec![
+                "eidos",
+                "serve",
+                "tasks.eidos",
+                "--publish",
+                "--assets-dir",
+                "./assets",
             ],
         ] {
             assert!(

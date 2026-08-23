@@ -4,6 +4,7 @@ import {
   acquireCliHostRemoteAsset,
   createBrowserId,
   establishCliHostSession,
+  fetchCliHostManifest,
   uploadCliHostAssets,
 } from "./client"
 import type { CliHostAccessError } from "./client"
@@ -13,6 +14,41 @@ afterEach(() => {
 })
 
 describe("CLI Serve browser pairing", () => {
+  it("accepts a strict read-only Publish manifest", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          mode: "publish",
+          fileName: "published.eidos",
+          access: "read",
+          network: "publish-container",
+        })
+      )
+    )
+
+    await expect(fetchCliHostManifest()).resolves.toMatchObject({
+      mode: "publish",
+      access: "read",
+      network: "publish-container",
+    })
+  })
+
+  it("rejects a Publish manifest that requests write access", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          mode: "publish",
+          fileName: "published.eidos",
+          access: "readwrite",
+        })
+      )
+    )
+
+    await expect(fetchCliHostManifest()).resolves.toBeNull()
+  })
+
   it("exchanges a fragment-safe access key without putting it in the body", async () => {
     const fetch = vi.fn(async () =>
       Response.json({ ok: true }, { status: 200 })
@@ -62,7 +98,7 @@ describe("CLI Serve browser pairing", () => {
     vi.stubGlobal("fetch", fetch)
 
     await establishCliHostSession(
-      "https://u-0123456789abcdefabcd.eidos.ink/#access=abcdefghijklmnop"
+      "https://r-0123456789abcdefabcd.eidos.ink/#access=abcdefghijklmnop"
     )
 
     const [, request] = fetch.mock.calls[0] as unknown as [string, RequestInit]
@@ -137,6 +173,55 @@ describe("CLI Serve browser pairing", () => {
         method: "POST",
         body: JSON.stringify({ uri: entry.uri, name: entry.name }),
       })
+    )
+  })
+
+  it("exchanges a Publish Gateway ticket and prefixes Runtime requests", async () => {
+    vi.stubGlobal("document", {
+      querySelector: () => ({ getAttribute: () => "team-wiki" }),
+    })
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            status: "starting",
+            ticket: "signed-runtime-ticket",
+            runtimeBase: "/_eidos/runtime/team-wiki",
+            expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          },
+          { status: 202 }
+        )
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          mode: "publish",
+          fileName: "team.eidos",
+          access: "read",
+          network: "publish-container",
+        })
+      )
+    vi.stubGlobal("fetch", fetch)
+
+    await expect(fetchCliHostManifest()).resolves.toMatchObject({
+      mode: "publish",
+      access: "read",
+    })
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "/_eidos/session",
+      expect.objectContaining({ body: JSON.stringify({ slug: "team-wiki" }) })
+    )
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "/_eidos/runtime/team-wiki/api/manifest",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      })
+    )
+    const request = fetch.mock.calls[1]?.[1] as RequestInit
+    expect(new Headers(request.headers).get("authorization")).toBe(
+      "EidosRuntime signed-runtime-ticket"
     )
   })
 })

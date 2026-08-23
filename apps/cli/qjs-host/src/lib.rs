@@ -9,7 +9,7 @@ use rusqlite::{
     functions::FunctionFlags,
     limits::Limit,
     types::{Value as SqlValue, ValueRef},
-    Connection, DatabaseName,
+    Connection, DatabaseName, OpenFlags,
 };
 use serde::{Deserialize, Serialize};
 
@@ -149,6 +149,7 @@ fn activate_ctx(ctx: &Ctx<'_>) {
 
 pub struct HostState {
     conn: Connection,
+    read_only: bool,
 }
 
 fn parse_bindings(bindings_json: &str) -> Result<Vec<SqlValue>, String> {
@@ -158,6 +159,14 @@ fn parse_bindings(bindings_json: &str) -> Result<Vec<SqlValue>, String> {
 }
 
 fn host_exec(state: &HostState, sql: &str) -> String {
+    if state.read_only && !read_only_transaction_control(sql) {
+        return err_envelope(
+            "read-only",
+            "Mutating statements are forbidden in Publish mode",
+            None,
+            None,
+        );
+    }
     match state.conn.execute_batch(sql) {
         Ok(()) => ok_envelope(&serde_json::Value::Null),
         Err(error) => map_rusqlite_error(&error),
@@ -181,7 +190,7 @@ fn host_query(state: &HostState, sql: &str, bindings_json: &str, forbid_write: b
             None,
         );
     }
-    if forbid_write && !statement.readonly() {
+    if (state.read_only || forbid_write) && !statement.readonly() {
         return err_envelope(
             "read-only",
             "Mutating statement is forbidden in a read transaction",
@@ -238,7 +247,7 @@ fn host_run(state: &HostState, sql: &str, bindings_json: &str, forbid_write: boo
             None,
         );
     }
-    if forbid_write && !statement.readonly() {
+    if (state.read_only || forbid_write) && !statement.readonly() {
         return err_envelope(
             "read-only",
             "Mutating statement is forbidden in a read transaction",
@@ -568,12 +577,64 @@ fn request_context(id: &str) -> String {
 }
 
 pub fn open_host_state(db_path: &std::path::Path) -> anyhow::Result<HostState> {
-    let conn = Connection::open(db_path).context("open database")?;
+    open_host_state_with_mode(db_path, false)
+}
+
+pub fn open_host_state_read_only(db_path: &std::path::Path) -> anyhow::Result<HostState> {
+    open_host_state_with_mode(db_path, true)
+}
+
+fn open_host_state_with_mode(
+    db_path: &std::path::Path,
+    read_only: bool,
+) -> anyhow::Result<HostState> {
+    let flags = if read_only {
+        OpenFlags::SQLITE_OPEN_READ_ONLY
+    } else {
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
+    } | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let conn = Connection::open_with_flags(db_path, flags).context("open database")?;
     conn.execute_batch(
         "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA busy_timeout = 5000;",
     )
     .context("install connection pragmas")?;
-    Ok(HostState { conn })
+    if read_only {
+        conn.execute_batch("PRAGMA query_only = ON;")
+            .context("enable query_only for Publish mode")?;
+    }
+    Ok(HostState { conn, read_only })
+}
+
+fn read_only_transaction_control(sql: &str) -> bool {
+    let normalized = sql.trim().trim_end_matches(';').trim();
+    if normalized.contains(';') || normalized.contains("--") || normalized.contains("/*") {
+        return false;
+    }
+    let tokens = normalized.split_ascii_whitespace().collect::<Vec<_>>();
+    let keyword = |index: usize, expected: &str| {
+        tokens
+            .get(index)
+            .is_some_and(|value| value.eq_ignore_ascii_case(expected))
+    };
+    let safe_name = |index: usize| {
+        tokens.get(index).is_some_and(|value| {
+            !value.is_empty()
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        })
+    };
+    matches!(tokens.len(), 1)
+        && (keyword(0, "BEGIN") || keyword(0, "COMMIT") || keyword(0, "ROLLBACK"))
+        || tokens.len() == 2
+            && ((keyword(0, "BEGIN") && keyword(1, "DEFERRED"))
+                || ((keyword(0, "SAVEPOINT") || keyword(0, "RELEASE")) && safe_name(1)))
+        || tokens.len() == 3 && keyword(0, "ROLLBACK") && keyword(1, "TO") && safe_name(2)
+        || tokens.len() == 4
+            && keyword(0, "ROLLBACK")
+            && keyword(1, "TO")
+            && keyword(2, "SAVEPOINT")
+            && safe_name(3)
 }
 
 pub fn run_self_test(db_path: &std::path::Path) -> anyhow::Result<()> {
@@ -642,7 +703,7 @@ pub fn run_open(db_path: &std::path::Path) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::run_self_test;
+    use super::{host_exec, host_query, host_run, open_host_state_read_only, run_self_test};
 
     #[test]
     fn bundled_runtime_passes_the_rusqlite_host_self_test() {
@@ -654,5 +715,35 @@ mod tests {
         let result = run_self_test(&path);
         let _ = std::fs::remove_file(&path);
         result.expect("bundled QuickJS runtime self-test");
+    }
+
+    #[test]
+    fn publish_host_rejects_writes_below_the_runtime_boundary() {
+        let path = std::env::temp_dir().join(format!(
+            "qjs-host-publish-test-{}-{:?}.eidos",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let writable = rusqlite::Connection::open(&path).unwrap();
+        writable
+            .execute_batch("CREATE TABLE example (value TEXT); INSERT INTO example VALUES ('ok');")
+            .unwrap();
+        drop(writable);
+
+        let state = open_host_state_read_only(&path).unwrap();
+        let query = host_query(&state, "SELECT value FROM example", "[]", false);
+        assert!(query.contains("\"ok\""));
+        assert!(host_run(&state, "DELETE FROM example", "[]", false).contains("read-only"));
+        assert!(host_exec(&state, "CREATE TABLE forbidden (value TEXT)").contains("read-only"));
+        assert!(host_exec(&state, "BEGIN DEFERRED").contains("\"ok\":true"));
+        assert!(host_exec(&state, "ROLLBACK").contains("\"ok\":true"));
+        assert!(host_exec(
+            &state,
+            "SAVEPOINT allowed; ATTACH DATABASE ':memory:' AS other"
+        )
+        .contains("read-only"));
+
+        drop(state);
+        let _ = std::fs::remove_file(path);
     }
 }

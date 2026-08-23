@@ -11,17 +11,24 @@ build = "build.rs"
 name = "eidos"
 path = "src/main.rs"
 
+[[bin]]
+name = "eidos-publish-supervisor"
+path = "src/bin/eidos-publish-supervisor.rs"
+
 [dependencies]
 anyhow = "1"
 base64 = "0.22"
 clap = { version = "4.5", features = ["derive", "env"] }
 open = "5"
+mime_guess = "2"
+pulldown-cmark = "0.13"
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = [
   "blocking",
   "json",
   "rustls-tls",
 ] }
+rpassword = "7"
 semver = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

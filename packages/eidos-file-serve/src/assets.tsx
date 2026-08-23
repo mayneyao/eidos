@@ -32,16 +32,20 @@ const SERVICE_CAPABILITIES: HostServiceCapabilities = {
   canUseAssets: true,
 }
 
-function hostCapabilities(manifest: CliHostAssetManifest): HostCapabilities {
+function hostCapabilities(
+  manifest: CliHostAssetManifest,
+  access: "read" | "readwrite"
+): HostCapabilities {
+  const canWriteCurrent = access === "readwrite"
   return {
-    canWriteCurrent: true,
+    canWriteCurrent,
     canSaveCopy: false,
     canRequestPermission: false,
     hasRecovery: false,
     assetReadSchemes: manifest.assetReadSchemes,
-    assetWriteSchemes: manifest.assetWriteSchemes,
+    assetWriteSchemes: canWriteCurrent ? manifest.assetWriteSchemes : [],
     casGuarantee: "cooperative",
-    atomicReplace: true,
+    atomicReplace: canWriteCurrent,
     durability: "best-effort",
   }
 }
@@ -63,13 +67,14 @@ function hostLimits(manifest: CliHostAssetManifest): HostLimits {
 export function createCliHostAssetSession(
   manifest: CliHostAssetManifest,
   sessionId: string,
-  fileId: string
+  fileId: string,
+  access: "read" | "readwrite" = "readwrite"
 ): EidosFileUIAssetSession {
   const limits = hostLimits(manifest)
   const state: HostSessionState = {
     sessionId,
     phase: "ready-clean",
-    capabilities: hostCapabilities(manifest),
+    capabilities: hostCapabilities(manifest, access),
     limits,
     fileId,
   }

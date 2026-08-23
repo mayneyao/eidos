@@ -15,10 +15,10 @@ import {
 } from "@eidos.space/eidos-file-ui"
 
 export interface CliHostManifest {
-  mode: "cli"
+  mode: "cli" | "publish"
   fileName: string
   access: "read" | "readwrite"
-  network?: "loopback" | "lan" | "relay"
+  network?: "loopback" | "lan" | "relay" | "publish-container"
   assets?: CliHostAssetManifest
 }
 
@@ -51,6 +51,15 @@ interface HttpEnvelope {
 
 const HTTP_CLIENT_ID = createBrowserId()
 
+interface PublishGatewaySession {
+  ticket: string
+  runtimeBase: string
+  expiresAtMilliseconds: number
+}
+
+let publishGatewaySession: PublishGatewaySession | null = null
+let publishGatewaySessionPromise: Promise<PublishGatewaySession> | null = null
+
 export class CliHostAccessError extends Error {
   constructor(
     readonly code: "pairing-required" | "pairing-failed",
@@ -72,6 +81,91 @@ export function createBrowserId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
+function publishGatewaySlug(): string | null {
+  if (typeof document === "undefined") return null
+  const value = document
+    .querySelector('meta[name="eidos-publish-slug"]')
+    ?.getAttribute("content")
+  return value && /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(value)
+    ? value
+    : null
+}
+
+async function requirePublishGatewaySession(): Promise<PublishGatewaySession> {
+  const current = publishGatewaySession
+  if (current && current.expiresAtMilliseconds - Date.now() > 30_000) {
+    return current
+  }
+  if (publishGatewaySessionPromise) return await publishGatewaySessionPromise
+  const slug = publishGatewaySlug()
+  if (slug === null) throw new Error("Publish Gateway context is unavailable")
+  publishGatewaySessionPromise = (async () => {
+    const response = await fetch("/_eidos/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    })
+    let value: unknown
+    try {
+      value = await response.json()
+    } catch {
+      throw new Error(
+        `Publish Runtime session failed with HTTP ${response.status}`
+      )
+    }
+    if (!response.ok || !isPublishSessionResponse(value)) {
+      throw new Error(
+        `Publish Runtime session failed with HTTP ${response.status}`
+      )
+    }
+    const session = {
+      ticket: value.ticket,
+      runtimeBase: value.runtimeBase,
+      expiresAtMilliseconds: Date.parse(value.expiresAt),
+    }
+    publishGatewaySession = session
+    return session
+  })()
+  try {
+    return await publishGatewaySessionPromise
+  } finally {
+    publishGatewaySessionPromise = null
+  }
+}
+
+async function hostFetch(
+  path: string,
+  init?: RequestInit,
+  mayRefresh = true
+): Promise<Response> {
+  if (publishGatewaySlug() === null) return await fetch(path, init)
+  const session = await requirePublishGatewaySession()
+  const headers = new Headers(init?.headers)
+  headers.set("Authorization", `EidosRuntime ${session.ticket}`)
+  const response = await fetch(session.runtimeBase + path, { ...init, headers })
+  if (response.status === 401 && mayRefresh) {
+    await response.body?.cancel()
+    publishGatewaySession = null
+    return await hostFetch(path, init, false)
+  }
+  return response
+}
+
+function isPublishSessionResponse(value: unknown): value is {
+  ticket: string
+  runtimeBase: string
+  expiresAt: string
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { ticket?: unknown }).ticket === "string" &&
+    typeof (value as { runtimeBase?: unknown }).runtimeBase === "string" &&
+    typeof (value as { expiresAt?: unknown }).expiresAt === "string" &&
+    Number.isFinite(Date.parse((value as { expiresAt: string }).expiresAt))
+  )
+}
+
 function accessTokenFromHash(): string | null {
   if (typeof window === "undefined") return null
   const token = new URLSearchParams(window.location.hash.slice(1)).get("access")
@@ -88,6 +182,10 @@ function clearAccessTokenHash(): void {
 export async function establishCliHostSession(
   suppliedToken?: string
 ): Promise<boolean> {
+  if (publishGatewaySlug() !== null) {
+    await requirePublishGatewaySession()
+    return true
+  }
   const supplied = suppliedToken?.trim()
   let token = supplied || accessTokenFromHash()
   if (supplied?.startsWith("http://") || supplied?.startsWith("https://")) {
@@ -130,6 +228,7 @@ export function subscribeCliHostEvents(callbacks: {
   onOpen?: () => void
   onError?: () => void
 }): () => void {
+  if (publishGatewaySlug() !== null) return () => undefined
   const events = new EventSource(
     `/api/events?client=${encodeURIComponent(HTTP_CLIENT_ID)}`
   )
@@ -168,7 +267,7 @@ function base64ToBytes(text: string): Uint8Array {
 }
 
 async function postJson(path: string, body: unknown): Promise<HttpEnvelope> {
-  const response = await fetch(path, {
+  const response = await hostFetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -220,7 +319,7 @@ export async function uploadCliHostAsset(file: File): Promise<FileEntry> {
     name: file.name,
     ...(file.type ? { mediaType: file.type } : {}),
   })
-  const response = await fetch(`/api/assets/upload?${parameters}`, {
+  const response = await hostFetch(`/api/assets/upload?${parameters}`, {
     method: "POST",
     headers: { "X-Eidos-Client-ID": HTTP_CLIENT_ID },
     body: file,
@@ -648,7 +747,7 @@ export class EidosFileHttpClient {
   async exportFile(
     _maxBytes = "268435456"
   ): Promise<EidosFileHttpExportResult> {
-    const response = await fetch("/api/snapshot")
+    const response = await hostFetch("/api/snapshot")
     if (!response.ok) {
       throw new Error(`Snapshot export failed with HTTP ${response.status}`)
     }
@@ -709,7 +808,7 @@ export class EidosFileHttpClient {
 
 export async function fetchCliHostManifest(): Promise<CliHostManifest | null> {
   try {
-    const response = await fetch("/api/manifest")
+    const response = await hostFetch("/api/manifest")
     if (response.status === 401) {
       throw new CliHostAccessError(
         "pairing-required",
@@ -718,7 +817,12 @@ export async function fetchCliHostManifest(): Promise<CliHostManifest | null> {
     }
     if (!response.ok) return null
     const manifest = (await response.json()) as Partial<CliHostManifest>
-    if (manifest?.mode !== "cli" || typeof manifest.fileName !== "string") {
+    if (
+      (manifest?.mode !== "cli" && manifest?.mode !== "publish") ||
+      typeof manifest.fileName !== "string" ||
+      (manifest.access !== "read" && manifest.access !== "readwrite") ||
+      (manifest.mode === "publish" && manifest.access !== "read")
+    ) {
       return null
     }
     return manifest as CliHostManifest

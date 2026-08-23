@@ -1231,6 +1231,7 @@ export function EidosFileQueryToolbar({
   sorts,
   search,
   disabled,
+  mutationsDisabled,
   focusSearchToken = 0,
   searchResultCount,
   searchResultIndex,
@@ -1244,6 +1245,7 @@ export function EidosFileQueryToolbar({
   sorts: EidosFileSort[]
   search: string
   disabled?: boolean
+  mutationsDisabled?: boolean
   focusSearchToken?: number
   searchResultCount?: number | null
   searchResultIndex?: number | null
@@ -1384,13 +1386,13 @@ export function EidosFileQueryToolbar({
       <EidosFileFilterPopover
         fields={fields}
         value={filter}
-        disabled={disabled}
+        disabled={disabled || mutationsDisabled}
         onChange={onFilterChange}
       />
       <EidosFileSortPopover
         fields={fields}
         value={sorts}
-        disabled={disabled}
+        disabled={disabled || mutationsDisabled}
         onChange={onSortsChange}
       />
     </div>

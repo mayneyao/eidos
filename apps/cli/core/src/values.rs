@@ -549,6 +549,72 @@ fn is_contained_relative_uri(uri: &str) -> bool {
     true
 }
 
+/// Normalizes a contained relative File URI for filesystem-backed hosts.
+///
+/// Publish deliberately rejects query/fragment components and encoded path
+/// separators because they do not have an unambiguous local-file meaning. The
+/// returned tuple is `(canonical_uri, decoded_relative_path)`. URI segments
+/// use the same encoding as JavaScript `encodeURIComponent`, which is also the
+/// canonical form produced by the TypeScript Runtime helper.
+pub fn normalize_relative_file_uri(uri: &str) -> Option<(String, String)> {
+    if uri.contains(['?', '#'])
+        || contains_ascii_case_insensitive(uri, "%2f")
+        || contains_ascii_case_insensitive(uri, "%5c")
+        || !is_contained_relative_uri(uri)
+    {
+        return None;
+    }
+    let decoded = percent_decode(uri)?;
+    let mut parts: Vec<&str> = Vec::new();
+    for part in decoded.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            parts.pop()?;
+        } else {
+            parts.push(part);
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let path = parts.join("/");
+    let canonical_uri = parts
+        .iter()
+        .map(|part| encode_uri_component(part))
+        .collect::<Vec<_>>()
+        .join("/");
+    Some((canonical_uri, path))
+}
+
+fn contains_ascii_case_insensitive(value: &str, needle: &str) -> bool {
+    value
+        .as_bytes()
+        .windows(needle.len())
+        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+}
+
+fn encode_uri_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric()
+            || matches!(
+                byte,
+                b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')'
+            )
+        {
+            encoded.push(char::from(*byte));
+        } else {
+            encoded.push('%');
+            encoded.push(char::from(HEX[(byte >> 4) as usize]));
+            encoded.push(char::from(HEX[(byte & 0x0f) as usize]));
+        }
+    }
+    encoded
+}
+
 /// Classifies a §8.3 File-entry URI. The `https` arm approximates WHATWG
 /// URL parsing with the §8.3 ASCII charset plus a non-empty authority —
 /// full RFC 3986 validation is the semantic validation phase's job.
@@ -845,5 +911,19 @@ mod tests {
         assert_eq!(uri_class("data:text/plain;base64,AAAA"), None);
         // Non-base64 data URL.
         assert_eq!(uri_class("data:image/png,xyz"), None);
+    }
+
+    #[test]
+    fn normalizes_relative_file_uris_for_filesystem_hosts() {
+        assert_eq!(
+            normalize_relative_file_uri("assets/a/../hello%20world%40.png"),
+            Some((
+                "assets/hello%20world%40.png".into(),
+                "assets/hello world@.png".into()
+            ))
+        );
+        assert_eq!(normalize_relative_file_uri("../outside"), None);
+        assert_eq!(normalize_relative_file_uri("assets/a%2Fb.png"), None);
+        assert_eq!(normalize_relative_file_uri("assets/a.png?download=1"), None);
     }
 }

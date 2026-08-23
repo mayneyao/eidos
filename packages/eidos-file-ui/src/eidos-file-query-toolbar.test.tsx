@@ -146,6 +146,27 @@ describe("shared EidosFileQueryToolbar", () => {
     expect(onSearchChange).toHaveBeenCalledWith("roadmap")
   })
 
+  it("keeps search available while persisted query mutations are disabled", () => {
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={fields}
+          filter={null}
+          sorts={[]}
+          search=""
+          mutationsDisabled
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    expect(button("Search")?.disabled).toBe(false)
+    expect(button("Filter")?.disabled).toBe(true)
+    expect(button("Sort")?.disabled).toBe(true)
+  })
+
   it("opens and refocuses search when the host advances its focus token", () => {
     act(() => {
       root.render(

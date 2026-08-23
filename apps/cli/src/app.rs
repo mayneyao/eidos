@@ -25,9 +25,9 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::cli::{
-    AccountArgs, ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs,
-    RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs,
-    UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
+    AccountArgs, ApplyArgs, CollectArgs, Command, ContextArgs, CreateArgs, FileArgs, PublishArgs,
+    QueryArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs,
+    SchemaArgs, ServeArgs, UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -46,7 +46,7 @@ impl CommandOutput {
     }
 }
 
-pub fn run(command: Command) -> Result<CommandOutput> {
+pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
     match command {
         Command::Login(args) => login(args),
         Command::Whoami(args) => whoami(args),
@@ -64,7 +64,110 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::SchemaApply(args) => schema_apply(args),
         Command::ViewApply(args) => view_apply(args),
         Command::Serve(args) => serve_file(args),
+        Command::Publish(args) => publish_file(args, show_progress),
+        Command::Collect(args) => collect_form(args, show_progress),
     }
+}
+
+fn collect_form(args: CollectArgs, show_progress: bool) -> Result<CommandOutput> {
+    ensure_eidos_path(&args.file)?;
+    if !args.file.is_file() {
+        return Err(AppError::invalid_request(format!(
+            "Eidos File does not exist: {}",
+            args.file.display()
+        )));
+    }
+    Ok(CommandOutput::success(crate::collect::run(
+        args,
+        show_progress,
+    )?))
+}
+
+fn publish_file(args: PublishArgs, show_progress: bool) -> Result<CommandOutput> {
+    let progress = crate::publish::PublishProgress::new(show_progress, args.progress_json);
+    let attachment_root = publish_attachment_root(&args.file, args.attachment_root.as_deref());
+    let extension = args
+        .file
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .ok_or_else(|| {
+            AppError::invalid_request("Publish supports .eidos, .md, and .markdown files")
+        })?;
+    let (source_kind, attachments, generated_source) = match extension.as_str() {
+        "eidos" => {
+            progress.stage("validating local Eidos File");
+            let conn = open_file(&args.file, false)?;
+            let report = validate(&conn, ValidationLevel::Semantic, 100)?;
+            if !report.valid {
+                return Err(AppError::invalid_request(format!(
+                    "cannot publish an invalid Eidos File ({} diagnostics)",
+                    report.diagnostics.len()
+                )));
+            }
+            progress.stage("local Eidos File is valid");
+            if let Some(selector) = args.form_view.as_deref() {
+                progress.stage(format!("building Form definition from View {selector:?}"));
+                let definition = crate::publish::build_form_definition(&conn, selector)?;
+                progress.stage("local Form View is valid");
+                (
+                    crate::publish::PublishSourceKind::Form,
+                    Vec::new(),
+                    Some(definition),
+                )
+            } else {
+                let attachments =
+                    crate::publish::discover_eidos_attachments(&conn, &attachment_root, progress)?;
+                (crate::publish::PublishSourceKind::Eidos, attachments, None)
+            }
+        }
+        "md" | "markdown" => {
+            if args.form_view.is_some() {
+                return Err(AppError::invalid_request(
+                    "--form-view can be used only with a .eidos file",
+                ));
+            }
+            if !args.file.is_file() {
+                return Err(AppError::invalid_request(format!(
+                    "Markdown file does not exist: {}",
+                    args.file.display()
+                )));
+            }
+            progress.stage("validating local Markdown document");
+            let attachments = crate::publish::discover_markdown_attachments(
+                &args.file,
+                &attachment_root,
+                progress,
+            )?;
+            progress.stage("local Markdown document is valid");
+            (
+                crate::publish::PublishSourceKind::Markdown,
+                attachments,
+                None,
+            )
+        }
+        _ => {
+            return Err(AppError::invalid_request(
+                "Publish supports .eidos, .md, and .markdown files",
+            ));
+        }
+    };
+    Ok(CommandOutput::success(crate::publish::run(
+        args,
+        source_kind,
+        attachments,
+        generated_source,
+        progress,
+    )?))
+}
+
+fn publish_attachment_root(file: &Path, configured: Option<&Path>) -> PathBuf {
+    configured.map(Path::to_path_buf).unwrap_or_else(|| {
+        file.parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf()
+    })
 }
 
 fn upgrade(args: UpgradeArgs) -> Result<CommandOutput> {
@@ -105,7 +208,7 @@ fn logout(args: AccountArgs) -> Result<CommandOutput> {
 fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     // Preflight: require an existing, well-formed .eidos file before binding
     // the port; run_serve opens its own connection afterwards.
-    drop(open_file(&args.file, true)?);
+    drop(open_file(&args.file, !args.publish)?);
     let relay = if args.relay {
         drop(
             TcpListener::bind((Ipv4Addr::LOCALHOST, args.port)).map_err(|error| {
@@ -132,6 +235,7 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
             lan: args.lan,
             requested_host: args.host,
             relay,
+            publish: args.publish,
         },
     )
     .map_err(|error| AppError::internal(error.to_string()))?;
@@ -1257,4 +1361,37 @@ fn normalize_schema_change(conn: &Connection, mut value: Value) -> Result<Schema
         }
     }
     Ok(serde_json::from_value(value)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::publish_attachment_root;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn publish_attachment_root_handles_bare_and_relative_source_paths() {
+        assert_eq!(
+            publish_attachment_root(Path::new("report.md"), None),
+            PathBuf::from(".")
+        );
+        assert_eq!(
+            publish_attachment_root(Path::new("./report.md"), None),
+            PathBuf::from(".")
+        );
+        assert_eq!(
+            publish_attachment_root(Path::new("docs/report.md"), None),
+            PathBuf::from("docs")
+        );
+    }
+
+    #[test]
+    fn configured_publish_attachment_root_takes_precedence() {
+        assert_eq!(
+            publish_attachment_root(
+                Path::new("docs/report.md"),
+                Some(Path::new("/workspace/assets"))
+            ),
+            PathBuf::from("/workspace/assets")
+        );
+    }
 }

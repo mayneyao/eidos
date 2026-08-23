@@ -23,7 +23,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 use crate::relay::{RelayBrowserAccess, RelayConfig, RelayConnector};
-use crate::{open_host_state, QjsHost, ACTIVE_CTX};
+use crate::{open_host_state, open_host_state_read_only, QjsHost, ACTIVE_CTX};
 
 // Runtime calls can carry a base64-encoded CSV. Keep the HTTP boundary
 // bounded while still allowing the runtime's 256 MiB file/export ceiling plus
@@ -38,6 +38,13 @@ const URL_IMAGE_REDIRECTS_MAX: usize = 5;
 const URL_IMAGE_TIMEOUT: Duration = Duration::from_secs(15);
 const EVENT_HEARTBEAT: Duration = Duration::from_secs(15);
 const SESSION_COOKIE_PREFIX: &str = "eidos_serve_session_";
+const PUBLISH_MUTATION_METHODS: &[&str] = &[
+    "mutateRows",
+    "revertMutation",
+    "mutateView",
+    "mutateSchema",
+    "importCsv",
+];
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -679,10 +686,27 @@ struct ServeNetwork {
     url: String,
     allowed_host: String,
     lan: Option<LanAccess>,
+    publish: bool,
 }
 
 impl ServeNetwork {
-    fn new(port: u16, lan: bool, requested_host: Option<IpAddr>) -> anyhow::Result<Self> {
+    fn new(
+        port: u16,
+        lan: bool,
+        requested_host: Option<IpAddr>,
+        publish: bool,
+    ) -> anyhow::Result<Self> {
+        if publish {
+            let bind = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
+            let loopback = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+            return Ok(Self {
+                bind,
+                url: http_url(loopback),
+                allowed_host: http_authority(loopback),
+                lan: None,
+                publish: true,
+            });
+        }
         if !lan {
             let bind = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
             return Ok(Self {
@@ -690,6 +714,7 @@ impl ServeNetwork {
                 url: http_url(bind),
                 allowed_host: http_authority(bind),
                 lan: None,
+                publish: false,
             });
         }
 
@@ -711,6 +736,7 @@ impl ServeNetwork {
                 pairing_token: random_token(),
                 sessions: RefCell::new(HashSet::new()),
             }),
+            publish: false,
         })
     }
 
@@ -722,7 +748,9 @@ impl ServeNetwork {
     }
 
     fn mode(&self) -> &'static str {
-        if self.lan.is_some() {
+        if self.publish {
+            "publish-container"
+        } else if self.lan.is_some() {
             "lan"
         } else {
             "loopback"
@@ -1654,6 +1682,7 @@ pub struct ServeOptions {
     pub lan: bool,
     pub requested_host: Option<IpAddr>,
     pub relay: Option<RelayConfig>,
+    pub publish: bool,
 }
 
 pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
@@ -1665,15 +1694,20 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         lan,
         requested_host,
         relay,
+        publish,
     } = options;
     let file_name = db_path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("file.eidos")
         .to_string();
-    let state = Rc::new(open_host_state(db_path)?);
+    let state = Rc::new(if publish {
+        open_host_state_read_only(db_path)?
+    } else {
+        open_host_state(db_path)?
+    });
     let host = QjsHost::new(&state)?;
-    let network = ServeNetwork::new(port, lan, requested_host)?;
+    let network = ServeNetwork::new(port, lan, requested_host, publish)?;
     let events = EventHub::default();
     let assets_mounted = assets_dir.is_some();
     let assets = match assets_dir.as_deref() {
@@ -1693,6 +1727,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         .map(|config| RelayConnector::start(config, network.bind.port()))
         .transpose()?;
     println!("eidos serve {file_name}");
+    if publish {
+        println!("  profile: publish (strict read-only)");
+    }
     println!("  url: {browser_url}");
     println!(
         "  network: {}",
@@ -1712,7 +1749,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
     } else {
         println!("  assets: (not mounted; pass --assets-dir <dir> to enable)");
     }
-    if network.lan.is_some() {
+    if publish {
+        println!("  access: hosted Gateway only; Runtime is read-only");
+    } else if network.lan.is_some() {
         println!("  access: paired browsers can read and write");
         println!("  warning: use this HTTP link only on a trusted private network");
     } else if let Some(browser_access) = relay_browser_access {
@@ -1774,6 +1813,15 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         }
 
         if method == "POST" && url_path == "/api/url-images/resolve" {
+            if publish {
+                if let Err(error) = request.respond(error_response(
+                    403,
+                    "network image resolution is unavailable in Publish mode",
+                )) {
+                    eprintln!("respond failed: {error}");
+                }
+                continue;
+            }
             let value = read_json_body(&mut request);
             let resolver = url_images.clone();
             thread::spawn(move || {
@@ -1804,7 +1852,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         }
 
         if method == "POST" && url_path == "/api/assets/upload" {
-            let response = if assets_mounted {
+            let response = if publish {
+                error_response(403, "asset uploads are unavailable in Publish mode")
+            } else if assets_mounted {
                 upload_asset_response(&mut request, &request_url, &assets, &host)
             } else {
                 error_response(404, "no assets folder is mounted")
@@ -1860,9 +1910,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         let response = match (method.as_str(), url_path.as_str()) {
             ("GET", "/api/manifest") => {
                 let mut manifest = serde_json::json!({
-                    "mode": "cli",
+                    "mode": if publish { "publish" } else { "cli" },
                     "fileName": file_name,
-                    "access": "readwrite",
+                    "access": if publish { "read" } else { "readwrite" },
                     "network": request_network,
                 });
                 manifest["assets"] = serde_json::json!({
@@ -1870,12 +1920,16 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                     "assetBytesMax": ASSET_BYTES_MAX.to_string(),
                     "assetPreviewBytesMax": ASSET_PREVIEW_BYTES_MAX.to_string(),
                     "concurrentAssetLeasesMax": ASSET_LEASES_MAX,
-                    "assetReadSchemes": if assets_mounted {
+                    "assetReadSchemes": if publish {
+                        serde_json::json!(["relative"])
+                    } else if assets_mounted {
                         serde_json::json!(["https", "relative"])
                     } else {
                         serde_json::json!(["https"])
                     },
-                    "assetWriteSchemes": if assets_mounted {
+                    "assetWriteSchemes": if publish {
+                        serde_json::json!([])
+                    } else if assets_mounted {
                         serde_json::json!(["https", "relative"])
                     } else {
                         serde_json::json!(["https"])
@@ -1885,7 +1939,7 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
             }
             ("POST", "/api/runtime/open") => match read_json_body(&mut request) {
                 Ok(value) => match value.get("access").and_then(|access| access.as_str()) {
-                    Some(access @ ("read" | "readwrite")) => {
+                    Some(access @ ("read" | "readwrite")) if !publish || access == "read" => {
                         let open_request = serde_json::json!({
                             "mode": "open",
                             "access": access,
@@ -1895,6 +1949,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                             Ok(result) => json_response(&result),
                             Err(error) => error_response(500, &error.to_string()),
                         }
+                    }
+                    Some("readwrite") if publish => {
+                        error_response(403, "Publish mode only permits read access")
                     }
                     _ => error_response(400, "access must be read or readwrite"),
                 },
@@ -1933,23 +1990,33 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                             })
                             .to_string()
                         });
-                    match host.invoke("call", &[method.clone(), request_json, context_json]) {
-                        Ok(result) => {
-                            assets.cache_runtime_result(&method, &result);
-                            if let Some(event) = mutation_event(&method, &result) {
-                                events.publish(event, source_client_id.as_deref());
+                    if publish && PUBLISH_MUTATION_METHODS.contains(&method.as_str()) {
+                        error_response(403, "Runtime mutation is unavailable in Publish mode")
+                    } else {
+                        match host.invoke("call", &[method.clone(), request_json, context_json]) {
+                            Ok(result) => {
+                                assets.cache_runtime_result(&method, &result);
+                                if let Some(event) = mutation_event(&method, &result) {
+                                    events.publish(event, source_client_id.as_deref());
+                                }
+                                json_response(&result)
                             }
-                            json_response(&result)
+                            Err(error) => error_response(500, &error.to_string()),
                         }
-                        Err(error) => error_response(500, &error.to_string()),
                     }
                 }
                 Err((status, message)) => error_response(status, &message),
             },
+            ("POST", "/api/assets/remote") if publish => {
+                error_response(403, "remote assets are unavailable in Publish mode")
+            }
             ("POST", "/api/assets/remote") => match read_json_body(&mut request) {
                 Ok(value) => acquire_remote_asset_response(&value, &assets, &host),
                 Err((status, message)) => error_response(status, &message),
             },
+            ("POST", "/api/assets/resolve") if publish => {
+                error_response(403, "asset resolution is unavailable in Publish mode")
+            }
             ("POST", "/api/assets/resolve") => match read_json_body(&mut request) {
                 Err((status, message)) => error_response(status, &message),
                 Ok(value) => {
@@ -1969,6 +2036,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                     }
                 }
             },
+            ("POST", "/api/assets/release") if publish => {
+                error_response(403, "asset leases are unavailable in Publish mode")
+            }
             ("POST", "/api/assets/release") => match read_json_body(&mut request) {
                 Err((status, message)) => error_response(status, &message),
                 Ok(value) => {
@@ -1987,6 +2057,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
             ("POST", "/api/runtime/close") => {
                 json_response(&serde_json::json!({ "ok": true }).to_string())
             }
+            ("GET", "/api/snapshot") if publish => {
+                error_response(403, "database snapshots are unavailable in Publish mode")
+            }
             ("GET", "/api/snapshot") => match host.invoke("snapshot", &[]) {
                 Ok(base64) => match B64.decode(base64.trim_matches('"')) {
                     Ok(bytes) => tiny_http::Response::from_data(bytes).with_header(
@@ -1998,6 +2071,9 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                 },
                 Err(error) => error_response(500, &error.to_string()),
             },
+            ("POST", "/api/save") if publish => {
+                error_response(403, "saving is unavailable in Publish mode")
+            }
             ("POST", "/api/save") => {
                 // The embedded runtime writes straight to the file's SQLite
                 // connection, so every committed mutation is already durable.
@@ -2106,7 +2182,7 @@ mod tests {
 
     #[test]
     fn accepts_only_the_bound_loopback_host() {
-        let network = ServeNetwork::new(8420, false, None).unwrap();
+        let network = ServeNetwork::new(8420, false, None, false).unwrap();
         assert!(allowed_host("127.0.0.1:8420", &network));
         assert!(allowed_host("LOCALHOST:8420", &network));
         assert!(!allowed_host("127.0.0.1:8421", &network));
@@ -2116,7 +2192,7 @@ mod tests {
 
     #[test]
     fn accepts_only_http_loopback_origins() {
-        let network = ServeNetwork::new(8420, false, None).unwrap();
+        let network = ServeNetwork::new(8420, false, None, false).unwrap();
         assert!(allowed_origin("http://127.0.0.1:8420", &network));
         assert!(allowed_origin("http://localhost:5173", &network));
         assert!(!allowed_origin("https://127.0.0.1:8420", &network));
@@ -2127,14 +2203,28 @@ mod tests {
 
     #[test]
     fn lan_policy_accepts_only_its_exact_private_authority() {
-        let network =
-            ServeNetwork::new(8420, true, Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 20))))
-                .unwrap();
+        let network = ServeNetwork::new(
+            8420,
+            true,
+            Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 20))),
+            false,
+        )
+        .unwrap();
         assert!(allowed_host("192.168.1.20:8420", &network));
         assert!(allowed_origin("http://192.168.1.20:8420", &network));
         assert!(!allowed_host("localhost:8420", &network));
         assert!(!allowed_origin("http://192.168.1.21:8420", &network));
         assert!(network.browser_url().contains("/#access="));
+    }
+
+    #[test]
+    fn publish_profile_binds_the_container_interface_but_trusts_only_loopback_authority() {
+        let network = ServeNetwork::new(8420, false, None, true).unwrap();
+        assert_eq!(network.bind.ip(), IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+        assert_eq!(network.mode(), "publish-container");
+        assert!(allowed_host("127.0.0.1:8420", &network));
+        assert!(allowed_host("localhost:8420", &network));
+        assert!(!allowed_host("tenant.eidos.ink", &network));
     }
 
     #[test]
