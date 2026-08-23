@@ -337,11 +337,14 @@ then Field ID. A matching `fields` item supplies overrides. Otherwise:
 - label is the current Field display name;
 - description and placeholder are absent;
 - multiline is `false`; and
-- required is `true` for a non-null Field, otherwise `false`.
+- required is `true` for a non-null Field other than File or Multi-select,
+  otherwise `false`.
 
-`required:false` never weakens a non-null Field. Unknown, deleted, ineligible,
-or wrong-Table IDs are ignored while rendering and preserved until an explicit
-edit touches the corresponding collection.
+`required:false` never weakens another non-null Field. File and Multi-select
+remain configurable because their canonical empty value is `[]`, not SQL
+`NULL`, even though their schema metadata has `nullable=0`. Unknown, deleted,
+ineligible, or wrong-Table IDs are ignored while rendering and preserved until
+an explicit edit touches the corresponding collection.
 
 ### 9.3 Builder
 
@@ -577,7 +580,8 @@ Viewer and Editor tests additionally cover:
 4. Kanban grouping, empty groups, writable moves, and rejected read-only moves;
 5. Calendar date mapping, range composition, and eligible creation; and
 6. Form effective-question filtering, stable-ID rename behavior, non-null
-   required behavior, Text-only multiline, and read-only Preview.
+   scalar required behavior, array-backed optional behavior, Text-only
+   multiline, and read-only Preview.
 
 Editor tests cover pointer and keyboard ordering, Show all and Hide all for
 Form Fields, default Builder mode, a stable Builder/Preview switch, local

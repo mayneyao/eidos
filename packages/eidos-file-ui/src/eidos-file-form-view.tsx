@@ -56,6 +56,16 @@ type FormInputField = EidosFileFieldInfo & {
   type: EidosFileFormInputFieldType
 }
 
+function isEidosFileFormFieldRequiredBySchema(
+  field: Pick<EidosFileFieldInfo, "type" | "nullable">
+): boolean {
+  return (
+    field.nullable === false &&
+    field.type !== "file" &&
+    field.type !== "multi-select"
+  )
+}
+
 export function EidosFileFormModeToolbar({
   mode,
   disabled = false,
@@ -458,7 +468,7 @@ function QuestionOptionsPopover({
             <Switch
               aria-label={t("Require {field}", { field: field.name })}
               checked={config.required}
-              disabled={disabled || field.nullable === false}
+              disabled={disabled || isEidosFileFormFieldRequiredBySchema(field)}
               onCheckedChange={onRequiredChange}
             />
           </label>
@@ -820,7 +830,7 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
                   renderItem={(field, index) => {
                     const config = fieldProperties.get(field.id) ?? {
                       fieldId: field.id,
-                      required: field.nullable === false,
+                      required: isEidosFileFormFieldRequiredBySchema(field),
                     }
                     return (
                       <>

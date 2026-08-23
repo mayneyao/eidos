@@ -65,6 +65,16 @@ export function isEidosFileFormInputField(
   )
 }
 
+function isEidosFileFormFieldRequiredBySchema(
+  field: Pick<EidosFileFieldInfo, "type" | "nullable">
+): boolean {
+  return (
+    field.nullable === false &&
+    field.type !== "file" &&
+    field.type !== "multi-select"
+  )
+}
+
 export function eidosFileFormViewFields(
   table: EidosFileTableSnapshot,
   view: EidosFileViewInfo
@@ -133,7 +143,9 @@ export function eidosFileFormViewProperties(
         ...(field.type === "text" && item?.multiline === true
           ? { multiline: true }
           : {}),
-        required: item?.required === true || field.nullable === false,
+        required:
+          item?.required === true ||
+          isEidosFileFormFieldRequiredBySchema(field),
       }
     }),
   }

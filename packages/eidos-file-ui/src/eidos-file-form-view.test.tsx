@@ -511,6 +511,82 @@ describe("EidosFileFormView", () => {
     ).toBe(true)
   })
 
+  it("allows a non-null attachment question to be optional", async () => {
+    const source = createSource()
+    const attachmentField: EidosFileFieldInfo = {
+      ...nameField,
+      id: "screenshot",
+      name: "Screenshot",
+      type: "file",
+      tableColumnName: "Screenshot",
+      physicalName: "Screenshot",
+      nullable: false,
+      position: 2,
+      storageCodec: "json_array",
+    }
+    act(() => {
+      root.render(
+        <EidosFileFormView
+          source={source}
+          table={{ ...table, fields: [...table.fields, attachmentField] }}
+          view={{
+            ...view,
+            properties: {
+              ...view.properties,
+              fields: [
+                { fieldId: "name", required: true },
+                { fieldId: "email", required: false },
+                { fieldId: "screenshot", required: true },
+              ],
+            },
+          }}
+          query={{}}
+          search=""
+          disabled={false}
+          reloadToken={0}
+          commands={[]}
+          selection={{ rowIds: [] }}
+          state={{}}
+          capabilities={{
+            read: true,
+            mutate: true,
+            resolveAssets: true,
+            rawFile: false,
+            nativeFileSystem: false,
+          }}
+        />
+      )
+    })
+
+    const options = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Question options for Screenshot"]'
+    )
+    expect(options).not.toBeNull()
+    await act(async () => {
+      options!.click()
+      await Promise.resolve()
+    })
+    const required = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Require Screenshot"]'
+    )
+    expect(required).not.toBeNull()
+    expect(required?.disabled).toBe(false)
+    await act(async () => {
+      required!.click()
+      await Promise.resolve()
+    })
+    expect(source.updateView).toHaveBeenCalledWith("intake", {
+      properties: expect.objectContaining({
+        fields: expect.arrayContaining([
+          expect.objectContaining({
+            fieldId: "screenshot",
+            required: false,
+          }),
+        ]),
+      }),
+    })
+  })
+
   it("renders configured long text questions as multiline controls", () => {
     const source = createSource()
     act(() => {

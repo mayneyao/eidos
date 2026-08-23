@@ -293,10 +293,13 @@ Effective questions 是当前 eligible 且不在 `hiddenFields` 中的 Fields。
 - label 使用当前 Field display name；
 - description 与 placeholder 不存在；
 - multiline 为 `false`；
-- non-null Field 的 required 为 `true`，否则为 `false`。
+- 除 File 与 Multi-select 外，non-null Field 的 required 为 `true`；其他为
+  `false`。
 
-`required:false` 不能放宽 non-null Field。Unknown、deleted、ineligible 或 wrong-Table
-ID 在 rendering 时忽略，并保留到 explicit edit 触及对应 collection。
+`required:false` 不能放宽其他 non-null Field。File 与 Multi-select 仍可配置，因为它们
+的 canonical empty value 是 `[]` 而不是 SQL `NULL`，即使 schema metadata 中
+`nullable=0`。Unknown、deleted、ineligible 或 wrong-Table ID 在 rendering 时忽略，
+并保留到 explicit edit 触及对应 collection。
 
 ### 9.3 Builder
 
@@ -517,8 +520,8 @@ Viewer 与 Editor 测试还覆盖：
 3. eligible cover 与 lossless fallback；
 4. Kanban group、empty group、writable move 与 read-only move 拒绝；
 5. Calendar date mapping、range composition 与 eligible creation；
-6. Form effective-question filtering、stable-ID rename、non-null required、Text-only
-   multiline 与 read-only Preview。
+6. Form effective-question filtering、stable-ID rename、non-null scalar required、
+   array-backed optional、Text-only multiline 与 read-only Preview。
 
 Editor 测试覆盖 pointer/keyboard ordering、Form Fields 的 Show all/Hide all、默认
 Builder mode、稳定的 Builder/Preview switch、本地 Preview 校验不产生 row mutation/

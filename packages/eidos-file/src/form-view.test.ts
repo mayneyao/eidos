@@ -154,4 +154,34 @@ describe("Eidos File Form View", () => {
       ],
     })
   })
+
+  it("allows array-backed non-null fields to remain optional", () => {
+    const attachment = field("attachment", "file", {
+      nullable: false,
+      storageCodec: "json_array",
+    })
+    const tags = field("tags", "multi-select", {
+      nullable: false,
+      storageCodec: "json_array",
+    })
+    const name = field("name", "text", { nullable: false })
+    const properties = eidosFileFormViewProperties(
+      view({
+        properties: {
+          fields: [
+            { fieldId: "attachment", required: false },
+            { fieldId: "tags", required: false },
+            { fieldId: "name", required: false },
+          ],
+        },
+      }),
+      [attachment, tags, name]
+    )
+
+    expect(properties.fields).toEqual([
+      { fieldId: "attachment", required: false },
+      { fieldId: "tags", required: false },
+      { fieldId: "name", required: true },
+    ])
+  })
 })
