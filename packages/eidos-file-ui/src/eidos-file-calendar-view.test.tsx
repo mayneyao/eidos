@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   EidosFileFieldInfo,
+  EidosFileRow,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
@@ -15,6 +16,7 @@ import {
   eidosFileCalendarCreateValue,
   eidosFileCalendarDateFields,
   eidosFileCalendarRowDateKey,
+  type EidosFileCalendarPageRequest,
   type EidosFileCalendarRange,
 } from "./eidos-file-calendar-view"
 import { eidosFileCalendarRangeFilter } from "./plugins/calendar"
@@ -147,6 +149,44 @@ const view: EidosFileViewInfo = {
   updatedAt: "2026-08-01T00:00:00.000Z",
 }
 
+function localDayKey(date: Date): string {
+  return [
+    String(date.getFullYear()).padStart(4, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function calendarLoader(rows: EidosFileRow[]) {
+  return vi.fn(
+    async (
+      field: EidosFileFieldInfo,
+      range: EidosFileCalendarRange,
+      request: EidosFileCalendarPageRequest
+    ) => {
+      const key = localDayKey(range.start)
+      const matching = rows.filter(
+        (row) => eidosFileCalendarRowDateKey(row, field) === key
+      )
+      const offset = request.cursor
+        ? Number(request.cursor.replace("cursor:", ""))
+        : 0
+      const page = matching.slice(offset, offset + request.limit)
+      const nextOffset = offset + page.length
+      return {
+        rows: page,
+        total: matching.length,
+        nextCursor:
+          nextOffset < matching.length ? `cursor:${nextOffset}` : null,
+      }
+    }
+  )
+}
+
+async function settleCalendarLoad(): Promise<void> {
+  for (let index = 0; index < 64; index += 1) await Promise.resolve()
+}
+
 describe("EidosFileCalendarView", () => {
   let container: HTMLDivElement
   let root: Root
@@ -252,18 +292,15 @@ describe("EidosFileCalendarView", () => {
   })
 
   it("renders the current month and opens a dated record", async () => {
-    const loadRows = vi.fn(
-      async (_field: EidosFileFieldInfo, _range: EidosFileCalendarRange) => [
-        { _id: "one", title: "Ship calendar", due: "2026-08-21" },
-        { _id: "two", title: "Review spec", due: "2026-08-24" },
-      ]
-    )
+    const loadRows = calendarLoader([
+      { _id: "one", title: "Ship calendar", due: "2026-08-21" },
+      { _id: "two", title: "Review spec", due: "2026-08-24" },
+    ])
     await act(async () => {
       root.render(
         <EidosFileCalendarView table={table} view={view} loadRows={loadRows} />
       )
-      await Promise.resolve()
-      await Promise.resolve()
+      await settleCalendarLoad()
     })
 
     expect(container.textContent).toContain("August 2026")
@@ -281,16 +318,22 @@ describe("EidosFileCalendarView", () => {
         (button) => button.getAttribute("aria-label") ?? button.textContent
       )
     ).toEqual(["Previous month", "Today", "Next month"])
-    expect(loadRows).toHaveBeenCalledWith(
+    expect(loadRows).toHaveBeenCalledTimes(42)
+    expect(loadRows).toHaveBeenNthCalledWith(
+      1,
       fields[1],
       expect.objectContaining({
         start: expect.any(Date),
         end: expect.any(Date),
-      })
+      }),
+      { limit: 4 }
     )
     const loadedRange = loadRows.mock.calls[0]![1]
     expect(loadedRange.start).toEqual(new Date(2026, 6, 27))
-    expect(loadedRange.end).toEqual(new Date(2026, 8, 7))
+    expect(loadedRange.end).toEqual(new Date(2026, 6, 28))
+    const finalRange = loadRows.mock.calls.at(-1)![1]
+    expect(finalRange.start).toEqual(new Date(2026, 8, 6))
+    expect(finalRange.end).toEqual(new Date(2026, 8, 7))
 
     const record = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent === "Ship calendar"
@@ -301,18 +344,56 @@ describe("EidosFileCalendarView", () => {
     ).toBe("Ship calendar")
   })
 
+  it("keeps a busy month bounded and pages only the expanded day", async () => {
+    const busyRows = Array.from({ length: 8 }, (_, index) => ({
+      _id: `busy-${index}`,
+      title: `Busy event ${index}`,
+      due: "2026-08-21",
+    }))
+    const loadRows = calendarLoader(busyRows)
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={loadRows}
+          loadDayTotals={async () => new Map([["2026-08-21", 8]])}
+        />
+      )
+      await settleCalendarLoad()
+    })
+
+    expect(loadRows).toHaveBeenCalledTimes(1)
+    expect(loadRows.mock.calls[0]?.[2]).toEqual({ limit: 4, totalHint: 8 })
+    expect(container.textContent).toContain("Busy event 0")
+    expect(container.textContent).not.toContain("Busy event 4")
+    const showMore = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent === "5 more")
+    await act(async () => {
+      showMore?.click()
+      await settleCalendarLoad()
+    })
+
+    expect(loadRows).toHaveBeenCalledTimes(2)
+    expect(loadRows.mock.calls.at(-1)?.[2]).toEqual({
+      limit: 100,
+      cursor: "cursor:4",
+      totalHint: 8,
+    })
+    expect(container.textContent).toContain("Busy event 7")
+    expect(container.textContent).toContain("Show less")
+  })
+
   it("starts Calendar weeks on Sunday when the Host preference is off", async () => {
     contextMocks.weekStartsOnMonday = false
-    const loadRows = vi.fn(
-      async (_field: EidosFileFieldInfo, _range: EidosFileCalendarRange) => []
-    )
+    const loadRows = calendarLoader([])
 
     await act(async () => {
       root.render(
         <EidosFileCalendarView table={table} view={view} loadRows={loadRows} />
       )
-      await Promise.resolve()
-      await Promise.resolve()
+      await settleCalendarLoad()
     })
 
     const weekdayLabels = Array.from(
@@ -322,7 +403,7 @@ describe("EidosFileCalendarView", () => {
     expect(weekdayLabels[6]).toBe("Sat")
     const loadedRange = loadRows.mock.calls[0]![1]
     expect(loadedRange.start).toEqual(new Date(2026, 6, 26))
-    expect(loadedRange.end).toEqual(new Date(2026, 8, 6))
+    expect(loadedRange.end).toEqual(new Date(2026, 6, 27))
   })
 
   it("creates a record with the selected writable calendar day", async () => {
@@ -344,12 +425,11 @@ describe("EidosFileCalendarView", () => {
         <EidosFileCalendarView
           table={table}
           view={view}
-          loadRows={async () => []}
+          loadRows={calendarLoader([])}
           onAddRow={onAddRow}
         />
       )
-      await Promise.resolve()
-      await Promise.resolve()
+      await settleCalendarLoad()
     })
 
     const create = container.querySelector<HTMLButtonElement>(
@@ -380,12 +460,11 @@ describe("EidosFileCalendarView", () => {
         <EidosFileCalendarView
           table={table}
           view={view}
-          loadRows={async () => [row]}
+          loadRows={calendarLoader([row])}
           onDeleteRow={onDeleteRow}
         />
       )
-      await Promise.resolve()
-      await Promise.resolve()
+      await settleCalendarLoad()
     })
 
     await act(async () => {
@@ -437,12 +516,11 @@ describe("EidosFileCalendarView", () => {
         <EidosFileCalendarView
           table={createdTable}
           view={createdView}
-          loadRows={async () => []}
+          loadRows={calendarLoader([])}
           onAddRow={vi.fn()}
         />
       )
-      await Promise.resolve()
-      await Promise.resolve()
+      await settleCalendarLoad()
     })
 
     const createButtons = Array.from(

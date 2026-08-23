@@ -450,6 +450,7 @@ const zh: EidosFileUIMessageOverrides = {
   "No records in this view.": "此视图中没有记录。",
   "{view} records": "{view}记录",
   "Loading more records…": "正在加载更多记录…",
+  "Load more": "加载更多",
   "Could not load more records.": "无法加载更多记录。",
   "Could not refresh records.": "无法刷新记录。",
   "Unable to load records": "无法加载记录",

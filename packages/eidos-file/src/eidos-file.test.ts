@@ -805,6 +805,50 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
+  it("builds a disposable scalar index for Calendar date ranges", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Events",
+        fields: [
+          { name: "Title", type: "text" },
+          { name: "Due", type: "date" },
+        ],
+      },
+    })
+    try {
+      const table = runtime.schema()[0]!
+      const due = table.fields.find((field) => field.name === "Due")!
+      runtime.createView(table.table.id, {
+        name: "Calendar",
+        type: "calendar",
+        properties: { dateField: due.id },
+      })
+      const revision = runtime.info().revision
+      const indexName = `idx_eidos_calendar_${due.id.replace(/-/g, "")}`
+      const hasIndex = () =>
+        runtime.connection.get<{ name: string }>(
+          "SELECT name FROM sqlite_schema WHERE type = 'index' AND name = ?",
+          [indexName]
+        )?.name
+
+      expect(hasIndex()).toBe(indexName)
+      runtime.connection.exec(`DROP INDEX "${indexName}"`)
+      expect(hasIndex()).toBeUndefined()
+      runtime.optimizeViewQueries()
+      expect(hasIndex()).toBe(indexName)
+      expect(runtime.info().revision).toBe(revision)
+      const plan = runtime.connection.query<{ detail: string }>(
+        `EXPLAIN QUERY PLAN
+         SELECT * FROM "Events" WHERE "Due" >= ? AND "Due" < ?`,
+        ["2026-08-01", "2026-09-01"]
+      )
+      expect(plan.some((row) => row.detail.includes(indexName))).toBe(true)
+      expect(runtime.validate({ level: "full" }).valid).toBe(true)
+    } finally {
+      runtime.close()
+    }
+  })
+
   it("rewrites quoted Formula references atomically on Field rename", () => {
     const runtime = createEidosFile(filePath(), {
       defaultTable: {

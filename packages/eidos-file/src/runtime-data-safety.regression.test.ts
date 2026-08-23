@@ -109,7 +109,7 @@ async function createTable(
   fields: Array<{
     clientKey: string
     name: string
-    kind: "text" | "select" | "multi-select" | "url"
+    kind: "text" | "select" | "multi-select" | "url" | "date"
   }>
 ) {
   const applied = await applySchema(runtime, {
@@ -764,6 +764,84 @@ describe("Eidos Runtime P0 data safety regressions", () => {
       ).rejects.toMatchObject({ code: "invalid-request" })
     } finally {
       await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("groups large Calendar date ranges without materializing every matching row", async () => {
+    const { runtime, connection } = await createRuntime(
+      "Bounded Calendar groups",
+      { maxResultBytes: 16_384 }
+    )
+    try {
+      const table = await createTable(runtime, "events", "Events", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "day", name: "Day", kind: "date" },
+      ])
+      const titleId = table.fieldIds.title!
+      const dayId = table.fieldIds.day!
+      let revision = table.revision
+      for (let offset = 0; offset < 400; offset += 20) {
+        const inserted = await runtime.mutateRows(
+          {
+            tableId: table.tableId,
+            expectedRevision: revision,
+            changes: Array.from({ length: 20 }, (_, index) => {
+              const rowIndex = offset + index
+              const day = String((rowIndex % 4) + 1).padStart(2, "0")
+              return {
+                kind: "create" as const,
+                clientKey: String(rowIndex),
+                values: {
+                  [titleId]: `Event ${rowIndex} ${"x".repeat(256)}`,
+                  [dayId]: `2026-07-${day}`,
+                },
+              }
+            }),
+          },
+          context(`create-calendar-rows-${offset}`)
+        )
+        revision = inserted.revision
+      }
+
+      const page = await runtime.groupRows(
+        {
+          tableId: table.tableId,
+          query: {
+            filter: {
+              op: "and",
+              args: [
+                { op: "gte", fieldId: dayId, value: "2026-07-01" },
+                { op: "lt", fieldId: dayId, value: "2026-08-01" },
+              ],
+            },
+            sort: [{ fieldId: dayId, direction: "asc" }],
+          },
+          groupBy: [dayId],
+          aggregates: [],
+          projection: {
+            fields: [titleId, dayId],
+            resolveRelations: [],
+          },
+          groupLimit: 42,
+          rowsPerGroup: 4,
+        },
+        context("bounded-calendar-groups")
+      )
+
+      expect(page.groups).toHaveLength(4)
+      expect(page.groups.map((group) => group.count)).toEqual([
+        "100",
+        "100",
+        "100",
+        "100",
+      ])
+      expect(page.groups.every((group) => group.rows.length === 4)).toBe(true)
+      expect(page.groups.every((group) => group.nextRowCursor !== null)).toBe(
+        true
+      )
+    } finally {
+      await runtime.close(context("close-calendar-groups"))
       connection.close()
     }
   })

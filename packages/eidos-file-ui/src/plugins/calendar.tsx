@@ -15,6 +15,7 @@ import {
   eidosFileCalendarCreateValue,
   eidosFileCalendarDateFields,
   eidosFileCalendarFieldType,
+  type EidosFileCalendarPageRequest,
   type EidosFileCalendarRange,
 } from "../eidos-file-calendar-view"
 import type { EidosFileViewRendererProps } from "../eidos-file-editor-view"
@@ -22,8 +23,6 @@ import { eidosFileFieldKey } from "../eidos-file-field-visibility"
 import { EidosFileRendererFieldPropertyPanel } from "../eidos-file-renderer-field-property-panel"
 import { searchEidosFileRelationRecords } from "../eidos-file-relation-search"
 import { defineEidosFilePlugin } from "../plugin"
-
-const CALENDAR_PAGE_SIZE = 100
 
 function localDateValue(date: Date): string {
   return [
@@ -89,7 +88,11 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
   } = props
   const labelField = table.fields.find((field) => field.isRecordLabel)
   const loadRows = useCallback(
-    async (field: EidosFileFieldInfo, range: EidosFileCalendarRange) => {
+    async (
+      field: EidosFileFieldInfo,
+      range: EidosFileCalendarRange,
+      request: EidosFileCalendarPageRequest
+    ) => {
       const scopedQuery: EidosFileRowQuery = {
         ...query,
         filter: eidosFileCalendarRangeFilter(
@@ -106,29 +109,55 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         ],
         includeRecordLabel: true,
       }
-      const rows: EidosFileRow[] = []
-      let offset = 0
-      let cursor: string | undefined
-      let totalHint: number | undefined
-      while (totalHint === undefined || rows.length < totalHint) {
-        const page = await source.getPage(
-          table.table.id,
-          offset,
-          CALENDAR_PAGE_SIZE,
-          scopedQuery,
-          totalHint,
-          cursor,
-          projection
-        )
-        rows.push(...page.rows)
-        totalHint = page.total
-        if (page.rows.length === 0 || rows.length >= page.total) break
-        offset += page.rows.length
-        cursor = page.nextCursor
+      const page = await source.getPage(
+        table.table.id,
+        0,
+        request.limit,
+        scopedQuery,
+        request.totalHint,
+        request.cursor,
+        projection
+      )
+      return {
+        rows: page.rows,
+        total: page.total,
+        nextCursor: page.nextCursor ?? null,
       }
-      return rows
     },
     [labelField, query, source, table.table.id, timeZone]
+  )
+  const loadDayTotals = useCallback(
+    async (field: EidosFileFieldInfo, range: EidosFileCalendarRange) => {
+      if (
+        eidosFileCalendarFieldType(field) !== "date" ||
+        field.valueKind !== "source" ||
+        field.isDerived ||
+        !source.getGroupCounts
+      ) {
+        return null
+      }
+      const groups = await source.getGroupCounts(
+        table.table.id,
+        eidosFileFieldKey(field),
+        {
+          ...query,
+          filter: eidosFileCalendarRangeFilter(
+            query.filter,
+            field,
+            range,
+            timeZone
+          ),
+        }
+      )
+      return new Map(
+        groups.flatMap((group) =>
+          typeof group.value === "string"
+            ? [[group.value, group.total] as const]
+            : []
+        )
+      )
+    },
+    [query, source, table.table.id, timeZone]
   )
   const editCell = useCallback(
     async (
@@ -176,6 +205,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       loadRows={loadRows}
+      loadDayTotals={loadDayTotals}
       loadRow={loadRow}
       onCellEdit={editCell}
       onAddRow={addRow}

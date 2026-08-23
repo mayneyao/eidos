@@ -57,6 +57,27 @@ export interface EidosFileCalendarRange {
   end: Date
 }
 
+export interface EidosFileCalendarPage {
+  rows: EidosFileRow[]
+  total: number
+  nextCursor: string | null
+}
+
+export interface EidosFileCalendarPageRequest {
+  limit: number
+  cursor?: string
+  totalHint?: number
+}
+
+interface EidosFileCalendarDayPage extends EidosFileCalendarPage {
+  loadingMore: boolean
+  loadMoreError: string | null
+}
+
+const CALENDAR_INITIAL_DAY_LIMIT = 4
+const CALENDAR_EXPANDED_DAY_LIMIT = 100
+const CALENDAR_LOAD_CONCURRENCY = 3
+
 export type EidosFileCalendarFieldType = "date" | "datetime"
 export type EidosFileCalendarCreateMode = "all-days" | "today" | "none"
 
@@ -177,12 +198,22 @@ function rangeDays(range: EidosFileCalendarRange): Date[] {
   return days
 }
 
+function calendarPagesTotal(
+  pages: ReadonlyMap<string, EidosFileCalendarDayPage>
+): number {
+  return Array.from(pages.values()).reduce(
+    (total, page) => total + page.total,
+    0
+  )
+}
+
 export function EidosFileCalendarView({
   table,
   view,
   disabled = false,
   reloadToken = 0,
   loadRows,
+  loadDayTotals,
   loadRow,
   onCellEdit,
   onAddRow,
@@ -200,8 +231,13 @@ export function EidosFileCalendarView({
   reloadToken?: number
   loadRows: (
     field: EidosFileFieldInfo,
+    range: EidosFileCalendarRange,
+    request: EidosFileCalendarPageRequest
+  ) => Promise<EidosFileCalendarPage>
+  loadDayTotals?: (
+    field: EidosFileFieldInfo,
     range: EidosFileCalendarRange
-  ) => Promise<EidosFileRow[]>
+  ) => Promise<Map<string, number> | null>
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>
   onCellEdit?: (
     row: EidosFileRow,
@@ -240,7 +276,9 @@ export function EidosFileCalendarView({
   const [month, setMonth] = useState(() =>
     startOfMonth(eidosFileWallDate(new Date(), timeZone))
   )
-  const [rows, setRows] = useState<EidosFileRow[]>([])
+  const [dayPages, setDayPages] = useState<
+    Map<string, EidosFileCalendarDayPage>
+  >(() => new Map())
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [expandedDay, setExpandedDay] = useState<string | null>(null)
@@ -272,12 +310,72 @@ export function EidosFileCalendarView({
     requestGenerationRef.current = generation
     setLoading(true)
     setLoadError(null)
+    setDayPages(new Map())
     onRowCountChange?.(null)
     try {
-      const nextRows = await loadRows(dateField, range)
+      const loaded = new Map<string, EidosFileCalendarDayPage>()
+      const totals = loadDayTotals
+        ? await loadDayTotals(dateField, range)
+        : null
       if (generation !== requestGenerationRef.current) return
-      setRows(nextRows)
-      onRowCountChange?.(nextRows.length)
+      const daysToLoad = totals
+        ? days.filter((day) => (totals.get(localDateKey(day)) ?? 0) > 0)
+        : days
+      if (totals) {
+        for (const day of days) {
+          const total = totals.get(localDateKey(day)) ?? 0
+          if (total === 0) {
+            loaded.set(localDateKey(day), {
+              rows: [],
+              total: 0,
+              nextCursor: null,
+              loadingMore: false,
+              loadMoreError: null,
+            })
+          }
+        }
+        setDayPages(new Map(loaded))
+      }
+      for (
+        let index = 0;
+        index < daysToLoad.length;
+        index += CALENDAR_LOAD_CONCURRENCY
+      ) {
+        const chunk = daysToLoad.slice(index, index + CALENDAR_LOAD_CONCURRENCY)
+        const pages = await Promise.all(
+          chunk.map(async (day) => {
+            const start = new Date(day)
+            const end = new Date(day)
+            end.setDate(end.getDate() + 1)
+            const totalHint = totals?.get(localDateKey(day))
+            const page = await loadRows(
+              dateField,
+              { start, end },
+              {
+                limit: CALENDAR_INITIAL_DAY_LIMIT,
+                ...(totalHint === undefined ? {} : { totalHint }),
+              }
+            )
+            return [
+              localDateKey(day),
+              {
+                ...page,
+                loadingMore: false,
+                loadMoreError: null,
+              },
+            ] as const
+          })
+        )
+        if (generation !== requestGenerationRef.current) return
+        for (const [key, page] of pages) loaded.set(key, page)
+        setDayPages(new Map(loaded))
+      }
+      onRowCountChange?.(
+        Array.from(loaded.values()).reduce(
+          (total, page) => total + page.total,
+          0
+        )
+      )
     } catch (error) {
       if (generation !== requestGenerationRef.current) return
       setLoadError(
@@ -289,7 +387,7 @@ export function EidosFileCalendarView({
     } finally {
       if (generation === requestGenerationRef.current) setLoading(false)
     }
-  }, [dateField, loadRows, onRowCountChange, range])
+  }, [dateField, days, loadDayTotals, loadRows, onRowCountChange, range])
 
   useEffect(() => {
     closeInspectorRow()
@@ -299,7 +397,7 @@ export function EidosFileCalendarView({
   useEffect(() => {
     if (!dateField) {
       requestGenerationRef.current += 1
-      setRows([])
+      setDayPages(new Map())
       onRowCountChange?.(0)
       return
     }
@@ -309,18 +407,108 @@ export function EidosFileCalendarView({
     }
   }, [dateField, onRowCountChange, reloadToken, requestRows])
 
-  const rowsByDay = useMemo(() => {
-    if (!dateField) return new Map<string, EidosFileRow[]>()
-    const result = new Map<string, EidosFileRow[]>()
-    for (const row of rows) {
-      const key = eidosFileCalendarRowDateKey(row, dateField, timeZone)
-      if (!key) continue
-      const current = result.get(key)
-      if (current) current.push(row)
-      else result.set(key, [row])
+  const upsertLoadedRow = (row: EidosFileRow) => {
+    if (!dateField) return
+    const rowId = String(row._id)
+    const targetKey = eidosFileCalendarRowDateKey(row, dateField, timeZone)
+    setDayPages((current) => {
+      const next = new Map(current)
+      for (const [key, page] of next) {
+        const rows = page.rows.filter(
+          (candidate) => String(candidate._id) !== rowId
+        )
+        if (rows.length === page.rows.length) continue
+        next.set(key, {
+          ...page,
+          rows,
+          total: Math.max(0, page.total - 1),
+        })
+      }
+      const target = targetKey ? next.get(targetKey) : undefined
+      if (targetKey && target) {
+        next.set(targetKey, {
+          ...target,
+          rows: [...target.rows, row],
+          total: target.total + 1,
+        })
+      } else if (
+        targetKey &&
+        days.some((day) => localDateKey(day) === targetKey)
+      ) {
+        next.set(targetKey, {
+          rows: [row],
+          total: 1,
+          nextCursor: null,
+          loadingMore: false,
+          loadMoreError: null,
+        })
+      }
+      onRowCountChange?.(calendarPagesTotal(next))
+      return next
+    })
+  }
+
+  const loadMoreDay = async (day: Date, dayKey: string) => {
+    if (!dateField) return
+    const currentPage = dayPages.get(dayKey)
+    if (!currentPage?.nextCursor || currentPage.loadingMore) return
+    const generation = requestGenerationRef.current
+    setDayPages((current) => {
+      const page = current.get(dayKey)
+      if (!page) return current
+      const next = new Map(current)
+      next.set(dayKey, { ...page, loadingMore: true, loadMoreError: null })
+      return next
+    })
+    const start = new Date(day)
+    const end = new Date(day)
+    end.setDate(end.getDate() + 1)
+    try {
+      const page = await loadRows(
+        dateField,
+        { start, end },
+        {
+          limit: CALENDAR_EXPANDED_DAY_LIMIT,
+          cursor: currentPage.nextCursor,
+          totalHint: currentPage.total,
+        }
+      )
+      if (generation !== requestGenerationRef.current) return
+      setDayPages((current) => {
+        const existing = current.get(dayKey)
+        if (!existing) return current
+        const ids = new Set(existing.rows.map((row) => String(row._id)))
+        const rows = [
+          ...existing.rows,
+          ...page.rows.filter((row) => !ids.has(String(row._id))),
+        ]
+        const next = new Map(current)
+        next.set(dayKey, {
+          ...page,
+          rows,
+          loadingMore: false,
+          loadMoreError: null,
+        })
+        return next
+      })
+    } catch (error) {
+      if (generation !== requestGenerationRef.current) return
+      setDayPages((current) => {
+        const existing = current.get(dayKey)
+        if (!existing) return current
+        const next = new Map(current)
+        next.set(dayKey, {
+          ...existing,
+          loadingMore: false,
+          loadMoreError: eidosFileErrorMessage(
+            error,
+            "The Eidos File service did not return an error message"
+          ),
+        })
+        return next
+      })
     }
-    return result
-  }, [dateField, rows, timeZone])
+  }
 
   const editRecord = async (
     row: EidosFileRow,
@@ -330,13 +518,7 @@ export function EidosFileCalendarView({
     if (disabled) throw new Error("Record editing is temporarily unavailable")
     if (!onCellEdit) throw new Error("Record editing is unavailable")
     const result = await onCellEdit(row, field, value)
-    setRows((current) =>
-      current.map((candidate) =>
-        String(candidate._id) === String(result.row._id)
-          ? result.row
-          : candidate
-      )
-    )
+    upsertLoadedRow(result.row)
     replaceInspectorRow(result.row)
     return result
   }
@@ -350,15 +532,7 @@ export function EidosFileCalendarView({
       if (
         eidosFileCalendarRowDateKey(result.row, dateField, timeZone) === dayKey
       ) {
-        setRows((current) => {
-          const next = current.some(
-            (candidate) => String(candidate._id) === String(result.row._id)
-          )
-            ? current
-            : [...current, result.row]
-          onRowCountChange?.(next.length)
-          return next
-        })
+        upsertLoadedRow(result.row)
       }
       openInspectorRow(result.row)
     } catch (error) {
@@ -380,11 +554,20 @@ export function EidosFileCalendarView({
     if (disabled || !onDeleteRow) return
     await onDeleteRow(row)
     const rowId = String(row._id)
-    setRows((current) => {
-      const next = current.filter(
-        (candidate) => String(candidate._id) !== rowId
-      )
-      onRowCountChange?.(next.length)
+    setDayPages((current) => {
+      const next = new Map(current)
+      for (const [key, page] of next) {
+        const rows = page.rows.filter(
+          (candidate) => String(candidate._id) !== rowId
+        )
+        if (rows.length === page.rows.length) continue
+        next.set(key, {
+          ...page,
+          rows,
+          total: Math.max(0, page.total - 1),
+        })
+      }
+      onRowCountChange?.(calendarPagesTotal(next))
       return next
     })
     if (inspectedRow && String(inspectedRow._id) === rowId) closeInspectorRow()
@@ -487,7 +670,7 @@ export function EidosFileCalendarView({
               </div>
             ))}
           </div>
-          {loading && rows.length === 0 ? (
+          {loading && dayPages.size === 0 ? (
             <div
               className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground"
               role="status"
@@ -522,7 +705,8 @@ export function EidosFileCalendarView({
             >
               {days.map((day) => {
                 const key = localDateKey(day)
-                const dayRows = rowsByDay.get(key) ?? []
+                const dayPage = dayPages.get(key)
+                const dayRows = dayPage?.rows ?? []
                 const expanded = expandedDay === key
                 const visibleRows = expanded ? dayRows : dayRows.slice(0, 3)
                 const currentMonth = day.getMonth() === month.getMonth()
@@ -621,17 +805,37 @@ export function EidosFileCalendarView({
                           </ContextMenu>
                         )
                       })}
-                      {dayRows.length > 3 ? (
+                      {(dayPage?.total ?? 0) > 3 ? (
                         <button
                           type="button"
                           className="w-fit rounded px-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                          onClick={() => setExpandedDay(expanded ? null : key)}
+                          disabled={dayPage?.loadingMore}
+                          title={dayPage?.loadMoreError ?? undefined}
+                          onClick={() => {
+                            if (!expanded) {
+                              setExpandedDay(key)
+                              if (dayPage?.nextCursor) {
+                                void loadMoreDay(day, key)
+                              }
+                              return
+                            }
+                            if (dayPage?.nextCursor) {
+                              void loadMoreDay(day, key)
+                              return
+                            }
+                            setExpandedDay(null)
+                          }}
                         >
-                          {expanded
-                            ? t("Show less")
-                            : t("{count} more", {
-                                count: dayRows.length - visibleRows.length,
-                              })}
+                          {dayPage?.loadingMore
+                            ? t("Loading more records…")
+                            : expanded && dayPage?.nextCursor
+                              ? t("Load more")
+                              : expanded
+                                ? t("Show less")
+                                : t("{count} more", {
+                                    count:
+                                      (dayPage?.total ?? dayRows.length) - 3,
+                                  })}
                         </button>
                       ) : null}
                     </div>

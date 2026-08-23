@@ -279,6 +279,9 @@ function createRuntimeBinding(
     nowInstant: () => checkedNowInstant(environment),
     allocateId: () => generator.next(),
   })
+  if (mode === "readwrite") {
+    connection.transaction("write", () => core.optimizeViewQueries())
+  }
   const service = new EidosRuntimeService(
     connection,
     core,
@@ -2348,6 +2351,18 @@ export class EidosRuntimeService implements RuntimeClient {
       return type
     })
     assertAggregateItems(request.aggregates, fieldsById)
+    const directDateGroup =
+      request.groupBy.length === 1
+        ? fieldsById.get(request.groupBy[0]!)
+        : undefined
+    if (
+      directDateGroup?.physicalName &&
+      !directDateGroup.isDerived &&
+      groupTypes[0] === "date" &&
+      request.aggregates.length === 0
+    ) {
+      return this.groupStoredDateRows(request)
+    }
     const required = Array.from(
       new Set([
         ...request.projection.fields,
@@ -2517,6 +2532,151 @@ export class EidosRuntimeService implements RuntimeClient {
         }
       }),
       nextCursor: end < ordered.length ? cursorForGroup(selected.at(-1)) : null,
+      previousCursor: start > 0 ? cursorForGroup(selected[0]) : null,
+    }
+  }
+
+  private async groupStoredDateRows(request: GroupRequest): Promise<GroupPage> {
+    const groupBy = request.groupBy[0]!
+    const counts = this.core
+      .countRowsByField(
+        request.tableId,
+        groupBy,
+        this.compatibilityQuery(request.tableId, request.query)
+      )
+      .map((entry) => {
+        const key: LogicalValue[] = [
+          entry.value === null
+            ? null
+            : publicAggregateValue(entry.value, "date"),
+        ]
+        return {
+          identity: groupIdentity([entry.value], ["date"]),
+          key,
+          total: entry.total,
+        }
+      })
+      .sort((left, right) => compareGroupKeys(left.key, right.key, ["date"]))
+    const metadata = this.core.info()
+    const projectionDigest = await projectionHash(request.projection)
+    const bindingDigest = await groupBindingHash(request)
+    const direction = request.direction ?? "forward"
+    let boundary = direction === "forward" ? -1 : counts.length
+    if (request.cursor !== undefined) {
+      const cursor = this.decodeCursor(request.cursor, "groups")
+      if (
+        cursor.fileId !== metadata.fileId ||
+        cursor.tableId !== request.tableId ||
+        cursor.bindingHash !== bindingDigest ||
+        cursor.projectionHash !== projectionDigest ||
+        typeof cursor.groupIdentity !== "string"
+      ) {
+        throw runtimeError("invalid-query", "Group cursor binding mismatch")
+      }
+      if (cursor.revision !== String(metadata.revision)) {
+        throw runtimeError("stale-revision", "Group cursor revision is stale", {
+          currentRevision: String(metadata.revision),
+        })
+      }
+      boundary = counts.findIndex(
+        (entry) => entry.identity === cursor.groupIdentity
+      )
+      if (boundary < 0) {
+        throw runtimeError("invalid-query", "Group cursor boundary is invalid")
+      }
+    }
+    const start =
+      direction === "forward"
+        ? boundary + 1
+        : Math.max(0, boundary - request.groupLimit)
+    const end =
+      direction === "forward"
+        ? Math.min(counts.length, start + request.groupLimit)
+        : boundary
+    const selected = counts.slice(start, end)
+    const columns = this.columns(request.tableId, request.projection)
+    const cursorForGroup = (group: (typeof counts)[number] | undefined) =>
+      group
+        ? this.encodeCursor("groups", {
+            fileId: metadata.fileId,
+            tableId: request.tableId,
+            revision: String(metadata.revision),
+            projectionHash: projectionDigest,
+            bindingHash: bindingDigest,
+            groupIdentity: group.identity,
+          })
+        : null
+    const groups = selected.map((group) => {
+      const groupedQuery = queryForGroup(
+        request.query,
+        request.groupBy,
+        group.key
+      )
+      const compatibilityQuery = this.compatibilityQuery(
+        request.tableId,
+        groupedQuery
+      )
+      const requestedFields = Array.from(
+        new Set([
+          ...request.projection.fields,
+          ...(groupedQuery.sort ?? []).map((sort) => sort.fieldId),
+        ])
+      )
+      const result = this.core.queryRows(request.tableId, {
+        fields: requestedFields,
+        query: compatibilityQuery,
+        limit: request.rowsPerGroup + 1,
+        resolveRelations: request.projection.resolveRelations.length > 0,
+      })
+      const visible = result.rows.slice(0, request.rowsPerGroup)
+      const backwardGroupedQuery = reverseRuntimeQuery(
+        groupedQuery,
+        this.core.listFields(request.tableId)
+      )
+      const rowCursor = (row: EidosFileLogicalRow) =>
+        this.encodeCursor("group-rows", {
+          fileId: metadata.fileId,
+          tableId: request.tableId,
+          revision: String(metadata.revision),
+          projectionHash: projectionDigest,
+          bindingHash: bindingDigest,
+          request: groupCursorSource(request),
+          groupKey: group.key,
+          forward: this.core.createRowCursor(
+            request.tableId,
+            compatibilityQuery,
+            row
+          ),
+          backward: this.core.createRowCursor(
+            request.tableId,
+            this.compatibilityQuery(request.tableId, backwardGroupedQuery),
+            row
+          ),
+        })
+      return {
+        key: group.key,
+        count: String(group.total),
+        aggregates: [],
+        rows: this.projectRows(
+          request.tableId,
+          request.projection,
+          visible,
+          columns
+        ),
+        nextRowCursor:
+          result.rows.length > request.rowsPerGroup && visible.length > 0
+            ? rowCursor(visible.at(-1)!)
+            : null,
+      }
+    })
+    return {
+      fileId: metadata.fileId,
+      tableId: request.tableId,
+      revision: String(metadata.revision),
+      projectionHash: projectionDigest,
+      columns,
+      groups,
+      nextCursor: end < counts.length ? cursorForGroup(selected.at(-1)) : null,
       previousCursor: start > 0 ? cursorForGroup(selected[0]) : null,
     }
   }

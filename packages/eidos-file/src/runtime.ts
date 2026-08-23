@@ -2870,7 +2870,9 @@ export class EidosFileRuntime {
           now,
         ]
       )
-      return this.mapView(this.viewRow(id))
+      const view = this.mapView(this.viewRow(id))
+      this.optimizeViewQueries()
+      return view
     })
   }
 
@@ -2982,7 +2984,9 @@ export class EidosFileRuntime {
           viewId,
         ]
       )
-      return this.mapView(this.viewRow(viewId))
+      const view = this.mapView(this.viewRow(viewId))
+      this.optimizeViewQueries()
+      return view
     })
   }
 
@@ -5090,8 +5094,39 @@ export class EidosFileRuntime {
   }
 
   optimizeViewQueries(): void {
-    // Optional indexes are generated state. The 1.0 Runtime currently relies
-    // on SQLite query planning and never persists a second multivalue source.
+    const indexedFields = new Set<string>()
+    for (const table of this.listTables()) {
+      const fields = this.listFields(table.id)
+      for (const view of this.listViews(table.id)) {
+        if (view.type !== "calendar") continue
+        const dateField = view.properties?.dateField
+        if (typeof dateField !== "string") continue
+        const field = fields.find(
+          (candidate) =>
+            candidate.id === dateField ||
+            candidate.tableColumnName === dateField
+        )
+        if (
+          !field?.id ||
+          !field.physicalName ||
+          field.isDerived ||
+          field.storageCodec !== "scalar" ||
+          !["date", "datetime", "created-time", "last-edited-time"].includes(
+            field.type
+          ) ||
+          indexedFields.has(field.id)
+        ) {
+          continue
+        }
+        indexedFields.add(field.id)
+        const indexName = `idx_eidos_calendar_${field.id.replace(/-/g, "")}`
+        this.connection.exec(
+          `CREATE INDEX IF NOT EXISTS ${quoteIdentifier(indexName)}
+             ON ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                (${quoteIdentifier(field.physicalName)} COLLATE BINARY)`
+        )
+      }
+    }
   }
 
   schema(tableId?: string) {
