@@ -60,11 +60,18 @@ export interface VersionChangeTreeModel {
   targetByTreePath: Map<string, VersionTreeTarget>
 }
 
-export interface VersionChangeDiscardTarget {
-  kind: "file" | "folder"
-  path: string
-  fileCount: number | null
-}
+export const VERSION_CHANGES_ROOT_PATH = "Changes/"
+
+export type VersionChangeDiscardTarget =
+  | {
+      kind: "all"
+      fileCount: number | null
+    }
+  | {
+      kind: "file" | "folder"
+      path: string
+      fileCount: number | null
+    }
 
 export function versionChangeTreeStructureKey(
   paths: readonly string[]
@@ -145,7 +152,7 @@ export function buildVersionChangeTreeModel(
   diff: SpaceVersionDiff
 ): VersionChangeTreeModel {
   const paths: string[] = []
-  const initialExpandedPaths = new Set<string>()
+  const initialExpandedPaths = new Set<string>([VERSION_CHANGES_ROOT_PATH])
   const gitStatus: GitStatusEntry[] = []
   const decorationByPath = new Map<string, string>()
   const targetByTreePath = new Map<string, VersionTreeTarget>()
@@ -158,10 +165,21 @@ export function buildVersionChangeTreeModel(
     if (!changeByPath.has(file.path)) changeByPath.set(file.path, file)
   }
 
+  decorationByPath.set(
+    VERSION_CHANGES_ROOT_PATH,
+    String(
+      diff.totalPaths ??
+        (diff.hasMore ? `${diff.paths.length}+` : diff.paths.length)
+    )
+  )
+
   for (const change of changeByPath.values()) {
     const file = fileByPath.get(change.path) ?? null
     const eidos = isEidosPath(change.path)
-    const treePath = eidos ? `${change.path.replace(/\/$/, "")}/` : change.path
+    const relativeTreePath = eidos
+      ? `${change.path.replace(/\/$/, "")}/`
+      : change.path
+    const treePath = `${VERSION_CHANGES_ROOT_PATH}${relativeTreePath}`
     paths.push(treePath)
     gitStatus.push({ path: treePath, status: treeGitStatus(change.change) })
     targetByTreePath.set(treePath, {
@@ -172,7 +190,9 @@ export function buildVersionChangeTreeModel(
     })
 
     const parent = topLevelParent(change.path)
-    if (parent) initialExpandedPaths.add(parent)
+    if (parent) {
+      initialExpandedPaths.add(`${VERSION_CHANGES_ROOT_PATH}${parent}`)
+    }
 
     if (!eidos || !file) continue
     if (file.tables.length) {
@@ -238,14 +258,22 @@ export function versionChangeDiscardTarget(
   diff: SpaceVersionDiff,
   treePath: string
 ): VersionChangeDiscardTarget | null {
+  if (treePath === VERSION_CHANGES_ROOT_PATH) {
+    return versionChangeDiscardAllTarget(diff)
+  }
   const tree = buildVersionChangeTreeModel(diff)
   const target = tree.targetByTreePath.get(treePath)
   if (target) {
     if (target.table) return null
     return { kind: "file", path: target.change.path, fileCount: 1 }
   }
-  if (!treePath.endsWith("/")) return null
-  const folderPath = treePath.slice(0, -1)
+  if (
+    !treePath.startsWith(VERSION_CHANGES_ROOT_PATH) ||
+    !treePath.endsWith("/")
+  ) {
+    return null
+  }
+  const folderPath = treePath.slice(VERSION_CHANGES_ROOT_PATH.length, -1)
   const matches = diff.paths.filter(
     (change) =>
       change.path.startsWith(`${folderPath}/`) ||
@@ -256,6 +284,15 @@ export function versionChangeDiscardTarget(
     kind: "folder",
     path: folderPath,
     fileCount: diff.hasMore ? null : matches.length,
+  }
+}
+
+export function versionChangeDiscardAllTarget(
+  diff: SpaceVersionDiff
+): VersionChangeDiscardTarget {
+  return {
+    kind: "all",
+    fileCount: diff.totalPaths ?? (diff.hasMore ? null : diff.paths.length),
   }
 }
 
@@ -330,6 +367,7 @@ export function VersionChangeTree({
   commit = null,
   onSelect,
   onRequestDiscard,
+  discardDisabled = false,
 }: {
   diff: SpaceVersionDiff
   selectedKey: string | null
@@ -337,6 +375,7 @@ export function VersionChangeTree({
   commit?: SpaceVersionCommit | null
   onSelect(inspection: VersionInspection): void
   onRequestDiscard?(target: VersionChangeDiscardTarget): void
+  discardDisabled?: boolean
 }) {
   const tree = useMemo(() => buildVersionChangeTreeModel(diff), [diff])
   const treeRef = useRef(tree)
@@ -349,6 +388,8 @@ export function VersionChangeTree({
   diffRef.current = diff
   const onRequestDiscardRef = useRef(onRequestDiscard)
   onRequestDiscardRef.current = onRequestDiscard
+  const discardDisabledRef = useRef(discardDisabled)
+  discardDisabledRef.current = discardDisabled
   const treeSignature = versionChangeTreeStructureKey(tree.paths)
   const gitStatusSignature = tree.gitStatus
     .map(({ path, status }) => `${path}\u0000${status}`)
@@ -375,11 +416,15 @@ export function VersionChangeTree({
     stickyFolders: false,
     composition: {
       contextMenu: {
-        enabled: mode === "changes" && onRequestDiscard !== undefined,
+        enabled:
+          mode === "changes" &&
+          onRequestDiscard !== undefined &&
+          !discardDisabled,
         triggerMode: "button",
         buttonVisibility: "when-needed",
         onOpen: (item, context) => {
           context.close({ restoreFocus: false })
+          if (discardDisabledRef.current) return
           const target = versionChangeDiscardTarget(diffRef.current, item.path)
           if (target) onRequestDiscardRef.current?.(target)
         },
@@ -456,26 +501,22 @@ export function VersionChangeTree({
   } as CSSProperties
 
   return (
-    <div style={{ height: "100%", minHeight: 0 }}>
-      <FileTree
-        model={model}
-        aria-label={
-          mode === "changes" ? "Changed Space files" : "Version files"
-        }
-        className="version-change-tree"
-        data-version-change-tree="true"
-        data-selected-key={selectedKey ?? undefined}
-        data-active-selected={
-          selectedKey && selectedPaths.includes(selectedKey) ? "true" : "false"
-        }
-        style={styles}
-        onClick={(event) => inspectTreePath(eventTreePath(event))}
-        onKeyDown={(event) => {
-          const treePath = eventTreePath(event) ?? model.getFocusedPath()
-          if (event.key !== "Enter" && event.key !== " ") return
-          inspectTreePath(treePath)
-        }}
-      />
-    </div>
+    <FileTree
+      model={model}
+      aria-label={mode === "changes" ? "Changed Space files" : "Version files"}
+      className="version-change-tree"
+      data-version-change-tree="true"
+      data-selected-key={selectedKey ?? undefined}
+      data-active-selected={
+        selectedKey && selectedPaths.includes(selectedKey) ? "true" : "false"
+      }
+      style={styles}
+      onClick={(event) => inspectTreePath(eventTreePath(event))}
+      onKeyDown={(event) => {
+        const treePath = eventTreePath(event) ?? model.getFocusedPath()
+        if (event.key !== "Enter" && event.key !== " ") return
+        inspectTreePath(treePath)
+      }}
+    />
   )
 }

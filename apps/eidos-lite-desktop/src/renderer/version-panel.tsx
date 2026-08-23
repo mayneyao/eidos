@@ -344,24 +344,32 @@ function fileParent(path: string): string {
 function DiscardWorkingChangesDialog({
   target,
   busy,
+  error,
   onCancel,
   onConfirm,
 }: {
   target: VersionChangeDiscardTarget
   busy: boolean
+  error: string | null
   onCancel(): void
   onConfirm(): void
 }) {
   const title =
-    target.kind === "folder"
-      ? `Discard changes in ${fileName(target.path)}?`
-      : `Discard changes to ${fileName(target.path)}?`
+    target.kind === "all"
+      ? "Discard all changes?"
+      : target.kind === "folder"
+        ? `Discard changes in ${fileName(target.path)}?`
+        : `Discard changes to ${fileName(target.path)}?`
   const scope =
-    target.kind === "folder"
+    target.kind === "all"
       ? target.fileCount === null
-        ? `Every changed file currently under ${target.path}`
-        : `${target.fileCount} changed ${target.fileCount === 1 ? "file" : "files"} under ${target.path}`
-      : target.path
+        ? "Every changed file currently in this Space"
+        : `All ${target.fileCount} changed ${target.fileCount === 1 ? "file" : "files"} in this Space`
+      : target.kind === "folder"
+        ? target.fileCount === null
+          ? `Every changed file currently under ${target.path}`
+          : `${target.fileCount} changed ${target.fileCount === 1 ? "file" : "files"} under ${target.path}`
+        : target.path
   return (
     <div className="path-dialog-backdrop" role="presentation">
       <form
@@ -391,6 +399,12 @@ function DiscardWorkingChangesDialog({
           Added files will be removed, deleted files will be restored, and
           renamed files will return to their saved paths. This cannot be undone.
         </p>
+        {error ? (
+          <div className="discard-changes-dialog-error" role="alert">
+            <CircleAlert aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        ) : null}
         <footer>
           <button type="button" autoFocus onClick={onCancel} disabled={busy}>
             Keep changes
@@ -401,7 +415,11 @@ function DiscardWorkingChangesDialog({
             ) : (
               <RotateCcw aria-hidden="true" />
             )}
-            {busy ? "Discarding…" : "Discard changes"}
+            {busy
+              ? "Discarding…"
+              : target.kind === "all"
+                ? "Discard all changes"
+                : "Discard changes"}
           </button>
         </footer>
       </form>
@@ -1500,10 +1518,12 @@ export function VersionPanel({
   }
 
   const requestDiscard = (target: VersionChangeDiscardTarget) => {
+    if (busy !== null || space.operation.phase !== "ready") return
     if (!changes?.currentHead || !changes.changeToken) {
       setError("Refresh Changes before discarding local edits")
       return
     }
+    setError(null)
     setDiscardConfirmation({
       target,
       expectedHead: changes.currentHead,
@@ -1517,10 +1537,13 @@ export function VersionPanel({
     setError(null)
     try {
       const result = await window.eidosLite.discardWorkingChanges({
-        target: {
-          kind: discardConfirmation.target.kind,
-          path: discardConfirmation.target.path,
-        },
+        target:
+          discardConfirmation.target.kind === "all"
+            ? { kind: "all" }
+            : {
+                kind: discardConfirmation.target.kind,
+                path: discardConfirmation.target.path,
+              },
         expectedHead: discardConfirmation.expectedHead,
         expectedChangeToken: discardConfirmation.expectedChangeToken,
       })
@@ -1813,7 +1836,7 @@ export function VersionPanel({
         </button>
       </div>
 
-      {error ? (
+      {error && !discardConfirmation ? (
         <div className="version-error" role="alert">
           <CircleAlert />
           <span>{error}</span>
@@ -1850,6 +1873,9 @@ export function VersionPanel({
                   mode="changes"
                   onSelect={(inspection) => void inspect(inspection)}
                   onRequestDiscard={requestDiscard}
+                  discardDisabled={
+                    busy !== null || space.operation.phase !== "ready"
+                  }
                 />
                 {changes.hasMore && changes.nextCursor ? (
                   <button
@@ -2059,6 +2085,7 @@ export function VersionPanel({
         <DiscardWorkingChangesDialog
           target={discardConfirmation.target}
           busy={busy === "discard"}
+          error={error}
           onCancel={() => setDiscardConfirmation(null)}
           onConfirm={() => void discardWorkingChanges()}
         />

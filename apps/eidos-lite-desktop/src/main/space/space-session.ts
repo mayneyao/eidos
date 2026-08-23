@@ -219,6 +219,7 @@ function pathMatchesWorkingChangeTarget(
   relativePath: string,
   request: SpaceWorkingChangesDiscardRequest
 ): boolean {
+  if (request.target.kind === "all") return true
   if (request.target.kind === "file") {
     return relativePath === request.target.path
   }
@@ -2266,11 +2267,16 @@ export class SpaceSession {
     if (!request.expectedChangeToken.trim()) {
       throw new Error("Refresh Changes before discarding local edits")
     }
-    const targetPath = normalizeMutableRelativePath(request.target.path)
-    const normalizedRequest: SpaceWorkingChangesDiscardRequest = {
-      ...request,
-      target: { ...request.target, path: targetPath },
-    }
+    const normalizedRequest: SpaceWorkingChangesDiscardRequest =
+      request.target.kind === "all"
+        ? request
+        : {
+            ...request,
+            target: {
+              ...request.target,
+              path: normalizeMutableRelativePath(request.target.path),
+            },
+          }
     const restoreMaterializes = await this.repository.runForeground(() =>
       this.graft.operationMaterializesWorktree("restorePaths")
     )
@@ -2282,9 +2288,11 @@ export class SpaceSession {
     const materializedPaths = await this.gate.withMaterialization({
       kind: "discard-working-changes",
       detail:
-        request.target.kind === "folder"
-          ? `Discarding local changes in ${targetPath}`
-          : `Discarding local changes to ${targetPath}`,
+        normalizedRequest.target.kind === "all"
+          ? "Discarding all local changes"
+          : normalizedRequest.target.kind === "folder"
+            ? `Discarding local changes in ${normalizedRequest.target.path}`
+            : `Discarding local changes to ${normalizedRequest.target.path}`,
       materialize: async () => {
         const status = await this.graft.status(
           this.canonical.root,
@@ -2302,7 +2310,11 @@ export class SpaceSession {
           workingChangeMatchesTarget(change, normalizedRequest)
         )
         if (selectedChanges.length === 0) {
-          throw new Error("The selected file or folder has no local changes")
+          throw new Error(
+            normalizedRequest.target.kind === "all"
+              ? "The Space has no local changes"
+              : "The selected file or folder has no local changes"
+          )
         }
         const addedPaths = selectedChanges
           .filter(isAddedWorkingChange)

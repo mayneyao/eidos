@@ -266,6 +266,94 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
+  it("discards working changes across the entire Space in one materialization", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-discard-all-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-discard-all-state-")
+    )
+    const expectedHead = "d".repeat(64)
+    const changedPaths = ["data/crm.eidos", "notes/readme.md", "root.md"]
+    let discarded = false
+    const restorePaths = vi.fn(async () => {
+      discarded = true
+    })
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.8",
+      close: async () => undefined,
+      inspectSpace: async () => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.8",
+        expectedVersion: "0.3.8",
+        initialized: true,
+        clean: discarded,
+        changedPaths: discarded ? 0 : changedPaths.length,
+        currentHead: expectedHead,
+        changeToken: discarded ? "clean-token" : "dirty-token",
+      }),
+      status: vi.fn(async () => ({
+        dirty: !discarded,
+        currentHead: expectedHead,
+        currentBranch: "main",
+        paths: discarded ? [] : changedPaths,
+        changes: discarded
+          ? []
+          : changedPaths.map((relativePath) => ({
+              path: relativePath,
+              change: "modified",
+            })),
+        changedPaths: discarded ? 0 : changedPaths.length,
+        changeToken: discarded ? "clean-token" : "dirty-token",
+      })),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+      operationMaterializesWorktree: vi.fn(async () => true),
+      restorePaths,
+      recordPathMove: vi.fn(async () => undefined),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+
+      await expect(
+        session.discardWorkingChanges({
+          target: { kind: "all" },
+          expectedHead,
+          expectedChangeToken: "dirty-token",
+        })
+      ).resolves.toMatchObject({
+        paths: changedPaths,
+        snapshot: { graft: { clean: true } },
+      })
+      expect(restorePaths).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        expectedHead,
+        expectedHead,
+        changedPaths,
+        { requireClean: false }
+      )
+      expect(graft.status).toHaveBeenCalledOnce()
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("plans checkpoint restore from commit metadata without loading row diffs", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-restore-plan-")

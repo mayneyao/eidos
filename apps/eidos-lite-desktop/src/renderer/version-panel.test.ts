@@ -11,10 +11,13 @@ import type {
   SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionTableDiff,
+  SpaceWorkingChangesDiscardResult,
 } from "../shared/contracts"
 import {
   buildVersionChangeTreeModel,
   type VersionInspection,
+  VERSION_CHANGES_ROOT_PATH,
+  versionChangeDiscardAllTarget,
   versionChangeDiscardTarget,
   versionChangeTreeStructureKey,
 } from "./version-change-tree"
@@ -91,6 +94,39 @@ const unversionedSpace: SpaceSnapshot = {
     initialized: false,
   },
   invalidatedSessionIds: [],
+}
+
+function changeTreePath(path = ""): string {
+  return `${VERSION_CHANGES_ROOT_PATH}${path}`
+}
+
+function changeTreeItem(host: HTMLElement, path = ""): HTMLElement | null {
+  const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+  return (
+    [
+      ...(tree?.shadowRoot?.querySelectorAll<HTMLElement>("[data-item-path]") ??
+        []),
+    ].find((item) => item.dataset.itemPath === changeTreePath(path)) ?? null
+  )
+}
+
+async function changeTreeDiscardAction(
+  host: HTMLElement,
+  path = ""
+): Promise<HTMLButtonElement | null> {
+  const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+  const item = changeTreeItem(host, path)
+  await act(async () => {
+    item?.dispatchEvent(
+      new MouseEvent("pointerover", { bubbles: true, composed: true })
+    )
+    await Promise.resolve()
+  })
+  return (
+    tree?.shadowRoot?.querySelector<HTMLButtonElement>(
+      'button[data-type="context-menu-trigger"][data-visible="true"]'
+    ) ?? null
+  )
 }
 
 describe("VersionPanel table diff", () => {
@@ -241,24 +277,69 @@ describe("VersionPanel table diff", () => {
   })
 
   it("offers discard only for changed files and their containing folders", () => {
-    expect(versionChangeDiscardTarget(versionDiff, "notes/readme.md")).toEqual({
+    expect(versionChangeDiscardAllTarget(versionDiff)).toEqual({
+      kind: "all",
+      fileCount: 2,
+    })
+    expect(
+      versionChangeDiscardTarget(versionDiff, VERSION_CHANGES_ROOT_PATH)
+    ).toEqual({
+      kind: "all",
+      fileCount: 2,
+    })
+    expect(
+      versionChangeDiscardTarget(versionDiff, changeTreePath("notes/readme.md"))
+    ).toEqual({
       kind: "file",
       path: "notes/readme.md",
       fileCount: 1,
     })
-    expect(versionChangeDiscardTarget(versionDiff, "notes/")).toEqual({
+    expect(
+      versionChangeDiscardTarget(versionDiff, changeTreePath("notes/"))
+    ).toEqual({
       kind: "folder",
       path: "notes",
       fileCount: 1,
     })
     expect(
-      versionChangeDiscardTarget(versionDiff, "data/crm.eidos/Customers")
+      versionChangeDiscardTarget(
+        versionDiff,
+        changeTreePath("data/crm.eidos/Customers")
+      )
     ).toBeNull()
-    expect(versionChangeDiscardTarget(versionDiff, "data/crm.eidos/")).toEqual({
+    expect(
+      versionChangeDiscardTarget(versionDiff, changeTreePath("data/crm.eidos/"))
+    ).toEqual({
       kind: "file",
       path: "data/crm.eidos",
       fileCount: 1,
     })
+    expect(
+      versionChangeDiscardAllTarget({
+        ...versionDiff,
+        totalPaths: 12,
+        hasMore: true,
+      })
+    ).toEqual({ kind: "all", fileCount: 12 })
+    expect(
+      versionChangeDiscardAllTarget({
+        ...versionDiff,
+        totalPaths: undefined,
+        hasMore: true,
+      })
+    ).toEqual({ kind: "all", fileCount: null })
+    const singleFolderDiff: SpaceVersionDiff = {
+      ...versionDiff,
+      paths: [versionDiff.paths[0]!],
+      files: [],
+    }
+    expect(versionChangeDiscardAllTarget(singleFolderDiff)).toEqual({
+      kind: "all",
+      fileCount: 1,
+    })
+    expect(
+      versionChangeDiscardTarget(singleFolderDiff, changeTreePath("notes/"))
+    ).toEqual({ kind: "folder", path: "notes", fileCount: 1 })
   })
 
   it("describes the cached cloud relationship in user-facing terms", () => {
@@ -1365,23 +1446,30 @@ describe("VersionPanel table diff", () => {
     const model = buildVersionChangeTreeModel(versionDiff)
 
     expect(model.paths).toEqual([
-      "notes/readme.md",
-      "data/crm.eidos/",
-      "data/crm.eidos/Customers",
+      changeTreePath("notes/readme.md"),
+      changeTreePath("data/crm.eidos/"),
+      changeTreePath("data/crm.eidos/Customers"),
     ])
     expect(model.initialExpandedPaths).toEqual([
-      "notes/",
-      "data/",
-      "data/crm.eidos/",
+      VERSION_CHANGES_ROOT_PATH,
+      changeTreePath("notes/"),
+      changeTreePath("data/"),
+      changeTreePath("data/crm.eidos/"),
     ])
     expect(model.gitStatus).toEqual([
-      { path: "notes/readme.md", status: "added" },
-      { path: "data/crm.eidos/", status: "modified" },
+      { path: changeTreePath("notes/readme.md"), status: "added" },
+      { path: changeTreePath("data/crm.eidos/"), status: "modified" },
     ])
-    expect(model.decorationByPath.get("data/crm.eidos/")).toBe("1 table")
-    expect(model.decorationByPath.get("data/crm.eidos/Customers")).toBe("+1 ~1")
+    expect(model.decorationByPath.get(VERSION_CHANGES_ROOT_PATH)).toBe("2")
+    expect(model.decorationByPath.get(changeTreePath("data/crm.eidos/"))).toBe(
+      "1 table"
+    )
     expect(
-      model.targetByTreePath.get("data/crm.eidos/Customers")?.table?.name
+      model.decorationByPath.get(changeTreePath("data/crm.eidos/Customers"))
+    ).toBe("+1 ~1")
+    expect(
+      model.targetByTreePath.get(changeTreePath("data/crm.eidos/Customers"))
+        ?.table?.name
     ).toBe("Customers")
   })
 
@@ -1422,9 +1510,11 @@ describe("VersionPanel table diff", () => {
       commit: null,
     }
 
-    expect(model.decorationByPath.get("data/crm.eidos/1m-bandcamp-sales")).toBe(
-      "+1000000"
-    )
+    expect(
+      model.decorationByPath.get(
+        changeTreePath("data/crm.eidos/1m-bandcamp-sales")
+      )
+    ).toBe("+1000000")
 
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
@@ -1630,7 +1720,9 @@ describe("VersionPanel table diff", () => {
     const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
     expect(tree).not.toBeNull()
     const syntheticTableRow = document.createElement("button")
-    syntheticTableRow.dataset.itemPath = "data/crm.eidos/Customers"
+    syntheticTableRow.dataset.itemPath = changeTreePath(
+      "data/crm.eidos/Customers"
+    )
     syntheticTableRow.textContent = "Customers"
     tree?.append(syntheticTableRow)
     await act(async () => {
@@ -1703,7 +1795,10 @@ describe("VersionPanel table diff", () => {
     )
 
     expect(buildVersionChangeTreeModel(summary)).toMatchObject({
-      paths: ["data/crm.eidos/", "data/crm.eidos/Customers"],
+      paths: [
+        changeTreePath("data/crm.eidos/"),
+        changeTreePath("data/crm.eidos/Customers"),
+      ],
     })
     expect(summary.files[0]).toMatchObject({
       path: "data/crm.eidos",
@@ -2367,6 +2462,299 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("Split")
   })
 
+  it("groups all Changes above folders and discards them through one operation", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-tree-2",
+      },
+    }
+    const discardedSpace: SpaceSnapshot = {
+      ...dirtySpace,
+      graft: {
+        ...dirtySpace.graft,
+        clean: true,
+        changedPaths: 0,
+        changeToken: "clean-tree",
+      },
+    }
+    let resolveDiscard:
+      | ((result: SpaceWorkingChangesDiscardResult) => void)
+      | undefined
+    const discardWorkingChanges = vi.fn(
+      () =>
+        new Promise<SpaceWorkingChangesDiscardResult>((resolve) => {
+          resolveDiscard = resolve
+        })
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        discardWorkingChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const onSpaceChange = vi.fn()
+    const onFilesMaterialized = vi.fn().mockResolvedValue(undefined)
+    const onRefresh = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: dirtySpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+    let changesRow = changeTreeItem(host)
+    const folderRow = changeTreeItem(host, "notes/")
+
+    expect(tree?.getAttribute("aria-label")).toBe("Changed Space files")
+    expect(changesRow?.dataset.type).toBe("item")
+    expect(changesRow?.tagName).toBe(folderRow?.tagName)
+    expect(changesRow?.className).toBe(folderRow?.className)
+    expect(changesRow?.dataset.itemPath).toBe(VERSION_CHANGES_ROOT_PATH)
+    expect(changesRow?.getAttribute("aria-expanded")).toBe("true")
+    expect(tree?.shadowRoot?.textContent).toContain("2")
+    expect(host.querySelector(".version-change-tree-group")).toBeNull()
+
+    await act(async () => {
+      changesRow?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+      await Promise.resolve()
+    })
+    changesRow = changeTreeItem(host)
+    expect(changesRow?.getAttribute("aria-expanded")).toBe("false")
+
+    await act(async () => {
+      changesRow?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+      await Promise.resolve()
+    })
+    changesRow = changeTreeItem(host)
+    expect(changesRow?.getAttribute("aria-expanded")).toBe("true")
+
+    const discardAll = await changeTreeDiscardAction(host)
+    expect(discardAll).not.toBeNull()
+    await act(async () => {
+      discardAll?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+    })
+    expect(host.textContent).toContain("Discard all changes?")
+    expect(host.textContent).toContain("All 2 changed files in this Space")
+    expect(discardWorkingChanges).not.toHaveBeenCalled()
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          ".discard-changes-dialog .danger-action"
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(discardWorkingChanges).toHaveBeenCalledWith({
+      target: { kind: "all" },
+      expectedHead: versionDiff.currentHead,
+      expectedChangeToken: versionDiff.changeToken,
+    })
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        ".discard-changes-dialog .danger-action"
+      )?.disabled
+    ).toBe(true)
+    expect(host.textContent).toContain("Discarding…")
+
+    await act(async () => {
+      resolveDiscard?.({
+        snapshot: discardedSpace,
+        paths: ["data/crm.eidos", "notes/readme.md"],
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onSpaceChange).toHaveBeenCalledWith(discardedSpace)
+    expect(onFilesMaterialized).toHaveBeenCalledWith(discardedSpace, [
+      "data/crm.eidos",
+      "notes/readme.md",
+    ])
+    expect(onRefresh).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("keeps Changes available when an all-changes discard partially fails", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-tree-2",
+      },
+    }
+    const failure =
+      "Some changes were discarded before notes/blocked.md could be restored"
+    const discardWorkingChanges = vi.fn().mockRejectedValue(new Error(failure))
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        discardWorkingChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const onSpaceChange = vi.fn()
+    const onFilesMaterialized = vi.fn()
+    const onRefresh = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: dirtySpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const discardAll = await changeTreeDiscardAction(host)
+    expect(discardAll).not.toBeNull()
+    await act(async () => {
+      discardAll?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          ".discard-changes-dialog .danger-action"
+        )
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(failure)
+    expect(host.textContent).toContain("Discard all changes?")
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        ".discard-changes-dialog .danger-action"
+      )?.disabled
+    ).toBe(false)
+    expect(host.querySelector("[data-version-change-tree]")).not.toBeNull()
+    expect(onSpaceChange).not.toHaveBeenCalled()
+    expect(onFilesMaterialized).not.toHaveBeenCalled()
+    expect(onRefresh).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not show an all-changes group or action for a clean Space", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const cleanSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        changedPaths: 0,
+        currentHead: "a".repeat(64),
+        changeToken: "clean-tree",
+      },
+    }
+    const emptyChanges: SpaceVersionDiff = {
+      currentHead: cleanSpace.graft.currentHead ?? null,
+      currentBranch: "main",
+      changeToken: "clean-tree",
+      from: cleanSpace.graft.currentHead ?? null,
+      to: "worktree",
+      paths: [],
+      files: [],
+      totalPaths: 0,
+      hasMore: false,
+      nextCursor: null,
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: cleanSpace.graft.currentHead,
+          currentBranch: "main",
+          commits: [],
+          hasMore: false,
+          nextCursor: null,
+        }),
+        getVersionChanges: vi.fn().mockResolvedValue(emptyChanges),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: cleanSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[0]?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(host.textContent).toContain("No local changes")
+    expect(host.querySelector("[data-version-change-tree]")).toBeNull()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("offers a hover action and discards every changed file in a folder", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")
@@ -2423,9 +2811,7 @@ describe("VersionPanel table diff", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
-    const folderRow = tree?.shadowRoot?.querySelector<HTMLElement>(
-      '[data-item-path="notes/"]'
-    )
+    const folderRow = changeTreeItem(host, "notes/")
     expect(folderRow).not.toBeNull()
 
     await act(async () => {
@@ -2515,9 +2901,7 @@ describe("VersionPanel table diff", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
-    const tableRow = tree?.shadowRoot?.querySelector<HTMLElement>(
-      '[data-item-path="data/crm.eidos/Customers"]'
-    )
+    const tableRow = changeTreeItem(host, "data/crm.eidos/Customers")
     expect(tableRow).not.toBeNull()
 
     await act(async () => {

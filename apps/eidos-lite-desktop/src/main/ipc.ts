@@ -492,18 +492,24 @@ function workingChangesDiscardRequest(
   }
   const targetCandidate = target as Record<string, unknown>
   if (
-    (targetCandidate.kind !== "file" && targetCandidate.kind !== "folder") ||
-    typeof targetCandidate.path !== "string" ||
+    (targetCandidate.kind !== "all" &&
+      targetCandidate.kind !== "file" &&
+      targetCandidate.kind !== "folder") ||
+    (targetCandidate.kind !== "all" &&
+      typeof targetCandidate.path !== "string") ||
     typeof candidate.expectedHead !== "string" ||
     typeof candidate.expectedChangeToken !== "string"
   ) {
     throw new Error("Invalid discard changes request")
   }
   return {
-    target: {
-      kind: targetCandidate.kind,
-      path: targetCandidate.path,
-    },
+    target:
+      targetCandidate.kind === "all"
+        ? { kind: "all" }
+        : {
+            kind: targetCandidate.kind,
+            path: targetCandidate.path as string,
+          },
     expectedHead: candidate.expectedHead,
     expectedChangeToken: candidate.expectedChangeToken,
   }

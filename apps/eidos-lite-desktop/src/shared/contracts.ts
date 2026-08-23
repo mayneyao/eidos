@@ -365,10 +365,14 @@ export interface SpaceVersionDiff {
   nextCursor?: string | null
 }
 
-export interface SpaceWorkingChangeTarget {
-  kind: "file" | "folder"
-  path: string
-}
+export type SpaceWorkingChangeTarget =
+  | {
+      kind: "all"
+    }
+  | {
+      kind: "file" | "folder"
+      path: string
+    }
 
 export interface SpaceWorkingChangesDiscardRequest {
   target: SpaceWorkingChangeTarget
