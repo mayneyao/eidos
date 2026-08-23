@@ -7,6 +7,7 @@ import {
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
   type EidosLiteUpdateStatus,
+  type EidosPublishProgress,
   type EidosSyncProgress,
   type EidosSyncQueueStatus,
   type RuntimeCalls,
@@ -325,6 +326,23 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeAbort, stateToken),
   openSyncHelp: (destination) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncOpenHelp, destination),
+  publishFile: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.publishRun, request),
+  collectPublishedForm: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.publishCollectRun, request),
+  listPublicationBindings: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.publishBindingsList, request),
+  setActivePublicationSource: (relativePath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.publishCollectorActiveSource, relativePath),
+  onPublishProgress: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: EidosPublishProgress
+    ) => listener(value)
+    ipcRenderer.on(IPC_CHANNELS.publishProgress, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.publishProgress, handler)
+  },
   revealPath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.revealPath, relativePath),
   openPath: (relativePath) =>

@@ -7,6 +7,7 @@ export interface EidosLiteServiceEnvironment {
   name: EidosLiteEnvironmentName
   accountOrigin: string
   billingOrigin: string
+  publishOrigin: string
   syncRemoteOrigin: string
 }
 
@@ -15,12 +16,14 @@ export const EIDOS_LITE_SERVICE_ENVIRONMENTS = Object.freeze({
     name: "staging",
     accountOrigin: "https://staging.eidos.space",
     billingOrigin: "https://staging.eidos.space",
+    publishOrigin: "https://publish-staging.eidos.space",
     syncRemoteOrigin: "https://sync-staging.eidos.space",
   }),
   production: Object.freeze({
     name: "production",
     accountOrigin: "https://eidos.space",
     billingOrigin: "https://eidos.space",
+    publishOrigin: "https://publish.eidos.space",
     syncRemoteOrigin: "https://sync.eidos.space",
   }),
 }) satisfies Readonly<

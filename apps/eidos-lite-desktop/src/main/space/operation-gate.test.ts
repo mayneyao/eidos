@@ -130,6 +130,39 @@ describe("SpaceOperationGate", () => {
     expect(await journal.read()).toBeNull()
   })
 
+  it("creates a read-only snapshot with runtimes closed and no recovery journal", async () => {
+    const { gate, calls, journal } = await gateWithHooks()
+    const snapshot = await gate.withClosedRuntimes(
+      "Preparing Publish snapshot",
+      async () => {
+        calls.push("snapshot")
+        return "source.eidos"
+      }
+    )
+
+    expect(snapshot).toBe("source.eidos")
+    expect(calls).toEqual(["close", "snapshot", "reopen"])
+    expect(gate.current()).toMatchObject({ phase: "ready", recoverable: true })
+    expect(await journal.read()).toBeNull()
+  })
+
+  it("reopens runtimes and restores editing when a snapshot copy fails", async () => {
+    const { gate, calls } = await gateWithHooks()
+
+    await expect(
+      gate.withClosedRuntimes("Preparing Publish snapshot", async () => {
+        calls.push("snapshot")
+        throw new Error("Snapshot disk is full")
+      })
+    ).rejects.toThrow("Snapshot disk is full")
+
+    expect(calls).toEqual(["close", "snapshot", "reopen"])
+    expect(gate.current().phase).toBe("ready")
+    await expect(gate.withMutation(async () => "editable")).resolves.toBe(
+      "editable"
+    )
+  })
+
   it("returns to editable ready state after a recoverable materialization failure", async () => {
     const { gate, calls, journal } = await gateWithHooks()
     await expect(

@@ -158,6 +158,43 @@ export class SpaceOperationGate {
     })
   }
 
+  /**
+   * Run a read-only snapshot while every SQLite Runtime is closed. Unlike a
+   * worktree materialization, this needs no recovery journal because the
+   * source Space is never changed.
+   */
+  withClosedRuntimes<T>(
+    detail: string,
+    snapshot: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    return this.withRepositoryOperation(detail, async (signal) => {
+      this.acceptingMutations = false
+      this.transition("quiescing", detail)
+      await this.waitForMutationDrain()
+      let runtimesClosed = false
+      try {
+        await this.hooks.closeRuntimes()
+        runtimesClosed = true
+        this.transition("materializing", detail)
+        return await snapshot(signal)
+      } finally {
+        if (runtimesClosed) {
+          this.transition("reopening", detail)
+          try {
+            await this.hooks.reopenRuntimes()
+          } catch (error) {
+            this.transition("failed", this.errorMessage(error), false)
+            throw error
+          }
+        }
+        this.acceptingMutations = !this.closing
+        if (!this.closing && this.state.phase !== "failed") {
+          this.transition("ready")
+        }
+      }
+    })
+  }
+
   withMaterialization<T>(options: MaterializationOptions<T>): Promise<T> {
     return this.withRepositoryOperation(
       options.detail ?? options.kind,

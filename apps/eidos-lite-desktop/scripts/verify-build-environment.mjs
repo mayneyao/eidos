@@ -9,12 +9,14 @@ const expected = {
     name: "staging",
     accountOrigin: "https://staging.eidos.space",
     billingOrigin: "https://staging.eidos.space",
+    publishOrigin: "https://publish-staging.eidos.space",
     syncRemoteOrigin: "https://sync-staging.eidos.space",
   },
   production: {
     name: "production",
     accountOrigin: "https://eidos.space",
     billingOrigin: "https://eidos.space",
+    publishOrigin: "https://publish.eidos.space",
     syncRemoteOrigin: "https://sync.eidos.space",
   },
 }[expectedName]
@@ -37,5 +39,5 @@ if (JSON.stringify(manifest) !== JSON.stringify(expected)) {
 }
 
 console.log(
-  `Verified Eidos Lite ${expectedName} build environment: ${manifest.accountOrigin} + ${manifest.syncRemoteOrigin}`
+  `Verified Eidos Lite ${expectedName} build environment: ${manifest.accountOrigin} + ${manifest.publishOrigin} + ${manifest.syncRemoteOrigin}`
 )

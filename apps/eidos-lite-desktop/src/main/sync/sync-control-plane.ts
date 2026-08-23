@@ -59,6 +59,19 @@ export class SyncControlPlane {
     )
   }
 
+  /** First-party account credential for non-Sync services such as Publish. */
+  accountAccessToken(): Promise<string> {
+    return this.account.accessToken()
+  }
+
+  async accountSubject(): Promise<string> {
+    const status = await this.account.status()
+    if (status.state !== "signed-in" || !status.user?.id) {
+      throw new Error("Sign in to Eidos first.")
+    }
+    return status.user.id
+  }
+
   async provisionRepository(
     repository: string,
     displayName: string

@@ -180,6 +180,17 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
+  it("keeps Publish footer actions on one aligned control row", () => {
+    const buttons = ruleContaining(".publish-panel footer button,")
+    const primary = ruleContaining(".publish-panel .primary-action,")
+
+    expect(buttons).toContain("height: 1.9rem")
+    expect(buttons).toContain("align-items: center")
+    expect(buttons).toContain("justify-content: center")
+    expect(buttons).toContain("margin: 0")
+    expect(primary).toContain("margin: 0")
+  })
+
   it("groups updates above the persistent sidebar Settings entry", () => {
     expect(rule(".sidebar-footer")).toContain("flex-direction: column")
     expect(rule(".sidebar-footer")).not.toContain("border-top")

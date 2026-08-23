@@ -42,6 +42,7 @@ import type {
   EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLiteUpdateStatus,
+  EidosPublicationBinding,
   EidosSyncMergeStatus,
   EidosSyncQueueStatus,
   RecentSpaceEntry,
@@ -83,6 +84,16 @@ import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { rendererPlatform } from "./renderer-platform"
 import { QuickOpen } from "./quick-open"
 import {
+  isPublishableEntry,
+  PublishPanel,
+  type PublishPanelSubmission,
+} from "./publish-panel"
+import {
+  PublishTaskDock,
+  updatePublishTaskProgress,
+  type PublishTaskState,
+} from "./publish-task-dock"
+import {
   isSidebarUpdateReady,
   SidebarUpdateAction,
 } from "./sidebar-update-action"
@@ -113,6 +124,7 @@ let eidosFileWorkbenchModule:
       EidosFileWorkbench: typeof EidosFileWorkbenchImplementation
     }>
   | undefined
+
 let LoadedEidosFileWorkbench:
   | typeof EidosFileWorkbenchImplementation
   | undefined
@@ -706,6 +718,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     x: number
     y: number
   } | null>(null)
+  const [publishPanel, setPublishPanel] = useState<{
+    entry: SpaceTreeEntry
+    x: number
+    y: number
+  } | null>(null)
+  const [publishTask, setPublishTask] = useState<PublishTaskState | null>(null)
+  const [publishTaskExpanded, setPublishTaskExpanded] = useState(false)
+  const [publicationBindings, setPublicationBindings] = useState<
+    EidosPublicationBinding[]
+  >([])
   const [pathDialog, setPathDialog] = useState<PathDialogState | null>(null)
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
   const [treeRenameRequest, setTreeRenameRequest] = useState<{
@@ -715,6 +737,109 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const fileOpenInFlight = useRef(false)
   const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
+
+  const refreshPublicationBindings = useCallback(async () => {
+    if (!space) {
+      setPublicationBindings([])
+      return []
+    }
+    try {
+      const bindings = await window.eidosLite.listPublicationBindings()
+      setPublicationBindings(bindings)
+      return bindings
+    } catch {
+      setPublicationBindings([])
+      return []
+    }
+  }, [space?.id])
+
+  useEffect(() => {
+    void refreshPublicationBindings()
+  }, [refreshPublicationBindings])
+
+  const collectPublicationBinding = useCallback(
+    async (binding: EidosPublicationBinding) => {
+      const response = await window.eidosLite.collectPublishedForm({
+        requestId: crypto.randomUUID(),
+        relativePath: binding.relativePath,
+        publicationId: binding.publicationId,
+      })
+      await refreshPublicationBindings()
+      return response
+    },
+    [refreshPublicationBindings]
+  )
+
+  const startPublish = useCallback(
+    (
+      entry: SpaceTreeEntry,
+      anchorX: number,
+      anchorY: number,
+      options: PublishPanelSubmission
+    ) => {
+      const requestId = crypto.randomUUID()
+      setPublishPanel(null)
+      setPublishTaskExpanded(false)
+      setPublishTask({
+        requestId,
+        entry,
+        anchorX,
+        anchorY,
+        slug: options.slug,
+        status: "running",
+        progress: {
+          requestId,
+          kind: "stage",
+          message: "starting Publish",
+        },
+      })
+      void window.eidosLite
+        .publishFile({
+          requestId,
+          relativePath: entry.relativePath,
+          slug: options.slug,
+          accessMode: options.accessMode,
+          ...(options.formView ? { formView: options.formView } : {}),
+          ...(options.password ? { password: options.password } : {}),
+        })
+        .then((response) => {
+          if (response.ok) void refreshPublicationBindings()
+          setPublishTask((current) => {
+            if (!current || current.requestId !== requestId) return current
+            return response.ok
+              ? {
+                  ...current,
+                  status: "succeeded",
+                  result: response.result,
+                  failure: undefined,
+                }
+              : {
+                  ...current,
+                  status: "failed",
+                  failure: response.failure,
+                  result: undefined,
+                }
+          })
+        })
+        .catch((cause: unknown) => {
+          setPublishTask((current) =>
+            !current || current.requestId !== requestId
+              ? current
+              : {
+                  ...current,
+                  status: "failed",
+                  failure: {
+                    code: "publish-failed",
+                    message:
+                      cause instanceof Error ? cause.message : String(cause),
+                  },
+                  result: undefined,
+                }
+          )
+        })
+    },
+    [refreshPublicationBindings]
+  )
 
   useEffect(() => {
     void window.eidosLite.getPreferences().then((preferences) => {
@@ -728,6 +853,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setTimeZone(preferences.timeZone)
     })
   }, [])
+
+  useEffect(
+    () =>
+      window.eidosLite.onPublishProgress((progress) => {
+        setPublishTask((current) =>
+          updatePublishTaskProgress(current, progress)
+        )
+      }),
+    []
+  )
 
   useEffect(() => {
     let active = true
@@ -1017,6 +1152,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const activeDocumentDirty = Boolean(
     activeDocumentPath && textFileDrafts[activeDocumentPath]
   )
+
+  useEffect(() => {
+    void window.eidosLite.setActivePublicationSource(
+      activeFile?.relativePath ?? null
+    )
+    return () => {
+      void window.eidosLite.setActivePublicationSource(null)
+    }
+  }, [activeFile?.relativePath, space?.id])
 
   const updateTextFileDraft = useCallback(
     (relativePath: string, draft: TextFileDraft | null) => {
@@ -2024,13 +2168,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onRenameError={(cause) =>
                 setError(`Could not rename item. ${errorMessage(cause)}`)
               }
-              onContextMenu={(entry, x, y) =>
+              onContextMenu={(entry, x, y) => {
+                void refreshPublicationBindings()
                 setContextMenu({
                   entry,
                   x: Math.max(8, Math.min(x, window.innerWidth - 200)),
                   y: Math.max(8, Math.min(y, window.innerHeight - 260)),
                 })
-              }
+              }}
             />
           </Suspense>
           {busyFile ? (
@@ -2530,6 +2675,40 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               {contextMenu.entry.kind === "eidos" ? t("Open") : t("Preview")}
             </button>
           ) : null}
+          {isPublishableEntry(contextMenu.entry) ? (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={localInteractionBlocked}
+              onClick={() => {
+                if (publishTask?.status === "running") {
+                  setPublishTaskExpanded(true)
+                } else {
+                  setPublishTask(null)
+                  setPublishPanel({
+                    entry: contextMenu.entry,
+                    x: contextMenu.x,
+                    y: contextMenu.y,
+                  })
+                }
+                setContextMenu(null)
+              }}
+            >
+              {publishTask?.status === "running" ? (
+                <LoaderCircle className="spin" />
+              ) : (
+                <Upload />
+              )}{" "}
+              {publishTask?.status === "running"
+                ? t("View Publish progress")
+                : publicationBindings.some(
+                      (binding) =>
+                        binding.relativePath === contextMenu.entry.relativePath
+                    )
+                  ? t("Manage Publish…")
+                  : t("Publish…")}
+            </button>
+          ) : null}
           {contextMenu.entry.kind === "directory" ? (
             <>
               <button
@@ -2626,6 +2805,117 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <Trash2 /> {t("Move to Trash")}
           </button>
         </div>
+      ) : null}
+      {publishPanel ? (
+        <PublishPanel
+          key={publishPanel.entry.relativePath}
+          entry={publishPanel.entry}
+          formViews={
+            activeFile?.relativePath === publishPanel.entry.relativePath
+              ? activeFile.snapshot.tables.flatMap((table) =>
+                  table.views
+                    .filter((view) => view.type === "form")
+                    .map((view) => ({
+                      id: view.id,
+                      name: view.name,
+                      tableName: table.table.name,
+                    }))
+                )
+              : []
+          }
+          bindings={publicationBindings.filter(
+            (binding) =>
+              binding.relativePath === publishPanel.entry.relativePath
+          )}
+          x={publishPanel.x}
+          y={publishPanel.y}
+          onPublish={(options) =>
+            startPublish(
+              publishPanel.entry,
+              publishPanel.x,
+              publishPanel.y,
+              options
+            )
+          }
+          onCollect={collectPublicationBinding}
+          onClose={() => setPublishPanel(null)}
+        />
+      ) : null}
+      {publishTask ? (
+        <PublishTaskDock
+          task={publishTask}
+          expanded={publishTaskExpanded}
+          onExpandedChange={setPublishTaskExpanded}
+          onDismiss={() => {
+            setPublishTask(null)
+            setPublishTaskExpanded(false)
+          }}
+          onRetry={() => {
+            setPublishPanel({
+              entry: publishTask.entry,
+              x: publishTask.anchorX,
+              y: publishTask.anchorY,
+            })
+            setPublishTask(null)
+            setPublishTaskExpanded(false)
+          }}
+          onCollect={() => {
+            const result = publishTask.result
+            if (!result || result.driverId !== "org.eidos.driver.form") return
+            const requestId = crypto.randomUUID()
+            setPublishTask((current) =>
+              current
+                ? { ...current, collection: { status: "running" } }
+                : current
+            )
+            void window.eidosLite
+              .collectPublishedForm({
+                requestId,
+                relativePath: publishTask.entry.relativePath,
+                publicationId: result.publicationId,
+              })
+              .then((response) => {
+                void refreshPublicationBindings()
+                setPublishTask((current) =>
+                  !current ||
+                  current.result?.publicationId !== result.publicationId
+                    ? current
+                    : response.ok
+                      ? {
+                          ...current,
+                          collection: {
+                            status: "succeeded",
+                            imported: response.result.importedSubmissions,
+                          },
+                        }
+                      : {
+                          ...current,
+                          collection: {
+                            status: "failed",
+                            message: response.failure.message,
+                          },
+                        }
+                )
+              })
+              .catch((cause: unknown) => {
+                setPublishTask((current) =>
+                  !current ||
+                  current.result?.publicationId !== result.publicationId
+                    ? current
+                    : {
+                        ...current,
+                        collection: {
+                          status: "failed",
+                          message:
+                            cause instanceof Error
+                              ? cause.message
+                              : String(cause),
+                        },
+                      }
+                )
+              })
+          }}
+        />
       ) : null}
       {quickOpenVisible && space ? (
         <QuickOpen

@@ -112,6 +112,9 @@ jobs:
         with:
           node-version-file: ".node-version"
 
+      - name: Setup Rust for the bundled Publish engine
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 

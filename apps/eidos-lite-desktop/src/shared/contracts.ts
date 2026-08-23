@@ -131,6 +131,11 @@ export const IPC_CHANNELS = {
   syncMergeContinue: "eidos-lite:sync-merge-continue",
   syncMergeAbort: "eidos-lite:sync-merge-abort",
   syncOpenHelp: "eidos-lite:sync-open-help",
+  publishRun: "eidos-lite:publish-run",
+  publishProgress: "eidos-lite:publish-progress",
+  publishCollectRun: "eidos-lite:publish-collect-run",
+  publishBindingsList: "eidos-lite:publish-bindings-list",
+  publishCollectorActiveSource: "eidos-lite:publish-collector-active-source",
   revealPath: "eidos-lite:path-reveal",
   openPath: "eidos-lite:path-open",
   copyPathText: "eidos-lite:path-copy-text",
@@ -139,6 +144,135 @@ export const IPC_CHANNELS = {
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
 export type EidosLiteNavigationDirection = "back" | "forward"
 export type EidosLitePathClipboardMode = "absolute" | "relative"
+
+export type EidosPublishAccessMode = "public" | "password" | "private"
+export type EidosPublishAccessSelection = "unchanged" | EidosPublishAccessMode
+
+export interface EidosPublishRequest {
+  requestId: string
+  relativePath: string
+  slug: string
+  accessMode: EidosPublishAccessSelection
+  formView?: string
+  password?: string
+}
+
+export type EidosPublishProgress =
+  | {
+      requestId: string
+      kind: "stage"
+      message: string
+    }
+  | {
+      requestId: string
+      kind: "bytes"
+      label: string
+      currentBytes: string
+      totalBytes: string
+      percent: number
+    }
+
+export interface EidosPublishResult {
+  published: boolean
+  ready: boolean
+  versionCreated: boolean
+  fingerprintSpec: "eidos.publish/source-bundle@1"
+  publishFingerprint: string
+  driverId:
+    | "org.eidos.driver.eidos"
+    | "org.eidos.driver.markdown"
+    | "org.eidos.driver.form"
+  mediaType:
+    | "application/vnd.eidos+sqlite3"
+    | "text/markdown"
+    | "application/vnd.eidos.form+json"
+  publicationId: string
+  publicationSlug: string
+  visibility: "public" | "private"
+  accessMode: EidosPublishAccessMode
+  versionId: string
+  sourceBytes: string
+  sourceSha256: string
+  attachmentFiles: number
+  attachmentReferences: number
+  attachmentPaths: string[]
+  attachmentBytes: string
+  bundleBytes: string
+  deduplicatedBytes: string
+  servingTargetSha256: string | null
+  url: string
+}
+
+export type EidosPublishResponse =
+  | { ok: true; result: EidosPublishResult }
+  | {
+      ok: false
+      failure: {
+        code: string
+        message: string
+        status?: number
+      }
+    }
+
+export interface EidosPublishCollectRequest {
+  requestId: string
+  relativePath: string
+  publicationId: string
+}
+
+export interface EidosPublishCollectResult {
+  collected: true
+  publicationId: string
+  collectorId: string
+  collectorGeneration: number
+  importedSubmissions: number
+  replayedSubmissions: number
+}
+
+export type EidosPublishCollectResponse =
+  | { ok: true; result: EidosPublishCollectResult }
+  | Extract<EidosPublishResponse, { ok: false }>
+
+export type EidosPublicationSourceKind = "eidos-file" | "markdown" | "form"
+export type EidosPublicationContentStatus = "current" | "changed" | "unknown"
+
+export interface EidosPublicationCollectorState {
+  collectorId: string | null
+  collectorGeneration: number | null
+  lastAttemptedAt: string | null
+  lastSucceededAt: string | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  importedSubmissions: number
+  replayedSubmissions: number
+}
+
+export interface EidosPublicationBinding {
+  bindingId: string
+  serviceOrigin: string
+  accountId: string
+  spaceId: string
+  relativePath: string
+  sourceKind: EidosPublicationSourceKind
+  formViewId: string | null
+  publicationId: string
+  slug: string
+  driverId: EidosPublishResult["driverId"]
+  currentVersionId: string
+  url: string
+  accessMode: EidosPublishAccessMode
+  sourceSha256: string
+  fingerprintSpec: EidosPublishResult["fingerprintSpec"] | null
+  publishFingerprint: string | null
+  contentStatus: EidosPublicationContentStatus
+  publishedAt: string
+  updatedAt: string
+  collector: EidosPublicationCollectorState | null
+}
+
+export interface EidosPublicationBindingsRequest {
+  relativePath?: string
+}
 
 export interface SpacePathSearchHit {
   relativePath: string
@@ -1576,6 +1710,17 @@ export interface EidosLiteApi {
     stateToken: string
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   openSyncHelp(destination: EidosSyncHelpDestination): Promise<void>
+  publishFile(request: EidosPublishRequest): Promise<EidosPublishResponse>
+  collectPublishedForm(
+    request: EidosPublishCollectRequest
+  ): Promise<EidosPublishCollectResponse>
+  listPublicationBindings(
+    request?: EidosPublicationBindingsRequest
+  ): Promise<EidosPublicationBinding[]>
+  setActivePublicationSource(relativePath: string | null): Promise<void>
+  onPublishProgress(
+    listener: (progress: EidosPublishProgress) => void
+  ): () => void
   revealPath(relativePath: string): Promise<void>
   openPath(relativePath: string): Promise<void>
   copyPathText(

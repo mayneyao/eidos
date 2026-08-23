@@ -297,7 +297,7 @@ export class SpaceSession {
   private constructor(
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
-    stateDirectory: string,
+    private readonly stateDirectory: string,
     workerPath?: string,
     automaticCheckpointsEnabled = false
   ) {
@@ -2471,6 +2471,92 @@ export class SpaceSession {
 
   resolveUserPath(relativePath: string): string {
     return resolveSpacePath(this.canonical.root, relativePath)
+  }
+
+  publishStatePath(): string {
+    return path.join(this.stateDirectory, "publish-state.sqlite")
+  }
+
+  async createPublishSourceSnapshot(
+    relativePath: string,
+    destinationPath: string
+  ): Promise<void> {
+    const extension = path.extname(relativePath).toLowerCase()
+    if (
+      extension !== ".eidos" &&
+      extension !== ".md" &&
+      extension !== ".markdown"
+    ) {
+      throw new Error(
+        "Only Eidos Files and Markdown documents can be published from Eidos Lite"
+      )
+    }
+    const sourcePath = this.resolveUserPath(relativePath)
+    const canonicalSource = await fs.realpath(sourcePath)
+    const sourceWithinSpace = path.relative(
+      this.canonical.root,
+      canonicalSource
+    )
+    if (
+      sourceWithinSpace === ".." ||
+      sourceWithinSpace.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(sourceWithinSpace)
+    ) {
+      throw new Error("The Publish source symlink escapes this Space")
+    }
+    const copy = async () =>
+      fs.copyFile(canonicalSource, destinationPath, fsConstants.COPYFILE_EXCL)
+    if (extension !== ".eidos") {
+      await copy()
+      return
+    }
+    await this.gate.withClosedRuntimes(
+      `Preparing ${path.basename(relativePath)} for Publish`,
+      async (signal) => {
+        if (signal.aborted) throw new Error("Publish snapshot was cancelled")
+        await copy()
+      }
+    )
+  }
+
+  async collectPublishedFormResponses<T>(
+    relativePath: string,
+    collect: (
+      filePath: string,
+      attachmentRoot: string,
+      signal: AbortSignal
+    ) => Promise<T>
+  ): Promise<T> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos")) {
+      throw new Error("Form responses can only be collected into an Eidos File")
+    }
+    const sourcePath = this.resolveUserPath(normalized)
+    const canonicalSource = await fs.realpath(sourcePath)
+    if (path.relative(sourcePath, canonicalSource) !== "") {
+      throw new Error("The Form Collector source cannot be a symbolic link")
+    }
+    const sourceWithinSpace = path.relative(
+      this.canonical.root,
+      canonicalSource
+    )
+    if (
+      sourceWithinSpace === ".." ||
+      sourceWithinSpace.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(sourceWithinSpace)
+    ) {
+      throw new Error("The Form Collector source symlink escapes this Space")
+    }
+    const result = await this.gate.withMaterialization({
+      kind: "publish-collect",
+      detail: `Collecting responses into ${path.basename(normalized)}`,
+      validationPaths: [normalized],
+      materialize: (signal) =>
+        collect(canonicalSource, path.dirname(canonicalSource), signal),
+    })
+    this.invalidateGraftStatusCache()
+    await this.freshSnapshotAndEmit(true)
+    return result
   }
 
   clearHostedSyncCredentials(): Promise<void> {

@@ -7306,6 +7306,793 @@ body {
   color: var(--danger);
 }
 
+.publish-panel {
+  position: fixed;
+  z-index: 85;
+  width: min(22rem, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 0.65rem;
+  color: var(--ink);
+  background: var(--canvas);
+  box-shadow: var(--elevation-shadow-strong);
+}
+
+.publish-panel > header,
+.publish-panel form > footer {
+  display: flex;
+  align-items: center;
+}
+
+.publish-panel > header {
+  min-height: 2.8rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.45rem 0.35rem 0.65rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+
+.publish-panel-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.publish-panel-heading > svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--lite-accent);
+}
+
+.publish-panel-heading > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.publish-panel-heading strong,
+.publish-panel-heading small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-panel-heading strong {
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.publish-panel-heading small {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.publish-icon-button {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.3rem;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.publish-icon-button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.publish-icon-button:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.publish-icon-button svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.publish-bindings {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--lite-accent) 3%, var(--canvas));
+}
+
+.publish-bindings-heading {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+}
+
+.publish-binding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.publish-binding-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.publish-binding-copy strong,
+.publish-binding-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-binding-copy strong {
+  font-size: 0.7rem;
+  font-weight: 620;
+}
+
+.publish-binding-copy small,
+.publish-binding-feedback {
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.publish-binding-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.publish-binding-status::before {
+  width: 0.35rem;
+  height: 0.35rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ink-faint);
+  content: "";
+}
+
+.publish-binding-status.is-current::before {
+  background: var(--success);
+}
+
+.publish-binding-status.is-changed {
+  color: var(--ink);
+}
+
+.publish-binding-status.is-changed::before {
+  background: var(--lite-accent);
+}
+
+.publish-binding-actions {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.publish-binding-actions button {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.3rem;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.publish-binding-actions button:hover:not(:disabled),
+.publish-binding-actions button:focus-visible {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.publish-binding-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.publish-binding-actions svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.publish-binding-feedback {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.publish-binding-feedback.is-error {
+  color: var(--danger);
+}
+
+.publish-panel form > label,
+.publish-password-fields > label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.publish-panel form > label {
+  padding: 0.7rem 0.75rem 0.55rem;
+}
+
+.publish-panel form > label + label {
+  padding-top: 0.25rem;
+}
+
+.publish-panel label > span,
+.publish-panel legend {
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 560;
+}
+
+.publish-panel label > small {
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+  line-height: 1.4;
+}
+
+.publish-panel input[type="text"],
+.publish-panel input:not([type]),
+.publish-panel input[type="password"],
+.publish-panel select {
+  width: 100%;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.375rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  user-select: text;
+}
+
+.publish-panel select {
+  padding-right: 1.75rem;
+  cursor: pointer;
+}
+
+.publish-panel input:focus-visible,
+.publish-panel select:focus-visible {
+  border-color: var(--focus);
+  outline: 3px solid color-mix(in oklab, var(--focus) 28%, transparent);
+}
+
+.publish-access-field {
+  border-top: 1px solid var(--hairline);
+}
+
+.publish-password-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin: 0 0.75rem 0.65rem;
+  padding: 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.45rem;
+  background: var(--surface);
+}
+
+.publish-password-fields p {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  line-height: 1.45;
+}
+
+.publish-password-fields p svg {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.05rem;
+}
+
+.publish-failure,
+.publish-progress {
+  margin: 0 0.75rem 0.65rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.6875rem;
+}
+
+.publish-failure {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in oklab, var(--danger) 38%, var(--hairline));
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 7%, transparent);
+}
+
+.publish-failure span {
+  color: var(--ink-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.publish-failure button {
+  justify-self: start;
+  margin-top: 0.2rem;
+  padding: 0;
+  border: 0;
+  color: var(--lite-accent);
+  background: transparent;
+  font: inherit;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.publish-progress {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--ink-muted);
+  background: color-mix(in oklab, var(--lite-accent) 5%, var(--surface));
+}
+
+.publish-progress span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.publish-progress span svg {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.publish-progress progress {
+  appearance: none;
+  width: 100%;
+  height: 0.25rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+}
+
+.publish-progress progress::-webkit-progress-bar {
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+}
+
+.publish-progress progress::-webkit-progress-value {
+  border-radius: inherit;
+  background: var(--lite-accent);
+}
+
+.publish-running {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+}
+
+.publish-running-target {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.publish-running-target strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-running .publish-progress {
+  margin: 0;
+}
+
+.publish-panel form > footer {
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface);
+}
+
+.publish-validation {
+  flex: 1;
+  color: var(--danger);
+  font-size: 0.625rem;
+  line-height: 1.3;
+}
+
+.publish-panel footer button,
+.publish-result-actions button {
+  display: inline-flex;
+  height: 1.9rem;
+  min-height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.publish-panel footer button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.publish-panel footer button svg,
+.publish-result-actions button svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.publish-panel .primary-action,
+.publish-task-dock .primary-action {
+  margin: 0;
+  border-color: var(--primary-action);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
+}
+
+.publish-result {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.9rem 0.75rem 0.75rem;
+}
+
+.publish-success-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--success);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+}
+
+.publish-success-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.publish-result > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.publish-result strong {
+  font-size: 0.75rem;
+}
+
+.publish-result a,
+.publish-result-url {
+  overflow: hidden;
+  color: var(--lite-accent);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.publish-result-actions {
+  display: flex !important;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 0.4rem !important;
+  padding-top: 0.3rem;
+}
+
+.publish-collect-actions {
+  display: flex !important;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem !important;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.publish-collect-actions > span {
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.publish-collect-actions > button {
+  display: inline-flex;
+  min-height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.publish-collect-actions > button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.publish-collect-actions > button svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.publish-task-dock {
+  position: fixed;
+  z-index: 84;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  width: min(21rem, calc(100vw - 1.5rem));
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 0.55rem;
+  color: var(--ink);
+  background: var(--canvas);
+  box-shadow: var(--elevation-shadow-strong);
+}
+
+.publish-task-dock.is-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 3.25rem;
+}
+
+.publish-task-dock.is-compact.is-succeeded {
+  border-color: color-mix(in oklab, var(--success) 30%, var(--hairline));
+}
+
+.publish-task-dock.is-compact.is-failed {
+  border-color: color-mix(in oklab, var(--danger) 32%, var(--hairline));
+}
+
+.publish-task-summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.publish-task-summary:hover,
+.publish-task-summary:focus-visible {
+  background: var(--surface-hover);
+}
+
+.publish-task-summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.publish-task-summary > svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: var(--ink-faint);
+}
+
+.publish-task-state-icon {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--lite-accent);
+  background: color-mix(in oklab, var(--lite-accent) 10%, transparent);
+}
+
+.is-succeeded .publish-task-state-icon {
+  color: var(--success);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+}
+
+.is-failed .publish-task-state-icon {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+.publish-task-state-icon svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.publish-task-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.publish-task-summary-copy strong,
+.publish-task-summary-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-task-summary-copy strong {
+  font-size: 0.6875rem;
+  font-weight: 620;
+}
+
+.publish-task-summary-copy small {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.publish-task-dismiss {
+  display: grid;
+  width: 2rem;
+  border: 0;
+  place-items: center;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.publish-task-dismiss:hover,
+.publish-task-dismiss:focus-visible {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.publish-task-dismiss svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.publish-task-compact-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.18rem;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+}
+
+.publish-task-compact-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--lite-accent);
+  transition: width 180ms ease-out;
+}
+
+.publish-task-compact-progress > .is-indeterminate {
+  width: 38%;
+  animation: publish-task-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes publish-task-progress {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(285%);
+  }
+}
+
+.publish-task-dock.is-expanded > header {
+  display: flex;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.45rem 0.35rem 0.65rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+
+.publish-task-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.publish-task-dock .publish-progress,
+.publish-task-dock .publish-failure {
+  margin: 0;
+}
+
+.publish-background-note {
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+  line-height: 1.4;
+}
+
+.publish-task-error {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.publish-task-error > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.publish-task-error > footer button {
+  display: inline-flex;
+  height: 1.9rem;
+  min-height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.publish-task-error > footer button svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+@media (max-width: 32rem) {
+  .publish-panel {
+    left: 0.5rem !important;
+    right: 0.5rem;
+    width: auto;
+  }
+
+  .publish-password-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .publish-task-dock {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+  }
+}
+
 .path-dialog-backdrop {
   position: fixed;
   z-index: 90;

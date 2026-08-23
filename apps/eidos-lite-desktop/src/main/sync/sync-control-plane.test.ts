@@ -74,6 +74,38 @@ describe("SyncControlPlane", () => {
     })
   })
 
+  it("exposes the signed-in account token for Publish without Sync entitlement", async () => {
+    const account = accountSession("signed-in")
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account,
+      remote
+    )
+
+    await expect(control.accountAccessToken()).resolves.toBe(
+      "oauth-access-token"
+    )
+    expect(account.authorization).not.toHaveBeenCalled()
+  })
+
+  it("scopes Publish state to the signed-in account identity", async () => {
+    const signedIn = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      accountSession("signed-in"),
+      remote
+    )
+    const signedOut = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      accountSession("signed-out"),
+      remote
+    )
+
+    await expect(signedIn.accountSubject()).resolves.toBe("user-1")
+    await expect(signedOut.accountSubject()).rejects.toThrow(
+      "Sign in to Eidos first."
+    )
+  })
+
   it("projects a narrow read-write grant without exposing Billing fields", async () => {
     const account = accountSession("signed-in") as unknown as {
       authorization: ReturnType<typeof vi.fn>

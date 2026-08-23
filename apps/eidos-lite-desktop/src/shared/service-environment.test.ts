@@ -10,6 +10,7 @@ describe("Eidos Lite service environments", () => {
       name: "staging",
       accountOrigin: "https://staging.eidos.space",
       billingOrigin: "https://staging.eidos.space",
+      publishOrigin: "https://publish-staging.eidos.space",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
     })
   })

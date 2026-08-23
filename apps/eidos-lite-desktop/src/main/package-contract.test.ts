@@ -83,7 +83,7 @@ describe("Eidos Lite package identity", () => {
     }
   })
 
-  it("packages only the Graft SDK without a CLI fallback", async () => {
+  it("packages the Graft SDK and the dedicated Eidos Publish engine", async () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")
     const scripts = packageJson.scripts as Record<string, string>
@@ -97,7 +97,24 @@ describe("Eidos Lite package identity", () => {
     expect(scripts["native:node"]).toBeUndefined()
     expect(scripts["native:electron"]).toBeUndefined()
     expect(JSON.stringify(builder)).not.toContain("better-sqlite3")
-    expect(builder.extraResources).toBeUndefined()
+    expect(builder.extraResources).toEqual([
+      {
+        from: "resources/publish-engine",
+        to: "publish-engine",
+        filter: ["**/*"],
+      },
+    ])
+    expect(scripts["prepare:publish-engine"]).toBe(
+      "node scripts/prepare-publish-engine.mjs"
+    )
+    for (const scriptName of [
+      "package:dir",
+      "package:production:dir",
+      "package:release",
+      "package:release:linux",
+    ]) {
+      expect(scripts[scriptName]).toContain("prepare:publish-engine")
+    }
     expect(scripts["test:graft:cli"]).toBeUndefined()
     expect(scripts["graft:install"]).toBeUndefined()
     expect(scripts["package:dir"]).not.toContain("graft:install")
@@ -108,6 +125,9 @@ describe("Eidos Lite package identity", () => {
     await expect(
       fs.access(path.join(appRoot, "scripts/install-graft-runtime.mjs"))
     ).rejects.toThrow()
+    await expect(
+      fs.access(path.join(appRoot, "scripts/prepare-publish-engine.mjs"))
+    ).resolves.toBeUndefined()
   })
 
   it("uses the checked-in cyan Eidos Lite icons on every target", async () => {

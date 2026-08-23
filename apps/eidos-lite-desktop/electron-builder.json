@@ -14,6 +14,13 @@
     "**/node_modules/@eidos.space/graft-*/**/*"
   ],
   "asarUnpack": ["**/node_modules/@eidos.space/graft-*/**/*"],
+  "extraResources": [
+    {
+      "from": "resources/publish-engine",
+      "to": "publish-engine",
+      "filter": ["**/*"]
+    }
+  ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "publish": {
     "provider": "generic",

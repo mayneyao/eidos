@@ -66,6 +66,12 @@ import { SyncRunTracker } from "./sync/sync-run-tracker"
 import type { WindowController } from "./window-controller"
 import { HtmlPreviewViewManager } from "./html-preview-view"
 import { eidosLitePreferencesPatch } from "./preferences-patch"
+import {
+  EidosPublishEngine,
+  requiredPublicationBindingsRequest,
+  requiredPublishCollectRequest,
+  requiredPublishRequest,
+} from "./publish/publish-engine"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
@@ -610,6 +616,7 @@ export function registerIpc(
     syncControl,
     options.syncFailuresForTesting
   )
+  const publishEngine = new EidosPublishEngine(services, syncControl)
   const syncQueue = new BackgroundSyncQueue({
     store: new SyncQueueStore(path.join(app.getPath("userData"))),
   })
@@ -974,23 +981,44 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.renamePath,
-    (event, relativePath: unknown, name: unknown) =>
-      controller
-        .requireSession(event.sender)
-        .renamePath(
-          requiredString(relativePath, "Space path"),
-          requiredString(name, "new name")
-        )
+    async (event, relativePath: unknown, name: unknown) => {
+      const session = controller.requireSession(event.sender)
+      const source = requiredString(relativePath, "Space path")
+      const result = await session.renamePath(
+        source,
+        requiredString(name, "new name")
+      )
+      if (result.relativePath) {
+        try {
+          publishEngine.remapBindings(session, source, result.relativePath)
+        } catch (error) {
+          console.warn(
+            "Could not remap Publication bindings after rename",
+            error
+          )
+        }
+      }
+      return result
+    }
   )
   ipcMain.handle(
     IPC_CHANNELS.movePath,
-    (event, relativePath: unknown, targetDirectory: unknown) =>
-      controller
-        .requireSession(event.sender)
-        .movePath(
-          requiredString(relativePath, "Space path"),
-          optionalRelativePath(targetDirectory)
-        )
+    async (event, relativePath: unknown, targetDirectory: unknown) => {
+      const session = controller.requireSession(event.sender)
+      const source = requiredString(relativePath, "Space path")
+      const result = await session.movePath(
+        source,
+        optionalRelativePath(targetDirectory)
+      )
+      if (result.relativePath) {
+        try {
+          publishEngine.remapBindings(session, source, result.relativePath)
+        } catch (error) {
+          console.warn("Could not remap Publication bindings after move", error)
+        }
+      }
+      return result
+    }
   )
   ipcMain.handle(
     IPC_CHANNELS.copyPath,
@@ -2074,6 +2102,50 @@ export function registerIpc(
           : "https://eidos.space/download"
     )
   })
+  ipcMain.handle(IPC_CHANNELS.publishRun, async (event, value: unknown) => {
+    const request = requiredPublishRequest(value)
+    const session = controller.requireSession(event.sender)
+    return publishEngine.publish(session, request, (progress) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send(IPC_CHANNELS.publishProgress, progress)
+      }
+    })
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.publishCollectRun,
+    async (event, value: unknown) => {
+      const request = requiredPublishCollectRequest(value)
+      const session = controller.requireSession(event.sender)
+      return publishEngine.collect(session, request)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.publishBindingsList,
+    async (event, value: unknown) => {
+      const request = requiredPublicationBindingsRequest(value)
+      const session = controller.requireSession(event.sender)
+      return publishEngine.listBindings(session, request)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.publishCollectorActiveSource,
+    (event, value: unknown) => {
+      if (
+        value !== null &&
+        (typeof value !== "string" ||
+          value.length === 0 ||
+          Buffer.byteLength(value, "utf8") > 4_096 ||
+          !value.toLowerCase().endsWith(".eidos") ||
+          /[\u0000-\u001f\u007f]/.test(value))
+      ) {
+        throw new Error("Invalid active Publication source")
+      }
+      publishEngine.setActiveCollectorSource(
+        controller.requireSession(event.sender),
+        value
+      )
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.revealPath, (event, relativePath: unknown) => {
     if (typeof relativePath !== "string") throw new Error("Invalid file path")
     return controller.reveal(event.sender, relativePath)
@@ -2102,6 +2174,7 @@ export function registerIpc(
     async close() {
       htmlPreviewViews.closeAll()
       assetLeases.clear()
+      publishEngine.close()
       await syncQueue.close()
     },
   }
