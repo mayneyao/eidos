@@ -54,6 +54,18 @@ File Format → Runtime → Adapter → UI
 | Runtime merge profile | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
 | Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
 | UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
+| UI 标准视图           | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
+
+## 文档组织规则
+
+每个 layer 只有一份核心规范。只有当一个完整主题会让核心规范难以阅读时，才拆出
+normative companion；companion 仍沿用同一 layer 的 ownership，通常也复用该 layer
+已有的 conformance label。
+
+同一 abstraction 的内建变体必须放在一起。因此 Grid、Gallery、Kanban、Calendar 与
+Form 都是 Eidos 标准视图 1.0 的章节，而不是五份独立 profile。未来新增的内建 View
+也加入这份文档。只有明确位于 standard baseline 之外的第三方或实验性 View 才可以
+使用单独的 optional profile，并自行定义 label 与 prerequisite。
 
 ## 实现阶梯
 
@@ -109,7 +121,8 @@ EU-Schema-1.0
 要求 `EF-Reader-1.0`、`EF-Writer-1.0`、`ER-Reader-1.0` 与 `ER-Writer-1.0`，但
 `ER-Writer-1.0` 不会自动隐含它。例如 headless CLI 可以声明
 `EF-Reader-1.0 ER-Reader-1.0 EA-Desktop-1.0` 而没有 UI conformance。每份规范定义
-自己的 prerequisite 与 required test family。
+自己的 prerequisite 与 required test family。Eidos 标准视图 1.0 是现有 UI label
+必须遵循的 companion，不是可选 profile，也不增加新的 conformance label。
 
 ## 互操作完成标准
 

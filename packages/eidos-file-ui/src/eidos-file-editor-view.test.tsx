@@ -38,6 +38,7 @@ import { createEidosFilePluginRegistry, defineEidosFilePlugin } from "./plugin"
 import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import { eidosFileKanbanPlugin } from "./plugins/kanban"
 import { eidosFileCalendarPlugin } from "./plugins/calendar"
+import { eidosFileFormPlugin } from "./plugins/form"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -143,11 +144,13 @@ describe("EidosFileEditorView registry", () => {
       eidosFileGalleryPlugin,
       eidosFileKanbanPlugin,
       eidosFileCalendarPlugin,
+      eidosFileFormPlugin,
     ])
     expect(Object.keys(registry.viewRenderers)).toEqual([
       "gallery",
       "kanban",
       "calendar",
+      "form",
     ])
   })
 

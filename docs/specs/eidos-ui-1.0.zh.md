@@ -3,7 +3,7 @@
 状态：Eidos 最终标准的参考翻译  
 版本：1.0  
 发布日期：2026-07-21  
-修订日期：2026-08-08\
+修订日期：2026-08-23
 编辑与变更控制：Eidos Project  
 规范语言：英文
 
@@ -18,9 +18,10 @@ publication、conflict、recovery 与 asset 则独立通过 `HostServices`。UI 
 得到 SQLite statement、physical identifier、generated SQL、Host filesystem path、
 native handle 或 canonical-file write primitive。
 
-本文拥有标准 Grid、Gallery、Kanban、Calendar 的 layout 含义、async consumption、交互状态、
-编辑 affordance、accessibility 与 renderer isolation 契约。Logical value、query、
-mutation、revision 与 error 的含义归
+本文拥有通用 async consumption、交互状态、editing affordance、accessibility 与
+renderer isolation 契约。[Eidos 标准视图 1.0](./eidos-standard-views-1.0.zh.md) 是
+normative companion，拥有 Grid、Gallery、Kanban、Calendar 与 Form 的 layout 含义和
+View-specific interaction。Logical value、query、mutation、revision 与 error 的含义归
 [Eidos Runtime 1.0](./eidos-runtime-1.0.md)；文件字节和持久编码归
 [Eidos File Format 1.0](./eidos-file-1.0.md)；平台和 persistence mechanism 归
 [Eidos Adapter 1.0](./eidos-adapter-1.0.md)。
@@ -90,6 +91,10 @@ UI 可以为了即时反馈做 advisory parsing。结果必须清楚标为 provi
 Profile 是累积的：Schema 包含 Editor，Editor 包含 Viewer。UI conformance label
 不表示同一组件也实现 Runtime、Adapter 或 File Format。
 
+五种标准 View type 及其要求由 Eidos 标准视图 1.0 统一定义，并包含在上述 label 中。
+Extension profile 可以增加其他 understood View type，但不会改变 standard View
+baseline，且必须定义自己的 prerequisite 与 conformance test。
+
 `EU-Viewer-1.0` 测试环境必须提供 `ER-Reader-1.0` 和 `EA-Host-1.0` Host。
 `EU-Editor-1.0` 还要求 `ER-Writer-1.0`、row mutation、Runtime
 `mutationUndo`、view mutation、按 negotiated durability publication，以及第 11.3
@@ -118,7 +123,8 @@ capability 缺失而失败的 control。
 - **optimistic overlay**：Runtime mutation 未完成时展示的可撤销、仅 UI projection。
 - **revision**：lossless Runtime revision。UI 把它当作 opaque monotonic
   concurrency token，绝不能对它做 binary64 arithmetic。
-- **standard View**：type 为 `grid`、`gallery`、`kanban` 或 `calendar` 的 View。
+- **standard View**：type 为 `grid`、`gallery`、`kanban`、`calendar` 或 `form` 的
+  View，定义见 Eidos 标准视图 1.0。
 - **renderer**：把 View 和 Runtime result 转为 interactive surface 的代码；可能是
   trusted application code，也可能是 isolated third-party code。
 - **asset lease**：用于展示一个 File entry 的、time- and purpose-scoped Host result，
@@ -1021,278 +1027,27 @@ Optimistic overlay 与 page cache 分开保存。
 Missing 或 logical-null Record Label 可以显示 localized placeholder。Placeholder 不是
 logical value，不能作为 raw data copy，也不得出现在 Relation/row mutation 中。
 
-## 8. 标准 View layout JSON
+## 8. 标准 View
 
-### 8.1 Ownership 与无损保留
+[Eidos 标准视图 1.0](./eidos-standard-views-1.0.zh.md) 是 normative companion，
+定义内建 `grid`、`gallery`、`kanban`、`calendar` 与 `form` View 的持久化
+layout 含义、默认值、renderer 配置与 View-specific interaction。
 
-`ViewDescriptor` 暴露 `type` 与 canonical `layout`；本节拥有 core layout key 的
-含义。Runtime 把未知 layout member 当成 opaque canonical metadata。UI 更新一个
-known key 时，必须保留所有 unknown member 和未更新 known member。它可以发送
-Runtime 支持的 member patch，或在 `expectedRevision` 下 merge 到最新 object；不得
-parse 后 rewrite stale copy。
+现有 `EU-Viewer-1.0`、`EU-Editor-1.0` 与 `EU-Schema-1.0` profile 包含其中
+适用的要求，不增加额外 conformance label。Eidos UI 仍拥有通用 RuntimeClient/
+HostServices 消费、state、mutation、accessibility、localization 与 renderer-isolation
+行为。
 
-`grid`、`gallery`、`kanban`、`calendar` 共用唯一 root schema。对当前 type 不适用的 key 仍保留、
-但 rendering 时忽略，因此 explicit type change 及 reversal 不丢 layout intent。
-
-View 配置有两个彼此独立的分类维度。`query.filter` 与 `query.sort` 是通用功能配置，
-其 row-set 语义由 Runtime 拥有；layout key 则分为通用配置与 renderer 专用配置。
-`groupField`、`columnStats` 等 renderer 专用 key 会选择 Runtime operation，但仍属于
-layout recipe：返回的 group 或 aggregate value 是 generated state，绝不能复制进
-layout。UI 不得把“功能与展示”等同于“通用与 View 专用”。
-
-Core layout 绝不存 Row ID、cell/group value、resolved label、selection、scroll、
-hover、open editor 或 collapsed transient group；它们是 query result 或 UI state。
-
-### 8.2 配置注册表与默认值
-
-“适用 View”列是规范性的。Editor 必须在每个标准 View 暴露通用 Field layout 控件，
-并且只在相应 key 适用时暴露 View 专用控件。不适用于当前 type 的 key 必须保留，但不
-影响 rendering 或 request。
-
-| Key                   | Type                             | Default                                | 适用 View      | 分类                 | 含义                                                                    |
-| --------------------- | -------------------------------- | -------------------------------------- | -------------- | -------------------- | ----------------------------------------------------------------------- |
-| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示             | 从前到后的 Field 顺序                                                   |
-| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示             | 从 View 省略的普通 Field，不是删除                                      |
-| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示             | 在当前 View 明确展示的 optional hidden system Field                     |
-| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示            | dimensionless preferred relative width，范围 `0.25..8`                  |
-| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示            | semantic row-density hint                                               |
-| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示            | 冻结 leading visible Field 的数量，并按 visible count clamp             |
-| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe     | 每列 aggregate footer 请求；value 由 Runtime 生成                       |
-| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示            | 有序 secondary card Field；Record Label 始终是 title                    |
-| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示            | 作为 card cover 的 File Field 或 image-display URL-capable scalar Field |
-| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示            | semantic cover fitting hint                                             |
-| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示            | semantic card-size hint                                                 |
-| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示            | configured secondary Field 的 logical value 为空时从该 card 省略        |
-| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe   | grouping Field；`null` 是 incomplete configuration                      |
-| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能     | 展示从 grouping Field canonical option catalog 派生的 zero-row group    |
-| `dateField`           | Field ID 或 `null`               | `null`                                 | Calendar       | Calendar 功能 recipe | 用于把记录放到日期上的时间字段；`null` 表示配置不完整                   |
-
-`columnStats[*].type` 只能是 `count-all`、`count-non-null`、
-`count-distinct`、`count-empty`、`percent-checked`、`percent-unchecked`、
-`sum`、`average`、`min`、`max`、
-`relation-value-count`、`relation-row-count` 或
-`relation-distinct-target-count`。UI 只启用与 Field 兼容的 Runtime choice，发送对应
-`AggregateRequest`，并且只显示 revision 匹配的结果。Aggregate result 绝不持久化。
-
-`percent-checked` 与 `percent-unchecked` 仅适用于 Checkbox Field，分母是 active
-Runtime query 命中的全部记录。`percent-checked` 统计 canonical true；
-`percent-unchecked` 统计 false 与 SQL NULL，这与标准未勾选交互一致，而
-`count-empty` 仍可单独区分 NULL。空结果为 `0`；其他结果是 `0..100` 的数值，展示时
-最多保留两位小数。
-
-普通 Field 的可见性由 `hiddenFields` 控制；optional system Field 的可见性只由
-`visibleSystemFields` 控制，同一个 system Field 即使也在 `hiddenFields` 中也没有额外
-效果。当前 Field role 与 key 不匹配的 ID 必须保留并忽略。Conforming Editor 必须在
-每个标准 View 提供一个易发现的 Field 控件，可显示/隐藏每个当前 configurable Field
-并更新 `fieldOrder`。编辑当前 Field 时必须保留 unknown/deleted ID；即使 View 当前
-没有任何 visible Field，也必须保留可恢复入口。
-
-Width 和 size token 不规定 pixel、grid library、breakpoint 或 rendering engine。
-实现自行选择 physical presentation，但必须保持 relative order 和 semantic size
-distinction。
-
-Unknown/deleted Field ID 保留在 layout JSON 中，rendering 时忽略；ID 再次有效时原
-layout 重新生效。Core array 的 duplicate ID 不是 valid UI output。读取到 duplicate
-时，rendering 使用第一次出现，保留原 value 直到 explicit layout edit，并报告
-advisory diagnostic。
-
-Grid 按 `fieldOrder` 展示 visible Field，再按 metadata order 追加剩余 visible Field。
-Gallery/Kanban 用 Table Record Label 作为 card title，`cardFields` 是 secondary
-content；同时存在于 `hiddenFields` 的 `cardFields` member 必须省略。File Field，或
-Field settings 声明 `display.kind="image"` 的 scalar URL Field / scalar URL
-Formula/Lookup result，可以作为 `coverField`。`coverField` missing、hidden、
-不符合上述条件、logical null、empty、denied 或 unresolved 时只显示 non-persisted
-placeholder。符合条件的 URL cover 必须遵循第 9 节 image-display URL Field 的
-Host-only resolution、bounded rendered-window loading、decoded-image cache、failure
-fallback 和 canonical-value 规则；选择它绝不能把 URL value 转换为 File entry。
-`groupField:null` 的 Kanban 必须显示 accessible
-configuration-required state，不能虚构 Field；Field 不能 group 时结合 Runtime
-diagnostic 显示同一状态。
-
-通用 Fields 控件与 Card 配置是前后两级 pipeline，不是彼此竞争的两套显隐控件。
-Fields 负责 View 的通用可用性（`hiddenFields`/`visibleSystemFields`）、通用
-`fieldOrder`，以及进入 Field schema property 的入口。Card 配置只负责 card 专用内容与
-展示：`cardFields`、cover、fit、size 和空值处理。Card content chooser 只能提供当前
-View 中可见的 Field；其中的拖拽只改变 `cardFields`。在 Fields 中隐藏 Field 始终优先，
-Card 配置不得让它重新可见。编辑当前可用 member 时，unknown 或暂时 unavailable 的
-`cardFields` member 仍须保留。
-
-当 `showEmptyGroups:false` 时，只有 Runtime 已对 active revision 和 saved query
-权威报告某 catalog group 为 zero row 后，Kanban 才省略该 group。该 option 仍是合法
-move target；成功 move 后 group 重新可见。Count resolve 前的省略只是 provisional UI
-state，绝不能持久化。`freezeColumns` 在 visibility 与 ordering 之后计算。
-
-Calendar 把每个非空 `dateField` 值映射到本地日历日期。可用字段包括 Date、Date &
-time、显示类型为其中之一的 Formula/Lookup，以及创建/更新时间系统字段。Date 直接使用
-canonical `YYYY-MM-DD`；Date & time 按 Editor 当前本地时区归入日期。当前月份、today、
-展开日期和滚动位置属于临时 UI state，绝不能持久化。Calendar 读取必须把可见日期范围
-与已保存 filter 和 search 组合，不能替换其中任何一个。若 `dateField` 缺失、被删除、
-不是时间类型或为 `null`，必须显示可访问的配置提示。日期为空的记录不放入日历。Host
-可以提供全局的每周首日偏好；Calendar 必须同时用它排列星期列和计算请求的可见范围，默认
-从周一开始。该 Host 偏好不是 View layout，绝不能写入 Eidos File。
-
-Calendar 新建记录取决于所选 Field 是否可写。对 writable stored Date 或 Date & time
-Field，每个可见日期格都必须提供新建操作；Runtime 新建 Record 时把该 Field 设为
-所选 canonical 日期，Date & time 使用本地零点并编码为 canonical instant。对创建或更新
-时间系统 Field，只有 today 提供新建操作，时间戳由 Runtime 填充。Formula 和 Lookup
-日期 Field 的值是 derived，绝不得提供按日新建。新建成功后，Editor 打开新 Record 的标准
-Record inspector。
-
-只有 `groupField` 是 writable stored scalar 且 Runtime 提供 destination exact logical
-group value 时，Kanban 才能 move card。Move 是一个带 `expectedRevision` 的 sparse
-`mutateRows` update；UI 绝不能把 display label 写成 group value。Formula、Lookup、
-inverse Relation、list、read-only group 都不能接收 move。Card order 是 Runtime query
-order；core layout 没有 manual row-order key，因此 group 内 drag 只是 ephemeral。
-
-### 8.3 可执行 JSON Schema
-
-Conformance tool 用 stored View type 和 parsed layout object 组成 envelope 来验证；
-envelope 本身不存储。
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spec.eidos.space/ui/1.0/view-layout.schema.json",
-  "title": "Eidos UI 1.0 standard View layout envelope",
-  "type": "object",
-  "required": ["type", "layout"],
-  "properties": {
-    "type": { "enum": ["grid", "gallery", "kanban", "calendar"] },
-    "layout": {
-      "type": "object",
-      "properties": {
-        "fieldOrder": { "$ref": "#/$defs/fieldIdArray" },
-        "hiddenFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "visibleSystemFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "fieldWidths": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/$defs/fieldId" },
-          "additionalProperties": {
-            "type": "number",
-            "minimum": 0.25,
-            "maximum": 8
-          },
-          "default": {}
-        },
-        "rowDensity": {
-          "enum": ["compact", "standard", "comfortable"],
-          "default": "standard"
-        },
-        "freezeColumns": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647,
-          "default": 1
-        },
-        "columnStats": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/$defs/fieldId" },
-          "additionalProperties": { "$ref": "#/$defs/columnStat" },
-          "default": {}
-        },
-        "cardFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "coverField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        },
-        "coverFit": { "enum": ["cover", "contain"], "default": "cover" },
-        "cardSize": {
-          "enum": ["small", "medium", "large"],
-          "default": "medium"
-        },
-        "hideEmptyFields": { "type": "boolean", "default": true },
-        "groupField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        },
-        "showEmptyGroups": { "type": "boolean", "default": true },
-        "dateField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        }
-      },
-      "additionalProperties": true
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "fieldId": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "fieldIdArray": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/fieldId" },
-      "uniqueItems": true
-    },
-    "columnStat": {
-      "type": "object",
-      "required": ["type"],
-      "properties": {
-        "type": {
-          "enum": [
-            "count-all",
-            "count-non-null",
-            "count-distinct",
-            "count-empty",
-            "percent-checked",
-            "percent-unchecked",
-            "sum",
-            "average",
-            "min",
-            "max",
-            "relation-value-count",
-            "relation-row-count",
-            "relation-distinct-target-count"
-          ]
-        }
-      },
-      "additionalProperties": false
-    }
-  }
-}
-```
-
-JSON Schema annotation（例如 `default`）不会 mutate instance。Key 缺失时应用
-Section 8.2 的读取默认值。Schema 使用 JSON Schema Draft 2020-12 Core 与
-Validation。
-
-### 8.4 Unknown View type
-
-Unknown `view.type` 是 valid forward-compatible metadata。没有 registered renderer
-时，UI 必须显示 View name、unknown type 和 accessible unsupported-renderer state。
-UI 可以提供不改 saved type/layout 的 ephemeral read-only Grid fallback。转换为
-standard View 是 explicit、revision-checked mutation。Unrelated View edit 必须在
-logical content 上原样保留 unknown type/layout。
-
-### 8.5 使用更新 query semantics 的 View
-
-当 `ViewDescriptor.queryStatus="unsupported"` 时，该 View 必须继续出现在所有 View
-tab、menu 与 navigation surface。UI 必须显示 accessible 的 update-required state，
-不得使用 `{}` query placeholder 发起 `queryRows`、`groupRows`、aggregate 或 export
-request。该 View 的 saved Filter 与 Sort control 必须 disabled。rename、reorder、
-layout 等 unrelated patch 因为省略 `query`，可以继续提供；但不得用客户端能理解的
-subset 重建 View。替换 query 必须是 explicit user action，并说明会移除更新版本的
-query。
-
-unknown renderer 与 unsupported query 相互独立。UI 先报告 query incompatibility，
-因为 Grid fallback 否则会展示错误 row set。
+Unknown View type 与采用新版不受支持 query 语义的 View 遵循 Eidos 标准视图 1.0
+第 3.3 节。UI 必须按该文档第 3.1 与 3.3 节保留 unknown 和 non-applicable layout
+member。
 
 ## 9. Bounded read、projection 与 rendering
 
 ### 9.1 Request construction
 
-UI 只请求当前 surface 需要的 Field：visible Field、Record Label、card/group field
-和 Runtime-required query output。Relation label 必须在 page projection 中请求，
+UI 只请求当前 surface 需要的 Field：visible Field、Record Label、card/group Field、
+Form question Field 和 Runtime-required query output。Relation label 必须在 page projection 中请求，
 不能每个 Relation cell 一次 read。不适合自然分页的 bounded batch 使用
 `getRowsById`；禁止在 row/cell render loop 中调用 `getRowsById`。
 
@@ -1654,7 +1409,7 @@ Search text、current tab、selection、collapsed UI panel、scroll、hover 都�
 insertion position，则提交 intentional atomic position-patch set。不得省略 create
 position、期待 Runtime append，或把 visual array index 当 persistent identity。
 
-Layout edit 只更新 Section 8 known key，并保留 unknown key。Saved query edit 发送
+Layout edit 只更新 Eidos 标准视图 1.0 定义的 known key，并保留 unknown key。Saved query edit 发送
 Field ID 和 Runtime logical filter value，不能发送 display/physical name。Operator/
 type compatibility 和 query result 以 Runtime 为准。
 
@@ -1680,8 +1435,8 @@ Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**�
 reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
 应说明结果会随当前日期更新，也可以用日历预览计算区间，但预览不能成为 canonical state。
 
-Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban/Calendar 控件是 Editor required
-surface，不是 optional authoring convenience。每个控件通过一次 revision-checked
+Eidos 标准视图 1.0 的通用 Fields 控件以及适用的 Grid、Card、Kanban、Calendar、
+Form 控件是 Editor required surface，不是 optional authoring convenience。每个控件通过一次 revision-checked
 View mutation 提交；当前 renderer 没有 row 或 visible Field 时仍须可用；成功或
 conflict 后都必须反映最新返回的 View descriptor。
 
@@ -2364,10 +2119,10 @@ zero direct URI fetch/navigation，以及 isolated-renderer capability revocatio
 三种 outcome；必须断言 fatal 旧 RuntimeClient 上没有任何 read/retry，并对每个 returned
 replacement client 完整执行 negotiation/snapshot/schema bootstrap。Editor 还须覆盖
 Table、View、`fieldOrder`、`cardFields` 的 pointer 与 keyboard drag completion，并断言
-不存在结构性的 up/down control；还须覆盖 Grid、Gallery、Kanban、Calendar 的通用 Field
-visibility/order、Section 8.2 每个 View 专用 key、
-type change 时 non-applicable/unknown key 的保留，以及 generated aggregate/group result
-绝不进入 layout。Schema 还须覆盖
+不存在结构性的 up/down control。还必须执行 Eidos 标准视图 1.0 中适用的
+conformance tests，包括五种内建 type、所有 View 专用 key、type change 时
+non-applicable/unknown key 的保留，以及 generated aggregate/group result 绝不进入
+layout。Schema 还须覆盖
 四种 conversion classification、dependency paging/display、display-name-only rename、
 plan expiry。
 
@@ -2378,6 +2133,7 @@ plan expiry。
 - [Eidos File Format 1.0](./eidos-file-1.0.md)
 - [Eidos Runtime 1.0](./eidos-runtime-1.0.md)
 - [Eidos Adapter 1.0](./eidos-adapter-1.0.md)
+- [Eidos 标准视图 1.0](./eidos-standard-views-1.0.zh.md)
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) 与
   [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) — normative terminology
 - [RFC 2397](https://www.rfc-editor.org/rfc/rfc2397) — inline Data URL 与其

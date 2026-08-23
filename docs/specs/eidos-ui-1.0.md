@@ -3,7 +3,7 @@
 Status: Final Eidos Standard  
 Version: 1.0  
 Published: 2026-07-21  
-Revised: 2026-08-08\
+Revised: 2026-08-23
 Editor and change controller: Eidos Project  
 Canonical language: English
 
@@ -20,10 +20,12 @@ conflicts, recovery, and assets. It never receives SQLite statements,
 physical identifiers, generated SQL, host filesystem paths, native handles,
 or canonical-file write primitives.
 
-This document owns the standard Grid, Gallery, Kanban, and Calendar layout meaning,
-async consumption behavior, interaction state, editing affordances,
-accessibility, and renderer isolation requirements. Logical value, query,
-mutation, revision, and error meaning belongs to
+This document owns common async consumption behavior, interaction state,
+editing affordances, accessibility, and renderer isolation requirements.
+[Eidos Standard Views 1.0](./eidos-standard-views-1.0.md) is its normative
+companion and owns the layout meaning and View-specific interaction of Grid,
+Gallery, Kanban, Calendar, and Form. Logical value, query, mutation, revision,
+and error meaning belongs to
 [Eidos Runtime 1.0](./eidos-runtime-1.0.md); file bytes and persisted encodings
 belong to [Eidos File Format 1.0](./eidos-file-1.0.md); platform and persistence
 mechanisms belong to [Eidos Adapter 1.0](./eidos-adapter-1.0.md).
@@ -97,6 +99,12 @@ The profiles are cumulative: Schema includes Editor, and Editor includes
 Viewer. A UI conformance label does not imply that the same component
 implements Runtime, Adapter, or File Format.
 
+The five standard View types and their requirements are defined together by
+Eidos Standard Views 1.0 and are incorporated into the labels above. An
+extension profile MAY add another understood View type, but it does not change
+the standard View baseline and MUST define its own prerequisites and
+conformance tests.
+
 The test environment for `EU-Viewer-1.0` MUST provide `ER-Reader-1.0` and an
 `EA-Host-1.0` host. `EU-Editor-1.0` additionally requires `ER-Writer-1.0`, row
 mutation, Runtime `mutationUndo`, view mutation, publication under negotiated
@@ -130,8 +138,8 @@ A product MUST publish:
 - **revision**: the lossless Runtime revision value. The UI treats it as an
   opaque monotonic concurrency token and never performs binary64 arithmetic
   on it.
-- **standard View**: a View whose type is `grid`, `gallery`, `kanban`, or
-  `calendar`.
+- **standard View**: a View whose type is `grid`, `gallery`, `kanban`,
+  `calendar`, or `form`, as defined by Eidos Standard Views 1.0.
 - **renderer**: code that turns a View and Runtime results into an interactive
   surface. A renderer can be trusted application code or isolated third-party
   code.
@@ -1094,309 +1102,31 @@ A missing or NULL Record Label MAY be shown as a localized placeholder. The
 placeholder is never a logical value, is never copied as raw data, and MUST
 NOT be sent in a Relation or row mutation.
 
-## 8. Standard View layout JSON
+## 8. Standard Views
 
-### 8.1 Ownership and preservation
+[Eidos Standard Views 1.0](./eidos-standard-views-1.0.md) is the normative
+companion that defines the persisted layout meaning, defaults, renderer
+configuration, and View-specific interaction for the built-in `grid`,
+`gallery`, `kanban`, `calendar`, and `form` View types.
 
-`ViewDescriptor` exposes `type` and canonical `layout`; this section
-owns the meaning of core layout keys. The Runtime treats unknown layout
-members as opaque canonical metadata. A UI updating one known key MUST
-preserve every unknown member and every known member it did not update. It
-MAY send a Runtime-supported member patch or merge the change into the latest
-object under `expectedRevision`; it MUST NOT parse and rewrite a stale copy.
+The existing `EU-Viewer-1.0`, `EU-Editor-1.0`, and `EU-Schema-1.0`
+profiles incorporate its applicable requirements. It introduces no additional
+conformance label. Eidos UI retains ownership of common RuntimeClient and
+HostServices consumption, state, mutation, accessibility, localization, and
+renderer-isolation behavior.
 
-The same root schema is used by `grid`, `gallery`, `kanban`, and `calendar`. A key not
-applicable to the current type is preserved and ignored. This allows an
-explicit type change and reversal without losing layout intent.
-
-View configuration has two independent classifications. `query.filter` and
-`query.sort` are common functional configuration whose row-set semantics are
-owned by Runtime. Layout keys are either common or renderer-specific. Some
-renderer-specific keys, such as `groupField` and `columnStats`, select a
-Runtime operation, but they remain layout recipes: returned groups and
-aggregate values are generated state and MUST NOT be copied into layout. A UI
-MUST NOT treat "functional versus presentation" as equivalent to "common
-versus View-specific".
-
-Core layout never stores Row IDs, cell/group values, resolved labels,
-selection, scroll, hover, open editor, or collapsed transient groups. Those
-are query results or UI state.
-
-### 8.2 Configuration registry and defaults
-
-The applicability column is normative. An Editor MUST expose the common Field
-layout on every standard View and MUST expose type-specific controls only when
-the key applies. A non-applicable key is preserved but has no rendering or
-request effect.
-
-| Key                   | Type                             | Default                                | Applies to     | Class                        | Meaning                                                                             |
-| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ---------------------------- | ----------------------------------------------------------------------------------- |
-| `fieldOrder`          | unique Field-ID array            | metadata Field position, then Field ID | all standard   | common presentation          | leading-to-trailing Field order                                                     |
-| `hiddenFields`        | unique Field-ID array            | `[]`                                   | all standard   | common presentation          | ordinary Fields omitted from the View, never deleted                                |
-| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | all standard   | common presentation          | optional hidden system Fields explicitly shown in this View                         |
-| `fieldWidths`         | Field-ID to number map           | `{}`; missing entry is `1`             | Grid           | Grid presentation            | preferred dimensionless relative width, range `0.25..8`                             |
-| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid presentation            | semantic row-density hint                                                           |
-| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid presentation            | count of leading visible Fields kept frozen, clamped to the visible count           |
-| `columnStats`         | Field-ID to `{type}` map         | `{}`                                   | Grid           | Grid functional recipe       | requested per-column aggregate footer; values are generated by Runtime              |
-| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card presentation            | ordered secondary card Fields; Record Label is always the title                     |
-| `coverField`          | Field ID or `null`               | `null`                                 | Gallery/Kanban | Card presentation            | File Field or image-display URL-capable scalar Field used as card cover             |
-| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card presentation            | semantic cover fitting hint                                                         |
-| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card presentation            | semantic card-size hint                                                             |
-| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card presentation            | omit a configured secondary Field when its logical value is empty                   |
-| `groupField`          | Field ID or `null`               | `null`                                 | Kanban         | Kanban functional recipe     | grouping Field; `null` is an incomplete configuration                               |
-| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban presentation/function | show zero-row groups derived from the grouping Field's canonical option catalog     |
-| `dateField`           | Field ID or `null`               | `null`                                 | Calendar       | Calendar functional recipe   | temporal Field used to place Records on days; `null` is an incomplete configuration |
-
-`columnStats[*].type` is exactly one of `count-all`, `count-non-null`,
-`count-distinct`, `count-empty`, `percent-checked`, `percent-unchecked`, `sum`,
-`average`, `min`, `max`,
-`relation-value-count`, `relation-row-count`, or
-`relation-distinct-target-count`. UI enables only Runtime-compatible choices
-for the Field, sends the corresponding `AggregateRequest`, and displays only a
-matching revision-bearing result. The aggregate result is never persisted.
-
-`percent-checked` and `percent-unchecked` apply only to Checkbox Fields. Their
-denominator is every row in the active Runtime query. `percent-checked` counts
-canonical true values; `percent-unchecked` counts false and SQL NULL values,
-matching the standard unchecked Checkbox interaction while `count-empty`
-remains available to distinguish NULL. An empty result is `0`; other results
-are numbers in `0..100`, rounded to at most two decimal places for display.
-
-An ordinary Field's visibility is controlled by `hiddenFields`. An optional
-system Field's visibility is controlled only by `visibleSystemFields`; placing
-the same system Field in `hiddenFields` has no additional effect. IDs whose
-current Field role does not match the key are preserved and ignored. A
-conforming Editor provides one discoverable Field control for every standard
-View that can show/hide every current configurable Field and update
-`fieldOrder`. It MUST preserve unknown/deleted IDs while editing current
-Fields and MUST expose a recovery path even when the View currently has zero
-visible Fields.
-
-Widths and size tokens do not mandate pixels, a grid library, a breakpoint,
-or a rendering engine. Implementations choose physical presentation while
-preserving relative order and semantic size distinctions.
-
-Unknown or deleted Field IDs are preserved in layout JSON but ignored during
-rendering. If an ID becomes valid again, its prior layout applies. Duplicate
-IDs in a core array are invalid UI output; when reading such input, the UI
-uses the first occurrence for rendering, preserves the original value until
-an explicit layout edit, and reports an advisory diagnostic.
-
-Grid renders visible Fields in `fieldOrder`, followed by remaining visible
-Fields in metadata order. Gallery and Kanban use the Table Record Label as the
-card title and `cardFields` as secondary content. A `cardFields` member also
-present in `hiddenFields` is omitted. A `coverField` is eligible when it is a
-File Field, or when it is a scalar URL Field or scalar URL Formula/Lookup
-result whose Field settings declare `display.kind="image"`. A `coverField`
-that is missing, hidden, ineligible, NULL, empty, denied, or unresolved yields
-a non-persisted placeholder. An eligible URL cover follows the same Host-only
-resolution, bounded rendered-window loading, decoded-image cache, failure
-fallback, and canonical-value rules defined for image-display URL Fields in
-Section 9; selecting it never converts the URL value into a File entry. Kanban
-with `groupField:null` MUST show an
-accessible configuration-required state, not invent a Field. A non-groupable
-Field produces the same state with the Runtime diagnostic.
-
-The common Fields control and Card configuration form a two-stage pipeline,
-not competing visibility controls. Fields owns common View availability
-(`hiddenFields`/`visibleSystemFields`), common `fieldOrder`, and the entry to
-the Field's schema properties. Card configuration owns only card-specific
-content and presentation: `cardFields`, cover, fit, size, and empty-value
-handling. Its Card content chooser offers only Fields currently visible in the
-View, and dragging there changes only `cardFields`. Hiding a Field in Fields
-always wins and Card configuration MUST NOT make it visible again. Unknown or
-temporarily unavailable `cardFields` members remain preserved while editing
-the currently available members.
-
-With `showEmptyGroups:false`, a Kanban omits a catalog group after Runtime has
-authoritatively reported zero rows for the active revision and saved query.
-That option remains a valid move target; a successful move makes the group
-visible. Before counts resolve, omission is provisional UI state and MUST NOT
-be persisted. `freezeColumns` is evaluated after visibility and ordering.
-
-A Calendar maps each non-empty `dateField` value to a local calendar day. An
-eligible Field is Date, Date & time, a Formula or Lookup with one of those
-display types, or the created/updated system Field. Date uses its canonical
-`YYYY-MM-DD` day directly; Date & time is assigned using the Editor's current
-local time zone. The visible month, today, expanded day, and scroll position
-are transient UI state and MUST NOT be persisted. Calendar reads MUST compose
-the visible range with the saved filter and search rather than replacing
-either. A missing, deleted, non-temporal, or `null` `dateField` MUST show an
-accessible configuration-required state. Records with an empty date are not
-placed on the calendar. The Host MAY provide a global first-weekday preference;
-Calendar MUST use it for both weekday column order and the requested visible
-range. The default is Monday. This Host preference is not View layout and MUST
-NOT be written to the Eidos File.
-
-Calendar record creation depends on the selected Field's mutability. For a
-writable stored Date or Date & time Field, every visible day MUST expose a
-create action. Runtime creates the Record with that Field set to the selected
-canonical day; Date & time uses local midnight encoded as a canonical instant.
-For the created or updated system Field, only today exposes the action and
-Runtime supplies the system timestamp. Formula and Lookup date Fields MUST NOT
-offer day creation because their values are derived. After a successful create,
-Editor opens the standard Record inspector for the new Record.
-
-A Kanban move is available only when `groupField` is a writable stored scalar
-and Runtime supplies the destination's exact logical group value. The move is
-one sparse `mutateRows` update under `expectedRevision`; the UI never writes a
-display label as the group value. Formula, Lookup, inverse Relation, list, and
-read-only groups cannot accept a move. Card order is Runtime query order;
-dragging within a group is ephemeral because this core layout has no manual
-row-order key.
-
-### 8.3 Executable JSON Schema
-
-Conformance tools validate an envelope assembled from the stored View type and
-parsed layout object. The envelope itself is not stored.
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spec.eidos.space/ui/1.0/view-layout.schema.json",
-  "title": "Eidos UI 1.0 standard View layout envelope",
-  "type": "object",
-  "required": ["type", "layout"],
-  "properties": {
-    "type": { "enum": ["grid", "gallery", "kanban", "calendar"] },
-    "layout": {
-      "type": "object",
-      "properties": {
-        "fieldOrder": { "$ref": "#/$defs/fieldIdArray" },
-        "hiddenFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "visibleSystemFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "fieldWidths": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/$defs/fieldId" },
-          "additionalProperties": {
-            "type": "number",
-            "minimum": 0.25,
-            "maximum": 8
-          },
-          "default": {}
-        },
-        "rowDensity": {
-          "enum": ["compact", "standard", "comfortable"],
-          "default": "standard"
-        },
-        "freezeColumns": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647,
-          "default": 1
-        },
-        "columnStats": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/$defs/fieldId" },
-          "additionalProperties": { "$ref": "#/$defs/columnStat" },
-          "default": {}
-        },
-        "cardFields": {
-          "$ref": "#/$defs/fieldIdArray",
-          "default": []
-        },
-        "coverField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        },
-        "coverFit": { "enum": ["cover", "contain"], "default": "cover" },
-        "cardSize": {
-          "enum": ["small", "medium", "large"],
-          "default": "medium"
-        },
-        "hideEmptyFields": { "type": "boolean", "default": true },
-        "groupField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        },
-        "showEmptyGroups": { "type": "boolean", "default": true },
-        "dateField": {
-          "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
-          "default": null
-        }
-      },
-      "additionalProperties": true
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "fieldId": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "fieldIdArray": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/fieldId" },
-      "uniqueItems": true
-    },
-    "columnStat": {
-      "type": "object",
-      "required": ["type"],
-      "properties": {
-        "type": {
-          "enum": [
-            "count-all",
-            "count-non-null",
-            "count-distinct",
-            "count-empty",
-            "percent-checked",
-            "percent-unchecked",
-            "sum",
-            "average",
-            "min",
-            "max",
-            "relation-value-count",
-            "relation-row-count",
-            "relation-distinct-target-count"
-          ]
-        }
-      },
-      "additionalProperties": false
-    }
-  }
-}
-```
-
-JSON Schema annotations such as `default` do not mutate an instance. The
-reading defaults in Section 8.2 apply when keys are absent. The schema uses
-JSON Schema Draft 2020-12 Core and Validation.
-
-### 8.4 Unknown View types
-
-An unknown `view.type` remains valid forward-compatible metadata. A UI without
-a registered renderer MUST show the View name, unknown type, and an accessible
-unsupported-renderer state. It MAY offer an ephemeral read-only Grid fallback
-without changing the saved type or layout. Conversion to a standard View is
-an explicit, revision-checked mutation. Unrelated View edits MUST preserve the
-unknown type and layout exactly in logical content.
-
-### 8.5 Views with newer query semantics
-
-When `ViewDescriptor.queryStatus="unsupported"`, the View remains present in
-every View tab, menu, and navigation surface. UI MUST show an accessible
-update-required state and MUST NOT issue `queryRows`, `groupRows`, aggregate,
-or export requests using the `{}` query placeholder. Saved Filter and Sort
-controls are disabled for that View. Rename, reorder, layout, and other
-unrelated patches MAY remain available because they omit `query`; they MUST NOT
-reconstruct the View from the understood subset. Replacing the query requires
-an explicit user action that states the newer query will be removed.
-
-An unknown renderer and an unsupported query are independent. The UI reports
-the query incompatibility first because a Grid fallback would otherwise show
-an incorrect row set.
+Unknown View types and Views with newer unsupported query semantics follow
+Eidos Standard Views 1.0 Section 3.3. A UI MUST preserve unknown and
+non-applicable layout members as required by Sections 3.1 and 3.3 of that
+document.
 
 ## 9. Bounded reads, projection, and rendering
 
 ### 9.1 Request construction
 
 A UI MUST request only the Fields needed for the current surface: visible
-Fields, Record Label, card/group fields, and Runtime-required query outputs.
+Fields, Record Label, card/group Fields, Form question Fields, and
+Runtime-required query outputs.
 It MUST request Relation labels in the page projection rather than issue one
 read per Relation cell. It MUST use `getRowsById` for a bounded batch that is
 not naturally pageable; `getRowsById` in a row or cell render loop is
@@ -1840,8 +1570,8 @@ position remains, submits an intentional atomic set of position patches. It
 MUST NOT omit create position, expect Runtime to append, or use visual array
 index as persistent identity.
 
-When editing layout, the UI updates only keys defined in Section 8 and
-preserves unknown keys. When editing the saved query, it sends Field IDs and
+When editing layout, the UI updates only keys defined by Eidos Standard Views
+1.0 and preserves unknown keys. When editing the saved query, it sends Field IDs and
 Runtime logical filter values; it never sends display or physical names.
 Runtime is authoritative for operator/type compatibility and query results.
 
@@ -1873,8 +1603,9 @@ calendar-period rules, and inclusive boundaries. UI SHOULD explain that the
 result updates with the current date and MAY preview the computed interval in
 a calendar without making that preview canonical state.
 
-The common Fields control and the applicable Grid/Card/Kanban/Calendar controls from
-Section 8 are required Editor surfaces, not optional authoring conveniences.
+The common Fields control and the applicable Grid, Card, Kanban, Calendar, and
+Form controls from Eidos Standard Views 1.0 are required Editor surfaces, not
+optional authoring conveniences.
 Each control commits one revision-checked View mutation, remains usable when
 the current renderer has no rows or no visible Fields, and reflects the latest
 returned View descriptor after success or conflict.
@@ -2623,10 +2354,10 @@ outcomes; they assert zero reads/retries on the fatal old RuntimeClient and a
 complete negotiation/snapshot/schema bootstrap of each returned replacement
 client. Editor tests also cover pointer and keyboard drag completion for
 Table, View, `fieldOrder`, and `cardFields` ordering, with no structural
-up/down controls present; common Field visibility/order in Grid,
-Gallery, Kanban, and Calendar; every type-specific key in Section 8.2; preservation of
-non-applicable and unknown keys across type changes; and generated aggregate
-or group results never entering layout. Schema tests MUST cover all four conversion classifications,
+up/down controls present. The applicable Eidos Standard Views 1.0 conformance
+tests are also required, including all five built-in types, every type-specific
+key, non-applicable and unknown-key preservation across type changes, and
+generated aggregate or group results never entering layout. Schema tests MUST cover all four conversion classifications,
 dependency paging/display, display-name-only rename, and plan expiry.
 
 ## 18. References
@@ -2636,6 +2367,7 @@ The references below directly support requirements used here:
 - [Eidos File Format 1.0](./eidos-file-1.0.md)
 - [Eidos Runtime 1.0](./eidos-runtime-1.0.md)
 - [Eidos Adapter 1.0](./eidos-adapter-1.0.md)
+- [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and
   [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) — normative terminology
 - [RFC 2397](https://www.rfc-editor.org/rfc/rfc2397) — inline Data URLs and

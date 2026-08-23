@@ -296,6 +296,24 @@ describe("EidosFileViewTabs", () => {
     )
   })
 
+  it("wraps built-in layout choices after four items", async () => {
+    await act(async () => {
+      renderViewTabs(root)
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Add Eidos File view"]')
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const layoutPicker = document.body.querySelector<HTMLElement>(
+      '[aria-label="View layout"]'
+    )
+    expect(layoutPicker?.className).toContain("grid-cols-4")
+    expect(layoutPicker?.children).toHaveLength(5)
+  })
+
   it("creates a Calendar when the table has a temporal field", async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined)
     await act(async () => {
@@ -339,6 +357,76 @@ describe("EidosFileViewTabs", () => {
       await Promise.resolve()
     })
     expect(onCreate).toHaveBeenCalledWith("Calendar 1", "calendar")
+  })
+
+  it("creates a Form with existing fields or from scratch", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileViewTabs
+          views={views}
+          fields={[dueField]}
+          activeView={views[0]}
+          onSelect={vi.fn()}
+          onCreate={onCreate}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onUpdate={vi.fn()}
+          onReorder={vi.fn()}
+        />
+      )
+    })
+
+    const openCreateForm = async () => {
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[aria-label="Add Eidos File view"]'
+          )
+          ?.click()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+          .find((button) => button.textContent?.trim() === "Form")
+          ?.click()
+        await Promise.resolve()
+      })
+    }
+    const createForm = async () => {
+      await act(async () => {
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+          .find((button) => button.textContent?.trim() === "Create")
+          ?.click()
+        await new Promise((resolve) => window.setTimeout(resolve, 0))
+      })
+    }
+
+    await openCreateForm()
+    expect(document.body.textContent).toContain("Initial questions")
+    expect(document.body.textContent).toContain("Supported table fields: 1")
+    expect(
+      document.body.querySelector<HTMLInputElement>(
+        'input[name="eidos-file-form-start"][value="existing"]'
+      )?.checked
+    ).toBe(true)
+    await createForm()
+    expect(onCreate).toHaveBeenLastCalledWith("Form 1", "form")
+
+    await openCreateForm()
+    await act(async () => {
+      document.body
+        .querySelector<HTMLInputElement>(
+          'input[name="eidos-file-form-start"][value="empty"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+    await createForm()
+    expect(onCreate).toHaveBeenLastCalledWith("Form 1", "form", {
+      hiddenFields: [dueField.id],
+    })
   })
 
   it("protects the required Grid view and confirms deletable views", async () => {

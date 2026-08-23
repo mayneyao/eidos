@@ -7,8 +7,8 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File interoperability is defined by four core specifications and
-optional profiles. The English pages are normative. Chinese pages are
+Eidos File interoperability is defined by four layers and their normative
+companion specifications. The English pages are normative. Chinese pages are
 informative translations and cannot override the English contract.
 
 <CardGrid>
@@ -37,7 +37,16 @@ informative translations and cannot override the English contract.
     description="RuntimeClient and HostServices consumption, interaction, editing, and accessibility."
     href="/specifications/ui-1-0/"
   />
+  <LinkCard
+    title="Eidos Standard Views 1.0"
+    description="Unified layout and interaction contract for Grid, Gallery, Kanban, Calendar, and Form."
+    href="/specifications/standard-views-1-0/"
+  />
 </CardGrid>
+
+Built-in variants of one abstraction share a companion specification. Standard
+Views therefore documents Grid, Gallery, Kanban, Calendar, and Form together;
+separate optional profiles are reserved for extensions outside the baseline.
 
 The canonical source files are available in
 [`docs/specs`](https://github.com/mayneyao/eidos/tree/dev/docs/specs).

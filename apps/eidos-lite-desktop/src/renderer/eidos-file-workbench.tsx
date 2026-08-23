@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   EidosFileFieldInfo,
   EidosFileFormulaPreviewInput,
   EidosFileRow,
@@ -17,6 +18,7 @@ import {
   EidosFileEditorShell,
   EidosFileEditorView,
   EidosFileFieldCreatePopover,
+  EidosFileFormModeToolbar,
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
   EidosFilePluginSlot,
@@ -29,6 +31,7 @@ import {
   EidosFileViewTabs,
   exportEidosFileViewCsv,
   type EidosFileFormulaEditorAnchor,
+  type EidosFileFormEditorMode,
   type EidosFilePluginContext,
   type EidosFilePlugin,
   type EidosFileRelationRecordTarget,
@@ -40,6 +43,7 @@ import {
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
+import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
@@ -59,6 +63,7 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
   eidosFileKanbanPlugin,
   eidosFileCalendarPlugin,
+  eidosFileFormPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
 
@@ -101,6 +106,9 @@ export function EidosFileWorkbench({
 }: EidosFileWorkbenchProps) {
   const { locale } = useEidosLiteI18n()
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
+  const [formModes, setFormModes] = useState<
+    Record<string, EidosFileFormEditorMode>
+  >({})
   const [search, setSearch] = useState("")
   const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
@@ -108,6 +116,9 @@ export function EidosFileWorkbench({
   )
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
+  const [fieldAllowedTypes, setFieldAllowedTypes] = useState<
+    readonly CreateEidosFileFieldInput["type"][] | undefined
+  >()
   const [formulaTarget, setFormulaTarget] =
     useState<FormulaEditorTarget | null>(null)
   const [lookupTarget, setLookupTarget] = useState<EidosFileFieldInfo | null>(
@@ -138,6 +149,11 @@ export function EidosFileWorkbench({
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
+      if (
+        editorRef.current?.querySelector("[data-eidos-file-form-mode-toolbar]")
+      ) {
+        return
+      }
       if (
         !shouldFocusEidosFileSearch(
           event,
@@ -252,6 +268,10 @@ export function EidosFileWorkbench({
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
+  const activeFormMode: EidosFileFormEditorMode =
+    activeView?.type === "form"
+      ? (formModes[activeView.id] ?? "build")
+      : "build"
 
   const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
     if (!activeTable) return null
@@ -292,6 +312,7 @@ export function EidosFileWorkbench({
         : undefined
     )
     setFieldInsertIndex(null)
+    setFieldAllowedTypes(undefined)
     setReloadToken((current) => current + 1)
   }
 
@@ -332,13 +353,18 @@ export function EidosFileWorkbench({
     if (created) onTableSelect(created.table.id)
   }
 
-  const createView = async (name: string, type: string) => {
+  const createView = async (
+    name: string,
+    type: string,
+    options?: Pick<CreateEidosFileViewInput, "hiddenFields">
+  ) => {
     const previousIds = new Set(activeTable.views.map((view) => view.id))
     const contribution = PLUGIN_REGISTRY.views[type]
     const next = await source.createView(activeTable.table.id, {
       name,
       type,
       properties: contribution?.create?.properties?.(activeTable.fields),
+      ...options,
     })
     const created = next.tables
       .find((table) => table.table.id === activeTable.table.id)
@@ -466,17 +492,30 @@ export function EidosFileWorkbench({
           />
         }
         queryToolbar={
-          <EidosFileQueryToolbar
-            fields={activeTable.fields}
-            filter={activeView?.filter ?? null}
-            sorts={activeView?.sorts ?? []}
-            search={search}
-            focusSearchToken={focusSearchToken}
-            disabled={disabled || activeView?.queryStatus === "unsupported"}
-            onSearchChange={setSearch}
-            onFilterChange={(filter) => updateActiveView({ filter })}
-            onSortsChange={(sorts) => updateActiveView({ sorts })}
-          />
+          activeView?.type === "form" ? (
+            <EidosFileFormModeToolbar
+              mode={disabled ? "preview" : activeFormMode}
+              disabled={disabled}
+              onModeChange={(mode) =>
+                setFormModes((current) => ({
+                  ...current,
+                  [activeView.id]: mode,
+                }))
+              }
+            />
+          ) : (
+            <EidosFileQueryToolbar
+              fields={activeTable.fields}
+              filter={activeView?.filter ?? null}
+              sorts={activeView?.sorts ?? []}
+              search={search}
+              focusSearchToken={focusSearchToken}
+              disabled={disabled || activeView?.queryStatus === "unsupported"}
+              onSearchChange={setSearch}
+              onFilterChange={(filter) => updateActiveView({ filter })}
+              onSortsChange={(sorts) => updateActiveView({ sorts })}
+            />
+          )
         }
         fields={
           activeView ? (
@@ -486,8 +525,9 @@ export function EidosFileWorkbench({
               disabled={disabled}
               onUpdate={updateActiveView}
               onFieldOpen={setPropertyField}
-              onFieldAdd={() => {
+              onFieldAdd={(allowedTypes) => {
                 setFieldInsertIndex(null)
+                setFieldAllowedTypes(allowedTypes)
                 setAddPropertyOpen(true)
               }}
             />
@@ -498,11 +538,15 @@ export function EidosFileWorkbench({
             open={addPropertyOpen}
             onOpenChange={(open) => {
               setAddPropertyOpen(open)
-              if (!open) setFieldInsertIndex(null)
+              if (!open) {
+                setFieldInsertIndex(null)
+                setFieldAllowedTypes(undefined)
+              }
             }}
             table={activeTable}
             tables={snapshot.tables}
             disabled={disabled}
+            allowedTypes={fieldAllowedTypes}
             onCreate={addProperty}
             onPreviewFormula={previewFormula}
           />
@@ -620,6 +664,7 @@ export function EidosFileWorkbench({
             tables={snapshot.tables}
             view={activeView}
             search={search}
+            state={{ formMode: activeFormMode }}
             disabled={disabled}
             reloadToken={reloadToken}
             propertyField={currentPropertyField}
@@ -637,8 +682,9 @@ export function EidosFileWorkbench({
             onFieldClose={() => setPropertyField(null)}
             onEditFormula={openFormulaEditor}
             onEditLookup={setLookupTarget}
-            onFieldAdd={(position) => {
+            onFieldAdd={(position, allowedTypes) => {
               setFieldInsertIndex(position ?? null)
+              setFieldAllowedTypes(allowedTypes)
               setAddPropertyOpen(true)
             }}
             onError={onError}

@@ -208,25 +208,33 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
   },
 ]
 
-function selectedOption(value: EidosFileCreatableFieldType) {
-  return EIDOS_FILE_FIELD_TYPE_GROUPS.flatMap((group) => group.options).find(
-    (option) => option.value === value
-  )
-}
-
 export function EidosFileFieldTypePicker({
   value,
   onChange,
+  allowedTypes,
   disabled = false,
 }: {
   value: EidosFileCreatableFieldType
   onChange: (value: EidosFileCreatableFieldType) => void
+  allowedTypes?: readonly EidosFileCreatableFieldType[]
   disabled?: boolean
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
+  const allowed = allowedTypes ? new Set(allowedTypes) : null
+  const availableGroups = EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => ({
+    ...group,
+    options: allowed
+      ? group.options.filter((option) => allowed.has(option.value))
+      : group.options,
+  })).filter((group) => group.options.length > 0)
   const selected =
-    selectedOption(value) ?? EIDOS_FILE_FIELD_TYPE_GROUPS[0].options[0]
+    availableGroups
+      .flatMap((group) => group.options)
+      .find((option) => option.value === value) ??
+    availableGroups[0]?.options[0]
+
+  if (!selected) return null
 
   return (
     <EidosFileCommandCombobox
@@ -270,7 +278,7 @@ export function EidosFileFieldTypePicker({
         </button>
       }
     >
-      {EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => (
+      {availableGroups.map((group) => (
         <CommandGroup
           key={group.label}
           heading={

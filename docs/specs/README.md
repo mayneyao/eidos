@@ -53,6 +53,21 @@ Semantic ownership is one-way. In particular:
 | Runtime merge profile | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
 | Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
 | UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
+| UI standard Views     | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
+
+## Document organization
+
+Each layer has one core specification. A normative companion is used only
+when one cohesive topic would make that core document difficult to navigate;
+it keeps the same layer ownership and normally reuses the layer's conformance
+labels.
+
+Built-in variants of the same abstraction belong together. Consequently,
+Grid, Gallery, Kanban, Calendar, and Form are sections of Eidos Standard Views
+1.0 rather than five independent profiles. A future built-in View is added to
+that document. A third-party or experimental View MAY use a separate optional
+profile only when it is intentionally outside the standard baseline; such a
+profile defines its own label and prerequisites.
 
 ## Implementation ladder
 
@@ -116,7 +131,9 @@ optional draft Runtime profile and requires `EF-Reader-1.0`, `EF-Writer-1.0`,
 `ER-Reader-1.0`, and `ER-Writer-1.0`; it is not implied by `ER-Writer-1.0`.
 For example, a headless CLI can
 be `EF-Reader-1.0 ER-Reader-1.0 EA-Desktop-1.0` without UI conformance. Each
-specification defines its own prerequisites and required test families.
+specification defines its own prerequisites and required test families. Eidos
+Standard Views 1.0 is a required companion of the existing UI labels, not an
+optional profile and not an additional conformance label.
 
 ## Interoperability criterion
 

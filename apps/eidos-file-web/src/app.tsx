@@ -18,6 +18,7 @@ import type {
   EidosFileViewInfo,
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { exportEidosFileViewCsv } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
@@ -49,7 +50,12 @@ import {
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
+import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
+import {
+  EidosFileFormModeToolbar,
+  type EidosFileFormEditorMode,
+} from "@eidos.space/eidos-file-ui/eidos-file-form-view"
 import {
   EidosFileHttpClient,
   fetchCliHostManifest,
@@ -296,6 +302,9 @@ export function App() {
     useState<EidosFileSessionClient | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
+  const [formModes, setFormModes] = useState<
+    Record<string, EidosFileFormEditorMode>
+  >({})
   const [search, setSearch] = useState("")
   const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
@@ -313,6 +322,9 @@ export function App() {
     null
   )
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
+  const [fieldAllowedTypes, setFieldAllowedTypes] = useState<
+    readonly CreateEidosFileFieldInput["type"][] | undefined
+  >()
   const [viewReloadToken, setViewReloadToken] = useState(0)
   const [openingTemplateId, setOpeningTemplateId] =
     useState<EidosFileTemplateId | null>(null)
@@ -354,6 +366,7 @@ export function App() {
       eidosFileGalleryPlugin,
       eidosFileKanbanPlugin,
       eidosFileCalendarPlugin,
+      eidosFileFormPlugin,
       createEidosFileCsvImportPlugin(
         {
           async pickFile() {
@@ -439,6 +452,10 @@ export function App() {
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
+  const activeFormMode: EidosFileFormEditorMode =
+    activeView?.type === "form"
+      ? (formModes[activeView.id] ?? "build")
+      : "build"
 
   const bootstrappedRef = useRef(false)
   const openGenerationRef = useRef(0)
@@ -1476,7 +1493,8 @@ export function App() {
         event.key.toLowerCase() === "f" &&
         !event.altKey &&
         !event.shiftKey &&
-        session
+        session &&
+        activeView?.type !== "form"
       ) {
         event.preventDefault()
         setFocusSearchToken((current) => current + 1)
@@ -1484,7 +1502,7 @@ export function App() {
     }
     window.addEventListener("keydown", keydown)
     return () => window.removeEventListener("keydown", keydown)
-  }, [chooseFile, saveAs, saveOriginal, session])
+  }, [activeView?.type, chooseFile, saveAs, saveOriginal, session])
 
   useEffect(() => {
     if (
@@ -1708,6 +1726,7 @@ export function App() {
         onStructureSnapshot(next)
         setAddPropertyOpen(false)
         setFieldInsertIndex(null)
+        setFieldAllowedTypes(undefined)
         setViewReloadToken((current) => current + 1)
       } catch (error) {
         setNotice(errorMessage(error))
@@ -1826,7 +1845,11 @@ export function App() {
   )
 
   const createView = useCallback(
-    async (name: string, type: string) => {
+    async (
+      name: string,
+      type: string,
+      options?: Pick<CreateEidosFileViewInput, "hiddenFields">
+    ) => {
       const client = clientRef.current
       if (!client || !activeTable) return
       const contribution = createEidosFilePluginRegistry(
@@ -1836,6 +1859,7 @@ export function App() {
         name,
         type,
         properties: contribution?.create?.properties?.(activeTable.fields),
+        ...options,
       })
       const previousIds = new Set(activeTable.views.map((view) => view.id))
       const created = next.tables
@@ -2221,20 +2245,33 @@ export function App() {
           />
         }
         queryToolbar={
-          <EidosFileQueryToolbar
-            fields={activeTable.fields}
-            filter={activeView?.filter ?? null}
-            sorts={activeView?.sorts ?? []}
-            search={search}
-            focusSearchToken={focusSearchToken}
-            disabled={
-              saveState.phase === "saving" ||
-              activeView?.queryStatus === "unsupported"
-            }
-            onSearchChange={setSearch}
-            onFilterChange={(filter) => updateActiveView({ filter })}
-            onSortsChange={(sorts) => updateActiveView({ sorts })}
-          />
+          activeView?.type === "form" ? (
+            <EidosFileFormModeToolbar
+              mode={activeFormMode}
+              disabled={saveState.phase === "saving"}
+              onModeChange={(mode) =>
+                setFormModes((current) => ({
+                  ...current,
+                  [activeView.id]: mode,
+                }))
+              }
+            />
+          ) : (
+            <EidosFileQueryToolbar
+              fields={activeTable.fields}
+              filter={activeView?.filter ?? null}
+              sorts={activeView?.sorts ?? []}
+              search={search}
+              focusSearchToken={focusSearchToken}
+              disabled={
+                saveState.phase === "saving" ||
+                activeView?.queryStatus === "unsupported"
+              }
+              onSearchChange={setSearch}
+              onFilterChange={(filter) => updateActiveView({ filter })}
+              onSortsChange={(sorts) => updateActiveView({ sorts })}
+            />
+          )
         }
         fields={
           activeView ? (
@@ -2244,8 +2281,9 @@ export function App() {
               disabled={saveState.phase === "saving"}
               onUpdate={updateActiveView}
               onFieldOpen={setPropertyField}
-              onFieldAdd={() => {
+              onFieldAdd={(allowedTypes) => {
                 setFieldInsertIndex(null)
+                setFieldAllowedTypes(allowedTypes)
                 setAddPropertyOpen(true)
               }}
             />
@@ -2256,11 +2294,15 @@ export function App() {
             open={addPropertyOpen}
             onOpenChange={(open) => {
               setAddPropertyOpen(open)
-              if (!open) setFieldInsertIndex(null)
+              if (!open) {
+                setFieldInsertIndex(null)
+                setFieldAllowedTypes(undefined)
+              }
             }}
             table={activeTable}
             tables={snapshot.tables}
             disabled={saveState.phase === "saving"}
+            allowedTypes={fieldAllowedTypes}
             onCreate={addProperty}
             onPreviewFormula={previewActiveFormula}
           />
@@ -2393,6 +2435,14 @@ export function App() {
           tables={snapshot.tables}
           view={activeView}
           search={search}
+          state={{ formMode: activeFormMode }}
+          capabilities={{
+            read: true,
+            mutate: true,
+            resolveAssets: true,
+            rawFile: false,
+            nativeFileSystem: false,
+          }}
           disabled={saveState.phase === "saving"}
           reloadToken={viewReloadToken}
           propertyField={propertyField}
@@ -2404,8 +2454,9 @@ export function App() {
           onFieldClose={() => setPropertyField(null)}
           onEditFormula={openFormulaEditor}
           onEditLookup={setLookupTarget}
-          onFieldAdd={(position) => {
+          onFieldAdd={(position, allowedTypes) => {
             setFieldInsertIndex(position ?? null)
+            setFieldAllowedTypes(allowedTypes)
             setAddPropertyOpen(true)
           }}
           onError={(error) => setNotice(errorMessage(error))}

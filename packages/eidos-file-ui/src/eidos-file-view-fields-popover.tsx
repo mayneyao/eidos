@@ -1,8 +1,11 @@
 import { useMemo, useRef, useState, type ReactNode } from "react"
-import type {
-  EidosFileFieldInfo,
-  EidosFileViewInfo,
-  UpdateEidosFileViewInput,
+import {
+  EIDOS_FILE_FORM_INPUT_FIELD_TYPES,
+  isEidosFileFormInputField,
+  type CreateEidosFileFieldInput,
+  type EidosFileFieldInfo,
+  type EidosFileViewInfo,
+  type UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
   Check,
@@ -34,9 +37,10 @@ import {
 import { SortableContainer } from "./ui/sortable"
 
 function configurableViewFields(
-  fields: readonly EidosFileFieldInfo[]
+  fields: readonly EidosFileFieldInfo[],
+  view: EidosFileViewInfo
 ): EidosFileFieldInfo[] {
-  return fields.filter(
+  const configurable = fields.filter(
     (field) =>
       isOptionalEidosFileSystemField(field) ||
       (!field.isHidden &&
@@ -45,13 +49,16 @@ function configurableViewFields(
           field.valueKind === "relation" ||
           field.valueKind === "derived"))
   )
+  return view.type === "form"
+    ? configurable.filter(isEidosFileFormInputField)
+    : configurable
 }
 
 function orderedViewFields(
   fields: readonly EidosFileFieldInfo[],
   view: EidosFileViewInfo
 ): EidosFileFieldInfo[] {
-  return configurableViewFields(fields).sort((left, right) => {
+  return configurableViewFields(fields, view).sort((left, right) => {
     const leftOrder = view.orderMap?.[eidosFileFieldKey(left)]
     const rightOrder = view.orderMap?.[eidosFileFieldKey(right)]
     if (leftOrder !== undefined || rightOrder !== undefined) {
@@ -129,8 +136,9 @@ function SortableFieldRow({
 }
 
 /**
- * Shared saved-View field visibility and ordering control for Grid, Gallery,
- * and Kanban. It mutates only the active View's canonical layout keys.
+ * Shared saved-View field visibility and ordering control. Form Views expose
+ * only writable input fields; other Views retain every configurable field.
+ * It mutates only the active View's canonical layout keys.
  */
 export function EidosFileViewFieldsPopover({
   fields,
@@ -147,7 +155,9 @@ export function EidosFileViewFieldsPopover({
   className?: string
   onUpdate: (changes: UpdateEidosFileViewInput) => Promise<void> | void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
-  onFieldAdd?: () => void
+  onFieldAdd?: (
+    allowedTypes?: readonly CreateEidosFileFieldInput["type"][]
+  ) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
@@ -178,6 +188,7 @@ export function EidosFileViewFieldsPopover({
   const visibleCount = orderedFields.filter((field) =>
     fieldIsVisible(field, hiddenFields, visibleSystemFields)
   ).length
+  const allHidden = visibleCount === 0
   const allVisible = visibleCount === orderedFields.length
 
   const run = async (changes: UpdateEidosFileViewInput) => {
@@ -232,6 +243,26 @@ export function EidosFileViewFieldsPopover({
         visibleSystemFields: [
           ...new Set([...eidosFileViewVisibleSystemFields(view), ...systemIds]),
         ],
+      },
+    })
+  }
+
+  const hideAll = () => {
+    const ordinaryIds = orderedFields
+      .filter((field) => !isOptionalEidosFileSystemField(field))
+      .map((field) => eidosFileFieldKey(field))
+    const systemIds = new Set(
+      orderedFields
+        .filter(isOptionalEidosFileSystemField)
+        .map((field) => eidosFileFieldKey(field))
+    )
+    void run({
+      hiddenFields: [...new Set([...view.hiddenFields, ...ordinaryIds])],
+      properties: {
+        ...(view.properties ?? {}),
+        visibleSystemFields: eidosFileViewVisibleSystemFields(view).filter(
+          (fieldId) => !systemIds.has(fieldId)
+        ),
       },
     })
   }
@@ -304,16 +335,28 @@ export function EidosFileViewFieldsPopover({
               </p>
             ) : null}
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className="h-7 px-2 text-[11px]"
-            disabled={busy || allVisible}
-            onClick={showAll}
-          >
-            {t("Show all")}
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="h-7 px-2 text-[11px]"
+              disabled={busy || allHidden}
+              onClick={hideAll}
+            >
+              {t("Hide all")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="h-7 px-2 text-[11px]"
+              disabled={busy || allVisible}
+              onClick={showAll}
+            >
+              {t("Show all")}
+            </Button>
+          </div>
         </div>
         <div className="border-b p-2">
           <div className="relative">
@@ -451,7 +494,11 @@ export function EidosFileViewFieldsPopover({
                 setOpen(false)
                 setSearch("")
                 setError(null)
-                onFieldAdd()
+                onFieldAdd(
+                  view.type === "form"
+                    ? EIDOS_FILE_FORM_INPUT_FIELD_TYPES
+                    : undefined
+                )
               }}
             >
               <Plus className="h-3.5 w-3.5" />

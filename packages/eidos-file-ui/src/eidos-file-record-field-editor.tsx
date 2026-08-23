@@ -44,11 +44,13 @@ function dateTimeInputValue(
 export function EidosFileRecordFieldEditor({
   field,
   row,
+  placeholder,
   disabled,
   onChange,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
+  placeholder?: string
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
 }) {
@@ -133,7 +135,7 @@ export function EidosFileRecordFieldEditor({
         }
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
-          <SelectValue placeholder={t("Empty")} />
+          <SelectValue placeholder={placeholder ?? t("Empty")} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__empty__">{t("Empty")}</SelectItem>
@@ -185,7 +187,7 @@ export function EidosFileRecordFieldEditor({
                 })}
               </span>
             ) : (
-              t("Empty")
+              (placeholder ?? t("Empty"))
             )}
           </Button>
         </PopoverTrigger>
@@ -224,6 +226,7 @@ export function EidosFileRecordFieldEditor({
         value={draft}
         rows={1}
         aria-label={field.name}
+        placeholder={placeholder}
         disabled={disabled}
         className="min-h-8 resize-none text-xs leading-5"
         style={measuredText.style}
@@ -265,6 +268,7 @@ export function EidosFileRecordFieldEditor({
         }
         value={draft}
         aria-label={field.name}
+        placeholder={placeholder}
         aria-invalid={field.type === "datetime" && Boolean(datetimeError)}
         disabled={disabled}
         inputMode={field.type === "integer" ? "numeric" : undefined}

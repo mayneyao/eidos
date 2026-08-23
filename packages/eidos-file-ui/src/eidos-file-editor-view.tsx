@@ -1,5 +1,6 @@
 import { useMemo, type ComponentType, type ReactNode } from "react"
 import type {
+  CreateEidosFileFieldInput,
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowMutationResult,
@@ -48,7 +49,10 @@ export interface EidosFileViewRendererProps {
   onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
-  onFieldAdd?: (position?: number) => void
+  onFieldAdd?: (
+    position?: number,
+    allowedTypes?: readonly CreateEidosFileFieldInput["type"][]
+  ) => void
   onEditFormula?: (
     field: EidosFileFieldInfo,
     previewRowId?: string,

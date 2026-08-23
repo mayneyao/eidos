@@ -67,6 +67,11 @@
       "import": "./dist/plugins/calendar.mjs",
       "default": "./dist/plugins/calendar.mjs"
     },
+    "./plugins/form": {
+      "types": "./dist/plugins/form.d.mts",
+      "import": "./dist/plugins/form.mjs",
+      "default": "./dist/plugins/form.mjs"
+    },
     "./plugins/csv-import": {
       "types": "./dist/plugins/csv-import.d.mts",
       "import": "./dist/plugins/csv-import.mjs",
@@ -86,6 +91,11 @@
       "types": "./dist/eidos-file-calendar-view.d.mts",
       "import": "./dist/eidos-file-calendar-view.mjs",
       "default": "./dist/eidos-file-calendar-view.mjs"
+    },
+    "./eidos-file-form-view": {
+      "types": "./dist/eidos-file-form-view.d.mts",
+      "import": "./dist/eidos-file-form-view.mjs",
+      "default": "./dist/eidos-file-form-view.mjs"
     },
     "./eidos-file-record-card": {
       "types": "./dist/eidos-file-record-card.d.mts",

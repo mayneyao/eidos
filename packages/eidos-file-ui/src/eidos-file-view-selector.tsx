@@ -7,10 +7,11 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react"
-import type {
-  EidosFileFieldInfo,
-  EidosFileViewInfo,
-  UpdateEidosFileViewInput,
+import {
+  isEidosFileFormInputField,
+  type EidosFileFieldInfo,
+  type EidosFileViewInfo,
+  type UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
   ArrowLeft,
@@ -65,6 +66,12 @@ export interface EidosFileExternalViewContribution {
 }
 
 type Panel = "list" | "create" | "manage" | "delete" | "card"
+type FormStartMode = "existing" | "empty"
+
+export interface EidosFileViewCreateOptions {
+  hiddenFields?: string[]
+}
+
 export interface EidosFileViewSelectorRequest {
   anchorRect: Pick<DOMRect, "height" | "left" | "top" | "width">
   focusName?: boolean
@@ -77,6 +84,7 @@ export type EidosFileBuiltInViewType =
   | "gallery"
   | "kanban"
   | "calendar"
+  | "form"
 export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = "extension:"
 
 export function eidosFileExtensionViewType(contributionId: string): string {
@@ -102,6 +110,7 @@ const VIEW_TYPES: Array<{
     label: "Calendar",
     description: "Records arranged by date",
   },
+  { type: "form", label: "Form", description: "Collect new records" },
 ]
 
 function defaultViewName(
@@ -124,7 +133,8 @@ export function isEidosFileBuiltInViewType(
     type === "grid" ||
     type === "gallery" ||
     type === "kanban" ||
-    type === "calendar"
+    type === "calendar" ||
+    type === "form"
   )
 }
 
@@ -133,12 +143,14 @@ function EidosFileViewLayoutPicker({
   disabled,
   hasSelectField,
   hasDateField,
+  hasFormField,
   onChange,
 }: {
   value: EidosFileBuiltInViewType | null
   disabled: boolean
   hasSelectField: boolean
   hasDateField: boolean
+  hasFormField: boolean
   onChange: (type: EidosFileBuiltInViewType) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -152,7 +164,8 @@ function EidosFileViewLayoutPicker({
         {VIEW_TYPES.map((candidate) => {
           const unavailable =
             (candidate.type === "kanban" && !hasSelectField) ||
-            (candidate.type === "calendar" && !hasDateField)
+            (candidate.type === "calendar" && !hasDateField) ||
+            (candidate.type === "form" && !hasFormField)
           return (
             <button
               key={candidate.type}
@@ -183,6 +196,11 @@ function EidosFileViewLayoutPicker({
       {!hasDateField ? (
         <p className="text-[11px] leading-4 text-muted-foreground">
           {t("Add a Date or Date & time field to enable Calendar.")}
+        </p>
+      ) : null}
+      {!hasFormField ? (
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          {t("Add a writable field to enable Form.")}
         </p>
       ) : null}
     </div>
@@ -258,7 +276,11 @@ export function EidosFileViewSelector({
   activeView?: EidosFileViewInfo
   disabled?: boolean
   onSelect: (viewId: string) => void
-  onCreate: (name: string, type: string) => Promise<void>
+  onCreate: (
+    name: string,
+    type: string,
+    options?: EidosFileViewCreateOptions
+  ) => Promise<void>
   onRename: (viewId: string, name: string) => Promise<void>
   onDuplicate: (viewId: string) => Promise<void>
   onDelete: (viewId: string) => Promise<void>
@@ -275,12 +297,15 @@ export function EidosFileViewSelector({
   const [name, setName] = useState("")
   const [isDefaultName, setIsDefaultName] = useState(false)
   const [createType, setCreateType] = useState<string>("grid")
+  const [formStartMode, setFormStartMode] = useState<FormStartMode>("existing")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const fitImageId = useId()
   const hideEmptyFieldsId = useId()
   const showEmptyGroupsId = useId()
   const wrapTextId = useId()
+  const formExistingFieldsId = useId()
+  const formEmptyId = useId()
   const handledRequestIdRef = useRef<number | null>(null)
   const managedView = useMemo(
     () => views.find((view) => view.id === managedViewId),
@@ -289,6 +314,7 @@ export function EidosFileViewSelector({
   const gridViewCount = views.filter((view) => view.type === "grid").length
   const selectFields = fields.filter((field) => field.type === "select")
   const dateFields = eidosFileCalendarDateFields(fields)
+  const formFields = fields.filter(isEidosFileFormInputField)
   const visibleFieldIds = new Set(
     visibleEidosFileFields(
       fields,
@@ -334,7 +360,6 @@ export function EidosFileViewSelector({
   const unselectedCardFields = cardCandidateFields.filter(
     (field) => !cardFieldIds.includes(eidosFileFieldKey(field))
   )
-
   useEffect(() => {
     if (managedView) setName(managedView.name)
   }, [managedView])
@@ -376,12 +401,14 @@ export function EidosFileViewSelector({
     setName("")
     setIsDefaultName(false)
     setCreateType("grid")
+    setFormStartMode("existing")
     setLocalError(null)
   }
   const prepareCreate = () => {
     setName(defaultViewName("grid", views, t))
     setIsDefaultName(true)
     setCreateType("grid")
+    setFormStartMode("existing")
     setLocalError(null)
     setPanel("create")
   }
@@ -410,7 +437,12 @@ export function EidosFileViewSelector({
     const nextName = name.trim()
     if (!nextName) return
     void run(
-      () => onCreate(nextName, createType),
+      () =>
+        createType === "form" && formStartMode === "empty"
+          ? onCreate(nextName, createType, {
+              hiddenFields: formFields.map((field) => field.id),
+            })
+          : onCreate(nextName, createType),
       () => {
         setOpen(false)
         reset()
@@ -457,7 +489,26 @@ export function EidosFileViewSelector({
       return
     }
     if (type !== "kanban" && type !== "calendar") {
-      void run(() => onUpdate(managedView.id, { type }))
+      void run(() =>
+        onUpdate(
+          managedView.id,
+          type === "form"
+            ? {
+                type,
+                properties: {
+                  title: managedView.name,
+                  description: null,
+                  submitLabel: "Submit",
+                  successMessage: "Response recorded.",
+                  fields: formFields.map((field) => ({
+                    fieldId: field.id,
+                    required: field.nullable === false,
+                  })),
+                },
+              }
+            : { type }
+        )
+      )
       return
     }
     if (type === "calendar") {
@@ -682,6 +733,7 @@ export function EidosFileViewSelector({
                 disabled={busy}
                 hasSelectField={selectFields.length > 0}
                 hasDateField={dateFields.length > 0}
+                hasFormField={formFields.length > 0}
                 onChange={(type) => {
                   selectCreateType(
                     type,
@@ -690,6 +742,69 @@ export function EidosFileViewSelector({
                   )
                 }}
               />
+              {createType === "form" ? (
+                <fieldset className="mt-2 grid gap-1.5 border-t pt-3">
+                  <legend className="text-xs font-medium">
+                    {t("Initial questions")}
+                  </legend>
+                  <div className="divide-y overflow-hidden rounded-md border border-border/70">
+                    <label
+                      className={cn(
+                        "flex min-h-12 cursor-pointer items-center gap-2.5 px-3 py-2 outline-hidden hover:bg-accent focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring",
+                        formStartMode === "existing" && "bg-accent"
+                      )}
+                      htmlFor={formExistingFieldsId}
+                    >
+                      <input
+                        id={formExistingFieldsId}
+                        type="radio"
+                        name="eidos-file-form-start"
+                        value="existing"
+                        checked={formStartMode === "existing"}
+                        disabled={busy}
+                        className="h-3.5 w-3.5 accent-primary"
+                        onChange={() => setFormStartMode("existing")}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium">
+                          {t("Include existing fields")}
+                        </span>
+                        <span className="block text-[10px] leading-4 text-muted-foreground">
+                          {t("Supported table fields: {count}", {
+                            count: formFields.length,
+                          })}
+                        </span>
+                      </span>
+                    </label>
+                    <label
+                      className={cn(
+                        "flex min-h-12 cursor-pointer items-center gap-2.5 px-3 py-2 outline-hidden hover:bg-accent focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring",
+                        formStartMode === "empty" && "bg-accent"
+                      )}
+                      htmlFor={formEmptyId}
+                    >
+                      <input
+                        id={formEmptyId}
+                        type="radio"
+                        name="eidos-file-form-start"
+                        value="empty"
+                        checked={formStartMode === "empty"}
+                        disabled={busy}
+                        className="h-3.5 w-3.5 accent-primary"
+                        onChange={() => setFormStartMode("empty")}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium">
+                          {t("Start from scratch")}
+                        </span>
+                        <span className="block text-[10px] leading-4 text-muted-foreground">
+                          {t("Add questions after creating the form.")}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+              ) : null}
               {extensionViews.length > 0 ? (
                 <div className="mt-2 border-t pt-2">
                   <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -804,6 +919,7 @@ export function EidosFileViewSelector({
                   disabled={busy}
                   hasSelectField={selectFields.length > 0}
                   hasDateField={dateFields.length > 0}
+                  hasFormField={formFields.length > 0}
                   onChange={changeManagedLayout}
                 />
               </div>

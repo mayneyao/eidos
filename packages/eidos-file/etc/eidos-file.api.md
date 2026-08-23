@@ -997,6 +997,12 @@ export const EIDOS_FILE_FEATURES_TABLE: "eidos__features";
 // @public (undocumented)
 export const EIDOS_FILE_FIELDS_TABLE: "eidos__fields";
 
+// @public (undocumented)
+export const EIDOS_FILE_FORM_INPUT_FIELD_TYPES: readonly ["integer", "text", "number", "checkbox", "date", "datetime", "file", "multi-select", "rating", "select", "url"];
+
+// @public (undocumented)
+export const EIDOS_FILE_FORM_VIEW_TYPE = "form";
+
 // @public
 export const EIDOS_FILE_FORMAT: "eidos-file";
 
@@ -1482,6 +1488,9 @@ export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterVal
 export type EidosFileFilterValue = string | number | boolean | null;
 
 // @public (undocumented)
+export type EidosFileFormInputFieldType = (typeof EIDOS_FILE_FORM_INPUT_FIELD_TYPES)[number];
+
+// @public (undocumented)
 export type EidosFileFormulaDisplayType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json";
 
 // @public (undocumented)
@@ -1550,6 +1559,44 @@ export function eidosFileFormulaReferences(source: string): EidosFileFormulaRefe
 
 // @public (undocumented)
 export type EidosFileFormulaResultType = Exclude<EidosFileFormulaDisplayType, "json">;
+
+// @public (undocumented)
+export interface EidosFileFormViewFieldProperties {
+    // (undocumented)
+    description?: string;
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    label?: string;
+    // (undocumented)
+    multiline?: boolean;
+    // (undocumented)
+    placeholder?: string;
+    // (undocumented)
+    required: boolean;
+}
+
+// @public (undocumented)
+export function eidosFileFormViewFields(table: EidosFileTableSnapshot, view: EidosFileViewInfo): Array<EidosFileFieldInfo & {
+    type: EidosFileFormInputFieldType;
+}>;
+
+// @public (undocumented)
+export interface EidosFileFormViewProperties {
+    // (undocumented)
+    description: string | null;
+    // (undocumented)
+    fields: EidosFileFormViewFieldProperties[];
+    // (undocumented)
+    submitLabel: string;
+    // (undocumented)
+    successMessage: string;
+    // (undocumented)
+    title: string;
+}
+
+// @public (undocumented)
+export function eidosFileFormViewProperties(view: EidosFileViewInfo, fields: readonly EidosFileFieldInfo[]): EidosFileFormViewProperties;
 
 // @public (undocumented)
 export interface EidosFileHandle {
@@ -3323,6 +3370,11 @@ export function isCanonicalEidosFileJson(text: string): boolean;
 
 // @public
 export function isEidosFileFilterOperator(value: unknown): value is EidosFileFilterRule["operator"];
+
+// @public (undocumented)
+export function isEidosFileFormInputField(field: EidosFileFieldInfo): field is EidosFileFieldInfo & {
+    type: EidosFileFormInputFieldType;
+};
 
 // @public (undocumented)
 export function isEidosFileReservedTableName(name: string): boolean;

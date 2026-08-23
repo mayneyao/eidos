@@ -743,7 +743,10 @@ export function Viewer({
 
 `sourceToken` 是 Host 发放的 opaque token，不是文件路径。Kernel 会按顺序完成 Host negotiation、Runtime negotiation、snapshot 和 schema bootstrap。
 
-标准 View 消费 Runtime 返回的 Grid、Gallery、Kanban 或 Calendar 数据，不会在 React 中重新实现 Formula、Lookup、Relation、filter 或 group 语义。
+标准 View 的类型与 layout 契约统一定义在
+[Eidos 标准视图 1.0](./eidos-standard-views-1.0.zh.md)，包括 Grid、Gallery、Kanban、
+Calendar 与 Form。它们消费 Runtime 返回的数据，不会在 React 中重新实现 Formula、
+Lookup、Relation、filter 或 group 语义。
 
 ## 调试时怎样查看底层数据
 

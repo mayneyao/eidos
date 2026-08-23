@@ -1,8 +1,9 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type {
-  EidosFileFieldInfo,
-  EidosFileViewInfo,
+import {
+  EIDOS_FILE_FORM_INPUT_FIELD_TYPES,
+  type EidosFileFieldInfo,
+  type EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 
 import { EidosFileViewFieldsPopover } from "./eidos-file-view-fields-popover"
@@ -82,6 +83,23 @@ const view: EidosFileViewInfo = {
   position: 0,
   createdAt: "2026-07-23T00:00:00.000Z",
   updatedAt: "2026-07-23T00:00:00.000Z",
+}
+
+const formulaField: EidosFileFieldInfo = {
+  id: "0198c72d-82b5-7000-8000-000000000004",
+  tableId,
+  name: "Calculated score",
+  type: "formula",
+  position: 2,
+  tableName: "Experiments",
+  tableColumnName: "calculated_score",
+  property: { displayType: "number" },
+  storageCodec: "materialized_text",
+  valueKind: "derived",
+  isHidden: false,
+  isDerived: true,
+  sourceTableColumnName: null,
+  dependsOn: [],
 }
 
 async function clickButton(label: string) {
@@ -189,6 +207,16 @@ describe("EidosFileViewFieldsPopover", () => {
     expect(onUpdate).toHaveBeenCalledWith({ hiddenFields: [] })
   })
 
+  it("hides every configurable field in the active View", async () => {
+    await clickButton("Hide all")
+    expect(onUpdate).toHaveBeenCalledWith({
+      hiddenFields: [fields[1]!.id, fields[0]!.id],
+      properties: {
+        visibleSystemFields: [],
+      },
+    })
+  })
+
   it("exposes optional system fields through visibleSystemFields", async () => {
     const created = document.body.querySelector<HTMLInputElement>(
       'input[aria-label="Show Created at"]'
@@ -245,6 +273,43 @@ describe("EidosFileViewFieldsPopover", () => {
     expect(
       document.body.querySelector('[aria-label="Search fields"]')
     ).toBeNull()
+  })
+
+  it("only exposes writable question fields for a Form View", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileViewFieldsPopover
+          fields={[...fields, formulaField]}
+          view={{ ...view, name: "Intake", type: "form" }}
+          onUpdate={onUpdate}
+          onFieldOpen={onFieldOpen}
+          onFieldAdd={onFieldAdd}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(
+      Array.from(
+        document.body.querySelectorAll("[data-eidos-file-sortable-field]")
+      ).map((row) => row.getAttribute("data-eidos-file-sortable-field"))
+    ).toEqual([fields[0]!.id, fields[1]!.id])
+    expect(document.body.textContent).not.toContain("Calculated score")
+    expect(document.body.textContent).not.toContain("Created at")
+
+    await clickButton("Hide all")
+    expect(onUpdate).toHaveBeenLastCalledWith({
+      hiddenFields: [fields[1]!.id, fields[0]!.id],
+      properties: { visibleSystemFields: [] },
+    })
+    expect(onUpdate.mock.lastCall?.[0].hiddenFields).not.toContain(
+      formulaField.id
+    )
+
+    await clickButton("New field")
+    expect(onFieldAdd).toHaveBeenLastCalledWith(
+      EIDOS_FILE_FORM_INPUT_FIELD_TYPES
+    )
   })
 
   it("reorders all current fields by stable Field ID through the drag handle", async () => {

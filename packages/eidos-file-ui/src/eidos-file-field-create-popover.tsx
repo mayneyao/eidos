@@ -87,6 +87,7 @@ export interface EidosFileFieldCreatePopoverProps {
   table: EidosFileTableSnapshot
   tables: EidosFileTableSnapshot[]
   disabled?: boolean
+  allowedTypes?: readonly EidosFileCreatableFieldType[]
   onCreate: (field: CreateEidosFileFieldInput) => Promise<void> | void
   onPreviewFormula?: (
     input: EidosFileFormulaPreviewInput
@@ -99,6 +100,7 @@ export function EidosFileFieldCreatePopover({
   table,
   tables,
   disabled = false,
+  allowedTypes,
   onCreate,
   onPreviewFormula,
 }: EidosFileFieldCreatePopoverProps) {
@@ -128,7 +130,9 @@ export function EidosFileFieldCreatePopover({
   useEffect(() => {
     if (!open) return
     setName("")
-    setFieldType("text")
+    setFieldType(
+      allowedTypes?.includes("text") ? "text" : (allowedTypes?.[0] ?? "text")
+    )
     setOptions([])
     setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
     setTargetTableId(
@@ -146,7 +150,7 @@ export function EidosFileFieldCreatePopover({
     setLookupAggregate("first")
     setSubmitting(false)
     setError(null)
-  }, [open, table.table.id, tables])
+  }, [allowedTypes, open, table.table.id, tables])
 
   const columnName = useMemo(
     () => columnNameFor(name.trim() || "field", table.fields),
@@ -316,6 +320,7 @@ export function EidosFileFieldCreatePopover({
               <EidosFileFieldTypePicker
                 value={fieldType}
                 onChange={setFieldType}
+                allowedTypes={allowedTypes}
                 disabled={busy}
               />
             </label>

@@ -87,4 +87,26 @@ describe("EidosFileFieldTypePicker", () => {
       document.body.querySelector('[data-eidos-file-field-type="lookup"]')
     ).toBeNull()
   })
+
+  it("limits the picker to field types supported by its caller", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileFieldTypePicker
+          value="text"
+          allowedTypes={["text", "file"]}
+          onChange={vi.fn()}
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLElement>(
+      "[data-eidos-file-field-type-trigger]"
+    )!
+    await act(async () => trigger.click())
+
+    expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(2)
+    expect(
+      document.body.querySelector('[data-eidos-file-field-type="formula"]')
+    ).toBeNull()
+  })
 })

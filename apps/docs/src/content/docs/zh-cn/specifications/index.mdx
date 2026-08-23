@@ -7,8 +7,8 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File 的互操作行为由四份核心规范和可选 profile 定义。英文页面是规范性文本；中文页面是
-参考译本，不能覆盖英文契约。
+Eidos File 的互操作行为由四个 layer 及其 normative companion 规范共同定义。英文页面是
+规范性文本；中文页面是参考译本，不能覆盖英文契约。
 
 <CardGrid>
   <LinkCard
@@ -36,7 +36,16 @@ Eidos File 的互操作行为由四份核心规范和可选 profile 定义。英
     description="RuntimeClient 与 HostServices 消费、交互、编辑与可访问性。"
     href="/zh-cn/specifications/ui-1-0/"
   />
+  <LinkCard
+    title="Eidos 标准视图 1.0"
+    description="统一定义 Grid、Gallery、Kanban、Calendar 与 Form 的 layout 和交互契约。"
+    href="/zh-cn/specifications/standard-views-1-0/"
+  />
 </CardGrid>
+
+同一 abstraction 的内建变体共用一份 companion 规范。因此 Standard Views 统一记录
+Grid、Gallery、Kanban、Calendar 与 Form；单独的 optional profile 只留给 baseline
+之外的扩展。
 
 规范源文件位于
 [`docs/specs`](https://github.com/mayneyao/eidos/tree/dev/docs/specs)。

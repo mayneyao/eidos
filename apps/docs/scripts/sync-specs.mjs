@@ -17,14 +17,21 @@ const specifications = [
   },
   { source: "eidos-adapter-1.0.md", slug: "adapter-1-0", order: 30 },
   { source: "eidos-ui-1.0.md", slug: "ui-1-0", order: 40 },
+  {
+    source: "eidos-standard-views-1.0.md",
+    slug: "standard-views-1-0",
+    order: 45,
+  },
 ]
 
 const retiredGeneratedSlugs = [
-  "file-format-1.0",
-  "runtime-1.0",
-  "system-metadata-merge-1.0",
-  "adapter-1.0",
-  "ui-1.0",
+  "file-format-1-0",
+  "runtime-1-0",
+  "system-metadata-merge-1-0",
+  "adapter-1-0",
+  "ui-1-0",
+  "form-view-1-0",
+  "standard-views-1-0",
 ]
 
 function escapeFrontmatter(value) {
