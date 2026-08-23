@@ -3,6 +3,7 @@ import {
   RelayHttpError,
   type RelayPrincipal,
 } from "./auth"
+import { relayPublicHostLabel } from "./public-host"
 
 const BROWSER_OAUTH_CLIENT_ID = "relay.eidos.ink"
 const OAUTH_RESPONSE_BYTES_MAX = 32 * 1024
@@ -144,7 +145,7 @@ export function browserPublicOrigin(slug: string, env: Env): string {
   if (!SLUG.test(slug)) {
     throw new RelayHttpError(400, "invalid_request", "Invalid Relay hostname")
   }
-  return `https://${slug}${env.PUBLIC_HOST_LABEL_SUFFIX}.${env.PUBLIC_HOST_SUFFIX}`
+  return `https://${relayPublicHostLabel(slug, env.PUBLIC_HOST_LABEL_SUFFIX)}.${env.PUBLIC_HOST_SUFFIX}`
 }
 
 export function browserAuthRedirectUri(env: Env): string {

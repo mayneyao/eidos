@@ -689,8 +689,12 @@ fn validate_claim(
     } else {
         ""
     };
-    let public_slug = public_label
+    let public_relay_label = public_label
         .strip_suffix(expected_label_suffix)
+        .unwrap_or("");
+    let public_identifier = public_relay_label
+        .strip_prefix("r-")
+        .or_else(|| public_relay_label.strip_prefix("u-"))
         .unwrap_or("");
     let access = public_url
         .fragment()
@@ -712,9 +716,8 @@ fn validate_claim(
         || public_url.path() != "/"
         || public_url.query().is_some()
         || public_host != format!("{public_label}.eidos.ink")
-        || public_slug.len() != 22
-        || !public_slug.starts_with("u-")
-        || !public_slug[2..]
+        || public_identifier.len() != 20
+        || !public_identifier
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit())
         || !valid_browser_access
@@ -736,7 +739,7 @@ fn validate_claim(
         || connector_url.query().is_some()
         || connector_url.fragment().is_some()
         || connector_origin.origin() != relay_origin.origin()
-        || !connector_url.path().starts_with("/v1/connect/u-")
+        || connector_url.path() != format!("/v1/connect/u-{public_identifier}")
     {
         bail!("the Eidos Relay service returned an invalid connector URL");
     }
@@ -820,7 +823,7 @@ mod tests {
             ClaimResponse {
                 protocol: 1,
                 browser_access: "share".to_string(),
-                public_url: "https://u-0123456789abcdefabcd.eidos.ink/#access=browser-secret"
+                public_url: "https://r-0123456789abcdefabcd.eidos.ink/#access=browser-secret"
                     .to_string(),
                 connector_url: "wss://relay.eidos.ink/v1/connect/u-0123456789abcdefabcd"
                     .to_string(),
@@ -840,7 +843,7 @@ mod tests {
                 ClaimResponse {
                     protocol: 1,
                     browser_access: "share".to_string(),
-                    public_url: "https://u-0123456789abcdefabcd.eidos.ink/#access=browser-secret"
+                    public_url: "https://r-0123456789abcdefabcd.eidos.ink/#access=browser-secret"
                         .to_string(),
                     connector_url: "wss://attacker.example/v1/connect/u-0123456789abcdefabcd"
                         .to_string(),
@@ -860,7 +863,7 @@ mod tests {
                     protocol: 1,
                     browser_access: "share".to_string(),
                     public_url:
-                        "https://u-0123456789abcdefabcd-staging.eidos.ink/#access=browser-secret"
+                        "https://r-0123456789abcdefabcd-staging.eidos.ink/#access=browser-secret"
                             .to_string(),
                     connector_url:
                         "wss://relay-staging.eidos.ink/v1/connect/u-0123456789abcdefabcd"
@@ -878,7 +881,7 @@ mod tests {
             ClaimResponse {
                 protocol: 1,
                 browser_access: "account".to_string(),
-                public_url: "https://u-0123456789abcdefabcd.eidos.ink/".to_string(),
+                public_url: "https://r-0123456789abcdefabcd.eidos.ink/".to_string(),
                 connector_url: "wss://relay.eidos.ink/v1/connect/u-0123456789abcdefabcd"
                     .to_string(),
                 connector_token: "connector-secret".to_string(),
@@ -896,7 +899,7 @@ mod tests {
                 ClaimResponse {
                     protocol: 1,
                     browser_access: "account".to_string(),
-                    public_url: "https://u-0123456789abcdefabcd.eidos.ink/#access=unexpected"
+                    public_url: "https://r-0123456789abcdefabcd.eidos.ink/#access=unexpected"
                         .to_string(),
                     connector_url: "wss://relay.eidos.ink/v1/connect/u-0123456789abcdefabcd"
                         .to_string(),

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 
 import { RelayHttpError } from "./auth"
+import { relayPublicHostLabel } from "./public-host"
 import {
   base64ToBytes,
   bytesToBase64,
@@ -343,7 +344,7 @@ export class TunnelDurableObject extends DurableObject<Env> {
     control.protocol = "wss:"
     control.pathname = `/v1/connect/${body.slug}`
     const publicUrl = new URL(
-      `https://${body.slug}${this.env.PUBLIC_HOST_LABEL_SUFFIX}.${this.env.PUBLIC_HOST_SUFFIX}/`
+      `https://${relayPublicHostLabel(body.slug, this.env.PUBLIC_HOST_LABEL_SUFFIX)}.${this.env.PUBLIC_HOST_SUFFIX}/`
     )
     if (body.browserAccess === "share") {
       publicUrl.hash = `access=${accessToken}`

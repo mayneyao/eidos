@@ -6,6 +6,7 @@ import {
   exchangeBrowserAuthorization,
 } from "./browser-auth"
 import { TunnelDurableObject } from "./tunnel"
+import { relayInternalSlug } from "./public-host"
 
 export { TunnelDurableObject }
 
@@ -153,14 +154,7 @@ export function publicSlug(
   suffix: string,
   labelSuffix: string
 ): string | null {
-  const ending = `.${suffix.toLowerCase()}`
-  const lower = hostname.toLowerCase()
-  if (!lower.endsWith(ending)) return null
-  const label = lower.slice(0, -ending.length)
-  if (!label.endsWith(labelSuffix)) return null
-  const slug =
-    labelSuffix.length > 0 ? label.slice(0, -labelSuffix.length) : label
-  return SLUG.test(slug) ? slug : null
+  return relayInternalSlug(hostname, suffix, labelSuffix)
 }
 
 async function claim(request: Request, env: Env): Promise<Response> {
@@ -210,8 +204,9 @@ function publicReturn(
   )
   if (!slug) return null
   const canonicalOrigin = browserPublicOrigin(slug, env)
-  return url.origin === canonicalOrigin
-    ? { origin: canonicalOrigin, slug }
+  const legacyOrigin = url.hostname.startsWith("u-")
+  return url.origin === canonicalOrigin || legacyOrigin
+    ? { origin: url.origin, slug }
     : null
 }
 

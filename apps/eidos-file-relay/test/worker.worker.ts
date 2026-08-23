@@ -29,29 +29,32 @@ afterEach(async () => {
 describe("Eidos File Relay", () => {
   it("matches production and single-label staging hostnames exactly", () => {
     expect(
-      publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "")
+      publicSlug("r-0123456789abcdefabcd.eidos.ink", "eidos.ink", "")
     ).toBe("u-0123456789abcdefabcd")
     expect(
       publicSlug(
-        "u-0123456789abcdefabcd-staging.eidos.ink",
+        "r-0123456789abcdefabcd-staging.eidos.ink",
         "eidos.ink",
         "-staging"
       )
     ).toBe("u-0123456789abcdefabcd")
     expect(
-      publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "-staging")
+      publicSlug("r-0123456789abcdefabcd.eidos.ink", "eidos.ink", "-staging")
     ).toBeNull()
+    expect(
+      publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "")
+    ).toBe("u-0123456789abcdefabcd")
   })
 
   it("does not provision unclaimed public hostnames", async () => {
     const response = await SELF.fetch(
-      "https://u-00000000000000000000.eidos.ink/"
+      "https://r-00000000000000000000.eidos.ink/"
     )
     expect(response.status).toBe(404)
 
     const nonCanonicalStart = await SELF.fetch(
       "https://relay.eidos.ink/v1/browser-auth/start?return_to=" +
-        encodeURIComponent("https://u-00000000000000000000.eidos.ink:8443/"),
+        encodeURIComponent("https://r-00000000000000000000.eidos.ink:8443/"),
       { redirect: "manual" }
     )
     expect(nonCanonicalStart.status).toBe(400)
@@ -68,7 +71,7 @@ describe("Eidos File Relay", () => {
     const second = await claim("alice-token")
     const other = await claim("bob-token")
     expect(new URL(first.publicUrl).hostname).toMatch(
-      /^u-[0-9a-f]{20}\.eidos\.ink$/u
+      /^r-[0-9a-f]{20}\.eidos\.ink$/u
     )
     expect(new URL(second.publicUrl).hostname).toBe(
       new URL(first.publicUrl).hostname
@@ -103,6 +106,20 @@ describe("Eidos File Relay", () => {
     expect(startUrl.origin).toBe("https://relay.eidos.ink")
     expect(startUrl.pathname).toBe("/v1/browser-auth/start")
     expect(startUrl.searchParams.get("return_to")).toBe(publicUrl.origin)
+
+    const legacyPublicUrl = new URL(publicUrl)
+    legacyPublicUrl.hostname = legacyPublicUrl.hostname.replace(/^r-/u, "u-")
+    const legacyRoot = await SELF.fetch(legacyPublicUrl, {
+      redirect: "manual",
+    })
+    expect(legacyRoot.status).toBe(302)
+    const legacyStartUrl = new URL(legacyRoot.headers.get("location") ?? "")
+    expect(legacyStartUrl.searchParams.get("return_to")).toBe(
+      legacyPublicUrl.origin
+    )
+    expect(
+      (await SELF.fetch(legacyStartUrl, { redirect: "manual" })).status
+    ).toBe(302)
 
     const authorization = await SELF.fetch(startUrl, { redirect: "manual" })
     expect(authorization.status).toBe(302)

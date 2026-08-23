@@ -9,10 +9,6 @@
       "pattern": "relay.eidos.ink",
       "custom_domain": true,
     },
-    {
-      "pattern": "*.eidos.ink/*",
-      "zone_name": "eidos.ink",
-    },
   ],
   "vars": {
     "AUTH_ORIGIN": "https://eidos.space",
@@ -62,10 +58,6 @@
         {
           "pattern": "relay-staging.eidos.ink",
           "custom_domain": true,
-        },
-        {
-          "pattern": "*staging.eidos.ink/*",
-          "zone_name": "eidos.ink",
         },
       ],
       "vars": {

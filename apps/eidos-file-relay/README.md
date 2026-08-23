@@ -6,7 +6,7 @@ Local and LAN serving remain account-free and do not depend on this service.
 The control plane accepts an Eidos OAuth access token, resolves only the OIDC
 `sub` claim through the `EIDOS_ACCOUNT` service binding, and returns:
 
-- one stable, opaque `u-<hash>.eidos.ink` hostname per account;
+- one stable, opaque `r-<hash>.eidos.ink` hostname per account;
 - one short-lived, single-use connector ticket for the CLI; and
 - either account-authorized browser access or an explicit fragment-key guest
   share.
@@ -22,7 +22,7 @@ first-party `relay.eidos.ink` OIDC client on eidos.space. The central callback
 exchanges the PKCE code, and the Durable Object accepts it only when the OIDC
 `sub` matches the account that claimed the hostname. A short-lived, single-use
 ticket then establishes a host-only `Secure`, `HttpOnly`, `SameSite=Strict`
-browser cookie on the public `u-<hash>.eidos.ink` host. The central callback
+browser cookie on the public `r-<hash>.eidos.ink` host. The central callback
 never sets a cross-site session cookie.
 
 The CLI requests guest capability access only for `eidos serve --relay
@@ -47,7 +47,9 @@ pnpm --filter @eidos.space/eidos-file-relay dry-run:staging
 ```
 
 Production uses `relay.eidos.ink` for authenticated control/WebSocket traffic
-and `u-<hash>.eidos.ink` for browser traffic. Staging uses
-`relay-staging.eidos.ink` and `u-<hash>-staging.eidos.ink`, which stays within
+and `r-<hash>.eidos.ink` for browser traffic. Staging uses
+`relay-staging.eidos.ink` and `r-<hash>-staging.eidos.ink`, which stays within
 the existing `*.eidos.ink` Universal SSL certificate. Deployments require the
-corresponding wildcard DNS/Worker route and the `EIDOS_ACCOUNT` service binding.
+shared wildcard DNS route owned by Eidos Publish. Publish dispatches the reserved
+`r-` namespace to Relay through a service binding; Relay itself owns only the
+exact control domain. The `EIDOS_ACCOUNT` service binding is also required.
