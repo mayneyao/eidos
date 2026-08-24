@@ -34,6 +34,7 @@ import {
 import DataEditor, {
   CompactSelection,
   GridCellKind,
+  textCellRenderer,
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
@@ -412,6 +413,32 @@ function viewRowHeight(view: EidosFileViewInfo | undefined): number {
   if (view?.properties?.rowDensity === "comfortable") return 52
   if (view?.properties?.rowDensity === "huge") return 69
   return 36
+}
+
+function textEditorForRowHeight(
+  cell: GridCell,
+  rowHeight: number
+): ReturnType<NonNullable<DataEditorProps["provideEditor"]>> {
+  if (cell.kind !== GridCellKind.Text) return undefined
+  const provided = textCellRenderer.provideEditor?.(cell)
+  if (!provided) return undefined
+
+  if (typeof provided === "function") {
+    return {
+      editor: provided,
+      disablePadding: provided.disablePadding,
+      disableStyling: provided.disableStyling,
+      styleOverride: { minHeight: rowHeight },
+    } as ReturnType<NonNullable<DataEditorProps["provideEditor"]>>
+  }
+
+  return {
+    ...provided,
+    styleOverride: {
+      ...provided.styleOverride,
+      minHeight: rowHeight,
+    },
+  } as ReturnType<NonNullable<DataEditorProps["provideEditor"]>>
 }
 
 function viewColumnStats(
@@ -1296,6 +1323,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       view?.properties?.textWrapping,
     ]
   )
+  const rowHeight = viewRowHeight(view)
+  const provideEditor = useCallback<
+    NonNullable<DataEditorProps["provideEditor"]>
+  >((cell) => textEditorForRowHeight(cell, rowHeight), [rowHeight])
 
   const requestVisiblePages = useCallback(
     (range: Rectangle) => {
@@ -2572,7 +2603,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           theme={theme}
           columns={columns}
           rows={rowCount}
-          rowHeight={viewRowHeight(view)}
+          rowHeight={rowHeight}
+          provideEditor={provideEditor}
           freezeColumns={freezeColumns}
           getCellContent={getCellContent}
           onVisibleRegionChanged={onVisibleRegionChanged}

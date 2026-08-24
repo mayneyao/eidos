@@ -251,6 +251,32 @@ describe("EidosFileGrid", () => {
     )
   })
 
+  it("keeps the text editor at least as tall as the configured row", async () => {
+    const comfortableView = {
+      ...table.views[0]!,
+      properties: { rowDensity: "comfortable" },
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={comfortableView}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const textCell = mocks.props?.getCellContent([0, 0])
+    expect(mocks.props?.rowHeight).toBe(52)
+    expect(textCell).toBeDefined()
+    expect(mocks.props?.provideEditor?.(textCell!)).toMatchObject({
+      styleOverride: { minHeight: 52 },
+    })
+  })
+
   it("opens a Formula cell editor with the activated record as preview", async () => {
     const formulaField: EidosFileFieldInfo = {
       ...table.fields[1],

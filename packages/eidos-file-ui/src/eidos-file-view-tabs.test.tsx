@@ -348,7 +348,7 @@ describe("EidosFileViewTabs", () => {
     expect(
       document.body.querySelector<HTMLInputElement>("#eidos-file-view-name")
         ?.value
-    ).toBe("Calendar 1")
+    ).toBe("Calendar")
 
     await act(async () => {
       Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
@@ -356,7 +356,7 @@ describe("EidosFileViewTabs", () => {
         ?.click()
       await Promise.resolve()
     })
-    expect(onCreate).toHaveBeenCalledWith("Calendar 1", "calendar")
+    expect(onCreate).toHaveBeenCalledWith("Calendar", "calendar")
   })
 
   it("creates a Form with existing fields or from scratch", async () => {
@@ -412,7 +412,7 @@ describe("EidosFileViewTabs", () => {
       )?.checked
     ).toBe(true)
     await createForm()
-    expect(onCreate).toHaveBeenLastCalledWith("Form 1", "form")
+    expect(onCreate).toHaveBeenLastCalledWith("Form", "form")
 
     await openCreateForm()
     await act(async () => {
@@ -424,7 +424,7 @@ describe("EidosFileViewTabs", () => {
       await Promise.resolve()
     })
     await createForm()
-    expect(onCreate).toHaveBeenLastCalledWith("Form 1", "form", {
+    expect(onCreate).toHaveBeenLastCalledWith("Form", "form", {
       hiddenFields: [dueField.id],
     })
   })

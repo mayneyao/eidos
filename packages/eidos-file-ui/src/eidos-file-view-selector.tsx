@@ -54,6 +54,7 @@ import {
 import { SortableContainer } from "./ui/sortable"
 import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
 import { eidosFileCalendarDateFields } from "./eidos-file-calendar-view"
+import { nextEidosFileViewName } from "./eidos-file-view-name"
 
 export interface EidosFileExternalViewContribution {
   id: string
@@ -120,10 +121,7 @@ function defaultViewName(
 ): string {
   const label = VIEW_TYPES.find((candidate) => candidate.type === type)?.label
   const prefix = translate(label ?? "View")
-  const names = new Set(views.map((view) => view.name.trim().toLowerCase()))
-  let suffix = views.filter((view) => view.type === type).length + 1
-  while (names.has(`${prefix} ${suffix}`.toLowerCase())) suffix += 1
-  return `${prefix} ${suffix}`
+  return nextEidosFileViewName(prefix, views)
 }
 
 export function isEidosFileBuiltInViewType(
@@ -455,7 +453,7 @@ export function EidosFileViewSelector({
       setName(
         isEidosFileBuiltInViewType(type)
           ? defaultViewName(type, views, t)
-          : `${label} ${views.filter((view) => view.type === type).length + 1}`
+          : nextEidosFileViewName(label, views)
       )
     }
   }
