@@ -59,29 +59,16 @@ export async function authenticatePublishUser(
 
 export function parsePrincipal(value: unknown): PublishPrincipal {
   if (!isRecord(value)) throw unavailable("invalid_identity_response")
-  const allowed = new Set(["sub", "username", "publish_access"])
+  const allowed = new Set(["sub", "publish_access"])
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     throw unavailable("invalid_identity_response")
   }
   const userId = boundedText(value.sub, 256)
-  const accountUsernameValue = value.username
-  const accountUsername =
-    accountUsernameValue === null || accountUsernameValue === undefined
-      ? null
-      : boundedText(accountUsernameValue, 63)
-  if (typeof userId !== "string" || accountUsername === undefined) {
-    throw unavailable("invalid_identity_response")
-  }
-  if (
-    accountUsernameValue !== null &&
-    accountUsernameValue !== undefined &&
-    accountUsername === null
-  ) {
+  if (typeof userId !== "string") {
     throw unavailable("invalid_identity_response")
   }
   return {
     userId,
-    accountUsername,
     access: parseAccess(value.publish_access),
   }
 }
@@ -94,7 +81,7 @@ function parseAccess(value: unknown): PublishAccessGrant {
     "service",
     "state",
     "plan",
-    "username",
+    "handle",
     "privatePublications",
     "removeBranding",
     "maxStorageBytes",
@@ -111,7 +98,7 @@ function parseAccess(value: unknown): PublishAccessGrant {
     value.service !== "eidos_publish" ||
     (value.state !== "active" && value.state !== "blocked") ||
     (value.plan !== "free" && value.plan !== "pro") ||
-    typeof value.username !== "boolean" ||
+    typeof value.handle !== "boolean" ||
     typeof value.privatePublications !== "boolean" ||
     typeof value.removeBranding !== "boolean" ||
     !safeNonNegativeInteger(value.revision) ||
@@ -131,7 +118,7 @@ function parseAccess(value: unknown): PublishAccessGrant {
     service: "eidos_publish",
     state: value.state,
     plan: value.plan,
-    username: value.username,
+    handle: value.handle,
     privatePublications: value.privatePublications,
     removeBranding: value.removeBranding,
     maxStorageBytes: value.maxStorageBytes,

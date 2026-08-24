@@ -102,6 +102,8 @@ export const IPC_CHANNELS = {
   versionWorkingTextDiff: "eidos-lite:version-working-text-diff",
   discardWorkingChanges: "eidos-lite:working-changes-discard",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
+  accountStatus: "eidos-lite:account-status",
+  accountChanged: "eidos-lite:account-changed",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
   syncSignOut: "eidos-lite:sync-sign-out",
@@ -135,7 +137,6 @@ export const IPC_CHANNELS = {
   publishProgress: "eidos-lite:publish-progress",
   publishCollectRun: "eidos-lite:publish-collect-run",
   publishBindingsList: "eidos-lite:publish-bindings-list",
-  publishCollectorActiveSource: "eidos-lite:publish-collector-active-source",
   revealPath: "eidos-lite:path-reveal",
   openPath: "eidos-lite:path-open",
   copyPathText: "eidos-lite:path-copy-text",
@@ -147,13 +148,24 @@ export type EidosLitePathClipboardMode = "absolute" | "relative"
 
 export type EidosPublishAccessMode = "public" | "password" | "private"
 export type EidosPublishAccessSelection = "unchanged" | EidosPublishAccessMode
+export type EidosPublishBrandingSelection = "unchanged" | "show" | "hide"
+export type EidosPublishFormRespondentAccess = "anyone" | "signed_in"
+
+export interface EidosPublishFormPolicy {
+  respondentAccess: EidosPublishFormRespondentAccess
+  allowMultipleResponses: boolean
+  revision: number
+}
 
 export interface EidosPublishRequest {
   requestId: string
   relativePath: string
   slug: string
   accessMode: EidosPublishAccessSelection
+  branding: EidosPublishBrandingSelection
   formView?: string
+  formRespondentAccess?: EidosPublishFormRespondentAccess
+  formAllowMultipleResponses?: boolean
   password?: string
 }
 
@@ -190,6 +202,8 @@ export interface EidosPublishResult {
   publicationSlug: string
   visibility: "public" | "private"
   accessMode: EidosPublishAccessMode
+  showBranding: boolean
+  formPolicy: EidosPublishFormPolicy | null
   versionId: string
   sourceBytes: string
   sourceSha256: string
@@ -261,6 +275,8 @@ export interface EidosPublicationBinding {
   currentVersionId: string
   url: string
   accessMode: EidosPublishAccessMode
+  showBranding: boolean
+  formPolicy: EidosPublishFormPolicy | null
   sourceSha256: string
   fingerprintSpec: EidosPublishResult["fingerprintSpec"] | null
   publishFingerprint: string | null
@@ -591,6 +607,8 @@ export interface SpaceSnapshot {
   graft: GraftSpaceStatus
   invalidatedSessionIds: string[]
   fileIssues?: EidosFileIssue[]
+  /** Files rewritten outside their resident Runtime before this snapshot was emitted. */
+  materializedPaths?: string[]
 }
 
 export type EidosFileIssueReason =
@@ -1648,6 +1666,8 @@ export interface EidosLiteApi {
     commitId: string,
     expectedHead: string
   ): Promise<SpaceSnapshot>
+  getAccountStatus(): Promise<SyncAccountStatus>
+  onAccountChanged(listener: (status: SyncAccountStatus) => void): () => void
   getSyncStatus(): Promise<EidosSyncStatus>
   beginSyncSignIn(): Promise<EidosSyncStatus>
   signOutSync(): Promise<EidosSyncStatus>
@@ -1717,7 +1737,6 @@ export interface EidosLiteApi {
   listPublicationBindings(
     request?: EidosPublicationBindingsRequest
   ): Promise<EidosPublicationBinding[]>
-  setActivePublicationSource(relativePath: string | null): Promise<void>
   onPublishProgress(
     listener: (progress: EidosPublishProgress) => void
   ): () => void

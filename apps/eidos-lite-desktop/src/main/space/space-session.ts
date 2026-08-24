@@ -2555,7 +2555,7 @@ export class SpaceSession {
         collect(canonicalSource, path.dirname(canonicalSource), signal),
     })
     this.invalidateGraftStatusCache()
-    await this.freshSnapshotAndEmit(true)
+    await this.freshSnapshotAndEmit(true, [normalized])
     return result
   }
 
@@ -3190,7 +3190,8 @@ export class SpaceSession {
   }
 
   private async freshSnapshotAndEmit(
-    authoritativeGraft = false
+    authoritativeGraft = false,
+    materializedPaths: readonly string[] = []
   ): Promise<SpaceSnapshot> {
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.invalidateSnapshotCaches()
@@ -3202,8 +3203,11 @@ export class SpaceSession {
       !authoritativeGraft,
       authoritativeGraftStatus
     )
-    for (const listener of this.changeListeners) listener(snapshot)
-    return snapshot
+    const emittedSnapshot = materializedPaths.length
+      ? { ...snapshot, materializedPaths: [...materializedPaths] }
+      : snapshot
+    for (const listener of this.changeListeners) listener(emittedSnapshot)
+    return emittedSnapshot
   }
 
   private emitCachedOperationSnapshot(): void {

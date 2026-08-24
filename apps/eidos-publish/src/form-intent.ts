@@ -6,6 +6,7 @@ export interface FormSubmissionIntentClaims {
   publicationVersionId: string
   accessRevision: number
   submissionRevision: number
+  respondentUserId: string | null
   nonce: string
   iat: number
   exp: number
@@ -74,7 +75,7 @@ function validClaims(
   }
   const claims = value as Record<string, unknown>
   return (
-    Object.keys(claims).length === 11 &&
+    Object.keys(claims).length === 12 &&
     claims.iss === "eidos-publish-form" &&
     claims.kid === "v1" &&
     claims.aud === audience &&
@@ -87,6 +88,11 @@ function validClaims(
     (claims.accessRevision as number) >= 0 &&
     Number.isSafeInteger(claims.submissionRevision) &&
     (claims.submissionRevision as number) >= 0 &&
+    (claims.respondentUserId === null ||
+      (typeof claims.respondentUserId === "string" &&
+        claims.respondentUserId.length > 0 &&
+        claims.respondentUserId.length <= 256 &&
+        !/[\u0000-\u001f\u007f]/.test(claims.respondentUserId))) &&
     Number.isSafeInteger(claims.iat) &&
     Number.isSafeInteger(claims.exp) &&
     (claims.iat as number) <= now + 60 &&

@@ -70,7 +70,6 @@ describe("Publish task dock", () => {
         onExpandedChange: () => undefined,
         onDismiss: () => undefined,
         onRetry: () => undefined,
-        onCollect: () => undefined,
       })
     )
 
@@ -87,7 +86,6 @@ describe("Publish task dock", () => {
         onExpandedChange: () => undefined,
         onDismiss: () => undefined,
         onRetry: () => undefined,
-        onCollect: () => undefined,
       })
     )
 
@@ -115,11 +113,36 @@ describe("Publish task dock", () => {
         onExpandedChange: () => undefined,
         onDismiss: () => undefined,
         onRetry: () => undefined,
-        onCollect: () => undefined,
       })
     )
 
     expect(markup).toContain("Already up to date")
     expect(markup).not.toContain("Published successfully")
+  })
+
+  it("keeps Form collection out of the publish success card", () => {
+    const publishedForm: PublishTaskState = {
+      ...task,
+      status: "succeeded",
+      result: {
+        versionCreated: true,
+        driverId: "org.eidos.driver.form",
+        publicationId: "publication-1",
+        url: "https://u-example.eidos.ink/form",
+      } as EidosPublishResult,
+    }
+    const markup = renderToStaticMarkup(
+      createElement(PublishTaskDock, {
+        task: publishedForm,
+        expanded: true,
+        onExpandedChange: () => undefined,
+        onDismiss: () => undefined,
+        onRetry: () => undefined,
+      })
+    )
+
+    expect(markup).not.toContain("Collect new responses")
+    expect(markup).not.toContain("Collect now")
+    expect(markup).not.toContain("publish-collect-actions")
   })
 })

@@ -889,11 +889,16 @@ fn form_field_constraints(field: &FieldMeta) -> Result<Value> {
             .into_iter()
             .flatten()
             .map(|option| {
-                option
+                let name = option
                     .get("name")
                     .and_then(Value::as_str)
                     .map(str::to_string)
-                    .ok_or_else(|| AppError::publish_failed("Select option is missing its name"))
+                    .ok_or_else(|| AppError::publish_failed("Select option is missing its name"))?;
+                let color = option
+                    .get("color")
+                    .and_then(Value::as_str)
+                    .unwrap_or("default");
+                Ok(json!({ "name": name, "color": color }))
             })
             .collect::<Result<Vec<_>>>()?;
         return Ok(json!({ "options": options }));
@@ -973,6 +978,21 @@ pub fn run(
     progress: PublishProgress,
 ) -> Result<Value> {
     validate_slug(&args.slug)?;
+    if source_kind != PublishSourceKind::Form
+        && (args.form_respondents.is_some() || args.one_response_per_user)
+    {
+        return Err(AppError::invalid_request(
+            "Form response options can be used only for a published Form",
+        ));
+    }
+    if source_kind == PublishSourceKind::Form
+        && args.one_response_per_user
+        && args.form_respondents.map(|value| value.as_str()) != Some("signed_in")
+    {
+        return Err(AppError::invalid_request(
+            "--one-response-per-user requires --form-respondents signed-in",
+        ));
+    }
     let access_change = requested_access_change(&args)?;
     if args.wait_seconds == 0 || args.wait_seconds > 3_600 {
         return Err(AppError::invalid_request(
@@ -1167,6 +1187,24 @@ pub fn run(
             )?;
         }
     }
+    if args.hide_branding || args.show_branding {
+        let show_branding = args.show_branding;
+        progress.stage(if show_branding {
+            "showing Eidos branding"
+        } else {
+            "hiding Eidos branding"
+        });
+        publication = send_json(
+            client
+                .put(endpoint(
+                    &origin,
+                    &format!("/api/publications/{}/branding", args.slug),
+                )?)
+                .header(AUTHORIZATION, authorization.clone())
+                .header("Idempotency-Key", random_idempotency_key("branding"))
+                .json(&json!({ "showBranding": show_branding })),
+        )?;
+    }
     let access_mode = publication
         .get("accessMode")
         .and_then(Value::as_str)
@@ -1177,8 +1215,35 @@ pub fn run(
         .and_then(Value::as_str)
         .unwrap_or(initial_visibility)
         .to_string();
+    let show_branding = publication
+        .get("showBranding")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     let publication_id = string_member(&publication, "publicationId")?.to_string();
     drop(access_change);
+    let form_policy = if source_kind == PublishSourceKind::Form {
+        let respondent_access = args
+            .form_respondents
+            .map(|value| value.as_str())
+            .unwrap_or("anyone");
+        let allow_multiple_responses = !args.one_response_per_user;
+        progress.stage("configuring Form response access");
+        Some(send_json(
+            client
+                .put(endpoint(
+                    &origin,
+                    &format!("/api/publications/{}/form-policy", args.slug),
+                )?)
+                .header(AUTHORIZATION, authorization.clone())
+                .header("Idempotency-Key", random_idempotency_key("form-policy"))
+                .json(&json!({
+                    "respondentAccess": respondent_access,
+                    "allowMultipleResponses": allow_multiple_responses,
+                })),
+        )?)
+    } else {
+        None
+    };
 
     let manifest_files = objects
         .iter()
@@ -1234,6 +1299,8 @@ pub fn run(
             "publicationId": publication_id,
             "visibility": visibility,
             "accessMode": access_mode,
+            "showBranding": show_branding,
+            "formPolicy": form_policy.clone(),
             "versionId": version_id,
             "sourceBytes": source_bytes.to_string(),
             "sourceSha256": source_sha256,
@@ -2096,6 +2163,16 @@ mod tests {
     }
 
     #[test]
+    fn mutable_publish_settings_use_operation_scoped_idempotency_keys() {
+        for operation in ["branding", "form-policy"] {
+            let first = random_idempotency_key(operation);
+            let second = random_idempotency_key(operation);
+            assert_ne!(first, second);
+            assert!(first.starts_with(&format!("eidos-cli-{operation}-")));
+        }
+    }
+
+    #[test]
     fn renders_stable_human_publish_progress() {
         assert_eq!(progress_percent(1, 4), 25);
         assert_eq!(progress_percent(5, 4), 100);
@@ -2265,6 +2342,20 @@ mod tests {
                         settings: None,
                         definition: None,
                     },
+                    NewField {
+                        client_key: "importance".into(),
+                        name: "Importance".into(),
+                        kind: FieldType::Select,
+                        position: None,
+                        nullable: Some(true),
+                        settings: Some(json!({
+                            "options": [
+                                { "name": "Helpful", "color": "blue" },
+                                { "name": "Other" },
+                            ],
+                        })),
+                        definition: None,
+                    },
                 ],
                 label_field_client_key: Some("name".into()),
             },
@@ -2357,6 +2448,13 @@ mod tests {
         assert_eq!(
             definition.pointer("/fields/2/required"),
             Some(&json!(false))
+        );
+        assert_eq!(
+            definition.pointer("/fields/3/constraints/options"),
+            Some(&json!([
+                { "name": "Helpful", "color": "blue" },
+                { "name": "Other", "color": "default" },
+            ]))
         );
         for field in definition
             .get("fields")

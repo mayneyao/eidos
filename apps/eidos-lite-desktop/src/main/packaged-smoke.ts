@@ -702,6 +702,9 @@ const rendererProbe = `
       typeof window.eidosLite.listSyncRepositories === "function" &&
       typeof window.eidosLite.cloneSyncRepository === "function",
     syncApi: typeof window.eidosLite.runSync === "function",
+    accountStatusApi:
+      typeof window.eidosLite.getAccountStatus === "function" &&
+      typeof window.eidosLite.onAccountChanged === "function",
     syncProgressApi: typeof window.eidosLite.onSyncProgress === "function",
     syncQueueApi: typeof window.eidosLite.getSyncQueueStatus === "function",
     syncQueueEventsApi:

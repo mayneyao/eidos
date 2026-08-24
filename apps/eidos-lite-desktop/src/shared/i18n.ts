@@ -38,7 +38,8 @@ const zh: Record<string, string> = {
     "在日历视图中将周一显示为每周的第一天。",
   English: "English",
   Chinese: "简体中文",
-  "Account & Sync": "账户与同步",
+  "Account & Services": "账户与服务",
+  "Eidos account": "Eidos 账户",
   "Signed in": "已登录",
   "Not signed in": "未登录",
   "Manage account": "管理账户",
@@ -46,8 +47,12 @@ const zh: Record<string, string> = {
   "Sign out": "退出登录",
   "Signing in…": "正在登录…",
   "Sign in": "登录",
-  "Your email and avatar are cached for a stable interface. Sign-in credentials remain in secure system storage.":
-    "邮箱和头像会被缓存以保持界面稳定，登录凭据仍保存在系统安全存储中。",
+  "Sign in once to use Sync and Publish. Your credentials remain in secure system storage; only your email and avatar are cached for the interface.":
+    "登录一次即可使用 Sync 和 Publish。登录凭据保存在系统安全存储中，界面仅缓存邮箱和头像。",
+  "Could not update your Eidos account. Your local Spaces are unaffected.":
+    "无法更新 Eidos 账户，本地空间不受影响。",
+  "Could not open your Eidos account page. Try again later.":
+    "无法打开 Eidos 账户页面，请稍后重试。",
   Spaces: "空间",
   "Keyboard Shortcuts": "键盘快捷键",
   Workspace: "工作区",
@@ -157,6 +162,9 @@ const zh: Record<string, string> = {
   "Publish…": "发布…",
   "Manage Publish…": "管理发布…",
   Publish: "发布",
+  "Publish… (Sign in required)": "发布…（需登录）",
+  "Publish… (Checking account…)": "发布…（正在检查账户…）",
+  "Publish… (Account unavailable)": "发布…（账户不可用）",
   "Close Publish": "关闭发布面板",
   "Publish activity": "发布任务",
   "View Publish progress": "查看发布进度",
@@ -181,6 +189,15 @@ const zh: Record<string, string> = {
     "把回复收集到这个 Form View 对应的表格。",
   "Share the complete Eidos File in read-only mode.":
     "以只读方式分享完整的 Eidos File。",
+  "Form responses": "表单回复",
+  "Who can respond": "谁可以填写",
+  "Anyone with the link": "任何获得链接的人",
+  "Signed-in eidos.space users": "已登录 eidos.space 的用户",
+  "Allow multiple responses": "允许多次填写",
+  "Sign-in is required to limit one response per user.":
+    "仅登录用户才能限制每个账户填写一次。",
+  "Turn off to accept one response per account.":
+    "关闭后，每个账户只能提交一次。",
   "Resource slug": "资源路径",
   "This becomes the path after your Publish domain.":
     "它会成为 Publish 域名后面的访问路径。",
@@ -190,9 +207,15 @@ const zh: Record<string, string> = {
   Public: "公开",
   "Anyone with the link can view it.": "任何获得链接的人都可以查看。",
   Password: "密码保护",
-  "Pro · Require a shared password.": "Pro · 需要输入共享密码。",
+  "Require a shared password.": "需要输入共享密码。",
   Private: "私有",
-  "Pro · Only your signed-in account.": "Pro · 仅当前登录账户可访问。",
+  "Only your signed-in account.": "仅当前登录账户可访问。",
+  Branding: "品牌标识",
+  "Show Built with Eidos": "显示 Built with Eidos",
+  "Hide Built with Eidos": "隐藏 Built with Eidos",
+  "New resources show the badge by default.": "新资源默认显示品牌标识。",
+  "Remove the badge from this published resource.":
+    "从当前发布资源中移除品牌标识。",
   "Confirm password": "确认密码",
   "The password is sent securely and is never saved by Eidos Lite.":
     "密码会被安全发送，Eidos Lite 不会保存密码。",
@@ -219,14 +242,11 @@ const zh: Record<string, string> = {
   "uploading source": "正在上传源文件",
   "Published successfully": "发布成功",
   "Already up to date": "已是最新版本",
-  "Collect new responses into the local Eidos File.":
-    "把新回复收回本地 Eidos File。",
   "{count} responses collected": "已收集 {count} 条回复",
-  "Collecting…": "正在收集…",
   "Collect now": "立即收集",
   "Copy link": "复制链接",
   Copied: "已复制",
-  "Publish Pro is required": "需要 Publish Pro",
+  "A Publish subscription is required": "需要开通 Publish",
   "Sign in to publish": "登录后才能发布",
   "Publish failed": "发布失败",
   "View plans": "查看套餐",

@@ -16,7 +16,7 @@ source of truth and the CLI can exit after publishing.
 <Aside type="caution" title="Staging preview">
   Publish is currently available to preview accounts on staging. Use the staging
   account page and origin shown below. The default production origin is not open
-  yet, and Publish Pro checkout remains invitation-only.
+  yet. Activate Publish on the staging account before creating a CLI key.
 </Aside>
 
 ## Before you publish
@@ -54,6 +54,14 @@ command above can produce a URL such as:
 https://u-…-staging.eidos.ink/tracker
 ```
 
+Publish can replace the opaque host with an independent Publish handle. Open
+the staging Publish account page, enter a compatible handle under **Publish
+domain**, and select **Claim domain**. The service claims
+`handle-staging.eidos.ink` immediately; the assigned `u-*` hostname remains a
+stable fallback. The handle does not change your account username. Handles
+contain 3–30 lowercase letters, digits, or hyphens, start with a letter, and
+cannot use reserved Publish or Relay namespaces.
+
 The normal terminal output shows progress while the CLI validates the file,
 discovers local attachments, hashes and deduplicates source objects, uploads
 the pending bytes, prepares the serving target, and activates the Version. The command returns
@@ -85,6 +93,21 @@ The command publishes a new immutable Form revision. Visitors see only the
 fields selected by that Form View; internal File, Table, View, and Field IDs
 are not exposed in the browser definition. Public, password, and
 account-private access use the same options as other Publish resources.
+
+Form response access is configured separately from resource access. Require an
+eidos.space account with `--form-respondents signed-in`. Add
+`--one-response-per-user` when each signed-in account may submit only once:
+
+```bash
+eidos publish feedback.eidos --slug feedback \
+  --form-view "Public feedback" \
+  --form-respondents signed-in \
+  --one-response-per-user
+```
+
+Anonymous forms always allow multiple responses because Publish cannot reliably
+identify a person without an account. Changing these controls does not create a
+new content Version when the Form definition is unchanged.
 
 Completed responses wait in a private Publish Inbox. They do not modify the
 hosted snapshot or a cloud copy of your dataset. Pull them into the original
@@ -155,11 +178,11 @@ objects larger than 1 GiB fail the publish before activation.
 
 Access belongs to each resource slug, not to the whole account.
 
-| Access             | Publish option         | Who can open it                                                 | Plan        |
-| ------------------ | ---------------------- | --------------------------------------------------------------- | ----------- |
-| Public             | No access option       | Anyone with the URL                                             | Free or Pro |
-| Password protected | `--password`           | Anyone who knows the password; no Eidos account required        | Pro         |
-| Account private    | `--visibility private` | The publisher while signed in to the owning eidos.space account | Pro         |
+| Access             | Publish option         | Who can open it                                                 |
+| ------------------ | ---------------------- | --------------------------------------------------------------- |
+| Public             | No access option       | Anyone with the URL                                             |
+| Password protected | `--password`           | Anyone who knows the password; no Eidos account required        |
+| Account private    | `--visibility private` | The publisher while signed in to the owning eidos.space account |
 
 Publishing the same slug again without an access option preserves its current
 access mode.
@@ -204,6 +227,20 @@ eidos.space sign-in and returns to the resource after the owning account is
 verified. Use password protection instead when sharing with people who do not
 have the publisher's account.
 
+## Configure Eidos branding
+
+Published Eidos Files, Markdown documents, and Forms show the **Built with
+Eidos** badge by default. Publish can hide it for one resource without
+creating a new content Version:
+
+```bash
+eidos publish tracker.eidos --slug tracker --hide-branding
+```
+
+Restore the badge with `--show-branding`. Omitting both options preserves the
+resource's current setting. The same control is available beside each resource
+on the Publish account page and in Eidos Lite's Publish panel.
+
 ## Publish more than one resource
 
 A slug identifies one long-lived resource. Publishing another file with a new
@@ -216,27 +253,32 @@ eidos publish inventory.eidos --slug inventory
 
 Publishing new bytes to an existing slug creates a new immutable Version while
 keeping its URL stable. Publishing the same bytes and attachment references is
-a no-op for Version history. Resource and Version counts are not commercial quotas;
-storage and history age are. Current preview limits are:
+a no-op for Version history. Resource count is not a commercial quota; storage
+and the history policy are. Current preview limits are:
 
-| Limit                        |                    Free |                                              Pro |
-| ---------------------------- | ----------------------: | -----------------------------------------------: |
-| Deduplicated account storage |                   1 GiB |                                           10 GiB |
-| One source or attachment     |                   1 GiB |                                            1 GiB |
-| Markdown document            |                  16 MiB |                                           16 MiB |
-| Inactive Version history     |                  7 days |                                          90 days |
-| Resources                    |                No quota |                                         No quota |
-| Access modes                 |                  Public |                Public, password, account-private |
-| Canonical hostname           | Assigned `u-*` hostname | Account username hostname when a username is set |
-| Runtime idle sleep           |              60 seconds |                                      600 seconds |
-| Form responses per month     |                     100 |                                            5,000 |
-| Collect Inbox                |                 256 MiB |                                            5 GiB |
-| One submitted attachment     |                  10 MiB |                                          100 MiB |
-| Imported response retention  |                  7 days |                                          30 days |
+| Limit                        | Publish                           |
+| ---------------------------- | --------------------------------- |
+| Deduplicated account storage | 10 GiB                            |
+| One source or attachment     | 1 GiB                             |
+| Markdown document            | 16 MiB                            |
+| Inactive Version history     | 30 days                           |
+| Resources                    | No quota                          |
+| Access modes                 | Public, password, account-private |
+| Canonical hostname           | One independent Publish handle    |
+| Remove Built with Eidos      | Yes                               |
+| Form responses per month     | 5,000                             |
+| Collect Inbox                | 5 GiB                             |
+| Attachments per response     | 20                                |
+| One submitted attachment     | 100 MiB                           |
+| Imported response retention  | 30 days                           |
 
-History retention applies to inactive Versions. The currently active Version
-is kept even after that age; replacing it starts a new immutable Version, and
-expired history releases only content no remaining Version references.
+Publish is a paid hosted service; local build and preview remain free. History
+retention starts when an active Version is replaced. Inactive Versions are
+kept for 30 days. Failed or never-activated Versions are
+removed after 24 hours. The currently active Version is never removed by
+history retention. Expired history releases only content no remaining Version
+references. Form definition snapshots needed to interpret collected responses
+are retained separately from the full published source.
 
 The account page is authoritative for the current plan and usage. External
 custom domains are not part of Publish 1.0.
@@ -264,16 +306,16 @@ a Version or reused the active one.
 
 ## Troubleshooting
 
-**The plan does not allow password or private access**
+**A Publish subscription is required**
 
-The account is on Free. Use public access or upgrade an invited account to
-Publish Pro.
+Local preview does not create a hosted URL. Activate Publish from the account
+or pricing page, then retry with the same file and slug.
 
 **The storage limit has been reached**
 
 Delete unneeded inactive Versions or reduce database/attachment bytes. Reusing
-identical content does not consume storage twice. Pro increases total storage,
-but the per-object limit remains 1 GiB.
+identical content does not consume storage twice. The per-object limit remains
+1 GiB.
 
 **An attachment cannot be published**
 

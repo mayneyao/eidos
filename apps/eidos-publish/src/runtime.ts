@@ -18,6 +18,7 @@ const VERSION_ID =
 const SHA256 = /^[0-9a-f]{64}$/
 const SHARD_GENERATION = "runtime-pool-v1"
 const MAX_SHARDS = 1024
+const VERSION_READINESS_CACHE_MILLISECONDS = 10_000
 
 export interface RuntimeSourceDescriptor {
   tenantId: string
@@ -38,10 +39,39 @@ export interface RuntimePrepareResult {
   readyReceipt: ReadyReceipt
 }
 
+export interface RuntimeVersionState {
+  containerReady: boolean
+  versionReady: boolean
+}
+
 interface SupervisorVersionStatus {
   versionId: string
   sourceBytes: string
   sourceSha256: string
+}
+
+export class RuntimeVersionReadinessCache {
+  private readonly readyUntil = new Map<string, number>()
+
+  has(versionId: string, now = Date.now()): boolean {
+    const deadline = this.readyUntil.get(versionId)
+    if (deadline === undefined) return false
+    if (deadline > now) return true
+    this.readyUntil.delete(versionId)
+    return false
+  }
+
+  mark(versionId: string, now = Date.now()): void {
+    this.readyUntil.set(versionId, now + VERSION_READINESS_CACHE_MILLISECONDS)
+  }
+
+  delete(versionId: string): void {
+    this.readyUntil.delete(versionId)
+  }
+
+  clear(): void {
+    this.readyUntil.clear()
+  }
 }
 
 export class EidosRuntimeContainer extends Container<Env> {
@@ -55,6 +85,7 @@ export class EidosRuntimeContainer extends Container<Env> {
   private controlToken = ""
   private readonly preparations = new Map<string, Promise<void>>()
   private readonly descriptors = new Map<string, RuntimeSourceDescriptor>()
+  private readonly readyVersions = new RuntimeVersionReadinessCache()
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env)
@@ -168,10 +199,24 @@ export class EidosRuntimeContainer extends Container<Env> {
     }
   }
 
-  async isVersionReady(input: RuntimeSourceDescriptor): Promise<boolean> {
+  async getVersionState(
+    input: RuntimeSourceDescriptor
+  ): Promise<RuntimeVersionState> {
     await this.configure(input)
+    const state = await this.getState()
+    const containerReady =
+      state.status === "healthy" || state.status === "running"
+    if (!containerReady) {
+      this.readyVersions.delete(input.versionId)
+      return { containerReady: false, versionReady: false }
+    }
+    if (this.readyVersions.has(input.versionId)) {
+      return { containerReady: true, versionReady: true }
+    }
     await this.ensureSupervisorReady()
-    return await this.supervisorHasVersion(input)
+    const versionReady = await this.supervisorHasVersion(input)
+    if (versionReady) this.readyVersions.mark(input.versionId)
+    return { containerReady: true, versionReady }
   }
 
   async wakeVersion(input: RuntimeSourceDescriptor): Promise<void> {
@@ -208,6 +253,7 @@ export class EidosRuntimeContainer extends Container<Env> {
   async retireVersion(versionId: string): Promise<void> {
     await this.stateReady
     if (!VERSION_ID.test(versionId)) return
+    this.readyVersions.delete(versionId)
     this.descriptors.delete(versionId)
     await this.ctx.storage.delete(descriptorStorageKey(versionId))
     const state = await this.getState()
@@ -223,6 +269,15 @@ export class EidosRuntimeContainer extends Container<Env> {
     return new Response("Direct Runtime access is not available", {
       status: 404,
     })
+  }
+
+  override onStop(): void {
+    this.readyVersions.clear()
+  }
+
+  override onError(error: unknown): unknown {
+    this.readyVersions.clear()
+    return super.onError(error)
   }
 
   private async configure(input: RuntimeSourceDescriptor): Promise<void> {
@@ -259,11 +314,14 @@ export class EidosRuntimeContainer extends Container<Env> {
   private async ensureVersionReady(
     descriptor: RuntimeSourceDescriptor
   ): Promise<void> {
+    if (this.readyVersions.has(descriptor.versionId)) return
     const existing = this.preparations.get(descriptor.versionId)
     if (existing !== undefined) return await existing
-    const preparing = this.prepareVersion(descriptor).finally(() => {
-      this.preparations.delete(descriptor.versionId)
-    })
+    const preparing = this.prepareVersion(descriptor)
+      .then(() => this.readyVersions.mark(descriptor.versionId))
+      .finally(() => {
+        this.preparations.delete(descriptor.versionId)
+      })
     this.preparations.set(descriptor.versionId, preparing)
     return await preparing
   }

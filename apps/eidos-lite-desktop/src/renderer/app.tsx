@@ -85,7 +85,9 @@ import { rendererPlatform } from "./renderer-platform"
 import { QuickOpen } from "./quick-open"
 import {
   isPublishableEntry,
+  publishMenuAvailability,
   PublishPanel,
+  type PublishAccountState,
   type PublishPanelSubmission,
 } from "./publish-panel"
 import {
@@ -728,6 +730,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [publicationBindings, setPublicationBindings] = useState<
     EidosPublicationBinding[]
   >([])
+  const [publishAccountState, setPublishAccountState] =
+    useState<PublishAccountState>("checking")
   const [pathDialog, setPathDialog] = useState<PathDialogState | null>(null)
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
   const [treeRenameRequest, setTreeRenameRequest] = useState<{
@@ -739,7 +743,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
 
   const refreshPublicationBindings = useCallback(async () => {
-    if (!space) {
+    if (!space || publishAccountState !== "signed-in") {
       setPublicationBindings([])
       return []
     }
@@ -751,7 +755,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setPublicationBindings([])
       return []
     }
-  }, [space?.id])
+  }, [publishAccountState, space?.id])
+
+  const refreshPublishAccountState = useCallback(async () => {
+    try {
+      const status = await window.eidosLite.getAccountStatus()
+      setPublishAccountState(status.state)
+    } catch {
+      setPublishAccountState("unavailable")
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshPublishAccountState()
+    return window.eidosLite.onAccountChanged((status) => {
+      setPublishAccountState(status.state)
+    })
+  }, [refreshPublishAccountState])
 
   useEffect(() => {
     void refreshPublicationBindings()
@@ -799,7 +819,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           relativePath: entry.relativePath,
           slug: options.slug,
           accessMode: options.accessMode,
+          branding: options.branding,
           ...(options.formView ? { formView: options.formView } : {}),
+          ...(options.formRespondentAccess
+            ? { formRespondentAccess: options.formRespondentAccess }
+            : {}),
+          ...(typeof options.formAllowMultipleResponses === "boolean"
+            ? {
+                formAllowMultipleResponses: options.formAllowMultipleResponses,
+              }
+            : {}),
           ...(options.password ? { password: options.password } : {}),
         })
         .then((response) => {
@@ -1044,8 +1073,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     void window.eidosLite
       .listRecentSpaces()
       .then(setRecentSpaces, (cause) => setError(errorMessage(cause)))
-    return window.eidosLite.onSpaceChanged(acceptSpaceSnapshot)
-  }, [acceptSpaceSnapshot])
+    return window.eidosLite.onSpaceChanged((snapshot) => {
+      if (snapshot.materializedPaths?.length) {
+        void refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
+        return
+      }
+      acceptSpaceSnapshot(snapshot)
+    })
+  }, [acceptSpaceSnapshot, refreshMaterializedFiles])
 
   useEffect(() => {
     if (!space) {
@@ -1152,15 +1187,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const activeDocumentDirty = Boolean(
     activeDocumentPath && textFileDrafts[activeDocumentPath]
   )
-
-  useEffect(() => {
-    void window.eidosLite.setActivePublicationSource(
-      activeFile?.relativePath ?? null
-    )
-    return () => {
-      void window.eidosLite.setActivePublicationSource(null)
-    }
-  }, [activeFile?.relativePath, space?.id])
 
   const updateTextFileDraft = useCallback(
     (relativePath: string, draft: TextFileDraft | null) => {
@@ -2040,6 +2066,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const versionChangeLabel =
     versionChangeCount > 99 ? "99+" : String(versionChangeCount)
   const localInteractionBlocked = blocksLocalInteraction(space.operation.phase)
+  const publishMenu = publishMenuAvailability(
+    publishAccountState,
+    localInteractionBlocked
+  )
   const titlebarPresentation = fileTitlebarPresentation(
     space.name,
     activeDocumentPath,
@@ -2170,6 +2200,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               }
               onContextMenu={(entry, x, y) => {
                 void refreshPublicationBindings()
+                void refreshPublishAccountState()
                 setContextMenu({
                   entry,
                   x: Math.max(8, Math.min(x, window.innerWidth - 200)),
@@ -2679,8 +2710,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <button
               type="button"
               role="menuitem"
-              disabled={localInteractionBlocked}
+              disabled={publishMenu.disabled}
               onClick={() => {
+                if (publishMenu.disabled) return
                 if (publishTask?.status === "running") {
                   setPublishTaskExpanded(true)
                 } else {
@@ -2699,14 +2731,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               ) : (
                 <Upload />
               )}{" "}
-              {publishTask?.status === "running"
-                ? t("View Publish progress")
-                : publicationBindings.some(
-                      (binding) =>
-                        binding.relativePath === contextMenu.entry.relativePath
-                    )
-                  ? t("Manage Publish…")
-                  : t("Publish…")}
+              {publishMenu.label
+                ? t(publishMenu.label)
+                : publishTask?.status === "running"
+                  ? t("View Publish progress")
+                  : publicationBindings.some(
+                        (binding) =>
+                          binding.relativePath ===
+                          contextMenu.entry.relativePath
+                      )
+                    ? t("Manage Publish…")
+                    : t("Publish…")}
             </button>
           ) : null}
           {contextMenu.entry.kind === "directory" ? (
@@ -2858,62 +2893,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             })
             setPublishTask(null)
             setPublishTaskExpanded(false)
-          }}
-          onCollect={() => {
-            const result = publishTask.result
-            if (!result || result.driverId !== "org.eidos.driver.form") return
-            const requestId = crypto.randomUUID()
-            setPublishTask((current) =>
-              current
-                ? { ...current, collection: { status: "running" } }
-                : current
-            )
-            void window.eidosLite
-              .collectPublishedForm({
-                requestId,
-                relativePath: publishTask.entry.relativePath,
-                publicationId: result.publicationId,
-              })
-              .then((response) => {
-                void refreshPublicationBindings()
-                setPublishTask((current) =>
-                  !current ||
-                  current.result?.publicationId !== result.publicationId
-                    ? current
-                    : response.ok
-                      ? {
-                          ...current,
-                          collection: {
-                            status: "succeeded",
-                            imported: response.result.importedSubmissions,
-                          },
-                        }
-                      : {
-                          ...current,
-                          collection: {
-                            status: "failed",
-                            message: response.failure.message,
-                          },
-                        }
-                )
-              })
-              .catch((cause: unknown) => {
-                setPublishTask((current) =>
-                  !current ||
-                  current.result?.publicationId !== result.publicationId
-                    ? current
-                    : {
-                        ...current,
-                        collection: {
-                          status: "failed",
-                          message:
-                            cause instanceof Error
-                              ? cause.message
-                              : String(cause),
-                        },
-                      }
-                )
-              })
           }}
         />
       ) : null}

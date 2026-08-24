@@ -4,6 +4,7 @@ import type {
   ActivationResult,
   ContentObjectRecord,
   DurableResult,
+  FormPublicationPolicy,
   MultipartPartRecord,
   MultipartUploadSession,
   PublicationRecord,
@@ -78,6 +79,20 @@ interface PublicationAccessRow extends Record<string, SqlStorageValue> {
   updated_at: string
 }
 
+interface PublicationFormPolicyRow extends Record<string, SqlStorageValue> {
+  publication_id: string
+  respondent_access: "anyone" | "signed_in"
+  allow_multiple_responses: number
+  policy_revision: number
+  updated_at: string
+}
+
+interface PublicationBrandingRow extends Record<string, SqlStorageValue> {
+  publication_id: string
+  show_branding: number
+  updated_at: string
+}
+
 interface PasswordAttemptRow extends Record<string, SqlStorageValue> {
   failure_count: number
 }
@@ -104,6 +119,15 @@ interface VersionRow extends Record<string, SqlStorageValue> {
   failure_step: string | null
   failure_code: string | null
   created_at: string
+}
+
+interface VersionDeactivationRow extends Record<string, SqlStorageValue> {
+  version_id: string
+  deactivated_at: string
+}
+
+interface PreviousVersionRow extends Record<string, SqlStorageValue> {
+  from_version_id: string | null
 }
 
 interface IdempotencyRow extends Record<string, SqlStorageValue> {
@@ -508,6 +532,18 @@ export class PublishTenant extends DurableObject<Env> {
         );
         CREATE INDEX IF NOT EXISTS idx_publication_password_attempt_window
           ON publication_password_attempt (window_start);
+        CREATE TABLE IF NOT EXISTS publication_form_policy (
+          publication_id TEXT PRIMARY KEY REFERENCES publication(publication_id) ON DELETE RESTRICT,
+          respondent_access TEXT NOT NULL CHECK (respondent_access IN ('anyone', 'signed_in')),
+          allow_multiple_responses INTEGER NOT NULL CHECK (allow_multiple_responses IN (0, 1)),
+          policy_revision INTEGER NOT NULL DEFAULT 0 CHECK (policy_revision >= 0),
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS publication_branding (
+          publication_id TEXT PRIMARY KEY REFERENCES publication(publication_id) ON DELETE RESTRICT,
+          show_branding INTEGER NOT NULL CHECK (show_branding IN (0, 1)),
+          updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS tenant_handle_claim (
           handle_label TEXT PRIMARY KEY,
           claim_id TEXT NOT NULL,
@@ -684,7 +720,7 @@ export class PublishTenant extends DurableObject<Env> {
       `)
       this.ctx.storage.sql.exec(
         `INSERT OR IGNORE INTO publish_schema_migrations (version, applied_at)
-         VALUES (9, datetime('now'))`
+         VALUES (10, datetime('now'))`
       )
     })
   }
@@ -961,18 +997,10 @@ export class PublishTenant extends DurableObject<Env> {
     if (version === null || version.state !== "ready") {
       return failure(404, "artifact_not_found", "Published artifact not found")
     }
-    const row = this.ctx.storage.sql
-      .exec<VersionArtifactRow>(
-        `SELECT version_id, path, bytes, sha256, media_type, object_key, state
-           FROM version_artifact
-          WHERE version_id = ? AND path = ? AND state = 'ready'`,
-        versionId,
-        path
-      )
-      .toArray()[0]
-    return row === undefined
+    const artifact = this.publishedArtifact(versionId, path)
+    return artifact === null
       ? failure(404, "artifact_not_found", "Published artifact not found")
-      : ok(staticArtifactRecord(row))
+      : ok(artifact)
   }
 
   async authorizeBuildRuntime(
@@ -1031,130 +1059,210 @@ export class PublishTenant extends DurableObject<Env> {
     now = new Date().toISOString()
   ): Promise<DurableResult<UsagePeriodRecord>> {
     await this.ready
+    return this.ctx.storage.transactionSync(() =>
+      this.authorizeRuntimeRequestInTransaction(
+        publicationId,
+        versionId,
+        clientHash,
+        reserveStart,
+        requestLeaseId,
+        now
+      )
+    )
+  }
+
+  async authorizeRuntimeProxyRequest(
+    target: {
+      slug: string
+      publicationId: string
+      versionId: string
+      servingTargetSha256: string
+      visibility: "public" | "private"
+      accessMode: "public" | "password" | "private"
+      accessRevision: number
+    },
+    clientHash: string,
+    requestLeaseId: string,
+    now = new Date().toISOString()
+  ): Promise<
+    DurableResult<{
+      runtimeIdleSeconds: number
+      version: PublicationVersionRecord
+    }>
+  > {
+    await this.ready
     return this.ctx.storage.transactionSync(() => {
-      const publication = this.ctx.storage.sql
-        .exec<PublicationRow>(
-          `SELECT publication_id, slug, visibility, current_version_id, created_at
-             FROM publication WHERE publication_id = ?`,
-          publicationId
-        )
-        .toArray()[0]
+      const tenant = this.tenant()
+      const publication = this.publication(target.slug)
       if (
-        publication === undefined ||
-        publication.current_version_id !== versionId
+        tenant === null ||
+        tenant.status !== "active" ||
+        publication === null ||
+        publication.current_version_id !== target.versionId ||
+        publication.publication_id !== target.publicationId
       ) {
         return failure(404, "publication_not_found", "Publication not found")
       }
-      const access = this.currentAccess()
-      if (access.state !== "active") {
+      const version = this.version(target.slug, target.versionId)
+      if (version === null || version.state !== "ready") {
+        return failure(404, "publication_not_found", "Publication not found")
+      }
+      const publicationRecord = this.publicationRecord(publication)
+      const resolvedVersion = versionRecord(version)
+      if (
+        publicationRecord.visibility !== target.visibility ||
+        publicationRecord.accessMode !== target.accessMode ||
+        publicationRecord.accessRevision !== target.accessRevision ||
+        resolvedVersion.servingTargetSha256 !== target.servingTargetSha256
+      ) {
         return failure(
-          403,
-          "publish_access_suspended",
-          "Publish access is suspended"
+          401,
+          "stale_runtime_ticket",
+          "Runtime ticket no longer targets the active Version"
         )
       }
-      const windowStart = now.slice(0, 16)
-      const rate = this.ctx.storage.sql
-        .exec<RateWindowRow>(
-          `SELECT request_count FROM runtime_rate_window
-            WHERE publication_id = ? AND client_hash = ? AND window_start = ?`,
-          publicationId,
-          clientHash,
-          windowStart
-        )
-        .toArray()[0]
-      const rateLimit = access.plan === "pro" ? 600 : 120
-      if ((rate?.request_count ?? 0) >= rateLimit) {
-        return failure(
-          429,
-          "rate_limited",
-          "Runtime request rate limit reached"
-        )
-      }
-      this.ctx.storage.sql.exec(
-        `INSERT INTO runtime_rate_window (
-           publication_id, client_hash, window_start, request_count
-         ) VALUES (?, ?, ?, 1)
-         ON CONFLICT (publication_id, client_hash, window_start)
-         DO UPDATE SET request_count = request_count + 1`,
+      const authorized = this.authorizeRuntimeRequestInTransaction(
+        target.publicationId,
+        target.versionId,
+        clientHash,
+        false,
+        requestLeaseId,
+        now
+      )
+      if (!authorized.ok) return authorized
+      return ok({
+        runtimeIdleSeconds: this.currentAccess().runtimeIdleSeconds,
+        version: resolvedVersion,
+      })
+    })
+  }
+
+  private authorizeRuntimeRequestInTransaction(
+    publicationId: string,
+    versionId: string,
+    clientHash: string,
+    reserveStart: boolean,
+    requestLeaseId: string | null,
+    now: string
+  ): DurableResult<UsagePeriodRecord> {
+    const publication = this.ctx.storage.sql
+      .exec<PublicationRow>(
+        `SELECT publication_id, slug, visibility, current_version_id, created_at
+           FROM publication WHERE publication_id = ?`,
+        publicationId
+      )
+      .toArray()[0]
+    if (
+      publication === undefined ||
+      publication.current_version_id !== versionId
+    ) {
+      return failure(404, "publication_not_found", "Publication not found")
+    }
+    const access = this.currentAccess()
+    if (access.state !== "active") {
+      return failure(
+        403,
+        "publish_access_suspended",
+        "Publish access is suspended"
+      )
+    }
+    const windowStart = now.slice(0, 16)
+    const rate = this.ctx.storage.sql
+      .exec<RateWindowRow>(
+        `SELECT request_count FROM runtime_rate_window
+          WHERE publication_id = ? AND client_hash = ? AND window_start = ?`,
         publicationId,
         clientHash,
         windowStart
       )
-      this.ctx.storage.sql.exec(
-        "DELETE FROM runtime_rate_window WHERE window_start < ?",
-        new Date(Date.parse(now) - 5 * 60_000).toISOString().slice(0, 16)
-      )
-      const period = usagePeriod(now)
-      const usage = this.ensureUsagePeriod(period, now)
-      if (reserveStart) {
-        const lease = this.ctx.storage.sql
-          .exec<RuntimeLeaseRow>(
-            "SELECT expires_at FROM runtime_start_lease WHERE version_id = ?",
-            versionId
-          )
-          .toArray()[0]
-        if (lease === undefined || lease.expires_at <= now) {
-          const reservationKey = `viewer:${versionId}:${crypto.randomUUID()}`
-          const reserved = this.reserveRuntimeStart(
-            usage,
-            access,
-            versionId,
-            reservationKey,
-            now
-          )
-          if (!reserved.ok) return reserved
-          this.ctx.storage.sql.exec(
-            `INSERT INTO runtime_start_lease (version_id, expires_at)
-             VALUES (?, ?)
-             ON CONFLICT (version_id) DO UPDATE SET expires_at = excluded.expires_at`,
-            versionId,
-            new Date(Date.parse(now) + 2 * 60_000).toISOString()
-          )
-        }
-      }
-      if (requestLeaseId !== null) {
-        this.ctx.storage.sql.exec(
-          "DELETE FROM runtime_request_lease WHERE expires_at <= ?",
+      .toArray()[0]
+    const rateLimit = access.plan === "pro" ? 600 : 120
+    if ((rate?.request_count ?? 0) >= rateLimit) {
+      return failure(429, "rate_limited", "Runtime request rate limit reached")
+    }
+    this.ctx.storage.sql.exec(
+      `INSERT INTO runtime_rate_window (
+         publication_id, client_hash, window_start, request_count
+       ) VALUES (?, ?, ?, 1)
+       ON CONFLICT (publication_id, client_hash, window_start)
+       DO UPDATE SET request_count = request_count + 1`,
+      publicationId,
+      clientHash,
+      windowStart
+    )
+    this.ctx.storage.sql.exec(
+      "DELETE FROM runtime_rate_window WHERE window_start < ?",
+      new Date(Date.parse(now) - 5 * 60_000).toISOString().slice(0, 16)
+    )
+    const period = usagePeriod(now)
+    const usage = this.ensureUsagePeriod(period, now)
+    if (reserveStart) {
+      const lease = this.ctx.storage.sql
+        .exec<RuntimeLeaseRow>(
+          "SELECT expires_at FROM runtime_start_lease WHERE version_id = ?",
+          versionId
+        )
+        .toArray()[0]
+      if (lease === undefined || lease.expires_at <= now) {
+        const reservationKey = `viewer:${versionId}:${crypto.randomUUID()}`
+        const reserved = this.reserveRuntimeStart(
+          usage,
+          access,
+          versionId,
+          reservationKey,
           now
         )
-        const existingLease = this.ctx.storage.sql
-          .exec<RuntimeRequestLeaseRow>(
-            "SELECT lease_id FROM runtime_request_lease WHERE lease_id = ? AND version_id = ?",
-            requestLeaseId,
+        if (!reserved.ok) return reserved
+        this.ctx.storage.sql.exec(
+          `INSERT INTO runtime_start_lease (version_id, expires_at)
+           VALUES (?, ?)
+           ON CONFLICT (version_id) DO UPDATE SET expires_at = excluded.expires_at`,
+          versionId,
+          new Date(Date.parse(now) + 2 * 60_000).toISOString()
+        )
+      }
+    }
+    if (requestLeaseId !== null) {
+      this.ctx.storage.sql.exec(
+        "DELETE FROM runtime_request_lease WHERE expires_at <= ?",
+        now
+      )
+      const existingLease = this.ctx.storage.sql
+        .exec<RuntimeRequestLeaseRow>(
+          "SELECT lease_id FROM runtime_request_lease WHERE lease_id = ? AND version_id = ?",
+          requestLeaseId,
+          versionId
+        )
+        .toArray()[0]
+      if (existingLease === undefined) {
+        const concurrent = this.ctx.storage.sql
+          .exec<CountRow>(
+            "SELECT count(*) AS count FROM runtime_request_lease WHERE version_id = ?",
             versionId
           )
-          .toArray()[0]
-        if (existingLease === undefined) {
-          const concurrent = this.ctx.storage.sql
-            .exec<CountRow>(
-              "SELECT count(*) AS count FROM runtime_request_lease WHERE version_id = ?",
-              versionId
-            )
-            .one().count
-          const concurrencyLimit = access.plan === "pro" ? 16 : 4
-          if (concurrent >= concurrencyLimit) {
-            return failure(
-              429,
-              "runtime_concurrency_exceeded",
-              "Runtime concurrency limit reached"
-            )
-          }
-          this.ctx.storage.sql.exec(
-            `INSERT INTO runtime_request_lease (lease_id, version_id, expires_at)
-             VALUES (?, ?, ?)`,
-            requestLeaseId,
-            versionId,
-            new Date(Date.parse(now) + 2 * 60_000).toISOString()
+          .one().count
+        const concurrencyLimit = access.plan === "pro" ? 16 : 4
+        if (concurrent >= concurrencyLimit) {
+          return failure(
+            429,
+            "runtime_concurrency_exceeded",
+            "Runtime concurrency limit reached"
           )
         }
+        this.ctx.storage.sql.exec(
+          `INSERT INTO runtime_request_lease (lease_id, version_id, expires_at)
+           VALUES (?, ?, ?)`,
+          requestLeaseId,
+          versionId,
+          new Date(Date.parse(now) + 2 * 60_000).toISOString()
+        )
       }
-      this.ctx.storage.sql.exec(
-        "UPDATE usage_period SET requests = requests + 1 WHERE period = ?",
-        period
-      )
-      return ok(usagePeriodRecord(this.requireUsagePeriod(period)))
-    })
+    }
+    this.ctx.storage.sql.exec(
+      "UPDATE usage_period SET requests = requests + 1 WHERE period = ?",
+      period
+    )
+    return ok(usagePeriodRecord(this.requireUsagePeriod(period)))
   }
 
   async completeRuntimeRequest(requestLeaseId: string): Promise<void> {
@@ -1350,6 +1458,110 @@ export class PublishTenant extends DurableObject<Env> {
           publication.publication_id
         )
         return ok(this.publicationRecord(this.publication(slug)!))
+      }
+    )
+  }
+
+  async setFormPublicationPolicy(
+    slug: string,
+    respondentAccess: "anyone" | "signed_in",
+    allowMultipleResponses: boolean,
+    idempotencyKey: string,
+    inputSha256: string
+  ): Promise<DurableResult<FormPublicationPolicy>> {
+    await this.ready
+    if (respondentAccess === "anyone" && !allowMultipleResponses) {
+      return failure(
+        400,
+        "invalid_form_policy",
+        "One response per user requires signed-in respondents"
+      )
+    }
+    if (this.publication(slug) === null) {
+      return failure(404, "publication_not_found", "Publication not found")
+    }
+    return this.idempotent(
+      idempotencyKey,
+      "setFormPublicationPolicy",
+      inputSha256,
+      () => {
+        const publication = this.publication(slug)
+        if (publication === null) {
+          return failure(404, "publication_not_found", "Publication not found")
+        }
+        const current = this.publicationFormPolicy(publication.publication_id)
+        if (
+          current.respondentAccess === respondentAccess &&
+          current.allowMultipleResponses === allowMultipleResponses
+        ) {
+          return ok(current)
+        }
+        const now = new Date().toISOString()
+        this.ctx.storage.sql.exec(
+          `INSERT INTO publication_form_policy (
+             publication_id, respondent_access, allow_multiple_responses,
+             policy_revision, updated_at
+           ) VALUES (?, ?, ?, 1, ?)
+           ON CONFLICT (publication_id) DO UPDATE SET
+             respondent_access = excluded.respondent_access,
+             allow_multiple_responses = excluded.allow_multiple_responses,
+             policy_revision = publication_form_policy.policy_revision + 1,
+             updated_at = excluded.updated_at`,
+          publication.publication_id,
+          respondentAccess,
+          allowMultipleResponses ? 1 : 0,
+          now
+        )
+        return ok(this.publicationFormPolicy(publication.publication_id))
+      }
+    )
+  }
+
+  async setPublicationBranding(
+    slug: string,
+    showBranding: boolean,
+    access: PublishAccessGrant,
+    idempotencyKey: string,
+    inputSha256: string
+  ): Promise<DurableResult<PublicationRecord>> {
+    await this.ready
+    if (!showBranding && !access.removeBranding) {
+      return failure(
+        403,
+        "branding_removal_not_allowed",
+        "Removing Eidos branding is not included with this Publish subscription"
+      )
+    }
+    if (this.publication(slug) === null) {
+      return failure(404, "publication_not_found", "Publication not found")
+    }
+    return this.idempotent(
+      idempotencyKey,
+      "setPublicationBranding",
+      inputSha256,
+      () => {
+        const publication = this.publication(slug)
+        if (publication === null) {
+          return failure(404, "publication_not_found", "Publication not found")
+        }
+        const current = this.publicationBrandingPreference(
+          publication.publication_id
+        )
+        if (current === showBranding) {
+          return ok(this.publicationRecord(publication))
+        }
+        this.ctx.storage.sql.exec(
+          `INSERT INTO publication_branding (
+             publication_id, show_branding, updated_at
+           ) VALUES (?, ?, ?)
+           ON CONFLICT (publication_id) DO UPDATE SET
+             show_branding = excluded.show_branding,
+             updated_at = excluded.updated_at`,
+          publication.publication_id,
+          showBranding ? 1 : 0,
+          new Date().toISOString()
+        )
+        return ok(this.publicationRecord(publication))
       }
     )
   }
@@ -2544,6 +2756,9 @@ export class PublishTenant extends DurableObject<Env> {
     const retentionCutoff = new Date(
       now.getTime() - access.retentionDays * 24 * 60 * 60_000
     ).toISOString()
+    const abandonedCutoff = new Date(
+      now.getTime() - 24 * 60 * 60_000
+    ).toISOString()
     for (const publication of this.ctx.storage.sql
       .exec<PublicationRow>(
         `SELECT publication_id, slug, visibility, current_version_id, created_at
@@ -2561,19 +2776,50 @@ export class PublishTenant extends DurableObject<Env> {
         .filter(
           (version) => version.version_id !== publication.current_version_id
         )
+      const deactivations = this.ctx.storage.sql
+        .exec<VersionDeactivationRow>(
+          `SELECT from_version_id AS version_id,
+                  max(activated_at) AS deactivated_at
+             FROM activation_event
+            WHERE publication_id = ? AND from_version_id IS NOT NULL
+            GROUP BY from_version_id`,
+          publication.publication_id
+        )
+        .toArray()
+      const deactivatedAt = new Map(
+        deactivations.map((row) => [row.version_id, row.deactivated_at])
+      )
+      const previousVersionId =
+        publication.current_version_id === null
+          ? null
+          : (this.ctx.storage.sql
+              .exec<PreviousVersionRow>(
+                `SELECT from_version_id
+                   FROM activation_event
+                  WHERE publication_id = ? AND to_version_id = ?
+                  ORDER BY activated_at DESC, rowid DESC
+                  LIMIT 1`,
+                publication.publication_id,
+                publication.current_version_id
+              )
+              .toArray()[0]?.from_version_id ?? null)
       for (const version of versions) {
         const retryDeletion = version.state === "deleting"
-        const beyondAge = version.created_at <= retentionCutoff
-        const graceElapsed = version.created_at <= graceCutoff
-        if (!retryDeletion && (!beyondAge || !graceElapsed)) continue
+        const deactivated = deactivatedAt.get(version.version_id)
+        const ageAnchor = deactivated ?? version.created_at
+        const beyondAge =
+          ageAnchor <=
+          (deactivated === undefined ? abandonedCutoff : retentionCutoff)
+        const beyondFreeHistory =
+          access.plan === "free" &&
+          deactivated !== undefined &&
+          version.version_id !== previousVersionId
+        const graceElapsed = ageAnchor <= graceCutoff
         if (
           !retryDeletion &&
-          (version.state === "uploading" ||
-            version.state === "validating" ||
-            version.state === "preparing")
-        ) {
-          if (!beyondAge) continue
-        }
+          (!graceElapsed || (!beyondAge && !beyondFreeHistory))
+        )
+          continue
         const current = this.publication(publication.slug)?.current_version_id
         if (current === version.version_id) continue
         const deletionContext = retryDeletion
@@ -2715,8 +2961,11 @@ export class PublishTenant extends DurableObject<Env> {
       ownerUserId: string
       canonicalHandle: string | null
       runtimeIdleSeconds: number
+      accessCheckedAt: string
       publication: PublicationRecord
+      formPolicy: FormPublicationPolicy
       version: PublicationVersionRecord
+      staticArtifact: StaticArtifactRecord | null
     }>
   > {
     await this.ready
@@ -2733,18 +2982,27 @@ export class PublishTenant extends DurableObject<Env> {
     const version = this.version(slug, publication.current_version_id)
     if (version === null || version.state !== "ready")
       return failure(404, "publication_not_found", "Publication not found")
+    const resolvedVersion = versionRecord(version)
+    const target = resolvedVersion.servingTarget
     return ok({
       ownerUserId: tenant.owner_user_id,
       canonicalHandle: tenant.plan === "pro" ? tenant.active_handle : null,
       runtimeIdleSeconds: this.currentAccess().runtimeIdleSeconds,
+      accessCheckedAt: tenant.access_checked_at,
       publication: this.publicationRecord(publication),
-      version: versionRecord(version),
+      formPolicy: this.publicationFormPolicy(publication.publication_id),
+      version: resolvedVersion,
+      staticArtifact:
+        target?.kind === "static"
+          ? this.publishedArtifact(version.version_id, target.entrypoint)
+          : null,
     })
   }
 
   async resolvePublicationById(publicationId: string): Promise<
     DurableResult<{
       publication: PublicationRecord
+      formPolicy: FormPublicationPolicy
       version: PublicationVersionRecord
     }>
   > {
@@ -2772,6 +3030,7 @@ export class PublishTenant extends DurableObject<Env> {
     }
     return ok({
       publication: this.publicationRecord(publication),
+      formPolicy: this.publicationFormPolicy(publication.publication_id),
       version: versionRecord(version),
     })
   }
@@ -2930,6 +3189,16 @@ export class PublishTenant extends DurableObject<Env> {
         "DELETE FROM version_file WHERE version_id = ?",
         version.version_id
       )
+      for (const session of multipart) {
+        this.ctx.storage.sql.exec(
+          "DELETE FROM multipart_part WHERE session_id = ?",
+          session.session_id
+        )
+      }
+      this.ctx.storage.sql.exec(
+        "DELETE FROM multipart_upload WHERE version_id = ?",
+        version.version_id
+      )
       for (const object of objects) {
         if (object.reference_count === 1) {
           this.ctx.storage.sql.exec(
@@ -2944,16 +3213,6 @@ export class PublishTenant extends DurableObject<Env> {
           )
         }
       }
-      for (const session of multipart) {
-        this.ctx.storage.sql.exec(
-          "DELETE FROM multipart_part WHERE session_id = ?",
-          session.session_id
-        )
-      }
-      this.ctx.storage.sql.exec(
-        "DELETE FROM multipart_upload WHERE version_id = ?",
-        version.version_id
-      )
       this.ctx.storage.sql.exec(
         "UPDATE publication_version SET state = 'deleted' WHERE version_id = ? AND state = 'deleting'",
         version.version_id
@@ -3148,6 +3407,22 @@ export class PublishTenant extends DurableObject<Env> {
       .toArray()
   }
 
+  private publishedArtifact(
+    versionId: string,
+    path: string
+  ): StaticArtifactRecord | null {
+    const row = this.ctx.storage.sql
+      .exec<VersionArtifactRow>(
+        `SELECT version_id, path, bytes, sha256, media_type, object_key, state
+           FROM version_artifact
+          WHERE version_id = ? AND path = ? AND state = 'ready'`,
+        versionId,
+        path
+      )
+      .toArray()[0]
+    return row === undefined ? null : staticArtifactRecord(row)
+  }
+
   private staticTargetObjectKeys(version: VersionRow): string[] {
     const target = nullableJson<ServingTarget>(version.serving_target_json)
     return target?.kind === "static" ? [target.artifactManifestKey] : []
@@ -3224,10 +3499,48 @@ export class PublishTenant extends DurableObject<Env> {
     )
   }
 
+  private publicationFormPolicy(publicationId: string): FormPublicationPolicy {
+    const row = this.ctx.storage.sql
+      .exec<PublicationFormPolicyRow>(
+        `SELECT publication_id, respondent_access, allow_multiple_responses,
+                policy_revision, updated_at
+           FROM publication_form_policy WHERE publication_id = ?`,
+        publicationId
+      )
+      .toArray()[0]
+    return row === undefined
+      ? {
+          respondentAccess: "anyone",
+          allowMultipleResponses: true,
+          revision: 0,
+        }
+      : {
+          respondentAccess: row.respondent_access,
+          allowMultipleResponses: row.allow_multiple_responses === 1,
+          revision: row.policy_revision,
+        }
+  }
+
+  private publicationBrandingPreference(publicationId: string): boolean {
+    const row = this.ctx.storage.sql
+      .exec<PublicationBrandingRow>(
+        `SELECT publication_id, show_branding, updated_at
+           FROM publication_branding WHERE publication_id = ?`,
+        publicationId
+      )
+      .toArray()[0]
+    return row === undefined || row.show_branding === 1
+  }
+
   private publicationRecord(row: PublicationRow): PublicationRecord {
     const access = this.publicationAccess(row.publication_id)
     if (access === null) throw new Error("publication access policy is missing")
-    return publicationRecord(row, access)
+    return publicationRecord(
+      row,
+      access,
+      !this.currentAccess().removeBranding ||
+        this.publicationBrandingPreference(row.publication_id)
+    )
   }
 
   private version(slug: string, versionId: string): VersionRow | null {
@@ -3387,7 +3700,8 @@ function randomPublicSiteId(): string {
 
 function publicationRecord(
   row: PublicationRow,
-  access: PublicationAccessRow
+  access: PublicationAccessRow,
+  showBranding: boolean
 ): PublicationRecord {
   return {
     publicationId: row.publication_id,
@@ -3395,6 +3709,7 @@ function publicationRecord(
     visibility: row.visibility,
     accessMode: access.mode,
     accessRevision: access.credential_revision,
+    showBranding,
     currentVersionId: row.current_version_id,
     createdAt: row.created_at,
   }

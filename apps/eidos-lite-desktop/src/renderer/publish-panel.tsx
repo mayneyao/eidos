@@ -3,7 +3,7 @@ import {
   Check,
   Copy,
   ExternalLink,
-  Inbox,
+  Import,
   LoaderCircle,
   LockKeyhole,
   RotateCcw,
@@ -14,8 +14,11 @@ import {
 import type {
   EidosPublicationBinding,
   EidosPublishAccessSelection,
+  EidosPublishBrandingSelection,
+  EidosPublishFormRespondentAccess,
   EidosPublishCollectResponse,
   SpaceTreeEntry,
+  SyncAccountStatus,
 } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -36,6 +39,35 @@ export function isPublishableEntry(entry: SpaceTreeEntry): boolean {
     entry.kind === "eidos" ||
     (entry.kind === "file" && /\.(?:md|markdown)$/i.test(entry.name))
   )
+}
+
+export type PublishAccountState =
+  | SyncAccountStatus["state"]
+  | "checking"
+  | "unavailable"
+
+export function publishMenuAvailability(
+  accountState: PublishAccountState,
+  localInteractionBlocked: boolean
+): {
+  disabled: boolean
+  label:
+    | "Publish… (Sign in required)"
+    | "Publish… (Checking account…)"
+    | "Publish… (Account unavailable)"
+    | null
+} {
+  return {
+    disabled: localInteractionBlocked || accountState !== "signed-in",
+    label:
+      accountState === "signed-out"
+        ? "Publish… (Sign in required)"
+        : accountState === "checking"
+          ? "Publish… (Checking account…)"
+          : accountState === "unavailable"
+            ? "Publish… (Account unavailable)"
+            : null,
+  }
 }
 
 export function clampPublishPanelPosition(
@@ -62,6 +94,15 @@ export function publishFormViewLabel(
   return `${formLabel} · ${view.tableName} · ${view.name}`
 }
 
+export function publishedFormRespondentLabel(
+  binding: Pick<EidosPublicationBinding, "sourceKind" | "formPolicy">
+): "Anyone with the link" | "Signed-in eidos.space users" | null {
+  if (binding.sourceKind !== "form") return null
+  return binding.formPolicy?.respondentAccess === "signed_in"
+    ? "Signed-in eidos.space users"
+    : "Anyone with the link"
+}
+
 interface PublishPanelProps {
   entry: SpaceTreeEntry
   formViews?: Array<{ id: string; name: string; tableName: string }>
@@ -78,7 +119,10 @@ interface PublishPanelProps {
 export interface PublishPanelSubmission {
   slug: string
   accessMode: EidosPublishAccessSelection
+  branding: EidosPublishBrandingSelection
   formView?: string
+  formRespondentAccess?: EidosPublishFormRespondentAccess
+  formAllowMultipleResponses?: boolean
   password?: string
 }
 
@@ -96,9 +140,15 @@ export function PublishPanel({
   const [slug, setSlug] = useState(() => defaultPublishSlug(entry.name))
   const [accessMode, setAccessMode] =
     useState<EidosPublishAccessSelection>("unchanged")
+  const [branding, setBranding] =
+    useState<EidosPublishBrandingSelection>("unchanged")
   const [password, setPassword] = useState("")
   const [confirmation, setConfirmation] = useState("")
   const [formView, setFormView] = useState("")
+  const [formRespondentAccess, setFormRespondentAccess] =
+    useState<EidosPublishFormRespondentAccess>("anyone")
+  const [formAllowMultipleResponses, setFormAllowMultipleResponses] =
+    useState(true)
   const [copiedBindingId, setCopiedBindingId] = useState<string | null>(null)
   const [collection, setCollection] = useState<{
     publicationId: string
@@ -171,7 +221,9 @@ export function PublishPanel({
     onPublish({
       slug,
       accessMode,
+      branding,
       ...(formView ? { formView } : {}),
+      ...(formView ? { formRespondentAccess, formAllowMultipleResponses } : {}),
       ...(accessMode === "password" ? { password } : {}),
     })
     setPassword("")
@@ -183,8 +235,8 @@ export function PublishPanel({
       : accessMode === "public"
         ? t("Anyone with the link can view it.")
         : accessMode === "password"
-          ? t("Pro · Require a shared password.")
-          : t("Pro · Only your signed-in account.")
+          ? t("Require a shared password.")
+          : t("Only your signed-in account.")
 
   const collect = (binding: EidosPublicationBinding) => {
     setCollection({ publicationId: binding.publicationId, status: "running" })
@@ -252,6 +304,7 @@ export function PublishPanel({
             {t("Published resources")}
           </span>
           {bindings.map((binding) => {
+            const formRespondentLabel = publishedFormRespondentLabel(binding)
             const collecting =
               collection?.publicationId === binding.publicationId &&
               collection.status === "running"
@@ -270,6 +323,7 @@ export function PublishPanel({
                         ? t("Markdown")
                         : t("Interactive Eidos File")}
                     {` · ${t(binding.accessMode)}`}
+                    {formRespondentLabel ? ` · ${t(formRespondentLabel)}` : ""}
                   </small>
                   <small
                     className={`publish-binding-status is-${binding.contentStatus}`}
@@ -325,7 +379,7 @@ export function PublishPanel({
                       {collecting ? (
                         <LoaderCircle className="spin" />
                       ) : (
-                        <Inbox />
+                        <Import />
                       )}
                     </button>
                   ) : null}
@@ -336,6 +390,12 @@ export function PublishPanel({
                     onClick={() => {
                       setSlug(binding.slug)
                       setFormView(binding.formViewId ?? "")
+                      setFormRespondentAccess(
+                        binding.formPolicy?.respondentAccess ?? "anyone"
+                      )
+                      setFormAllowMultipleResponses(
+                        binding.formPolicy?.allowMultipleResponses ?? true
+                      )
                     }}
                   >
                     <RotateCcw />
@@ -368,7 +428,13 @@ export function PublishPanel({
             <span>{t("Publish as")}</span>
             <select
               value={formView}
-              onChange={(event) => setFormView(event.target.value)}
+              onChange={(event) => {
+                setFormView(event.target.value)
+                if (!event.target.value) {
+                  setFormRespondentAccess("anyone")
+                  setFormAllowMultipleResponses(true)
+                }
+              }}
             >
               <option value="">{t("Interactive Eidos File")}</option>
               {formViews.map((view) => (
@@ -383,6 +449,47 @@ export function PublishPanel({
                 : t("Share the complete Eidos File in read-only mode.")}
             </small>
           </label>
+        ) : null}
+
+        {formView ? (
+          <fieldset className="publish-form-policy">
+            <legend>{t("Form responses")}</legend>
+            <label>
+              <span>{t("Who can respond")}</span>
+              <select
+                value={formRespondentAccess}
+                onChange={(event) => {
+                  const next = event.target
+                    .value as EidosPublishFormRespondentAccess
+                  setFormRespondentAccess(next)
+                  if (next === "anyone") setFormAllowMultipleResponses(true)
+                }}
+              >
+                <option value="anyone">{t("Anyone with the link")}</option>
+                <option value="signed_in">
+                  {t("Signed-in eidos.space users")}
+                </option>
+              </select>
+            </label>
+            <label className="publish-form-policy-toggle">
+              <input
+                type="checkbox"
+                checked={formAllowMultipleResponses}
+                disabled={formRespondentAccess === "anyone"}
+                onChange={(event) =>
+                  setFormAllowMultipleResponses(event.target.checked)
+                }
+              />
+              <span>
+                <strong>{t("Allow multiple responses")}</strong>
+                <small>
+                  {formRespondentAccess === "anyone"
+                    ? t("Sign-in is required to limit one response per user.")
+                    : t("Turn off to accept one response per account.")}
+                </small>
+              </span>
+            </label>
+          </fieldset>
         ) : null}
 
         <label>
@@ -442,6 +549,25 @@ export function PublishPanel({
             </p>
           </div>
         ) : null}
+
+        <label className="publish-access-field">
+          <span>{t("Branding")}</span>
+          <select
+            value={branding}
+            onChange={(event) =>
+              setBranding(event.target.value as EidosPublishBrandingSelection)
+            }
+          >
+            <option value="unchanged">{t("Keep current")}</option>
+            <option value="show">{t("Show Built with Eidos")}</option>
+            <option value="hide">{`${t("Hide Built with Eidos")} · Pro`}</option>
+          </select>
+          <small>
+            {branding === "hide"
+              ? t("Remove the badge from this published resource.")
+              : t("New resources show the badge by default.")}
+          </small>
+        </label>
 
         <footer>
           <span className="publish-validation">{validation}</span>

@@ -22,6 +22,7 @@ import {
   validateMarkdownVersion,
 } from "./markdown"
 import {
+  activateFormRevision,
   FormPreparationError,
   prepareFormVersion,
   probeFormTarget,
@@ -280,6 +281,21 @@ export class PublishWorkflow extends WorkflowEntrypoint<
           }
         }
       )
+      if (version.driverId === "org.eidos.driver.form") {
+        await step.do(
+          "06b-activate-form-revision",
+          STEP_POLICY,
+          async (): Promise<{ activated: true }> => {
+            await activateFormRevision(
+              this.env,
+              input.tenantId,
+              tenant,
+              input.publicationId
+            )
+            return { activated: true }
+          }
+        )
+      }
       return { ...workflowResult(ready, prepared), activation }
     } catch (cause) {
       const code = workflowErrorCode(cause)

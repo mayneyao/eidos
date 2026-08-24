@@ -15,8 +15,8 @@ Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳�
 
 <Aside type="caution" title="Staging 预览">
   Publish 目前仅向 staging 预览账户开放。请使用下文的 staging
-  账号页和服务地址；默认的 production 地址尚未开放，Publish Pro
-  购买也仍然只对受邀测试账户可用。
+  账号页和服务地址；默认的 production 地址尚未开放。请先在 staging 账号页开通
+  Publish， 再创建 CLI 密钥。
 </Aside>
 
 ## 发布前准备
@@ -53,6 +53,12 @@ slug 会成为 URL path。它包含 1–64 个小写字母、数字或连字符�
 https://u-…-staging.eidos.ink/tracker
 ```
 
+Publish 可以把这段不透明 hostname 换成独立的 Publish Handle。打开 staging Publish
+账号页，在 **Publish 域名**中输入符合规则的 Handle，然后点击**认领域名**。服务会立即认领
+`handle-staging.eidos.ink`；系统分配的 `u-*` hostname 继续作为稳定后备地址。Handle 不会
+修改账户 username。Handle 使用 3–30 个小写字母、数字或连字符，以字母开头，并且不能占用
+Publish 或 Relay 的保留命名空间。
+
 普通终端输出会持续展示文件校验、附件发现、逐对象哈希、内容去重、待上传总字节、
 Serving Target 准备和 Version 激活进度。Version 就绪并激活后命令才会成功返回；失败时返回非零
 exit code。
@@ -80,6 +86,19 @@ eidos publish feedback.eidos --slug feedback --form-view "公开反馈"
 该命令会创建一个新的不可变 Form revision。访客只能看到 Form View 选中的字段；浏览器拿到
 的公开 definition 不包含内部 File、Table、View 或 Field ID。公开、密码保护和账号私有访问
 继续使用其他 Publish 资源相同的参数。
+
+Form 的填写权限与资源访问权限分开设置。使用 `--form-respondents signed-in` 要求填写者先
+登录 eidos.space；再加上 `--one-response-per-user`，即可限制每个登录账户只能提交一次：
+
+```bash
+eidos publish feedback.eidos --slug feedback \
+  --form-view "公开反馈" \
+  --form-respondents signed-in \
+  --one-response-per-user
+```
+
+匿名表单始终允许多次填写，因为未登录时无法可靠识别“同一个人”。Form definition 未变化时，
+只调整这些发布策略不会创建新的内容 Version。
 
 已完成的回复会等待在私有 Publish Inbox，不会修改托管快照，也不会修改某份云端数据集副本。
 使用发布结果中的 Publication ID，把回复收回原来的本地文件：
@@ -137,11 +156,11 @@ CLI 以源文件所在目录为根目录解析附件，确认路径不越界、�
 
 访问策略属于每个资源 slug，而不是整个账号。
 
-| 访问方式 | 发布参数               | 谁能打开                                  | 套餐        |
-| -------- | ---------------------- | ----------------------------------------- | ----------- |
-| 公开     | 不传访问参数           | 任何持有 URL 的人                         | Free 或 Pro |
-| 密码保护 | `--password`           | 知道密码的人；不需要 Eidos 账号           | Pro         |
-| 账号私有 | `--visibility private` | 已登录资源所有者 eidos.space 账号的发布者 | Pro         |
+| 访问方式 | 发布参数               | 谁能打开                                  |
+| -------- | ---------------------- | ----------------------------------------- |
+| 公开     | 不传访问参数           | 任何持有 URL 的人                         |
+| 密码保护 | `--password`           | 知道密码的人；不需要 Eidos 账号           |
+| 账号私有 | `--visibility private` | 已登录资源所有者 eidos.space 账号的发布者 |
 
 再次发布同一个 slug 时，如果不传访问参数，会保留当前访问策略。
 
@@ -180,6 +199,18 @@ eidos publish tracker.eidos --slug tracker --visibility private
 账号私有模式目前仅限所有者本人。打开 URL 时会跳转到 eidos.space 登录；确认是资源所属
 账号后再返回资源。如果要分享给没有发布者账号的人，请使用密码保护。
 
+## 配置 Eidos 品牌标识
+
+发布后的 Eidos File、Markdown 文档和 Form 默认显示 **Built with Eidos** 标识。Publish
+可以只为某个资源隐藏它，不会创建新的内容 Version：
+
+```bash
+eidos publish tracker.eidos --slug tracker --hide-branding
+```
+
+使用 `--show-branding` 恢复标识；两个参数都不传时保留资源当前设置。Publish 账号页的每条
+资源旁和 Eidos Lite 的 Publish 面板也提供相同控制。
+
 ## 发布多个资源
 
 一个 slug 表示一个长期存在的资源。使用新 slug 发布另一个文件，会在同一个 canonical
@@ -191,26 +222,29 @@ eidos publish inventory.eidos --slug inventory
 ```
 
 把新内容发布到已有 slug 会创建新的不可变 Version，同时保持 URL 不变；source bytes 与附件
-引用都相同时，不会创建新 Version。资源数和 Version 数
-不作为商业额度，实际限制是去重后的总存储与历史时长。当前预览额度为：
+引用都相同时，不会创建新 Version。资源数不作为商业额度，实际限制是去重后的总存储与
+历史策略。当前预览额度为：
 
-| 限制                |                      Free |                                        Pro |
-| ------------------- | ------------------------: | -----------------------------------------: |
-| 账号去重后总存储    |                     1 GiB |                                     10 GiB |
-| 单个 source 或附件  |                     1 GiB |                                      1 GiB |
-| Markdown 正文       |                    16 MiB |                                     16 MiB |
-| 未激活 Version 历史 |                      7 天 |                                      90 天 |
-| 资源数              |                  不限数量 |                                   不限数量 |
-| 访问方式            |                    仅公开 |                   公开、密码保护、账号私有 |
-| Canonical hostname  | 系统分配的 `u-*` hostname | 设置 username 后使用账号 username hostname |
-| Runtime 空闲休眠    |                     60 秒 |                                     600 秒 |
-| 每月 Form 回复      |                       100 |                                      5,000 |
-| Collect Inbox       |                   256 MiB |                                      5 GiB |
-| 单个提交附件        |                    10 MiB |                                    100 MiB |
-| 已导入回复保留      |                      7 天 |                                      30 天 |
+| 限制                  | Publish                  |
+| --------------------- | ------------------------ |
+| 账号去重后总存储      | 10 GiB                   |
+| 单个 source 或附件    | 1 GiB                    |
+| Markdown 正文         | 16 MiB                   |
+| 非当前 Version 历史   | 30 天                    |
+| 资源数                | 不限数量                 |
+| 访问方式              | 公开、密码保护、账号私有 |
+| Canonical hostname    | 一个独立 Publish Handle  |
+| 移除 Built with Eidos | 是                       |
+| 每月 Form 回复        | 5,000                    |
+| Collect Inbox         | 5 GiB                    |
+| 单次回复附件数        | 20                       |
+| 单个提交附件          | 100 MiB                  |
+| 已导入回复保留        | 30 天                    |
 
-历史保留期只作用于未激活 Version。当前活动 Version 即使超过该时长也会继续保留；旧历史到期
-时，只会释放已经没有任何 Version 引用的内容对象。
+Publish 是付费托管服务；本地构建与预览保持免费。历史保留期从活动 Version 被替换时开始
+计算，非当前 Version 保留 30 天。失败或从未激活的 Version 在 24 小时后清理。
+当前活动 Version 永远不会因历史保留期被删除；旧历史到期时，只会释放已经没有任何 Version
+引用的内容对象。解释已收集回复所需的 Form 定义快照独立于完整发布 source 保留。
 
 账号页展示的套餐和实时用量是最终依据。Publish 1.0 不包含外部自定义域名。
 
@@ -235,14 +269,14 @@ JSON 模式向 stdout 写一个结果，错误写到 stderr；它不会渲染交
 
 ## 常见问题
 
-**当前套餐不允许密码或私有访问**
+**需要开通 Publish**
 
-账号使用 Free。请选择公开访问，或把受邀账号升级到 Publish Pro。
+本地预览不会创建托管 URL。请从账号页或价格页开通 Publish，再使用相同文件和 slug 重试。
 
 **已达到存储上限**
 
-删除不需要的未激活 Version，或减少数据库/附件体积。相同内容不会重复计量；Pro 会提高总
-存储，但单个对象仍限制为 1 GiB。
+删除不需要的未激活 Version，或减少数据库/附件体积。相同内容不会重复计量；单个对象仍
+限制为 1 GiB。
 
 **附件无法发布**
 

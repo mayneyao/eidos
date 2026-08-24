@@ -88,6 +88,21 @@ describe("SyncControlPlane", () => {
     expect(account.authorization).not.toHaveBeenCalled()
   })
 
+  it("reads Publish account presence without checking Sync entitlement", async () => {
+    const account = accountSession("signed-in")
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account,
+      remote
+    )
+
+    await expect(control.accountStatus()).resolves.toEqual({
+      state: "signed-in",
+      user: { id: "user-1", email: "person@example.com" },
+    })
+    expect(account.authorization).not.toHaveBeenCalled()
+  })
+
   it("scopes Publish state to the signed-in account identity", async () => {
     const signedIn = new SyncControlPlane(
       EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,

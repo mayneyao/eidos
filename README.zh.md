@@ -71,8 +71,8 @@ eidos serve example.eidos --open
 ### 发布只读副本（预览）
 
 Eidos Publish 把不可变的 Eidos File 或 Markdown Version 连同本地附件上传到稳定的
-`*.eidos.ink` URL，同时保留用户拥有的本地源文件。Staging 预览为 Free 账号提供公开访问，
-Publish Pro 还支持密码保护和仅所有者访问。CLI 密钥、资源 slug、额度与 staging 命令见
+`*.eidos.ink` URL，同时保留用户拥有的本地源文件。本地预览免费；公开、密码保护和仅所有者
+访问等托管能力都需要有效的 Publish 订阅。CLI 密钥、资源 slug、额度与 staging 命令见
 [发布文件](./apps/docs/src/content/docs/zh-cn/cli/publish.mdx)。
 
 ## 当前产品线

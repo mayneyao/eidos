@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 
 import type {
   DurableResult,
+  FormPublicationPolicy,
   FormSubmissionRecord,
   PublishCollectLimits,
 } from "./contracts"
@@ -14,6 +15,9 @@ interface FormStateRow extends Record<string, SqlStorageValue> {
   next_sequence: number
   collector_id: string | null
   collector_generation: number
+  respondent_access: "anyone" | "signed_in"
+  allow_multiple_responses: number
+  form_policy_revision: number
   updated_at: string
 }
 
@@ -36,6 +40,7 @@ interface SubmissionRow extends Record<string, SqlStorageValue> {
   payload_json: string
   payload_sha256: string
   schema_fingerprint: string
+  respondent_user_id: string | null
   payload_bytes: number
   attachment_bytes: string
   lease_generation: number | null
@@ -84,11 +89,24 @@ interface CleanupAttachmentRow extends Record<string, SqlStorageValue> {
   object_key: string | null
 }
 
+interface CleanupSubmissionRow extends Record<string, SqlStorageValue> {
+  submission_id: string
+  state: SubmissionRow["state"]
+}
+
 interface RateRow extends Record<string, SqlStorageValue> {
   request_count: number
 }
 
 export interface FormRevisionRegistration {
+  publicationId: string
+  versionId: string
+  schemaFingerprint: string
+  definitionSha256: string
+  definitionJson: string
+}
+
+export interface FormInboxRevision {
   publicationId: string
   versionId: string
   schemaFingerprint: string
@@ -103,6 +121,9 @@ export interface FormInboxState {
   submissionRevision: number
   collectorId: string | null
   collectorGeneration: number
+  respondentAccess: "anyone" | "signed_in"
+  allowMultipleResponses: boolean
+  formPolicyRevision: number
 }
 
 export interface FormInboxStats {
@@ -133,6 +154,7 @@ export interface FormSubmissionInitInput {
   }>
   limits: PublishCollectLimits
   clientHash: string
+  respondentUserId: string | null
   now?: string
 }
 
@@ -186,6 +208,9 @@ export class FormInboxDurableObject extends DurableObject<Env> {
           next_sequence INTEGER NOT NULL DEFAULT 1 CHECK (next_sequence > 0),
           collector_id TEXT,
           collector_generation INTEGER NOT NULL DEFAULT 0 CHECK (collector_generation >= 0),
+          respondent_access TEXT NOT NULL DEFAULT 'anyone' CHECK (respondent_access IN ('anyone', 'signed_in')),
+          allow_multiple_responses INTEGER NOT NULL DEFAULT 1 CHECK (allow_multiple_responses IN (0, 1)),
+          form_policy_revision INTEGER NOT NULL DEFAULT 0 CHECK (form_policy_revision >= 0),
           updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS submission (
@@ -198,6 +223,7 @@ export class FormInboxDurableObject extends DurableObject<Env> {
           payload_json TEXT NOT NULL,
           payload_sha256 TEXT NOT NULL,
           schema_fingerprint TEXT NOT NULL,
+          respondent_user_id TEXT,
           payload_bytes INTEGER NOT NULL CHECK (payload_bytes >= 0),
           attachment_bytes TEXT NOT NULL,
           lease_generation INTEGER,
@@ -231,6 +257,13 @@ export class FormInboxDurableObject extends DurableObject<Env> {
           created_at TEXT NOT NULL,
           PRIMARY KEY (publication_id, idempotency_key)
         );
+        CREATE TABLE IF NOT EXISTS form_respondent_claim (
+          publication_id TEXT NOT NULL,
+          respondent_user_id TEXT NOT NULL,
+          submission_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (publication_id, respondent_user_id)
+        );
         CREATE TABLE IF NOT EXISTS rate_window (
           publication_id TEXT NOT NULL,
           client_hash TEXT NOT NULL,
@@ -253,57 +286,213 @@ export class FormInboxDurableObject extends DurableObject<Env> {
         `INSERT OR IGNORE INTO form_inbox_schema_migrations (version, applied_at)
          VALUES (2, datetime('now'))`
       )
+      const stateColumns = this.ctx.storage.sql
+        .exec<{ name: string }>("PRAGMA table_info(form_state)")
+        .toArray()
+      if (!stateColumns.some((column) => column.name === "respondent_access")) {
+        this.ctx.storage.sql.exec(
+          "ALTER TABLE form_state ADD COLUMN respondent_access TEXT NOT NULL DEFAULT 'anyone' CHECK (respondent_access IN ('anyone', 'signed_in'))"
+        )
+      }
+      if (
+        !stateColumns.some(
+          (column) => column.name === "allow_multiple_responses"
+        )
+      ) {
+        this.ctx.storage.sql.exec(
+          "ALTER TABLE form_state ADD COLUMN allow_multiple_responses INTEGER NOT NULL DEFAULT 1 CHECK (allow_multiple_responses IN (0, 1))"
+        )
+      }
+      if (
+        !stateColumns.some((column) => column.name === "form_policy_revision")
+      ) {
+        this.ctx.storage.sql.exec(
+          "ALTER TABLE form_state ADD COLUMN form_policy_revision INTEGER NOT NULL DEFAULT 0 CHECK (form_policy_revision >= 0)"
+        )
+      }
+      if (
+        !submissionColumns.some(
+          (column) => column.name === "respondent_user_id"
+        )
+      ) {
+        this.ctx.storage.sql.exec(
+          "ALTER TABLE submission ADD COLUMN respondent_user_id TEXT"
+        )
+      }
+      this.ctx.storage.sql.exec(`
+        CREATE INDEX IF NOT EXISTS idx_form_submission_respondent
+          ON submission (publication_id, respondent_user_id, created_at);
+        INSERT OR IGNORE INTO form_inbox_schema_migrations (version, applied_at)
+        VALUES (3, datetime('now'));
+      `)
+      this.ctx.storage.sql.exec(`
+        CREATE TABLE IF NOT EXISTS form_respondent_claim (
+          publication_id TEXT NOT NULL,
+          respondent_user_id TEXT NOT NULL,
+          submission_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (publication_id, respondent_user_id)
+        );
+        INSERT OR IGNORE INTO form_respondent_claim (
+          publication_id, respondent_user_id, submission_id, created_at
+        )
+        SELECT publication_id, respondent_user_id, submission_id, created_at
+          FROM submission
+         WHERE respondent_user_id IS NOT NULL
+         ORDER BY created_at ASC;
+        INSERT OR IGNORE INTO form_inbox_schema_migrations (version, applied_at)
+        VALUES (4, datetime('now'));
+      `)
     })
   }
 
-  async registerRevision(
+  async storeRevision(
     input: FormRevisionRegistration
+  ): Promise<DurableResult<FormInboxRevision>> {
+    await this.ready
+    const existing = this.revision(input.publicationId, input.versionId)
+    if (
+      existing !== null &&
+      (existing.definition_sha256 !== input.definitionSha256 ||
+        existing.schema_fingerprint !== input.schemaFingerprint ||
+        existing.definition_json !== input.definitionJson)
+    ) {
+      return failure(
+        409,
+        "form_definition_conflict",
+        "Immutable Form revision already differs"
+      )
+    }
+    if (existing !== null) return ok(revisionRecord(existing))
+    this.ctx.storage.sql.exec(
+      `INSERT INTO form_revision (
+         publication_id, version_id, schema_fingerprint,
+         definition_sha256, definition_json, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+      input.publicationId,
+      input.versionId,
+      input.schemaFingerprint,
+      input.definitionSha256,
+      input.definitionJson,
+      new Date().toISOString()
+    )
+    return ok(
+      revisionRecord(this.requireRevision(input.publicationId, input.versionId))
+    )
+  }
+
+  async activateRevision(
+    publicationId: string,
+    versionId: string,
+    formPolicy: FormPublicationPolicy
   ): Promise<DurableResult<FormInboxState>> {
     await this.ready
+    if (this.revision(publicationId, versionId) === null) {
+      return failure(
+        409,
+        "form_revision_unavailable",
+        "Published Form revision is unavailable"
+      )
+    }
+    const current = this.state(publicationId)
+    if (
+      current !== null &&
+      current.current_version_id === versionId &&
+      current.respondent_access === formPolicy.respondentAccess &&
+      (current.allow_multiple_responses === 1) ===
+        formPolicy.allowMultipleResponses &&
+      current.form_policy_revision === formPolicy.revision
+    ) {
+      return ok(stateRecord(current))
+    }
     return this.ctx.storage.transactionSync(() => {
       const now = new Date().toISOString()
-      const definitionJson = input.definitionJson
-      const existing = this.revision(input.publicationId, input.versionId)
-      if (
-        existing !== null &&
-        (existing.definition_sha256 !== input.definitionSha256 ||
-          existing.schema_fingerprint !== input.schemaFingerprint ||
-          existing.definition_json !== definitionJson)
-      ) {
-        return failure(
-          409,
-          "form_definition_conflict",
-          "Immutable Form revision already differs"
-        )
-      }
-      if (existing === null) {
-        this.ctx.storage.sql.exec(
-          `INSERT INTO form_revision (
-             publication_id, version_id, schema_fingerprint,
-             definition_sha256, definition_json, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?)`,
-          input.publicationId,
-          input.versionId,
-          input.schemaFingerprint,
-          input.definitionSha256,
-          definitionJson,
-          now
-        )
-      }
       this.ctx.storage.sql.exec(
         `INSERT INTO form_state (
            publication_id, current_version_id, accepting, submission_revision,
-           next_sequence, collector_id, collector_generation, updated_at
-         ) VALUES (?, ?, 1, 0, 1, NULL, 0, ?)
+           next_sequence, collector_id, collector_generation, respondent_access,
+           allow_multiple_responses, form_policy_revision, updated_at
+         ) VALUES (?, ?, 1, 0, 1, NULL, 0, ?, ?, ?, ?)
          ON CONFLICT (publication_id) DO UPDATE SET
            current_version_id = excluded.current_version_id,
+           submission_revision = form_state.submission_revision + CASE
+             WHEN form_state.respondent_access != excluded.respondent_access
+               OR form_state.allow_multiple_responses != excluded.allow_multiple_responses
+               OR form_state.form_policy_revision != excluded.form_policy_revision
+             THEN 1 ELSE 0 END,
+           respondent_access = excluded.respondent_access,
+           allow_multiple_responses = excluded.allow_multiple_responses,
+           form_policy_revision = excluded.form_policy_revision,
            updated_at = excluded.updated_at`,
-        input.publicationId,
-        input.versionId,
+        publicationId,
+        versionId,
+        formPolicy.respondentAccess,
+        formPolicy.allowMultipleResponses ? 1 : 0,
+        formPolicy.revision,
         now
       )
-      return ok(stateRecord(this.requireState(input.publicationId)))
+      if (!formPolicy.allowMultipleResponses) {
+        this.claimExistingRespondents(publicationId)
+      }
+      return ok(stateRecord(this.requireState(publicationId)))
     })
+  }
+
+  async getActiveRevision(
+    publicationId: string,
+    versionId: string
+  ): Promise<
+    DurableResult<{ revision: FormInboxRevision; state: FormInboxState }>
+  > {
+    await this.ready
+    const state = this.state(publicationId)
+    const revision = this.revision(publicationId, versionId)
+    if (
+      state === null ||
+      state.current_version_id !== versionId ||
+      revision === null
+    ) {
+      return failure(
+        409,
+        "form_version_stale",
+        "Published Form revision is unavailable"
+      )
+    }
+    return ok({ revision: revisionRecord(revision), state: stateRecord(state) })
+  }
+
+  async syncPolicy(
+    publicationId: string,
+    policy: FormPublicationPolicy
+  ): Promise<DurableResult<FormInboxState>> {
+    await this.ready
+    const row = this.state(publicationId)
+    if (row === null) {
+      return failure(404, "form_not_found", "Published Form not found")
+    }
+    if (
+      row.respondent_access !== policy.respondentAccess ||
+      (row.allow_multiple_responses === 1) !== policy.allowMultipleResponses ||
+      row.form_policy_revision !== policy.revision
+    ) {
+      this.ctx.storage.sql.exec(
+        `UPDATE form_state
+            SET respondent_access = ?, allow_multiple_responses = ?,
+                form_policy_revision = ?,
+                submission_revision = submission_revision + 1,
+                updated_at = ?
+          WHERE publication_id = ?`,
+        policy.respondentAccess,
+        policy.allowMultipleResponses ? 1 : 0,
+        policy.revision,
+        new Date().toISOString(),
+        publicationId
+      )
+    }
+    if (!policy.allowMultipleResponses) {
+      this.claimExistingRespondents(publicationId)
+    }
+    return ok(stateRecord(this.requireState(publicationId)))
   }
 
   async getState(
@@ -408,6 +597,34 @@ export class FormInboxDurableObject extends DurableObject<Env> {
         }
         return ok(this.submissionInitResult(prior.submission_id))
       }
+      if (
+        state.respondent_access === "signed_in" &&
+        input.respondentUserId === null
+      ) {
+        return failure(
+          401,
+          "form_authentication_required",
+          "Sign in to submit this Form"
+        )
+      }
+      if (
+        state.allow_multiple_responses !== 1 &&
+        input.respondentUserId !== null &&
+        this.ctx.storage.sql
+          .exec<{ submission_id: string }>(
+            `SELECT submission_id FROM form_respondent_claim
+              WHERE publication_id = ? AND respondent_user_id = ?`,
+            input.publicationId,
+            input.respondentUserId
+          )
+          .toArray()[0] !== undefined
+      ) {
+        return failure(
+          409,
+          "response_already_submitted",
+          "You have already submitted this Form"
+        )
+      }
       const windowStart = Math.floor(Date.parse(now) / 60_000)
       this.ctx.storage.sql.exec(
         "DELETE FROM rate_window WHERE window_start < ?",
@@ -475,9 +692,9 @@ export class FormInboxDurableObject extends DurableObject<Env> {
         `INSERT INTO submission (
            submission_id, publication_id, version_id, state, sequence,
            input_sha256, payload_json, payload_sha256, schema_fingerprint,
-           payload_bytes, attachment_bytes, lease_generation, lease_expires_at,
+           respondent_user_id, payload_bytes, attachment_bytes, lease_generation, lease_expires_at,
            created_at, committed_at, imported_at, purge_after
-         ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL, NULL)`,
+         ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL, NULL)`,
         input.submissionId,
         input.publicationId,
         input.versionId,
@@ -486,6 +703,7 @@ export class FormInboxDurableObject extends DurableObject<Env> {
         JSON.stringify(input.payload),
         input.payloadSha256,
         input.schemaFingerprint,
+        input.respondentUserId,
         input.payloadBytes,
         attachmentBytes.toString(),
         now
@@ -504,6 +722,20 @@ export class FormInboxDurableObject extends DurableObject<Env> {
           attachment.bytes,
           attachment.sha256,
           attachment.tempObjectKey
+        )
+      }
+      if (
+        state.allow_multiple_responses !== 1 &&
+        input.respondentUserId !== null
+      ) {
+        this.ctx.storage.sql.exec(
+          `INSERT INTO form_respondent_claim (
+             publication_id, respondent_user_id, submission_id, created_at
+           ) VALUES (?, ?, ?, ?)`,
+          input.publicationId,
+          input.respondentUserId,
+          input.submissionId,
+          now
         )
       }
       this.ctx.storage.sql.exec(
@@ -872,8 +1104,8 @@ export class FormInboxDurableObject extends DurableObject<Env> {
       Date.parse(now) - 86_400_000
     ).toISOString()
     const submissions = this.ctx.storage.sql
-      .exec<{ submission_id: string }>(
-        `SELECT submission_id FROM submission
+      .exec<CleanupSubmissionRow>(
+        `SELECT submission_id, state FROM submission
           WHERE (state IN ('initiated', 'uploading') AND created_at <= ?)
              OR (state = 'imported' AND purge_after IS NOT NULL AND purge_after <= ?)
           ORDER BY COALESCE(purge_after, created_at) ASC LIMIT 100`,
@@ -883,6 +1115,13 @@ export class FormInboxDurableObject extends DurableObject<Env> {
       .toArray()
     if (submissions.length > 0) {
       const submissionIds = new Set(submissions.map((row) => row.submission_id))
+      const abandonedSubmissionIds = new Set(
+        submissions
+          .filter(
+            (row) => row.state === "initiated" || row.state === "uploading"
+          )
+          .map((row) => row.submission_id)
+      )
       const attachments = this.ctx.storage.sql
         .exec<CleanupAttachmentRow>(
           `SELECT submission_id, temp_object_key, object_key
@@ -914,6 +1153,12 @@ export class FormInboxDurableObject extends DurableObject<Env> {
       }
       this.ctx.storage.transactionSync(() => {
         for (const submissionId of submissionIds) {
+          if (abandonedSubmissionIds.has(submissionId)) {
+            this.ctx.storage.sql.exec(
+              "DELETE FROM form_respondent_claim WHERE submission_id = ?",
+              submissionId
+            )
+          }
           this.ctx.storage.sql.exec(
             "DELETE FROM submission_idempotency WHERE submission_id = ?",
             submissionId
@@ -1003,6 +1248,19 @@ export class FormInboxDurableObject extends DurableObject<Env> {
     )
   }
 
+  private claimExistingRespondents(publicationId: string): void {
+    this.ctx.storage.sql.exec(
+      `INSERT OR IGNORE INTO form_respondent_claim (
+         publication_id, respondent_user_id, submission_id, created_at
+       )
+       SELECT publication_id, respondent_user_id, submission_id, created_at
+         FROM submission
+        WHERE publication_id = ? AND respondent_user_id IS NOT NULL
+        ORDER BY created_at ASC`,
+      publicationId
+    )
+  }
+
   private requireState(publicationId: string): FormStateRow {
     const value = this.state(publicationId)
     if (value === null) throw new Error("Form state is unavailable")
@@ -1023,6 +1281,15 @@ export class FormInboxDurableObject extends DurableObject<Env> {
         )
         .toArray()[0] ?? null
     )
+  }
+
+  private requireRevision(
+    publicationId: string,
+    versionId: string
+  ): RevisionRow {
+    const value = this.revision(publicationId, versionId)
+    if (value === null) throw new Error("Form revision is unavailable")
+    return value
   }
 
   private submission(submissionId: string): SubmissionRow | null {
@@ -1123,6 +1390,19 @@ function stateRecord(row: FormStateRow): FormInboxState {
     submissionRevision: row.submission_revision,
     collectorId: row.collector_id,
     collectorGeneration: row.collector_generation,
+    respondentAccess: row.respondent_access,
+    allowMultipleResponses: row.allow_multiple_responses === 1,
+    formPolicyRevision: row.form_policy_revision,
+  }
+}
+
+function revisionRecord(row: RevisionRow): FormInboxRevision {
+  return {
+    publicationId: row.publication_id,
+    versionId: row.version_id,
+    schemaFingerprint: row.schema_fingerprint,
+    definitionSha256: row.definition_sha256,
+    definitionJson: row.definition_json,
   }
 }
 

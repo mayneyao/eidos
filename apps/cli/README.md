@@ -303,7 +303,7 @@ digests; an identical active fingerprint reuses the current Version instead of
 creating redundant history. A different slug creates another resource. Resource and Version counts
 are not quotas; deduplicated account storage and inactive history age are.
 
-Publish Pro can protect a resource with a password. The CLI prompts twice
+Publish can protect a resource with a password. The CLI prompts twice
 without echo and never places the password in the URL or command arguments:
 
 ```bash

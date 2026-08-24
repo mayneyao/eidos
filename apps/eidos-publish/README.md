@@ -30,14 +30,14 @@ viewer
   versioned `publish_access` grant.
 - one SQLite Durable Object owns each Tenant's publications, immutable Version
   state, activation pointer, usage, idempotency, and retention;
-- one Handle Durable Object serializes each normalized username claim and
+- one Handle Durable Object serializes each normalized Publish handle claim and
   resolves only after the Tenant has activated the same expiring claim ID;
 - R2 owns canonical manifests plus tenant-scoped, SHA-256-addressed source and
   attachment objects; Version metadata references those immutable objects;
 - Workflows validate, prepare, probe, refresh activation entitlements, and
   atomically activate;
 - Tenant IDs are deterministically assigned to a bounded pool of Container
-  shards. Free and Pro use the same image and Runtime path;
+  shards. Every active Publish tenant uses the same image and Runtime path;
 - each Container runs a small trusted Supervisor that streams and verifies the
   exact R2 source, starts one `eidos serve --publish` child per active Version,
   and evicts idle children with LRU when process or disk limits are reached;
@@ -55,7 +55,7 @@ second budget (4 MiB/s plus bootstrap allowance). Runtime Workflow steps use a
 The publication URL is:
 
 ```text
-https://{public-site-id-or-pro-handle}.eidos.ink/{publication-slug}
+https://{public-site-id-or-publish-handle}.eidos.ink/{publication-slug}
 ```
 
 ## Source and upload contract
@@ -99,7 +99,7 @@ publications use this handoff:
    active Version, target digest, access policy revision, visibility, and
    expiry.
 
-Publish Pro can also protect an individual Publication with a password. The
+Publish can also protect an individual Publication with a password. The
 CLI prompts without echo (or reads `EIDOS_PUBLISH_PASSWORD` for automation),
 and sends the password only to the control Worker over HTTPS. Tenant SQLite
 stores a unique salt and a versioned six-round PBKDF2-HMAC-SHA256 verifier

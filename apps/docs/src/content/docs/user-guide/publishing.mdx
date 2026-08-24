@@ -11,8 +11,9 @@ does not require Eidos Lite or your computer to remain online after publishing.
 
 ## Before you publish
 
-Sign in under **Settings → Account & Sync**. Publish uses that Eidos account,
-but it does not require an Eidos Sync subscription or an enabled Hosted Remote.
+Sign in under **Settings → Account & Services** and activate Publish. Local build
+and preview remain free, but creating or serving a hosted URL requires an
+active Publish subscription. Publish is independent of Eidos Sync.
 
 ## Publish a file
 
@@ -21,6 +22,9 @@ but it does not require an Eidos Sync subscription or an enabled Hosted Remote.
 3. Enter a resource slug. It becomes the path after your assigned
    `*.eidos.ink` hostname.
 4. Choose the access setting and select **Publish**.
+
+The **Branding** setting keeps the current choice, shows the **Built with
+Eidos** badge, or hides it. New resources show the badge by default.
 
 After you select Publish, the configuration panel immediately collapses into a
 background task at the lower-left corner. Validation, hashing, upload,
@@ -58,12 +62,26 @@ snapshot. The temporary copy is removed after the attempt.
 Markdown is rendered into a static, script-free page. Raw HTML is not executed.
 The body limit is 16 MiB; each attachment can be up to 1 GiB.
 
+Published Eidos Files, Markdown documents, and Forms include a compact **Built
+with Eidos** brand link. Markdown and Form pages place it centered in the
+document footer; published Eidos Files place it at the right edge of the table
+bar without the file, read-only, or SQLite status text. The Gateway applies the
+current branding preference at response time, so updates do not require
+republishing the resource. Publish can hide or restore it per resource from
+Eidos Lite or the Publish account page without creating a new content Version.
+
 ## Publish a Form and collect responses
 
 Create a Form View in an Eidos File, then keep that file open before choosing
 **Publish…**. The **Publish as** control lists its Form Views alongside the
 complete, read-only Eidos File. Choosing a Form View publishes only its public
 form definition; it does not upload a mutable copy of your Table.
+
+The Publish panel also controls who can respond. Choose **Anyone with the
+link**, or require a signed-in eidos.space user. For signed-in respondents, you
+can turn off **Allow multiple responses** so each account can submit once.
+This response policy is independent of Public, Password, and Private resource
+access, and can be changed by republishing without changing the local Form View.
 
 Visitors can submit the supported text, number, date, option, checkbox, rating,
 URL, and File fields. Completed responses and submitted attachments wait in the
@@ -118,33 +136,41 @@ and account-private sign-in redirects.
 
 ## Access settings
 
-| Setting      | Who can open it                                           | Plan        |
-| ------------ | --------------------------------------------------------- | ----------- |
-| Public       | Anyone with the link                                      | Free or Pro |
-| Password     | Anyone who knows the shared password                      | Pro         |
-| Private      | Only the owning account while signed in                   | Pro         |
-| Keep current | Preserves an existing setting; new resources start public | Free or Pro |
+| Setting      | Who can open it                                           |
+| ------------ | --------------------------------------------------------- |
+| Public       | Anyone with the link                                      |
+| Password     | Anyone who knows the shared password                      |
+| Private      | Only the owning account while signed in                   |
+| Keep current | Preserves an existing setting; new resources start public |
 
 Passwords contain 8–128 characters. Eidos Lite sends the password through its
 protected main-process boundary, never adds it to command arguments or logs,
 and clears it from the panel after a successful publish.
 
-Free accounts use their assigned `u-*` hostname and include 1 GiB of
-deduplicated storage, 100 completed Form responses per month, a 256 MiB Collect
-Inbox, and 7 days of inactive Version history. Publish Pro adds a username
-hostname, 10 GiB of content storage, 5,000 responses per month, a 5 GiB Inbox,
-90 days of history, password access, and private access. Submitted attachments
-are limited to 10 MiB on Free and 100 MiB on Pro. Both plans allow any number
-of resource slugs and limit a published source or source attachment to 1 GiB.
-The active Version is retained even after the history window. The account and
-pricing pages are authoritative for current limits.
+Publish includes one independent Publish domain, 10 GiB of deduplicated content storage,
+5,000 completed Form responses per month, a 5 GiB Inbox, 30 days of history,
+password access, and private access. Submitted Form attachments are limited to
+100 MiB, while a published source or source attachment is limited to 1 GiB.
+Resource slug count is not a quota.
+The history window begins when an active Version is replaced. Failed or
+never-activated Versions are removed after 24 hours, while the active Version
+is never removed by history retention. Form definition snapshots needed for
+collected responses are retained separately. The account and pricing pages are
+authoritative for current limits.
+
+To use a readable hostname, open the Publish account page, enter a compatible
+handle under **Publish domain**, and claim it. This handle belongs to your
+Publish Site and does not change your account username. Staging uses
+`handle-staging.eidos.ink`; production uses `handle.eidos.ink`. The assigned
+`u-*` hostname remains a stable fallback and redirects to the current canonical
+domain.
 
 ## Troubleshooting
 
 **Sign in to publish**
 
 Open the action in the Publish panel or sign in under **Settings → Account &
-Sync**, then retry. An Eidos account is required even when Sync is not enabled.
+Services**, then retry. An Eidos account is required even when Sync is not enabled.
 
 **The Publish storage limit was reached**
 

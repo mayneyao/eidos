@@ -27,7 +27,10 @@ const request: EidosPublishRequest = {
   relativePath: "Feedback.eidos",
   slug: "feedback",
   accessMode: "unchanged",
+  branding: "unchanged",
   formView: "view-1",
+  formRespondentAccess: "anyone",
+  formAllowMultipleResponses: true,
 }
 
 const result: EidosPublishResult = {
@@ -42,6 +45,12 @@ const result: EidosPublishResult = {
   publicationSlug: "feedback",
   visibility: "public",
   accessMode: "public",
+  showBranding: true,
+  formPolicy: {
+    respondentAccess: "anyone",
+    allowMultipleResponses: true,
+    revision: 0,
+  },
   versionId: "8300a083-df92-49d8-945d-1e0bae0eac18",
   sourceBytes: "1024",
   sourceSha256: "a".repeat(64),

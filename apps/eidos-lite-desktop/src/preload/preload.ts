@@ -8,6 +8,7 @@ import {
   type EidosLitePreferences,
   type EidosLiteUpdateStatus,
   type EidosPublishProgress,
+  type SyncAccountStatus,
   type EidosSyncProgress,
   type EidosSyncQueueStatus,
   type RuntimeCalls,
@@ -264,6 +265,16 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.discardWorkingChanges, request),
   restoreCheckpoint: (commitId, expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.restoreCheckpoint, commitId, expectedHead),
+  getAccountStatus: () => ipcRenderer.invoke(IPC_CHANNELS.accountStatus),
+  onAccountChanged: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: SyncAccountStatus
+    ) => listener(status)
+    ipcRenderer.on(IPC_CHANNELS.accountChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.accountChanged, handler)
+  },
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),
   beginSyncSignIn: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignIn),
   signOutSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignOut),
@@ -332,8 +343,6 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.publishCollectRun, request),
   listPublicationBindings: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.publishBindingsList, request),
-  setActivePublicationSource: (relativePath) =>
-    ipcRenderer.invoke(IPC_CHANNELS.publishCollectorActiveSource, relativePath),
   onPublishProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

@@ -1,5 +1,11 @@
 import { publicationHostLabel, publicationHostname } from "./hostnames"
 import {
+  brandedDocumentHeaders,
+  brandPublishedDocument,
+  isPublishBrandStylesheet,
+  publishBrandStylesheetResponse,
+} from "./branding"
+import {
   completeFormSubmission,
   formClientScriptResponse,
   formDefinitionResponse,
@@ -11,9 +17,14 @@ import {
 import type {
   DurableResult,
   PublicationVersionRecord,
+  StaticArtifactRecord,
   UsagePeriodRecord,
 } from "./contracts"
-import { refreshTenantEntitlementsIfStale } from "./entitlements"
+import {
+  refreshKnownTenantEntitlementsIfStale,
+  refreshTenantEntitlementsIfStale,
+} from "./entitlements"
+import { FORM_CLIENT_SCRIPT_PATH } from "./form"
 import { runtimeDescriptor, type EidosRuntimeContainer } from "./runtime"
 import type { PublishHandleDurableObject, PublishTenant } from "./tenant"
 
@@ -26,6 +37,8 @@ const MAX_TICKET_SECONDS = 300
 const MAX_RUNTIME_REQUEST_BYTES = 1024 * 1024
 const MAX_RUNTIME_RESPONSE_BYTES = 16 * 1024 * 1024
 const VIEWER_COOKIE = "__Host-eidos_publish_viewer"
+const RESPONDENT_COOKIE = "__Host-eidos_publish_respondent"
+const MAX_RESPONDENT_SESSION_SECONDS = 12 * 60 * 60
 const PASSWORD_COOKIE_PREFIX = "__Host-eidos_publish_password_"
 const MAX_PASSWORD_SESSION_SECONDS = 12 * 60 * 60
 const encoder = new TextEncoder()
@@ -63,7 +76,7 @@ const PASSWORD_CSP = [
 ].join("; ")
 const MARKDOWN_CSP = [
   "default-src 'none'",
-  "style-src 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "base-uri 'none'",
   "form-action 'none'",
@@ -90,9 +103,20 @@ interface ViewerSessionClaims {
   iss: "eidos-publish-viewer"
   aud: string
   sub: string
+  sid: string
   iat: number
   exp: number
-  kid: "v1"
+  kid: "v2"
+}
+
+interface RespondentSessionClaims {
+  iss: "eidos-publish-respondent"
+  aud: string
+  sub: string
+  sid: string
+  iat: number
+  exp: number
+  kid: "v2"
 }
 
 interface PasswordSessionClaims {
@@ -120,13 +144,48 @@ export async function routePublicRequest(
   if (label === null) return publicNotFound()
   if (
     (request.method === "GET" || request.method === "HEAD") &&
+    isPublishBrandStylesheet(url.pathname)
+  ) {
+    return publishBrandStylesheetResponse(request.method)
+  }
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
     url.pathname.startsWith("/assets/")
   ) {
     return await publicAsset(request, env, url.pathname)
   }
+  if (request.method === "GET" && url.pathname === FORM_CLIENT_SCRIPT_PATH) {
+    return formClientScriptResponse()
+  }
+  const runtimeMatch = /^\/_eidos\/runtime\/([^/]+)\/(api\/.*)$/.exec(
+    url.pathname
+  )
+  if (runtimeMatch !== null) {
+    return await proxyRuntime(
+      request,
+      env,
+      ctx,
+      label,
+      runtimeMatch[1] ?? "",
+      "/" + (runtimeMatch[2] ?? "")
+    )
+  }
   const tenantId = await resolveTenantId(env, label)
   if (tenantId === null) return publicNotFound()
   const tenant = env.PUBLISH_TENANTS.getByName(tenantId)
+  if (request.method === "GET" || request.method === "HEAD") {
+    const slug = shellSlug(url.pathname)
+    if (slug !== null) {
+      return await servePublicationDocument(
+        request,
+        env,
+        label,
+        tenantId,
+        tenant,
+        slug
+      )
+    }
+  }
   try {
     await refreshTenantEntitlementsIfStale(env, tenantId, tenant)
   } catch {
@@ -136,11 +195,6 @@ export async function routePublicRequest(
       "Current Publish access is unavailable"
     )
   }
-
-  if (request.method === "GET" && url.pathname === "/_eidos/forms/client.js") {
-    return formClientScriptResponse()
-  }
-
   const formDefinitionMatch = /^\/_eidos\/forms\/([^/]+)\/definition$/.exec(
     url.pathname
   )
@@ -160,7 +214,8 @@ export async function routePublicRequest(
       env,
       tenantId,
       authorized.audience,
-      authorized.resolved
+      authorized.resolved,
+      authorized.respondentUserId
     )
   }
 
@@ -187,7 +242,8 @@ export async function routePublicRequest(
       authorized.audience,
       slug,
       authorized.resolved,
-      access.collect
+      access.collect,
+      authorized.respondentUserId
     )
   }
 
@@ -214,7 +270,8 @@ export async function routePublicRequest(
       authorized.audience,
       formAttachmentMatch[2] ?? "",
       formAttachmentMatch[3] ?? "",
-      authorized.resolved
+      authorized.resolved,
+      authorized.respondentUserId
     )
   }
 
@@ -240,12 +297,17 @@ export async function routePublicRequest(
       tenantId,
       authorized.audience,
       authorized.resolved,
-      formCompleteMatch[2] ?? ""
+      formCompleteMatch[2] ?? "",
+      authorized.respondentUserId
     )
   }
 
   if (request.method === "GET" && url.pathname === "/_eidos/private/exchange") {
     return await exchangePrivateViewer(request, env, tenantId, tenant)
+  }
+
+  if (request.method === "GET" && url.pathname === "/_eidos/form/exchange") {
+    return await exchangeFormRespondent(request, env, tenantId, tenant)
   }
 
   if (request.method === "POST" && url.pathname === "/_eidos/password") {
@@ -288,76 +350,93 @@ export async function routePublicRequest(
       publishedFileMatch[4] ?? ""
     )
   }
-  const runtimeMatch = /^\/_eidos\/runtime\/([^/]+)\/(api\/.*)$/.exec(
-    url.pathname
-  )
-  if (runtimeMatch !== null) {
-    return await proxyRuntime(
-      request,
-      env,
-      ctx,
-      label,
-      tenantId,
-      tenant,
-      runtimeMatch[1] ?? "",
-      "/" + (runtimeMatch[2] ?? "")
+  return publicNotFound()
+}
+
+async function servePublicationDocument(
+  request: Request,
+  env: Env,
+  label: string,
+  tenantId: string,
+  tenant: DurableObjectStub<PublishTenant>,
+  slug: string
+): Promise<Response> {
+  let resolved = await tenant.resolvePublication(slug)
+  if (!resolved.ok) return publicNotFound()
+  try {
+    if (
+      await refreshKnownTenantEntitlementsIfStale(env, tenantId, tenant, {
+        ownerUserId: resolved.value.ownerUserId,
+        checkedAt: resolved.value.accessCheckedAt,
+      })
+    ) {
+      resolved = await tenant.resolvePublication(slug)
+      if (!resolved.ok) return publicNotFound()
+    }
+  } catch {
+    return runtimeProblem(
+      503,
+      "identity_unavailable",
+      "Current Publish access is unavailable"
     )
   }
-  if (request.method === "GET" || request.method === "HEAD") {
-    const slug = shellSlug(url.pathname)
-    if (slug !== null) {
-      const resolved = await tenant.resolvePublication(slug)
-      if (!resolved.ok) return publicNotFound()
-      const canonical = canonicalLabel(resolved.value.canonicalHandle, tenantId)
-      if (canonical !== label) {
-        const redirect = new URL(request.url)
-        redirect.hostname = publicationHostname(canonical, env)
-        stripRedirectSecrets(redirect)
-        return Response.redirect(redirect.toString(), 308)
-      }
-      if (
-        resolved.value.publication.visibility === "private" &&
-        !(await privateViewerAuthorized(
-          request,
-          resolved.value.ownerUserId,
-          publicationHostname(canonical, env),
-          env.RUNTIME_TICKET_SECRET
-        ))
-      ) {
-        return privateAuthorizationRedirect(request, env, canonical, slug)
-      }
-      if (
-        resolved.value.publication.accessMode === "password" &&
-        !(await passwordViewerAuthorized(
-          request,
-          slug,
-          resolved.value.publication.publicationId,
-          resolved.value.publication.accessRevision,
-          publicationHostname(canonical, env),
-          env.PUBLISH_PASSWORD_SESSION_SECRET
-        ))
-      ) {
-        return passwordChallenge(request, slug)
-      }
-      if (resolved.value.version.servingTarget?.kind === "static") {
-        return await serveStaticDocument(
-          request,
-          env,
-          tenant,
-          resolved.value.version,
-          resolved.value.publication.accessMode !== "public"
-        )
-      }
-      return await publicAsset(
-        request,
-        env,
-        "/index.html",
-        slug,
-        resolved.value.publication.accessMode !== "public"
-      )
-    }
+  const canonical = canonicalLabel(resolved.value.canonicalHandle, tenantId)
+  if (canonical !== label) {
+    const redirect = new URL(request.url)
+    redirect.hostname = publicationHostname(canonical, env)
+    stripRedirectSecrets(redirect)
+    return Response.redirect(redirect.toString(), 308)
   }
-  return publicNotFound()
+  const hostname = publicationHostname(canonical, env)
+  if (
+    resolved.value.publication.visibility === "private" &&
+    !(await privateViewerAuthorized(
+      request,
+      resolved.value.ownerUserId,
+      hostname,
+      env
+    ))
+  ) {
+    return privateAuthorizationRedirect(request, env, canonical, slug)
+  }
+  if (
+    resolved.value.publication.accessMode === "password" &&
+    !(await passwordViewerAuthorized(
+      request,
+      slug,
+      resolved.value.publication.publicationId,
+      resolved.value.publication.accessRevision,
+      hostname,
+      env.PUBLISH_PASSWORD_SESSION_SECRET
+    ))
+  ) {
+    return passwordChallenge(request, slug)
+  }
+  if (
+    resolved.value.version.driverId === "org.eidos.driver.form" &&
+    resolved.value.formPolicy.respondentAccess === "signed_in" &&
+    (await formRespondentUserId(request, hostname, env)) === null
+  ) {
+    return formAuthorizationRedirect(env, canonical, slug)
+  }
+  if (resolved.value.version.servingTarget?.kind === "static") {
+    return await serveStaticDocument(
+      request,
+      env,
+      resolved.value.staticArtifact,
+      resolved.value.version,
+      resolved.value.publication.accessMode !== "public",
+      resolved.value.publication.showBranding
+    )
+  }
+  return await publicAsset(
+    request,
+    env,
+    "/index.html",
+    slug,
+    resolved.value.publication.accessMode !== "public",
+    resolved.value.publication.showBranding
+  )
 }
 
 async function createRuntimeSession(
@@ -379,7 +458,7 @@ async function createRuntimeSession(
       request,
       resolved.value.ownerUserId,
       publicationHostname(canonical, env),
-      env.RUNTIME_TICKET_SECRET
+      env
     ))
   ) {
     return publicNotFound()
@@ -423,13 +502,13 @@ async function createRuntimeSession(
     env.EIDOS_RUNTIMES.getByName(descriptor.shardKey)
   const orchestrationMode: string = env.ORCHESTRATION_MODE
   const state =
-    orchestrationMode === "control-only-test" ? null : await runtime.getState()
-  const containerReady =
-    state?.status === "healthy" || state?.status === "running"
-  const ready =
-    containerReady && orchestrationMode !== "control-only-test"
-      ? await runtime.isVersionReady(descriptor).catch(() => false)
-      : false
+    orchestrationMode === "control-only-test"
+      ? null
+      : await runtime
+          .getVersionState(descriptor)
+          .catch(() => ({ containerReady: false, versionReady: false }))
+  const containerReady = state?.containerReady === true
+  const ready = state?.versionReady === true
   const authorized = await tenant.authorizeRuntimeRequest(
     resolved.value.publication.publicationId,
     version.versionId,
@@ -480,8 +559,6 @@ async function proxyRuntime(
   env: Env,
   ctx: ExecutionContext,
   hostLabel: string,
-  tenantId: string,
-  tenant: DurableObjectStub<PublishTenant>,
   slug: string,
   runtimePath: string
 ): Promise<Response> {
@@ -506,49 +583,41 @@ async function proxyRuntime(
       "Runtime ticket is required"
     )
   const claims = await verifyTicket(token, env.RUNTIME_TICKET_SECRET)
-  if (
-    claims === null ||
-    claims.aud !== publicationHostname(hostLabel, env) ||
-    claims.tenantId !== tenantId
-  ) {
+  if (claims === null || claims.aud !== publicationHostname(hostLabel, env)) {
     return runtimeProblem(
       401,
       "invalid_runtime_ticket",
       "Runtime ticket is invalid or expired"
     )
   }
-  const resolved = await tenant.resolvePublication(slug)
-  if (!resolved.ok) return publicNotFound()
-  const version = requireRuntimeVersion(resolved.value.version)
+  const tenantId = claims.tenantId
+  const tenant = env.PUBLISH_TENANTS.getByName(tenantId)
+  const requestLeaseId = crypto.randomUUID()
+  const authorized = await tenant.authorizeRuntimeProxyRequest(
+    {
+      slug,
+      publicationId: claims.publicationId,
+      versionId: claims.versionId,
+      servingTargetSha256: claims.servingTargetSha256,
+      visibility: claims.visibility,
+      accessMode: claims.accessMode,
+      accessRevision: claims.accessRevision,
+    },
+    await clientIdentityHash(request, env.RUNTIME_TICKET_SECRET),
+    requestLeaseId
+  )
+  if (!authorized.ok) {
+    return authorized.error.status === 404
+      ? publicNotFound()
+      : runtimeUsageFailure(authorized)
+  }
+  const version = requireRuntimeVersion(authorized.value.version)
   const descriptor = runtimeDescriptor(
     version,
     tenantId,
-    resolved.value.runtimeIdleSeconds,
+    authorized.value.runtimeIdleSeconds,
     env.RUNTIME_SHARD_COUNT
   )
-  if (
-    claims.publicationId !== resolved.value.publication.publicationId ||
-    claims.versionId !== version.versionId ||
-    claims.servingTargetSha256 !== version.servingTargetSha256 ||
-    claims.visibility !== resolved.value.publication.visibility ||
-    claims.accessMode !== resolved.value.publication.accessMode ||
-    claims.accessRevision !== resolved.value.publication.accessRevision
-  ) {
-    return runtimeProblem(
-      401,
-      "stale_runtime_ticket",
-      "Runtime ticket no longer targets the active Version"
-    )
-  }
-  const requestLeaseId = crypto.randomUUID()
-  const authorized = await tenant.authorizeRuntimeRequest(
-    resolved.value.publication.publicationId,
-    version.versionId,
-    await clientIdentityHash(request, env.RUNTIME_TICKET_SECRET),
-    false,
-    requestLeaseId
-  )
-  if (!authorized.ok) return runtimeUsageFailure(authorized)
   if (request.method === "POST" && runtimePath === "/api/assets/resolve") {
     const body = await boundedAssetResolveBody(request)
     const asset = await tenant.resolvePublishedAsset(
@@ -679,7 +748,7 @@ async function servePublishedFile(
       request,
       resolved.value.ownerUserId,
       hostname,
-      env.RUNTIME_TICKET_SECRET
+      env
     ))
   ) {
     return publicNotFound()
@@ -749,9 +818,10 @@ async function servePublishedFile(
 async function serveStaticDocument(
   request: Request,
   env: Env,
-  tenant: DurableObjectStub<PublishTenant>,
+  artifact: StaticArtifactRecord | null,
   version: PublicationVersionRecord,
-  protectedDocument: boolean
+  protectedDocument: boolean,
+  showBranding: boolean
 ): Promise<Response> {
   const target = version.servingTarget
   if (
@@ -762,23 +832,23 @@ async function serveStaticDocument(
   ) {
     return publicNotFound()
   }
-  const artifact = await tenant.resolvePublishedArtifact(
-    version.versionId,
-    target.entrypoint
-  )
-  if (!artifact.ok) return publicNotFound()
+  if (artifact === null || artifact.path !== target.entrypoint) {
+    return publicNotFound()
+  }
+  const privateDocument =
+    protectedDocument || version.driverId === "org.eidos.driver.form"
   const headers = new Headers({
-    "Cache-Control": protectedDocument
+    "Cache-Control": privateDocument
       ? "private, no-store"
       : "public, max-age=60",
-    "Content-Length": artifact.value.bytes,
+    "Content-Length": artifact.bytes,
     "Content-Security-Policy":
       version.driverId === "org.eidos.driver.form"
         ? formDocumentCsp()
         : MARKDOWN_CSP,
-    "Content-Type": artifact.value.mediaType,
+    "Content-Type": artifact.mediaType,
     "Cross-Origin-Resource-Policy": "same-origin",
-    ETag: `"sha256-${artifact.value.sha256}"`,
+    ETag: `"sha256-${artifact.sha256}"`,
     "Permissions-Policy":
       "camera=(), microphone=(), geolocation=(), payment=()",
     "Referrer-Policy": "no-referrer",
@@ -786,20 +856,23 @@ async function serveStaticDocument(
     "X-Frame-Options": "DENY",
   })
   if (request.method === "HEAD") {
-    const object = await env.PUBLISH_OBJECTS.head(artifact.value.objectKey)
-    return validStoredAsset(object, artifact.value.bytes, artifact.value.sha256)
-      ? new Response(null, { headers })
+    const object = await env.PUBLISH_OBJECTS.head(artifact.objectKey)
+    return validStoredAsset(object, artifact.bytes, artifact.sha256)
+      ? new Response(null, {
+          headers: showBranding ? brandedDocumentHeaders(headers) : headers,
+        })
       : publicNotFound()
   }
-  const object = await env.PUBLISH_OBJECTS.get(artifact.value.objectKey)
+  const object = await env.PUBLISH_OBJECTS.get(artifact.objectKey)
   if (
     object === null ||
-    !validStoredAsset(object, artifact.value.bytes, artifact.value.sha256)
+    !validStoredAsset(object, artifact.bytes, artifact.sha256)
   ) {
     await object?.body.cancel()
     return publicNotFound()
   }
-  return new Response(object.body, { headers })
+  const document = new Response(object.body, { headers })
+  return showBranding ? brandPublishedDocument(document) : document
 }
 
 function validStoredAsset(
@@ -926,7 +999,7 @@ async function resolveAuthorizedForm(
       request,
       resolved.value.ownerUserId,
       audience,
-      env.RUNTIME_TICKET_SECRET
+      env
     ))
   ) {
     return publicNotFound()
@@ -944,7 +1017,14 @@ async function resolveAuthorizedForm(
   ) {
     return publicNotFound()
   }
-  return { audience, resolved: resolved.value }
+  const respondentUserId = await formRespondentUserId(request, audience, env)
+  if (
+    resolved.value.formPolicy.respondentAccess === "signed_in" &&
+    respondentUserId === null
+  ) {
+    return formAuthorizationRequired(env, canonical, slug)
+  }
+  return { audience, respondentUserId, resolved: resolved.value }
 }
 
 function requireRuntimeVersion(
@@ -968,7 +1048,8 @@ async function publicAsset(
   env: Env,
   pathname: string,
   publishSlug?: string,
-  privateShell = false
+  privateShell = false,
+  showBranding = true
 ): Promise<Response> {
   const assetUrl = new URL(request.url)
   assetUrl.hostname = env.CONTROL_HOST
@@ -976,7 +1057,10 @@ async function publicAsset(
   assetUrl.search = ""
   const assetRequest = new Request(assetUrl, {
     method: request.method,
-    headers: request.headers,
+    headers:
+      pathname === "/index.html" && publishSlug !== undefined
+        ? unconditionalDocumentHeaders(request.headers)
+        : request.headers,
   })
   const response = await env.ASSETS.fetch(assetRequest)
   const headers = new Headers(response.headers)
@@ -998,18 +1082,24 @@ async function publicAsset(
     "camera=(), microphone=(), geolocation=(), payment=()"
   )
   if (pathname === "/index.html" && publishSlug !== undefined && response.ok) {
-    const html = await response.text()
-    headers.delete("Content-Length")
-    headers.delete("ETag")
-    return new Response(
-      html.replace(
-        "<head>",
-        `<head><meta name="eidos-publish-slug" content="${publishSlug}">`
-      ),
-      { status: response.status, headers }
-    )
+    const document = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+    return request.method === "HEAD"
+      ? new Response(null, { headers: brandedDocumentHeaders(headers) })
+      : brandPublishedDocument(document, publishSlug, showBranding)
   }
   return new Response(response.body, { status: response.status, headers })
+}
+
+function unconditionalDocumentHeaders(source: Headers): Headers {
+  const headers = new Headers(source)
+  headers.delete("If-Modified-Since")
+  headers.delete("If-None-Match")
+  headers.delete("Range")
+  return headers
 }
 
 async function exchangePrivateViewer(
@@ -1031,35 +1121,8 @@ async function exchangePrivateViewer(
     return publicNotFound()
   }
   const navigation = publicationNavigation(url.searchParams)
-  requireExchangeSecret(env.PUBLISH_VIEWER_EXCHANGE_SECRET)
-  let response: Response
-  try {
-    const exchangeUrl = new URL(
-      "/api/publish/viewer-authorize",
-      env.AUTH_USERINFO_URL
-    )
-    response = await env.EIDOS_ACCOUNT.fetch(exchangeUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Eidos-Publish-Exchange": env.PUBLISH_VIEWER_EXCHANGE_SECRET,
-      },
-      body: JSON.stringify({ code, host: url.hostname }),
-      signal: AbortSignal.timeout(5_000),
-    })
-  } catch {
-    return runtimeProblem(
-      503,
-      "viewer_authorization_unavailable",
-      "Viewer authorization is unavailable"
-    )
-  }
-  if (!response.ok) {
-    await response.body?.cancel()
-    return publicNotFound()
-  }
-  const exchanged = await boundedExchangeResponse(response)
-  if (exchanged === null) return publicNotFound()
+  const exchanged = await exchangeSignedInAuthorization(env, code, url.hostname)
+  if (exchanged instanceof Response) return exchanged
   const resolved = await tenant.resolvePublication(exchanged.publicationSlug)
   if (
     !resolved.ok ||
@@ -1076,9 +1139,10 @@ async function exchangePrivateViewer(
     iss: "eidos-publish-viewer",
     aud: url.hostname,
     sub: exchanged.userId,
+    sid: exchanged.sessionId,
     iat: now,
     exp: now + MAX_TICKET_SECONDS,
-    kid: "v1",
+    kid: "v2",
   }
   return new Response(null, {
     status: 303,
@@ -1089,6 +1153,94 @@ async function exchangePrivateViewer(
       "Set-Cookie": `${VIEWER_COOKIE}=${await signViewerSession(viewer, env.RUNTIME_TICKET_SECRET)}; Max-Age=${MAX_TICKET_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     },
   })
+}
+
+async function exchangeFormRespondent(
+  request: Request,
+  env: Env,
+  tenantId: string,
+  tenant: DurableObjectStub<PublishTenant>
+): Promise<Response> {
+  const url = new URL(request.url)
+  const code = url.searchParams.get("code")
+  if (
+    code === null ||
+    !/^[A-Za-z0-9_-]{43}$/.test(code) ||
+    url.searchParams.getAll("code").length !== 1 ||
+    [...url.searchParams.keys()].some((key) => key !== "code")
+  ) {
+    return publicNotFound()
+  }
+  const exchanged = await exchangeSignedInAuthorization(env, code, url.hostname)
+  if (exchanged instanceof Response) return exchanged
+  const resolved = await tenant.resolvePublication(exchanged.publicationSlug)
+  if (
+    !resolved.ok ||
+    resolved.value.version.driverId !== "org.eidos.driver.form" ||
+    resolved.value.formPolicy.respondentAccess !== "signed_in"
+  ) {
+    return publicNotFound()
+  }
+  const canonical = canonicalLabel(resolved.value.canonicalHandle, tenantId)
+  if (publicationHostname(canonical, env) !== url.hostname) {
+    return publicNotFound()
+  }
+  const now = Math.floor(Date.now() / 1000)
+  const claims: RespondentSessionClaims = {
+    iss: "eidos-publish-respondent",
+    aud: url.hostname,
+    sub: exchanged.userId,
+    sid: exchanged.sessionId,
+    iat: now,
+    exp: now + MAX_RESPONDENT_SESSION_SECONDS,
+    kid: "v2",
+  }
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `/${exchanged.publicationSlug}`,
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+      "Set-Cookie": `${RESPONDENT_COOKIE}=${await signRespondentSession(claims, env.RUNTIME_TICKET_SECRET)}; Max-Age=${MAX_RESPONDENT_SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+    },
+  })
+}
+
+async function exchangeSignedInAuthorization(
+  env: Env,
+  code: string,
+  host: string
+): Promise<
+  { userId: string; publicationSlug: string; sessionId: string } | Response
+> {
+  requireExchangeSecret(env.PUBLISH_VIEWER_EXCHANGE_SECRET)
+  let response: Response
+  try {
+    const exchangeUrl = new URL(
+      "/api/publish/viewer-authorize",
+      env.AUTH_USERINFO_URL
+    )
+    response = await env.EIDOS_ACCOUNT.fetch(exchangeUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Exchange": env.PUBLISH_VIEWER_EXCHANGE_SECRET,
+      },
+      body: JSON.stringify({ code, host }),
+      signal: AbortSignal.timeout(5_000),
+    })
+  } catch {
+    return runtimeProblem(
+      503,
+      "viewer_authorization_unavailable",
+      "Viewer authorization is unavailable"
+    )
+  }
+  if (!response.ok) {
+    await response.body?.cancel()
+    return publicNotFound()
+  }
+  return (await boundedExchangeResponse(response)) ?? publicNotFound()
 }
 
 function privateAuthorizationRedirect(
@@ -1118,6 +1270,63 @@ function privateAuthorizationRedirect(
       "Referrer-Policy": "no-referrer",
     },
   })
+}
+
+function formAuthorizationUrl(
+  env: Env,
+  canonicalLabelValue: string,
+  slug: string
+): string {
+  const authorize = new URL(
+    "/api/publish/viewer-authorize",
+    env.AUTH_USERINFO_URL
+  )
+  authorize.searchParams.set(
+    "host",
+    publicationHostname(canonicalLabelValue, env)
+  )
+  authorize.searchParams.set("slug", slug)
+  authorize.searchParams.set("purpose", "form")
+  return authorize.toString()
+}
+
+function formAuthorizationRedirect(
+  env: Env,
+  canonicalLabelValue: string,
+  slug: string
+): Response {
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: formAuthorizationUrl(env, canonicalLabelValue, slug),
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+    },
+  })
+}
+
+function formAuthorizationRequired(
+  env: Env,
+  canonicalLabelValue: string,
+  slug: string
+): Response {
+  return Response.json(
+    {
+      error: {
+        code: "form_authentication_required",
+        message: "Sign in to submit this Form",
+      },
+      authorizationUrl: formAuthorizationUrl(env, canonicalLabelValue, slug),
+    },
+    {
+      status: 401,
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Type": "application/json; charset=utf-8",
+        "Referrer-Policy": "no-referrer",
+      },
+    }
+  )
 }
 
 async function exchangePublicationPassword(
@@ -1337,19 +1546,83 @@ async function privateViewerAuthorized(
   request: Request,
   ownerUserId: string,
   audience: string,
-  secret: string
+  env: Env
 ): Promise<boolean> {
   const token = cookieValue(request.headers.get("cookie"), VIEWER_COOKIE)
   if (token === null) return false
-  const claims = await verifyViewerSession(token, secret)
+  const claims = await verifyViewerSession(token, env.RUNTIME_TICKET_SECRET)
   return (
-    claims !== null && claims.aud === audience && claims.sub === ownerUserId
+    claims !== null &&
+    claims.aud === audience &&
+    claims.sub === ownerUserId &&
+    (await activeSignedInSession(env, claims.sub, claims.sid))
   )
 }
 
-async function boundedExchangeResponse(
-  response: Response
-): Promise<{ userId: string; publicationSlug: string } | null> {
+async function formRespondentUserId(
+  request: Request,
+  audience: string,
+  env: Env
+): Promise<string | null> {
+  const cookies = request.headers.get("cookie")
+  const token = cookieValue(cookies, RESPONDENT_COOKIE)
+  if (token !== null) {
+    const claims = await verifyRespondentSession(
+      token,
+      env.RUNTIME_TICKET_SECRET
+    )
+    if (
+      claims?.aud === audience &&
+      (await activeSignedInSession(env, claims.sub, claims.sid))
+    ) {
+      return claims.sub
+    }
+  }
+  const viewer = cookieValue(cookies, VIEWER_COOKIE)
+  if (viewer === null) return null
+  const claims = await verifyViewerSession(viewer, env.RUNTIME_TICKET_SECRET)
+  return claims?.aud === audience &&
+    (await activeSignedInSession(env, claims.sub, claims.sid))
+    ? claims.sub
+    : null
+}
+
+async function activeSignedInSession(
+  env: Env,
+  userId: string,
+  sessionId: string
+): Promise<boolean> {
+  requireExchangeSecret(env.PUBLISH_VIEWER_EXCHANGE_SECRET)
+  let response: Response
+  try {
+    const sessionUrl = new URL(
+      "/api/publish/viewer-session",
+      env.AUTH_USERINFO_URL
+    )
+    response = await env.EIDOS_ACCOUNT.fetch(sessionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Exchange": env.PUBLISH_VIEWER_EXCHANGE_SECRET,
+      },
+      body: JSON.stringify({ userId, sessionId }),
+      signal: AbortSignal.timeout(5_000),
+    })
+  } catch {
+    return false
+  }
+  if (!response.ok) {
+    await response.body?.cancel()
+    return false
+  }
+  return (await boundedSessionStateResponse(response)) === true
+}
+
+async function boundedExchangeResponse(response: Response): Promise<{
+  userId: string
+  publicationSlug: string
+  sessionId: string
+} | null> {
   const text = await response.text()
   if (encoder.encode(text).byteLength > 2048) return null
   let value: unknown
@@ -1361,13 +1634,41 @@ async function boundedExchangeResponse(
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return null
   const record = value as Record<string, unknown>
-  return Object.keys(record).length === 2 &&
+  return Object.keys(record).length === 3 &&
     typeof record.userId === "string" &&
     record.userId.length > 0 &&
     record.userId.length <= 256 &&
     typeof record.publicationSlug === "string" &&
-    SLUG.test(record.publicationSlug)
-    ? { userId: record.userId, publicationSlug: record.publicationSlug }
+    SLUG.test(record.publicationSlug) &&
+    typeof record.sessionId === "string" &&
+    record.sessionId.length > 0 &&
+    record.sessionId.length <= 256 &&
+    !/[\u0000-\u001f\u007f]/.test(record.sessionId)
+    ? {
+        userId: record.userId,
+        publicationSlug: record.publicationSlug,
+        sessionId: record.sessionId,
+      }
+    : null
+}
+
+async function boundedSessionStateResponse(
+  response: Response
+): Promise<boolean | null> {
+  const text = await response.text()
+  if (encoder.encode(text).byteLength > 1024) return null
+  let value: unknown
+  try {
+    value = JSON.parse(text) as unknown
+  } catch {
+    return null
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null
+  }
+  const record = value as Record<string, unknown>
+  return Object.keys(record).length === 1 && typeof record.active === "boolean"
+    ? record.active
     : null
 }
 
@@ -1512,6 +1813,15 @@ async function signViewerSession(
   return payload + "." + base64Url(await hmac(payload, secret))
 }
 
+async function signRespondentSession(
+  claims: RespondentSessionClaims,
+  secret: string
+): Promise<string> {
+  requireTicketSecret(secret)
+  const payload = base64Url(encoder.encode(JSON.stringify(claims)))
+  return payload + "." + base64Url(await hmac(payload, secret))
+}
+
 async function signPasswordSession(
   claims: PasswordSessionClaims,
   secret: string
@@ -1567,6 +1877,32 @@ async function verifyViewerSession(
   return value.iat > now + 30 ||
     value.exp <= now ||
     value.exp - value.iat > MAX_TICKET_SECONDS
+    ? null
+    : value
+}
+
+async function verifyRespondentSession(
+  token: string,
+  secret: string
+): Promise<RespondentSessionClaims | null> {
+  requireTicketSecret(secret)
+  const [payload, signature, extra] = token.split(".")
+  if (payload === undefined || signature === undefined || extra !== undefined) {
+    return null
+  }
+  const expected = base64Url(await hmac(payload, secret))
+  if (!constantTimeEqual(signature, expected)) return null
+  let value: unknown
+  try {
+    value = JSON.parse(decoder.decode(base64UrlDecode(payload))) as unknown
+  } catch {
+    return null
+  }
+  if (!validRespondentSessionClaims(value)) return null
+  const now = Math.floor(Date.now() / 1000)
+  return value.iat > now + 30 ||
+    value.exp <= now ||
+    value.exp - value.iat > MAX_RESPONDENT_SESSION_SECONDS
     ? null
     : value
 }
@@ -1671,11 +2007,40 @@ function validViewerSessionClaims(
     return false
   const claim = value as Record<string, unknown>
   return (
-    Object.keys(claim).length === 6 &&
+    Object.keys(claim).length === 7 &&
     claim.iss === "eidos-publish-viewer" &&
-    claim.kid === "v1" &&
+    claim.kid === "v2" &&
     typeof claim.aud === "string" &&
     typeof claim.sub === "string" &&
+    typeof claim.sid === "string" &&
+    claim.sid.length > 0 &&
+    claim.sid.length <= 256 &&
+    !/[\u0000-\u001f\u007f]/.test(claim.sid) &&
+    Number.isSafeInteger(claim.iat) &&
+    Number.isSafeInteger(claim.exp)
+  )
+}
+
+function validRespondentSessionClaims(
+  value: unknown
+): value is RespondentSessionClaims {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false
+  }
+  const claim = value as Record<string, unknown>
+  return (
+    Object.keys(claim).length === 7 &&
+    claim.iss === "eidos-publish-respondent" &&
+    claim.kid === "v2" &&
+    typeof claim.aud === "string" &&
+    typeof claim.sub === "string" &&
+    claim.sub.length > 0 &&
+    claim.sub.length <= 256 &&
+    !/[\u0000-\u001f\u007f]/.test(claim.sub) &&
+    typeof claim.sid === "string" &&
+    claim.sid.length > 0 &&
+    claim.sid.length <= 256 &&
+    !/[\u0000-\u001f\u007f]/.test(claim.sid) &&
     Number.isSafeInteger(claim.iat) &&
     Number.isSafeInteger(claim.exp)
   )

@@ -7,12 +7,12 @@ const freeAccess = {
   service: "eidos_publish",
   state: "active",
   plan: "free",
-  username: false,
+  handle: false,
   privatePublications: false,
   removeBranding: false,
   maxStorageBytes: "1073741824",
   maxObjectBytes: "1073741824",
-  retentionDays: 7,
+  retentionDays: 1,
   runtimeSecondsPerPeriod: "18000",
   runtimeStartsPerPeriod: 100,
   runtimeIdleSeconds: 60,
@@ -62,9 +62,28 @@ export default defineConfig({
               request.headers.get("x-eidos-publish-exchange") ===
                 "test-only-viewer-exchange-secret-32-bytes-minimum"
             ) {
+              const body = await request.json<{ code: string }>()
               return Response.json({
                 userId: "pro-user",
-                publicationSlug: "private-data",
+                publicationSlug:
+                  body.code === "b".repeat(43) || body.code === "c".repeat(43)
+                    ? "feedback"
+                    : "private-data",
+                sessionId:
+                  body.code === "c".repeat(43)
+                    ? "session-revoked"
+                    : "session-active",
+              })
+            }
+            if (
+              request.method === "POST" &&
+              url.pathname === "/api/publish/viewer-session" &&
+              request.headers.get("x-eidos-publish-exchange") ===
+                "test-only-viewer-exchange-secret-32-bytes-minimum"
+            ) {
+              const body = await request.json<{ sessionId: string }>()
+              return Response.json({
+                active: body.sessionId === "session-active",
               })
             }
             if (
@@ -79,18 +98,17 @@ export default defineConfig({
                 body.userId === "pro-collision-user"
               return Response.json({
                 sub: body.userId,
-                ...(pro ? { username: "mayne" } : {}),
                 publish_access: pro
                   ? {
                       ...freeAccess,
                       revision: 2,
                       plan: "pro",
-                      username: true,
+                      handle: true,
                       privatePublications: true,
                       removeBranding: true,
                       maxStorageBytes: "10737418240",
                       maxObjectBytes: "1073741824",
-                      retentionDays: 90,
+                      retentionDays: 30,
                       runtimeSecondsPerPeriod: "360000",
                       runtimeStartsPerPeriod: 2000,
                       runtimeIdleSeconds: 600,
@@ -107,7 +125,7 @@ export default defineConfig({
                       },
                     }
                   : body.userId === "downgrade-user"
-                    ? { ...freeAccess, revision: 3 }
+                    ? { ...freeAccess, revision: 3, state: "blocked" }
                     : freeAccess,
               })
             }
@@ -116,6 +134,12 @@ export default defineConfig({
               return Response.json({
                 sub: authorization.slice("Bearer ".length),
                 publish_access: freeAccess,
+              })
+            }
+            if (authorization === "Bearer blocked-token") {
+              return Response.json({
+                sub: "blocked-user",
+                publish_access: { ...freeAccess, state: "blocked" },
               })
             }
             if (
@@ -130,20 +154,16 @@ export default defineConfig({
                     : authorization === "Bearer pro-collision-token"
                       ? "pro-collision-user"
                       : "downgrade-user",
-                username:
-                  authorization === "Bearer downgrade-token"
-                    ? "downgrade"
-                    : "mayne",
                 publish_access: {
                   ...freeAccess,
                   revision: 2,
                   plan: "pro",
-                  username: true,
+                  handle: true,
                   privatePublications: true,
                   removeBranding: true,
                   maxStorageBytes: "10737418240",
                   maxObjectBytes: "1073741824",
-                  retentionDays: 90,
+                  retentionDays: 30,
                   runtimeSecondsPerPeriod: "360000",
                   runtimeStartsPerPeriod: 2000,
                   runtimeIdleSeconds: 600,

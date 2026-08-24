@@ -73,9 +73,9 @@ safe mutation workflows.
 ### Publish a read-only copy (preview)
 
 Eidos Publish uploads immutable Eidos File or Markdown Versions, including
-local attachments, to a stable `*.eidos.ink` URL while the local source remains yours. The staging preview supports public
-access for Free accounts and adds password or owner-only access for Publish
-Pro. Follow [Publish a file](./apps/docs/src/content/docs/cli/publish.mdx)
+local attachments, to a stable `*.eidos.ink` URL while the local source remains
+yours. Local preview is free; hosted public, password, and owner-only access
+require an active Publish subscription. Follow [Publish a file](./apps/docs/src/content/docs/cli/publish.mdx)
 for CLI key setup, resource slugs, limits, and staging commands.
 
 ## Current product line

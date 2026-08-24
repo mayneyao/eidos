@@ -128,6 +128,7 @@ function parsedJson<T>(value: string | null): T | null {
 }
 
 function bindingRecord(row: PublicationBindingRow): StoredPublicationBinding {
+  const lastResult = parsedJson<EidosPublishResult>(row.last_result_json)
   return {
     bindingId: row.binding_id,
     serviceOrigin: row.service_origin,
@@ -142,6 +143,8 @@ function bindingRecord(row: PublicationBindingRow): StoredPublicationBinding {
     currentVersionId: row.current_version_id,
     url: row.url,
     accessMode: row.access_mode,
+    showBranding: lastResult?.showBranding ?? true,
+    formPolicy: lastResult?.formPolicy ?? null,
     sourceSha256: row.source_sha256,
     fingerprintSpec: row.fingerprint_spec,
     publishFingerprint: row.publish_fingerprint,
@@ -152,7 +155,7 @@ function bindingRecord(row: PublicationBindingRow): StoredPublicationBinding {
     localObservation: parsedJson<PublicationSourceObservation>(
       row.local_observation_json
     ),
-    lastResult: parsedJson<EidosPublishResult>(row.last_result_json),
+    lastResult,
   }
 }
 

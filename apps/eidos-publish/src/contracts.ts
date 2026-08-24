@@ -1,12 +1,20 @@
 export type PublishPlan = "free" | "pro"
 
+export type FormRespondentAccess = "anyone" | "signed_in"
+
+export interface FormPublicationPolicy {
+  respondentAccess: FormRespondentAccess
+  allowMultipleResponses: boolean
+  revision: number
+}
+
 export interface PublishAccessGrant {
   version: 1
   revision: number
   service: "eidos_publish"
   state: "active" | "blocked"
   plan: PublishPlan
-  username: boolean
+  handle: boolean
   privatePublications: boolean
   removeBranding: boolean
   maxStorageBytes: string
@@ -31,7 +39,6 @@ export interface PublishCollectLimits {
 
 export interface PublishPrincipal {
   userId: string
-  accountUsername: string | null
   access: PublishAccessGrant
 }
 
@@ -41,6 +48,7 @@ export interface PublicationRecord {
   visibility: "public" | "private"
   accessMode: "public" | "password" | "private"
   accessRevision: number
+  showBranding: boolean
   currentVersionId: string | null
   createdAt: string
 }
@@ -177,6 +185,11 @@ export interface PublicFormDefinition {
   submissionIntent: string
   expiresAt: string
 }
+
+export type PublicFormDocumentDefinition = Omit<
+  PublicFormDefinition,
+  "submissionIntent" | "expiresAt"
+>
 
 export interface FormSubmissionAttachmentInput {
   attachmentId: string

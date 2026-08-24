@@ -6,7 +6,6 @@ import {
   CircleAlert,
   Copy,
   ExternalLink,
-  Inbox,
   LoaderCircle,
   RotateCcw,
   Upload,
@@ -36,11 +35,6 @@ export interface PublishTaskState {
   progress: EidosPublishProgress
   result?: EidosPublishResult
   failure?: PublishTaskFailure
-  collection?: {
-    status: "running" | "succeeded" | "failed"
-    imported?: number
-    message?: string
-  }
 }
 
 export function updatePublishTaskProgress(
@@ -66,7 +60,6 @@ interface PublishTaskDockProps {
   onExpandedChange(expanded: boolean): void
   onDismiss(): void
   onRetry(): void
-  onCollect(): void
 }
 
 export function PublishTaskDock({
@@ -75,7 +68,6 @@ export function PublishTaskDock({
   onExpandedChange,
   onDismiss,
   onRetry,
-  onCollect,
 }: PublishTaskDockProps) {
   const { t } = useEidosLiteI18n()
   const [copied, setCopied] = useState(false)
@@ -240,40 +232,13 @@ export function PublishTaskDock({
               <ExternalLink /> {t("Open")}
             </button>
           </div>
-          {task.result.driverId === "org.eidos.driver.form" ? (
-            <div className="publish-collect-actions">
-              <span>
-                {task.collection?.status === "succeeded"
-                  ? t("{count} responses collected", {
-                      count: task.collection.imported ?? 0,
-                    })
-                  : task.collection?.status === "failed"
-                    ? task.collection.message
-                    : t("Collect new responses into the local Eidos File.")}
-              </span>
-              <button
-                type="button"
-                disabled={task.collection?.status === "running"}
-                onClick={onCollect}
-              >
-                {task.collection?.status === "running" ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <Inbox />
-                )}
-                {task.collection?.status === "running"
-                  ? t("Collecting…")
-                  : t("Collect now")}
-              </button>
-            </div>
-          ) : null}
         </section>
       ) : (
         <section className="publish-task-error" aria-live="assertive">
           <div className="publish-failure" role="alert">
             <strong>
               {upgradeRequired
-                ? t("Publish Pro is required")
+                ? t("A Publish subscription is required")
                 : authenticationRequired
                   ? t("Sign in to publish")
                   : t("Publish failed")}

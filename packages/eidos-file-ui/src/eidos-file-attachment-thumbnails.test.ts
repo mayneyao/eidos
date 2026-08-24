@@ -202,6 +202,112 @@ describe("EidosFileAttachmentThumbnailManager", () => {
     expect(manager.prepare([entry], 0, 1)).toEqual([source])
   })
 
+  it("keeps a decoded thumbnail when a Grid row leaves and re-enters the viewport", async () => {
+    const resolveAsset = vi.fn(async () => lease())
+    const releaseAsset = vi.fn(async () => undefined)
+    const source = { height: 32, width: 32 } as unknown as CanvasImageSource
+    const manager = new EidosFileAttachmentThumbnailManager(
+      {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+      },
+      {
+        loadImage: vi.fn(async () => source),
+      } as unknown as AssetPresenter<unknown>,
+      vi.fn()
+    )
+
+    expect(manager.prepare([entry], 0, 0)).toEqual([])
+    await vi.waitFor(() => expect(resolveAsset).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(manager.prepare([entry], 0, 0)).toEqual([source])
+    )
+
+    manager.retainVisibleRows(100, 20)
+
+    expect(manager.prepare([entry], 0, 0)).toEqual([source])
+    expect(resolveAsset).toHaveBeenCalledOnce()
+  })
+
+  it("retries one transient thumbnail resolution failure", async () => {
+    const resolveAsset = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary gateway failure"))
+      .mockResolvedValueOnce(lease())
+    const releaseAsset = vi.fn(async () => undefined)
+    const source = { height: 32, width: 32 } as unknown as CanvasImageSource
+    const onCellsReady = vi.fn()
+    const manager = new EidosFileAttachmentThumbnailManager(
+      {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+      },
+      {
+        loadImage: vi.fn(async () => source),
+      } as unknown as AssetPresenter<unknown>,
+      onCellsReady
+    )
+
+    expect(manager.prepare([entry], 0, 0)).toEqual([])
+    await vi.waitFor(() => expect(onCellsReady).toHaveBeenCalledOnce())
+
+    expect(resolveAsset).toHaveBeenCalledTimes(2)
+    expect(manager.prepare([entry], 0, 0)).toEqual([source])
+  })
+
+  it("evicts the least recently used offscreen thumbnail at the cache limit", async () => {
+    const secondEntry: FileEntry = {
+      ...entry,
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+      name: "second.png",
+      uri: "assets/second.png",
+    }
+    const entries = new Map(
+      [entry, secondEntry].map((candidate) => [candidate.id, candidate])
+    )
+    const resolveAsset = vi.fn(async (request: { entryId: string }) => {
+      const candidate = entries.get(request.entryId)!
+      return {
+        ...lease(),
+        leaseId: `lease-${candidate.id}`,
+        entryId: candidate.id,
+        name: candidate.name,
+        resourceToken: `blob:host/${candidate.id}`,
+      }
+    })
+    const releaseAsset = vi.fn(async () => undefined)
+    const source = { height: 32, width: 32 } as unknown as CanvasImageSource
+    const manager = new EidosFileAttachmentThumbnailManager(
+      {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+      },
+      {
+        loadImage: vi.fn(async () => source),
+      } as unknown as AssetPresenter<unknown>,
+      vi.fn(),
+      { decodedBytesMax: 1024 * 1024, entriesMax: 1 }
+    )
+
+    manager.prepare([entry], 0, 0)
+    await vi.waitFor(() =>
+      expect(manager.prepare([entry], 0, 0)).toEqual([source])
+    )
+    manager.retainVisibleRows(100, 20)
+
+    manager.prepare([secondEntry], 0, 100)
+    await vi.waitFor(() =>
+      expect(manager.prepare([secondEntry], 0, 100)).toEqual([source])
+    )
+    manager.retainVisibleRows(200, 20)
+
+    expect(manager.prepare([entry], 0, 0)).toEqual([])
+    await vi.waitFor(() => expect(resolveAsset).toHaveBeenCalledTimes(3))
+  })
+
   it("does not resolve a URI scheme denied by the Host session", () => {
     const resolveAsset = vi.fn()
     const manager = new EidosFileAttachmentThumbnailManager(

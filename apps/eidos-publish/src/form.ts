@@ -1,8 +1,10 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 
 import { FORM_DRIVER, validateSourceBundle } from "./bundle"
+import { canonicalJson } from "./canonical"
 import type {
   PublicationVersionRecord,
+  PublicFormDocumentDefinition,
   PublishedFormDefinition,
   PublishedFormFieldType,
   ReadyReceipt,
@@ -35,6 +37,8 @@ const FIELD_TYPES = new Set<PublishedFormFieldType>([
   "select",
   "url",
 ])
+
+export const FORM_CLIENT_SCRIPT_PATH = "/_eidos/forms/client.v3.js"
 
 export class FormPreparationError extends Error {
   readonly code: string
@@ -73,7 +77,20 @@ export async function prepareFormVersion(
   artifact: StaticArtifactRecord
 }> {
   const definition = await loadFormDefinition(env, version)
-  const document = formDocument(slug, definition.presentation.title)
+  const stored = await env.FORM_INBOXES.getByName(tenantId).storeRevision({
+    publicationId: version.publicationId,
+    versionId: version.versionId,
+    schemaFingerprint: definition.source.schemaFingerprint,
+    definitionSha256: version.entrypoint.sha256,
+    definitionJson: canonicalJson(definition),
+  })
+  if (!stored.ok) {
+    throw new FormPreparationError(stored.error.code, stored.error.message)
+  }
+  const document = formDocument(
+    slug,
+    publicFormDocumentDefinition(version.versionId, definition)
+  )
   const prepared = await prepareStaticTarget(
     env,
     tenant,
@@ -91,6 +108,43 @@ export async function prepareFormVersion(
       readyAt: new Date().toISOString(),
       conformance: FORM_DRIVER.conformance,
     },
+  }
+}
+
+export async function activateFormRevision(
+  env: Env,
+  tenantId: string,
+  tenant: DurableObjectStub<PublishTenant>,
+  publicationId: string
+): Promise<void> {
+  const resolved = await tenant.resolvePublicationById(publicationId)
+  if (!resolved.ok) {
+    throw new FormPreparationError(resolved.error.code, resolved.error.message)
+  }
+  const activated = await env.FORM_INBOXES.getByName(tenantId).activateRevision(
+    publicationId,
+    resolved.value.version.versionId,
+    resolved.value.formPolicy
+  )
+  if (!activated.ok) {
+    throw new FormPreparationError(
+      activated.error.code,
+      activated.error.message
+    )
+  }
+}
+
+export function publicFormDocumentDefinition(
+  publicationVersionId: string,
+  definition: PublishedFormDefinition
+): PublicFormDocumentDefinition {
+  return {
+    spec: "eidos.publish/public-form@1",
+    publicationVersionId,
+    presentation: definition.presentation,
+    fields: definition.fields.map(
+      ({ fieldId: _fieldId, nullable: _nullable, ...field }) => field
+    ),
   }
 }
 
@@ -279,6 +333,13 @@ export function parsePublishedFormDefinition(
         "Form field constraints are too large"
       )
     }
+    const normalizedConstraints =
+      field.type === "select" || field.type === "multi-select"
+        ? {
+            ...constraints,
+            options: publishedFormOptions(constraints.options),
+          }
+        : constraints
     return {
       fieldId: field.fieldId,
       inputKey: field.inputKey,
@@ -289,7 +350,7 @@ export function parsePublishedFormDefinition(
       multiline: field.multiline as boolean,
       required: field.required,
       nullable: field.nullable,
-      constraints,
+      constraints: normalizedConstraints,
     }
   })
   return {
@@ -306,21 +367,402 @@ export function parsePublishedFormDefinition(
   }
 }
 
-function formDocument(slug: string, title: string): string {
+function publishedFormOptions(
+  value: unknown
+): Array<{ name: string; color: string }> {
+  if (!Array.isArray(value)) {
+    throw invalid("form_definition_invalid", "Select field options are invalid")
+  }
+  const names = new Set<string>()
+  return value.map((candidate) => {
+    const option = exactRecord(candidate, ["name", "color"])
+    if (
+      typeof option.name !== "string" ||
+      option.name.length === 0 ||
+      CONTROL.test(option.name) ||
+      typeof option.color !== "string" ||
+      option.color.length === 0 ||
+      CONTROL.test(option.color) ||
+      names.has(option.name)
+    ) {
+      throw invalid(
+        "form_definition_invalid",
+        "Select field options are invalid"
+      )
+    }
+    names.add(option.name)
+    return { name: option.name, color: option.color }
+  })
+}
+
+function formDocument(
+  slug: string,
+  definition: PublicFormDocumentDefinition
+): string {
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    :root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5;--bg:#fff;--fg:#18181b;--muted:#71717a;--line:#e4e4e7;--soft:#f4f4f5;--accent:#0f766e;--danger:#b91c1c}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg)}main{width:min(100% - 32px,640px);margin:0 auto;padding:56px 0 96px}header{padding-bottom:24px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:1.75rem;line-height:1.2;letter-spacing:-.02em}header p{margin:10px 0 0;color:var(--muted)}form{display:grid;gap:22px;margin-top:28px}.field{display:grid;gap:7px}label{font-size:.875rem;font-weight:600}.hint{margin:0;color:var(--muted);font-size:.78rem}.required{color:var(--danger)}input,textarea,select,button{font:inherit}input,textarea,select{width:100%;border:1px solid var(--line);border-radius:7px;background:transparent;color:inherit;padding:9px 11px;outline:none}textarea{min-height:96px;resize:vertical}input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)}button{width:max-content;min-width:110px;border:0;border-radius:7px;background:var(--accent);color:#fff;padding:9px 16px;font-weight:600;cursor:pointer}button:disabled{cursor:wait;opacity:.55}.status{font-size:.875rem}.error{color:var(--danger)}.files{font-size:.8rem;color:var(--muted)}
-    @media(prefers-color-scheme:dark){:root{--bg:#111113;--fg:#f4f4f5;--muted:#a1a1aa;--line:#3f3f46;--soft:#27272a;--accent:#2dd4bf;--danger:#f87171}button{color:#052e2b}}
+  <title>${escapeHtml(definition.presentation.title)}</title>
+  <style data-eidos-form-theme="v2">
+    :root {
+      color-scheme: light;
+      font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+      line-height: 1.5;
+      --background: oklch(0.982 0.006 255);
+      --foreground: oklch(0.25 0.018 255);
+      --primary: oklch(0.43 0.09 255);
+      --primary-foreground: oklch(0.985 0.005 255);
+      --popover: oklch(0.995 0.003 255);
+      --muted: oklch(0.95 0.009 255);
+      --accent: oklch(0.92 0.022 255);
+      --muted-foreground: oklch(0.52 0.02 255);
+      --border: oklch(0.88 0.012 255);
+      --ring: oklch(0.56 0.12 255);
+      --destructive: oklch(0.56 0.19 27);
+      --success: oklch(0.48 0.12 150);
+      --floating-shadow: 0 0.125rem 0.375rem oklch(0.16 0.012 230 / 11%);
+      --radius: 0.5rem;
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--background); }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--foreground);
+      background: var(--background);
+      font-size: 0.8125rem;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      width: 100%;
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3rem 4rem 6rem;
+    }
+    .form-header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+      line-height: 2rem;
+      letter-spacing: -0.025em;
+    }
+    .form-description {
+      max-width: 65ch;
+      margin: 0.5rem 0 0;
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+      line-height: 1.5rem;
+      white-space: pre-wrap;
+    }
+    form { display: grid; gap: 1.5rem; }
+    .field { display: grid; gap: 0.375rem; min-width: 0; }
+    .field-label {
+      width: fit-content;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1.25rem;
+    }
+    .field-description {
+      margin: 0;
+      color: var(--muted-foreground);
+      font-size: 0.6875rem;
+      line-height: 1rem;
+      white-space: pre-wrap;
+    }
+    .required { margin-left: 0.25rem; color: var(--destructive); }
+    input, textarea, select, button { font: inherit; }
+    .form-control {
+      width: 100%;
+      border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      border-radius: calc(var(--radius) - 0.125rem);
+      outline: none;
+      color: var(--foreground);
+      background: transparent;
+      box-shadow: none;
+      font-size: 0.75rem;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+    input.form-control, select.form-control {
+      height: 2.25rem;
+      padding: 0 0.75rem;
+    }
+    textarea.form-control {
+      min-height: 6rem;
+      padding: 0.5rem 0.75rem;
+      line-height: 1.25rem;
+      resize: vertical;
+    }
+    .form-control::placeholder { color: var(--muted-foreground); }
+    .form-control:focus-visible,
+    .file-control:focus-within,
+    .choice-trigger:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 1px var(--ring);
+    }
+    .checkbox-control {
+      width: 1rem;
+      height: 1rem;
+      margin: 0.25rem 0;
+      accent-color: var(--primary);
+    }
+    .choice-control { position: relative; min-width: 0; }
+    .choice-trigger {
+      display: flex;
+      width: 100%;
+      min-height: 2rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      border-radius: calc(var(--radius) - 0.125rem);
+      outline: none;
+      color: var(--foreground);
+      background: var(--background);
+      font-size: 0.75rem;
+      font-weight: 400;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+    .choice-control.is-invalid .choice-trigger {
+      border-color: var(--destructive);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 35%, transparent);
+    }
+    .choice-value {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .choice-placeholder { color: var(--muted-foreground); }
+    .choice-chevron {
+      width: 0.45rem;
+      height: 0.45rem;
+      flex: 0 0 auto;
+      margin: 0 0.25rem 0.2rem 0;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      opacity: 0.5;
+      transform: rotate(45deg);
+      transition: transform 120ms ease;
+    }
+    .choice-control.is-open .choice-chevron {
+      margin-bottom: -0.2rem;
+      transform: rotate(225deg);
+    }
+    .choice-menu {
+      position: absolute;
+      top: calc(100% + 0.25rem);
+      left: 0;
+      z-index: 50;
+      width: min(16rem, 100%);
+      max-height: 20rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.25rem;
+      border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      border-radius: calc(var(--radius) - 0.125rem);
+      color: var(--foreground);
+      background: var(--popover);
+      box-shadow: var(--floating-shadow);
+      scrollbar-color: var(--border) transparent;
+      scrollbar-width: thin;
+    }
+    .choice-menu[hidden] { display: none; }
+    .choice-menu-item {
+      display: flex;
+      width: 100%;
+      height: 1.75rem;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0.5rem;
+      border: 0;
+      border-radius: calc(var(--radius) - 0.25rem);
+      color: inherit;
+      background: transparent;
+      font-size: 0.75rem;
+      text-align: left;
+      cursor: pointer;
+    }
+    .choice-menu-item:hover,
+    .choice-menu-item:focus-visible { outline: none; background: var(--accent); }
+    .choice-check {
+      display: flex;
+      width: 0.875rem;
+      height: 0.875rem;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: 0.2rem;
+      font-size: 0.6875rem;
+      line-height: 1;
+    }
+    .choice-menu-item[aria-selected="true"] .choice-check::after { content: "✓"; }
+    .choice-empty-item .choice-check { border-color: transparent; }
+    .option-tag {
+      display: inline-flex;
+      max-width: 11.875rem;
+      align-items: center;
+      overflow: hidden;
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      background: #cccccc;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .option-tag[data-option-color="gray"] { background: #eeeeee; }
+    .option-tag[data-option-color="brown"] { background: #e6c9a8; }
+    .option-tag[data-option-color="pink"] { background: #ffd3e6; }
+    .option-tag[data-option-color="red"] { background: #ffadad; }
+    .option-tag[data-option-color="orange"] { background: #ffd6a5; }
+    .option-tag[data-option-color="yellow"] { background: #fdffb6; }
+    .option-tag[data-option-color="green"] { background: #caffbf; }
+    .option-tag[data-option-color="cyan"] { background: #9bf6ff; }
+    .option-tag[data-option-color="blue"] { background: #a0c4ff; }
+    .option-tag[data-option-color="purple"] { background: #bdb2ff; }
+    .file-control {
+      position: relative;
+      display: flex;
+      min-height: 2.5rem;
+      align-items: center;
+      gap: 0.75rem;
+      overflow: hidden;
+      padding: 0.25rem;
+      border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      border-radius: calc(var(--radius) - 0.125rem);
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+    .file-input {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .file-action {
+      display: inline-flex;
+      height: 1.875rem;
+      flex: 0 0 auto;
+      align-items: center;
+      padding: 0 0.625rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 0.1875rem);
+      background: var(--muted);
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+    .file-summary {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted-foreground);
+      font-size: 0.6875rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .form-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .submit-button {
+      display: inline-flex;
+      width: fit-content;
+      min-width: 6rem;
+      height: 2rem;
+      align-items: center;
+      justify-content: center;
+      padding: 0 0.75rem;
+      border: 0;
+      border-radius: calc(var(--radius) - 0.125rem);
+      color: var(--primary-foreground);
+      background: var(--primary);
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: filter 120ms ease, opacity 120ms ease;
+    }
+    .submit-button:hover { filter: brightness(0.94); }
+    .submit-button:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+    .submit-button:disabled { cursor: wait; opacity: 0.5; }
+    .status {
+      margin: 0;
+      font-size: 0.75rem;
+      line-height: 1.25rem;
+    }
+    .status:empty { display: none; }
+    .status.is-pending { color: var(--muted-foreground); }
+    .status.is-success { color: var(--success); }
+    .status.is-error { color: var(--destructive); }
+    .form-loading { margin: 0; color: var(--muted-foreground); font-size: 0.75rem; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --background: oklch(0.21 0.014 255);
+        --foreground: oklch(0.92 0.01 255);
+        --primary: oklch(0.76 0.08 255);
+        --primary-foreground: oklch(0.2 0.018 255);
+        --popover: oklch(0.235 0.016 255);
+        --muted: oklch(0.275 0.016 255);
+        --accent: oklch(0.31 0.025 255);
+        --muted-foreground: oklch(0.69 0.02 255);
+        --border: oklch(0.34 0.017 255);
+        --ring: oklch(0.69 0.1 255);
+        --destructive: oklch(0.65 0.18 27);
+        --success: oklch(0.72 0.11 150);
+        --floating-shadow: 0 0.125rem 0.375rem oklch(0.04 0.01 230 / 38%);
+      }
+      .option-tag { background: #333333; }
+      .option-tag[data-option-color="gray"] { background: #555555; }
+      .option-tag[data-option-color="brown"] { background: #5b4d3d; }
+      .option-tag[data-option-color="pink"] { background: #9a3f5e; }
+      .option-tag[data-option-color="red"] { background: #a63232; }
+      .option-tag[data-option-color="orange"] { background: #a65a20; }
+      .option-tag[data-option-color="yellow"] { background: #6e6620; }
+      .option-tag[data-option-color="green"] { background: #23563b; }
+      .option-tag[data-option-color="cyan"] { background: #1c5858; }
+      .option-tag[data-option-color="blue"] { background: #3168a8; }
+      .option-tag[data-option-color="purple"] { background: #6e33b4; }
+      .submit-button:hover { filter: brightness(1.08); }
+    }
+    @media (max-width: 40rem) {
+      main { padding: 2rem 1.25rem 4rem; }
+      .form-header { margin-bottom: 1.5rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .form-control, .file-control, .choice-trigger, .choice-chevron, .submit-button { transition: none; }
+    }
   </style>
 </head>
-<body><main id="eidos-form-root" data-slug="${escapeHtml(slug)}"><p>Loading form…</p></main><script src="/_eidos/forms/client.js" defer></script></body>
+<body><main id="eidos-form-root" data-eidos-published-form data-slug="${escapeHtml(slug)}"><p class="form-loading">Loading form…</p></main><script id="eidos-form-definition" type="application/json">${embeddedJson(definition)}</script><script src="${FORM_CLIENT_SCRIPT_PATH}" defer></script></body>
 </html>`
+}
+
+function embeddedJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replaceAll("&", "\\u0026")
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029")
 }
 
 function exactRecord(value: unknown, keys: string[]): Record<string, unknown> {

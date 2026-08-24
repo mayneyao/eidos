@@ -33,6 +33,7 @@ import {
   type EidosSyncMergeWriteTextRequest,
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
+  type SyncAccountStatus,
   type EidosSyncPreflightApproval,
   type EidosSyncPhase,
   type RuntimeCalls,
@@ -617,6 +618,13 @@ export function registerIpc(
     options.syncFailuresForTesting
   )
   const publishEngine = new EidosPublishEngine(services, syncControl)
+  const broadcastAccountStatus = (status: SyncAccountStatus) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.webContents.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.accountChanged, status)
+      }
+    }
+  }
   const syncQueue = new BackgroundSyncQueue({
     store: new SyncQueueStore(path.join(app.getPath("userData"))),
   })
@@ -1658,6 +1666,7 @@ export function registerIpc(
   const currentRemoteUrl = async (event: Electron.IpcMainInvokeEvent) =>
     (await controller.sessionFor(event.sender)?.officialSyncRemoteUrl()) ?? null
   const repositoryDisplayNameRepairs = new Set<string>()
+  ipcMain.handle(IPC_CHANNELS.accountStatus, () => syncControl.accountStatus())
   ipcMain.handle(IPC_CHANNELS.syncStatus, async (event) => {
     const session = controller.sessionFor(event.sender)
     const remoteUrl = await currentRemoteUrl(event)
@@ -1689,14 +1698,17 @@ export function registerIpc(
     }
     return status
   })
-  ipcMain.handle(IPC_CHANNELS.syncSignIn, async (event) =>
-    syncControl.signIn(await currentRemoteUrl(event))
-  )
+  ipcMain.handle(IPC_CHANNELS.syncSignIn, async (event) => {
+    const status = await syncControl.signIn(await currentRemoteUrl(event))
+    broadcastAccountStatus(status.account)
+    return status
+  })
   ipcMain.handle(IPC_CHANNELS.syncSignOut, async (event) => {
     const session = controller.sessionFor(event.sender)
     const remoteUrl = await currentRemoteUrl(event)
     await session?.clearHostedSyncCredentials()
     const status = await syncControl.signOut(remoteUrl)
+    broadcastAccountStatus(status.account)
     if (session && remoteUrl) {
       const attached = await attachSyncQueue(event)
       const failure = classifySyncFailure(
@@ -2125,25 +2137,6 @@ export function registerIpc(
       const request = requiredPublicationBindingsRequest(value)
       const session = controller.requireSession(event.sender)
       return publishEngine.listBindings(session, request)
-    }
-  )
-  ipcMain.handle(
-    IPC_CHANNELS.publishCollectorActiveSource,
-    (event, value: unknown) => {
-      if (
-        value !== null &&
-        (typeof value !== "string" ||
-          value.length === 0 ||
-          Buffer.byteLength(value, "utf8") > 4_096 ||
-          !value.toLowerCase().endsWith(".eidos") ||
-          /[\u0000-\u001f\u007f]/.test(value))
-      ) {
-        throw new Error("Invalid active Publication source")
-      }
-      publishEngine.setActiveCollectorSource(
-        controller.requireSession(event.sender),
-        value
-      )
     }
   )
   ipcMain.handle(IPC_CHANNELS.revealPath, (event, relativePath: unknown) => {

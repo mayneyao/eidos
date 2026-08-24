@@ -43,7 +43,7 @@ const LANGUAGE_OPTIONS: Array<{
 
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
-  { id: "account-sync", label: "Account & Sync", icon: Cloud },
+  { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "spaces", label: "Spaces", icon: FolderOpen },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { id: "updates", label: "Updates", icon: RefreshCw },
@@ -173,14 +173,19 @@ export function SettingsPage() {
       })
       setSyncAccount(readSyncAccountContext())
     } catch (cause) {
-      console.error("Could not sign in to Sync from Settings", cause)
+      console.error(
+        "Could not sign in to the Eidos account from Settings",
+        cause
+      )
       setError(
-        "Could not update your Sync account. Your local Spaces are unaffected."
+        t(
+          "Could not update your Eidos account. Your local Spaces are unaffected."
+        )
       )
     } finally {
       setAccountBusy(null)
     }
-  }, [])
+  }, [t])
 
   const signOut = useCallback(async () => {
     setAccountBusy("sign-out")
@@ -195,24 +200,29 @@ export function SettingsPage() {
       })
       setSyncAccount(readSyncAccountContext())
     } catch (cause) {
-      console.error("Could not sign out of Sync from Settings", cause)
+      console.error(
+        "Could not sign out of the Eidos account from Settings",
+        cause
+      )
       setError(
-        "Could not update your Sync account. Your local Spaces are unaffected."
+        t(
+          "Could not update your Eidos account. Your local Spaces are unaffected."
+        )
       )
     } finally {
       setAccountBusy(null)
     }
-  }, [])
+  }, [t])
 
   const manageSyncAccount = useCallback(async () => {
     setError(null)
     try {
       await window.eidosLite.openSyncHelp("account")
     } catch (cause) {
-      console.error("Could not open the Sync account page", cause)
-      setError("Could not open your Sync account page. Try again later.")
+      console.error("Could not open the Eidos account page", cause)
+      setError(t("Could not open your Eidos account page. Try again later."))
     }
-  }, [])
+  }, [t])
 
   const checkForUpdates = useCallback(async () => {
     setError(null)
@@ -418,7 +428,7 @@ export function SettingsPage() {
               aria-labelledby="settings-account-sync"
               hidden={activePage !== "account-sync"}
             >
-              <h2 id="settings-account-sync">{t("Account & Sync")}</h2>
+              <h2 id="settings-account-sync">{t("Account & Services")}</h2>
               <div className="settings-group">
                 <div className="settings-row">
                   <div className="settings-account-summary">
@@ -442,8 +452,9 @@ export function SettingsPage() {
                     <span className="settings-row-copy">
                       <strong>
                         {syncAccount?.account.state === "signed-in"
-                          ? (syncAccount.account.user?.name ?? "Eidos Sync")
-                          : "Eidos Sync"}
+                          ? (syncAccount.account.user?.name ??
+                            t("Eidos account"))
+                          : t("Eidos account")}
                       </strong>
                       <small>
                         {syncAccount?.account.state === "signed-in"
@@ -490,7 +501,7 @@ export function SettingsPage() {
               </div>
               <p className="settings-section-note">
                 {t(
-                  "Your email and avatar are cached for a stable interface. Sign-in credentials remain in secure system storage."
+                  "Sign in once to use Sync and Publish. Your credentials remain in secure system storage; only your email and avatar are cached for the interface."
                 )}
               </p>
             </section>

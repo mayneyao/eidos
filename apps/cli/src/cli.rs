@@ -140,13 +140,19 @@ pub struct PublishArgs {
     /// Publish one Form View from an Eidos File instead of the whole File.
     #[arg(long, value_name = "VIEW_ID_OR_NAME")]
     pub form_view: Option<String>,
+    /// Who may submit a published Form.
+    #[arg(long, value_enum, requires = "form_view")]
+    pub form_respondents: Option<FormRespondentAccessArg>,
+    /// Allow each signed-in eidos.space user to submit only once.
+    #[arg(long, requires = "form_view")]
+    pub one_response_per_user: bool,
     /// Filesystem root used to resolve relative attachments.
     #[arg(long, value_name = "DIR", hide = true)]
     pub attachment_root: Option<PathBuf>,
     /// Tenant-local URL path for this published resource.
     #[arg(long)]
     pub slug: String,
-    /// Public or private viewer access. Private requires Publish Pro.
+    /// Public or private viewer access. Hosted publishing requires Publish.
     #[arg(long, value_enum, default_value_t = PublishVisibilityArg::Public)]
     pub visibility: PublishVisibilityArg,
     /// Protect this Publication with a password. The CLI prompts without echo.
@@ -155,6 +161,12 @@ pub struct PublishArgs {
     /// Remove password protection and make this Publication public.
     #[arg(long, conflicts_with = "password")]
     pub remove_password: bool,
+    /// Hide the Built with Eidos badge.
+    #[arg(long, conflicts_with = "show_branding")]
+    pub hide_branding: bool,
+    /// Show the Built with Eidos badge on this Publication.
+    #[arg(long, conflicts_with = "hide_branding")]
+    pub show_branding: bool,
     /// Create a ready Version without moving the Publication pointer.
     #[arg(long)]
     pub no_activate: bool,
@@ -212,6 +224,22 @@ pub struct CollectArgs {
 pub enum PublishVisibilityArg {
     Public,
     Private,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum FormRespondentAccessArg {
+    Anyone,
+    SignedIn,
+}
+
+impl FormRespondentAccessArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Anyone => "anyone",
+            Self::SignedIn => "signed_in",
+        }
+    }
 }
 
 impl PublishVisibilityArg {
@@ -472,12 +500,16 @@ mod tests {
         };
         assert_eq!(args.file, PathBuf::from("example.eidos"));
         assert_eq!(args.form_view, None);
+        assert_eq!(args.form_respondents, None);
+        assert!(!args.one_response_per_user);
         assert_eq!(args.slug, "team-wiki");
         assert_eq!(args.attachment_root, Some(PathBuf::from("/workspace")));
         assert!(args.no_activate);
         assert_eq!(args.visibility, PublishVisibilityArg::Public);
         assert!(!args.password);
         assert!(!args.remove_password);
+        assert!(!args.hide_branding);
+        assert!(!args.show_branding);
         assert_eq!(args.wait_seconds, 1_800);
         assert!(!args.progress_json);
     }
@@ -500,6 +532,40 @@ mod tests {
             panic!("expected Publish command")
         };
         assert!(args.progress_json);
+    }
+
+    #[test]
+    fn parses_publish_branding_controls() {
+        let hidden = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--token",
+            "secret",
+            "--hide-branding",
+        ])
+        .expect("parse hidden Publish branding");
+        let Command::Publish(hidden) = hidden.command else {
+            panic!("expected Publish command")
+        };
+        assert!(hidden.hide_branding);
+        assert!(!hidden.show_branding);
+
+        let conflict = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "example.eidos",
+            "--slug",
+            "team-wiki",
+            "--token",
+            "secret",
+            "--hide-branding",
+            "--show-branding",
+        ])
+        .expect_err("branding flags must conflict");
+        assert_eq!(conflict.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 
     #[test]
@@ -550,6 +616,30 @@ mod tests {
             panic!("expected Publish command")
         };
         assert_eq!(args.form_view.as_deref(), Some("Feedback"));
+
+        let restricted = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "forms.eidos",
+            "--form-view",
+            "Feedback",
+            "--form-respondents",
+            "signed-in",
+            "--one-response-per-user",
+            "--slug",
+            "feedback",
+            "--token",
+            "secret",
+        ])
+        .expect("parse restricted Form Publish command");
+        let Command::Publish(restricted) = restricted.command else {
+            panic!("expected Publish command")
+        };
+        assert_eq!(
+            restricted.form_respondents,
+            Some(FormRespondentAccessArg::SignedIn)
+        );
+        assert!(restricted.one_response_per_user);
 
         let collect = Cli::try_parse_from([
             "eidos",

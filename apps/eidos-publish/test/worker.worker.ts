@@ -1,8 +1,14 @@
 import { env } from "cloudflare:workers"
-import { SELF, abortAllDurableObjects } from "cloudflare:test"
+import {
+  SELF,
+  abortAllDurableObjects,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { validateSourceBundle } from "../src/bundle"
+import { brandPublishedDocument } from "../src/branding"
 import { canonicalJson, canonicalSha256 } from "../src/canonical"
 import { refreshTenantEntitlements } from "../src/entitlements"
 import { runtimeProxyRequestHeaders } from "../src/gateway"
@@ -20,6 +26,7 @@ import {
   verifyPublicationPassword,
 } from "../src/passwords"
 import {
+  RuntimeVersionReadinessCache,
   RuntimePreparationError,
   runtimeShardName,
   sourceStartupTimeoutSeconds,
@@ -43,12 +50,54 @@ const TABLE_ID = "0198c72d-82b5-7000-8000-000000000010"
 const VIEW_ID = "0198c72d-82b5-7000-8000-000000000011"
 const EMAIL_FIELD_ID = "0198c72d-82b5-7000-8000-000000000012"
 const FILE_FIELD_ID = "0198c72d-82b5-7000-8000-000000000013"
+const SELECT_FIELD_ID = "0198c72d-82b5-7000-8000-000000000014"
+const MULTI_SELECT_FIELD_ID = "0198c72d-82b5-7000-8000-000000000015"
 
 afterEach(async () => {
   await abortAllDurableObjects()
 })
 
+describe("Publish branding", () => {
+  it("passes the hidden-brand preference to the Eidos shell without injecting a footer", async () => {
+    const response = brandPublishedDocument(
+      new Response(
+        '<html><head></head><body><div id="root"></div></body></html>',
+        {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }
+      ),
+      "demo",
+      false
+    )
+    const html = await response.text()
+
+    expect(html).toContain(
+      '<meta name="eidos-publish-branding" content="hide">'
+    )
+    expect(html).not.toContain('class="eidos-publish-brand"')
+    expect(html).not.toContain("publish-brand.v4.css")
+  })
+})
+
 describe("Publish runtime sizing", () => {
+  it("reuses a recent Version readiness probe only for the initial request burst", () => {
+    const cache = new RuntimeVersionReadinessCache()
+    cache.mark("version-1", 1_000)
+
+    expect(cache.has("version-1", 10_999)).toBe(true)
+    expect(cache.has("version-1", 11_000)).toBe(false)
+
+    cache.mark("version-1", 20_000)
+    cache.delete("version-1")
+    expect(cache.has("version-1", 20_001)).toBe(false)
+
+    cache.mark("version-1", 30_000)
+    cache.mark("version-2", 30_000)
+    cache.clear()
+    expect(cache.has("version-1", 30_001)).toBe(false)
+    expect(cache.has("version-2", 30_001)).toBe(false)
+  })
+
   it("normalizes public browser authority for the loopback Runtime", () => {
     const headers = runtimeProxyRequestHeaders(
       new Headers({
@@ -177,6 +226,16 @@ describe("shared eidos.ink hostname routing", () => {
 })
 
 describe("Eidos Publish control plane", () => {
+  it("serves the immutable Form client without requiring a claimed tenant", async () => {
+    const response = await SELF.fetch(
+      "https://u-0123456789abcdef.eidos.ink/_eidos/forms/client.v3.js"
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("cache-control")).toContain("immutable")
+    expect(await response.text()).toContain("embeddedDefinition()")
+  })
+
   it("publishes discovery and rejects unauthenticated tenant access", async () => {
     const health = await SELF.fetch(ORIGIN + "/healthz")
     expect(await health.json()).toEqual({
@@ -221,6 +280,14 @@ describe("Eidos Publish control plane", () => {
     expect(first.publicSiteId).toMatch(/^u-[0-9abcdefghjkmnpqrstvwxyz]{16}$/)
     expect(second.publicSiteId).toBe(first.publicSiteId)
     expect(first.canonicalHost).toBe(first.publicSiteId + ".eidos.ink")
+  })
+
+  it("rejects hosted publishing without an active subscription", async () => {
+    const response = await authenticatedFetch("/api/tenant", "blocked-token")
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: { code: "publish_subscription_required" },
+    })
   })
 
   it("dispatches the reserved Relay hostname namespace", async () => {
@@ -274,6 +341,57 @@ describe("Eidos Publish control plane", () => {
         publish_access: freeAccessGrant(),
       }),
     })
+    expect(denied.status).toBe(404)
+  })
+
+  it("updates Publication branding through the account service binding", async () => {
+    const created = await authenticatedFetch(
+      "/api/publications/internal-branding",
+      "pro-token",
+      mutation("create-internal-branding")
+    )
+    expect(created.status).toBe(201)
+    const principal = {
+      sub: "pro-user",
+      publish_access: {
+        ...freeAccessGrant(),
+        revision: 2,
+        plan: "pro" as const,
+        handle: true,
+        privatePublications: true,
+        removeBranding: true,
+      },
+    }
+    const response = await SELF.fetch(
+      ORIGIN + "/_internal/publications/internal-branding/branding",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "account-hide-branding",
+          "X-Eidos-Publish-Service":
+            "test-only-publish-service-secret-32-bytes-minimum",
+        },
+        body: JSON.stringify({ principal, showBranding: false }),
+      }
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      slug: "internal-branding",
+      showBranding: false,
+    })
+
+    const denied = await SELF.fetch(
+      ORIGIN + "/_internal/publications/internal-branding/branding",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "account-show-branding",
+        },
+        body: JSON.stringify({ principal, showBranding: true }),
+      }
+    )
     expect(denied.status).toBe(404)
   })
 
@@ -458,6 +576,47 @@ describe("Eidos Publish control plane", () => {
       slug: "tasks",
       currentVersionId: version.versionId,
     })
+    const proxyAuthorization = await tenantStub.authorizeRuntimeProxyRequest(
+      {
+        slug: "tasks",
+        publicationId: version.publicationId,
+        versionId: version.versionId,
+        servingTargetSha256: targetSha256,
+        visibility: "public",
+        accessMode: "public",
+        accessRevision: 0,
+      },
+      "proxy-client",
+      "proxy-runtime-lease",
+      "2026-08-22T08:00:00.000Z"
+    )
+    expect(proxyAuthorization).toMatchObject({
+      ok: true,
+      value: {
+        runtimeIdleSeconds: 60,
+        version: { versionId: version.versionId },
+      },
+    })
+    await tenantStub.completeRuntimeRequest("proxy-runtime-lease")
+    expect(
+      await tenantStub.authorizeRuntimeProxyRequest(
+        {
+          slug: "tasks",
+          publicationId: version.publicationId,
+          versionId: version.versionId,
+          servingTargetSha256: targetSha256,
+          visibility: "public",
+          accessMode: "public",
+          accessRevision: 1,
+        },
+        "stale-proxy-client",
+        "stale-proxy-runtime-lease",
+        "2026-08-22T08:00:00.000Z"
+      )
+    ).toMatchObject({
+      ok: false,
+      error: { code: "stale_runtime_ticket" },
+    })
     for (let index = 0; index < 4; index += 1) {
       expect(
         await tenantStub.authorizeRuntimeRequest(
@@ -503,6 +662,23 @@ describe("Eidos Publish control plane", () => {
       "frame-ancestors 'none'"
     )
     expect(shell.headers.get("x-content-type-options")).toBe("nosniff")
+    const shellHtml = await shell.text()
+    expect(shellHtml).toContain('name="eidos-publish-slug" content="tasks"')
+    expect(shellHtml).toContain('name="eidos-publish-branding" content="show"')
+    expect(shellHtml).not.toContain('class="eidos-publish-brand"')
+    expect(shellHtml).not.toContain("publish-brand.v4.css")
+    const brandStyles = await SELF.fetch(
+      `https://${tenantState.publicSiteId}.eidos.ink/_eidos/publish-brand.v4.css`
+    )
+    expect(brandStyles.status).toBe(200)
+    expect(brandStyles.headers.get("content-type")).toContain("text/css")
+    const brandCss = await brandStyles.text()
+    expect(brandCss).toContain("box-sizing: border-box")
+    expect(brandCss).toContain("min-height: 100dvh")
+    expect(brandCss).toContain("margin-top: auto")
+    expect(brandCss).toContain(".eidos-publish-brand-footer")
+    expect(brandCss).toContain("justify-content: center")
+    expect(brandCss).not.toContain("position: fixed")
     const session = await SELF.fetch(
       `https://${tenantState.publicSiteId}.eidos.ink/_eidos/session`,
       {
@@ -697,7 +873,7 @@ describe("Eidos Publish control plane", () => {
   })
 
   it("renders Markdown safely and serves its immutable attachments", async () => {
-    const token = "free-markdown"
+    const token = "pro-token"
     const slug = "release-notes"
     await authenticatedFetch(
       `/api/publications/${slug}`,
@@ -850,12 +1026,41 @@ describe("Eidos Publish control plane", () => {
     const html = await page.text()
     expect(html).toContain("<h1>Release notes</h1>")
     expect(html).not.toContain("<script>")
+    expect(html).toContain('class="eidos-publish-brand-footer"')
+    expect(html).toContain('class="eidos-publish-brand"')
+    expect(html).toContain('class="eidos-publish-brand-page"')
+    expect(html).toContain("Built with <strong>Eidos</strong>")
+    expect(html).toContain('href="/_eidos/publish-brand.v4.css"')
     expect(html).toContain(
       `/_eidos/files/${slug}/${version.versionId}/${diagramSha256}/assets/diagram.png`
     )
     expect(html).toContain(
       `/_eidos/files/${slug}/${version.versionId}/${guideSha256}/files/guide.pdf`
     )
+
+    const hiddenBranding = await authenticatedFetch(
+      `/api/publications/${slug}/branding`,
+      token,
+      brandingMutation("hide-markdown-branding", false)
+    )
+    expect(hiddenBranding.status).toBe(200)
+    expect(await hiddenBranding.json()).toMatchObject({ showBranding: false })
+    const unbrandedPage = await SELF.fetch(
+      `https://${tenantState.canonicalHost}/${slug}`
+    )
+    expect(unbrandedPage.status).toBe(200)
+    const unbrandedHtml = await unbrandedPage.text()
+    expect(unbrandedHtml).toContain("<h1>Release notes</h1>")
+    expect(unbrandedHtml).not.toContain('class="eidos-publish-brand"')
+    expect(unbrandedHtml).not.toContain("publish-brand.v4.css")
+
+    const restoredBranding = await authenticatedFetch(
+      `/api/publications/${slug}/branding`,
+      token,
+      brandingMutation("show-markdown-branding", true)
+    )
+    expect(restoredBranding.status).toBe(200)
+    expect(await restoredBranding.json()).toMatchObject({ showBranding: true })
 
     const image = await SELF.fetch(
       `https://${tenantState.canonicalHost}/_eidos/files/${slug}/${version.versionId}/${diagramSha256}/assets/diagram.png`
@@ -920,6 +1125,40 @@ describe("Eidos Publish control plane", () => {
           required: false,
           nullable: false,
           constraints: { multiple: false },
+        },
+        {
+          fieldId: SELECT_FIELD_ID,
+          inputKey: "input_select_00000001",
+          type: "select",
+          label: "Importance",
+          description: null,
+          placeholder: null,
+          multiline: false,
+          required: false,
+          nullable: true,
+          constraints: {
+            options: [
+              { name: "Blocking", color: "red" },
+              { name: "Helpful", color: "blue" },
+            ],
+          },
+        },
+        {
+          fieldId: MULTI_SELECT_FIELD_ID,
+          inputKey: "input_multi_000000001",
+          type: "multi-select",
+          label: "Platforms",
+          description: null,
+          placeholder: null,
+          multiline: false,
+          required: false,
+          nullable: true,
+          constraints: {
+            options: [
+              { name: "macOS", color: "purple" },
+              { name: "Web", color: "green" },
+            ],
+          },
         },
       ],
     }
@@ -1022,20 +1261,153 @@ describe("Eidos Publish control plane", () => {
     )
 
     const publicOrigin = `https://${tenantState.canonicalHost}`
-    const page = await SELF.fetch(`${publicOrigin}/${slug}`)
+    const pageInboxStub = env.FORM_INBOXES.getByName(tenantState.publicSiteId)
+    const inboxUpdatedBeforePage = await runInDurableObject(
+      pageInboxStub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ updated_at: string }>(
+            "SELECT updated_at FROM form_state WHERE publication_id = ?",
+            version.publicationId
+          )
+          .one().updated_at
+    )
+    const initiallyPublicPage = await SELF.fetch(`${publicOrigin}/${slug}`)
+    expect(initiallyPublicPage.status).toBe(200)
+    expect(initiallyPublicPage.headers.get("cache-control")).toBe(
+      "private, no-store"
+    )
+    const inboxUpdatedAfterPage = await runInDurableObject(
+      pageInboxStub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ updated_at: string }>(
+            "SELECT updated_at FROM form_state WHERE publication_id = ?",
+            version.publicationId
+          )
+          .one().updated_at
+    )
+    expect(inboxUpdatedAfterPage).toBe(inboxUpdatedBeforePage)
+
+    const formPolicy = await authenticatedFetch(
+      `/api/publications/${slug}/form-policy`,
+      token,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "restrict-feedback-form",
+        },
+        body: JSON.stringify({
+          respondentAccess: "signed_in",
+          allowMultipleResponses: false,
+        }),
+      }
+    )
+    expect(formPolicy.status).toBe(200)
+    expect(await formPolicy.json()).toMatchObject({
+      respondentAccess: "signed_in",
+      allowMultipleResponses: false,
+      revision: 1,
+    })
+
+    const signIn = await SELF.fetch(`${publicOrigin}/${slug}`, {
+      redirect: "manual",
+    })
+    expect(signIn.status).toBe(303)
+    const signInLocation = new URL(signIn.headers.get("location")!)
+    expect(signInLocation.searchParams.get("purpose")).toBe("form")
+    const unauthorizedDefinition = await SELF.fetch(
+      `${publicOrigin}/_eidos/forms/${slug}/definition`
+    )
+    expect(unauthorizedDefinition.status).toBe(401)
+    expect(await unauthorizedDefinition.json()).toMatchObject({
+      error: { code: "form_authentication_required" },
+      authorizationUrl: expect.stringContaining("purpose=form"),
+    })
+    const exchange = await SELF.fetch(
+      `${publicOrigin}/_eidos/form/exchange?code=${"b".repeat(43)}`,
+      { redirect: "manual" }
+    )
+    expect(exchange.status).toBe(303)
+    const respondentCookie = exchange.headers
+      .get("set-cookie")!
+      .split(";", 1)[0]!
+    expect(respondentCookie).toContain("__Host-eidos_publish_respondent=")
+
+    const revokedExchange = await SELF.fetch(
+      `${publicOrigin}/_eidos/form/exchange?code=${"c".repeat(43)}`,
+      { redirect: "manual" }
+    )
+    expect(revokedExchange.status).toBe(303)
+    const revokedCookie = revokedExchange.headers
+      .get("set-cookie")!
+      .split(";", 1)[0]!
+    expect(
+      (
+        await SELF.fetch(`${publicOrigin}/${slug}`, {
+          redirect: "manual",
+          headers: { Cookie: revokedCookie },
+        })
+      ).status
+    ).toBe(303)
+    expect(
+      (
+        await SELF.fetch(`${publicOrigin}/_eidos/forms/${slug}/definition`, {
+          headers: { Cookie: revokedCookie },
+        })
+      ).status
+    ).toBe(401)
+
+    const page = await SELF.fetch(`${publicOrigin}/${slug}`, {
+      headers: { Cookie: respondentCookie },
+    })
     expect(page.status).toBe(200)
+    expect(page.headers.get("cache-control")).toBe("private, no-store")
     expect(page.headers.get("content-security-policy")).toContain(
       "script-src 'self'"
     )
-    expect(await page.text()).toContain('id="eidos-form-root"')
-    const script = await SELF.fetch(`${publicOrigin}/_eidos/forms/client.js`)
+    const formHtml = await page.text()
+    expect(formHtml).toContain('id="eidos-form-root"')
+    expect(formHtml).toContain("data-eidos-published-form")
+    expect(formHtml).toContain('data-eidos-form-theme="v2"')
+    expect(formHtml).toContain(".form-header")
+    expect(formHtml).toContain(".choice-trigger")
+    expect(formHtml).toContain(".choice-menu")
+    expect(formHtml).toContain(".option-tag")
+    expect(formHtml).toContain('data-option-color="red"')
+    expect(formHtml).toContain(".file-control")
+    expect(formHtml).toContain('class="eidos-publish-brand-footer"')
+    expect(formHtml).toContain('class="eidos-publish-brand"')
+    expect(formHtml).toContain('class="eidos-publish-brand-page"')
+    expect(formHtml).toContain("Built with <strong>Eidos</strong>")
+    expect(formHtml).toContain('href="/_eidos/publish-brand.v4.css"')
+    expect(formHtml).toContain('src="/_eidos/forms/client.v3.js"')
+    expect(formHtml).toContain('id="eidos-form-definition"')
+    expect(formHtml).toContain('"title":"Product feedback"')
+    expect(formHtml).toContain('"inputKey":"input_email_00000001"')
+    expect(formHtml).not.toContain(EMAIL_FIELD_ID)
+    const script = await SELF.fetch(`${publicOrigin}/_eidos/forms/client.v3.js`)
     expect(script.status).toBe(200)
     const scriptSource = await script.text()
     expect(scriptSource).not.toContain('"Content-Length"')
-    expect(scriptSource).toContain('field.type==="text"&&field.multiline')
+    expect(scriptSource).toContain('field.type === "text" && field.multiline')
+    expect(scriptSource).toContain("choiceControl(field, false)")
+    expect(scriptSource).toContain("choiceControl(field, true)")
+    expect(scriptSource).toContain('class: "choice-trigger"')
+    expect(scriptSource).toContain('role: "listbox"')
+    expect(scriptSource).toContain('class: "option-tag"')
+    expect(scriptSource).not.toContain('el("select"')
+    expect(scriptSource).toContain('class: "file-control"')
+    expect(scriptSource).not.toContain("selectedOptions")
+    expect(scriptSource).toContain("embeddedDefinition()")
+    expect(scriptSource).toContain("loadSubmissionIntent")
+    expect(scriptSource).not.toContain("load().then")
+    expect(() => new Function(scriptSource)).not.toThrow()
 
     const publicDefinitionResponse = await SELF.fetch(
-      `${publicOrigin}/_eidos/forms/${slug}/definition`
+      `${publicOrigin}/_eidos/forms/${slug}/definition`,
+      { headers: { Cookie: respondentCookie } }
     )
     expect(publicDefinitionResponse.status).toBe(200)
     const publicDefinition = (await publicDefinitionResponse.json()) as {
@@ -1058,7 +1430,10 @@ describe("Eidos Publish control plane", () => {
       `${publicOrigin}/_eidos/forms/${slug}/submissions/init`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: respondentCookie,
+        },
         body: JSON.stringify({
           intent: publicDefinition.submissionIntent,
           idempotencyKey: "submission-feedback-0001",
@@ -1091,6 +1466,7 @@ describe("Eidos Publish control plane", () => {
           "Content-Type": "text/plain",
           "X-Eidos-Content-SHA256": attachmentSha256,
           "X-Eidos-Submission-Intent": publicDefinition.submissionIntent,
+          Cookie: respondentCookie,
         },
         body: attachment,
       }
@@ -1102,6 +1478,7 @@ describe("Eidos Publish control plane", () => {
         method: "POST",
         headers: {
           "X-Eidos-Submission-Intent": publicDefinition.submissionIntent,
+          Cookie: respondentCookie,
         },
       }
     )
@@ -1110,6 +1487,26 @@ describe("Eidos Publish control plane", () => {
       submissionId: submission.submissionId,
       state: "committed",
       sequence: "1",
+    })
+    const duplicate = await SELF.fetch(
+      `${publicOrigin}/_eidos/forms/${slug}/submissions/init`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: respondentCookie,
+        },
+        body: JSON.stringify({
+          intent: publicDefinition.submissionIntent,
+          idempotencyKey: "submission-feedback-0002",
+          values: { input_email_00000001: "again@example.com" },
+          attachments: [],
+        }),
+      }
+    )
+    expect(duplicate.status).toBe(409)
+    expect(await duplicate.json()).toMatchObject({
+      error: { code: "response_already_submitted" },
     })
 
     const metadataBeforeCollect = await authenticatedFetch(
@@ -1205,6 +1602,37 @@ describe("Eidos Publish control plane", () => {
       `form-inbox/${tenantState.publicSiteId}/objects/sha256/${attachmentSha256.slice(0, 2)}/${attachmentSha256}`
     )
     expect(deduplicatedObject?.size).toBe(attachment.byteLength)
+
+    const inboxStub = env.FORM_INBOXES.getByName(tenantState.publicSiteId)
+    await runInDurableObject(inboxStub, (_instance, state) => {
+      state.storage.sql.exec(
+        `UPDATE submission SET purge_after = ?
+            WHERE publication_id = ? AND state = 'imported'`,
+        "2000-01-01T00:00:00.000Z",
+        version.publicationId
+      )
+    })
+    expect(await runDurableObjectAlarm(inboxStub)).toBe(true)
+    const duplicateAfterContentRetention = await SELF.fetch(
+      `${publicOrigin}/_eidos/forms/${slug}/submissions/init`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: respondentCookie,
+        },
+        body: JSON.stringify({
+          intent: publicDefinition.submissionIntent,
+          idempotencyKey: "submission-feedback-after-retention-0003",
+          values: { input_email_00000001: "third@example.com" },
+          attachments: [],
+        }),
+      }
+    )
+    expect(duplicateAfterContentRetention.status).toBe(409)
+    expect(await duplicateAfterContentRetention.json()).toMatchObject({
+      error: { code: "response_already_submitted" },
+    })
   })
 
   it("streams multipart parts and verifies the completed whole-object digest", async () => {
@@ -1429,6 +1857,112 @@ describe("Eidos Publish control plane", () => {
     })
   })
 
+  it("keeps only the previous Free Version and starts its one-day window when replaced", async () => {
+    await authenticatedFetch(
+      "/api/publications/free-history",
+      "free-history",
+      mutation("create-free-history-publication")
+    )
+    const first = await publishReadyVersion(
+      "free-history",
+      "free-history",
+      "free-history-first",
+      "first source"
+    )
+    const second = await publishReadyVersion(
+      "free-history",
+      "free-history",
+      "free-history-second",
+      "second source"
+    )
+    const current = await publishReadyVersion(
+      "free-history",
+      "free-history",
+      "free-history-current",
+      "current source"
+    )
+    const abandoned = await uploadVersion(
+      "free-history",
+      "free-history",
+      "free-history-abandoned",
+      "never activated source"
+    )
+    const tenantState = await tenant("free-history")
+    const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
+    const retentionStart = Date.now()
+
+    await tenantStub.runRetention(
+      new Date(retentionStart + 11 * 60_000).toISOString()
+    )
+
+    expect(
+      await tenantStub.getVersionStatus("free-history", first.versionId)
+    ).toMatchObject({ ok: true, value: { state: "deleted" } })
+    expect(
+      await tenantStub.getVersionStatus("free-history", second.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
+    expect(
+      await tenantStub.getVersionStatus("free-history", current.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
+    expect(
+      await tenantStub.getVersionStatus("free-history", abandoned.versionId)
+    ).toMatchObject({ ok: true, value: { state: "uploaded" } })
+
+    await tenantStub.runRetention(
+      new Date(retentionStart + 25 * 60 * 60_000).toISOString()
+    )
+
+    expect(
+      await tenantStub.getVersionStatus("free-history", second.versionId)
+    ).toMatchObject({ ok: true, value: { state: "deleted" } })
+    expect(
+      await tenantStub.getVersionStatus("free-history", current.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
+    expect(
+      await tenantStub.getVersionStatus("free-history", abandoned.versionId)
+    ).toMatchObject({ ok: true, value: { state: "deleted" } })
+  })
+
+  it("keeps Pro history for 30 days from replacement", async () => {
+    await authenticatedFetch(
+      "/api/publications/pro-history",
+      "pro-token",
+      mutation("create-pro-history-publication")
+    )
+    const previous = await publishReadyVersion(
+      "pro-history",
+      "pro-token",
+      "pro-history-previous",
+      "previous source"
+    )
+    const current = await publishReadyVersion(
+      "pro-history",
+      "pro-token",
+      "pro-history-current",
+      "current source"
+    )
+    const tenantState = await tenant("pro-token")
+    const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
+    const retentionStart = Date.now()
+
+    await tenantStub.runRetention(
+      new Date(retentionStart + 29 * 24 * 60 * 60_000).toISOString()
+    )
+    expect(
+      await tenantStub.getVersionStatus("pro-history", previous.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
+
+    await tenantStub.runRetention(
+      new Date(retentionStart + 31 * 24 * 60 * 60_000).toISOString()
+    )
+    expect(
+      await tenantStub.getVersionStatus("pro-history", previous.versionId)
+    ).toMatchObject({ ok: true, value: { state: "deleted" } })
+    expect(
+      await tenantStub.getVersionStatus("pro-history", current.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
+  })
+
   it("rejects unequal reuse of an idempotency key", async () => {
     const first = await authenticatedFetch(
       "/api/publications/first",
@@ -1529,15 +2063,62 @@ describe("Eidos Publish control plane", () => {
     })
   })
 
-  it("uses an eligible Pro account username as the preferred handle", async () => {
-    const result = await tenant("pro-token")
+  it("claims an independent Publish handle explicitly", async () => {
+    const initial = await tenant("pro-token")
+    expect(initial.preferredHandle).toBeNull()
+    expect(initial.canonicalHost).toBe(initial.publicSiteId + ".eidos.ink")
+
+    const reserved = await SELF.fetch(ORIGIN + "/_internal/handle", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Service":
+          "test-only-publish-service-secret-32-bytes-minimum",
+      },
+      body: JSON.stringify({
+        principal: proPrincipal("pro-user"),
+        handle: "r-mayne",
+      }),
+    })
+    expect(reserved.status).toBe(400)
+    expect(await reserved.json()).toMatchObject({
+      error: { code: "invalid_publish_handle" },
+    })
+
+    const claimed = await SELF.fetch(ORIGIN + "/_internal/handle", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Service":
+          "test-only-publish-service-secret-32-bytes-minimum",
+      },
+      body: JSON.stringify({
+        principal: proPrincipal("pro-user"),
+        handle: "mayne",
+      }),
+    })
+    expect(claimed.status).toBe(200)
+    const result = await claimed.json<Awaited<ReturnType<typeof tenant>>>()
     expect(result.preferredHandle).toBe("mayne")
     expect(result.canonicalHost).toBe("mayne.eidos.ink")
     expect(result.access.plan).toBe("pro")
 
-    const collision = await tenant("pro-collision-token")
-    expect(collision.preferredHandle).toBeNull()
-    expect(collision.canonicalHost).toBe(collision.publicSiteId + ".eidos.ink")
+    const collision = await SELF.fetch(ORIGIN + "/_internal/handle", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Service":
+          "test-only-publish-service-secret-32-bytes-minimum",
+      },
+      body: JSON.stringify({
+        principal: proPrincipal("pro-collision-user"),
+        handle: "mayne",
+      }),
+    })
+    expect(collision.status).toBe(409)
+    expect(await collision.json()).toMatchObject({
+      error: { code: "publish_handle_unavailable" },
+    })
 
     expect(
       (
@@ -1582,7 +2163,7 @@ describe("Eidos Publish control plane", () => {
         ...freeAccessGrant(),
         revision: 1,
         plan: "pro",
-        username: true,
+        handle: true,
         privatePublications: true,
         removeBranding: true,
       },
@@ -1637,7 +2218,20 @@ describe("Eidos Publish control plane", () => {
     expect(await handle.resolve()).toBe(publicSiteId)
   })
 
-  it("rechecks current entitlements and turns an expired Pro Handle into a fallback redirect", async () => {
+  it("rechecks current entitlements and blocks an expired Publish subscription", async () => {
+    const claimed = await SELF.fetch(ORIGIN + "/_internal/handle", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Eidos-Publish-Service":
+          "test-only-publish-service-secret-32-bytes-minimum",
+      },
+      body: JSON.stringify({
+        principal: proPrincipal("downgrade-user"),
+        handle: "downgrade",
+      }),
+    })
+    expect(claimed.status).toBe(200)
     const before = await tenant("downgrade-token")
     expect(before.preferredHandle).toBe("downgrade")
     const tenantStub = env.PUBLISH_TENANTS.getByName(before.publicSiteId)
@@ -1648,6 +2242,7 @@ describe("Eidos Publish control plane", () => {
       true
     )
     expect(principal.access.plan).toBe("free")
+    expect(principal.access.state).toBe("blocked")
     expect(await tenantStub.getActiveHandle()).toBeNull()
     expect(await env.PUBLISH_HANDLES.getByName("downgrade").resolve()).toBe(
       before.publicSiteId
@@ -1988,6 +2583,16 @@ describe("Eidos Publish control plane", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "restricted_publication_not_allowed" },
     })
+
+    const branding = await authenticatedFetch(
+      "/api/publications/free-password/branding",
+      "free-password",
+      brandingMutation("hide-free-branding", false)
+    )
+    expect(branding.status).toBe(403)
+    expect(await branding.json()).toMatchObject({
+      error: { code: "branding_removal_not_allowed" },
+    })
   })
 })
 
@@ -2100,24 +2705,40 @@ function freeAccessGrant() {
     service: "eidos_publish" as const,
     state: "active" as const,
     plan: "free" as const,
-    username: false,
+    handle: false,
     privatePublications: false,
     removeBranding: false,
-    maxStorageBytes: "1073741824",
+    maxStorageBytes: "104857600",
     maxObjectBytes: "1073741824",
-    retentionDays: 7,
+    retentionDays: 1,
     runtimeSecondsPerPeriod: "18000",
     runtimeStartsPerPeriod: 100,
     runtimeIdleSeconds: 60,
     collect: {
-      submissionsPerPeriod: 100,
-      maxSubmissionBodyBytes: 262144,
-      maxAttachmentsPerSubmission: 3,
-      maxFormAttachmentBytes: "10485760",
-      maxInboxBytes: "268435456",
-      importedRetentionDays: 7,
+      submissionsPerPeriod: 10,
+      maxSubmissionBodyBytes: 65536,
+      maxAttachmentsPerSubmission: 1,
+      maxFormAttachmentBytes: "5242880",
+      maxInboxBytes: "52428800",
+      importedRetentionDays: 1,
       passwordForms: false,
       emailNotifications: false,
+    },
+  }
+}
+
+function proPrincipal(userId: string) {
+  return {
+    sub: userId,
+    publish_access: {
+      ...freeAccessGrant(),
+      revision: 2,
+      plan: "pro" as const,
+      handle: true,
+      privatePublications: true,
+      removeBranding: true,
+      maxStorageBytes: "10737418240",
+      retentionDays: 30,
     },
   }
 }
@@ -2187,6 +2808,53 @@ async function uploadVersion(
   return version
 }
 
+async function publishReadyVersion(
+  slug: string,
+  token: string,
+  operation: string,
+  content: string
+): Promise<{ versionId: string }> {
+  const version = await uploadVersion(slug, token, operation, content)
+  const tenantState = await tenant(token)
+  const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
+  await tenantStub.beginValidation(version.versionId)
+  await tenantStub.recordValidation(version.versionId, {
+    sourceManifestSha256: version.sourceManifestSha256,
+    driverId: "org.eidos.driver.eidos",
+    driverVersion: "1.0",
+    valid: true,
+    diagnostics: [],
+  })
+  const target = {
+    kind: "runtime" as const,
+    runtimeProfile: "eidos-serve-publish/1" as const,
+    instanceKey: version.versionId,
+    versionId: version.versionId,
+    sourceManifestSha256: version.sourceManifestSha256,
+  }
+  const targetSha256 = await canonicalSha256(target)
+  await tenantStub.markReady(version.versionId, target, targetSha256, {
+    sourceManifestSha256: version.sourceManifestSha256,
+    driverId: "org.eidos.driver.eidos",
+    driverVersion: "1.0",
+    servingTargetSha256: targetSha256,
+    readyAt: new Date().toISOString(),
+    conformance: [],
+  })
+  expect(
+    await tenantStub.activateVersion(
+      slug,
+      version.versionId,
+      "test",
+      `${operation}-activation-request`,
+      null,
+      `${operation}-activation-key`,
+      await canonicalSha256({ slug, versionId: version.versionId })
+    )
+  ).toMatchObject({ ok: true })
+  return { versionId: version.versionId }
+}
+
 function mutation(key: string, body?: unknown): RequestInit {
   const headers = new Headers({ "Idempotency-Key": key })
   if (body !== undefined) headers.set("Content-Type", "application/json")
@@ -2194,6 +2862,17 @@ function mutation(key: string, body?: unknown): RequestInit {
     method: body === undefined ? "PUT" : "POST",
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
+  }
+}
+
+function brandingMutation(key: string, showBranding: boolean): RequestInit {
+  return {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({ showBranding }),
   }
 }
 

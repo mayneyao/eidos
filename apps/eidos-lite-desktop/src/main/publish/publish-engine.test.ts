@@ -5,6 +5,7 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
+  EidosPublishEngine,
   collectCliArguments,
   observePublishSource,
   parsePublishProgress,
@@ -14,6 +15,12 @@ import {
 } from "./publish-engine"
 
 describe("Eidos Publish engine boundary", () => {
+  it("does not expose an automatic background Form collector", () => {
+    expect("setActiveCollectorSource" in EidosPublishEngine.prototype).toBe(
+      false
+    )
+  })
+
   it("accepts a bounded password request without putting the secret in arguments", () => {
     expect(
       requiredPublishRequest({
@@ -21,9 +28,14 @@ describe("Eidos Publish engine boundary", () => {
         relativePath: "Projects/demo.eidos",
         slug: "my-demo",
         accessMode: "password",
+        branding: "hide",
         password: "correct horse",
       })
-    ).toMatchObject({ slug: "my-demo", accessMode: "password" })
+    ).toMatchObject({
+      slug: "my-demo",
+      accessMode: "password",
+      branding: "hide",
+    })
   })
 
   it("rejects unsafe slugs, paths, and passwords", () => {
@@ -33,18 +45,21 @@ describe("Eidos Publish engine boundary", () => {
         relativePath: "demo.eidos",
         slug: "../demo",
         accessMode: "public",
+        branding: "unchanged",
       },
       {
         requestId: "019abcde-1234-7abc-8abc-123456789abc",
         relativePath: "notes.txt",
         slug: "notes",
         accessMode: "public",
+        branding: "unchanged",
       },
       {
         requestId: "019abcde-1234-7abc-8abc-123456789abc",
         relativePath: "demo.eidos",
         slug: "demo",
         accessMode: "password",
+        branding: "unchanged",
         password: "short",
       },
       {
@@ -52,6 +67,7 @@ describe("Eidos Publish engine boundary", () => {
         relativePath: "demo.eidos",
         slug: "demo",
         accessMode: "password",
+        branding: "unchanged",
         password: "🔐".repeat(65),
       },
     ]) {
@@ -67,9 +83,38 @@ describe("Eidos Publish engine boundary", () => {
           relativePath,
           slug: "notes",
           accessMode: "public",
+          branding: "unchanged",
         })
       ).toMatchObject({ relativePath })
     }
+  })
+
+  it("requires account identity before limiting a Form to one response", () => {
+    const request = {
+      requestId: "019abcde-1234-7abc-8abc-123456789abc",
+      relativePath: "feedback.eidos",
+      slug: "feedback",
+      accessMode: "public",
+      branding: "unchanged",
+      formView: "view-1",
+    }
+    expect(
+      requiredPublishRequest({
+        ...request,
+        formRespondentAccess: "signed_in",
+        formAllowMultipleResponses: false,
+      })
+    ).toMatchObject({
+      formRespondentAccess: "signed_in",
+      formAllowMultipleResponses: false,
+    })
+    expect(() =>
+      requiredPublishRequest({
+        ...request,
+        formRespondentAccess: "anyone",
+        formAllowMultipleResponses: false,
+      })
+    ).toThrow("Invalid published Form response access")
   })
 
   it("counts password Unicode scalars instead of UTF-16 code units", () => {
@@ -79,6 +124,7 @@ describe("Eidos Publish engine boundary", () => {
         relativePath: "demo.eidos",
         slug: "demo",
         accessMode: "password",
+        branding: "unchanged",
         password: "🔐".repeat(8),
       })
     ).toMatchObject({ accessMode: "password" })

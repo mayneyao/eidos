@@ -15,7 +15,7 @@ import {
 import { canonicalJson, canonicalSha256 } from "./canonical"
 import { PublicRuntimeError, routePublicRequest } from "./gateway"
 import { FormRequestError } from "./collect"
-import { loadFormDefinition } from "./form"
+import { activateFormRevision, parsePublishedFormDefinition } from "./form"
 import {
   isRelayPublicHostname,
   publicationHostname,
@@ -93,6 +93,15 @@ interface BeginVersionBody {
 interface PublicationAccessBody {
   mode: "public" | "password" | "private"
   password: string | null
+}
+
+interface FormPublicationPolicyBody {
+  respondentAccess: "anyone" | "signed_in"
+  allowMultipleResponses: boolean
+}
+
+interface PublicationBrandingBody {
+  showBranding: boolean
 }
 
 export default {
@@ -230,12 +239,30 @@ async function route(
     return await internalAccountSummary(request, env)
   }
 
+  if (request.method === "PUT" && url.pathname === "/_internal/handle") {
+    return await internalPublishHandle(request, env)
+  }
+
+  const internalBrandingMatch =
+    /^\/_internal\/publications\/([^/]+)\/branding$/.exec(url.pathname)
+  if (request.method === "PUT" && internalBrandingMatch !== null) {
+    return await internalPublicationBranding(
+      request,
+      env,
+      publicationSlug(internalBrandingMatch[1])
+    )
+  }
+
   const principal = await authenticatePublishUser(request, env)
   if (principal.access.state === "blocked") {
     return problem(
       403,
-      "publish_access_suspended",
-      "Publish access is suspended"
+      principal.access.plan === "free"
+        ? "publish_subscription_required"
+        : "publish_access_suspended",
+      principal.access.plan === "free"
+        ? "An active Publish subscription is required"
+        : "Publish access is suspended"
     )
   }
   const tenant = await tenantForPrincipal(env, principal)
@@ -472,6 +499,53 @@ async function route(
     )
   }
 
+  const formPolicyMatch = /^\/api\/publications\/([^/]+)\/form-policy$/.exec(
+    url.pathname
+  )
+  if (request.method === "PUT" && formPolicyMatch !== null) {
+    const slug = publicationSlug(formPolicyMatch[1])
+    const idempotencyKey = requiredIdempotencyKey(request)
+    const body = await formPublicationPolicyBody(request)
+    const inputSha256 = await canonicalSha256({ slug, ...body })
+    const updated = await tenant.stub.setFormPublicationPolicy(
+      slug,
+      body.respondentAccess,
+      body.allowMultipleResponses,
+      idempotencyKey,
+      inputSha256
+    )
+    if (!updated.ok) return durableResponse(updated)
+    const resolved = await tenant.stub.resolvePublication(slug)
+    if (
+      resolved.ok &&
+      resolved.value.version.driverId === "org.eidos.driver.form"
+    ) {
+      const synchronized = await env.FORM_INBOXES.getByName(
+        tenant.publicSiteId
+      ).syncPolicy(resolved.value.publication.publicationId, updated.value)
+      if (!synchronized.ok) return durableResponse(synchronized)
+    }
+    return durableResponse(updated)
+  }
+
+  const publicationBrandingMatch =
+    /^\/api\/publications\/([^/]+)\/branding$/.exec(url.pathname)
+  if (request.method === "PUT" && publicationBrandingMatch !== null) {
+    const slug = publicationSlug(publicationBrandingMatch[1])
+    const idempotencyKey = requiredIdempotencyKey(request)
+    const body = await publicationBrandingBody(request)
+    const inputSha256 = await canonicalSha256({ slug, ...body })
+    return durableResponse(
+      await tenant.stub.setPublicationBranding(
+        slug,
+        body.showBranding,
+        principal.access,
+        idempotencyKey,
+        inputSha256
+      )
+    )
+  }
+
   const versionsMatch = /^\/api\/publications\/([^/]+)\/versions$/.exec(
     url.pathname
   )
@@ -599,16 +673,16 @@ async function route(
     const versionId = versionIdentifier(activateMatch[2])
     const idempotencyKey = requiredIdempotencyKey(request)
     const inputSha256 = await canonicalSha256({ slug, versionId })
-    return durableResponse(
-      await tenant.stub.activateVersion(
-        slug,
-        versionId,
-        principal.userId,
-        requestId,
-        principal.access,
-        idempotencyKey,
-        inputSha256
-      )
+    return await activatePublicationVersion(
+      env,
+      tenant.publicSiteId,
+      tenant.stub,
+      slug,
+      versionId,
+      principal,
+      requestId,
+      idempotencyKey,
+      inputSha256
     )
   }
 
@@ -650,16 +724,16 @@ async function route(
       slug,
       versionId: body.versionId,
     })
-    return durableResponse(
-      await tenant.stub.activateVersion(
-        slug,
-        body.versionId,
-        principal.userId,
-        requestId,
-        principal.access,
-        idempotencyKey,
-        inputSha256
-      )
+    return await activatePublicationVersion(
+      env,
+      tenant.publicSiteId,
+      tenant.stub,
+      slug,
+      body.versionId,
+      principal,
+      requestId,
+      idempotencyKey,
+      inputSha256
     )
   }
 
@@ -676,6 +750,144 @@ async function internalAccountSummary(
   const principal = parsePrincipal(await boundedJson(request, 4096))
   const tenant = await tenantForPrincipal(env, principal)
   return json(await tenantSummary(env, principal, tenant))
+}
+
+async function internalPublishHandle(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  if (!sharedServiceSecret(request, env.PUBLISH_SERVICE_SECRET)) {
+    return problem(404, "not_found", "Route not found")
+  }
+  const value = await boundedJson(request, 8192)
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== 2
+  ) {
+    throw badRequest(
+      "invalid_publish_handle",
+      "Publish handle request is invalid"
+    )
+  }
+  const record = value as Record<string, unknown>
+  const principal = parsePrincipal(record.principal)
+  if (principal.access.state === "blocked") {
+    return problem(
+      403,
+      principal.access.plan === "free"
+        ? "publish_subscription_required"
+        : "publish_access_suspended",
+      principal.access.plan === "free"
+        ? "An active Publish subscription is required"
+        : "Publish access is suspended"
+    )
+  }
+  if (!principal.access.handle) {
+    return problem(
+      403,
+      "publish_handle_not_allowed",
+      "A Publish handle is not included with this subscription"
+    )
+  }
+  if (typeof record.handle !== "string" || !validHandle(record.handle)) {
+    throw badRequest(
+      "invalid_publish_handle",
+      "Use 3 to 30 lowercase letters, digits, or hyphens, starting with a letter"
+    )
+  }
+
+  const tenant = await tenantForPrincipal(env, principal)
+  const handle = env.PUBLISH_HANDLES.getByName(record.handle)
+  const claim = await handle.beginClaim(record.handle, tenant.publicSiteId)
+  if (
+    claim === null ||
+    !(await tenant.stub.recordHandleClaim(
+      record.handle,
+      claim.claimId,
+      claim.expiresAt
+    )) ||
+    !(await handle.activate(tenant.publicSiteId, claim.claimId)) ||
+    !(await tenant.stub.activateHandleClaim(record.handle, claim.claimId))
+  ) {
+    return problem(
+      409,
+      "publish_handle_unavailable",
+      "This Publish handle is not available"
+    )
+  }
+
+  const activeHandle = await tenant.stub.getActiveHandle()
+  if (activeHandle !== record.handle) {
+    return problem(
+      409,
+      "publish_handle_conflict",
+      "The Publish handle could not be activated"
+    )
+  }
+  return json(
+    await tenantSummary(env, principal, {
+      ...tenant,
+      preferredHandle: activeHandle,
+    })
+  )
+}
+
+async function internalPublicationBranding(
+  request: Request,
+  env: Env,
+  slug: string
+): Promise<Response> {
+  if (!sharedServiceSecret(request, env.PUBLISH_SERVICE_SECRET)) {
+    return problem(404, "not_found", "Route not found")
+  }
+  const idempotencyKey = requiredIdempotencyKey(request)
+  const value = await boundedJson(request, 8192)
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== 2
+  ) {
+    throw badRequest(
+      "invalid_publication_branding",
+      "Publication branding request is invalid"
+    )
+  }
+  const record = value as Record<string, unknown>
+  const principal = parsePrincipal(record.principal)
+  if (principal.access.state === "blocked") {
+    return problem(
+      403,
+      principal.access.plan === "free"
+        ? "publish_subscription_required"
+        : "publish_access_suspended",
+      principal.access.plan === "free"
+        ? "An active Publish subscription is required"
+        : "Publish access is suspended"
+    )
+  }
+  if (typeof record.showBranding !== "boolean") {
+    throw badRequest(
+      "invalid_publication_branding",
+      "Publication branding request is invalid"
+    )
+  }
+  const tenant = await tenantForPrincipal(env, principal)
+  const inputSha256 = await canonicalSha256({
+    slug,
+    showBranding: record.showBranding,
+  })
+  return durableResponse(
+    await tenant.stub.setPublicationBranding(
+      slug,
+      record.showBranding,
+      principal.access,
+      idempotencyKey,
+      inputSha256
+    )
+  )
 }
 
 async function tenantSummary(
@@ -708,22 +920,6 @@ async function tenantForPrincipal(env: Env, principal: PublishPrincipal) {
   const publicSiteId = await locator.getOrCreate(principal.userId)
   const stub = env.PUBLISH_TENANTS.getByName(publicSiteId)
   await stub.initialize(principal.userId, publicSiteId, principal.access, null)
-  const candidate = eligibleHandle(principal)
-  if (candidate !== null) {
-    const handle = env.PUBLISH_HANDLES.getByName(candidate)
-    const claim = await handle.beginClaim(candidate, publicSiteId)
-    if (
-      claim !== null &&
-      (await stub.recordHandleClaim(
-        candidate,
-        claim.claimId,
-        claim.expiresAt
-      )) &&
-      (await handle.activate(publicSiteId, claim.claimId))
-    ) {
-      await stub.activateHandleClaim(candidate, claim.claimId)
-    }
-  }
   const preferredHandle = await stub.getActiveHandle()
   return { publicSiteId, preferredHandle, stub }
 }
@@ -736,18 +932,74 @@ async function ensureOwnedFormInbox(
 ) {
   const resolved = await tenant.resolvePublicationById(publicationId)
   if (!resolved.ok) return durableResponse(resolved)
-  const definition = await loadFormDefinition(env, resolved.value.version)
   const inbox = env.FORM_INBOXES.getByName(tenantId)
-  const registered = await inbox.registerRevision({
+  const active = await inbox.getActiveRevision(
     publicationId,
-    versionId: resolved.value.version.versionId,
-    schemaFingerprint: definition.source.schemaFingerprint,
-    definitionSha256: resolved.value.version.entrypoint.sha256,
-    definitionJson: canonicalJson(definition),
-  })
-  return registered.ok
-    ? { inbox, resolved: resolved.value, definition }
-    : durableResponse(registered)
+    resolved.value.version.versionId
+  )
+  if (!active.ok) return durableResponse(active)
+  if (
+    active.value.revision.definitionSha256 !==
+    resolved.value.version.entrypoint.sha256
+  ) {
+    return problem(
+      503,
+      "form_definition_unavailable",
+      "Published Form definition is unavailable"
+    )
+  }
+  try {
+    const definition = parsePublishedFormDefinition(
+      JSON.parse(active.value.revision.definitionJson) as unknown
+    )
+    if (
+      definition.source.schemaFingerprint !==
+      active.value.revision.schemaFingerprint
+    ) {
+      throw new Error("Form schema fingerprint differs")
+    }
+    return { inbox, resolved: resolved.value, definition }
+  } catch {
+    return problem(
+      503,
+      "form_definition_unavailable",
+      "Published Form definition is unavailable"
+    )
+  }
+}
+
+async function activatePublicationVersion(
+  env: Env,
+  tenantId: string,
+  tenant: DurableObjectStub<PublishTenant>,
+  slug: string,
+  versionId: string,
+  principal: PublishPrincipal,
+  requestId: string,
+  idempotencyKey: string,
+  inputSha256: string
+): Promise<Response> {
+  const activated = await tenant.activateVersion(
+    slug,
+    versionId,
+    principal.userId,
+    requestId,
+    principal.access,
+    idempotencyKey,
+    inputSha256
+  )
+  if (!activated.ok) return durableResponse(activated)
+  const version = await tenant.getVersionStatus(slug, versionId)
+  if (!version.ok) return durableResponse(version)
+  if (version.value.driverId === "org.eidos.driver.form") {
+    await activateFormRevision(
+      env,
+      tenantId,
+      tenant,
+      activated.value.publicationId
+    )
+  }
+  return durableResponse(activated)
 }
 
 async function beginVersion(
@@ -1590,6 +1842,53 @@ async function publicationAccessBody(
   }
 }
 
+async function formPublicationPolicyBody(
+  request: Request
+): Promise<FormPublicationPolicyBody> {
+  const value = await boundedJson(request, 1024)
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw badRequest("invalid_form_policy", "Form policy body is invalid")
+  }
+  const record = value as Record<string, unknown>
+  if (
+    Object.keys(record).length !== 2 ||
+    (record.respondentAccess !== "anyone" &&
+      record.respondentAccess !== "signed_in") ||
+    typeof record.allowMultipleResponses !== "boolean" ||
+    (record.respondentAccess === "anyone" && !record.allowMultipleResponses)
+  ) {
+    throw badRequest(
+      "invalid_form_policy",
+      "One response per user requires signed-in respondents"
+    )
+  }
+  return {
+    respondentAccess: record.respondentAccess,
+    allowMultipleResponses: record.allowMultipleResponses,
+  }
+}
+
+async function publicationBrandingBody(
+  request: Request
+): Promise<PublicationBrandingBody> {
+  const value = await boundedJson(request, 1024)
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== 1 ||
+    typeof (value as { showBranding?: unknown }).showBranding !== "boolean"
+  ) {
+    throw badRequest(
+      "invalid_publication_branding",
+      "Publication branding request is invalid"
+    )
+  }
+  return {
+    showBranding: (value as { showBranding: boolean }).showBranding,
+  }
+}
+
 async function beginVersionBody(request: Request): Promise<BeginVersionBody> {
   const value = await boundedJson(request, 64 * 1024)
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -1713,14 +2012,6 @@ function canonicalHost(
   publicSiteId: string
 ): string {
   return publicationHostname(preferredHandle ?? publicSiteId, env)
-}
-
-function eligibleHandle(principal: PublishPrincipal): string | null {
-  if (!principal.access.username || principal.accountUsername === null)
-    return null
-  return validHandle(principal.accountUsername)
-    ? principal.accountUsername
-    : null
 }
 
 function validHandle(value: string): boolean {

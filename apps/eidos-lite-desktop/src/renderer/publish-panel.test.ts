@@ -4,6 +4,8 @@ import {
   clampPublishPanelPosition,
   defaultPublishSlug,
   isPublishableEntry,
+  publishMenuAvailability,
+  publishedFormRespondentLabel,
   publishFormViewLabel,
 } from "./publish-panel"
 
@@ -36,6 +38,26 @@ describe("Publish panel", () => {
     ).toBe(false)
   })
 
+  it("keeps Publish visible but unavailable until an account is signed in", () => {
+    expect(publishMenuAvailability("signed-out", false)).toEqual({
+      disabled: true,
+      label: "Publish… (Sign in required)",
+    })
+    expect(publishMenuAvailability("checking", false)).toEqual({
+      disabled: true,
+      label: "Publish… (Checking account…)",
+    })
+    expect(publishMenuAvailability("unavailable", false)).toEqual({
+      disabled: true,
+      label: "Publish… (Account unavailable)",
+    })
+    expect(publishMenuAvailability("signed-in", false)).toEqual({
+      disabled: false,
+      label: null,
+    })
+    expect(publishMenuAvailability("signed-in", true).disabled).toBe(true)
+  })
+
   it("identifies Form publish targets by Table and View name", () => {
     expect(
       publishFormViewLabel("Form", {
@@ -49,6 +71,35 @@ describe("Publish panel", () => {
         tableName: "客户",
       })
     ).toBe("表单 · 客户 · 表单 1")
+  })
+
+  it("distinguishes published Forms by their respondent access", () => {
+    expect(
+      publishedFormRespondentLabel({
+        sourceKind: "form",
+        formPolicy: {
+          respondentAccess: "signed_in",
+          allowMultipleResponses: true,
+          revision: 2,
+        },
+      })
+    ).toBe("Signed-in eidos.space users")
+    expect(
+      publishedFormRespondentLabel({
+        sourceKind: "form",
+        formPolicy: {
+          respondentAccess: "anyone",
+          allowMultipleResponses: true,
+          revision: 0,
+        },
+      })
+    ).toBe("Anyone with the link")
+    expect(
+      publishedFormRespondentLabel({
+        sourceKind: "markdown",
+        formPolicy: null,
+      })
+    ).toBeNull()
   })
 
   it("keeps the measured panel inside the viewport near its anchor", () => {

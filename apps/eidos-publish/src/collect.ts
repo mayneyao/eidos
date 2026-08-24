@@ -8,7 +8,10 @@ import type {
   PublishedFormFieldType,
   PublishCollectLimits,
 } from "./contracts"
-import { loadFormDefinition } from "./form"
+import {
+  parsePublishedFormDefinition,
+  publicFormDocumentDefinition,
+} from "./form"
 import type {
   FormAttachmentAuthorization,
   FormInboxDurableObject,
@@ -42,20 +45,18 @@ export async function formDefinitionResponse(
   env: Env,
   tenantId: string,
   audience: string,
-  resolved: ResolvedFormPublication
+  resolved: ResolvedFormPublication,
+  respondentUserId: string | null
 ): Promise<Response> {
   const version = requireFormVersion(resolved.version)
-  const definition = await loadFormDefinition(env, version)
   const inbox = formInbox(env, tenantId)
-  const registered = await inbox.registerRevision({
-    publicationId: resolved.publication.publicationId,
-    versionId: version.versionId,
-    schemaFingerprint: definition.source.schemaFingerprint,
-    definitionSha256: version.entrypoint.sha256,
-    definitionJson: canonicalJson(definition),
-  })
-  if (!registered.ok) return durableProblem(registered)
-  if (!registered.value.accepting) {
+  const active = await activeFormDefinition(
+    inbox,
+    resolved.publication.publicationId,
+    version
+  )
+  if (active instanceof Response) return active
+  if (!active.state.accepting) {
     return formProblem(
       409,
       "form_not_accepting",
@@ -72,7 +73,8 @@ export async function formDefinitionResponse(
       publicationId: resolved.publication.publicationId,
       publicationVersionId: version.versionId,
       accessRevision: resolved.publication.accessRevision,
-      submissionRevision: registered.value.submissionRevision,
+      submissionRevision: active.state.submissionRevision,
+      respondentUserId,
       nonce: randomToken(24),
       iat: now,
       exp: expiresAt,
@@ -81,12 +83,7 @@ export async function formDefinitionResponse(
     env.PUBLISH_FORM_INTENT_SECRET
   )
   const publicDefinition: PublicFormDefinition = {
-    spec: "eidos.publish/public-form@1",
-    publicationVersionId: version.versionId,
-    presentation: definition.presentation,
-    fields: definition.fields.map(
-      ({ fieldId: _fieldId, nullable: _nullable, ...field }) => field
-    ),
+    ...publicFormDocumentDefinition(version.versionId, active.definition),
     submissionIntent: intent,
     expiresAt: new Date(expiresAt * 1000).toISOString(),
   }
@@ -102,7 +99,8 @@ export async function initializeFormSubmission(
   audience: string,
   slug: string,
   resolved: ResolvedFormPublication,
-  limits: PublishCollectLimits
+  limits: PublishCollectLimits,
+  respondentUserId: string | null
 ): Promise<Response> {
   const body = await boundedJson(request, limits.maxSubmissionBodyBytes)
   const record = plainRecord(body, "submission_invalid")
@@ -128,31 +126,21 @@ export async function initializeFormSubmission(
     tenantId,
     audience,
     resolved,
-    inbox
+    inbox,
+    respondentUserId
   )
   if (authorized instanceof Response) return authorized
-  const versionResult = await env.PUBLISH_TENANTS.getByName(
-    tenantId
-  ).getVersionStatus(slug, authorized.claims.publicationVersionId)
-  if (!versionResult.ok)
-    return formProblem(
-      409,
-      "form_version_stale",
-      "Form revision is unavailable"
-    )
-  const version = requireFormVersion(versionResult.value)
-  if (version.publicationId !== resolved.publication.publicationId) {
-    return formProblem(
-      409,
-      "form_version_stale",
-      "Form revision is unavailable"
-    )
-  }
-  const definition = await loadFormDefinition(env, version)
+  const version = requireFormVersion(resolved.version)
+  const active = await activeFormDefinition(
+    inbox,
+    resolved.publication.publicationId,
+    version
+  )
+  if (active instanceof Response) return active
   const normalized = normalizeSubmission(
     record.values,
     record.attachments,
-    definition,
+    active.definition,
     limits
   )
   if (normalized instanceof Response) return normalized
@@ -168,6 +156,7 @@ export async function initializeFormSubmission(
   const submissionId = crypto.randomUUID()
   const inputSha256 = await canonicalSha256({
     versionId: version.versionId,
+    respondentUserId,
     payload: normalized.payload,
     attachments: normalized.attachments.map(
       ({ fieldId: _fieldId, ...attachment }) => attachment
@@ -177,7 +166,7 @@ export async function initializeFormSubmission(
     submissionId,
     publicationId: resolved.publication.publicationId,
     versionId: version.versionId,
-    schemaFingerprint: definition.source.schemaFingerprint,
+    schemaFingerprint: active.definition.source.schemaFingerprint,
     idempotencyKey: record.idempotencyKey,
     inputSha256,
     payload: normalized.payload,
@@ -194,6 +183,7 @@ export async function initializeFormSubmission(
     })),
     limits,
     clientHash: await clientHash(request, env.PUBLISH_FORM_INTENT_SECRET),
+    respondentUserId,
   })
   if (!created.ok) return durableProblem(created)
   return Response.json(
@@ -216,7 +206,8 @@ export async function uploadFormAttachment(
   audience: string,
   submissionId: string,
   attachmentId: string,
-  resolved: ResolvedFormPublication
+  resolved: ResolvedFormPublication,
+  respondentUserId: string | null
 ): Promise<Response> {
   if (!ATTACHMENT_ID.test(attachmentId) || request.body === null) {
     return formProblem(
@@ -239,7 +230,8 @@ export async function uploadFormAttachment(
     tenantId,
     audience,
     resolved,
-    inbox
+    inbox,
+    respondentUserId
   )
   if (authorized instanceof Response) return authorized
   const bytes = decimalHeader(request.headers.get("content-length"))
@@ -302,7 +294,8 @@ export async function completeFormSubmission(
   tenantId: string,
   audience: string,
   resolved: ResolvedFormPublication,
-  submissionId: string
+  submissionId: string,
+  respondentUserId: string | null
 ): Promise<Response> {
   const intent = formIntentHeader(request)
   if (intent === null)
@@ -318,7 +311,8 @@ export async function completeFormSubmission(
     tenantId,
     audience,
     resolved,
-    inbox
+    inbox,
+    respondentUserId
   )
   if (authorized instanceof Response) return authorized
   const begun = await inbox.beginComplete(
@@ -393,7 +387,7 @@ export async function completeFormSubmission(
 export function formClientScriptResponse(): Response {
   return new Response(FORM_CLIENT_SCRIPT, {
     headers: {
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=31536000, immutable",
       "Content-Type": "text/javascript; charset=utf-8",
       "Cross-Origin-Resource-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",
@@ -405,7 +399,7 @@ export function formDocumentCsp(): string {
   return [
     "default-src 'none'",
     "script-src 'self'",
-    "style-src 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
     "connect-src 'self'",
     "img-src 'self' data: blob:",
     "form-action 'self'",
@@ -609,7 +603,7 @@ function normalizeFieldValue(
     ) {
       return INVALID
     }
-    const options = stringOptions(constraints.options)
+    const options = publishedOptionNames(constraints.options)
     return options !== null && value.some((item) => !options.has(item))
       ? INVALID
       : value
@@ -636,21 +630,66 @@ function normalizeFieldValue(
     }
   }
   if (type === "select") {
-    const options = stringOptions(constraints.options)
+    const options = publishedOptionNames(constraints.options)
     if (options !== null && !options.has(value)) return INVALID
   }
   return value
 }
 
-function stringOptions(value: unknown): Set<string> | null {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+function publishedOptionNames(value: unknown): Set<string> | null {
+  if (
+    !Array.isArray(value) ||
+    value.some(
+      (item) =>
+        typeof item !== "object" ||
+        item === null ||
+        Array.isArray(item) ||
+        typeof (item as Record<string, unknown>).name !== "string"
+    )
+  ) {
     return null
   }
-  return new Set(value)
+  return new Set(value.map((item) => (item as { name: string }).name))
 }
 
 function safeAttachmentName(value: string): string {
   return value.split(/[\\/]/).at(-1) ?? "attachment"
+}
+
+async function activeFormDefinition(
+  inbox: DurableObjectStub<FormInboxDurableObject>,
+  publicationId: string,
+  version: PublicationVersionRecord
+): Promise<
+  { definition: PublishedFormDefinition; state: FormInboxState } | Response
+> {
+  const active = await inbox.getActiveRevision(publicationId, version.versionId)
+  if (!active.ok) return durableProblem(active)
+  if (active.value.revision.definitionSha256 !== version.entrypoint.sha256) {
+    return formProblem(
+      503,
+      "form_definition_unavailable",
+      "Published Form definition is unavailable"
+    )
+  }
+  try {
+    const definition = parsePublishedFormDefinition(
+      JSON.parse(active.value.revision.definitionJson) as unknown
+    )
+    if (
+      definition.source.schemaFingerprint !==
+      active.value.revision.schemaFingerprint
+    ) {
+      throw new Error("Form schema fingerprint differs")
+    }
+    return { definition, state: active.value.state }
+  } catch {
+    return formProblem(
+      503,
+      "form_definition_unavailable",
+      "Published Form definition is unavailable"
+    )
+  }
 }
 
 async function authorizeIntent(
@@ -659,7 +698,8 @@ async function authorizeIntent(
   tenantId: string,
   audience: string,
   resolved: ResolvedFormPublication,
-  inbox: DurableObjectStub<FormInboxDurableObject>
+  inbox: DurableObjectStub<FormInboxDurableObject>,
+  respondentUserId: string | null
 ): Promise<
   { claims: FormSubmissionIntentClaims; state: FormInboxState } | Response
 > {
@@ -681,8 +721,10 @@ async function authorizeIntent(
     !state.value.accepting ||
     claims.tenantId !== tenantId ||
     claims.publicationId !== resolved.publication.publicationId ||
+    claims.publicationVersionId !== resolved.version.versionId ||
     claims.accessRevision !== resolved.publication.accessRevision ||
-    claims.submissionRevision !== state.value.submissionRevision
+    claims.submissionRevision !== state.value.submissionRevision ||
+    claims.respondentUserId !== respondentUserId
   ) {
     return formProblem(
       409,
@@ -876,15 +918,545 @@ function durableProblem(result: {
   )
 }
 
-const FORM_CLIENT_SCRIPT = String.raw`(()=>{"use strict";
-const root=document.getElementById("eidos-form-root"),slug=root&&root.dataset.slug;
-if(!root||!slug)return;
-const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [key,value] of Object.entries(attrs)){if(key==="class")node.className=value;else if(key==="required")node.required=Boolean(value);else if(key==="multiple")node.multiple=Boolean(value);else node.setAttribute(key,String(value));}if(text!==undefined)node.textContent=text;return node;};
-const hex=buffer=>Array.from(new Uint8Array(buffer),b=>b.toString(16).padStart(2,"0")).join("");
-const id=()=>crypto.randomUUID().replaceAll("-","");
-async function load(){const response=await fetch("/_eidos/forms/"+encodeURIComponent(slug)+"/definition",{credentials:"same-origin"});if(!response.ok)throw new Error((await response.json().catch(()=>null))?.error?.message||"This form is unavailable.");return response.json();}
-function control(field){let input;if(field.type==="text"&&field.multiline){input=el("textarea");}else if(field.type==="select"||field.type==="multi-select"){input=el("select",field.type==="multi-select"?{multiple:true}:{});if(!field.required&&field.type==="select")input.append(el("option",{value:""},"Choose…"));for(const value of field.constraints.options||[])input.append(el("option",{value},value));}else{const types={integer:"number",number:"number",rating:"number",checkbox:"checkbox",date:"date",datetime:"datetime-local",file:"file",url:"url"};input=el("input",{type:types[field.type]||"text"});if(field.type==="file")input.multiple=field.constraints.multiple!==false;}input.name=field.inputKey;input.required=field.required;if(field.placeholder)input.placeholder=field.placeholder;return input;}
-async function render(def){root.replaceChildren();const header=el("header"),title=el("h1",{},def.presentation.title);header.append(title);if(def.presentation.description)header.append(el("p",{},def.presentation.description));root.append(header);const form=el("form"),controls=new Map();for(const field of def.fields){const wrap=el("div",{class:"field"}),label=el("label",{},field.label);if(field.required)label.append(el("span",{class:"required"}," *"));const input=control(field);label.htmlFor="field-"+field.inputKey;input.id=label.htmlFor;wrap.append(label);if(field.description)wrap.append(el("p",{class:"hint"},field.description));wrap.append(input);controls.set(field.inputKey,{field,input});form.append(wrap);}const status=el("p",{class:"status","aria-live":"polite"}),button=el("button",{type:"submit"},def.presentation.submitLabel);form.append(status,button);form.addEventListener("submit",async event=>{event.preventDefault();button.disabled=true;status.className="status";status.textContent="Submitting…";try{const values={},attachments=[],files=[];for(const [inputKey,{field,input}] of controls){if(field.type==="file"){for(const file of input.files||[]){const attachmentId=id(),digest=hex(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()));attachments.push({attachmentId,inputKey,name:file.name,mediaType:file.type||"application/octet-stream",bytes:String(file.size),sha256:digest});files.push({attachmentId,file,digest});}}else if(field.type==="checkbox")values[inputKey]=input.checked;else if(field.type==="multi-select")values[inputKey]=Array.from(input.selectedOptions,option=>option.value);else if(input.value!=="")values[inputKey]=(field.type==="number"||field.type==="rating")?Number(input.value):(field.type==="datetime"?new Date(input.value).toISOString():input.value);}
-const init=await fetch("/_eidos/forms/"+encodeURIComponent(slug)+"/submissions/init",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({intent:def.submissionIntent,idempotencyKey:id(),values,attachments})});const initialized=await init.json();if(!init.ok)throw new Error(initialized?.error?.message||"Submission failed.");for(const upload of initialized.attachments){const item=files.find(candidate=>candidate.attachmentId===upload.attachmentId);if(!item)continue;const response=await fetch(upload.uploadUrl,{method:"PUT",credentials:"same-origin",headers:{"Content-Type":item.file.type||"application/octet-stream","X-Eidos-Content-SHA256":item.digest,"X-Eidos-Submission-Intent":def.submissionIntent},body:item.file});if(!response.ok)throw new Error((await response.json().catch(()=>null))?.error?.message||"Attachment upload failed.");}
-const complete=await fetch("/_eidos/forms/"+encodeURIComponent(slug)+"/submissions/"+initialized.submissionId+"/complete",{method:"POST",credentials:"same-origin",headers:{"X-Eidos-Submission-Intent":def.submissionIntent}});if(!complete.ok)throw new Error((await complete.json().catch(()=>null))?.error?.message||"Submission failed.");form.reset();status.textContent=def.presentation.successMessage;}catch(error){status.className="status error";status.textContent=error instanceof Error?error.message:"Submission failed.";}finally{button.disabled=false;}});root.append(form);}
-load().then(render).catch(error=>{root.replaceChildren(el("p",{class:"status error"},error instanceof Error?error.message:"This form is unavailable."));});})();`
+const FORM_CLIENT_SCRIPT = String.raw`(() => {
+  "use strict";
+  const root = document.getElementById("eidos-form-root");
+  const slug = root && root.dataset.slug;
+  if (!root || !slug) return;
+
+  const booleanProperties = new Set([
+    "disabled",
+    "hidden",
+    "multiple",
+    "required",
+    "selected",
+  ]);
+  const el = (tag, attrs = {}, text) => {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key === "class") node.className = value;
+      else if (booleanProperties.has(key)) node[key] = Boolean(value);
+      else node.setAttribute(key, String(value));
+    }
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const hex = (buffer) =>
+    Array.from(new Uint8Array(buffer), (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("");
+  const id = () => crypto.randomUUID().replaceAll("-", "");
+
+  async function checked(response, fallback) {
+    const value = await response.json().catch(() => null);
+    if (
+      response.status === 401 &&
+      typeof value?.authorizationUrl === "string"
+    ) {
+      location.assign(value.authorizationUrl);
+      return new Promise(() => {});
+    }
+    if (!response.ok) throw new Error(value?.error?.message || fallback);
+    return value;
+  }
+
+  function embeddedDefinition() {
+    const node = document.getElementById("eidos-form-definition");
+    if (!node) throw new Error("This form is unavailable.");
+    const value = JSON.parse(node.textContent || "null");
+    if (
+      !value ||
+      value.spec !== "eidos.publish/public-form@1" ||
+      typeof value.publicationVersionId !== "string" ||
+      !value.presentation ||
+      !Array.isArray(value.fields)
+    ) {
+      throw new Error("This form is unavailable.");
+    }
+    return value;
+  }
+
+  async function loadSubmissionIntent(publicationVersionId) {
+    const response = await fetch(
+      "/_eidos/forms/" + encodeURIComponent(slug) + "/definition",
+      { credentials: "same-origin" }
+    );
+    const value = await checked(response, "This form is unavailable.");
+    if (
+      value.publicationVersionId !== publicationVersionId ||
+      typeof value.submissionIntent !== "string"
+    ) {
+      throw new Error("This form changed. Reload and try again.");
+    }
+    return value.submissionIntent;
+  }
+
+  const chinese = navigator.language.toLowerCase().startsWith("zh");
+  const copy = chinese
+    ? {
+        empty: "空",
+        chooseFile: "选择文件",
+        chooseFiles: "选择文件",
+        noFile: "未选择文件",
+        submitting: "正在提交…",
+        required: "请填写必填项。",
+      }
+    : {
+        empty: "Empty",
+        chooseFile: "Choose file",
+        chooseFiles: "Choose files",
+        noFile: "No file chosen",
+        submitting: "Submitting…",
+        required: "Complete the required fields.",
+      };
+  document.documentElement.lang = chinese ? "zh-CN" : "en";
+
+  function optionTag(option) {
+    return el(
+      "span",
+      {
+        class: "option-tag",
+        "data-option-color": option.color,
+        title: option.name,
+      },
+      option.name
+    );
+  }
+
+  function setChoiceOpen(control, trigger, menu, open) {
+    control.classList.toggle("is-open", open);
+    trigger.setAttribute("aria-expanded", String(open));
+    menu.hidden = !open;
+  }
+
+  function closeChoiceMenus(except) {
+    for (const control of root.querySelectorAll(".choice-control.is-open")) {
+      if (control === except) continue;
+      const trigger = control.querySelector(".choice-trigger");
+      const menu = control.querySelector(".choice-menu");
+      if (trigger && menu) setChoiceOpen(control, trigger, menu, false);
+    }
+  }
+
+  function choiceControl(field, multiple) {
+    const options = field.constraints.options;
+    const selected = new Set();
+    const control = el("div", { class: "choice-control" });
+    const trigger = el("button", {
+      class: "choice-trigger",
+      type: "button",
+      "aria-haspopup": "listbox",
+      "aria-expanded": "false",
+      "aria-controls": "menu-" + field.inputKey,
+    });
+    const value = el("span", { class: "choice-value" });
+    const chevron = el("span", {
+      class: "choice-chevron",
+      "aria-hidden": "true",
+    });
+    const menu = el("div", {
+      class: "choice-menu",
+      id: "menu-" + field.inputKey,
+      role: "listbox",
+      hidden: true,
+      ...(multiple ? { "aria-multiselectable": "true" } : {}),
+    });
+    const rows = [];
+
+    const renderValue = () => {
+      value.replaceChildren();
+      const chosen = options.filter((option) => selected.has(option.name));
+      if (chosen.length === 0) {
+        value.append(
+          el(
+            "span",
+            { class: "choice-placeholder" },
+            field.placeholder || copy.empty
+          )
+        );
+      } else {
+        value.append(...chosen.map(optionTag));
+      }
+      for (const row of rows) {
+        row.node.setAttribute(
+          "aria-selected",
+          String(
+            row.option === null
+              ? selected.size === 0
+              : selected.has(row.option.name)
+          )
+        );
+      }
+    };
+
+    const clearInvalid = () => {
+      control.classList.remove("is-invalid");
+      trigger.setAttribute("aria-invalid", "false");
+    };
+    const choose = (option) => {
+      if (multiple) {
+        if (selected.has(option.name)) selected.delete(option.name);
+        else selected.add(option.name);
+      } else {
+        selected.clear();
+        if (option) selected.add(option.name);
+      }
+      clearInvalid();
+      renderValue();
+      if (!multiple) {
+        setChoiceOpen(control, trigger, menu, false);
+        trigger.focus();
+      }
+    };
+    const appendRow = (option) => {
+      const row = el("button", {
+        class:
+          "choice-menu-item" + (option === null ? " choice-empty-item" : ""),
+        type: "button",
+        role: "option",
+        "aria-selected": "false",
+      });
+      row.append(el("span", { class: "choice-check", "aria-hidden": "true" }));
+      row.append(option === null ? el("span", {}, copy.empty) : optionTag(option));
+      row.addEventListener("click", () => choose(option));
+      row.addEventListener("keydown", (event) => {
+        const index = rows.findIndex((candidate) => candidate.node === row);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          rows[(index + delta + rows.length) % rows.length]?.node.focus();
+        } else if (event.key === "Home" || event.key === "End") {
+          event.preventDefault();
+          rows[event.key === "Home" ? 0 : rows.length - 1]?.node.focus();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          setChoiceOpen(control, trigger, menu, false);
+          trigger.focus();
+        }
+      });
+      rows.push({ node: row, option });
+      menu.append(row);
+    };
+
+    if (!multiple) appendRow(null);
+    for (const option of options) appendRow(option);
+    trigger.append(value, chevron);
+    trigger.addEventListener("click", () => {
+      const open = !control.classList.contains("is-open");
+      closeChoiceMenus(control);
+      setChoiceOpen(control, trigger, menu, open);
+    });
+    trigger.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        closeChoiceMenus(control);
+        setChoiceOpen(control, trigger, menu, true);
+        rows[event.key === "ArrowDown" ? 0 : rows.length - 1]?.node.focus();
+      } else if (event.key === "Escape") {
+        setChoiceOpen(control, trigger, menu, false);
+      }
+    });
+    control.append(trigger, menu);
+    renderValue();
+    return {
+      root: control,
+      input: trigger,
+      value: () => (multiple ? Array.from(selected) : (selected.values().next().value ?? "")),
+      reset: () => {
+        selected.clear();
+        clearInvalid();
+        setChoiceOpen(control, trigger, menu, false);
+        renderValue();
+      },
+      invalidate: () => {
+        control.classList.add("is-invalid");
+        trigger.setAttribute("aria-invalid", "true");
+        trigger.focus();
+      },
+    };
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Node) || !event.target.closest?.(".choice-control")) {
+      closeChoiceMenus();
+    }
+  });
+
+  function control(field) {
+    const constraints = field.constraints || {};
+    if (field.type === "multi-select") {
+      return choiceControl(field, true);
+    }
+
+    if (field.type === "select") {
+      return choiceControl(field, false);
+    }
+
+    if (field.type === "file") {
+      const input = el("input", {
+        class: "file-input",
+        type: "file",
+        multiple: constraints.multiple !== false,
+      });
+      const summary = el("span", { class: "file-summary" }, copy.noFile);
+      const shell = el("div", { class: "file-control" });
+      shell.append(
+        input,
+        el(
+          "span",
+          { class: "file-action", "aria-hidden": "true" },
+          constraints.multiple === false ? copy.chooseFile : copy.chooseFiles
+        ),
+        summary
+      );
+      input.addEventListener("change", () => {
+        const names = Array.from(input.files || [], (file) => file.name);
+        summary.textContent = names.length > 0 ? names.join(", ") : copy.noFile;
+      });
+      return { root: shell, input, summary };
+    }
+
+    if (field.type === "text" && field.multiline) {
+      const input = el("textarea", { class: "form-control" });
+      return { root: input, input };
+    }
+
+    const types = {
+      integer: "number",
+      number: "number",
+      rating: "number",
+      checkbox: "checkbox",
+      date: "date",
+      datetime: "datetime-local",
+      url: "url",
+    };
+    const input = el("input", {
+      class: field.type === "checkbox" ? "checkbox-control" : "form-control",
+      type: types[field.type] || "text",
+    });
+    if (field.type === "integer") input.step = "1";
+    if (typeof constraints.min === "number") input.min = String(constraints.min);
+    if (typeof constraints.max === "number") input.max = String(constraints.max);
+    return { root: input, input };
+  }
+
+  function render(definition) {
+    root.replaceChildren();
+    const header = el("header", { class: "form-header" });
+    header.append(el("h1", {}, definition.presentation.title));
+    if (definition.presentation.description) {
+      header.append(
+        el(
+          "p",
+          { class: "form-description" },
+          definition.presentation.description
+        )
+      );
+    }
+    root.append(header);
+
+    const form = el("form");
+    const controls = new Map();
+    for (const field of definition.fields) {
+      const wrap = el("div", { class: "field" });
+      const label = el("label", { class: "field-label" }, field.label);
+      if (field.required) {
+        label.append(el("span", { class: "required", "aria-hidden": "true" }, "*"));
+      }
+      const rendered = control(field);
+      const fieldId = "field-" + field.inputKey;
+      const descriptionId = fieldId + "-description";
+      const nativeInput = rendered.input.matches("input, textarea, select");
+      if (nativeInput) {
+        label.htmlFor = fieldId;
+        rendered.input.id = fieldId;
+        rendered.input.name = field.inputKey;
+        rendered.input.required =
+          field.required && field.type !== "checkbox";
+        if (field.placeholder && field.type !== "select") {
+          rendered.input.placeholder = field.placeholder;
+        }
+      } else {
+        label.id = fieldId + "-label";
+        rendered.input.setAttribute("aria-labelledby", label.id);
+        rendered.input.setAttribute(
+          "aria-required",
+          field.required ? "true" : "false"
+        );
+      }
+      wrap.append(label);
+      if (field.description) {
+        const description = el(
+          "p",
+          { class: "field-description", id: descriptionId },
+          field.description
+        );
+        rendered.input.setAttribute("aria-describedby", descriptionId);
+        wrap.append(description);
+      }
+      wrap.append(rendered.root);
+      controls.set(field.inputKey, { field, ...rendered });
+      form.append(wrap);
+    }
+
+    const status = el("p", {
+      class: "status",
+      "aria-live": "polite",
+    });
+    const button = el(
+      "button",
+      { class: "submit-button", type: "submit" },
+      definition.presentation.submitLabel
+    );
+    const actions = el("div", { class: "form-actions" });
+    actions.append(button);
+    form.append(status, actions);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      form.setAttribute("aria-busy", "true");
+      status.className = "status is-pending";
+      status.textContent = copy.submitting;
+      try {
+        const values = {};
+        const attachments = [];
+        const files = [];
+        for (const [inputKey, controlState] of controls) {
+          const { field, input } = controlState;
+          if (field.type === "file") {
+            for (const file of input.files || []) {
+              const attachmentId = id();
+              const digest = hex(
+                await crypto.subtle.digest("SHA-256", await file.arrayBuffer())
+              );
+              attachments.push({
+                attachmentId,
+                inputKey,
+                name: file.name,
+                mediaType: file.type || "application/octet-stream",
+                bytes: String(file.size),
+                sha256: digest,
+              });
+              files.push({ attachmentId, file, digest });
+            }
+          } else if (field.type === "checkbox") {
+            values[inputKey] = input.checked;
+          } else if (field.type === "multi-select") {
+            const selected = controlState.value();
+            if (field.required && selected.length === 0) {
+              controlState.invalidate();
+              throw new Error(copy.required);
+            }
+            values[inputKey] = selected;
+          } else if (field.type === "select") {
+            const selected = controlState.value();
+            if (field.required && selected === "") {
+              controlState.invalidate();
+              throw new Error(copy.required);
+            }
+            if (selected !== "") values[inputKey] = selected;
+          } else if (input.value !== "") {
+            values[inputKey] =
+              field.type === "number" || field.type === "rating"
+                ? Number(input.value)
+                : field.type === "datetime"
+                  ? new Date(input.value).toISOString()
+                  : input.value;
+          }
+        }
+
+        const submissionIntent = await loadSubmissionIntent(
+          definition.publicationVersionId
+        );
+
+        const initialized = await checked(
+          await fetch(
+            "/_eidos/forms/" +
+              encodeURIComponent(slug) +
+              "/submissions/init",
+            {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                intent: submissionIntent,
+                idempotencyKey: id(),
+                values,
+                attachments,
+              }),
+            }
+          ),
+          "Submission failed."
+        );
+        for (const upload of initialized.attachments) {
+          const item = files.find(
+            (candidate) => candidate.attachmentId === upload.attachmentId
+          );
+          if (!item) continue;
+          await checked(
+            await fetch(upload.uploadUrl, {
+              method: "PUT",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": item.file.type || "application/octet-stream",
+                "X-Eidos-Content-SHA256": item.digest,
+                "X-Eidos-Submission-Intent": submissionIntent,
+              },
+              body: item.file,
+            }),
+            "Attachment upload failed."
+          );
+        }
+        await checked(
+          await fetch(
+            "/_eidos/forms/" +
+              encodeURIComponent(slug) +
+              "/submissions/" +
+              initialized.submissionId +
+              "/complete",
+            {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "X-Eidos-Submission-Intent": submissionIntent,
+              },
+            }
+          ),
+          "Submission failed."
+        );
+        form.reset();
+        for (const controlState of controls.values()) {
+          controlState.reset?.();
+          controlState.input.classList.remove("is-invalid");
+          controlState.input.setAttribute("aria-invalid", "false");
+          if (controlState.summary) {
+            controlState.summary.textContent = copy.noFile;
+          }
+        }
+        status.className = "status is-success";
+        status.textContent = definition.presentation.successMessage;
+      } catch (error) {
+        status.className = "status is-error";
+        status.textContent =
+          error instanceof Error ? error.message : "Submission failed.";
+      } finally {
+        button.disabled = false;
+        form.removeAttribute("aria-busy");
+      }
+    });
+    root.append(form);
+  }
+
+  try {
+    render(embeddedDefinition());
+  } catch (error) {
+    root.replaceChildren(
+      el(
+        "p",
+        { class: "status is-error" },
+        error instanceof Error ? error.message : "This form is unavailable."
+      )
+    );
+  }
+})();`

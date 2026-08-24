@@ -42,6 +42,10 @@ export class SyncControlPlane {
       : this.projectStatus(account, undefined, remoteUrl)
   }
 
+  async accountStatus(): Promise<SyncAccountStatus> {
+    return await this.account.status()
+  }
+
   async signIn(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
     const account = await this.account.signIn()
     return await this.projectSignedInStatus(

@@ -54,28 +54,12 @@ interface CollectorTakeoverResponse {
   collectorGeneration?: unknown
 }
 
-interface FormCollectorStatusResponse {
-  inbox?: {
-    collectorId?: unknown
-    collectorGeneration?: unknown
-  }
-  stats?: {
-    pendingCount?: unknown
-  }
-}
-
-interface ActiveCollectorSource {
-  session: SpaceSession
-  relativePath: string
-  timer: NodeJS.Timeout | null
-  running: boolean
-}
-
 interface RemotePublicationRecord {
   publicationId?: unknown
   slug?: unknown
   visibility?: unknown
   accessMode?: unknown
+  showBranding?: unknown
   currentVersionId?: unknown
 }
 
@@ -208,7 +192,10 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
     (request.accessMode !== "unchanged" &&
       request.accessMode !== "public" &&
       request.accessMode !== "password" &&
-      request.accessMode !== "private")
+      request.accessMode !== "private") ||
+    (request.branding !== "unchanged" &&
+      request.branding !== "show" &&
+      request.branding !== "hide")
   ) {
     throw new Error("Invalid Publish request")
   }
@@ -221,6 +208,23 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
       !request.relativePath.toLowerCase().endsWith(".eidos"))
   ) {
     throw new Error("A valid Form View requires an Eidos File")
+  }
+  if (
+    request.formView !== undefined &&
+    ((request.formRespondentAccess !== "anyone" &&
+      request.formRespondentAccess !== "signed_in") ||
+      typeof request.formAllowMultipleResponses !== "boolean" ||
+      (request.formRespondentAccess === "anyone" &&
+        !request.formAllowMultipleResponses))
+  ) {
+    throw new Error("Invalid published Form response access")
+  }
+  if (
+    request.formView === undefined &&
+    (request.formRespondentAccess !== undefined ||
+      request.formAllowMultipleResponses !== undefined)
+  ) {
+    throw new Error("Form response access requires a Form View")
   }
   const password = request.password
   if (request.accessMode === "password") {
@@ -245,8 +249,16 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
     relativePath: request.relativePath,
     slug: request.slug,
     accessMode: request.accessMode,
+    branding: request.branding,
     ...(typeof request.formView === "string"
       ? { formView: request.formView }
+      : {}),
+    ...(request.formRespondentAccess === "anyone" ||
+    request.formRespondentAccess === "signed_in"
+      ? { formRespondentAccess: request.formRespondentAccess }
+      : {}),
+    ...(typeof request.formAllowMultipleResponses === "boolean"
+      ? { formAllowMultipleResponses: request.formAllowMultipleResponses }
       : {}),
     ...(typeof password === "string" ? { password } : {}),
   }
@@ -392,7 +404,18 @@ function cliArguments(
   if (request.accessMode === "private") {
     args.push("--visibility", "private")
   }
+  if (request.branding === "hide") args.push("--hide-branding")
+  if (request.branding === "show") args.push("--show-branding")
   if (request.formView) args.push("--form-view", request.formView)
+  if (request.formRespondentAccess) {
+    args.push(
+      "--form-respondents",
+      request.formRespondentAccess === "signed_in" ? "signed-in" : "anyone"
+    )
+  }
+  if (request.formAllowMultipleResponses === false) {
+    args.push("--one-response-per-user")
+  }
   return args
 }
 
@@ -491,10 +514,6 @@ async function boundedResponseJson(
 export class EidosPublishEngine {
   private readonly children = new Set<ChildProcess>()
   private readonly registries = new Map<string, PublicationRegistry>()
-  private readonly activeCollectorSources = new Map<
-    string,
-    ActiveCollectorSource
-  >()
 
   constructor(
     private readonly services: EidosLiteServiceEnvironment,
@@ -533,6 +552,8 @@ export class EidosPublishEngine {
         )
       if (
         request.accessMode === "unchanged" &&
+        request.branding === "unchanged" &&
+        request.formView === undefined &&
         existing?.localObservation &&
         existing.publishFingerprint &&
         hasReusableCachedResult(existing)
@@ -557,6 +578,7 @@ export class EidosPublishEngine {
                 versionCreated: false,
                 visibility: remote.visibility,
                 accessMode: remote.accessMode,
+                showBranding: remote.showBranding,
                 url: remote.url,
               }
               registry.upsertPublished(
@@ -776,41 +798,11 @@ export class EidosPublishEngine {
     )
   }
 
-  setActiveCollectorSource(
-    session: SpaceSession,
-    relativePath: string | null
-  ): void {
-    const key = session.canonical.id
-    const current = this.activeCollectorSources.get(key)
-    if (current?.timer) clearTimeout(current.timer)
-    if (relativePath === null) {
-      this.activeCollectorSources.delete(key)
-      return
-    }
-    if (!relativePath.toLowerCase().endsWith(".eidos")) {
-      throw new Error(
-        "An active Publish Collector source must be an Eidos File"
-      )
-    }
-    const active: ActiveCollectorSource = {
-      session,
-      relativePath,
-      timer: null,
-      running: false,
-    }
-    this.activeCollectorSources.set(key, active)
-    this.scheduleBackgroundCollection(key, active, 1_500)
-  }
-
   close(): void {
     for (const child of this.children) child.kill()
     this.children.clear()
     for (const registry of this.registries.values()) registry.close()
     this.registries.clear()
-    for (const active of this.activeCollectorSources.values()) {
-      if (active.timer) clearTimeout(active.timer)
-    }
-    this.activeCollectorSources.clear()
   }
 
   private registry(session: SpaceSession): PublicationRegistry {
@@ -902,6 +894,7 @@ export class EidosPublishEngine {
   ): Promise<{
     visibility: EidosPublishResult["visibility"]
     accessMode: EidosPublishResult["accessMode"]
+    showBranding: boolean
     url: string
   } | null> {
     if (!binding.publishFingerprint) return null
@@ -944,7 +937,8 @@ export class EidosPublishEngine {
         publication.visibility !== "private") ||
       (publication.accessMode !== "public" &&
         publication.accessMode !== "password" &&
-        publication.accessMode !== "private")
+        publication.accessMode !== "private") ||
+      typeof publication.showBranding !== "boolean"
     ) {
       return null
     }
@@ -976,176 +970,8 @@ export class EidosPublishEngine {
     return {
       visibility: publication.visibility,
       accessMode: publication.accessMode,
+      showBranding: publication.showBranding,
       url: `https://${canonicalHost}/${binding.slug}`,
-    }
-  }
-
-  private async formCollectorStatus(
-    publicationId: string,
-    accessToken: string
-  ): Promise<{
-    collectorId: string | null
-    collectorGeneration: number
-    pendingCount: number
-  }> {
-    const response = await fetch(
-      new URL(`/api/forms/${publicationId}`, this.services.publishOrigin),
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(30_000),
-      }
-    )
-    const value = await boundedResponseJson(response)
-    if (!response.ok) {
-      const problem =
-        value && typeof value === "object" && !Array.isArray(value)
-          ? (value as Record<string, unknown>)
-          : {}
-      const code =
-        typeof problem.code === "string"
-          ? problem.code
-          : "collector-status-failed"
-      const message =
-        typeof problem.message === "string"
-          ? problem.message
-          : "Could not check the Form Inbox"
-      throw Object.assign(
-        new Error(`${message} (${code}, HTTP ${response.status})`),
-        { code }
-      )
-    }
-    const metadata = value as FormCollectorStatusResponse
-    const collectorId = metadata?.inbox?.collectorId
-    const collectorGeneration = metadata?.inbox?.collectorGeneration
-    const pendingCount = metadata?.stats?.pendingCount
-    if (
-      (collectorId !== null && typeof collectorId !== "string") ||
-      !Number.isSafeInteger(collectorGeneration) ||
-      (collectorGeneration as number) < 0 ||
-      !Number.isSafeInteger(pendingCount) ||
-      (pendingCount as number) < 0
-    ) {
-      throw Object.assign(
-        new Error("Publish service returned invalid Form Inbox status"),
-        { code: "publish-service-invalid-response" }
-      )
-    }
-    return {
-      collectorId: collectorId as string | null,
-      collectorGeneration: collectorGeneration as number,
-      pendingCount: pendingCount as number,
-    }
-  }
-
-  private scheduleBackgroundCollection(
-    key: string,
-    active: ActiveCollectorSource,
-    delayMs: number
-  ): void {
-    active.timer = setTimeout(() => {
-      active.timer = null
-      if (this.activeCollectorSources.get(key) !== active || active.running) {
-        return
-      }
-      active.running = true
-      void this.collectInBackground(active)
-        .catch(() => undefined)
-        .finally(() => {
-          active.running = false
-          if (this.activeCollectorSources.get(key) === active) {
-            this.scheduleBackgroundCollection(key, active, 60_000)
-          }
-        })
-    }, delayMs)
-  }
-
-  private async collectInBackground(
-    active: ActiveCollectorSource
-  ): Promise<void> {
-    const [accessToken, accountId, executable] = await Promise.all([
-      this.account.accountAccessToken(),
-      this.account.accountSubject(),
-      publishEnginePath(),
-    ])
-    const registry = this.registry(active.session)
-    const scope = this.scope(active.session, accountId)
-    const bindings = registry
-      .list(scope, active.relativePath)
-      .filter((binding) => binding.sourceKind === "form")
-    for (const binding of bindings) {
-      const collector = binding.collector
-      const expectedCollectorId = this.collectorId(
-        active.session,
-        binding.publicationId
-      )
-      if (
-        collector?.collectorId !== expectedCollectorId ||
-        collector.collectorGeneration === null ||
-        collector.lastErrorCode === "collector_generation_stale"
-      ) {
-        continue
-      }
-      let remote: Awaited<ReturnType<EidosPublishEngine["formCollectorStatus"]>>
-      try {
-        remote = await this.formCollectorStatus(
-          binding.publicationId,
-          accessToken
-        )
-      } catch (error) {
-        const failure = failureFrom(error)
-        registry.recordCollectionFailure(
-          scope,
-          binding.publicationId,
-          failure.failure.code,
-          failure.failure.message
-        )
-        continue
-      }
-      if (
-        remote.collectorId !== expectedCollectorId ||
-        remote.collectorGeneration !== collector.collectorGeneration
-      ) {
-        registry.recordCollectionFailure(
-          scope,
-          binding.publicationId,
-          "collector_generation_stale",
-          "Another device owns this Form Collector. Collect now to take over explicitly."
-        )
-        continue
-      }
-      registry.recordCollectorOwnership(
-        scope,
-        binding.publicationId,
-        expectedCollectorId,
-        remote.collectorGeneration
-      )
-      if (remote.pendingCount === 0) continue
-      registry.recordCollectionAttempt(scope, binding.publicationId)
-      try {
-        const result = await active.session.collectPublishedFormResponses(
-          active.relativePath,
-          (filePath, attachmentRoot, signal) =>
-            this.runCollectCli(
-              executable,
-              filePath,
-              attachmentRoot,
-              binding.publicationId,
-              expectedCollectorId,
-              accessToken,
-              signal,
-              collector.collectorGeneration ?? undefined
-            )
-        )
-        registry.recordCollectionSuccess(scope, result)
-      } catch (error) {
-        const failure = failureFrom(error)
-        registry.recordCollectionFailure(
-          scope,
-          binding.publicationId,
-          failure.failure.code,
-          failure.failure.message
-        )
-      }
     }
   }
 
@@ -1245,6 +1071,16 @@ export class EidosPublishEngine {
         (result.mediaType !== "application/vnd.eidos+sqlite3" &&
           result.mediaType !== "text/markdown" &&
           result.mediaType !== "application/vnd.eidos.form+json") ||
+        (result.driverId === "org.eidos.driver.form"
+          ? !result.formPolicy ||
+            (result.formPolicy.respondentAccess !== "anyone" &&
+              result.formPolicy.respondentAccess !== "signed_in") ||
+            typeof result.formPolicy.allowMultipleResponses !== "boolean" ||
+            !Number.isSafeInteger(result.formPolicy.revision) ||
+            result.formPolicy.revision < 0 ||
+            (result.formPolicy.respondentAccess === "anyone" &&
+              !result.formPolicy.allowMultipleResponses)
+          : result.formPolicy !== null) ||
         typeof result.publicationId !== "string" ||
         typeof result.url !== "string" ||
         typeof result.versionId !== "string" ||

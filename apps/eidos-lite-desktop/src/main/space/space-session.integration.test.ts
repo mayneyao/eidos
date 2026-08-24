@@ -3,7 +3,10 @@ import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { createEidosFileUuid } from "@eidos.space/eidos-file"
-import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
+import {
+  createEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/node-sqlite"
 
 import { GraftClient } from "../graft/graft-client"
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../../shared/performance-contract"
@@ -1134,6 +1137,107 @@ describe("SpaceSession Graft-backed snapshots", () => {
         session.canonical.root,
         expect.objectContaining({ verifyPaths: [relativePath] })
       )
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
+  it("signals affected Eidos Files to refresh after collecting published Form responses", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-publish-collect-refresh-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-publish-collect-refresh-state-")
+    )
+    const relativePath = "records.eidos"
+    const filePath = path.join(root, relativePath)
+    const file = createEidosFile(filePath, {
+      title: "Collected responses",
+      defaultTable: {
+        name: "Responses",
+        fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+      },
+    })
+    file.close()
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.18",
+      close: async () => undefined,
+      inspectSpace: async (): Promise<GraftSpaceStatus> => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.18",
+        expectedVersion: "0.3.18",
+        initialized: false,
+      }),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: false,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      const closeHandles = vi
+        .spyOn(session.runtimePool, "closeHandles")
+        .mockResolvedValue(undefined)
+      const reopenHandles = vi
+        .spyOn(session.runtimePool, "reopenHandles")
+        .mockResolvedValue(undefined)
+      vi.spyOn(session.runtimePool, "validatePaths").mockResolvedValue(
+        undefined
+      )
+
+      const emitted = new Promise<SpaceSnapshot>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Collect refresh signal was not emitted")),
+          1_000
+        )
+        const unsubscribe = session!.onChanged((snapshot) => {
+          if (!("materializedPaths" in snapshot)) return
+          clearTimeout(timer)
+          unsubscribe()
+          resolve(snapshot)
+        })
+      })
+      const result = await session.collectPublishedFormResponses(
+        relativePath,
+        async (collectedFilePath) => {
+          const collected = openEidosFile(collectedFilePath)
+          try {
+            const tableId = collected.schema()[0]!.table.id
+            collected.insertRow(tableId, { Name: "Ada" })
+          } finally {
+            collected.close()
+          }
+          return { importedSubmissions: 1 }
+        }
+      )
+
+      expect(result).toEqual({ importedSubmissions: 1 })
+      await expect(emitted).resolves.toMatchObject({
+        materializedPaths: [relativePath],
+      })
+      expect(closeHandles).toHaveBeenCalledOnce()
+      expect(reopenHandles).toHaveBeenCalledOnce()
+      const collected = openEidosFile(filePath, { readonly: true })
+      try {
+        expect(
+          collected.listRows(collected.schema()[0]!.table.id)
+        ).toHaveLength(1)
+      } finally {
+        collected.close()
+      }
     } finally {
       await session?.close().catch(() => undefined)
       await Promise.all([

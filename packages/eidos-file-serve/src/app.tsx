@@ -82,6 +82,10 @@ import {
 } from "./assets"
 import { firstTableTemplate, resolveServeEditorState } from "./empty-file"
 import { resolveServeNavigation } from "./navigation"
+import {
+  browserPublishBrandingVisible,
+  EidosPublishBrand,
+} from "./publish-brand"
 
 const EidosFileEditorView = lazy(() =>
   import("@eidos.space/eidos-file-ui/eidos-file-editor-view").then(
@@ -987,6 +991,8 @@ export function ServeApp() {
 
   if (editorState === "empty" || !activeTable) {
     if (readOnly) {
+      const showPublishBrand =
+        manifest?.mode === "publish" && browserPublishBrandingVisible()
       return (
         <EidosFileUIProvider themeName={theme} locale={locale}>
           <main className="serve-shell">
@@ -1002,6 +1008,11 @@ export function ServeApp() {
                 </p>
               </section>
             </EidosFileEditorShell>
+            {showPublishBrand ? (
+              <footer className="eidos-publish-empty-statusbar">
+                <EidosPublishBrand />
+              </footer>
+            ) : null}
           </main>
         </EidosFileUIProvider>
       )
@@ -1038,6 +1049,8 @@ export function ServeApp() {
     : saving
       ? "Saving"
       : "Saved"
+  const published = manifest?.mode === "publish"
+  const showPublishBrand = published && browserPublishBrandingVisible()
 
   return (
     <EidosFileUIProvider
@@ -1219,24 +1232,30 @@ export function ServeApp() {
               onExportError={(error) => setNotice(errorMessage(error))}
               renderTab={readOnly ? (_table, tab) => tab : undefined}
               status={
-                <span
-                  className="flex items-center gap-1.5"
-                  aria-label={`${statusLabel}, ${manifest?.fileName ?? ""}, SQLite ${snapshot.metadata.schemaVersion}`}
-                  title={`${statusLabel} · ${manifest?.fileName ?? ""} · SQLite ${snapshot.metadata.schemaVersion}`}
-                >
-                  <StatusIcon
-                    className={saving ? "spin" : ""}
-                    size={13}
-                    aria-hidden="true"
-                  />
-                  <span aria-hidden="true">
-                    <span>{statusLabel}</span>
-                    <span className="status-separator"> / </span>
-                    <span>{manifest?.fileName}</span>
-                    <span className="status-separator"> / </span>
-                    <span>SQLite {snapshot.metadata.schemaVersion}</span>
+                published ? (
+                  showPublishBrand ? (
+                    <EidosPublishBrand />
+                  ) : undefined
+                ) : (
+                  <span
+                    className="flex items-center gap-1.5"
+                    aria-label={`${statusLabel}, ${manifest?.fileName ?? ""}, SQLite ${snapshot.metadata.schemaVersion}`}
+                    title={`${statusLabel} · ${manifest?.fileName ?? ""} · SQLite ${snapshot.metadata.schemaVersion}`}
+                  >
+                    <StatusIcon
+                      className={saving ? "spin" : ""}
+                      size={13}
+                      aria-hidden="true"
+                    />
+                    <span aria-hidden="true">
+                      <span>{statusLabel}</span>
+                      <span className="status-separator"> / </span>
+                      <span>{manifest?.fileName}</span>
+                      <span className="status-separator"> / </span>
+                      <span>SQLite {snapshot.metadata.schemaVersion}</span>
+                    </span>
                   </span>
-                </span>
+                )
               }
             />
           }
