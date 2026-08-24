@@ -276,9 +276,10 @@ eidos publish docs/guide.md --slug guide
 ```
 
 Markdown must be UTF-8 and no larger than 16 MiB. It is rendered once as a
-script-free static page; raw HTML is not executed. Each source object or
-attachment is limited to 1 GiB and equal SHA-256 content is stored once per
-account.
+script-free static page; raw HTML is not executed. Standard Publish accepts an
+`.eidos` entrypoint up to 256 MiB; Custom accounts can receive a higher
+account-specific limit. Source attachments remain limited to 1 GiB, and equal
+SHA-256 content is stored once per account.
 
 Publish a local Form View, then collect completed responses into its original
 Table with the Publication ID from the publish result:

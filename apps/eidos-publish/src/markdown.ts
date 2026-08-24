@@ -199,6 +199,7 @@ async function loadMarkdownSource(
   const manifestValue = await manifestObject.json<SourceBundleManifest>()
   const bundle = await validateSourceBundle(manifestValue, {
     maxObjectBytes: MARKDOWN_DRIVER.limits.maxObjectBytes,
+    maxEidosFileBytes: "1073741824",
   })
   if (
     bundle.manifestSha256 !== version.sourceManifestSha256 ||

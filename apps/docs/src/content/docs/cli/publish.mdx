@@ -172,7 +172,10 @@ Objects with the same SHA-256 are uploaded and stored once per account, even
 when several File entries, paths, slugs, or Versions reference those bytes.
 Published attachments use the same public, password, or private authorization
 as their resource. Missing files, changed sizes, escaping paths, symlinks, and
-objects larger than 1 GiB fail the publish before activation.
+attachments larger than 1 GiB fail the publish before activation. Standard
+Publish accepts an `.eidos` entrypoint up to 256 MiB; the CLI checks the
+account-specific limit before hashing. Custom accounts can receive a higher
+limit.
 
 ## Choose who can open it
 
@@ -254,12 +257,13 @@ eidos publish inventory.eidos --slug inventory
 Publishing new bytes to an existing slug creates a new immutable Version while
 keeping its URL stable. Publishing the same bytes and attachment references is
 a no-op for Version history. Resource count is not a commercial quota; storage
-and the history policy are. Current preview limits are:
+and the history policy are. Current standard Publish limits are:
 
 | Limit                        | Publish                           |
 | ---------------------------- | --------------------------------- |
 | Deduplicated account storage | 10 GiB                            |
-| One source or attachment     | 1 GiB                             |
+| One `.eidos` entrypoint      | 256 MiB                           |
+| One source attachment        | 1 GiB                             |
 | Markdown document            | 16 MiB                            |
 | Inactive Version history     | 30 days                           |
 | Resources                    | No quota                          |
@@ -272,7 +276,9 @@ and the history policy are. Current preview limits are:
 | One submitted attachment     | 100 MiB                           |
 | Imported response retention  | 30 days                           |
 
-Publish is a paid hosted service; local build and preview remain free. History
+Contact Eidos for a Custom plan when an `.eidos` file needs a higher limit or
+dedicated Runtime capacity. Publish is a paid hosted service; local build and
+preview remain free. History
 retention starts when an active Version is replaced. Inactive Versions are
 kept for 30 days. Failed or never-activated Versions are
 removed after 24 hours. The currently active Version is never removed by
@@ -314,8 +320,8 @@ or pricing page, then retry with the same file and slug.
 **The storage limit has been reached**
 
 Delete unneeded inactive Versions or reduce database/attachment bytes. Reusing
-identical content does not consume storage twice. The per-object limit remains
-1 GiB.
+identical content does not consume storage twice. Standard `.eidos` files are
+limited to 256 MiB, while source attachments retain the 1 GiB object limit.
 
 **An attachment cannot be published**
 

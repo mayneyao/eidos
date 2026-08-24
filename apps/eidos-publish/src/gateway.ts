@@ -17,6 +17,7 @@ import {
 import type {
   DurableResult,
   PublicationVersionRecord,
+  RuntimeServingTarget,
   StaticArtifactRecord,
   UsagePeriodRecord,
 } from "./contracts"
@@ -481,7 +482,7 @@ async function createRuntimeSession(
     version,
     tenantId,
     resolved.value.runtimeIdleSeconds,
-    env.RUNTIME_SHARD_COUNT
+    version.servingTarget.instanceKey
   )
   const now = Math.floor(Date.now() / 1000)
   const claims: RuntimeTicketClaims = {
@@ -616,7 +617,7 @@ async function proxyRuntime(
     version,
     tenantId,
     authorized.value.runtimeIdleSeconds,
-    env.RUNTIME_SHARD_COUNT
+    version.servingTarget.instanceKey
   )
   if (request.method === "POST" && runtimePath === "/api/assets/resolve") {
     const body = await boundedAssetResolveBody(request)
@@ -1029,7 +1030,7 @@ async function resolveAuthorizedForm(
 
 function requireRuntimeVersion(
   version: PublicationVersionRecord
-): PublicationVersionRecord {
+): PublicationVersionRecord & { servingTarget: RuntimeServingTarget } {
   if (
     version.state !== "ready" ||
     version.targetHealth !== "healthy" ||
@@ -1040,7 +1041,9 @@ function requireRuntimeVersion(
   ) {
     throw new PublicRuntimeError("runtime_unavailable")
   }
-  return version
+  return version as PublicationVersionRecord & {
+    servingTarget: RuntimeServingTarget
+  }
 }
 
 async function publicAsset(

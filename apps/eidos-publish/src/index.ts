@@ -1013,6 +1013,7 @@ async function beginVersion(
   const body = await beginVersionBody(request)
   const bundle = await validateSourceBundle(body.manifest, {
     maxObjectBytes: principal.access.maxObjectBytes,
+    maxEidosFileBytes: principal.access.maxEidosFileBytes,
   })
   if (
     body.driver.id !== bundle.driver.id ||
@@ -1201,6 +1202,7 @@ async function startWorkflowForVersion(
     actor: principal.userId,
     requestId,
     runtimeIdleSeconds: principal.access.runtimeIdleSeconds,
+    runtimeIsolation: principal.access.runtimeIsolation,
   })
 }
 

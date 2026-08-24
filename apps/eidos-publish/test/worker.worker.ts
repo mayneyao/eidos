@@ -28,6 +28,7 @@ import {
 import {
   RuntimeVersionReadinessCache,
   RuntimePreparationError,
+  runtimeInstanceName,
   runtimeShardName,
   sourceStartupTimeoutSeconds,
 } from "../src/runtime"
@@ -123,6 +124,18 @@ describe("Publish runtime sizing", () => {
     expect([...tenantsByShard.values()].some((count) => count > 1)).toBe(true)
     expect(() => runtimeShardName("tenant", "0")).toThrowError(
       RuntimePreparationError
+    )
+  })
+
+  it("isolates Custom tenants in dedicated Runtime instances", () => {
+    expect(runtimeInstanceName("u-custom-one", "8", "dedicated")).toBe(
+      "runtime-dedicated-v1-u-custom-one"
+    )
+    expect(runtimeInstanceName("u-custom-two", "8", "dedicated")).not.toBe(
+      runtimeInstanceName("u-custom-one", "8", "dedicated")
+    )
+    expect(runtimeInstanceName("u-standard", "8", "shared")).toBe(
+      runtimeShardName("u-standard", "8")
     )
   })
 
@@ -2607,6 +2620,7 @@ describe("Source Bundle conformance", () => {
     await expect(
       validateSourceBundle(manifest("../source.eidos", 1, "0".repeat(64)), {
         maxObjectBytes: "100",
+        maxEidosFileBytes: "100",
       })
     ).rejects.toMatchObject({ code: "invalid_source_path" })
 
@@ -2634,7 +2648,7 @@ describe("Source Bundle conformance", () => {
           ],
           assetReferences: [],
         },
-        { maxObjectBytes: "100" }
+        { maxObjectBytes: "100", maxEidosFileBytes: "100" }
       )
     ).rejects.toMatchObject({ code: "invalid_source_order" })
   })
@@ -2676,12 +2690,78 @@ describe("Source Bundle conformance", () => {
             },
           ],
         },
-        { maxObjectBytes: "1073741824" }
+        {
+          maxObjectBytes: "1073741824",
+          maxEidosFileBytes: "268435456",
+        }
       )
     ).rejects.toMatchObject({ code: "invalid_asset_reference" })
     expect(() => markdownLocalAssetUris("[bad](javascript:alert(1))")).toThrow(
       /unsupported scheme/
     )
+  })
+
+  it("applies the account Eidos File limit without lowering attachment limits", async () => {
+    await expect(
+      validateSourceBundle(
+        manifest("source.eidos", 268435457, "0".repeat(64)),
+        {
+          maxObjectBytes: "1073741824",
+          maxEidosFileBytes: "268435456",
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "source_entrypoint_too_large",
+      message: "Eidos Files cannot exceed 256 MiB",
+    })
+
+    await expect(
+      validateSourceBundle(
+        manifest("source.eidos", 536870912, "0".repeat(64)),
+        {
+          maxObjectBytes: "1073741824",
+          maxEidosFileBytes: "536870912",
+        }
+      )
+    ).resolves.toMatchObject({ sourceBytes: "536870912" })
+
+    await expect(
+      validateSourceBundle(
+        {
+          spec: "eidos.publish/source-bundle@1",
+          mediaType: "application/vnd.eidos+sqlite3",
+          entrypoint: "source.eidos",
+          files: [
+            {
+              path: "assets/large.bin",
+              role: "attachment",
+              mediaType: "application/octet-stream",
+              bytes: "536870912",
+              sha256: "1".repeat(64),
+            },
+            {
+              path: "source.eidos",
+              role: "entrypoint",
+              mediaType: "application/vnd.eidos+sqlite3",
+              bytes: "1",
+              sha256: "0".repeat(64),
+            },
+          ],
+          assetReferences: [
+            {
+              kind: "eidos-file-entry",
+              entryId: FILE_ID,
+              uri: "assets/large.bin",
+              fileSha256: "1".repeat(64),
+            },
+          ],
+        },
+        {
+          maxObjectBytes: "1073741824",
+          maxEidosFileBytes: "268435456",
+        }
+      )
+    ).resolves.toMatchObject({ sourceBytes: "536870913" })
   })
 })
 
@@ -2705,15 +2785,18 @@ function freeAccessGrant() {
     service: "eidos_publish" as const,
     state: "active" as const,
     plan: "free" as const,
+    tier: "publish" as const,
     handle: false,
     privatePublications: false,
     removeBranding: false,
     maxStorageBytes: "104857600",
     maxObjectBytes: "1073741824",
+    maxEidosFileBytes: "268435456",
     retentionDays: 1,
     runtimeSecondsPerPeriod: "18000",
     runtimeStartsPerPeriod: 100,
     runtimeIdleSeconds: 60,
+    runtimeIsolation: "shared" as const,
     collect: {
       submissionsPerPeriod: 10,
       maxSubmissionBodyBytes: 65536,

@@ -31,7 +31,7 @@ import {
 import { StaticPreparationError } from "./static"
 import {
   runtimeDescriptor,
-  runtimeShardName,
+  runtimeInstanceName,
   RuntimePreparationError,
   type EidosRuntimeContainer,
   type RuntimePrepareResult,
@@ -86,17 +86,22 @@ export class PublishWorkflow extends WorkflowEntrypoint<
             return { authorized: true }
           }
         )
+        const instanceKey = runtimeInstanceName(
+          input.tenantId,
+          this.env.RUNTIME_SHARD_COUNT,
+          input.runtimeIsolation
+        )
         const descriptor = runtimeDescriptor(
           version,
           input.tenantId,
           input.runtimeIdleSeconds,
-          this.env.RUNTIME_SHARD_COUNT
+          instanceKey
         )
         validation = await step.do(
           "02-validate-eidos-source",
           RUNTIME_STEP_POLICY,
           async (): Promise<ValidationReceipt> =>
-            await runtime(this.env, input.tenantId).validateSource(descriptor)
+            await runtime(this.env, instanceKey).validateSource(descriptor)
         )
         await step.do(
           "03-commit-validation-receipt",
@@ -111,7 +116,7 @@ export class PublishWorkflow extends WorkflowEntrypoint<
           "04-prepare-and-probe-runtime",
           RUNTIME_STEP_POLICY,
           async (): Promise<RuntimePrepareResult> =>
-            await runtime(this.env, input.tenantId).probePrepared(descriptor)
+            await runtime(this.env, instanceKey).probePrepared(descriptor)
         )
       } else if (version.driverId === "org.eidos.driver.markdown") {
         validation = await step.do(
@@ -325,11 +330,9 @@ export class PublishWorkflow extends WorkflowEntrypoint<
 
 function runtime(
   env: Env,
-  tenantId: string
+  instanceKey: string
 ): DurableObjectStub<EidosRuntimeContainer> {
-  return env.EIDOS_RUNTIMES.getByName(
-    runtimeShardName(tenantId, env.RUNTIME_SHARD_COUNT)
-  )
+  return env.EIDOS_RUNTIMES.getByName(instanceKey)
 }
 
 function assertJob(

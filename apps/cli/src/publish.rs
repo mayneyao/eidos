@@ -1000,6 +1000,36 @@ pub fn run(
         ));
     }
     let origin = publish_origin(&args.publish_origin)?;
+    let client = Client::builder()
+        .timeout(Duration::from_secs(args.wait_seconds.max(60)))
+        .build()
+        .map_err(|error| AppError::publish_failed(error.to_string()))?;
+    let authorization = HeaderValue::from_str(&format!("Bearer {}", args.token))
+        .map_err(|_| AppError::invalid_request("Publish token is invalid"))?;
+
+    progress.stage("checking Publish account");
+    let tenant = send_json(
+        client
+            .get(endpoint(&origin, "/api/tenant")?)
+            .header(AUTHORIZATION, authorization.clone()),
+    )?;
+    let canonical_host = string_member(&tenant, "canonicalHost")?;
+    let source_limit = source_limit(&tenant, source_kind)?;
+    let declared_source_bytes = match generated_source.as_ref() {
+        Some(bytes) => u64::try_from(bytes.len())
+            .map_err(|error| AppError::publish_failed(error.to_string()))?,
+        None => fs::metadata(&args.file)
+            .map_err(|error| AppError::publish_failed(error.to_string()))?
+            .len(),
+    };
+    if declared_source_bytes > source_limit {
+        return Err(source_limit_error(
+            source_kind,
+            declared_source_bytes,
+            source_limit,
+        ));
+    }
+
     let (source_bytes, source_sha256, source_object) = match generated_source {
         Some(bytes) => {
             let source_bytes = u64::try_from(bytes.len())
@@ -1037,19 +1067,6 @@ pub fn run(
             )
         }
     };
-    let source_limit = match source_kind {
-        PublishSourceKind::Eidos => MAX_OBJECT_BYTES,
-        PublishSourceKind::Markdown => MAX_MARKDOWN_BYTES,
-        PublishSourceKind::Form => MAX_FORM_BYTES,
-    };
-    if source_bytes > source_limit {
-        return Err(AppError::publish_failed(match source_kind {
-            PublishSourceKind::Eidos => "Eidos File exceeds the 1 GiB per-file limit",
-            PublishSourceKind::Markdown => "Markdown document exceeds the 16 MiB rendering limit",
-            PublishSourceKind::Form => "Form definition exceeds the 256 KiB limit",
-        }));
-    }
-
     let mut objects = vec![SourceObject {
         path: source_kind.entrypoint().to_string(),
         role: "entrypoint",
@@ -1109,21 +1126,6 @@ pub fn run(
             human_bytes(logical_bytes - upload_bytes)
         ));
     }
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(args.wait_seconds.max(60)))
-        .build()
-        .map_err(|error| AppError::publish_failed(error.to_string()))?;
-    let authorization = HeaderValue::from_str(&format!("Bearer {}", args.token))
-        .map_err(|_| AppError::invalid_request("Publish token is invalid"))?;
-
-    progress.stage("checking Publish account");
-    let tenant = send_json(
-        client
-            .get(endpoint(&origin, "/api/tenant")?)
-            .header(AUTHORIZATION, authorization.clone()),
-    )?;
-    let canonical_host = string_member(&tenant, "canonicalHost")?;
 
     progress.stage(format!("ensuring publication /{}", args.slug));
     let initial_visibility = match &access_change {
@@ -1973,6 +1975,42 @@ fn decimal_member(value: &Value, key: &str) -> Result<u64> {
         .map_err(|_| AppError::publish_failed(format!("service response has an invalid {key}")))
 }
 
+fn source_limit(tenant: &Value, source_kind: PublishSourceKind) -> Result<u64> {
+    match source_kind {
+        PublishSourceKind::Eidos => {
+            let access = tenant.get("access").ok_or_else(|| {
+                AppError::publish_failed("service response is missing Publish access")
+            })?;
+            let limit = decimal_member(access, "maxEidosFileBytes")?;
+            if limit == 0 || limit > MAX_OBJECT_BYTES {
+                return Err(AppError::publish_failed(
+                    "service response has an invalid maxEidosFileBytes",
+                ));
+            }
+            Ok(limit)
+        }
+        PublishSourceKind::Markdown => Ok(MAX_MARKDOWN_BYTES),
+        PublishSourceKind::Form => Ok(MAX_FORM_BYTES),
+    }
+}
+
+fn source_limit_error(
+    source_kind: PublishSourceKind,
+    source_bytes: u64,
+    source_limit: u64,
+) -> AppError {
+    let source_name = match source_kind {
+        PublishSourceKind::Eidos => "Eidos File",
+        PublishSourceKind::Markdown => "Markdown document",
+        PublishSourceKind::Form => "Form definition",
+    };
+    AppError::publish_failed(format!(
+        "{source_name} is {} and exceeds this account's {} limit",
+        human_bytes(source_bytes),
+        human_bytes(source_limit)
+    ))
+}
+
 fn short_digest(value: &str) -> &str {
     value.get(..12).unwrap_or(value)
 }
@@ -2039,6 +2077,31 @@ mod tests {
         assert!(publish_origin("http://127.0.0.1:8787").is_ok());
         assert!(publish_origin("http://publish.eidos.space").is_err());
         assert!(publish_origin("https://user@example.com").is_err());
+    }
+
+    #[test]
+    fn reads_the_account_specific_eidos_file_limit() {
+        let tenant = json!({
+            "access": {
+                "maxEidosFileBytes": "536870912"
+            }
+        });
+        assert_eq!(
+            source_limit(&tenant, PublishSourceKind::Eidos).expect("Custom limit"),
+            512 * 1024 * 1024
+        );
+        assert_eq!(
+            source_limit(&tenant, PublishSourceKind::Markdown).expect("Markdown limit"),
+            MAX_MARKDOWN_BYTES
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_or_oversized_eidos_file_limits() {
+        for limit in ["0", "1073741825", "not-a-number"] {
+            let tenant = json!({ "access": { "maxEidosFileBytes": limit } });
+            assert!(source_limit(&tenant, PublishSourceKind::Eidos).is_err());
+        }
     }
 
     #[test]

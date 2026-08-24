@@ -1,4 +1,6 @@
 export type PublishPlan = "free" | "pro"
+export type PublishServiceTier = "publish" | "custom"
+export type PublishRuntimeIsolation = "shared" | "dedicated"
 
 export type FormRespondentAccess = "anyone" | "signed_in"
 
@@ -14,15 +16,18 @@ export interface PublishAccessGrant {
   service: "eidos_publish"
   state: "active" | "blocked"
   plan: PublishPlan
+  tier: PublishServiceTier
   handle: boolean
   privatePublications: boolean
   removeBranding: boolean
   maxStorageBytes: string
   maxObjectBytes: string
+  maxEidosFileBytes: string
   retentionDays: number
   runtimeSecondsPerPeriod: string
   runtimeStartsPerPeriod: number
   runtimeIdleSeconds: number
+  runtimeIsolation: PublishRuntimeIsolation
   collect: PublishCollectLimits
 }
 
@@ -359,6 +364,7 @@ export interface PublishWorkflowParams {
   actor: string
   requestId: string
   runtimeIdleSeconds: number
+  runtimeIsolation: PublishRuntimeIsolation
 }
 
 export interface ActivationResult {

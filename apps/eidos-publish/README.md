@@ -14,7 +14,8 @@ eidos publish
   -> authenticated control Worker
   -> immutable Source Bundle in R2
   -> one versioned Cloudflare Workflow
-  -> one stable shared Container shard for the Tenant
+  -> a bounded shared Container shard (Publish)
+     or a tenant-dedicated Container instance (Custom)
   -> Runtime Supervisor
   -> bounded eidos serve <version-local-copy> --publish processes
 
@@ -22,7 +23,7 @@ viewer
   -> wildcard Gateway + static Serve UI
   -> short-lived host/Version/target-bound Runtime ticket
   -> streaming read-only proxy
-  -> sleeping or running shared Runtime shard
+  -> sleeping or running Runtime instance
 ```
 
 - `eidos.space` owns accounts, Publish CLI keys, subscriptions, one-time
@@ -36,8 +37,9 @@ viewer
   attachment objects; Version metadata references those immutable objects;
 - Workflows validate, prepare, probe, refresh activation entitlements, and
   atomically activate;
-- Tenant IDs are deterministically assigned to a bounded pool of Container
-  shards. Every active Publish tenant uses the same image and Runtime path;
+- standard Publish Tenant IDs are deterministically assigned to a bounded pool
+  of Container shards. Custom Tenants use a deterministic dedicated instance;
+  every tier uses the same image and Runtime path;
 - each Container runs a small trusted Supervisor that streams and verifies the
   exact R2 source, starts one `eidos serve --publish` child per active Version,
   and evicts idle children with LRU when process or disk limits are reached;
@@ -63,6 +65,12 @@ https://{public-site-id-or-publish-handle}.eidos.ink/{publication-slug}
 The installed Driver accepts one `application/vnd.eidos+sqlite3` entrypoint and
 the relative File-field attachments it references. The manifest is canonical
 JSON and every object byte count and SHA-256 is verified.
+
+Standard Publish accepts a `.eidos` entrypoint up to 256 MiB. Custom grants can
+raise that account-specific limit up to the Driver's 1 GiB hard ceiling and
+route the Tenant to a dedicated Runtime instance. Source attachments retain
+the independent 1 GiB object limit and continue to stream from R2 through the
+Gateway instead of consuming Container cache or egress.
 
 - objects up to 95 MiB use a streamed create-only R2 `put`;
 - larger objects use explicit 64 MiB client parts and R2 multipart upload;
@@ -129,7 +137,7 @@ activation outcomes are reconciled from the pointer and activation event.
 Current Versions cannot be deleted. A Tenant alarm retires non-current
 versions only after the rollback grace window and current retention policy,
 then explicitly deletes known R2 keys and unregisters the Version from its
-shared shard. It never destroys a shared shard for one Version. Legacy
+Runtime instance. It never destroys a shared shard for one Version. Legacy
 per-Version Containers are destroyed when their old target descriptor is
 retired. Interrupted deletions remain retryable from `deleting`; failure and
 lifecycle audit events retain the job, actor, request, step, code,
@@ -143,7 +151,8 @@ and staging Worker configurations declare R2, service, Workflow, Container,
 Static Assets, and SQLite Durable Object bindings. `RUNTIME_SHARD_COUNT` is a
 pool-generation routing input, while `RUNTIME_MAX_ACTIVE_VERSIONS`,
 `RUNTIME_MAX_CACHE_BYTES`, and `RUNTIME_MAX_INFLIGHT_REQUESTS` bound each
-shard. Changing the shard count is a cold cache migration, not a data
+shared shard. Custom instances are keyed separately and do not depend on the
+shared shard count. Changing the shard count is a cold cache migration, not a data
 migration, because R2 remains authoritative.
 
 Set these with the Cloudflare secret store in both the Publish and account

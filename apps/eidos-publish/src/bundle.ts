@@ -77,7 +77,7 @@ export class SourceBundleError extends Error {
 
 export async function validateSourceBundle(
   value: unknown,
-  limits: { maxObjectBytes: string }
+  limits: { maxObjectBytes: string; maxEidosFileBytes: string }
 ): Promise<ValidatedSourceBundle> {
   const manifest = parseManifest(value)
   const driver = driverForMediaType(manifest.mediaType)
@@ -106,14 +106,21 @@ export async function validateSourceBundle(
   const entrypoint = manifest.files.find(
     (file) => file.path === manifest.entrypoint
   )!
-  if (BigInt(entrypoint.bytes) > BigInt(driver.limits.maxEntrypointBytes)) {
+  const maxEntrypointBytes =
+    driver.id === EIDOS_DRIVER.id
+      ? minBigInt(
+          BigInt(limits.maxEidosFileBytes),
+          BigInt(driver.limits.maxEntrypointBytes)
+        )
+      : BigInt(driver.limits.maxEntrypointBytes)
+  if (BigInt(entrypoint.bytes) > maxEntrypointBytes) {
     throw invalid(
       "source_entrypoint_too_large",
       driver.id === MARKDOWN_DRIVER.id
         ? "Markdown documents cannot exceed 16 MiB"
         : driver.id === FORM_DRIVER.id
           ? "Form definitions cannot exceed 256 KiB"
-          : "Source entrypoint exceeds the Driver limit"
+          : `Eidos Files cannot exceed ${binaryBytes(maxEntrypointBytes)}`
     )
   }
   return {
@@ -126,6 +133,14 @@ export async function validateSourceBundle(
     driver,
     entrypoint,
   }
+}
+
+function binaryBytes(value: bigint): string {
+  const gib = 1024n * 1024n * 1024n
+  const mib = 1024n * 1024n
+  if (value % gib === 0n) return `${value / gib} GiB`
+  if (value % mib === 0n) return `${value / mib} MiB`
+  return `${value} bytes`
 }
 
 export function driverForMediaType(mediaType: string): PublishDriverDescriptor {

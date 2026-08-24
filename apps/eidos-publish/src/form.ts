@@ -188,6 +188,7 @@ export async function loadFormDefinition(
   const manifest = await manifestObject.json<SourceBundleManifest>()
   const bundle = await validateSourceBundle(manifest, {
     maxObjectBytes: FORM_DRIVER.limits.maxObjectBytes,
+    maxEidosFileBytes: "1073741824",
   })
   if (
     bundle.manifestSha256 !== version.sourceManifestSha256 ||

@@ -3,6 +3,7 @@ import { Container } from "@cloudflare/containers"
 import { canonicalSha256 } from "./canonical"
 import type {
   PublicationVersionRecord,
+  PublishRuntimeIsolation,
   ReadyReceipt,
   RuntimeServingTarget,
   ValidationReceipt,
@@ -17,6 +18,7 @@ const VERSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
 const SHARD_GENERATION = "runtime-pool-v1"
+const DEDICATED_GENERATION = "runtime-dedicated-v1"
 const MAX_SHARDS = 1024
 const VERSION_READINESS_CACHE_MILLISECONDS = 10_000
 
@@ -519,11 +521,21 @@ export function runtimeShardName(
   return `${SHARD_GENERATION}-${index.toString().padStart(4, "0")}`
 }
 
+export function runtimeInstanceName(
+  tenantId: string,
+  configuredShardCount: string,
+  isolation: PublishRuntimeIsolation
+): string {
+  return isolation === "dedicated"
+    ? `${DEDICATED_GENERATION}-${tenantId}`
+    : runtimeShardName(tenantId, configuredShardCount)
+}
+
 export function runtimeDescriptor(
   version: PublicationVersionRecord,
   tenantId: string,
   runtimeIdleSeconds: number,
-  configuredShardCount: string
+  instanceKey: string
 ): RuntimeSourceDescriptor {
   if (
     version.driverId !== "org.eidos.driver.eidos" ||
@@ -537,7 +549,7 @@ export function runtimeDescriptor(
   return {
     tenantId,
     versionId: version.versionId,
-    shardKey: runtimeShardName(tenantId, configuredShardCount),
+    shardKey: instanceKey,
     sourceObjectKey: version.entrypointObjectKey,
     sourceBytes: version.entrypoint.bytes,
     sourceSha256: version.entrypoint.sha256,

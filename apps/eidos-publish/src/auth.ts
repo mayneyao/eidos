@@ -81,15 +81,18 @@ function parseAccess(value: unknown): PublishAccessGrant {
     "service",
     "state",
     "plan",
+    "tier",
     "handle",
     "privatePublications",
     "removeBranding",
     "maxStorageBytes",
     "maxObjectBytes",
+    "maxEidosFileBytes",
     "retentionDays",
     "runtimeSecondsPerPeriod",
     "runtimeStartsPerPeriod",
     "runtimeIdleSeconds",
+    "runtimeIsolation",
     "collect",
   ])
   if (
@@ -98,6 +101,7 @@ function parseAccess(value: unknown): PublishAccessGrant {
     value.service !== "eidos_publish" ||
     (value.state !== "active" && value.state !== "blocked") ||
     (value.plan !== "free" && value.plan !== "pro") ||
+    (value.tier !== "publish" && value.tier !== "custom") ||
     typeof value.handle !== "boolean" ||
     typeof value.privatePublications !== "boolean" ||
     typeof value.removeBranding !== "boolean" ||
@@ -107,8 +111,18 @@ function parseAccess(value: unknown): PublishAccessGrant {
     !positiveInteger(value.runtimeIdleSeconds) ||
     !decimalInteger(value.maxStorageBytes) ||
     !decimalInteger(value.maxObjectBytes) ||
+    !decimalInteger(value.maxEidosFileBytes) ||
     !decimalInteger(value.runtimeSecondsPerPeriod) ||
+    (value.runtimeIsolation !== "shared" &&
+      value.runtimeIsolation !== "dedicated") ||
     !validCollectLimits(value.collect)
+  ) {
+    throw unavailable("invalid_identity_response")
+  }
+  if (
+    BigInt(value.maxEidosFileBytes) === 0n ||
+    BigInt(value.maxEidosFileBytes) > BigInt(value.maxObjectBytes) ||
+    (value.tier === "custom") !== (value.runtimeIsolation === "dedicated")
   ) {
     throw unavailable("invalid_identity_response")
   }
@@ -118,15 +132,18 @@ function parseAccess(value: unknown): PublishAccessGrant {
     service: "eidos_publish",
     state: value.state,
     plan: value.plan,
+    tier: value.tier,
     handle: value.handle,
     privatePublications: value.privatePublications,
     removeBranding: value.removeBranding,
     maxStorageBytes: value.maxStorageBytes,
     maxObjectBytes: value.maxObjectBytes,
+    maxEidosFileBytes: value.maxEidosFileBytes,
     retentionDays: value.retentionDays,
     runtimeSecondsPerPeriod: value.runtimeSecondsPerPeriod,
     runtimeStartsPerPeriod: value.runtimeStartsPerPeriod,
     runtimeIdleSeconds: value.runtimeIdleSeconds,
+    runtimeIsolation: value.runtimeIsolation,
     collect: value.collect,
   }
 }
