@@ -71,6 +71,10 @@ it("integrates one opt-in, persistent, resizable xterm panel into the workbench 
     /\.terminal-panel-resizer\s*\{[\s\S]*?cursor:\s*row-resize;/
   )
   expect(styles).toMatch(
+    /\.terminal-panel-resizer::after\s*\{[^}]*background:\s*var\(--hairline\);/u
+  )
+  expect(styles).not.toMatch(/\.terminal-panel-header\s*\{[^}]*border-bottom:/u)
+  expect(styles).toMatch(
     /\.workbench\[data-terminal-placement="right"\][\s\S]*?> \.terminal-panel-resizer\s*\{[\s\S]*?cursor:\s*col-resize;/
   )
   expect(styles).toMatch(

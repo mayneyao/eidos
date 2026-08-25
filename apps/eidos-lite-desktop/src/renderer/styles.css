@@ -4501,7 +4501,6 @@ body {
   min-width: 0;
   align-items: center;
   padding: 0 0.35rem 0 0.75rem;
-  border-bottom: 1px solid var(--hairline);
   background: var(--surface);
   font-size: 0.6875rem;
 }
@@ -4722,7 +4721,6 @@ body {
   gap: 0.7rem;
   min-width: 0;
   padding: 0 0.5rem 0 0.75rem;
-  border-bottom: 1px solid var(--hairline);
   color: var(--ink-muted);
   background: var(--surface);
   font-size: 0.625rem;

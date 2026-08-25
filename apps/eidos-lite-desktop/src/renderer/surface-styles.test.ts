@@ -63,6 +63,7 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".file-titlebar")).toContain("background: transparent")
     expect(rule(".settings-titlebar")).toContain("background: transparent")
     expect(rule(".welcome-titlebar")).toContain("background: transparent")
+    expect(rule(".document-preview-toolbar")).not.toContain("border-bottom")
     expect(rule(":root", themeStyles)).toMatch(
       /--line: light-dark\([\s\S]+\/ 52%\)/
     )
