@@ -62,6 +62,10 @@ for (const sourceFile of htmlFiles) {
 }
 
 for (const route of [
+  "/user-guide/publishing/",
+  "/user-guide/sync/",
+  "/zh-cn/user-guide/publishing/",
+  "/zh-cn/user-guide/sync/",
   "/specifications/file-format-1-0/",
   "/specifications/runtime-1-0/",
   "/specifications/system-metadata-merge-1-0/",

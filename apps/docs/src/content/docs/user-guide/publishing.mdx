@@ -1,201 +1,70 @@
 ---
-title: Publish from Eidos Lite
-description: Publish a read-only Eidos File or Markdown document from the Space Explorer without using the CLI.
+title: Publish a file
+description: Publish an Eidos File, Markdown document, or form from Eidos Lite.
 sidebar:
   order: 85
 ---
 
-Eidos Lite can publish an `.eidos`, `.md`, or `.markdown` file directly from
-the Space Explorer. The hosted resource is read-only, keeps a stable URL, and
-does not require Eidos Lite or your computer to remain online after publishing.
+Eidos Publish gives one file in your Space a stable web address. After publishing, you can close
+Eidos Lite and your computer does not need to remain online.
 
-## Before you publish
-
-Sign in under **Settings → Account & Services** and activate Publish. Local build
-and preview remain free, but creating or serving a hosted URL requires an
-active Publish subscription. Publish is independent of Eidos Sync.
+Publish works independently from Sync. Before you begin, sign in and activate Publish under
+**Settings → Account & Services**.
 
 ## Publish a file
 
-1. Right-click an `.eidos`, `.md`, or `.markdown` file in the Space Explorer.
-2. Choose **Publish…**.
-3. Enter a resource slug. It becomes the path after your assigned
-   `*.eidos.ink` hostname.
-4. Choose the access setting and select **Publish**.
+1. Find the `.eidos`, `.md`, or `.markdown` file in the Space Explorer.
+2. Right-click the file and choose **Publish…**.
+3. Set its web address, then choose **Public**, **Password**, or **Private** access.
+4. Select **Publish**.
 
-The **Branding** setting keeps the current choice, shows the **Built with
-Eidos** badge, or hides it. New resources show the badge by default.
+When publishing finishes, copy the link or open it in your browser. Visitors can read the
+published content but cannot change your local file.
 
-After you select Publish, the configuration panel immediately collapses into a
-background task at the lower-left corner. Validation, hashing, upload,
-serving-target preparation, and activation continue without blocking browsing or editing.
-Select the task to expand detailed progress, then use its minimize control to
-collapse it again. A completed task provides copy and open actions; a failed
-task keeps its error details and retry action available.
+If the file refers to images or attachments in the same Space, Eidos includes them when
+publishing. They remain separate files and are not stored inside the `.eidos` file.
 
-The task is only the current activity indicator. After a successful publish,
-Lite saves the relationship between this Space file, Eidos account, Publish
-environment, and remote resource in private application state. You can dismiss
-the task or restart Lite without losing that relationship. Right-click the file
-again and choose **Manage Publish…** to copy or open its links, select a target
-for republishing, or collect a published Form. Passwords and account tokens are
-never stored in this registry.
+## Update published content
 
-Each managed resource shows **Up to date**, **Changes to publish**, or an
-unavailable status. Lite derives this indicator from lightweight source and
-attachment metadata, so opening the panel does not read a 1 GiB file. When you
-publish an unchanged resource, Lite verifies its saved Source Bundle fingerprint
-and current Version with the service, then finishes without taking another
-snapshot, hashing the file, or creating redundant Version history.
+1. Right-click the original file in the Space Explorer.
+2. Choose **Manage Publish…**.
+3. Review the address and access setting, then publish again.
 
-Source or attachment objects larger than 95 MiB automatically use multipart
-upload; you do not need to split them. Progress identifies the current object
-and part while the overall uploaded byte count continues across the bundle.
+The web address stays the same. Visitors see the latest published content when they open it again.
 
-For an Eidos File with local versioning enabled, Graft captures a consistent
-immutable snapshot without changing local history or closing the SQLite
-Runtime. After the first successful publish, later publishes can upload only
-the changed 4 KiB pages when that delta is smaller than the complete file. The
-service reconstructs and verifies the exact new source in R2 before activation;
-if the previous object or delta path is unavailable, Publish automatically uses
-the complete snapshot. Without local versioning, Lite briefly pauses writes and
-closes the Runtime while copying a consistent snapshot.
+## Publish a form
 
-Markdown is copied as a regular UTF-8 document. Upload and hosted preparation
-use the temporary source. Relative File-field attachments for Eidos Files and
-relative links or images for Markdown are read from the original source
-directory, hashed, deduplicated, and uploaded with the snapshot. The temporary
-copy is removed after the attempt.
+1. Create a Form View in an Eidos File.
+2. Right-click that `.eidos` file in the Space Explorer and choose **Publish…**.
+3. Under **Publish as**, choose the form and decide who can respond.
+4. Publish it, then share the link with respondents.
 
-Markdown is rendered into a static, script-free page. Raw HTML is not executed.
-The body limit is 16 MiB; each attachment can be up to 1 GiB.
+Responses are not written to the local file automatically. To collect them, right-click the
+original file and choose **Manage Publish… → Collect now**. Eidos imports the waiting responses
+into the original table.
 
-Published Eidos Files, Markdown documents, and Forms include a compact **Built
-with Eidos** brand link. Markdown and Form pages place it centered in the
-document footer; published Eidos Files place it at the right edge of the table
-bar without the file, read-only, or SQLite status text. The Gateway applies the
-current branding preference at response time, so updates do not require
-republishing the resource. Publish can hide or restore it per resource from
-Eidos Lite or the Publish account page without creating a new content Version.
+If you change the form's questions or fields, publish it again to update the live form.
 
-## Publish a Form and collect responses
+## Choose who can open it
 
-Create a Form View in an Eidos File, then keep that file open before choosing
-**Publish…**. The **Publish as** control lists its Form Views alongside the
-complete, read-only Eidos File. Choosing a Form View publishes only its public
-form definition; it does not upload a mutable copy of your Table.
-
-The Publish panel also controls who can respond. Choose **Anyone with the
-link**, or require a signed-in eidos.space user. For signed-in respondents, you
-can turn off **Allow multiple responses** so each account can submit once.
-This response policy is independent of Public, Password, and Private resource
-access, and can be changed by republishing without changing the local Form View.
-
-Visitors can submit the supported text, number, date, option, checkbox, rating,
-URL, and File fields. Completed responses and submitted attachments wait in the
-private Publish Inbox for that resource. Choose **Collect now** in the completed
-Publish task, or reopen **Manage Publish…** later, to import everything currently
-waiting into the original local file. Lite briefly closes that file's Runtime,
-performs the import, validates the result, and reopens it. Other files remain
-usable.
-
-The Lite instance that publishes a Form becomes its Collector. While the source
-Eidos File remains open, Lite checks the Inbox in the background and imports new
-responses using that saved Collector generation. If another device takes over,
-the old instance stops automatic collection instead of taking ownership back.
-Open **Manage Publish…** and choose **Collect now** when you intentionally want
-this device to take over again.
-
-Text questions use a single-line input by default. Enable **Long text** in the
-question options when a response needs multiple lines; the published form keeps
-the same multiline presentation.
-
-The Row and its import receipt are written in one SQLite transaction. If the
-network acknowledgement is lost, the next collection run acknowledges the same
-receipt instead of creating another Row. Attachments use a local SHA-256 content
-store, so identical bytes are saved once.
-
-Publishing creates an immutable Form revision. Later local schema edits do not
-silently change the live form. Republish the Form View to activate a new
-revision; collection stops and reports the mismatch when the local Form schema
-no longer matches the revision that received a response.
-
-## Slugs and versions
-
-A slug identifies one long-lived resource. Publishing new bytes to the same
-slug creates a new immutable Version and keeps the URL stable. Identical source
-and attachments reuse the active Version. Choose **Keep
-current** to preserve an existing resource's access setting; a new slug starts
-public.
-
-## Link to a table or view
-
-Add stable Eidos IDs to a published URL to open a specific table and view:
-
-```text
-https://{hostname}/{slug}?table={table-id}&view={view-id}
-```
-
-`table` and `view` use the lowercase UUIDv7 IDs stored in the Eidos File, not
-their display names. You can omit `table` when `view` is present; Publish finds
-the table that owns that view. An unknown or deleted ID falls back to the
-file's default table and default view. These parameters also survive password
-and account-private sign-in redirects.
-
-## Access settings
-
-| Setting      | Who can open it                                           |
-| ------------ | --------------------------------------------------------- |
-| Public       | Anyone with the link                                      |
-| Password     | Anyone who knows the shared password                      |
-| Private      | Only the owning account while signed in                   |
-| Keep current | Preserves an existing setting; new resources start public |
-
-Passwords contain 8–128 characters. Eidos Lite sends the password through its
-protected main-process boundary, never adds it to command arguments or logs,
-and clears it from the panel after a successful publish.
-
-Publish includes one independent Publish domain, 10 GiB of deduplicated content storage,
-5,000 completed Form responses per month, a 5 GiB Inbox, 30 days of history,
-password access, and private access. Submitted Form attachments are limited to
-100 MiB. Standard `.eidos` files are limited to 256 MiB; source attachments are
-limited to 1 GiB. Contact Eidos for a Custom plan with a higher `.eidos` limit
-and dedicated Runtime capacity.
-Resource slug count is not a quota.
-The history window begins when an active Version is replaced. Failed or
-never-activated Versions are removed after 24 hours, while the active Version
-is never removed by history retention. Form definition snapshots needed for
-collected responses are retained separately. The account and pricing pages are
-authoritative for current limits.
-
-To use a readable hostname, open the Publish account page, enter a compatible
-handle under **Publish domain**, and claim it. This handle belongs to your
-Publish Site and does not change your account username. Staging uses
-`handle-staging.eidos.ink`; production uses `handle.eidos.ink`. The assigned
-`u-*` hostname remains a stable fallback and redirects to the current canonical
-domain.
+- **Public** — anyone with the link.
+- **Password** — anyone with the correct password.
+- **Private** — only the publisher while signed in.
 
 ## Troubleshooting
 
-**Sign in to publish**
+**Sign in or activate Publish**
 
-Open the action in the Publish panel or sign in under **Settings → Account &
-Services**, then retry. An Eidos account is required even when Sync is not enabled.
+Open **Settings → Account & Services**, sign in, and check your Publish status.
 
-**The Publish storage limit was reached**
+**An attachment is missing**
 
-Remove unneeded inactive Versions or reduce database/attachment bytes. Reused
-content is counted once. Open **View plans** when more total storage is needed.
+Make sure the attachment is still inside the Space and the source file refers to it with a
+relative path.
 
-**A local attachment cannot be published**
+**Publishing failed or reached a limit**
 
-Verify that the link or File entry uses a contained relative URI, its file still
-exists beside the source, and no path component is a symlink. Eidos File
-attachments must also match the declared size.
+Open the task details for the reason. The account and pricing pages show the current file and
+storage limits.
 
-**The Publish engine is unavailable**
-
-Install a current Eidos Lite build. Source builds must also compile the CLI in
-`apps/cli`; packaged releases include the matching engine automatically.
-
-For terminal and automation workflows, see [Publish a file](/cli/publish/).
+For terminal workflows, see [Publish from the command line](/cli/publish/).

@@ -72,6 +72,7 @@ const bilingualFoundations = [
   "user-guide/import-and-export.mdx",
   "user-guide/data-safety.mdx",
   "user-guide/history-and-sync.mdx",
+  "user-guide/sync.mdx",
   "user-guide/publishing.mdx",
   "user-guide/troubleshooting.mdx",
   "cli/index.mdx",

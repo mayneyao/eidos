@@ -45,13 +45,18 @@ Web Editor、CLI Serve 和 Eidos Lite 共享同一套编辑模型。保存位置
     href="/zh-cn/user-guide/data-safety/"
   />
   <LinkCard
-    title="历史、恢复与同步"
-    description="区分浏览器恢复、本地 checkpoint、备份和可选远端同步。"
+    title="历史与恢复"
+    description="区分浏览器恢复、本地版本、远端副本和普通备份。"
     href="/zh-cn/user-guide/history-and-sync/"
   />
   <LinkCard
-    title="从 Eidos Lite 发布"
-    description="直接从 Space Explorer 把本地 Eidos File 发布为稳定的只读 URL。"
+    title="在设备间同步"
+    description="连接本地 Space，在另一台设备继续工作。"
+    href="/zh-cn/user-guide/sync/"
+  />
+  <LinkCard
+    title="发布文件"
+    description="选择文件、设置访问方式，并获得一个固定网址。"
     href="/zh-cn/user-guide/publishing/"
   />
   <LinkCard
@@ -67,7 +72,7 @@ Web Editor、CLI Serve 和 Eidos Lite 共享同一套编辑模型。保存位置
 - 正在设计数据库：阅读[数据表与字段](/zh-cn/user-guide/tables-and-fields/)。
 - 需要找记录或建立工作流：阅读[视图与查询](/zh-cn/user-guide/views-and-querying/)。
 - 不确定修改是否已经持久化：阅读[数据位置与安全](/zh-cn/user-guide/data-safety/)。
-- 准备连接多个设备：启用 Sync 前先阅读[历史、恢复与同步](/zh-cn/user-guide/history-and-sync/)。
+- 准备连接多个设备：阅读[在设备间同步](/zh-cn/user-guide/sync/)。
 
 规范数据保存在 `.eidos` 文件中。编辑时，应用可能保留临时工作副本或恢复副本，因此关闭文件
 前必须理解当前 Host 的保存状态。
