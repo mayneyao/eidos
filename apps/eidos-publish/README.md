@@ -4,8 +4,8 @@ This Cloudflare application publishes immutable Eidos Source Bundles through
 the existing Eidos Runtime. It does not project user tables into Durable
 Object SQLite and it does not implement a second Eidos query engine.
 
-The service is currently a preview implementation and deliberately publishes
-no EP conformance labels until the complete test families have shipped.
+The hosted service deliberately publishes no EP conformance labels until the
+complete test families have shipped.
 
 ## Architecture
 
@@ -142,7 +142,7 @@ authorization, Cloudflare/internal, and hop-by-hop headers.
 Tenant SQLite stores only bounded control records. Runtime starts and reserved
 idle seconds are atomically checked before a build or cold start. Replays do
 not reserve twice. Runtime sessions and requests have per-client and
-per-Publication rate windows plus Free/Pro concurrency leases. The Gateway
+per-Publication rate windows plus plan-specific concurrency leases. The Gateway
 allows only the read-only Runtime endpoints used by the UI and bounds request
 and result bytes. Three consecutive cold-start failures open a bounded circuit
 breaker.
@@ -179,6 +179,7 @@ PUBLISH_VIEWER_EXCHANGE_SECRET
 PUBLISH_SERVICE_SECRET
 PUBLISH_PASSWORD_PEPPER
 PUBLISH_PASSWORD_SESSION_SECRET
+PUBLISH_FORM_INTENT_SECRET
 ```
 
 `PUBLISH_VIEWER_EXCHANGE_SECRET` authorizes one-time private viewer exchanges.
@@ -186,13 +187,14 @@ PUBLISH_PASSWORD_SESSION_SECRET
 account-summary service call. The same named service secret must match in both
 Workers. `PUBLISH_PASSWORD_PEPPER` protects stored password verifiers, while
 `PUBLISH_PASSWORD_SESSION_SECRET` signs browser password sessions. Use
+`PUBLISH_FORM_INTENT_SECRET` signs short-lived form upload intents. Use
 independent random values of at least 32 bytes for each purpose.
 
 Before the first environment deploy:
 
 1. create the environment's declared R2 bucket and apply the additive
    eidos.space Publish entitlement/viewer migration;
-2. configure the five secrets in the appropriate services;
+2. configure the six secrets in the appropriate services;
 3. deploy the Publish Worker once so the `eidos-space` service binding can
    target it (account-dependent calls remain closed until the next step);
 4. deploy eidos.space with internal userinfo, private exchange, account

@@ -13,26 +13,19 @@ resource slug; an unchanged Source Bundle reuses the active Version. Eidos Files
 is rendered once into a script-free static page. Your local file remains the
 source of truth and the CLI can exit after publishing.
 
-<Aside type="caution" title="Staging preview">
-  Publish is currently available to preview accounts on staging. Use the staging
-  account page and origin shown below. The default production origin is not open
-  yet. Activate Publish on the staging account before creating a CLI key.
+<Aside type="note" title="Hosted service">
+  Activate Publish on your eidos.space account before creating a CLI key. The
+  CLI uses the production Publish origin by default.
 </Aside>
 
 ## Before you publish
 
-1. Sign in to the [staging Publish account page](https://staging.eidos.space/account?tab=publish).
+1. Sign in to the [Publish account page](https://eidos.space/account?tab=publish).
 2. Create a **Publish CLI key** and copy it when it is shown. The service keeps
    only its hash, so the same key cannot be displayed again.
 3. Store the key as `EIDOS_PUBLISH_TOKEN` in your current shell or secret
    manager. Do not pass it in a shared script or commit it to a repository.
-4. Point the preview CLI at staging:
-
-```bash
-export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
-```
-
-Confirm that your CLI build includes the preview command:
+4. Confirm that your CLI build includes the Publish command:
 
 ```bash
 eidos publish --help
@@ -51,13 +44,13 @@ hyphens, and must start and end with a letter or digit. For example, the
 command above can produce a URL such as:
 
 ```text
-https://u-…-staging.eidos.ink/tracker
+https://u-….eidos.ink/tracker
 ```
 
 Publish can replace the opaque host with an independent Publish handle. Open
-the staging Publish account page, enter a compatible handle under **Publish
+the Publish account page, enter a compatible handle under **Publish
 domain**, and select **Claim domain**. The service claims
-`handle-staging.eidos.ink` immediately; the assigned `u-*` hostname remains a
+`handle.eidos.ink` immediately; the assigned `u-*` hostname remains a
 stable fallback. The handle does not change your account username. Handles
 contain 3–30 lowercase letters, digits, or hyphens, start with a letter, and
 cannot use reserved Publish or Relay namespaces.
@@ -74,7 +67,7 @@ To link directly to a table or view in the published file, append its stable
 Eidos UUIDv7 IDs:
 
 ```text
-https://u-…-staging.eidos.ink/tracker?table={table-id}&view={view-id}
+https://u-….eidos.ink/tracker?table={table-id}&view={view-id}
 ```
 
 The `view` parameter can be used by itself. Unknown IDs fall back to the
@@ -336,6 +329,5 @@ session may have expired. Enter the current password again.
 
 **`eidos publish` is not recognized**
 
-The installed stable CLI does not yet include the staging preview. Use the
-preview build supplied to invited testers, or build the current repository
-version while testing staging.
+Update to a CLI build that includes Publish, or build the current repository
+version.

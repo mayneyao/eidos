@@ -13,26 +13,19 @@ Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳�
 只读 Eidos Runtime 提供访问；Markdown 会在发布时一次性渲染成不含脚本的静态页面。
 本地文件仍是源文件；发布完成后 CLI 可以退出。
 
-<Aside type="caution" title="Staging 预览">
-  Publish 目前仅向 staging 预览账户开放。请使用下文的 staging
-  账号页和服务地址；默认的 production 地址尚未开放。请先在 staging 账号页开通
-  Publish， 再创建 CLI 密钥。
+<Aside type="note" title="托管服务">
+  请先在 eidos.space 账号中开通 Publish，再创建 CLI 密钥。CLI 默认
+  使用生产 Publish 服务地址。
 </Aside>
 
 ## 发布前准备
 
-1. 登录 [staging Publish 账号页](https://staging.eidos.space/account?tab=publish)。
+1. 登录 [Publish 账号页](https://eidos.space/account?tab=publish)。
 2. 创建一个 **Publish CLI 密钥**，并在显示时立即复制。服务端只保存哈希，之后无法再次
    显示同一个密钥。
 3. 在当前 Shell 或 Secret Manager 中把密钥保存为 `EIDOS_PUBLISH_TOKEN`。不要把它写进
    共享脚本，也不要提交到代码仓库。
-4. 让预览版 CLI 使用 staging：
-
-```bash
-export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
-```
-
-确认当前 CLI build 包含预览命令：
+4. 确认当前 CLI build 包含 Publish 命令：
 
 ```bash
 eidos publish --help
@@ -50,12 +43,12 @@ slug 会成为 URL path。它包含 1–64 个小写字母、数字或连字符�
 和结尾。例如，上面的命令可能得到：
 
 ```text
-https://u-…-staging.eidos.ink/tracker
+https://u-….eidos.ink/tracker
 ```
 
-Publish 可以把这段不透明 hostname 换成独立的 Publish Handle。打开 staging Publish
+Publish 可以把这段不透明 hostname 换成独立的 Publish Handle。打开 Publish
 账号页，在 **Publish 域名**中输入符合规则的 Handle，然后点击**认领域名**。服务会立即认领
-`handle-staging.eidos.ink`；系统分配的 `u-*` hostname 继续作为稳定后备地址。Handle 不会
+`handle.eidos.ink`；系统分配的 `u-*` hostname 继续作为稳定后备地址。Handle 不会
 修改账户 username。Handle 使用 3–30 个小写字母、数字或连字符，以字母开头，并且不能占用
 Publish 或 Relay 的保留命名空间。
 
@@ -69,7 +62,7 @@ CLI 会为包含附件 digest 的完整 canonical Source Bundle 计算 fingerpri
 ID：
 
 ```text
-https://u-…-staging.eidos.ink/tracker?table={table-id}&view={view-id}
+https://u-….eidos.ink/tracker?table={table-id}&view={view-id}
 ```
 
 `view` 参数也可以单独使用；无法找到 ID 时会回退到默认表格和默认视图。
@@ -293,5 +286,4 @@ JSON 模式向 stdout 写一个结果，错误写到 stderr；它不会渲染交
 
 **无法识别 `eidos publish`**
 
-已安装的 stable CLI 还不包含 staging 预览。测试 staging 时，请使用提供给受邀测试者的
-preview build，或构建当前仓库版本。
+请更新到包含 Publish 的 CLI build，或构建当前仓库版本。

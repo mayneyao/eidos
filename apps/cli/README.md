@@ -248,19 +248,16 @@ Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](.
 
 ## Hosted Publish access
 
-Eidos Publish is currently a staging preview. Sign in to the
-[staging Publish account page](https://staging.eidos.space/account?tab=publish),
-create a Publish CLI key, store it as `EIDOS_PUBLISH_TOKEN`, and point the CLI
-at staging:
-
-```bash
-export EIDOS_PUBLISH_ORIGIN=https://publish-staging.eidos.space
-```
+Sign in to the
+[Publish account page](https://eidos.space/account?tab=publish), create a
+Publish CLI key, and store it as `EIDOS_PUBLISH_TOKEN`. The CLI uses
+`https://publish.eidos.space` by default; set `EIDOS_PUBLISH_ORIGIN` only when
+targeting another environment.
 
 The key is shown only once and grants write access only to the Publish control
 plane. Keep it in the current shell or a secret manager; never commit it.
 Confirm the installed build has `eidos publish --help` before following the
-preview workflow.
+workflow.
 
 Publish a public resource with a tenant-local slug:
 
@@ -326,7 +323,7 @@ eidos publish tracker.eidos --slug tracker --visibility private
 Use the global `--json` flag for one stable result document in automation;
 interactive progress is intentionally omitted in JSON mode. The result includes
 `publishFingerprint` and `versionCreated` for deterministic change detection. The complete
-Free/Pro limits, access behavior, staging setup, and troubleshooting guide is
+plan limits, access behavior, setup, and troubleshooting guide is
 in [Publish a file](../docs/src/content/docs/cli/publish.mdx).
 
 ## Safety model
