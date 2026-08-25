@@ -1,18 +1,38 @@
 ## What's new
 
-### Use one time zone throughout Eidos Lite
+### Publish your work without leaving Eidos Lite
 
-Preferences now includes a searchable time-zone picker that follows the system
-by default or can stay fixed to a chosen city. Created, updated, date-time,
-record-detail, and Calendar values all use the same selected zone when they are
-displayed or edited, including daylight-saving transitions.
+Publish an Eidos File, Markdown document, or Form view directly from the Space
+Explorer. Choose public, password, private, or signed-in response access where
+supported, then keep working while uploads continue in the background. Lite
+remembers each publication, skips unchanged versions, accelerates later Eidos
+File updates with bounded deltas, and collects Form responses only when you ask.
 
-### Keep newer views safe on older clients
+### Build forms from your table
 
-Views created with newer filter, sort, or view features now remain visible when
-this version cannot interpret them. Eidos Lite preserves the saved
-configuration, explains that an update is required, and blocks partial queries
-or exports instead of displaying incorrect rows or overwriting settings it does
-not understand.
+The new Form view turns writable table fields into a canvas-first form builder.
+Start from a blank form or existing fields, reorder and configure questions in
+place, preview the result locally, and publish it when it is ready to collect
+responses back into the same Eidos File.
+
+### Open an optional terminal in your Space
+
+Enable Terminal under built-in plugins to work from the current Space without
+switching applications. The terminal supports bottom and right layouts,
+resizing, keyboard controls, theme synchronization, and persistent layout
+preferences, while remaining disabled by default.
+
+### Review and discard Space changes more quickly
+
+Changes now includes a Space-level discard action for restoring all tracked
+work after confirmation. View names, row editors, and panel boundaries are
+clearer and more consistent throughout the workbench.
+
+### Keep large and visual tables responsive
+
+Calendar views now bound the data loaded for large tables. Attachment previews
+recover correctly after virtualized scrolling, read-only Kanban cards retain
+their contrast, and grid editors use their native sizing behavior instead of
+expanding into an awkward single-line overlay.
 
 No migration is required.
