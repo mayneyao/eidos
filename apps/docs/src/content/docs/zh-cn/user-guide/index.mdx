@@ -1,78 +1,86 @@
 ---
-title: Eidos 用户手册
-description: 按任务学习组织、编辑、查询、导入、保存与同步 Eidos 数据。
+title: Eidos Lite
+description: 安装桌面应用，使用本地 Space，并按需使用同步或发布服务。
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos 把结构化数据保存在便携的 `.eidos` 文件中。这份手册按照真实工作流程组织：设计
-数据表、录入和关联记录、建立视图、导入导出数据，并保证文件安全。
+Eidos Lite 是用于管理 Space 的桌面应用。Space 就是一个普通文件夹，可以同时存放 `.eidos`
+文件和其他文件。本地使用不需要账户，也不依赖网络连接。
 
-Web Editor、CLI Serve 和 Eidos Lite 共享同一套编辑模型。保存位置、附件获取、本地历史
-和 Sync 等 Host 差异会在相关章节单独说明。
+## 安装
+
+<CardGrid>
+  <LinkCard
+    title="安装 Eidos Lite"
+    description="下载应用，创建或打开 Space，并建立第一份 Eidos File。"
+    href="/zh-cn/getting-started/eidos-lite/"
+  />
+  <LinkCard
+    title="使用 Web 编辑器"
+    description="只需要打开一个 Eidos File 时，可以直接在浏览器中使用。"
+    href="/zh-cn/getting-started/browser/"
+  />
+</CardGrid>
+
+## 基础使用
 
 <CardGrid>
   <LinkCard
     title="从一份 Eidos File 开始"
-    description="理解文件模型，并完成从建表到视图的第一条工作流。"
+    description="创建文件，完成从数据表到视图的第一条工作流。"
     href="/zh-cn/user-guide/eidos-file-basics/"
   />
   <LinkCard
     title="数据表与字段"
-    description="选择字段类型、配置记录标题和默认值，并安全修改结构。"
+    description="选择字段类型，组织数据表结构。"
     href="/zh-cn/user-guide/tables-and-fields/"
   />
   <LinkCard
     title="记录与编辑"
-    description="新建、编辑、展开、关联、添加附件、复制、删除、撤销和恢复记录改动。"
+    description="添加、编辑、关联、附加、复制和删除记录。"
     href="/zh-cn/user-guide/records-and-editing/"
   />
   <LinkCard
-    title="视图、搜索、筛选与排序"
-    description="用 Grid、Gallery、Kanban 和 Calendar 为同一组记录建立不同工作流。"
+    title="视图与查询"
+    description="使用视图、搜索、筛选和排序查看同一份数据。"
     href="/zh-cn/user-guide/views-and-querying/"
   />
   <LinkCard
     title="导入与导出"
-    description="从 CSV 创建数据表，并导出整张表或当前视图。"
+    description="导入 CSV 数据，或导出数据表和视图。"
     href="/zh-cn/user-guide/import-and-export/"
-  />
-  <LinkCard
-    title="数据位置与安全"
-    description="弄清每种 Host 在哪里保存数据，以及修改何时写入原文件。"
-    href="/zh-cn/user-guide/data-safety/"
-  />
-  <LinkCard
-    title="历史与恢复"
-    description="区分浏览器恢复、本地版本、远端副本和普通备份。"
-    href="/zh-cn/user-guide/history-and-sync/"
-  />
-  <LinkCard
-    title="在设备间同步"
-    description="连接本地 Space，在另一台设备继续工作。"
-    href="/zh-cn/user-guide/sync/"
-  />
-  <LinkCard
-    title="发布文件"
-    description="选择文件、设置访问方式，并获得一个固定网址。"
-    href="/zh-cn/user-guide/publishing/"
-  />
-  <LinkCard
-    title="故障排查"
-    description="排查无效文件、保存状态、文件锁、CLI Serve 和浏览器权限。"
-    href="/zh-cn/user-guide/troubleshooting/"
   />
 </CardGrid>
 
-## 选择起点
+## 进阶使用
 
-- 第一次接触数据模型：从 [Eidos File 基础](/zh-cn/user-guide/eidos-file-basics/)开始。
-- 正在设计数据库：阅读[数据表与字段](/zh-cn/user-guide/tables-and-fields/)。
-- 需要找记录或建立工作流：阅读[视图与查询](/zh-cn/user-guide/views-and-querying/)。
-- 不确定修改是否已经持久化：阅读[数据位置与安全](/zh-cn/user-guide/data-safety/)。
-- 准备连接多个设备：阅读[在设备间同步](/zh-cn/user-guide/sync/)。
-
-规范数据保存在 `.eidos` 文件中。编辑时，应用可能保留临时工作副本或恢复副本，因此关闭文件
-前必须理解当前 Host 的保存状态。
+<CardGrid>
+  <LinkCard
+    title="数据、附件与备份"
+    description="了解数据保存在哪里，以及应该备份哪些文件。"
+    href="/zh-cn/user-guide/data-safety/"
+  />
+  <LinkCard
+    title="版本与恢复"
+    description="保存版本、查看改动并恢复之前的内容。"
+    href="/zh-cn/user-guide/history-and-recovery/"
+  />
+  <LinkCard
+    title="在设备间同步"
+    description="在自己的另一台设备上继续使用同一个 Space。"
+    href="/zh-cn/user-guide/sync/"
+  />
+  <LinkCard
+    title="发布文件与表单"
+    description="选择文件，设置网址和权限，然后发布到网上。"
+    href="/zh-cn/user-guide/publishing/"
+  />
+  <LinkCard
+    title="Eidos Lite 故障排查"
+    description="根据界面提示找到可以立即尝试的解决方法。"
+    href="/zh-cn/user-guide/troubleshooting/"
+  />
+</CardGrid>

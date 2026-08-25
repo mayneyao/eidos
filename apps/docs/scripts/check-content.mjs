@@ -2,11 +2,6 @@ import { readdir, readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import {
-  legacyEnglishRoutes,
-  legacyRedirects,
-} from "../src/lib/legacy-redirects.mjs"
-
 const docsApp = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const contentRoot = path.join(docsApp, "src/content/docs")
 
@@ -52,7 +47,7 @@ for (const file of contentFiles) {
   ].map((match) => match[1])
   for (const target of targets) {
     const route = normalizedRoute(target)
-    if (!routes.has(route) && !(route in legacyRedirects)) {
+    if (!routes.has(route)) {
       failures.push(`${path.relative(docsApp, file)} -> ${target}`)
     }
   }
@@ -71,7 +66,7 @@ const bilingualFoundations = [
   "user-guide/views-and-querying.mdx",
   "user-guide/import-and-export.mdx",
   "user-guide/data-safety.mdx",
-  "user-guide/history-and-sync.mdx",
+  "user-guide/history-and-recovery.mdx",
   "user-guide/sync.mdx",
   "user-guide/publishing.mdx",
   "user-guide/troubleshooting.mdx",
@@ -96,21 +91,6 @@ for (const relative of bilingualFoundations) {
   }
 }
 
-for (const source of Object.keys(legacyEnglishRoutes)) {
-  const localized = `/zh-cn${source}`
-  if (!(source in legacyRedirects) || !(localized in legacyRedirects)) {
-    failures.push(`Missing legacy redirect pair: ${source}`)
-  }
-}
-
-for (const [source, destination] of Object.entries(legacyRedirects)) {
-  if (!routes.has(normalizedRoute(destination))) {
-    failures.push(
-      `Legacy redirect has no destination page: ${source} -> ${destination}`
-    )
-  }
-}
-
 const generatedSpecs = contentFiles.filter((file) =>
   /\/specifications\/(?:file-format|runtime|system-metadata-merge|adapter|ui|standard-views)-1-0\.md$/u.test(
     file
@@ -129,6 +109,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   console.log(
-    `Documentation content check passed (${contentFiles.length} pages, ${Object.keys(legacyRedirects).length} redirects).`
+    `Documentation content check passed (${contentFiles.length} pages).`
   )
 }

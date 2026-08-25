@@ -1,48 +1,32 @@
 ---
-title: 快速开始
-description: 创建或打开第一个 Eidos File。
-sidebar:
-  order: 1
+title: 选择开始方式
+description: 根据当前任务选择对应的 Eidos 文档模块。
+template: splash
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File 把结构化数据保存在一个可移植的 SQLite 文件中。你可以直接在浏览器中打开，
-通过 CLI 在本地使用，或用 Eidos Lite 管理整个文件夹。
-
 <CardGrid>
   <LinkCard
-    title="在浏览器中打开一个文件"
-    description="无需安装应用，直接创建或编辑本地文件。"
-    href="/zh-cn/getting-started/browser/"
+    title="Eidos Lite"
+    description="安装桌面应用，使用本地 Space。"
+    href="/zh-cn/user-guide/"
   />
   <LinkCard
-    title="用 CLI 创建并服务文件"
-    description="安装 CLI、创建文件并打开本地编辑器。"
-    href="/zh-cn/getting-started/cli/"
+    title="Eidos CLI"
+    description="安装命令行工具，在终端中操作 Eidos File。"
+    href="/zh-cn/cli/"
   />
   <LinkCard
-    title="用 Eidos Lite 管理本地 Space"
-    description="在普通文件夹中管理多个文件和本地历史；Sync 是仅限邀请的 Private Preview。"
-    href="/zh-cn/getting-started/eidos-lite/"
-  />
-  <LinkCard
-    title="发布只读副本"
-    description="通过 staging 预览把不可变 Eidos File Version 托管到稳定 URL。"
-    href="/zh-cn/cli/publish/"
-  />
-  <LinkCard
-    title="在应用里集成 Eidos"
-    description="使用 Eidos File Runtime 或共享 React UI。"
+    title="基于 Eidos File 构建"
+    description="在自己的应用中使用 Runtime 或共享 React 界面。"
     href="/zh-cn/developers/"
+  />
+  <LinkCard
+    title="Eidos File 规范"
+    description="阅读兼容实现需要遵循的契约。"
+    href="/zh-cn/specifications/"
   />
 </CardGrid>
 
-## 关于 Eidos File
-
-**Eidos File** 是 SQLite application file，使用带版本的格式保存数据表、字段、记录、关系和
-视图。Web Editor、Eidos Lite、CLI Serve 与托管 Publish 使用同一个 Runtime 和共享 UI
-契约。
-
-进一步了解 Runtime、Space 和 Graft，请阅读[核心概念](/zh-cn/concepts/)；要继续编辑文件，
-请前往[使用指南](/zh-cn/user-guide/)。
+只想免安装打开一个文件时，可以使用[Web 编辑器](/zh-cn/getting-started/browser/)。

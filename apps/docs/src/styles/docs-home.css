@@ -1,0 +1,107 @@
+html[data-has-hero] .hero {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 50rem;
+  margin-inline: auto;
+  padding-block: clamp(3rem, 8vw, 7rem) clamp(2rem, 5vw, 4rem);
+}
+
+html[data-has-hero] .hero .stack,
+html[data-has-hero] .hero .copy {
+  align-items: center;
+  text-align: center;
+}
+
+html[data-has-hero] .hero .actions {
+  justify-content: center;
+}
+
+.docs-home-index {
+  --docs-home-gap-xs: 0.5rem;
+  --docs-home-gap-sm: 0.75rem;
+  --docs-home-gap-md: 1.5rem;
+  --docs-home-gap-lg: 3rem;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-block: 0 clamp(2rem, 5vw, 4rem);
+}
+
+.docs-home-index > h2 {
+  margin-block: 0 var(--docs-home-gap-lg);
+  text-align: center;
+}
+
+.docs-home-index__list {
+  display: flex;
+  flex-direction: column;
+  border-block: 1px solid var(--sl-color-gray-5);
+}
+
+.docs-home-index__item {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: var(--docs-home-gap-md);
+  align-items: center;
+  min-height: 5.5rem;
+  padding-block: var(--docs-home-gap-md);
+  color: var(--sl-color-white);
+  text-decoration: none;
+}
+
+.docs-home-index__item + .docs-home-index__item {
+  border-top: 1px solid var(--sl-color-gray-5);
+}
+
+.docs-home-index__item:hover strong,
+.docs-home-index__item:focus-visible strong {
+  color: var(--sl-color-text-accent);
+}
+
+.docs-home-index__item:focus-visible {
+  outline: 2px solid var(--sl-color-text-accent);
+  outline-offset: 4px;
+}
+
+.docs-home-index__number {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.docs-home-index__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--docs-home-gap-xs);
+}
+
+.docs-home-index__copy strong {
+  font-size: var(--sl-text-lg);
+  transition: color 150ms ease;
+}
+
+.docs-home-index__copy > span {
+  color: var(--sl-color-gray-2);
+}
+
+.docs-home-index__arrow {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xl);
+}
+
+.docs-home-index__secondary {
+  margin-block: var(--docs-home-gap-lg) 0;
+  color: var(--sl-color-gray-2);
+  text-align: center;
+}
+
+@media (max-width: 30rem) {
+  .docs-home-index__item {
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    gap: var(--docs-home-gap-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-home-index__copy strong {
+    transition: none;
+  }
+}

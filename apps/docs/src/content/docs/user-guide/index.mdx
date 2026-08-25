@@ -1,82 +1,87 @@
 ---
-title: Eidos user guide
-description: Task-based guidance for organizing, editing, querying, importing, saving, and syncing Eidos data.
+title: Eidos Lite
+description: Install the desktop app, work with local Spaces, and add Sync or Publish when needed.
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos stores structured data in portable `.eidos` files. This guide follows
-the work you do with those files: design a table, enter and connect records,
-build useful views, move data in and out, and keep the result safe.
+Eidos Lite is the desktop app for working with Spaces. A Space is an ordinary folder containing
+`.eidos` files and any other files you keep beside them. You can use local files without an
+account or network connection.
 
-The editing model is shared by the Web Editor, CLI Serve, and Eidos Lite.
-Host-specific differences—such as where files are saved, whether attachments
-can be acquired, and whether local history or Sync is available—are called out
-where they matter.
+## Install
+
+<CardGrid>
+  <LinkCard
+    title="Install Eidos Lite"
+    description="Download the app, create or open a Space, and make your first Eidos File."
+    href="/getting-started/eidos-lite/"
+  />
+  <LinkCard
+    title="Try the Web Editor"
+    description="Open one Eidos File in a browser when you do not need a desktop Space."
+    href="/getting-started/browser/"
+  />
+</CardGrid>
+
+## Basics
 
 <CardGrid>
   <LinkCard
     title="Start with an Eidos File"
-    description="Learn the file model and complete a first table-to-view workflow."
+    description="Create a file and complete the first table-to-view workflow."
     href="/user-guide/eidos-file-basics/"
   />
   <LinkCard
     title="Tables and fields"
-    description="Choose field types, configure record labels and defaults, and change a schema safely."
+    description="Choose field types and organize the structure of a table."
     href="/user-guide/tables-and-fields/"
   />
   <LinkCard
     title="Records and editing"
-    description="Create, edit, inspect, relate, attach, copy, delete, undo, and recover record changes."
+    description="Add, edit, relate, attach, copy, and remove records."
     href="/user-guide/records-and-editing/"
   />
   <LinkCard
-    title="Views, search, filters, and sorts"
-    description="Turn the same records into focused Grid, Gallery, Kanban, and Calendar workflows."
+    title="Views and querying"
+    description="Use views, search, filters, and sorts to focus the same data."
     href="/user-guide/views-and-querying/"
   />
   <LinkCard
     title="Import and export"
-    description="Create a table from CSV and export a whole table or the current view."
+    description="Bring in CSV data or export a table or view."
     href="/user-guide/import-and-export/"
-  />
-  <LinkCard
-    title="Data location and safety"
-    description="Know where each host keeps data and when a change reaches the original file."
-    href="/user-guide/data-safety/"
-  />
-  <LinkCard
-    title="History and recovery"
-    description="Separate browser recovery, local checkpoints, remote copies, and ordinary backups."
-    href="/user-guide/history-and-sync/"
-  />
-  <LinkCard
-    title="Sync across devices"
-    description="Connect a local Space and continue working on another device."
-    href="/user-guide/sync/"
-  />
-  <LinkCard
-    title="Publish a file"
-    description="Choose a file, set its access, and give it a stable web address."
-    href="/user-guide/publishing/"
-  />
-  <LinkCard
-    title="Troubleshooting"
-    description="Diagnose invalid files, save state, locks, CLI Serve, and browser permissions."
-    href="/user-guide/troubleshooting/"
   />
 </CardGrid>
 
-## Pick the right starting point
+## Advanced
 
-- New to the data model? Start with [Eidos File basics](/user-guide/eidos-file-basics/).
-- Designing a database? Go to [Tables and fields](/user-guide/tables-and-fields/).
-- Looking for rows or building a workflow? Use [Views and querying](/user-guide/views-and-querying/).
-- Unsure whether a change is durable? Read [Data location and safety](/user-guide/data-safety/).
-- Connecting more than one device? Follow the [Eidos Sync guide](/user-guide/sync/).
-
-Your canonical data is stored in the `.eidos` file. An application may keep a
-temporary working or recovery copy while you edit, so always understand the
-current Host's save state before closing the file.
+<CardGrid>
+  <LinkCard
+    title="Data, attachments, and backups"
+    description="Understand where data is saved and what you need to back up."
+    href="/user-guide/data-safety/"
+  />
+  <LinkCard
+    title="Versions and recovery"
+    description="Save versions, inspect changes, and recover earlier work."
+    href="/user-guide/history-and-recovery/"
+  />
+  <LinkCard
+    title="Sync across devices"
+    description="Continue working with a Space on another personal device."
+    href="/user-guide/sync/"
+  />
+  <LinkCard
+    title="Publish files and forms"
+    description="Choose a file, set its web address and access, and publish it."
+    href="/user-guide/publishing/"
+  />
+  <LinkCard
+    title="Troubleshoot Eidos Lite"
+    description="Start with an on-screen message and try the relevant next step."
+    href="/user-guide/troubleshooting/"
+  />
+</CardGrid>

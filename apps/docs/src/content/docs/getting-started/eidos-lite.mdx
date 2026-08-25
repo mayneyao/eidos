@@ -1,53 +1,40 @@
 ---
-title: Eidos Lite
-description: Understand the desktop Space model and current release status.
+title: Install Eidos Lite
+description: Download the desktop app, open a Space, and create your first Eidos File.
 sidebar:
-  order: 20
+  order: 10
 ---
 
-import { Aside } from "@astrojs/starlight/components"
+## 1. Install the app
 
-Eidos Lite is the primary desktop product for using an ordinary folder as a
-Space. A Space can contain several `.eidos` files and ordinary files without
-turning the folder into a proprietary container.
+Download Eidos Lite from the [Eidos download page](https://eidos.space/download), then complete
+the installation for your operating system.
 
-<Aside type="note" title="Eidos Lite 0.1.3 is available">
-  Download Eidos Lite from the [Eidos download
-  page](https://eidos.space/download#eidos-lite). Version 0.1.3 renders HTTPS
-  URL fields as cached Grid thumbnails and Gallery covers, supports remote File
-  attachments, and keeps expanded Explorer folders stable during refreshes. Sync
-  is an invite-only private preview and remains unavailable until waitlist
-  access is approved.
-</Aside>
+Eidos Lite can be used locally without signing in. An account is only required for optional
+services such as Sync and Publish.
 
-## What Lite adds
+## 2. Create or open a Space
 
-- one Explorer for Eidos Files, folders, and ordinary files;
-- shared Grid, Gallery, Kanban, and Calendar editing through `eidos-file-ui`;
-- local Space history and row-aware changes through Graft;
-- files deleted from the Explorer move to the system Trash;
-- invite-only authenticated Sync while local work remains account-free.
+Start Eidos Lite, then choose one of these options:
 
-## The file model
+- **New Space** creates a new local folder.
+- **Open Space** uses a folder that already exists on your computer.
 
-The folder you choose remains a normal folder. `.eidos` files remain SQLite
-application files. Local history metadata is separate from the data model, and
-signing out or going offline does not make local files unreadable.
+The selected folder remains an ordinary folder. Eidos Lite does not convert it into a proprietary
+container.
 
-## Global preferences
+## 3. Create your first file
 
-Open **Settings → Preferences** to choose the theme, language, time zone, and
-whether Calendar weeks start on Monday. Time zone defaults to **System**, so
-Eidos Lite follows operating-system changes; choose an IANA zone such as
-`Asia/Shanghai` when the same fixed zone should be used everywhere. Created,
-updated, and Date & time values then use that zone in Grid, cards, record
-details, editors, filters, and Calendar grouping. These choices apply
-immediately to every open Eidos File, but remain app preferences rather than
-file metadata. Saved Date & time values remain canonical UTC instants, and
-date-only values keep their exact saved day.
+Select **New Eidos File** in the Explorer and give the file a name. Eidos Lite creates a `.eidos`
+file and opens it in the editor.
 
-Developers who need to run the current source can use the
-[Eidos Lite workspace guide](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop).
-To continue a Space on another device, follow the [Eidos Sync guide](/user-guide/sync/).
-For recovery and backup boundaries, read [History and recovery](/user-guide/history-and-sync/).
-To share a stable read-only snapshot, see [Publish from Eidos Lite](/user-guide/publishing/).
+Create a table, add a few fields, and enter the first record. Changes are written to the local file.
+
+Continue with [Start with an Eidos File](/user-guide/eidos-file-basics/).
+
+## Open an existing file
+
+If a Space already contains `.eidos` files, select one in the Explorer to open it. You can also
+copy files into the Space with your normal file manager, then refresh the Explorer.
+
+To inspect one file without creating a Space, use the [Web Editor](/getting-started/browser/).

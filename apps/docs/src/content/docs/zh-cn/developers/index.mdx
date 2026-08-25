@@ -1,47 +1,70 @@
 ---
-title: 使用 Eidos 构建
-description: 使用 Eidos CLI、Runtime、React UI 与互操作规范。
+title: 基于 Eidos File 构建
+description: 在自己的应用中使用 Eidos File Runtime 和共享 React 界面。
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-进程自动化使用 CLI，类型化数据访问使用 Runtime，嵌入 Eidos 编辑器使用共享 React package。
-Eidos 不支持把直接读取 metadata table 或生成 SQL 作为集成 API。
+应用需要创建、读取或编辑 Eidos File 时，使用 Runtime；还需要标准编辑器时，再加入共享
+React 包。Runtime 负责文件行为，Host 提供 SQLite 和平台能力。
 
-| 构建内容                    | 使用                                                                           | 提供                                                    |
-| --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| 脚本或 Agent 自动化         | [`eidos --json` CLI](/zh-cn/cli/)                                              | 稳定 JSON process 边界，提供原子 mutation 与 validation |
-| Node 应用处理一个文件       | [`@eidos.space/eidos-file/node-sqlite`](/zh-cn/developers/runtime-quickstart/) | 使用内置 `node:sqlite`，语义仍由 Runtime 拥有           |
-| 浏览器应用                  | `@eidos.space/eidos-file/browser`                                              | SQLite WASM 保留在 Dedicated Worker                     |
-| React viewer 或 editor Host | [`@eidos.space/eidos-file-ui`](/zh-cn/reference/eidos-file-ui-package/)        | 共享 UI 只消费 RuntimeClient 与 HostServices            |
-| 独立兼容实现                | [Eidos 规范](/zh-cn/specifications/)                                           | 规范性格式、行为、Adapter 与交互契约                    |
+## 安装
 
 <CardGrid>
   <LinkCard
-    title="Runtime 快速开始"
-    description="使用 Node 内置 SQLite 创建、修改、校验并重新打开文件。"
+    title="安装 Runtime"
+    description="添加开发包，使用 node:sqlite 创建 Eidos File，并校验结果。"
     href="/zh-cn/developers/runtime-quickstart/"
   />
   <LinkCard
-    title="Runtime 与 Host 边界"
-    description="理解数据语义、平台行为与 presentation 分别由哪一层拥有。"
-    href="/zh-cn/developers/runtime-and-hosts/"
-  />
-  <LinkCard
-    title="React UI package"
-    description="不给 React 直接 SQLite 权限，组合标准 viewer 或 editor。"
+    title="安装 React 界面"
+    description="通过 RuntimeClient 和 HostServices 嵌入标准查看器或编辑器。"
     href="/zh-cn/reference/eidos-file-ui-package/"
-  />
-  <LinkCard
-    title="自定义保存视图"
-    description="无损保留开放的视图 metadata，并注册可信 React renderer。"
-    href="/zh-cn/reference/eidos-file-custom-views/"
   />
 </CardGrid>
 
-## 公开 package
+## 基础使用
 
-`@eidos.space/eidos-file` 与 `@eidos.space/eidos-file-ui` 使用 MIT License。
-仓库和第一方应用仍采用 AGPL v3。
+<CardGrid>
+  <LinkCard
+    title="核心概念"
+    description="了解 Eidos File、Runtime、Adapter、Host、Space 与共享界面。"
+    href="/zh-cn/concepts/"
+  />
+  <LinkCard
+    title="Runtime 与 Host 边界"
+    description="正确划分文件语义、SQLite 访问、平台行为与界面展示。"
+    href="/zh-cn/developers/runtime-and-hosts/"
+  />
+</CardGrid>
+
+应用应通过 Runtime 方法处理结构、查询和修改。直接写入 Eidos 元数据表不属于受支持的集成方式。
+
+## 进阶使用
+
+<CardGrid>
+  <LinkCard
+    title="使用 Eidos File UI"
+    description="把 RuntimeClient 和 HostServices 接入共享 React 界面。"
+    href="/zh-cn/reference/eidos-file-ui-package/"
+  />
+  <LinkCard
+    title="构建自定义视图"
+    description="保留视图元数据，并注册可信的 React 渲染器。"
+    href="/zh-cn/reference/eidos-file-custom-views/"
+  />
+  <LinkCard
+    title="集成参考"
+    description="查找稳定的开发包和 Host 集成参考。"
+    href="/zh-cn/reference/"
+  />
+  <LinkCard
+    title="阅读规范"
+    description="按照文件格式、Runtime、Adapter 和界面的规范性契约进行实现。"
+    href="/zh-cn/specifications/"
+  />
+</CardGrid>
+
+`@eidos.space/eidos-file` 和 `@eidos.space/eidos-file-ui` 采用 MIT 许可证。

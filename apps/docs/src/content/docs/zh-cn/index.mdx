@@ -1,78 +1,66 @@
 ---
 title: Eidos 文档
-description: Eidos Lite、Eidos File Web、Eidos Publish、CLI 与 Eidos File 格式文档。
+description: 从安装到进阶使用，学习 Eidos Lite、Eidos CLI，以及 Eidos File 的开发与规范。
 template: splash
 hero:
-  title: 开放格式。本地优先。基于文件的多维表格。
-  tagline: 在浏览器、桌面应用或终端中打开同一个 .eidos 文件，也可以交给 Agent 安全操作。
-  image:
-    file: ../../../assets/logo.png
+  title: Eidos 文档
+  tagline: 从安装到进阶使用，学习 Eidos Lite、Eidos CLI，以及 Eidos File 的开发与规范。
   actions:
-    - text: 快速开始
-      link: /zh-cn/getting-started/
+    - text: 查看用户手册
+      link: /zh-cn/user-guide/
       icon: right-arrow
-    - text: 安装 Eidos CLI
-      link: /zh-cn/getting-started/cli/
-      icon: rocket
+    - text: 阅读文件规范
+      link: /zh-cn/specifications/
       variant: minimal
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
-
-## 开始使用
-
-<CardGrid>
-  <LinkCard
-    title="Web Editor"
-    description="无需安装应用，直接创建或打开本地 Eidos File。"
-    href="/zh-cn/getting-started/browser/"
-  />
-  <LinkCard
-    title="Eidos CLI"
-    description="创建文件、打开本地编辑器、执行查询并自动化修改。"
-    href="/zh-cn/getting-started/cli/"
-  />
-  <LinkCard
-    title="Eidos Lite"
-    description="把普通文件夹作为 Space，管理 Eidos File、其他文件和本地历史。"
-    href="/zh-cn/getting-started/eidos-lite/"
-  />
-  <LinkCard
-    title="Eidos Publish 预览"
-    description="把不可变 Version 上传到稳定、只读的托管 URL。"
-    href="/zh-cn/cli/publish/"
-  />
-</CardGrid>
-
-Web Editor、CLI 与 Eidos Lite 0.1.3 现在即可使用。Lite 0.1.3 增加带缓存的 URL
-图片、远程 File 附件和更稳定的 Explorer 刷新体验。Sync 仍是仅限邀请的 Private
-Preview。Publish 目前作为 staging 预览单独开放，production 托管和公开 Publish 购买尚未
-开放。
-
-## Eidos File
-
-Eidos File 是用于保存类型化数据表、关系、公式和视图的可移植 SQLite 文件。Web
-Editor、Eidos Lite 与 `eidos serve` 使用同一个编辑器和 Runtime。
-
-<CardGrid>
-  <LinkCard
-    title="使用指南"
-    description="了解文件、视图、保存、历史和恢复。"
-    href="/zh-cn/user-guide/"
-  />
-  <LinkCard
-    title="CLI 参考"
-    description="使用 JSON 命令执行查询、原子修改、Serve 与 Publish。"
-    href="/zh-cn/cli/"
-  />
-  <LinkCard
-    title="开发者文档"
-    description="在自己的应用中使用 Runtime 和共享 React UI。"
-    href="/zh-cn/developers/"
-  />
-  <LinkCard
-    title="规范"
-    description="查阅 File Format、Runtime、Adapter 与 UI 契约。"
-    href="/zh-cn/specifications/"
-  />
-</CardGrid>
+<section class="docs-home-index">
+  <h2 id="documentation-paths">选择文档模块</h2>
+  <nav aria-labelledby="documentation-paths" class="docs-home-index__list">
+    <a href="/zh-cn/user-guide/" class="docs-home-index__item">
+      <span class="docs-home-index__number">01</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos Lite</strong>
+        <span>安装桌面应用，管理本地 Space，并按需使用版本、同步与发布。</span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/zh-cn/cli/" class="docs-home-index__item">
+      <span class="docs-home-index__number">02</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos CLI</strong>
+        <span>安装命令行工具，创建、查询和自动化处理 Eidos File。</span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/zh-cn/developers/" class="docs-home-index__item">
+      <span class="docs-home-index__number">03</span>
+      <span class="docs-home-index__copy">
+        <strong>基于 Eidos File 构建</strong>
+        <span>在自己的应用中使用 Eidos File Runtime 和共享界面。</span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/zh-cn/specifications/" class="docs-home-index__item">
+      <span class="docs-home-index__number">04</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos File 规范</strong>
+        <span>阅读文件格式、Runtime、Adapter 和界面的兼容性契约。</span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+  </nav>
+  <p class="docs-home-index__secondary">
+    {"只需打开一个文件？直接使用 "}
+    <a href="/zh-cn/getting-started/browser/">{"网页编辑器"}</a>
+    {"，无需安装。"}
+  </p>
+</section>

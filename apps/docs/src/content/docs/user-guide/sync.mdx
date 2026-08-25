@@ -1,70 +1,156 @@
 ---
 title: Sync across devices
-description: Connect a local Space to Eidos Sync and continue working on your own devices.
+description: Use Eidos Sync from the first connection through conflict recovery.
 sidebar:
   order: 75
+  badge:
+    text: Subscription
+    variant: note
 ---
 
-Eidos Sync keeps a Space available across your own devices. Each device still has an ordinary
-local folder, so you can open and edit it without a network connection.
+import { Badge } from "@astrojs/starlight/components"
+
+<Badge text="Official subscription required" variant="note" />
+
+Eidos Sync makes the saved versions of a Space available on your other devices. It does not turn the Space into a cloud-only workspace: every device keeps a complete local folder that you can open and edit while offline.
+
+Eidos Sync is a subscription service provided by Eidos. Your account must have Sync enabled and, during the current preview, be granted access before you can connect a Space. Local use of Eidos Lite does not require a subscription.
 
 :::note
-Sync is in a limited preview. Joining the waitlist does not grant access immediately; check the
-account page for your current access.
+Sync is in a limited preview. Signing in does not grant access automatically. Check the account page for your current access.
 :::
 
-## Sync a Space for the first time
+## How Sync works
+
+1. You work in local files first.
+2. Eidos Lite saves a group of changes as a Version.
+3. A connected Space uploads that Version in the background.
+4. Your other devices check for and download the new Version into their local Spaces.
+
+Without a network connection, changes remain on the current device. Sync can continue after the connection returns.
+
+## Before the first connection
+
+Make sure that:
+
+- Your account has Sync access.
+- The Space has [Versions](/user-guide/history-and-recovery/) enabled.
+- The work under **Changes** has been saved as a Version.
+- Important files have an independent backup.
+- The Space does not contain files you do not want to upload.
+
+Sync covers the **whole Space**, including `.eidos` files, documents, images, and other ordinary files—not only the file currently open. Changes that have not been saved as a Version are not uploaded.
+
+## Connect the current Space
 
 1. Open the Space you want to sync.
-2. Go to **Settings → Account & Services** and sign in to your Eidos account.
-3. Enable local versioning, then save a version in **Changes**.
-4. Select **Sync** in the title bar.
-5. Review what will be synced, then confirm the connection.
+2. Select the cloud button in the top-right corner.
+3. If needed, select **Sign in to continue** and finish signing in in your browser.
+4. Wait for **First upload check** to finish.
+5. Address the check results, then select **Connect this Space**.
+6. Wait for **Sync is ready**.
 
-When the first upload finishes, the Space appears in your account's list of synced Spaces.
+The first upload can continue in the background. Closing the Sync panel does not cancel the upload or prevent you from using local files.
 
-Sync includes the whole Space, not only the `.eidos` file currently open. Move anything you do
-not want to upload out of the Space before confirming.
+### Understand the first upload check
 
-## Continue on another device
+| Result                                | What to do                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fix these files before connecting** | These files block the connection. Move files that are too large, replace symbolic links, and remove unsupported entries.              |
+| **Review files before upload**        | These may be hidden, contain private information, or use substantial storage. Review them, then confirm that they should be included. |
+| **Not included**                      | System files, temporary files, and files ignored by the Space settings are not uploaded.                                              |
 
-1. Install Eidos Lite and sign in with the same account.
-2. Open **Sync** and choose the existing Space.
-3. Choose an empty folder for the local copy.
-4. Wait for the download to finish, then open the Space.
+The check shows the number of files, total size, and number of Eidos Files in scope. Review the list before confirming, and do not keep passwords, keys, or other private files in a Space you plan to sync.
 
-The downloaded Space works like any other local folder. You can edit it offline and sync saved
-versions when you are online again.
+## Open the Space on another device
 
-## Sync new changes
+Do not copy the Space manually first. Let Eidos Lite create the local copy for the device:
 
-When a set of changes is ready, save a version in **Changes**. Only saved versions sync; unsaved
-changes remain on the current device.
+1. Install Eidos Lite on the other device.
+2. On the start screen, select **Open Synced Space**.
+3. Sign in with the same Eidos account.
+4. Choose the Space from the list.
+5. Choose a local destination and wait for the download and checks to finish.
 
-Open **Sync** to check the current state. If it shows **Waiting to sync** or **Try again later**, you
-can keep using the local files while Eidos waits for the connection to recover.
+Eidos Lite does not replace an existing folder. If the destination cannot be used, choose an empty folder and try again.
 
-## If the same content changed on two devices
+The downloaded folder works like any other local Space. You can edit it offline and sync later.
 
-Eidos pauses before replacing either side and lists the conflicts in **Changes**.
+## Everyday Sync
 
-Resolve each item, save the merged version, then sync again. If you are not ready to decide, leave
-the conflict unresolved; the original local files will not be replaced.
+After you save a Version in a connected Space, Eidos Lite automatically adds a Sync task to the background queue. This applies to both manual and automatic Versions.
 
-## Troubleshooting
+A useful routine is:
 
-**Sync access is required**
+1. Before starting on another device, open Sync and select **Check now** or download the available updates.
+2. When local work is ready, open Versions and save it from **Changes**.
+3. Watch the cloud button in the top-right corner; the upload can finish in the background.
 
-Open **Settings → Account & Services** to check your access. Joining the waitlist is not the same
-as having access.
+If several Versions are waiting, Eidos Lite combines the pending work. You do not need to upload each Version separately.
 
-**Save a version first**
+### Common states
 
-Open **Changes**, save the current work, then sync again.
+| State                        | Meaning and next step                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Everything is up to date** | Local and Hosted match. Continue working.                                                        |
+| **Unsaved changes**          | The current work is not a Version yet. Open **Changes** and save it.                             |
+| **Saved versions to upload** | Local Versions are waiting to upload. Upload now or leave the background task to finish.         |
+| **Updates are available**    | Hosted has newer Versions. Download them before editing further.                                 |
+| **Sync queued**              | The background task is waiting to run. Do not click repeatedly.                                  |
+| **Sync will try again soon** | The network or service is temporarily unavailable. Eidos will retry and local files remain safe. |
+| **Download only**            | Hosted updates can be downloaded, but new local work will not upload.                            |
 
-**The first sync cannot continue**
+## If both devices changed the same content
 
-Follow the check results, move unsupported or unwanted files out of the Space, and retry.
+If Local and Hosted both added new work after the same Version, Eidos Lite pauses instead of overwriting either side.
 
-Sync helps you continue across devices; it is not a replacement for regular backups. For local
-versions and recovery options, see [History and recovery](/user-guide/history-and-sync/).
+1. Select **Review changes** in Sync.
+2. Open every conflicting file under **Changes**.
+3. Resolve each item according to its type:
+   - An `.eidos` file can be resolved at the file, Table, Record, or cell level by choosing Local or Hosted content.
+   - A text file can be compared across Local and Hosted, then saved as the final result.
+   - A binary file such as an image cannot be combined; keep the complete Local or Hosted file.
+4. After resolving every item, enter a Merge message and select **Complete Merge**.
+5. Return to Sync and continue with the merged Version.
+
+**Local** means the content on this device. **Hosted** means the content already in the cloud. You can compare their common starting Version before choosing.
+
+Select **Abort Merge** if you do not want to continue. Aborting exits the Merge without choosing a winner for you.
+
+## Create recovery copies when unsure
+
+When histories conflict, Sync offers two safe exits:
+
+If the Merge editor is already open, select **Abort Merge** before returning to Sync to create a recovery copy.
+
+- **Keep a local copy** copies the current device's content into a new Space that is not part of the Merge.
+- **Open a cloud copy** downloads Hosted content into another new Space.
+
+A recovery copy opens in a new window and does not overwrite the current Space. Preserve both sides first if you need more time to decide.
+
+## Access and cloud storage
+
+The **Connection** section shows the current access:
+
+- **Download and upload** receives and uploads Versions.
+- **Download only** receives existing Hosted content; new local Versions remain on this device.
+
+**Storage** shows cloud usage, the plan total, and any pending upload. If the current upload exceeds the allowance, select **Manage storage** before trying again.
+
+The size of the local Space may differ from billed cloud usage because Version history and duplicate data are handled separately. Use the cloud usage shown in Sync as the source of truth.
+
+Signing out does not delete local Spaces. Local files remain usable if access ends or the service is temporarily unavailable.
+
+## If Sync needs attention
+
+- **Sync access required** — the account does not currently have Sync access. Check the account page.
+- **Sign in again** — the session expired. Sign in again; local files are unaffected.
+- **Manage storage** — cloud storage needs attention before another upload.
+- **Try again** — check the network and retry. If an automatic retry is scheduled, you can wait for it.
+- A synced Space will not open — choose an empty local destination instead of replacing an existing folder.
+
+If the problem continues, select **Copy diagnostics** at the bottom of Sync, open the logs when needed, and follow [Troubleshoot Eidos Lite](/user-guide/troubleshooting/).
+
+## Sync is not a backup
+
+Sync carries deletions and unwanted edits between devices, so it does not replace an independent backup. Back up the whole Space as described in [Data, attachments, and backups](/user-guide/data-safety/).

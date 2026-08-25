@@ -32,6 +32,42 @@ const htmlFiles = (await filesUnder(outputRoot)).filter((file) =>
 const failures = []
 const checkedFragments = new Set()
 
+try {
+  const headers = await readFile(path.join(outputRoot, "_headers"), "utf8")
+  if (
+    !headers.includes("/_astro/*") ||
+    !headers.includes(
+      "Cache-Control: public, max-age=31536000, immutable"
+    )
+  ) {
+    failures.push(
+      "Missing immutable cache policy for fingerprinted Astro assets"
+    )
+  }
+  if (/^\/\*\s+[\s\S]*immutable/mu.test(headers)) {
+    failures.push("Immutable caching must not be applied to every route")
+  }
+} catch {
+  failures.push("Missing generated _headers file")
+}
+
+for (const route of [
+  "/",
+  "/cli/",
+  "/user-guide/",
+  "/zh-cn/",
+  "/zh-cn/cli/",
+  "/zh-cn/user-guide/",
+]) {
+  const source = await readFile(outputForRoute(route), "utf8")
+  const renderBlockingStylesheets = [
+    ...source.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*>/gu),
+  ].filter(([link]) => !/\bmedia="print"/u.test(link))
+  if (renderBlockingStylesheets.length > 0) {
+    failures.push(`${route} has render-blocking stylesheets`)
+  }
+}
+
 for (const sourceFile of htmlFiles) {
   const source = await readFile(sourceFile, "utf8")
   for (const match of source.matchAll(/\bhref="([^"]+)"/gu)) {

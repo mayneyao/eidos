@@ -1,48 +1,32 @@
 ---
-title: Quick start
-description: Create or open your first Eidos File.
-sidebar:
-  order: 1
+title: Choose where to start
+description: Pick the Eidos documentation path that matches your task.
+template: splash
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-An Eidos File stores structured data in a portable SQLite file. Open one in the
-browser, work locally with the CLI, or manage a folder of files with Eidos Lite.
-
 <CardGrid>
   <LinkCard
-    title="Open one file in a browser"
-    description="Create or edit a local file without installing an application."
-    href="/getting-started/browser/"
+    title="Eidos Lite"
+    description="Install the desktop app and work with local Spaces."
+    href="/user-guide/"
   />
   <LinkCard
-    title="Create and serve a file with the CLI"
-    description="Install the CLI, create a file, and open the local editor."
-    href="/getting-started/cli/"
+    title="Eidos CLI"
+    description="Install the command-line tool and work with Eidos Files from a terminal."
+    href="/cli/"
   />
   <LinkCard
-    title="Manage a local Space with Eidos Lite"
-    description="Use an ordinary folder for multiple files and local history; Sync is an invite-only private preview."
-    href="/getting-started/eidos-lite/"
-  />
-  <LinkCard
-    title="Publish a read-only copy"
-    description="Use the staging preview to host an immutable Eidos File Version at a stable URL."
-    href="/cli/publish/"
-  />
-  <LinkCard
-    title="Add Eidos to an application"
-    description="Use the Eidos File Runtime or shared React UI."
+    title="Build with Eidos File"
+    description="Use the Runtime or shared React UI in your own application."
     href="/developers/"
+  />
+  <LinkCard
+    title="Eidos File Specs"
+    description="Read the contracts for compatible implementations."
+    href="/specifications/"
   />
 </CardGrid>
 
-## About Eidos Files
-
-An **Eidos File** is a SQLite application file with a versioned format for
-tables, fields, records, relations, and saved views. Web Editor, Eidos Lite,
-CLI Serve, and hosted Publish use the same Runtime and shared UI contract.
-
-Read [Core concepts](/concepts/) for Runtime, Space, and Graft, or go directly
-to the [user guide](/user-guide/).
+To open one file without installing anything, use the [Web Editor](/getting-started/browser/).

@@ -1,70 +1,73 @@
 ---
-title: Publish a file
-description: Publish an Eidos File, Markdown document, or form from Eidos Lite.
+title: Publish files and forms
+description: Choose a file, set its web address and access, and publish it online.
 sidebar:
   order: 85
+  badge:
+    text: Subscription
+    variant: note
 ---
 
-Eidos Publish gives one file in your Space a stable web address. After publishing, you can close
-Eidos Lite and your computer does not need to remain online.
+import { Badge } from "@astrojs/starlight/components"
 
-Publish works independently from Sync. Before you begin, sign in and activate Publish under
-**Settings → Account & Services**.
+<Badge text="Official subscription required" variant="note" />
+
+Eidos Publish shares one selected file from a Space. After publishing, it has a stable web address, and Eidos Lite and your computer do not need to remain online.
+
+Eidos Publish is a subscription service provided by Eidos. Your account must have Publish enabled before you can publish or update online content. Local use of Eidos Lite does not require a subscription.
+
+You can publish:
+
+- An `.eidos` file as a read-only interactive file or as one of its Form Views.
+- A `.md` or `.markdown` file as a web page.
+
+Publish and Sync are enabled separately. Enabling one does not automatically enable the other.
 
 ## Publish a file
 
-1. Find the `.eidos`, `.md`, or `.markdown` file in the Space Explorer.
-2. Right-click the file and choose **Publish…**.
-3. Set its web address, then choose **Public**, **Password**, or **Private** access.
-4. Select **Publish**.
+1. Right-click the file in the Space Explorer.
+2. Choose **Publish…**.
+3. Set the web path under **Resource slug**.
+4. Choose an option under **Access**.
+5. Select **Publish**.
 
-When publishing finishes, copy the link or open it in your browser. Visitors can read the
-published content but cannot change your local file.
+When publishing finishes, copy the link or open the page from the progress panel.
 
-If the file refers to images or attachments in the same Space, Eidos includes them when
-publishing. They remain separate files and are not stored inside the `.eidos` file.
-
-## Update published content
-
-1. Right-click the original file in the Space Explorer.
-2. Choose **Manage Publish…**.
-3. Review the address and access setting, then publish again.
-
-The web address stays the same. Visitors see the latest published content when they open it again.
-
-## Publish a form
-
-1. Create a Form View in an Eidos File.
-2. Right-click that `.eidos` file in the Space Explorer and choose **Publish…**.
-3. Under **Publish as**, choose the form and decide who can respond.
-4. Publish it, then share the link with respondents.
-
-Responses are not written to the local file automatically. To collect them, right-click the
-original file and choose **Manage Publish… → Collect now**. Eidos imports the waiting responses
-into the original table.
-
-If you change the form's questions or fields, publish it again to update the live form.
+For an `.eidos` file, **Interactive Eidos File** under **Publish as** lets visitors browse its data and Views without changing your local file.
 
 ## Choose who can open it
 
 - **Public** — anyone with the link.
-- **Password** — anyone with the correct password.
-- **Private** — only the publisher while signed in.
+- **Password** — anyone with the password you set.
+- **Private** — only you, while signed in as the publisher.
 
-## Troubleshooting
+Password and Private access depend on the current Publish plan.
 
-**Sign in or activate Publish**
+## Update published content
 
-Open **Settings → Account & Services**, sign in, and check your Publish status.
+Editing the local file does not automatically update the published copy. To update it:
 
-**An attachment is missing**
+1. Right-click the original file.
+2. Choose **Manage Publish…**.
+3. Find the existing resource and select its Republish action.
 
-Make sure the attachment is still inside the Space and the source file refers to it with a
-relative path.
+The original web address stays the same.
 
-**Publishing failed or reached a limit**
+## Publish a Form
 
-Open the task details for the reason. The account and pricing pages show the current file and
-storage limits.
+If an `.eidos` file contains a Form View, you can publish that Form:
 
-For terminal workflows, see [Publish from the command line](/cli/publish/).
+1. Right-click the `.eidos` file and choose **Publish…**.
+2. Under **Publish as**, choose the Form.
+3. Choose who can respond and whether one account may submit more than once.
+4. Set the web path and access, then select **Publish**.
+
+Responses first stay in the Publish service; they are not written to the local file automatically. To import them, open **Manage Publish…** and select **Collect now** beside the Form.
+
+Republish after changing the Form's questions or Fields so the online Form receives the update.
+
+## How attachments are published
+
+Attachments remain separate files in the Space; they are not stored inside the `.eidos` file. During publishing, Eidos finds attachments referenced by the source and uploads the files that are needed.
+
+Keep attachments in the source file's folder or one of its subfolders, and preserve their relative paths. Publishing includes only the selected source and its referenced attachments—not the whole Space.

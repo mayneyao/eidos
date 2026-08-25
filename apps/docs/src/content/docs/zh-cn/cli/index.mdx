@@ -1,41 +1,27 @@
 ---
-title: CLI 与自动化
-description: 使用 Eidos CLI 的可读终端输出或显式 JSON 自动化接口。
+title: Eidos CLI
+description: 在终端中创建、查看、查询、编辑、校验、打开和发布 Eidos File。
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-`eidos` 是面向 Agent 的 Rust CLI。大多数命令直接在本地读写开放的 Eidos File；只有在
-显式选择 Relay 或 Publish 工作流时才连接对应托管服务。
+`eidos` 命令行工具直接操作本地 `.eidos` 文件，不依赖 Eidos Lite 或后台服务。
+
+## 安装
 
 <CardGrid>
   <LinkCard
-    title="安装并创建文件"
-    description="用几条命令完成第一个可视化工作流。"
+    title="安装 Eidos CLI"
+    description="安装独立命令，创建文件，并打开本地编辑器。"
     href="/zh-cn/getting-started/cli/"
-  />
-  <LinkCard
-    title="安全自动化"
-    description="使用 context、revision check、原子 apply 与 full validation。"
-    href="/zh-cn/cli/automation-workflow/"
-  />
-  <LinkCard
-    title="启动本地编辑器"
-    description="为一个本地路径打开共享 Eidos File UI。"
-    href="/zh-cn/cli/serve/"
-  />
-  <LinkCard
-    title="发布托管副本"
-    description="把不可变 Version 上传到稳定、只读的 URL。"
-    href="/zh-cn/cli/publish/"
   />
 </CardGrid>
 
-## 命令模型
+## 基础使用
 
-帮助信息使用 command-first 语法：
+新的工作流建议使用命令优先的写法：
 
 ```bash
 eidos inspect tracker.eidos
@@ -43,23 +29,33 @@ eidos context tracker.eidos Tasks --fields Title,Status --limit 50
 eidos validate tracker.eidos --level full
 ```
 
-为兼容旧工作流，也接受 `eidos tracker.eidos inspect` 这样的 file-first 写法。新脚本建议使用
-command-first，与 `eidos --help` 保持一致。
-
-命令默认输出便于阅读的键值区块和表格。Agent 与脚本应显式传入全局 `--json` 参数：
+命令默认输出便于阅读的结果。脚本或智能体需要稳定的结构化结果时，添加 `--json`：
 
 ```bash
 eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
-JSON 模式下，成功命令向 stdout 写一个 JSON document；失败命令向 stderr 写一个 JSON
-error document，并返回非零 exit status。JSON schema 是稳定的自动化合同；人类可读输出可能
-继续为可读性优化。
+运行 `eidos --help` 查看所有命令；运行 `eidos <命令> --help` 查看某个命令的参数。
 
-## 支持边界
+## 进阶使用
 
-CLI 负责 Eidos File 的创建、检查、查询、修改、校验与服务。Publish 同时接受带本地附件的
-Eidos File 和 Markdown 文档。除此以外，CLI 不管理普通文档、Eidos Lite Space 生命周期、
-应用 RPC、本地版本历史或同步。普通文件使用普通文件工具，历史使用 Graft-aware 工作流。
+<CardGrid>
+  <LinkCard
+    title="安全自动化"
+    description="读取上下文，执行带版本检查的修改，再校验结果。"
+    href="/zh-cn/cli/automation-workflow/"
+  />
+  <LinkCard
+    title="启动本地编辑器"
+    description="在本机或可信网络中，用共享编辑器打开一个 Eidos File。"
+    href="/zh-cn/cli/serve/"
+  />
+  <LinkCard
+    title="从终端发布"
+    description="把 Eidos File、Markdown 文档或表单发布到固定网址。"
+    href="/zh-cn/cli/publish/"
+  />
+</CardGrid>
 
-Raw SQLite write 不是受支持的自动化接口。
+命令行工具只管理 Eidos File，不管理 Eidos Lite 的 Space 和本地历史。需要文件夹导航、
+Space 历史或同步时，请使用 Eidos Lite。

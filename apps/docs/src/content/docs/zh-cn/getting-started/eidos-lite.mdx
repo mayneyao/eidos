@@ -1,42 +1,37 @@
 ---
-title: Eidos Lite
-description: 了解桌面 Space 模型与当前发行状态。
+title: 安装 Eidos Lite
+description: 下载桌面应用，打开 Space，并创建第一份 Eidos File。
 sidebar:
-  order: 20
+  order: 10
 ---
 
-import { Aside } from "@astrojs/starlight/components"
+## 1. 安装应用
 
-Eidos Lite 是把普通文件夹作为 Space 使用的主力桌面产品。一个 Space 可以包含多个
-`.eidos` 文件和普通文件，不会被改造成专有容器。
+从 [Eidos 下载页](https://eidos.space/zh/download)下载 Eidos Lite，然后按照系统提示完成安装。
 
-<Aside type="note" title="Eidos Lite 0.1.3 已发布">
-  从 [Eidos 下载页](https://eidos.space/zh/download#eidos-lite)获取 Eidos
-  Lite。0.1.3 支持把 HTTPS URL 字段显示为带缓存的 Grid 缩略图和 Gallery 封面，
-  支持远程 File 附件，并在 Explorer 刷新时保持已展开的文件夹。Sync 是仅限邀请的
-  Private Preview，waitlist 申请获批前保持不可用。
-</Aside>
+本地使用不需要登录。只有同步和发布等可选服务需要 Eidos 账户。
 
-## Lite 增加了什么
+## 2. 创建或打开 Space
 
-- 在一个 Explorer 中管理 Eidos File、文件夹和普通文件；
-- 通过 `eidos-file-ui` 共享 Grid、Gallery、Kanban 与 Calendar 编辑体验；
-- 通过 Graft 提供本地 Space 历史和记录级变更；
-- 从 Explorer 删除的文件会移到系统废纸篓；
-- 邀请制的认证 Sync，同时本地工作仍无需账号。
+启动 Eidos Lite，然后选择一种方式：
 
-## 文件模型
+- **新建 Space**：创建一个新的本地文件夹。
+- **打开 Space**：使用电脑上已有的文件夹。
 
-你选择的文件夹始终是普通文件夹，`.eidos` 也始终是 SQLite application file。本地历史
-metadata 与数据模型分离；退出账号或离线不会使本地文件不可读。
+你选择的文件夹始终是普通文件夹，不会被转换成专有容器。
 
-## 全局偏好
+## 3. 创建第一份文件
 
-打开**设置 → 偏好设置**可以选择主题、语言，以及日历是否从周一开始显示每周。日历偏好会立即
-应用到所有已打开的 Eidos File，但它属于应用偏好，不是文件 metadata。
+在左侧文件列表中选择**新建 Eidos File**并输入名称。Eidos Lite 会创建一个 `.eidos` 文件，
+然后在编辑器中打开。
 
-需要运行当前源码的开发者可以阅读
-[Eidos Lite workspace 指南](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop)。
-需要在另一台设备继续使用 Space 时，请阅读[在设备间同步](/zh-cn/user-guide/sync/)。
-恢复与备份边界见[历史与恢复](/zh-cn/user-guide/history-and-sync/)。
-需要分享文件时，请阅读[发布文件](/zh-cn/user-guide/publishing/)。
+创建数据表、添加几个字段，再输入第一条记录。修改会直接写入本地文件。
+
+下一步阅读[从一份 Eidos File 开始](/zh-cn/user-guide/eidos-file-basics/)。
+
+## 打开已有文件
+
+如果 Space 中已经有 `.eidos` 文件，在左侧文件列表中点击即可打开。你也可以使用系统文件管理器
+把文件复制到 Space，然后刷新文件列表。
+
+只需要临时查看一个文件时，可以使用[Web 编辑器](/zh-cn/getting-started/browser/)。

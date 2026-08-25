@@ -1,23 +1,25 @@
 # Eidos documentation
 
-This Astro/Starlight site is the unified documentation for current Eidos File,
-Eidos CLI, Web Editor, Eidos Lite, and Eidos Publish work. It is published at
+This Astro/Starlight site is the unified documentation for Eidos Lite, Eidos
+CLI, Eidos File development, and the Eidos File specifications. It is published at
 [docs.eidos.space](https://docs.eidos.space).
 
 ## Information architecture
 
-The top navigation follows what a reader is trying to do:
+The top navigation has four product modules. Each module progresses from setup
+to basics and then advanced use:
 
-1. **Start here** — product chooser, Web/CLI quickstarts, Lite status, and core
-   concepts;
-2. **Use Eidos** — editing, data location, safety, history, recovery, Sync, and
-   troubleshooting;
-3. **CLI & automation** — JSON command behavior, the safe context → apply →
-   validate workflow, local/Relay Serve, and hosted Publish;
-4. **Build with Eidos** — integration decisions, Runtime/Host boundaries, and
-   package references;
-5. **Specifications** — searchable site pages generated from the normative
-   specification source.
+1. **Eidos Lite** — installation, local Space workflows, history, Sync, Publish,
+   and troubleshooting;
+2. **Eidos CLI** — installation, basic file commands, automation, Serve, and
+   Publish;
+3. **Build with Eidos File** — package installation, Runtime and Host basics,
+   shared UI, and custom views;
+4. **Eidos File Specs** — reading order, core contracts, integration contracts,
+   and extended specifications.
+
+The Web Editor remains a documented installation-free way to open one Eidos
+File, but it is not a separate top-level module.
 
 English and Simplified Chinese foundation pages are maintained as pairs.
 
@@ -48,7 +50,7 @@ pnpm deploy:docs
 
 `typecheck` validates bilingual foundation coverage, internal routes, the spec
 generation contract, and Astro/MDX diagnostics. `build` additionally checks
-the generated HTML, every internal link and referenced fragment, all eight
+the generated HTML, every internal link and referenced fragment, all twelve
 specification routes, and the production search index input.
 
 ## Writing rules
@@ -60,4 +62,4 @@ specification routes, and the production search index input.
   replace.
 - Link behavior claims to the owning specification instead of redefining them.
 - Use Runtime or CLI as the write boundary; do not teach raw SQLite mutation.
-- Keep old URLs redirected to a truthful replacement or the legacy notice.
+- Remove retired routes from the public site and update current links to their canonical URLs.

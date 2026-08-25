@@ -1,52 +1,70 @@
 ---
-title: Eidos Specifications
-description: Normative, independently implementable contracts for the Eidos File stack.
+title: Eidos File Specs
+description: Normative contracts for compatible Eidos File implementations.
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File interoperability is defined by four layers and their normative
-companion specifications. The English pages are normative. Chinese pages are
-informative translations and cannot override the English contract.
+The specification suite defines how compatible implementations store, interpret, edit, and render
+an Eidos File. English pages are normative. Chinese pages are informative translations.
+
+## Start reading
+
+Read the specifications in layer order when implementing the complete stack:
+
+```text
+File Format → Runtime → Adapter → UI
+```
+
+Start with File Format and Runtime. Read Adapter when connecting Runtime to a platform, and UI when
+building an editor or viewer.
+
+## Core specifications
 
 <CardGrid>
   <LinkCard
     title="Eidos File Format 1.0"
-    description="SQLite container identity, canonical schema, stored values, and validity."
+    description="SQLite identity, canonical schema, stored values, and file validity."
     href="/specifications/file-format-1-0/"
   />
   <LinkCard
     title="Eidos Runtime 1.0"
-    description="Logical types, queries, filters, derived values, mutations, revisions, and errors."
+    description="Types, queries, filters, derived values, mutations, revisions, and errors."
     href="/specifications/runtime-1-0/"
   />
-  <LinkCard
-    title="Eidos System Metadata Merge 1.0"
-    description="Draft Runtime profile for deterministic three-way merge of canonical Eidos system metadata."
-    href="/specifications/system-metadata-merge-1-0/"
-  />
+</CardGrid>
+
+## Integration specifications
+
+<CardGrid>
   <LinkCard
     title="Eidos Adapter 1.0"
-    description="ConnectionPort, transport, file lifecycle, persistence, and platform profiles."
+    description="Connections, transport, file lifecycle, persistence, and platform profiles."
     href="/specifications/adapter-1-0/"
   />
   <LinkCard
     title="Eidos UI 1.0"
-    description="RuntimeClient and HostServices consumption, interaction, editing, and accessibility."
+    description="Runtime and Host consumption, interaction, editing, and accessibility."
     href="/specifications/ui-1-0/"
-  />
-  <LinkCard
-    title="Eidos Standard Views 1.0"
-    description="Unified layout and interaction contract for Grid, Gallery, Kanban, Calendar, and Form."
-    href="/specifications/standard-views-1-0/"
   />
 </CardGrid>
 
-Built-in variants of one abstraction share a companion specification. Standard
-Views therefore documents Grid, Gallery, Kanban, Calendar, and Form together;
-separate optional profiles are reserved for extensions outside the baseline.
+## Extended specifications
+
+<CardGrid>
+  <LinkCard
+    title="System Metadata Merge 1.0"
+    description="Deterministic three-way merge of canonical Eidos system metadata."
+    href="/specifications/system-metadata-merge-1-0/"
+  />
+  <LinkCard
+    title="Standard Views 1.0"
+    description="Layout and interaction contracts for Grid, Gallery, Kanban, Calendar, and Form."
+    href="/specifications/standard-views-1-0/"
+  />
+</CardGrid>
 
 The canonical source files are available in
 [`docs/specs`](https://github.com/mayneyao/eidos/tree/dev/docs/specs).

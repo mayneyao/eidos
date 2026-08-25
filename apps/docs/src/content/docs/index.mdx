@@ -1,79 +1,78 @@
 ---
 title: Eidos Docs
-description: Documentation for Eidos Lite, Eidos File Web, Eidos Publish, the CLI, and the Eidos File format.
+description: Learn Eidos Lite and Eidos CLI from installation through advanced use, or explore Eidos File development and specifications.
 template: splash
 hero:
-  title: An open format. Local-first. A file-based spreadsheet.
-  tagline: Open the same .eidos file in the browser, desktop app, or terminal—and let agents work with it safely.
-  image:
-    file: ../../assets/logo.png
+  title: Eidos documentation
+  tagline: Learn Eidos Lite and Eidos CLI from installation through advanced use, or explore Eidos File development and specifications.
   actions:
-    - text: Quick start
-      link: /getting-started/
+    - text: Open the user guide
+      link: /user-guide/
       icon: right-arrow
-    - text: Install the CLI
-      link: /getting-started/cli/
-      icon: rocket
+    - text: Read the file specifications
+      link: /specifications/
       variant: minimal
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
-
-## Get started
-
-<CardGrid>
-  <LinkCard
-    title="Web Editor"
-    description="Create or open a local Eidos File without installing an application."
-    href="/getting-started/browser/"
-  />
-  <LinkCard
-    title="Eidos CLI"
-    description="Create a file, open the local editor, run queries, and automate changes."
-    href="/getting-started/cli/"
-  />
-  <LinkCard
-    title="Eidos Lite"
-    description="Use an ordinary folder as a Space for Eidos Files, other files, and local history."
-    href="/getting-started/eidos-lite/"
-  />
-  <LinkCard
-    title="Eidos Publish preview"
-    description="Upload an immutable Version to a stable, read-only hosted URL."
-    href="/cli/publish/"
-  />
-</CardGrid>
-
-The Web Editor, CLI, and Eidos Lite 0.1.3 are available now. Lite 0.1.3 adds
-cached URL images, remote File attachments, and steadier Explorer refreshes.
-Sync remains an invite-only private preview. Publish is available separately as
-a staging preview; production hosting and public Publish checkout are not open yet.
-
-## Eidos File
-
-An Eidos File is a portable SQLite file for typed tables, relations, formulas,
-and saved views. Web Editor, Eidos Lite, and `eidos serve` use the same editor
-and Runtime.
-
-<CardGrid>
-  <LinkCard
-    title="User guide"
-    description="Learn how files, views, saving, history, and recovery work."
-    href="/user-guide/"
-  />
-  <LinkCard
-    title="CLI reference"
-    description="Use JSON commands for queries, atomic changes, Serve, and Publish."
-    href="/cli/"
-  />
-  <LinkCard
-    title="Developer documentation"
-    description="Use the Runtime and shared React UI in your own application."
-    href="/developers/"
-  />
-  <LinkCard
-    title="Specifications"
-    description="Read the File Format, Runtime, Adapter, and UI contracts."
-    href="/specifications/"
-  />
-</CardGrid>
+<section class="docs-home-index">
+  <h2 id="documentation-paths">Choose a documentation path</h2>
+  <nav aria-labelledby="documentation-paths" class="docs-home-index__list">
+    <a href="/user-guide/" class="docs-home-index__item">
+      <span class="docs-home-index__number">01</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos Lite</strong>
+        <span>
+          Install the desktop app, manage local Spaces, then add Versions, Sync,
+          or Publish when needed.
+        </span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/cli/" class="docs-home-index__item">
+      <span class="docs-home-index__number">02</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos CLI</strong>
+        <span>
+          Install the command-line tool to create, query, and automate Eidos
+          Files.
+        </span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/developers/" class="docs-home-index__item">
+      <span class="docs-home-index__number">03</span>
+      <span class="docs-home-index__copy">
+        <strong>Build with Eidos File</strong>
+        <span>
+          Use the Eidos File Runtime and shared interface in your own
+          application.
+        </span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+    <a href="/specifications/" class="docs-home-index__item">
+      <span class="docs-home-index__number">04</span>
+      <span class="docs-home-index__copy">
+        <strong>Eidos File specifications</strong>
+        <span>
+          Read the compatibility contracts for the format, Runtime, Adapter, and
+          UI.
+        </span>
+      </span>
+      <span class="docs-home-index__arrow" aria-hidden="true">
+        {"→"}
+      </span>
+    </a>
+  </nav>
+  <p class="docs-home-index__secondary">
+    {"Only need to open one file? Use the "}
+    <a href="/getting-started/browser/">{"Web Editor"}</a>
+    {" without installing anything."}
+  </p>
+</section>

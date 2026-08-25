@@ -1,42 +1,28 @@
 ---
-title: CLI and automation
-description: Use readable terminal output or explicit JSON automation with the Eidos CLI.
+title: Eidos CLI
+description: Create, inspect, query, edit, validate, serve, and publish Eidos Files from the terminal.
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-`eidos` is an agent-first Rust CLI for the open Eidos File format. Most commands
-read and modify files locally; Relay and Publish connect only when you choose
-those hosted workflows explicitly.
+The `eidos` CLI works directly with local `.eidos` files. It does not require Eidos Lite or a
+background service.
+
+## Install
 
 <CardGrid>
   <LinkCard
-    title="Install and create a file"
-    description="Complete the first visual workflow in a few commands."
+    title="Install Eidos CLI"
+    description="Install the standalone command, create a file, and open the local editor."
     href="/getting-started/cli/"
-  />
-  <LinkCard
-    title="Automate safely"
-    description="Use context, revision checks, atomic apply, and full validation."
-    href="/cli/automation-workflow/"
-  />
-  <LinkCard
-    title="Serve the local editor"
-    description="Open the shared Eidos File UI for one path on localhost."
-    href="/cli/serve/"
-  />
-  <LinkCard
-    title="Publish a hosted copy"
-    description="Upload immutable Versions to a stable, read-only URL."
-    href="/cli/publish/"
   />
 </CardGrid>
 
-## Command model
+## Basics
 
-The help output uses command-first syntax:
+Use command-first syntax for new workflows:
 
 ```bash
 eidos inspect tracker.eidos
@@ -44,28 +30,34 @@ eidos context tracker.eidos Tasks --fields Title,Status --limit 50
 eidos validate tracker.eidos --level full
 ```
 
-File-first forms such as `eidos tracker.eidos inspect` are also accepted for
-compatibility. New scripts should prefer command-first syntax so they match
-`eidos --help`.
-
-Commands print readable key-value sections and tables by default. Pass the
-global `--json` flag for Agent and script workflows:
+Commands print readable output by default. Add `--json` when a script or Agent needs the stable
+machine-readable result:
 
 ```bash
 eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
-In JSON mode, successful commands write one JSON document to stdout. Failed
-commands write one JSON error document to stderr and return a nonzero exit
-status. The JSON schema is the stable automation contract; human output may
-evolve for readability.
+Use `eidos --help` to list commands, and `eidos <command> --help` for the options of one command.
 
-## Supported responsibility
+## Advanced
 
-The CLI creates, inspects, queries, mutates, validates, and serves Eidos Files.
-Publish accepts both Eidos Files and Markdown documents with local attachments.
-The CLI does not otherwise manage ordinary documents, Eidos Lite Space
-lifecycle, application RPC, local version history, or Sync. Use normal file
-tools for ordinary files and Graft-aware workflows for history.
+<CardGrid>
+  <LinkCard
+    title="Safe automation"
+    description="Read context, apply revision-checked changes, and validate the result."
+    href="/cli/automation-workflow/"
+  />
+  <LinkCard
+    title="Serve the local editor"
+    description="Open one Eidos File in the shared editor on localhost or a trusted network."
+    href="/cli/serve/"
+  />
+  <LinkCard
+    title="Publish from the terminal"
+    description="Publish an Eidos File, Markdown document, or form to a stable address."
+    href="/cli/publish/"
+  />
+</CardGrid>
 
-Raw SQLite writes are not a supported automation interface.
+The CLI manages Eidos Files, not Eidos Lite Spaces or local history. Use Eidos Lite when you need
+folder navigation, Space history, or Sync.

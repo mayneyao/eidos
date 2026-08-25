@@ -1,85 +1,70 @@
 ---
-title: Troubleshooting
-description: Resolve common Eidos File, Web Editor, CLI, and save problems.
+title: Troubleshoot Eidos Lite
+description: Start with the message you see in Eidos Lite and try the relevant next step.
 sidebar:
   order: 80
 ---
 
-## A file will not open
+## A Space or file will not open
 
-Run a full validation and read the JSON error:
+Confirm that the folder is still in its original location and that your account can read and write it. If another application, file-sync tool, or backup tool is changing the Space, pause it and try opening the Space again.
 
-```bash
-eidos problem.eidos validate --level full
-```
+An `.eidos` file must be a valid Eidos File. Renaming an ordinary SQLite database with an `.eidos` extension does not convert it.
 
-Check that the path ends in `.eidos`, the file is actually SQLite, and it was
-created by a compatible Eidos File implementation. Renaming an arbitrary
-SQLite database does not convert it.
+## A file is busy or locked
 
-## Web edits did not reach the original
+Close other Eidos windows, SQLite tools, or preview apps that have the same `.eidos` file open, then try again. Do not let two applications write to the same file at once.
 
-Look at the titlebar state. Imported-copy mode and denied write permission
-require **Save As** or **Download a copy**. If the original changed outside the
-editor, choose reload, explicit overwrite, or Save As rather than silently
-replacing either version.
+## Versions asks you to save changes first
 
-## The file is busy or locked
+Restore and Sync require a saved version of the current work:
 
-Close other Eidos, SQLite, preview, backup, or indexing processes that may hold
-the file. Do not run Desktop development and Node tests against the same native
-SQLite binary concurrently in this repository.
+1. Open **Versions** from the top-right corner.
+2. Review the work under **Changes**.
+3. Select **Save version**.
+4. Try the original action again.
 
-## `eidos serve` does not open a browser
+If you do not need the changes, you can discard them from **Changes**, but the discarded work cannot be recovered from the current working state.
 
-Start without `--open`, then copy the printed loopback URL into a browser:
+## The Versions button is unavailable
 
-```bash
-eidos serve example.eidos --port 8420
-```
+Confirm that Eidos Lite can write to the Space folder, then reopen the Space. If it is still unavailable, check **Settings → Updates** and restart Eidos Lite.
 
-The server binds `127.0.0.1` by default. Check local firewall or proxy rules if
-the URL is unreachable. For another device on a trusted private network,
-restart it with `--lan`, open the exact paired URL printed in the terminal, and
-check that the selected private address is reachable. If an older CLI keeps
-loading an empty file, create the first table with the command in the
-[CLI quickstart](/getting-started/cli/) or upgrade to a release with empty-file
-startup support.
+## Sync says access is required
 
-## A command failed in automation
+Sync is in a limited preview. Signing in does not automatically grant access. Open **Settings → Account & Services** to check the current account.
 
-CLI commands emit readable terminal output by default. Automation must pass
-`--json` to receive one JSON document on stdout or one JSON error document on
-stderr. Failures return a nonzero status in either mode. Preserve stderr and
-the exit code; do not parse human terminal text.
+The local Space is unaffected and remains available offline.
 
-## A new record did not receive its Select default
+## Sync cannot continue
 
-Confirm that the field is Select—not Multi-select—and that its **Default
-option** still names a configured option. Defaults apply only when an ordinary
-create action omits the field. Explicitly clearing it, importing CSV, or looking
-at an existing record does not trigger backfill.
+Follow the main action shown in the Sync panel:
 
-## A record moved or disappeared after editing
+- **Review changes** — save a local version or resolve conflicts between Local and Hosted.
+- **Manage storage** — clear cloud storage or change the plan.
+- **Try again** — check the network connection and retry.
+- **Sign in again** — the session expired and needs a new sign-in.
 
-Check the active View's filters and sorts. Editing a sort value can move the row
-to a new position. Editing a value used by the filter can make the record leave
-the View entirely. Clear temporary search or open an unfiltered View to confirm
-the record still exists.
+Do not delete the local Space to clear a Sync state. If there is a conflict and you are unsure what to keep, create recovery copies first.
 
-## A relative date filter returns an unexpected boundary
+## Publish is unavailable
 
-Check whether you chose Past, Future, or Current and whether the unit is day,
-week, month, or year. Current weeks use Monday through Sunday. Between, on-or-
-before, and on-or-after include the selected endpoint. Saved relative filters
-recalculate on a new query instead of preserving yesterday's preview dates.
+Make sure that you are signed in and that Publish is available for the account. Eidos Lite currently publishes `.eidos`, `.md`, and `.markdown` files; folders and other formats do not offer Publish.
 
-## CSV did not preserve a Relation or attachment
+## A published attachment is missing
 
-CSV is flat exchange data. Relation labels and attachment names are readable
-exports, not complete stable IDs or File entries. Keep or transfer the `.eidos`
-file when those semantics must survive.
+Make sure that the attachment still exists in the source file's folder or one of its subfolders. If it was moved or renamed, update its reference in the source and publish again.
 
-If the problem remains, include the CLI version, operating system, validation
-output, and minimal reproduction in a
-[GitHub issue](https://github.com/mayneyao/eidos/issues).
+## Find a deleted file
+
+Ordinary files deleted from Eidos Lite move to the system Trash. Check the Trash first; if the file is not there, restore it from Version history or an independent backup.
+
+## If the problem remains
+
+Open **Settings → About**:
+
+1. Select **Copy diagnostics**.
+2. If needed, select **Show logs folder**.
+3. Open a [GitHub issue](https://github.com/mayneyao/eidos/issues), describe the action and message you saw, and include the diagnostics.
+
+Review logs before sharing them. Remove private file names, paths, or account details.

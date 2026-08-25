@@ -1,70 +1,43 @@
 ---
-title: Data location and safety
-description: Know where your Eidos data lives and when writes become durable.
+title: Data, attachments, and backups
+description: Understand where Eidos Lite saves data and what you need to back up.
 sidebar:
   order: 60
 ---
 
-## Where data lives
+Eidos Lite works directly with files on your computer. Opening a Space means opening an ordinary folder, and edits are saved to the original files in that folder.
 
-| Host                           | Durable data                                | How writes reach it                                                          |
-| ------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------- |
-| Web Editor, direct-file mode   | The `.eidos` file you selected              | **Save** writes after browser permission and conflict checks                 |
-| Web Editor, imported-copy mode | A file you save or download                 | The in-browser working copy is not the original; use **Save As** or download |
-| CLI commands                   | The path passed to `eidos`                  | Successful mutations commit atomically to that file                          |
-| CLI Serve                      | The path passed to `eidos serve`            | Each committed editor mutation writes through to the file                    |
-| Eidos Lite                     | `.eidos` files in the ordinary Space folder | Runtime mutations write to those local files; history is a separate layer    |
+Local work does not require an account, and opening or editing a file does not upload it automatically.
 
-No supported host requires uploading a file merely to query or edit it.
+## What an `.eidos` file contains
 
-## Read the save state correctly
+An `.eidos` file stores structured data such as Tables, Fields, Records, and Views. It is a standard SQLite file that you can copy, move, and back up like any other file.
 
-A successful cell commit means Runtime accepted the mutation. Whether that
-mutation has reached the original file depends on the Host in the table above.
-In particular, an in-browser working copy can be valid and fully editable while
-still requiring **Save As** before it exists outside browser storage.
+Images, PDFs, and other attachments remain separate files in the Space. They are **not stored inside the `.eidos` file**. The Eidos File records where to find them, so copying only the `.eidos` file may leave its attachments behind.
 
-If the original file changed outside the current editor, stop and choose an
-explicit reload, overwrite, or Save As path. Do not assume the most recently
-visible window owns the newest complete state.
+When moving work that includes attachments, move the whole Space or preserve the same folder structure.
 
-## Safe habits
+## Back up a Space
 
-1. Keep ordinary backups of important `.eidos` files or the whole Space.
-2. Do not edit the same file through multiple writers at once. Close the other
-   host if you see a busy, locked, or external-change warning.
-3. Watch the titlebar save state before closing a browser tab.
-4. Use **Save As** when write permission is unavailable or the original changed
-   outside Eidos.
-5. After automated writes, run full validation.
+The safest approach is to back up the whole Space folder:
 
-```bash
-eidos important.eidos validate --level full
-```
+1. Wait for the current edit to finish saving.
+2. Copy the whole Space folder in Finder or your file manager.
+3. Keep the copy on another drive or in a backup location you trust.
+4. Occasionally open the backup copy to confirm that it works.
 
-## Back up and test a restore
+CSV is useful for exchanging table data, but it is not a complete backup. It does not preserve Views, Relations, Formulas, or attachment references.
 
-A useful backup contains the `.eidos` file and every ordinary Space asset you
-expect to keep. Copy it while no writer is actively committing, then verify the
-copy by opening it or running validation. A backup process that has never
-restored a file is only an assumption.
+## Versions, Sync, and backups
 
-CSV export is for exchange, not backup. It omits identities, View definitions,
-Relations, Formulas, option metadata, and complete File entries.
+- **Versions** help you return a Space to an earlier state.
+- **Sync** helps you continue working across your own devices.
+- **Backups** preserve another copy if a computer is lost, a drive fails, or the whole Space is deleted.
 
-## Attachment safety
+They solve different problems. Keep an independent backup even when Versions or Sync is enabled.
 
-A File field stores portable entry metadata. The referenced bytes may be inline,
-relative to the Host's asset area, or available through an explicitly authorized
-HTTPS resource. Backing up only the database file is insufficient when your
-workflow uses separate relative assets; back up the whole Space layout.
+## Avoid file conflicts
 
-Previewing an attachment is not the same as validating or trusting its content.
-Open untrusted documents with the same care you would use outside Eidos.
+Do not modify the same `.eidos` file in more than one application at a time. If Eidos Lite says that a file is busy, locked, or changed outside the app, close the other application before reopening the file.
 
-## Raw SQLite access
-
-It is reasonable to inspect an Eidos File with SQLite tools. Direct SQL writes
-are not a supported editing boundary because they can bypass revision,
-canonical value, relation, derived-field, and validation rules. Use Runtime or
-the CLI for changes.
+SQLite tools can read an `.eidos` file. Before writing to it directly, close Eidos Lite and make a backup. For normal edits, use Eidos Lite or the Eidos CLI.
