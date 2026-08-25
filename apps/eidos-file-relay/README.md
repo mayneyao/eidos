@@ -49,7 +49,10 @@ pnpm --filter @eidos.space/eidos-file-relay dry-run:staging
 Production uses `relay.eidos.ink` for authenticated control/WebSocket traffic
 and `r-<hash>.eidos.ink` for browser traffic. Staging uses
 `relay-staging.eidos.ink` and `r-<hash>-staging.eidos.ink`, which stays within
-the existing `*.eidos.ink` Universal SSL certificate. Deployments require the
-shared wildcard DNS route owned by Eidos Publish. Publish dispatches the reserved
-`r-` namespace to Relay through a service binding; Relay itself owns only the
-exact control domain. The `EIDOS_ACCOUNT` service binding is also required.
+the existing `*.eidos.ink` Universal SSL certificate. The production Relay
+Worker remains the single owner of the shared `*.eidos.ink/*` route: it handles
+the reserved `r-` namespace locally and forwards every other single-label
+production hostname to Eidos Publish through the `EIDOS_PUBLISH` service
+binding. This avoids a route handoff between two Workers. Staging keeps its
+more-specific `*-staging.eidos.ink/*` Publish route. The `EIDOS_ACCOUNT`
+service binding is also required.

@@ -1,7 +1,7 @@
 import { SELF, abortAllDurableObjects } from "cloudflare:test"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { publicSlug } from "../src/index"
+import { publicSlug, publishPublicHostname } from "../src/index"
 
 interface TunnelClaim {
   protocol: number
@@ -44,6 +44,28 @@ describe("Eidos File Relay", () => {
     expect(
       publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "")
     ).toBe("u-0123456789abcdefabcd")
+    expect(publishPublicHostname("mayne.eidos.ink", "eidos.ink", "")).toBe(true)
+    expect(
+      publishPublicHostname("mayne-staging.eidos.ink", "eidos.ink", "")
+    ).toBe(false)
+    expect(
+      publishPublicHostname("mayne-staging.eidos.ink", "eidos.ink", "-staging")
+    ).toBe(true)
+    expect(
+      publishPublicHostname("nested.mayne.eidos.ink", "eidos.ink", "")
+    ).toBe(false)
+  })
+
+  it("forwards non-Relay public hosts to Publish without changing the URL", async () => {
+    const response = await SELF.fetch(
+      "https://mayne.eidos.ink/roadmap?table=table-id"
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      service: "eidos-publish",
+      hostname: "mayne.eidos.ink",
+      target: "/roadmap?table=table-id",
+    })
   })
 
   it("does not provision unclaimed public hostnames", async () => {

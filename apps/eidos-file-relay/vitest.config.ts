@@ -6,6 +6,13 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         serviceBindings: {
+          EIDOS_PUBLISH: async (request: Request) =>
+            Response.json({
+              service: "eidos-publish",
+              hostname: new URL(request.url).hostname,
+              target:
+                new URL(request.url).pathname + new URL(request.url).search,
+            }),
           EIDOS_ACCOUNT: async (request: Request) => {
             const url = new URL(request.url)
             if (

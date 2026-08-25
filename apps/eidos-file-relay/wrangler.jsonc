@@ -9,6 +9,10 @@
       "pattern": "relay.eidos.ink",
       "custom_domain": true,
     },
+    {
+      "pattern": "*.eidos.ink/*",
+      "zone_name": "eidos.ink",
+    },
   ],
   "vars": {
     "AUTH_ORIGIN": "https://eidos.space",
@@ -21,6 +25,10 @@
     {
       "binding": "EIDOS_ACCOUNT",
       "service": "eidos-space",
+    },
+    {
+      "binding": "EIDOS_PUBLISH",
+      "service": "eidos-publish",
     },
   ],
   "durable_objects": {
@@ -71,6 +79,10 @@
         {
           "binding": "EIDOS_ACCOUNT",
           "service": "eidos-space-staging",
+        },
+        {
+          "binding": "EIDOS_PUBLISH",
+          "service": "eidos-publish-staging",
         },
       ],
       "durable_objects": {

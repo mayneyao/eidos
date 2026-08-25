@@ -193,7 +193,7 @@ async function route(
     return json({
       service: "eidos-publish",
       version: 1,
-      implementationStatus: "preview",
+      implementationStatus: "production",
       authentication: {
         scheme: "bearer",
         authority: new URL(env.AUTH_USERINFO_URL).origin,

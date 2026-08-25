@@ -20,7 +20,8 @@ eidos publish
   -> bounded eidos serve <version-local-copy> --publish processes
 
 viewer
-  -> wildcard Gateway + static Serve UI
+  -> shared wildcard ingress (Relay owns the route and forwards non-r-* hosts)
+  -> Publish Gateway + static Serve UI
   -> short-lived host/Version/target-bound Runtime ticket
   -> streaming read-only proxy
   -> sleeping or running Runtime instance

@@ -157,6 +157,20 @@ export function publicSlug(
   return relayInternalSlug(hostname, suffix, labelSuffix)
 }
 
+export function publishPublicHostname(
+  hostname: string,
+  suffix: string,
+  labelSuffix: string
+): boolean {
+  const domainSuffix = `.${suffix}`
+  const lower = hostname.toLowerCase()
+  if (!lower.endsWith(domainSuffix)) return false
+  const label = lower.slice(0, -domainSuffix.length)
+  if (label.length === 0 || label.includes(".")) return false
+  if (labelSuffix.length === 0) return !label.endsWith("-staging")
+  return label.endsWith(labelSuffix) && label.length > labelSuffix.length
+}
+
 async function claim(request: Request, env: Env): Promise<Response> {
   const principal = await authenticateEidosUser(request, env)
   const browserAccess = await claimBrowserAccess(request)
@@ -415,10 +429,17 @@ export default {
         env.PUBLIC_HOST_SUFFIX,
         env.PUBLIC_HOST_LABEL_SUFFIX
       )
-      if (!slug) {
-        return json({ error: { code: "not_found", message: "Not found" } }, 404)
+      if (slug) return await proxy(request, env, slug)
+      if (
+        publishPublicHostname(
+          url.hostname,
+          env.PUBLIC_HOST_SUFFIX,
+          env.PUBLIC_HOST_LABEL_SUFFIX
+        )
+      ) {
+        return await env.EIDOS_PUBLISH.fetch(request)
       }
-      return await proxy(request, env, slug)
+      return json({ error: { code: "not_found", message: "Not found" } }, 404)
     } catch (error) {
       return serviceError(error)
     }

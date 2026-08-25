@@ -16,10 +16,6 @@
       "pattern": "publish.eidos.space",
       "custom_domain": true,
     },
-    {
-      "pattern": "*.eidos.ink/*",
-      "zone_name": "eidos.ink",
-    },
   ],
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/publish/userinfo",
