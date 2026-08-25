@@ -28,6 +28,8 @@ export const SHORTCUT_GROUPS: Array<{
       "toggle-theme",
       "toggle-version",
       "toggle-sync",
+      "toggle-terminal",
+      "toggle-terminal-position",
     ],
   },
   {
@@ -50,6 +52,8 @@ const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "toggle-theme": "Toggle theme",
   "toggle-version": "Toggle version history",
   "toggle-sync": "Toggle Sync",
+  "toggle-terminal": "Toggle terminal",
+  "toggle-terminal-position": "Toggle terminal position",
   "new-record": "New record",
   "previous-view": "Previous view",
   "next-view": "Next view",

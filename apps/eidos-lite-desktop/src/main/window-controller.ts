@@ -466,6 +466,7 @@ export class WindowController {
     const command = eidosLiteShortcutCommandForKeyboardEvent(
       {
         key: input.key,
+        code: input.code,
         altKey: input.alt,
         ctrlKey: input.control,
         metaKey: input.meta,

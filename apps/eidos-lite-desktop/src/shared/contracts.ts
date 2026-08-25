@@ -58,6 +58,12 @@ export const IPC_CHANNELS = {
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
   workspaceShortcutCommand: "eidos-lite:workspace-shortcut-command",
+  terminalStart: "eidos-lite:terminal-start",
+  terminalWrite: "eidos-lite:terminal-write",
+  terminalResize: "eidos-lite:terminal-resize",
+  terminalClose: "eidos-lite:terminal-close",
+  terminalData: "eidos-lite:terminal-data",
+  terminalExit: "eidos-lite:terminal-exit",
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
@@ -609,6 +615,17 @@ export interface SpaceSnapshot {
   fileIssues?: EidosFileIssue[]
   /** Files rewritten outside their resident Runtime before this snapshot was emitted. */
   materializedPaths?: string[]
+}
+
+export interface EidosLiteTerminalSession {
+  id: string
+  shell: string
+}
+
+export interface EidosLiteTerminalExit {
+  sessionId: string
+  exitCode: number
+  signal?: number
 }
 
 export type EidosFileIssueReason =
@@ -1549,6 +1566,14 @@ export interface EidosLiteApi {
   onWorkspaceShortcutCommand(
     listener: (command: EidosLiteShortcutCommand) => void
   ): () => void
+  startTerminal(cols: number, rows: number): Promise<EidosLiteTerminalSession>
+  writeTerminal(sessionId: string, data: string): void
+  resizeTerminal(sessionId: string, cols: number, rows: number): void
+  closeTerminal(sessionId: string): Promise<void>
+  onTerminalData(
+    listener: (sessionId: string, data: string) => void
+  ): () => void
+  onTerminalExit(listener: (exit: EidosLiteTerminalExit) => void): () => void
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>

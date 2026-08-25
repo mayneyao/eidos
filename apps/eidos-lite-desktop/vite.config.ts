@@ -103,7 +103,12 @@ export default defineConfig(({ mode }) => {
               target: "node24",
               reportCompressedSize: false,
               rolldownOptions: {
-                external: ["@eidos.space/graft", "electron", "node:sqlite"],
+                external: [
+                  "@eidos.space/graft",
+                  "electron",
+                  "node-pty",
+                  "node:sqlite",
+                ],
                 output: {
                   format: "esm",
                   chunkFileNames: (chunk) =>

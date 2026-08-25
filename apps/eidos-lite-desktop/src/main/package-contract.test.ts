@@ -83,20 +83,26 @@ describe("Eidos Lite package identity", () => {
     }
   })
 
-  it("packages the Graft SDK and the dedicated Eidos Publish engine", async () => {
+  it("packages native runtimes and the dedicated Eidos Publish engine", async () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")
     const scripts = packageJson.scripts as Record<string, string>
 
     expect(packageJson.dependencies).toMatchObject({
       "@eidos.space/graft": expect.any(String),
+      "@xterm/addon-fit": expect.any(String),
+      "@xterm/xterm": expect.any(String),
+      "node-pty": expect.any(String),
     })
+    expect(packageJson.dependencies).not.toHaveProperty("@wterm/dom")
     expect(packageJson.dependencies).not.toHaveProperty("better-sqlite3")
     expect(packageJson.dependencies).not.toHaveProperty("bindings")
     expect(packageJson.dependencies).not.toHaveProperty("file-uri-to-path")
     expect(scripts["native:node"]).toBeUndefined()
     expect(scripts["native:electron"]).toBeUndefined()
     expect(JSON.stringify(builder)).not.toContain("better-sqlite3")
+    expect(builder.files).toContain("**/node_modules/node-pty/**/*")
+    expect(builder.asarUnpack).toContain("**/node_modules/node-pty/**/*")
     expect(builder.extraResources).toEqual([
       {
         from: "resources/publish-engine",
@@ -107,6 +113,18 @@ describe("Eidos Lite package identity", () => {
     expect(scripts["prepare:publish-engine"]).toBe(
       "node scripts/prepare-publish-engine.mjs"
     )
+    expect(scripts["prepare:terminal"]).toBe(
+      "node scripts/prepare-terminal.mjs"
+    )
+    expect(scripts.test).toContain("prepare:terminal")
+    for (const scriptName of [
+      "dev",
+      "build",
+      "build:production",
+      "build:release",
+    ]) {
+      expect(scripts[scriptName]).toContain("prepare:terminal")
+    }
     for (const scriptName of [
       "package:dir",
       "package:production:dir",

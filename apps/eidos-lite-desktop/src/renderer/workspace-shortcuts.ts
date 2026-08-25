@@ -12,7 +12,7 @@ export type WorkspaceShortcut = EidosLiteWorkspaceShortcutCommand
 
 type ShortcutKeyboardEvent = Pick<
   KeyboardEvent,
-  "altKey" | "ctrlKey" | "key" | "metaKey" | "repeat" | "shiftKey"
+  "altKey" | "code" | "ctrlKey" | "key" | "metaKey" | "repeat" | "shiftKey"
 >
 
 function inferredMacos(event: ShortcutKeyboardEvent): boolean {

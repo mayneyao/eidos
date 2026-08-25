@@ -53,6 +53,25 @@ describe("Eidos Lite keyboard shortcuts", () => {
     ).toBe("new-record")
     expect(
       eidosLiteShortcutCommandForKeyboardEvent(
+        event({ key: "`", ctrlKey: true }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("toggle-terminal")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
+        event({
+          code: "Backquote",
+          key: "Dead",
+          ctrlKey: true,
+          shiftKey: true,
+        }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("toggle-terminal-position")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
         event({ ctrlKey: true, key: "PageDown" }),
         DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         true
@@ -81,6 +100,8 @@ describe("Eidos Lite keyboard shortcuts", () => {
     expect(normalized["new-record"]).toBe("Mod+Enter")
     expect(normalized["previous-view"]).toBe("Ctrl+PageUp")
     expect(normalized["open-cell-actions"]).toBe("Shift+F10")
+    expect(normalized["toggle-terminal"]).toBe("Ctrl+Backquote")
+    expect(normalized["toggle-terminal-position"]).toBe("Ctrl+Shift+Backquote")
   })
 
   it("does not let a new default steal an existing custom binding", () => {
@@ -133,5 +154,7 @@ describe("Eidos Lite keyboard shortcuts", () => {
     expect(eidosLiteShortcutLabel("Mod+Shift+H", false)).toBe("Ctrl+Shift+H")
     expect(eidosLiteShortcutLabel("Mod+Backslash", true)).toBe("⌘\\")
     expect(eidosLiteShortcutLabel("Mod+N", true)).toBe("⌘N")
+    expect(eidosLiteShortcutLabel("Ctrl+Backquote", false)).toBe("Ctrl+`")
+    expect(eidosLiteShortcutLabel("Ctrl+Shift+Backquote", true)).toBe("⌃⇧`")
   })
 })

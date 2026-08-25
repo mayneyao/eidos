@@ -73,6 +73,7 @@ import {
   requiredPublishCollectRequest,
   requiredPublishRequest,
 } from "./publish/publish-engine"
+import type { TerminalSessionManager } from "./terminal/terminal-session-manager"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
@@ -636,6 +637,18 @@ export function registerIpc(
   const assetLeases = new Map<string, RegisteredAssetLease>()
   const urlImageLeases = new Map<string, RegisteredUrlImageLease>()
   const assetLeaseCleanupSenders = new Set<number>()
+  const terminalCleanupSenders = new Set<number>()
+  let terminalSessionsPromise: Promise<TerminalSessionManager> | null = null
+  const terminalSessions = () => {
+    terminalSessionsPromise ??= Promise.all([
+      import("./terminal/terminal-session-manager"),
+      import("node-pty"),
+    ]).then(
+      ([{ TerminalSessionManager }, nodePty]) =>
+        new TerminalSessionManager(nodePty.spawn)
+    )
+    return terminalSessionsPromise
+  }
   const releaseAssetLeases = (ownerId: number, sessionId?: string) => {
     for (const [leaseId, record] of assetLeases) {
       if (
@@ -825,6 +838,69 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.updateDownload, () => updater.download())
   ipcMain.handle(IPC_CHANNELS.updateInstall, () => updater.restartToInstall())
   ipcMain.handle(IPC_CHANNELS.clipboardReadText, () => clipboard.readText())
+  ipcMain.handle(
+    IPC_CHANNELS.terminalStart,
+    async (event, cols: unknown, rows: unknown) => {
+      if (typeof cols !== "number" || typeof rows !== "number") {
+        throw new Error("Invalid terminal dimensions")
+      }
+      const session = controller.requireSession(event.sender)
+      const manager = await terminalSessions()
+      const terminal = manager.start({
+        ownerId: event.sender.id,
+        cwd: session.canonical.root,
+        cols,
+        rows,
+        onData: (terminalId, data) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(IPC_CHANNELS.terminalData, terminalId, data)
+          }
+        },
+        onExit: (exit) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(IPC_CHANNELS.terminalExit, exit)
+          }
+        },
+      })
+      if (!terminalCleanupSenders.has(event.sender.id)) {
+        terminalCleanupSenders.add(event.sender.id)
+        event.sender.once("destroyed", () => {
+          terminalCleanupSenders.delete(event.sender.id)
+          manager.closeOwner(event.sender.id)
+        })
+      }
+      return terminal
+    }
+  )
+  ipcMain.on(
+    IPC_CHANNELS.terminalWrite,
+    (event, sessionId: unknown, data: unknown) => {
+      void terminalSessionsPromise?.then((manager) => {
+        try {
+          manager.write(event.sender.id, sessionId, data)
+        } catch (error) {
+          console.warn("Could not write terminal input", error)
+        }
+      })
+    }
+  )
+  ipcMain.on(
+    IPC_CHANNELS.terminalResize,
+    (event, sessionId: unknown, cols: unknown, rows: unknown) => {
+      if (typeof cols !== "number" || typeof rows !== "number") return
+      void terminalSessionsPromise?.then((manager) => {
+        try {
+          manager.resize(event.sender.id, sessionId, cols, rows)
+        } catch (error) {
+          console.warn("Could not resize terminal", error)
+        }
+      })
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.terminalClose, async (event, sessionId) => {
+    const manager = await terminalSessions()
+    manager.closeSession(event.sender.id, sessionId)
+  })
   ipcMain.handle(
     IPC_CHANNELS.openExternalUrl,
     async (event, value: unknown) => {
@@ -2168,6 +2244,9 @@ export function registerIpc(
       htmlPreviewViews.closeAll()
       assetLeases.clear()
       publishEngine.close()
+      if (terminalSessionsPromise) {
+        ;(await terminalSessionsPromise).close()
+      }
       await syncQueue.close()
     },
   }

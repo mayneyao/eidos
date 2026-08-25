@@ -1,10 +1,16 @@
-export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
+const EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS = [
   "new-file",
   "quick-open",
   "toggle-sidebar",
   "toggle-theme",
   "toggle-version",
   "toggle-sync",
+] as const
+
+export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
+  ...EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS,
+  "toggle-terminal",
+  "toggle-terminal-position",
 ] as const
 
 export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
@@ -19,8 +25,12 @@ export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
 ] as const
 
 export const EIDOS_LITE_SHORTCUT_COMMANDS = [
-  ...EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS,
+  ...EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS,
   ...EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS,
+  // Keep new commands after established ones so preference migration never
+  // steals an existing custom binding when a new default is introduced.
+  "toggle-terminal",
+  "toggle-terminal-position",
 ] as const
 
 export type EidosLiteShortcutCommand =
@@ -47,6 +57,8 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "previous-table": "Ctrl+Shift+PageUp",
     "next-table": "Ctrl+Shift+PageDown",
     "open-cell-actions": "Shift+F10",
+    "toggle-terminal": "Ctrl+Backquote",
+    "toggle-terminal-position": "Ctrl+Shift+Backquote",
   })
 
 const MODIFIERS = ["Mod", "Ctrl", "Alt", "Shift"] as const
@@ -89,6 +101,7 @@ const KEY_ALIASES: Record<string, string> = {
   "-": "Minus",
   "=": "Equal",
   "`": "Backquote",
+  "~": "Backquote",
 }
 
 const KEY_LABELS: Record<string, string> = {
@@ -129,6 +142,7 @@ const RESERVED_BINDINGS = new Set([
 
 interface ShortcutKeyboardEvent {
   altKey: boolean
+  code?: string
   ctrlKey: boolean
   key: string
   metaKey: boolean
@@ -185,10 +199,23 @@ export function normalizeEidosLiteKeyboardShortcuts(
   const isCurrentShape = EIDOS_LITE_SHORTCUT_COMMANDS.every(
     (command) => command in candidate
   )
-  const isPreviousShape = EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS.every(
-    (command) => command in candidate
-  )
-  if (!isCurrentShape && !isPreviousShape) {
+  const isPreviousShape = EIDOS_LITE_SHORTCUT_COMMANDS.filter(
+    (command) => command !== "toggle-terminal-position"
+  ).every((command) => command in candidate)
+  const isPreTerminalShape = EIDOS_LITE_SHORTCUT_COMMANDS.filter(
+    (command) =>
+      command !== "toggle-terminal" && command !== "toggle-terminal-position"
+  ).every((command) => command in candidate)
+  const isLegacyWorkspaceShape =
+    EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS.every(
+      (command) => command in candidate
+    )
+  if (
+    !isCurrentShape &&
+    !isPreviousShape &&
+    !isPreTerminalShape &&
+    !isLegacyWorkspaceShape
+  ) {
     return { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS }
   }
   const normalized = {} as EidosLiteKeyboardShortcuts
@@ -246,7 +273,7 @@ export function shortcutBindingForKeyboardEvent(
   macos: boolean
 ): string | null {
   if (event.repeat) return null
-  const key = normalizedKey(event.key)
+  const key = normalizedKey(event.code ?? "") ?? normalizedKey(event.key)
   if (!key) return null
   const modifiers: string[] = []
   if (macos ? event.metaKey : event.ctrlKey) modifiers.push("Mod")
@@ -264,11 +291,20 @@ export function eidosLiteShortcutCommandForKeyboardEvent(
 ): EidosLiteShortcutCommand | null {
   const binding = shortcutBindingForKeyboardEvent(event, macos)
   if (!binding) return null
-  return (
-    EIDOS_LITE_SHORTCUT_COMMANDS.find(
-      (command) => shortcuts[command] === binding
-    ) ?? null
-  )
+  // On Windows and Linux the physical Control key is also the primary
+  // modifier. Prefer an explicitly physical Ctrl binding before falling back
+  // to Mod so cross-platform defaults such as Ctrl+` remain literal.
+  const candidates =
+    !macos && binding.startsWith("Mod+")
+      ? [`Ctrl+${binding.slice(4)}`, binding]
+      : [binding]
+  for (const candidate of candidates) {
+    const command = EIDOS_LITE_SHORTCUT_COMMANDS.find(
+      (item) => shortcuts[item] === candidate
+    )
+    if (command) return command
+  }
+  return null
 }
 
 export function eidosLiteShortcutLabel(

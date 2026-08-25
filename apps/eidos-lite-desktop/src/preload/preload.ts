@@ -6,6 +6,7 @@ import {
   type EidosLiteAssetDataSource,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
+  type EidosLiteTerminalExit,
   type EidosLiteUpdateStatus,
   type EidosPublishProgress,
   type SyncAccountStatus,
@@ -90,6 +91,31 @@ const api: EidosLiteApi = {
     ipcRenderer.on(IPC_CHANNELS.workspaceShortcutCommand, handler)
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.workspaceShortcutCommand, handler)
+  },
+  startTerminal: (cols, rows) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalStart, cols, rows),
+  writeTerminal: (sessionId, data) =>
+    ipcRenderer.send(IPC_CHANNELS.terminalWrite, sessionId, data),
+  resizeTerminal: (sessionId, cols, rows) =>
+    ipcRenderer.send(IPC_CHANNELS.terminalResize, sessionId, cols, rows),
+  closeTerminal: (sessionId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalClose, sessionId),
+  onTerminalData: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      sessionId: string,
+      data: string
+    ) => listener(sessionId, data)
+    ipcRenderer.on(IPC_CHANNELS.terminalData, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.terminalData, handler)
+  },
+  onTerminalExit: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      exit: EidosLiteTerminalExit
+    ) => listener(exit)
+    ipcRenderer.on(IPC_CHANNELS.terminalExit, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.terminalExit, handler)
   },
   takeLaunchEidosFile: () => ipcRenderer.invoke(IPC_CHANNELS.takeLaunchFile),
   onLaunchEidosFileAvailable: (listener) => {

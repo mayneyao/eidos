@@ -19,6 +19,7 @@ const chunkNames = [
   "logging",
   "packaged-smoke",
   "packaged-startup-smoke",
+  "terminal-session-manager",
   "updater",
 ]
 

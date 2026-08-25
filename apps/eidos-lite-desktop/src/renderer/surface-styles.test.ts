@@ -72,9 +72,7 @@ describe("Eidos Lite surface hierarchy", () => {
   })
 
   it("uses one compact height for title bars, workbars, and panel headers", () => {
-    const utilityLayout = rule(
-      ".editor-work-area.with-version-panel,\n.editor-work-area.with-utility-panel"
-    )
+    const utilityLayout = rule(".editor-primary-area.with-utility-panel")
 
     expect(rule(":root", themeStyles)).toContain(
       "--chrome-header-height: 2.5rem"

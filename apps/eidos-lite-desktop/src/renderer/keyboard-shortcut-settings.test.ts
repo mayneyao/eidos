@@ -6,6 +6,15 @@ import {
 } from "./keyboard-shortcut-settings"
 
 describe("Keyboard shortcut row actions", () => {
+  it("shows the terminal toggle with the workspace commands", () => {
+    expect(
+      SHORTCUT_GROUPS.find((group) => group.label === "Workspace")?.commands
+    ).toContain("toggle-terminal")
+    expect(
+      SHORTCUT_GROUPS.find((group) => group.label === "Workspace")?.commands
+    ).toContain("toggle-terminal-position")
+  })
+
   it("shows every table-area command in Settings", () => {
     expect(
       SHORTCUT_GROUPS.find((group) => group.label === "Table area")?.commands

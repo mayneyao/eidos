@@ -11,6 +11,7 @@ function shortcutEvent(
 ) {
   return {
     altKey: false,
+    code: "",
     ctrlKey: false,
     key: "",
     metaKey: false,
@@ -47,6 +48,21 @@ describe("Eidos Lite workspace shortcuts", () => {
         shortcutEvent({ ctrlKey: true, key: "S", shiftKey: true })
       )
     ).toBe("toggle-sync")
+    expect(
+      workspaceShortcutForKeyboardEvent(
+        shortcutEvent({ ctrlKey: true, key: "`" })
+      )
+    ).toBe("toggle-terminal")
+    expect(
+      workspaceShortcutForKeyboardEvent(
+        shortcutEvent({
+          code: "Backquote",
+          ctrlKey: true,
+          key: "Dead",
+          shiftKey: true,
+        })
+      )
+    ).toBe("toggle-terminal-position")
   })
 
   it("does not toggle on repeats, Alt combinations, or incomplete chords", () => {
@@ -80,6 +96,8 @@ describe("Eidos Lite workspace shortcuts", () => {
     expect(workspaceShortcutLabel("toggle-theme", true)).toBe("⌘⇧L")
     expect(workspaceShortcutLabel("toggle-version", true)).toBe("⌘⇧H")
     expect(workspaceShortcutLabel("toggle-sync", false)).toBe("Ctrl+Shift+S")
+    expect(workspaceShortcutLabel("toggle-terminal", false)).toBe("Ctrl+`")
+    expect(workspaceShortcutLabel("toggle-terminal-position", true)).toBe("⌃⇧`")
   })
 
   it("uses custom bindings immediately and allows commands to be cleared", () => {

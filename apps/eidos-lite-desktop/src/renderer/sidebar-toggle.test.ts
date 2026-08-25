@@ -44,7 +44,7 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource).not.toContain('data-titlebar-action="settings"')
   expect(appSource.match(/onToggle=\{toggleSidebar\}/g)).toHaveLength(2)
   expect(appSource.match(/workspaceShortcutAriaKeyShortcuts\(/g)).toHaveLength(
-    4
+    5
   )
   expect(appSource).toContain('"--space-sidebar-track-width": sidebarCollapsed')
   expect(styles).toMatch(

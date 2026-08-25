@@ -11,9 +11,13 @@
     "package.json",
     "!**/node_modules/**/*",
     "**/node_modules/@eidos.space/graft/**/*",
-    "**/node_modules/@eidos.space/graft-*/**/*"
+    "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/node-pty/**/*"
   ],
-  "asarUnpack": ["**/node_modules/@eidos.space/graft-*/**/*"],
+  "asarUnpack": [
+    "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/node-pty/**/*"
+  ],
   "extraResources": [
     {
       "from": "resources/publish-engine",

@@ -38,6 +38,6 @@ it("resizes Sync and Versions through one persistent accessible boundary", async
     /\.utility-panel-resizer\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?width:\s*12px;[\s\S]*?cursor:\s*col-resize;/
   )
   expect(styles).toMatch(
-    /\.editor-work-area\.with-utility-panel > \.version-panel,[\s\S]*?grid-column:\s*3;/
+    /\.editor-primary-area\.with-utility-panel > \.version-panel,[\s\S]*?grid-column:\s*3;/
   )
 })

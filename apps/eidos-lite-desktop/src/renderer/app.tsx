@@ -32,6 +32,7 @@ import {
   Pencil,
   RefreshCw,
   Settings,
+  SquareTerminal,
   Trash2,
   Upload,
   X,
@@ -167,6 +168,10 @@ const SyncMergeWorkbench = lazy(async () => {
   const module = await import("./sync-merge-workspace")
   return { default: module.SyncMergeWorkbench }
 })
+const TerminalPanel = lazy(async () => {
+  const module = await import("./terminal-panel")
+  return { default: module.TerminalPanel }
+})
 
 interface CachedFile {
   sessionId: string
@@ -301,7 +306,20 @@ const MIN_UTILITY_PANEL_WIDTH = 304
 const MAX_UTILITY_PANEL_WIDTH = 640
 const MIN_EDITOR_WORK_WIDTH = 304
 const UTILITY_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:utility-panel-width"
+const DEFAULT_TERMINAL_PANEL_HEIGHT = 256
+const MIN_TERMINAL_PANEL_HEIGHT = 128
+const MAX_TERMINAL_PANEL_HEIGHT = 640
+const DEFAULT_TERMINAL_PANEL_WIDTH = 400
+const MIN_TERMINAL_PANEL_WIDTH = 288
+const MAX_TERMINAL_PANEL_WIDTH = 720
+const MIN_EDITOR_WORK_HEIGHT = 160
+const TERMINAL_PANEL_HEIGHT_STORAGE_KEY = "eidos-lite:terminal-panel-height"
+const TERMINAL_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:terminal-panel-width"
+const TERMINAL_PANEL_PLACEMENT_STORAGE_KEY =
+  "eidos-lite:terminal-panel-placement"
 const MAX_CACHED_FILES = 3
+
+type TerminalPanelPlacement = "bottom" | "right"
 
 function clampSidebarWidth(width: number): number {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width))
@@ -350,6 +368,82 @@ function storedUtilityPanelWidth(): number {
   return Number.isFinite(stored)
     ? clampUtilityPanelWidth(stored)
     : DEFAULT_UTILITY_PANEL_WIDTH
+}
+
+function clampTerminalPanelHeight(
+  height: number,
+  maximum = MAX_TERMINAL_PANEL_HEIGHT
+): number {
+  return Math.min(
+    Math.max(MIN_TERMINAL_PANEL_HEIGHT, maximum),
+    Math.max(MIN_TERMINAL_PANEL_HEIGHT, height)
+  )
+}
+
+function maximumTerminalPanelHeight(container: HTMLElement | null): number {
+  if (!container) return MAX_TERMINAL_PANEL_HEIGHT
+  return Math.min(
+    MAX_TERMINAL_PANEL_HEIGHT,
+    Math.max(
+      MIN_TERMINAL_PANEL_HEIGHT,
+      container.getBoundingClientRect().height - MIN_EDITOR_WORK_HEIGHT
+    )
+  )
+}
+
+function storedTerminalPanelHeight(): number {
+  const stored = Number.parseInt(
+    window.localStorage.getItem(TERMINAL_PANEL_HEIGHT_STORAGE_KEY) ?? "",
+    10
+  )
+  return Number.isFinite(stored)
+    ? clampTerminalPanelHeight(stored)
+    : DEFAULT_TERMINAL_PANEL_HEIGHT
+}
+
+function clampTerminalPanelWidth(
+  width: number,
+  maximum = MAX_TERMINAL_PANEL_WIDTH
+): number {
+  return Math.min(
+    Math.max(MIN_TERMINAL_PANEL_WIDTH, maximum),
+    Math.max(MIN_TERMINAL_PANEL_WIDTH, width)
+  )
+}
+
+function maximumTerminalPanelWidth(container: HTMLElement | null): number {
+  if (!container) return MAX_TERMINAL_PANEL_WIDTH
+  const sidebarWidth = Number.parseFloat(
+    window
+      .getComputedStyle(container)
+      .getPropertyValue("--space-sidebar-track-width")
+  )
+  return Math.min(
+    MAX_TERMINAL_PANEL_WIDTH,
+    Math.max(
+      MIN_TERMINAL_PANEL_WIDTH,
+      container.getBoundingClientRect().width -
+        (Number.isFinite(sidebarWidth) ? sidebarWidth : 0) -
+        MIN_EDITOR_WORK_WIDTH
+    )
+  )
+}
+
+function storedTerminalPanelWidth(): number {
+  const stored = Number.parseInt(
+    window.localStorage.getItem(TERMINAL_PANEL_WIDTH_STORAGE_KEY) ?? "",
+    10
+  )
+  return Number.isFinite(stored)
+    ? clampTerminalPanelWidth(stored)
+    : DEFAULT_TERMINAL_PANEL_WIDTH
+}
+
+function storedTerminalPanelPlacement(): TerminalPanelPlacement {
+  return window.localStorage.getItem(TERMINAL_PANEL_PLACEMENT_STORAGE_KEY) ===
+    "right"
+    ? "right"
+    : "bottom"
 }
 
 function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
@@ -666,6 +760,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     macos,
     keyboardShortcuts
   )
+  const terminalShortcutLabel = workspaceShortcutLabel(
+    "toggle-terminal",
+    macos,
+    keyboardShortcuts
+  )
+  const terminalPlacementShortcutLabel = workspaceShortcutLabel(
+    "toggle-terminal-position",
+    macos,
+    keyboardShortcuts
+  )
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const [recentFileState, setRecentFileState] = useState<RecentFileState>({
@@ -707,6 +811,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     storedUtilityPanelWidth
   )
   const [utilityPanelResizing, setUtilityPanelResizing] = useState(false)
+  const [terminalPanelOpen, setTerminalPanelOpen] = useState(false)
+  const [terminalPanelInitialized, setTerminalPanelInitialized] =
+    useState(false)
+  const [terminalPanelHeight, setTerminalPanelHeight] = useState(
+    storedTerminalPanelHeight
+  )
+  const [terminalPanelWidth, setTerminalPanelWidth] = useState(
+    storedTerminalPanelWidth
+  )
+  const [terminalPanelPlacement, setTerminalPanelPlacement] = useState(
+    storedTerminalPanelPlacement
+  )
+  const [terminalPanelResizing, setTerminalPanelResizing] = useState(false)
+  const terminalToggleRef = useRef<HTMLButtonElement>(null)
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
 
@@ -1175,6 +1293,27 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     )
   }, [utilityPanelWidth])
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      TERMINAL_PANEL_HEIGHT_STORAGE_KEY,
+      String(terminalPanelHeight)
+    )
+  }, [terminalPanelHeight])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      TERMINAL_PANEL_WIDTH_STORAGE_KEY,
+      String(terminalPanelWidth)
+    )
+  }, [terminalPanelWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      TERMINAL_PANEL_PLACEMENT_STORAGE_KEY,
+      terminalPanelPlacement
+    )
+  }, [terminalPanelPlacement])
+
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const recentFiles =
@@ -1295,6 +1434,85 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       )
     },
     []
+  )
+
+  const startTerminalPanelResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      const pointerId = event.pointerId
+      const resizer = event.currentTarget
+      const container = resizer.parentElement
+      const startX = event.clientX
+      const startY = event.clientY
+      const maximumHeight = maximumTerminalPanelHeight(container)
+      const maximumWidth = maximumTerminalPanelWidth(container)
+      const startHeight = clampTerminalPanelHeight(
+        terminalPanelHeight,
+        maximumHeight
+      )
+      const startWidth = clampTerminalPanelWidth(
+        terminalPanelWidth,
+        maximumWidth
+      )
+      resizer.setPointerCapture(pointerId)
+      flushSync(() => setTerminalPanelResizing(true))
+      document.documentElement.classList.add("resizing-terminal-panel")
+
+      const move = (pointerEvent: PointerEvent) => {
+        if (terminalPanelPlacement === "right") {
+          setTerminalPanelWidth(
+            clampTerminalPanelWidth(
+              startWidth + startX - pointerEvent.clientX,
+              maximumWidth
+            )
+          )
+        } else {
+          setTerminalPanelHeight(
+            clampTerminalPanelHeight(
+              startHeight + startY - pointerEvent.clientY,
+              maximumHeight
+            )
+          )
+        }
+      }
+      const cleanup = () => {
+        document.documentElement.classList.remove("resizing-terminal-panel")
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", stop)
+        window.removeEventListener("pointercancel", stop)
+        resizer.removeEventListener("lostpointercapture", cleanup)
+        setTerminalPanelResizing(false)
+      }
+      const stop = () => {
+        cleanup()
+        if (resizer.hasPointerCapture(pointerId)) {
+          resizer.releasePointerCapture(pointerId)
+        }
+      }
+      window.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", stop)
+      window.addEventListener("pointercancel", stop)
+      resizer.addEventListener("lostpointercapture", cleanup)
+    },
+    [terminalPanelHeight, terminalPanelPlacement, terminalPanelWidth]
+  )
+
+  const adjustTerminalPanelSize = useCallback(
+    (delta: number, container: HTMLElement | null) => {
+      if (terminalPanelPlacement === "right") {
+        const maximum = maximumTerminalPanelWidth(container)
+        setTerminalPanelWidth((current) =>
+          clampTerminalPanelWidth(current + delta, maximum)
+        )
+      } else {
+        const maximum = maximumTerminalPanelHeight(container)
+        setTerminalPanelHeight((current) =>
+          clampTerminalPanelHeight(current + delta, maximum)
+        )
+      }
+    },
+    [terminalPanelPlacement]
   )
 
   const copyDiagnostics = useCallback(async () => {
@@ -1744,6 +1962,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setSyncPanelMode((current) => (current === null ? "enable" : null))
   }, [space])
 
+  const toggleTerminalPanel = useCallback(() => {
+    if (!space) return
+    if (terminalPanelOpen) terminalToggleRef.current?.focus()
+    setTerminalPanelInitialized(true)
+    setTerminalPanelOpen((current) => !current)
+  }, [space, terminalPanelOpen])
+
+  const toggleTerminalPanelPlacement = useCallback(() => {
+    if (!space) return
+    setTerminalPanelInitialized(true)
+    setTerminalPanelOpen(true)
+    setTerminalPanelPlacement((current) =>
+      current === "bottom" ? "right" : "bottom"
+    )
+  }, [space])
+
   useEffect(() => {
     const handleKeyboardShortcut = (
       workspaceShortcut: EidosLiteShortcutCommand
@@ -1773,6 +2007,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         if (workspaceShortcut === "toggle-sidebar") toggleSidebar()
         else if (workspaceShortcut === "toggle-version") toggleVersionPanel()
         else if (workspaceShortcut === "toggle-sync") toggleSyncPanel()
+        else if (workspaceShortcut === "toggle-terminal") toggleTerminalPanel()
+        else if (workspaceShortcut === "toggle-terminal-position") {
+          toggleTerminalPanelPlacement()
+        }
       }
     }
     const unsubscribeShortcut = window.eidosLite.onWorkspaceShortcutCommand(
@@ -1793,6 +2031,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     space,
     toggleSidebar,
     toggleSyncPanel,
+    toggleTerminalPanel,
+    toggleTerminalPanelPlacement,
     toggleTheme,
     toggleVersionPanel,
   ])
@@ -2082,6 +2322,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       data-platform={platform}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
+      data-terminal-open={terminalPanelOpen ? "true" : "false"}
+      data-terminal-placement={terminalPanelPlacement}
       style={
         {
           "--space-sidebar-width": `${sidebarWidth}px`,
@@ -2089,6 +2331,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             ? "0px"
             : `${sidebarWidth}px`,
           "--utility-panel-width": `${utilityPanelWidth}px`,
+          "--terminal-panel-height": `${terminalPanelHeight}px`,
+          "--terminal-panel-width": `${terminalPanelWidth}px`,
         } as CSSProperties
       }
     >
@@ -2375,6 +2619,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 <Cloud />
               )}
             </button>
+            <button
+              ref={terminalToggleRef}
+              type="button"
+              className="icon-button titlebar-tool-button"
+              data-titlebar-action="terminal"
+              aria-pressed={terminalPanelOpen}
+              aria-label={t("Toggle terminal")}
+              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                "toggle-terminal",
+                macos,
+                keyboardShortcuts
+              )}
+              onClick={toggleTerminalPanel}
+              title={shortcutTitle(t("Toggle terminal"), terminalShortcutLabel)}
+            >
+              <SquareTerminal />
+            </button>
           </div>
         </header>
 
@@ -2423,268 +2684,364 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           />
         ) : null}
 
-        <div
-          className={`editor-work-area${versionPanelOpen || syncPanelMode ? " with-utility-panel" : ""}`}
-        >
-          {versionPanelOpen && syncMergeStatus.state === "merging" ? (
-            <Suspense
-              fallback={
-                <div className="editor-empty" role="status">
-                  <LoaderCircle className="spin" aria-hidden="true" />
-                  <p>{t("Loading merge conflicts…")}</p>
-                </div>
-              }
-            >
-              <SyncMergeWorkbench
-                initialStatus={syncMergeStatus}
-                theme={theme}
-                onClose={() => setVersionPanelOpen(false)}
-                onStatusChange={(merge) => {
-                  setSyncMergeStatus(merge)
-                  if (merge.state === "none") {
-                    setVersionInspection(null)
-                    setVersionRefreshKey((current) => current + 1)
-                  }
-                }}
-                onFilesMaterialized={refreshMaterializedFiles}
-              />
-            </Suspense>
-          ) : (
-            <>
-              <div className="editor-work-content">
-                {versionPanelOpen && versionInspection ? (
-                  <Suspense
-                    fallback={
-                      <div className="editor-empty" role="status">
-                        <LoaderCircle className="spin" aria-hidden="true" />
-                        <p>{t("Loading change details…")}</p>
-                      </div>
+        <div className="editor-work-area">
+          <div
+            className={`editor-primary-area${versionPanelOpen || syncPanelMode ? " with-utility-panel" : ""}`}
+          >
+            {versionPanelOpen && syncMergeStatus.state === "merging" ? (
+              <Suspense
+                fallback={
+                  <div className="editor-empty" role="status">
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                    <p>{t("Loading merge conflicts…")}</p>
+                  </div>
+                }
+              >
+                <SyncMergeWorkbench
+                  initialStatus={syncMergeStatus}
+                  theme={theme}
+                  onClose={() => setVersionPanelOpen(false)}
+                  onStatusChange={(merge) => {
+                    setSyncMergeStatus(merge)
+                    if (merge.state === "none") {
+                      setVersionInspection(null)
+                      setVersionRefreshKey((current) => current + 1)
                     }
-                  >
-                    <VersionDiffPreview
-                      inspection={versionInspection}
-                      theme={theme}
-                      onClose={() => setVersionInspection(null)}
-                      onNavigate={setVersionInspection}
-                    />
-                  </Suspense>
-                ) : textPreview ? (
-                  textPreview.type === "media" ? (
-                    <MediaFilePreview
-                      preview={textPreview}
-                      platform={platform}
-                      onReveal={() =>
-                        void window.eidosLite
-                          .revealPath(textPreview.relativePath)
-                          .catch((cause) => setError(errorMessage(cause)))
-                      }
-                    />
-                  ) : (
-                    <TextFilePreview
-                      preview={textPreview}
-                      draft={textFileDrafts[textPreview.relativePath]}
-                      theme={theme}
-                      platform={platform}
-                      nativePreviewSuppressed={
-                        quickOpenVisible ||
-                        Boolean(pathDialog) ||
-                        sidebarResizing ||
-                        utilityPanelResizing
-                      }
-                      onSaved={(file) =>
-                        setTextPreview((current) =>
-                          current?.relativePath === file.relativePath
-                            ? file
-                            : current
-                        )
-                      }
-                      onReload={(preview) =>
-                        setTextPreview((current) =>
-                          current?.relativePath === preview.relativePath
-                            ? preview
-                            : current
-                        )
-                      }
-                      onDraftChange={updateTextFileDraft}
-                      onReveal={() =>
-                        void window.eidosLite
-                          .revealPath(textPreview.relativePath)
-                          .catch((cause) => setError(errorMessage(cause)))
-                      }
-                    />
-                  )
-                ) : activeFile && activeTable ? (
-                  <section
-                    className="file-editor"
-                    aria-label={activeFile.relativePath}
-                    data-eidos-file-relative-path={activeFile.relativePath}
-                    data-eidos-file-row-count={activeTable.rowCount}
-                  >
+                  }}
+                  onFilesMaterialized={refreshMaterializedFiles}
+                />
+              </Suspense>
+            ) : (
+              <>
+                <div className="editor-work-content">
+                  {versionPanelOpen && versionInspection ? (
                     <Suspense
                       fallback={
                         <div className="editor-empty" role="status">
                           <LoaderCircle className="spin" aria-hidden="true" />
-                          <p>{t("Loading Eidos File editor…")}</p>
+                          <p>{t("Loading change details…")}</p>
                         </div>
                       }
                     >
-                      <EidosFileWorkbench
-                        key={`${activeFile.sessionId}:${fileMaterializationKey}`}
-                        relativePath={activeFile.relativePath}
-                        snapshot={activeFile.snapshot}
-                        source={activeFile.source}
-                        activeTableId={activeFile.tableId}
-                        disabled={localInteractionBlocked}
+                      <VersionDiffPreview
+                        inspection={versionInspection}
                         theme={theme}
-                        weekStartsOnMonday={weekStartsOnMonday}
-                        timeZone={timeZone === "system" ? undefined : timeZone}
-                        keyboardShortcuts={keyboardShortcuts}
-                        macos={macos}
-                        onTableSelect={(tableId) =>
-                          setCachedFiles((current) =>
-                            current.map((file) =>
-                              file.sessionId === activeFile.sessionId
-                                ? { ...file, tableId }
-                                : file
-                            )
-                          )
-                        }
-                        onSnapshot={(snapshot) =>
-                          setCachedFiles((current) =>
-                            current.map((file) =>
-                              file.sessionId === activeFile.sessionId
-                                ? { ...file, snapshot }
-                                : file
-                            )
-                          )
-                        }
-                        onError={(cause) => setError(errorMessage(cause))}
+                        onClose={() => setVersionInspection(null)}
+                        onNavigate={setVersionInspection}
                       />
                     </Suspense>
-                  </section>
-                ) : recentFiles.length === 0 &&
-                  space.eidosFileCount === 0 &&
-                  !spaceTreeIncomplete ? (
-                  <section
-                    className="editor-empty editor-empty-onboarding"
-                    data-empty-space-onboarding
-                  >
-                    <Database aria-hidden="true" />
-                    <h2>{t("Create your first Eidos File")}</h2>
-                    <p>
-                      {t(
-                        "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
-                        { extension: ".eidos" }
-                      )}
-                    </p>
-                    <button
-                      type="button"
-                      className="editor-empty-action"
-                      data-create-first-eidos
-                      disabled={pathMutationBusy || localInteractionBlocked}
-                      onClick={() =>
-                        setPathDialog({ action: "create-file", entry: null })
-                      }
+                  ) : textPreview ? (
+                    textPreview.type === "media" ? (
+                      <MediaFilePreview
+                        preview={textPreview}
+                        platform={platform}
+                        onReveal={() =>
+                          void window.eidosLite
+                            .revealPath(textPreview.relativePath)
+                            .catch((cause) => setError(errorMessage(cause)))
+                        }
+                      />
+                    ) : (
+                      <TextFilePreview
+                        preview={textPreview}
+                        draft={textFileDrafts[textPreview.relativePath]}
+                        theme={theme}
+                        platform={platform}
+                        nativePreviewSuppressed={
+                          quickOpenVisible ||
+                          Boolean(pathDialog) ||
+                          sidebarResizing ||
+                          utilityPanelResizing ||
+                          terminalPanelResizing
+                        }
+                        onSaved={(file) =>
+                          setTextPreview((current) =>
+                            current?.relativePath === file.relativePath
+                              ? file
+                              : current
+                          )
+                        }
+                        onReload={(preview) =>
+                          setTextPreview((current) =>
+                            current?.relativePath === preview.relativePath
+                              ? preview
+                              : current
+                          )
+                        }
+                        onDraftChange={updateTextFileDraft}
+                        onReveal={() =>
+                          void window.eidosLite
+                            .revealPath(textPreview.relativePath)
+                            .catch((cause) => setError(errorMessage(cause)))
+                        }
+                      />
+                    )
+                  ) : activeFile && activeTable ? (
+                    <section
+                      className="file-editor"
+                      aria-label={activeFile.relativePath}
+                      data-eidos-file-relative-path={activeFile.relativePath}
+                      data-eidos-file-row-count={activeTable.rowCount}
                     >
-                      <FilePlus2 /> {t("New Eidos File")}
-                    </button>
-                  </section>
-                ) : (
-                  <RecentFilesEmptyState
-                    files={recentFiles}
-                    busyPath={busyFile}
-                    onOpen={(file) => void openRecentFile(file)}
-                  />
+                      <Suspense
+                        fallback={
+                          <div className="editor-empty" role="status">
+                            <LoaderCircle className="spin" aria-hidden="true" />
+                            <p>{t("Loading Eidos File editor…")}</p>
+                          </div>
+                        }
+                      >
+                        <EidosFileWorkbench
+                          key={`${activeFile.sessionId}:${fileMaterializationKey}`}
+                          relativePath={activeFile.relativePath}
+                          snapshot={activeFile.snapshot}
+                          source={activeFile.source}
+                          activeTableId={activeFile.tableId}
+                          disabled={localInteractionBlocked}
+                          theme={theme}
+                          weekStartsOnMonday={weekStartsOnMonday}
+                          timeZone={
+                            timeZone === "system" ? undefined : timeZone
+                          }
+                          keyboardShortcuts={keyboardShortcuts}
+                          macos={macos}
+                          onTableSelect={(tableId) =>
+                            setCachedFiles((current) =>
+                              current.map((file) =>
+                                file.sessionId === activeFile.sessionId
+                                  ? { ...file, tableId }
+                                  : file
+                              )
+                            )
+                          }
+                          onSnapshot={(snapshot) =>
+                            setCachedFiles((current) =>
+                              current.map((file) =>
+                                file.sessionId === activeFile.sessionId
+                                  ? { ...file, snapshot }
+                                  : file
+                              )
+                            )
+                          }
+                          onError={(cause) => setError(errorMessage(cause))}
+                        />
+                      </Suspense>
+                    </section>
+                  ) : recentFiles.length === 0 &&
+                    space.eidosFileCount === 0 &&
+                    !spaceTreeIncomplete ? (
+                    <section
+                      className="editor-empty editor-empty-onboarding"
+                      data-empty-space-onboarding
+                    >
+                      <Database aria-hidden="true" />
+                      <h2>{t("Create your first Eidos File")}</h2>
+                      <p>
+                        {t(
+                          "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
+                          { extension: ".eidos" }
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className="editor-empty-action"
+                        data-create-first-eidos
+                        disabled={pathMutationBusy || localInteractionBlocked}
+                        onClick={() =>
+                          setPathDialog({ action: "create-file", entry: null })
+                        }
+                      >
+                        <FilePlus2 /> {t("New Eidos File")}
+                      </button>
+                    </section>
+                  ) : (
+                    <RecentFilesEmptyState
+                      files={recentFiles}
+                      busyPath={busyFile}
+                      onOpen={(file) => void openRecentFile(file)}
+                    />
+                  )}
+                </div>
+                {versionPanelOpen && space.graft.available ? (
+                  <Suspense fallback={null}>
+                    <VersionPanel
+                      space={space}
+                      refreshKey={versionRefreshKey}
+                      onClose={() => {
+                        setVersionPanelOpen(false)
+                        setVersionInspection(null)
+                      }}
+                      onSpaceChange={acceptSpaceSnapshot}
+                      onFilesMaterialized={refreshMaterializedFiles}
+                      onRefresh={() =>
+                        setVersionRefreshKey((current) => current + 1)
+                      }
+                      onInspectionChange={setVersionInspection}
+                    />
+                  </Suspense>
+                ) : null}
+              </>
+            )}
+            {syncPanelMode ? (
+              <Suspense fallback={null}>
+                <SyncPanel
+                  mode={syncPanelMode}
+                  variant="inspector"
+                  platform={platform}
+                  cacheKey={space.id}
+                  hasUncheckpointedChanges={
+                    syncMergeStatus.state !== "merging" &&
+                    space.graft.initialized &&
+                    space.graft.clean === false
+                  }
+                  syncHistory={space.graft.sync}
+                  onClose={() => setSyncPanelMode(null)}
+                  onRequestClone={() => setSyncPanelMode("clone")}
+                  onReviewLocal={() => {
+                    setSyncPanelMode(null)
+                    setVersionPanelOpen(true)
+                    setVersionInspection(null)
+                  }}
+                  onMergeStatusChange={setSyncMergeStatus}
+                  onReviewMerge={() => {
+                    setSyncPanelMode(null)
+                    setVersionInspection(null)
+                    setVersionPanelOpen(true)
+                  }}
+                  onSpaceChange={acceptSpaceSnapshot}
+                  onFilesMaterialized={refreshMaterializedFiles}
+                />
+              </Suspense>
+            ) : null}
+            {versionPanelOpen || syncPanelMode ? (
+              <div
+                className="utility-panel-resizer"
+                data-utility-panel-resizer
+                role="separator"
+                aria-label={t(
+                  syncPanelMode ? "Resize Sync panel" : "Resize Versions panel"
                 )}
-              </div>
-              {versionPanelOpen && space.graft.available ? (
-                <Suspense fallback={null}>
-                  <VersionPanel
-                    space={space}
-                    refreshKey={versionRefreshKey}
-                    onClose={() => {
-                      setVersionPanelOpen(false)
-                      setVersionInspection(null)
-                    }}
-                    onSpaceChange={acceptSpaceSnapshot}
-                    onFilesMaterialized={refreshMaterializedFiles}
-                    onRefresh={() =>
-                      setVersionRefreshKey((current) => current + 1)
-                    }
-                    onInspectionChange={setVersionInspection}
-                  />
-                </Suspense>
-              ) : null}
-            </>
-          )}
-          {syncPanelMode ? (
-            <Suspense fallback={null}>
-              <SyncPanel
-                mode={syncPanelMode}
-                variant="inspector"
-                platform={platform}
-                cacheKey={space.id}
-                hasUncheckpointedChanges={
-                  syncMergeStatus.state !== "merging" &&
-                  space.graft.initialized &&
-                  space.graft.clean === false
+                aria-orientation="vertical"
+                aria-valuemin={MIN_UTILITY_PANEL_WIDTH}
+                aria-valuemax={MAX_UTILITY_PANEL_WIDTH}
+                aria-valuenow={utilityPanelWidth}
+                tabIndex={0}
+                onPointerDown={startUtilityPanelResize}
+                onDoubleClick={(event) =>
+                  setUtilityPanelWidth(
+                    clampUtilityPanelWidth(
+                      DEFAULT_UTILITY_PANEL_WIDTH,
+                      maximumUtilityPanelWidth(
+                        event.currentTarget.parentElement
+                      )
+                    )
+                  )
                 }
-                syncHistory={space.graft.sync}
-                onClose={() => setSyncPanelMode(null)}
-                onRequestClone={() => setSyncPanelMode("clone")}
-                onReviewLocal={() => {
-                  setSyncPanelMode(null)
-                  setVersionPanelOpen(true)
-                  setVersionInspection(null)
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+                    return
+                  }
+                  event.preventDefault()
+                  const step = event.shiftKey ? 32 : 16
+                  adjustUtilityPanelWidth(
+                    event.key === "ArrowLeft" ? step : -step,
+                    event.currentTarget.parentElement
+                  )
                 }}
-                onMergeStatusChange={setSyncMergeStatus}
-                onReviewMerge={() => {
-                  setSyncPanelMode(null)
-                  setVersionInspection(null)
-                  setVersionPanelOpen(true)
-                }}
-                onSpaceChange={acceptSpaceSnapshot}
-                onFilesMaterialized={refreshMaterializedFiles}
               />
-            </Suspense>
-          ) : null}
-          {versionPanelOpen || syncPanelMode ? (
-            <div
-              className="utility-panel-resizer"
-              data-utility-panel-resizer
-              role="separator"
-              aria-label={t(
-                syncPanelMode ? "Resize Sync panel" : "Resize Versions panel"
-              )}
-              aria-orientation="vertical"
-              aria-valuemin={MIN_UTILITY_PANEL_WIDTH}
-              aria-valuemax={MAX_UTILITY_PANEL_WIDTH}
-              aria-valuenow={utilityPanelWidth}
-              tabIndex={0}
-              onPointerDown={startUtilityPanelResize}
-              onDoubleClick={(event) =>
-                setUtilityPanelWidth(
-                  clampUtilityPanelWidth(
-                    DEFAULT_UTILITY_PANEL_WIDTH,
-                    maximumUtilityPanelWidth(event.currentTarget.parentElement)
+            ) : null}
+          </div>
+        </div>
+      </main>
+      {terminalPanelInitialized ? (
+        <>
+          <div
+            className="terminal-panel-resizer"
+            data-terminal-panel-resizer
+            data-open={terminalPanelOpen ? "true" : "false"}
+            data-placement={terminalPanelPlacement}
+            role="separator"
+            aria-label={t("Resize terminal")}
+            aria-orientation={
+              terminalPanelPlacement === "right" ? "vertical" : "horizontal"
+            }
+            aria-valuemin={
+              terminalPanelPlacement === "right"
+                ? MIN_TERMINAL_PANEL_WIDTH
+                : MIN_TERMINAL_PANEL_HEIGHT
+            }
+            aria-valuemax={
+              terminalPanelPlacement === "right"
+                ? MAX_TERMINAL_PANEL_WIDTH
+                : MAX_TERMINAL_PANEL_HEIGHT
+            }
+            aria-valuenow={
+              terminalPanelPlacement === "right"
+                ? terminalPanelWidth
+                : terminalPanelHeight
+            }
+            tabIndex={terminalPanelOpen ? 0 : -1}
+            onPointerDown={startTerminalPanelResize}
+            onDoubleClick={(event) => {
+              if (terminalPanelPlacement === "right") {
+                setTerminalPanelWidth(
+                  clampTerminalPanelWidth(
+                    DEFAULT_TERMINAL_PANEL_WIDTH,
+                    maximumTerminalPanelWidth(event.currentTarget.parentElement)
+                  )
+                )
+              } else {
+                setTerminalPanelHeight(
+                  clampTerminalPanelHeight(
+                    DEFAULT_TERMINAL_PANEL_HEIGHT,
+                    maximumTerminalPanelHeight(
+                      event.currentTarget.parentElement
+                    )
                   )
                 )
               }
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-                  return
-                }
-                event.preventDefault()
-                const step = event.shiftKey ? 32 : 16
-                adjustUtilityPanelWidth(
-                  event.key === "ArrowLeft" ? step : -step,
-                  event.currentTarget.parentElement
-                )
+            }}
+            onKeyDown={(event) => {
+              const growKey =
+                terminalPanelPlacement === "right" ? "ArrowLeft" : "ArrowUp"
+              const shrinkKey =
+                terminalPanelPlacement === "right" ? "ArrowRight" : "ArrowDown"
+              if (event.key !== growKey && event.key !== shrinkKey) return
+              event.preventDefault()
+              const step = event.shiftKey ? 32 : 16
+              adjustTerminalPanelSize(
+                event.key === growKey ? step : -step,
+                event.currentTarget.parentElement
+              )
+            }}
+          />
+          <Suspense
+            fallback={
+              <section
+                className="terminal-panel terminal-panel-loading"
+                aria-label={t("Terminal")}
+              >
+                <LoaderCircle className="spin" aria-hidden="true" />
+                <span>{t("Starting terminal…")}</span>
+              </section>
+            }
+          >
+            <TerminalPanel
+              key={space.id}
+              open={terminalPanelOpen}
+              placement={terminalPanelPlacement}
+              placementShortcutLabel={terminalPlacementShortcutLabel}
+              spaceName={space.name}
+              theme={theme}
+              onClose={() => {
+                terminalToggleRef.current?.focus()
+                setTerminalPanelOpen(false)
               }}
+              onTogglePlacement={toggleTerminalPanelPlacement}
             />
-          ) : null}
-        </div>
-      </main>
+          </Suspense>
+        </>
+      ) : null}
       {contextMenu ? (
         <div
           className="space-context-menu"
