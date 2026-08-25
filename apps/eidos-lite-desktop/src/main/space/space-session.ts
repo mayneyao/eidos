@@ -43,7 +43,10 @@ import type {
   TextFileSaveRequest,
   TextFileSaveResult,
 } from "../../shared/contracts"
-import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftSqliteSnapshotCaptureResult,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import {
   EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
   RUNTIME_MUTATION_METHODS,
@@ -2479,8 +2482,10 @@ export class SpaceSession {
 
   async createPublishSourceSnapshot(
     relativePath: string,
-    destinationPath: string
-  ): Promise<void> {
+    destinationPath: string,
+    baseSnapshotToken?: string,
+    deltaDestinationPath?: string
+  ): Promise<GraftSqliteSnapshotCaptureResult | null> {
     const extension = path.extname(relativePath).toLowerCase()
     if (
       extension !== ".eidos" &&
@@ -2508,7 +2513,30 @@ export class SpaceSession {
       fs.copyFile(canonicalSource, destinationPath, fsConstants.COPYFILE_EXCL)
     if (extension !== ".eidos") {
       await copy()
-      return
+      return null
+    }
+    if (this.versioningEnabled) {
+      try {
+        return await this.graft.captureSqliteSnapshot(this.canonical.root, {
+          path: sourceWithinSpace.split(path.sep).join("/"),
+          output: destinationPath,
+          ...(baseSnapshotToken ? { baseSnapshotToken } : {}),
+          ...(baseSnapshotToken && deltaDestinationPath
+            ? { deltaOutput: deltaDestinationPath }
+            : {}),
+        })
+      } catch (error) {
+        console.warn(
+          "Could not capture the Publish source through Graft; using a closed-runtime copy",
+          error
+        )
+        await Promise.all([
+          fs.rm(destinationPath, { force: true }),
+          ...(deltaDestinationPath
+            ? [fs.rm(deltaDestinationPath, { force: true })]
+            : []),
+        ])
+      }
     }
     await this.gate.withClosedRuntimes(
       `Preparing ${path.basename(relativePath)} for Publish`,
@@ -2517,6 +2545,7 @@ export class SpaceSession {
         await copy()
       }
     )
+    return null
   }
 
   async collectPublishedFormResponses<T>(

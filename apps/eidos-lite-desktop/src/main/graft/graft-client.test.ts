@@ -33,6 +33,85 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it("captures a SQLite publication snapshot and projects its reusable token", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-publish-capture-")
+    )
+    const output = path.join(root, "snapshot.eidos")
+    const signal = new AbortController().signal
+    const command = vi.fn(async () => ({
+      path: "records.eidos",
+      output,
+      snapshot_token: "opaque-snapshot-token",
+      content_fingerprint: `graft-sqlite-v1:${"a".repeat(64)}`,
+      sha256: "c".repeat(64),
+      bytes: 8192,
+      page_count: 2,
+      changed_pages: 1,
+      reused_snapshot: false,
+      page_hash_cache_hit: true,
+      delta_output: `${output}.delta`,
+      delta_bytes: 4204,
+      delta_changed_pages: 1,
+      delta_base_content_fingerprint: `graft-sqlite-v1:${"b".repeat(64)}`,
+      delta_base_sha256: "d".repeat(64),
+      delta_target_sha256: "c".repeat(64),
+      materializes_worktree: false,
+    }))
+    const client = new GraftClient({
+      sdkTransport: {
+        ...createUnusedTransport(),
+        target: root,
+        command,
+      },
+    })
+
+    try {
+      await expect(
+        client.captureSqliteSnapshot(root, {
+          path: "records.eidos",
+          output,
+          baseSnapshotToken: "prior-token",
+          deltaOutput: `${output}.delta`,
+          signal,
+        })
+      ).resolves.toEqual({
+        path: "records.eidos",
+        output,
+        snapshotToken: "opaque-snapshot-token",
+        contentFingerprint: `graft-sqlite-v1:${"a".repeat(64)}`,
+        sha256: "c".repeat(64),
+        bytes: 8192,
+        pageCount: 2,
+        changedPages: 1,
+        reusedSnapshot: false,
+        pageHashCacheHit: true,
+        deltaOutput: `${output}.delta`,
+        deltaBytes: 4204,
+        deltaChangedPages: 1,
+        deltaBaseContentFingerprint: `graft-sqlite-v1:${"b".repeat(64)}`,
+        deltaBaseSha256: "d".repeat(64),
+        deltaTargetSha256: "c".repeat(64),
+        materializesWorktree: false,
+      })
+      expect(command).toHaveBeenCalledWith(
+        "captureSqliteSnapshot",
+        [
+          {
+            path: "records.eidos",
+            output,
+            baseSnapshotToken: "prior-token",
+            deltaOutput: `${output}.delta`,
+          },
+        ],
+        { signal }
+      )
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("classifies fetched history from heads and their common ancestor", () => {
     const base = "a".repeat(64)
     const local = "b".repeat(64)
@@ -679,7 +758,7 @@ describe("GraftClient", () => {
       command: vi.fn(async (command) => {
         commands.push(command)
         if (command === "sdkVersion") {
-          return "0.3.18"
+          return "0.3.20"
         }
         if (command === "statusIncremental") {
           return {

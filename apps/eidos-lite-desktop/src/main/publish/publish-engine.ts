@@ -72,6 +72,11 @@ interface RemoteVersionRecord {
   driverVersion?: unknown
 }
 
+interface IncrementalPublishSource {
+  deltaPath: string
+  baseSourceSha256: string
+}
+
 function requestSourceKind(
   request: EidosPublishRequest
 ): EidosPublicationBinding["sourceKind"] {
@@ -111,7 +116,8 @@ async function observeFile(
 export async function observePublishSource(
   sourcePath: string,
   attachmentPaths: string[],
-  source?: PublicationFileObservation
+  source?: PublicationFileObservation,
+  graftSnapshot?: PublicationSourceObservation["graftSnapshot"]
 ): Promise<PublicationSourceObservation> {
   if (attachmentPaths.length > 50_000) {
     throw new Error("Publish attachment observation exceeds its limit")
@@ -146,6 +152,7 @@ export async function observePublishSource(
     spec: "eidos.publish/local-observation@1",
     source: source ?? (await observeFile(sourcePath)),
     attachments,
+    ...(graftSnapshot ? { graftSnapshot } : {}),
   }
 }
 
@@ -153,7 +160,10 @@ function sameObservation(
   left: PublicationSourceObservation,
   right: PublicationSourceObservation
 ): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
+  return (
+    JSON.stringify({ source: left.source, attachments: left.attachments }) ===
+    JSON.stringify({ source: right.source, attachments: right.attachments })
+  )
 }
 
 function hasReusableCachedResult(
@@ -385,7 +395,8 @@ function cliArguments(
   request: EidosPublishRequest,
   snapshotPath: string,
   attachmentRoot: string,
-  publishOrigin: string
+  publishOrigin: string,
+  incrementalSource?: IncrementalPublishSource
 ): string[] {
   const args = [
     "--json",
@@ -415,6 +426,14 @@ function cliArguments(
   }
   if (request.formAllowMultipleResponses === false) {
     args.push("--one-response-per-user")
+  }
+  if (incrementalSource) {
+    args.push(
+      "--graft-delta",
+      incrementalSource.deltaPath,
+      "--graft-base-sha256",
+      incrementalSource.baseSourceSha256
+    )
   }
   return args
 }
@@ -611,15 +630,27 @@ export class EidosPublishEngine {
           ? "source.eidos"
           : "source.md"
       )
+      const deltaPath = path.join(temporaryDirectory, "source.graft-delta")
       onProgress({
         requestId: request.requestId,
         kind: "stage",
         message: "preparing a consistent local snapshot",
       })
-      await session.createPublishSourceSnapshot(
+      const capturedSnapshot = await session.createPublishSourceSnapshot(
         request.relativePath,
-        snapshotPath
+        snapshotPath,
+        existing?.localObservation?.graftSnapshot?.token,
+        deltaPath
       )
+      if (capturedSnapshot) {
+        onProgress({
+          requestId: request.requestId,
+          kind: "stage",
+          message: capturedSnapshot.reusedSnapshot
+            ? "reusing the current Graft snapshot"
+            : `captured ${capturedSnapshot.changedPages} changed SQLite pages`,
+        })
+      }
       const sourceAfterSnapshot = await observeFile(sourcePath)
       const publishedSourceObservation =
         JSON.stringify(sourceBeforeSnapshot) ===
@@ -627,12 +658,29 @@ export class EidosPublishEngine {
           ? sourceAfterSnapshot
           : sourceBeforeSnapshot
       const attachmentRoot = path.dirname(sourcePath)
+      const incrementalSource =
+        capturedSnapshot?.deltaOutput === deltaPath &&
+        !capturedSnapshot.reusedSnapshot &&
+        capturedSnapshot.deltaBytes !== undefined &&
+        capturedSnapshot.deltaBytes < capturedSnapshot.bytes &&
+        capturedSnapshot.deltaBaseContentFingerprint ===
+          existing?.localObservation?.graftSnapshot?.contentFingerprint &&
+        existing?.sourceSha256 !== undefined &&
+        SHA256.test(existing.sourceSha256) &&
+        capturedSnapshot.deltaBaseSha256 === existing.sourceSha256 &&
+        capturedSnapshot.deltaTargetSha256 === capturedSnapshot.sha256
+          ? {
+              deltaPath,
+              baseSourceSha256: existing.sourceSha256,
+            }
+          : undefined
       const response = await this.runCli(
         executable,
         snapshotPath,
         attachmentRoot,
         accessToken,
         request,
+        incrementalSource,
         onProgress
       )
       if (response.ok) {
@@ -641,7 +689,13 @@ export class EidosPublishEngine {
           localObservation = await observePublishSource(
             sourcePath,
             response.result.attachmentPaths,
-            publishedSourceObservation
+            publishedSourceObservation,
+            capturedSnapshot
+              ? {
+                  token: capturedSnapshot.snapshotToken,
+                  contentFingerprint: capturedSnapshot.contentFingerprint,
+                }
+              : undefined
           )
         } catch {
           // Publish remains successful; status stays unknown until republished.
@@ -981,6 +1035,7 @@ export class EidosPublishEngine {
     attachmentRoot: string,
     accessToken: string,
     request: EidosPublishRequest,
+    incrementalSource: IncrementalPublishSource | undefined,
     onProgress: (progress: EidosPublishProgress) => void
   ): Promise<EidosPublishResponse> {
     const child = spawn(
@@ -989,7 +1044,8 @@ export class EidosPublishEngine {
         request,
         snapshotPath,
         attachmentRoot,
-        this.services.publishOrigin
+        this.services.publishOrigin,
+        incrementalSource
       ),
       {
         env: {

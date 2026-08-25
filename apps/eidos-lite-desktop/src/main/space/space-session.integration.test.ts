@@ -1166,13 +1166,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.18",
+      expectedVersion: () => "0.3.20",
       close: async () => undefined,
       inspectSpace: async (): Promise<GraftSpaceStatus> => ({
         available: true,
         backend: "sdk",
-        version: "0.3.18",
-        expectedVersion: "0.3.18",
+        version: "0.3.20",
+        expectedVersion: "0.3.20",
         initialized: false,
       }),
       inspectIgnores: async (_root: string, relativePaths: string[]) =>
@@ -2113,13 +2113,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: remoteOrigin,
-      expectedVersion: () => "0.3.18",
+      expectedVersion: () => "0.3.20",
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.18",
-        expectedVersion: "0.3.18",
+        version: "0.3.20",
+        expectedVersion: "0.3.20",
         initialized: true,
         clean: true,
         ...relation(),
@@ -2244,13 +2244,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: remoteOrigin,
-      expectedVersion: () => "0.3.18",
+      expectedVersion: () => "0.3.20",
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.18",
-        expectedVersion: "0.3.18",
+        version: "0.3.20",
+        expectedVersion: "0.3.20",
         initialized: true,
         clean: true,
         currentHead: localHead,
@@ -2604,7 +2604,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.18",
+      expectedVersion: () => "0.3.20",
       close: vi.fn(async () => undefined),
       operationMaterializesWorktree: vi.fn(async (operation: string) => {
         calls.push(`contract:${operation}`)
@@ -2661,8 +2661,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.18",
-        expectedVersion: "0.3.18",
+        version: "0.3.20",
+        expectedVersion: "0.3.20",
         initialized: true,
         clean: true,
         currentHead: localHead,

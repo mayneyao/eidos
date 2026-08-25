@@ -9,6 +9,7 @@ import {
   FORM_DRIVER,
   MARKDOWN_DRIVER,
   SourceBundleError,
+  contentObjectKey,
   manifestBytes,
   validateSourceBundle,
 } from "./bundle"
@@ -58,6 +59,11 @@ const IDEMPOTENCY_KEY = /^[\x21-\x7e]{8,128}$/
 const MULTIPART_SESSION_ID = /^[0-9a-f]{32}$/
 const SINGLE_UPLOAD_MAX_BYTES = 95n * 1024n * 1024n
 const MULTIPART_PART_MAX_BYTES = 100n * 1024n * 1024n
+const SQLITE_DELTA_MAX_BYTES = 32n * 1024n * 1024n
+const SQLITE_DELTA_MEDIA_TYPE = "application/vnd.eidos.sqlite-page-delta"
+const EIDOS_SQLITE_MEDIA_TYPE = "application/vnd.eidos+sqlite3"
+const SQLITE_DELTA_PAGE_BYTES = 4096
+const SQLITE_DELTA_HEADER_BYTES = 104
 const RESERVED_HANDLES = new Set([
   "admin",
   "api",
@@ -1086,7 +1092,7 @@ async function uploadSourceObject(
   env: Env,
   tenant: DurableObjectStub<PublishTenant>,
   principal: PublishPrincipal,
-  _tenantId: string,
+  tenantId: string,
   slug: string,
   versionId: string,
   sha256: string
@@ -1102,18 +1108,38 @@ async function uploadSourceObject(
       "Content-Length is required for this upload path"
     )
   }
-  if (length > BigInt(principal.access.maxObjectBytes)) {
+  const sqliteDelta =
+    request.headers.get("content-type")?.split(";", 1)[0]?.trim() ===
+    SQLITE_DELTA_MEDIA_TYPE
+  const targetLength = sqliteDelta
+    ? decimalHeader(request.headers.get("x-eidos-target-content-bytes"))
+    : length
+  if (targetLength === null) {
+    return problem(
+      400,
+      "source_target_size_required",
+      "X-Eidos-Target-Content-Bytes is required for a SQLite page delta"
+    )
+  }
+  if (targetLength > BigInt(principal.access.maxObjectBytes)) {
     return problem(
       413,
       "source_object_too_large",
       "Object exceeds the 1 GiB limit"
     )
   }
-  if (length > SINGLE_UPLOAD_MAX_BYTES) {
+  if (!sqliteDelta && length > SINGLE_UPLOAD_MAX_BYTES) {
     return problem(
       413,
       "multipart_required",
       "Use multipart upload for source files larger than 95 MiB"
+    )
+  }
+  if (sqliteDelta && length > SQLITE_DELTA_MAX_BYTES) {
+    return problem(
+      413,
+      "sqlite_delta_too_large",
+      "SQLite page delta exceeds the 32 MiB limit"
     )
   }
   const declaredSha256 = request.headers.get("x-eidos-content-sha256")
@@ -1127,14 +1153,21 @@ async function uploadSourceObject(
   const inputSha256 = await canonicalSha256({
     slug,
     versionId,
-    bytes: length.toString(),
+    bytes: targetLength.toString(),
     sha256,
+    ...(sqliteDelta
+      ? {
+          mode: "sqlite-page-delta-v1",
+          baseSha256: request.headers.get("x-eidos-base-content-sha256"),
+          deltaSha256: request.headers.get("x-eidos-delta-sha256"),
+        }
+      : {}),
   })
   const authorized = await tenant.authorizeObjectUpload(
     slug,
     versionId,
     sha256,
-    length.toString(),
+    targetLength.toString(),
     idempotencyKey,
     inputSha256
   )
@@ -1142,6 +1175,37 @@ async function uploadSourceObject(
   if (authorized.value.state === "ready") {
     await request.body.cancel()
     return json(sourceObjectResponse(authorized.value))
+  }
+
+  if (sqliteDelta) {
+    if (authorized.value.mediaType !== EIDOS_SQLITE_MEDIA_TYPE) {
+      await request.body.cancel()
+      return problem(
+        400,
+        "sqlite_delta_media_type_mismatch",
+        "SQLite page deltas can materialize only an Eidos File source"
+      )
+    }
+    const materialized = await materializeSqlitePageDelta(
+      request,
+      env.PUBLISH_OBJECTS,
+      tenantId,
+      authorized.value.objectKey,
+      length,
+      targetLength,
+      sha256
+    )
+    if (materialized !== null) return materialized
+    const completed = await tenant.markObjectReady(
+      slug,
+      versionId,
+      sha256,
+      targetLength.toString(),
+      `complete:${idempotencyKey}`,
+      inputSha256
+    )
+    if (!completed.ok) return durableResponse(completed)
+    return json(sourceObjectResponse(completed.value))
   }
 
   const stored = await env.PUBLISH_OBJECTS.put(
@@ -1583,6 +1647,324 @@ async function ensurePublishWorkflow(
       // The original create error remains authoritative if reconciliation fails.
     }
     throw cause
+  }
+}
+
+interface SqlitePageDelta {
+  baseBytes: bigint
+  targetBytes: bigint
+  targetPages: number
+  baseSha256: string
+  targetSha256: string
+  patches: Map<number, Uint8Array>
+}
+
+async function materializeSqlitePageDelta(
+  request: Request,
+  store: R2Bucket,
+  tenantId: string,
+  targetObjectKey: string,
+  deltaLength: bigint,
+  targetLength: bigint,
+  targetSha256: string
+): Promise<Response | null> {
+  const baseSha256 = request.headers.get("x-eidos-base-content-sha256")
+  const deltaSha256 = request.headers.get("x-eidos-delta-sha256")
+  if (
+    baseSha256 === null ||
+    !SHA256.test(baseSha256) ||
+    baseSha256 === targetSha256 ||
+    deltaSha256 === null ||
+    !SHA256.test(deltaSha256)
+  ) {
+    await request.body?.cancel()
+    return problem(
+      400,
+      "sqlite_delta_digest_required",
+      "SQLite delta base and payload digests are required"
+    )
+  }
+  if (deltaLength > SQLITE_DELTA_MAX_BYTES) {
+    return problem(
+      413,
+      "sqlite_delta_too_large",
+      "SQLite page delta exceeds the 32 MiB limit"
+    )
+  }
+  const bytes = await readExactSqliteDelta(request.body, deltaLength)
+  if (bytes instanceof Response) return bytes
+  if (hexDigest(sha256(bytes)) !== deltaSha256) {
+    return problem(
+      409,
+      "sqlite_delta_digest_mismatch",
+      "SQLite page delta digest does not match its header"
+    )
+  }
+  const delta = parseSqlitePageDelta(
+    bytes,
+    targetLength,
+    baseSha256,
+    targetSha256
+  )
+  if (delta instanceof Response) return delta
+
+  const baseObjectKey = contentObjectKey(tenantId, baseSha256)
+  const base = await store.get(baseObjectKey)
+  if (
+    base === null ||
+    base.customMetadata?.contentSha256 !== baseSha256 ||
+    base.customMetadata.contentBytes !== base.size.toString() ||
+    BigInt(base.size) !== delta.baseBytes ||
+    base.size % SQLITE_DELTA_PAGE_BYTES !== 0
+  ) {
+    return problem(
+      409,
+      "sqlite_delta_base_unavailable",
+      "The previous Eidos File source is unavailable for delta upload"
+    )
+  }
+  const fixed = new FixedLengthStream(Number(targetLength))
+  const patched = patchedSqliteStream(
+    base.body,
+    base.size,
+    targetLength,
+    delta.patches
+  )
+  const writing = patched.readable.pipeTo(fixed.writable)
+  let stored: R2Object | null
+  try {
+    stored = await store.put(targetObjectKey, fixed.readable, {
+      onlyIf: { etagDoesNotMatch: "*" },
+      sha256: hexBytes(targetSha256),
+      httpMetadata: { contentType: EIDOS_SQLITE_MEDIA_TYPE },
+      customMetadata: {
+        contentSha256: targetSha256,
+        contentBytes: targetLength.toString(),
+        materializedFrom: baseSha256,
+        transport: "graft-sqlite-page-delta-v1",
+      },
+    })
+    if (stored === null) {
+      await fixed.readable
+        .cancel("content object already exists")
+        .catch(() => undefined)
+      await Promise.allSettled([writing, patched.completed])
+      return await verifyStoredObject(
+        store,
+        targetObjectKey,
+        targetLength,
+        targetSha256
+      )
+    }
+    await Promise.all([writing, patched.completed])
+  } catch (error) {
+    await fixed.readable.cancel(error).catch(() => undefined)
+    await Promise.allSettled([writing, patched.completed])
+    throw error
+  }
+  return BigInt(stored.size) === targetLength
+    ? null
+    : problem(
+        409,
+        "source_size_mismatch",
+        "Materialized SQLite source has an unexpected size"
+      )
+}
+
+function parseSqlitePageDelta(
+  bytes: Uint8Array,
+  targetLength: bigint,
+  baseSha256: string,
+  targetSha256: string
+): SqlitePageDelta | Response {
+  if (bytes.byteLength < SQLITE_DELTA_HEADER_BYTES) {
+    return problem(
+      400,
+      "invalid_sqlite_delta",
+      "SQLite page delta header is incomplete"
+    )
+  }
+  const magic = new TextDecoder().decode(bytes.subarray(0, 8))
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const headerBytes = view.getUint32(8, true)
+  const flags = view.getUint32(12, true)
+  const pageBytes = view.getUint32(16, true)
+  const changedPages = view.getUint32(20, true)
+  const baseBytes = view.getBigUint64(24, true)
+  const embeddedTargetBytes = view.getBigUint64(32, true)
+  const embeddedBaseSha256 = hexDigest(bytes.subarray(40, 72))
+  const embeddedTargetSha256 = hexDigest(bytes.subarray(72, 104))
+  if (
+    magic !== "GRAFTD01" ||
+    headerBytes !== SQLITE_DELTA_HEADER_BYTES ||
+    flags !== 0 ||
+    pageBytes !== SQLITE_DELTA_PAGE_BYTES
+  ) {
+    return problem(
+      400,
+      "invalid_sqlite_delta",
+      "SQLite page delta does not match the immutable target"
+    )
+  }
+  const targetPagesBigInt = embeddedTargetBytes / BigInt(pageBytes)
+  const basePagesBigInt = baseBytes / BigInt(pageBytes)
+  const expectedLength =
+    SQLITE_DELTA_HEADER_BYTES + changedPages * (4 + pageBytes)
+  if (
+    baseBytes === 0n ||
+    embeddedTargetBytes === 0n ||
+    baseBytes % BigInt(pageBytes) !== 0n ||
+    embeddedTargetBytes % BigInt(pageBytes) !== 0n ||
+    embeddedTargetBytes !== targetLength ||
+    embeddedBaseSha256 !== baseSha256 ||
+    embeddedTargetSha256 !== targetSha256 ||
+    basePagesBigInt > BigInt(Number.MAX_SAFE_INTEGER) ||
+    targetPagesBigInt > BigInt(Number.MAX_SAFE_INTEGER) ||
+    BigInt(changedPages) > targetPagesBigInt ||
+    expectedLength !== bytes.byteLength
+  ) {
+    return problem(
+      400,
+      "invalid_sqlite_delta",
+      "SQLite page delta does not match the immutable target"
+    )
+  }
+  const targetPages = Number(targetPagesBigInt)
+  const basePages = Number(basePagesBigInt)
+  const patches = new Map<number, Uint8Array>()
+  let offset = SQLITE_DELTA_HEADER_BYTES
+  let previousPage = 0
+  let appendedPages = 0
+  for (let index = 0; index < changedPages; index += 1) {
+    const page = view.getUint32(offset, true)
+    offset += 4
+    if (page <= previousPage || page === 0 || page > targetPages) {
+      return problem(
+        400,
+        "invalid_sqlite_delta",
+        "SQLite page delta entries must be sorted and unique"
+      )
+    }
+    patches.set(page, bytes.slice(offset, offset + pageBytes))
+    if (page > basePages) appendedPages += 1
+    previousPage = page
+    offset += pageBytes
+  }
+  if (targetPages > basePages && appendedPages !== targetPages - basePages) {
+    return problem(
+      400,
+      "invalid_sqlite_delta",
+      "SQLite page delta is missing appended target pages"
+    )
+  }
+  return {
+    baseBytes,
+    targetBytes: embeddedTargetBytes,
+    targetPages,
+    baseSha256: embeddedBaseSha256,
+    targetSha256: embeddedTargetSha256,
+    patches,
+  }
+}
+
+async function readExactSqliteDelta(
+  body: ReadableStream<Uint8Array> | null,
+  expectedLength: bigint
+): Promise<Uint8Array | Response> {
+  if (body === null) {
+    return problem(400, "source_body_required", "Source body is required")
+  }
+  const output = new Uint8Array(Number(expectedLength))
+  const reader = body.getReader()
+  let offset = 0
+  try {
+    while (true) {
+      const part = await reader.read()
+      if (part.done) break
+      if (offset + part.value.byteLength > output.byteLength) {
+        await reader.cancel("SQLite page delta exceeded Content-Length")
+        return problem(
+          409,
+          "sqlite_delta_size_mismatch",
+          "SQLite page delta size does not match Content-Length"
+        )
+      }
+      output.set(part.value, offset)
+      offset += part.value.byteLength
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined)
+    throw error
+  }
+  return offset === output.byteLength
+    ? output
+    : problem(
+        409,
+        "sqlite_delta_size_mismatch",
+        "SQLite page delta size does not match Content-Length"
+      )
+}
+
+function patchedSqliteStream(
+  base: ReadableStream<Uint8Array>,
+  baseBytes: number,
+  targetBytes: bigint,
+  patches: ReadonlyMap<number, Uint8Array>
+): { readable: ReadableStream<Uint8Array>; completed: Promise<void> } {
+  const target = Number(targetBytes)
+  const stream = new TransformStream<Uint8Array, Uint8Array>()
+  const writer = stream.writable.getWriter()
+  const reader = base.getReader()
+  const completed = (async () => {
+    let offset = 0
+    try {
+      while (offset < Math.min(baseBytes, target)) {
+        const part = await reader.read()
+        if (part.done) break
+        const length = Math.min(part.value.byteLength, target - offset)
+        if (length === 0) break
+        const output = part.value.slice(0, length)
+        overlaySqlitePatches(output, offset, patches)
+        await writer.write(output)
+        offset += length
+      }
+      if (offset < baseBytes) await reader.cancel()
+      while (offset < target) {
+        const length = Math.min(1024 * 1024, target - offset)
+        const output = new Uint8Array(length)
+        overlaySqlitePatches(output, offset, patches)
+        await writer.write(output)
+        offset += length
+      }
+      await writer.close()
+    } catch (error) {
+      await reader.cancel(error).catch(() => undefined)
+      await writer.abort(error).catch(() => undefined)
+      throw error
+    }
+  })()
+  return { readable: stream.readable, completed }
+}
+
+function overlaySqlitePatches(
+  output: Uint8Array,
+  outputOffset: number,
+  patches: ReadonlyMap<number, Uint8Array>
+): void {
+  const outputEnd = outputOffset + output.byteLength
+  const firstPage = Math.floor(outputOffset / SQLITE_DELTA_PAGE_BYTES) + 1
+  const lastPage = Math.ceil(outputEnd / SQLITE_DELTA_PAGE_BYTES)
+  for (let page = firstPage; page <= lastPage; page += 1) {
+    const patch = patches.get(page)
+    if (!patch) continue
+    const pageOffset = (page - 1) * SQLITE_DELTA_PAGE_BYTES
+    const overlapStart = Math.max(outputOffset, pageOffset)
+    const overlapEnd = Math.min(outputEnd, pageOffset + patch.byteLength)
+    if (overlapStart >= overlapEnd) continue
+    output.set(
+      patch.subarray(overlapStart - pageOffset, overlapEnd - pageOffset),
+      overlapStart - outputOffset
+    )
   }
 }
 

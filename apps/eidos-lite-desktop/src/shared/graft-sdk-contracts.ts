@@ -6,6 +6,26 @@ export interface GraftTransferProgress {
   totalBytes?: number
 }
 
+export interface GraftSqliteSnapshotCaptureResult {
+  path: string
+  output: string
+  snapshotToken: string
+  contentFingerprint: string
+  sha256: string
+  bytes: number
+  pageCount: number
+  changedPages: number
+  reusedSnapshot: boolean
+  pageHashCacheHit: boolean
+  deltaOutput?: string
+  deltaBytes?: number
+  deltaChangedPages?: number
+  deltaBaseContentFingerprint?: string
+  deltaBaseSha256?: string
+  deltaTargetSha256?: string
+  materializesWorktree: false
+}
+
 export type GraftSdkCommand =
   | "sdkVersion"
   | "operationMaterializesWorktree"
@@ -16,6 +36,7 @@ export type GraftSdkCommand =
   | "listRemotes"
   | "addAll"
   | "stagePaths"
+  | "captureSqliteSnapshot"
   | "recordPathMove"
   | "commit"
   | "diff"

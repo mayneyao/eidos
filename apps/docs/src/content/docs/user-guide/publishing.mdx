@@ -52,12 +52,20 @@ Source or attachment objects larger than 95 MiB automatically use multipart
 upload; you do not need to split them. Progress identifies the current object
 and part while the overall uploaded byte count continues across the bundle.
 
-For an Eidos File, Lite briefly pauses writes and closes its SQLite Runtime to
-copy a consistent snapshot. Markdown is copied as a regular UTF-8 document.
-Upload and hosted preparation use that temporary source. Relative File-field
-attachments for Eidos Files and relative links or images for Markdown are read
-from the original source directory, hashed, deduplicated, and uploaded with the
-snapshot. The temporary copy is removed after the attempt.
+For an Eidos File with local versioning enabled, Graft captures a consistent
+immutable snapshot without changing local history or closing the SQLite
+Runtime. After the first successful publish, later publishes can upload only
+the changed 4 KiB pages when that delta is smaller than the complete file. The
+service reconstructs and verifies the exact new source in R2 before activation;
+if the previous object or delta path is unavailable, Publish automatically uses
+the complete snapshot. Without local versioning, Lite briefly pauses writes and
+closes the Runtime while copying a consistent snapshot.
+
+Markdown is copied as a regular UTF-8 document. Upload and hosted preparation
+use the temporary source. Relative File-field attachments for Eidos Files and
+relative links or images for Markdown are read from the original source
+directory, hashed, deduplicated, and uploaded with the snapshot. The temporary
+copy is removed after the attempt.
 
 Markdown is rendered into a static, script-free page. Raw HTML is not executed.
 The body limit is 16 MiB; each attachment can be up to 1 GiB.

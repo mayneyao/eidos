@@ -65,6 +65,10 @@ export interface PublicationSourceObservation {
   spec: "eidos.publish/local-observation@1"
   source: PublicationFileObservation
   attachments: PublicationAttachmentObservation[]
+  graftSnapshot?: {
+    token: string
+    contentFingerprint: string
+  }
 }
 
 export interface StoredPublicationBinding extends EidosPublicationBinding {

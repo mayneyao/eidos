@@ -2,6 +2,7 @@ import path from "node:path"
 import type {
   CloneOptions,
   CommitChangedPathsOptions,
+  CaptureSqliteSnapshotOptions,
   DiffOptions,
   DiffPathsOptions,
   HistoryOptions,
@@ -143,6 +144,11 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           ...(this.object(args[0]) as unknown as StagePathsOptions),
           signal,
         })
+      case "captureSqliteSnapshot":
+        return session.captureSqliteSnapshot({
+          ...this.object(args[0]),
+          signal,
+        } as CaptureSqliteSnapshotOptions)
       case "recordPathMove":
         return session.recordPathMove({
           ...(this.object(args[0]) as unknown as RecordPathMoveOptions),

@@ -41,6 +41,8 @@ const MAX_FORM_BYTES: u64 = 256 * 1024;
 const MAX_ASSET_REFERENCES: usize = 50_000;
 const SINGLE_UPLOAD_MAX_BYTES: u64 = 95 * 1024 * 1024;
 const MULTIPART_PART_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_SQLITE_DELTA_BYTES: u64 = 32 * 1024 * 1024;
+const SQLITE_DELTA_HEADER_BYTES: usize = 104;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LocalAttachment {
@@ -110,6 +112,14 @@ struct SourceObject {
     bytes: u64,
     sha256: String,
     source: SourceObjectSource,
+}
+
+#[derive(Clone, Debug)]
+struct SqlitePageDelta {
+    path: PathBuf,
+    bytes: u64,
+    sha256: String,
+    base_sha256: String,
 }
 
 #[derive(Clone, Debug)]
@@ -1067,6 +1077,8 @@ pub fn run(
             )
         }
     };
+    let sqlite_delta =
+        prepare_sqlite_page_delta(&args, source_kind, source_bytes, &source_sha256, progress)?;
     let mut objects = vec![SourceObject {
         path: source_kind.entrypoint().to_string(),
         role: "entrypoint",
@@ -1398,19 +1410,71 @@ pub fn run(
             object.path,
             human_bytes(object.bytes)
         ));
-        let uploaded = upload_object(
-            &client,
-            &origin,
-            &authorization,
-            &args.slug,
-            version_id,
-            object,
-            pending_index,
-            pending_count,
-            uploaded_bytes,
-            pending_bytes,
-            progress,
-        )?;
+        let uploaded = if object.role == "entrypoint" {
+            if let Some(delta) = sqlite_delta.as_ref() {
+                progress.stage(format!(
+                    "uploading {} Graft delta instead of {} source",
+                    human_bytes(delta.bytes),
+                    human_bytes(object.bytes)
+                ));
+                match upload_sqlite_delta(
+                    &client,
+                    &origin,
+                    &authorization,
+                    &args.slug,
+                    version_id,
+                    object,
+                    delta,
+                    progress,
+                ) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        progress.stage("Graft delta unavailable; uploading the complete source");
+                        upload_object(
+                            &client,
+                            &origin,
+                            &authorization,
+                            &args.slug,
+                            version_id,
+                            object,
+                            pending_index,
+                            pending_count,
+                            uploaded_bytes,
+                            pending_bytes,
+                            progress,
+                        )?
+                    }
+                }
+            } else {
+                upload_object(
+                    &client,
+                    &origin,
+                    &authorization,
+                    &args.slug,
+                    version_id,
+                    object,
+                    pending_index,
+                    pending_count,
+                    uploaded_bytes,
+                    pending_bytes,
+                    progress,
+                )?
+            }
+        } else {
+            upload_object(
+                &client,
+                &origin,
+                &authorization,
+                &args.slug,
+                version_id,
+                object,
+                pending_index,
+                pending_count,
+                uploaded_bytes,
+                pending_bytes,
+                progress,
+            )?
+        };
         if uploaded.get("state").and_then(Value::as_str) != Some("ready") {
             return Err(AppError::publish_failed(
                 "Publish service did not accept a content object",
@@ -1512,6 +1576,157 @@ pub fn run(
     });
 
     Ok(publish_result(version_id, &ready, true))
+}
+
+fn prepare_sqlite_page_delta(
+    args: &PublishArgs,
+    source_kind: PublishSourceKind,
+    source_bytes: u64,
+    source_sha256: &str,
+    progress: PublishProgress,
+) -> Result<Option<SqlitePageDelta>> {
+    let (Some(path), Some(base_sha256)) =
+        (args.graft_delta.as_ref(), args.graft_base_sha256.as_deref())
+    else {
+        return Ok(None);
+    };
+    if source_kind != PublishSourceKind::Eidos {
+        return Err(AppError::invalid_request(
+            "Graft page deltas can be used only with an Eidos File",
+        ));
+    }
+    if !lowercase_sha256(base_sha256) {
+        return Err(AppError::invalid_request(
+            "Graft delta base SHA-256 is invalid",
+        ));
+    }
+    if base_sha256 == source_sha256 {
+        progress.stage("Graft delta target matches its base; skipping it");
+        return Ok(None);
+    }
+    let bytes = fs::metadata(path)
+        .map_err(|error| AppError::publish_failed(error.to_string()))?
+        .len();
+    if bytes > MAX_SQLITE_DELTA_BYTES || bytes >= source_bytes {
+        progress.stage("Graft delta is not smaller than the complete source; skipping it");
+        return Ok(None);
+    }
+    let mut header = [0_u8; SQLITE_DELTA_HEADER_BYTES];
+    let mut file = File::open(path)?;
+    file.read_exact(&mut header)
+        .map_err(|_| AppError::publish_failed("Graft SQLite page delta has an invalid header"))?;
+    if &header[..8] != b"GRAFTD01" {
+        return Err(AppError::publish_failed(
+            "Graft SQLite page delta has an invalid format",
+        ));
+    }
+    let header_bytes = u32::from_le_bytes(header[8..12].try_into().expect("four bytes"));
+    let flags = u32::from_le_bytes(header[12..16].try_into().expect("four bytes"));
+    let page_size = u32::from_le_bytes(header[16..20].try_into().expect("four bytes"));
+    let changed_pages = u32::from_le_bytes(header[20..24].try_into().expect("four bytes"));
+    let base_bytes = u64::from_le_bytes(header[24..32].try_into().expect("eight bytes"));
+    let target_bytes = u64::from_le_bytes(header[32..40].try_into().expect("eight bytes"));
+    let embedded_base_sha256 = header[40..72]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let embedded_target_sha256 = header[72..104]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let target_pages = target_bytes
+        .checked_div(u64::from(page_size))
+        .ok_or_else(|| AppError::publish_failed("Graft delta page size is invalid"))?;
+    let expected_bytes = u64::from(header_bytes)
+        .checked_add(
+            u64::from(changed_pages)
+                .checked_mul(u64::from(page_size) + 4)
+                .ok_or_else(|| AppError::publish_failed("Graft delta size is invalid"))?,
+        )
+        .ok_or_else(|| AppError::publish_failed("Graft delta size is invalid"))?;
+    if header_bytes != SQLITE_DELTA_HEADER_BYTES as u32
+        || flags != 0
+        || page_size != 4096
+        || base_bytes == 0
+        || target_bytes == 0
+        || base_bytes % u64::from(page_size) != 0
+        || target_bytes % u64::from(page_size) != 0
+        || u64::from(changed_pages) > target_pages
+        || target_bytes != source_bytes
+        || embedded_base_sha256 != base_sha256
+        || embedded_target_sha256 != source_sha256
+        || expected_bytes != bytes
+    {
+        return Err(AppError::publish_failed(
+            "Graft SQLite page delta does not match the source snapshot",
+        ));
+    }
+    file.seek(SeekFrom::Start(0))?;
+    progress.stage(format!("hashing Graft delta ({})", human_bytes(bytes)));
+    let sha256 = file_sha256(&mut file, bytes, progress, "hashing Graft delta")?;
+    Ok(Some(SqlitePageDelta {
+        path: path.clone(),
+        bytes,
+        sha256,
+        base_sha256: base_sha256.to_string(),
+    }))
+}
+
+fn lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn upload_sqlite_delta(
+    client: &Client,
+    origin: &Url,
+    authorization: &HeaderValue,
+    slug: &str,
+    version_id: &str,
+    object: &SourceObject,
+    delta: &SqlitePageDelta,
+    progress: PublishProgress,
+) -> Result<Value> {
+    let source = File::open(&delta.path)?;
+    let body = ProgressReader::with_offset(
+        source,
+        progress,
+        "uploading Graft delta".to_string(),
+        0,
+        delta.bytes,
+    );
+    send_json(
+        client
+            .put(endpoint(
+                origin,
+                &format!(
+                    "/api/publications/{slug}/versions/{version_id}/objects/{}",
+                    object.sha256
+                ),
+            )?)
+            .header(AUTHORIZATION, authorization.clone())
+            .header(
+                "Idempotency-Key",
+                idempotency_key(&[
+                    "graft-delta",
+                    slug,
+                    version_id,
+                    &object.sha256,
+                    &delta.base_sha256,
+                    &delta.sha256,
+                ]),
+            )
+            .header(CONTENT_TYPE, "application/vnd.eidos.sqlite-page-delta")
+            .header(CONTENT_LENGTH, delta.bytes)
+            .header("X-Eidos-Content-SHA256", &object.sha256)
+            .header("X-Eidos-Target-Content-Bytes", object.bytes)
+            .header("X-Eidos-Base-Content-SHA256", &delta.base_sha256)
+            .header("X-Eidos-Delta-SHA256", &delta.sha256)
+            .body(Body::new(body)),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2048,6 +2263,7 @@ fn network_error(error: &reqwest::Error) -> String {
 mod tests {
     use std::io::Write;
 
+    use clap::Parser;
     use eidos_file_core::ddl::{configure_connection, create_eidos_file};
     use eidos_file_core::model::FieldType;
     use eidos_file_core::rows::{RowChange, RowMutation, mutate_rows};
@@ -2057,6 +2273,8 @@ mod tests {
     };
     use rusqlite::Connection;
     use serde_json::{Map, json};
+
+    use crate::cli::{Cli, Command};
 
     use super::*;
 
@@ -2112,6 +2330,68 @@ mod tests {
         let actual = file_range_sha256(&mut file, 7, 7).expect("hash range");
         let expected = format!("{:x}", Sha256::digest(b"payload"));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn validates_a_bounded_graft_sqlite_page_delta() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let delta_path = directory.path().join("source.graft-delta");
+        let mut delta = Vec::with_capacity(SQLITE_DELTA_HEADER_BYTES + 4 + 4096);
+        delta.extend_from_slice(b"GRAFTD01");
+        delta.extend_from_slice(&(SQLITE_DELTA_HEADER_BYTES as u32).to_le_bytes());
+        delta.extend_from_slice(&0_u32.to_le_bytes());
+        delta.extend_from_slice(&4096_u32.to_le_bytes());
+        delta.extend_from_slice(&1_u32.to_le_bytes());
+        delta.extend_from_slice(&8192_u64.to_le_bytes());
+        delta.extend_from_slice(&8192_u64.to_le_bytes());
+        delta.extend_from_slice(&[0xbb; 32]);
+        delta.extend_from_slice(&[0xcc; 32]);
+        delta.extend_from_slice(&2_u32.to_le_bytes());
+        delta.extend_from_slice(&[7_u8; 4096]);
+        fs::write(&delta_path, &delta).expect("write delta");
+        let base_sha256 = "b".repeat(64);
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "source.eidos",
+            "--slug",
+            "demo",
+            "--token",
+            "test-token",
+            "--graft-delta",
+            delta_path.to_str().expect("UTF-8 path"),
+            "--graft-base-sha256",
+            &base_sha256,
+        ])
+        .expect("parse Publish arguments");
+        let Command::Publish(args) = cli.command else {
+            panic!("expected Publish command")
+        };
+        let prepared = prepare_sqlite_page_delta(
+            &args,
+            PublishSourceKind::Eidos,
+            8192,
+            &"c".repeat(64),
+            PublishProgress::new(false, false),
+        )
+        .expect("validate delta")
+        .expect("usable delta");
+
+        assert_eq!(prepared.path, delta_path);
+        assert_eq!(prepared.bytes, delta.len() as u64);
+        assert_eq!(prepared.base_sha256, base_sha256);
+        assert_eq!(prepared.sha256, format!("{:x}", Sha256::digest(delta)));
+        assert!(
+            prepare_sqlite_page_delta(
+                &args,
+                PublishSourceKind::Eidos,
+                8192,
+                &base_sha256,
+                PublishProgress::new(false, false),
+            )
+            .expect("skip unchanged source")
+            .is_none()
+        );
     }
 
     #[test]

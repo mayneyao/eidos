@@ -34,14 +34,17 @@ import type {
   GraftSemanticMergeInput,
   GraftSemanticMergeWorkspace,
 } from "../../shared/graft-merge-contracts"
-import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftSqliteSnapshotCaptureResult,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.18"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.18"
+export const GRAFT_SDK_VERSION = "0.3.20"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.20"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -1129,6 +1132,88 @@ export class GraftClient {
       [{ previousPath, path }],
       options
     )
+  }
+
+  async captureSqliteSnapshot(
+    root: string,
+    request: {
+      path: string
+      output: string
+      baseSnapshotToken?: string
+      deltaOutput?: string
+      signal?: AbortSignal
+    }
+  ): Promise<GraftSqliteSnapshotCaptureResult> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "captureSqliteSnapshot",
+        [
+          {
+            path: request.path,
+            output: request.output,
+            ...(request.baseSnapshotToken
+              ? { baseSnapshotToken: request.baseSnapshotToken }
+              : {}),
+            ...(request.deltaOutput
+              ? { deltaOutput: request.deltaOutput }
+              : {}),
+          },
+        ],
+        { signal: request.signal }
+      )
+    )
+    const snapshotToken = stringValue(value.snapshot_token)
+    const contentFingerprint = stringValue(value.content_fingerprint)
+    const sha256 = stringValue(value.sha256)
+    const returnedPath = stringValue(value.path)
+    const output = stringValue(value.output)
+    if (
+      !snapshotToken ||
+      !contentFingerprint?.startsWith("graft-sqlite-v1:") ||
+      !sha256 ||
+      !/^[0-9a-f]{64}$/.test(sha256) ||
+      !returnedPath ||
+      !output ||
+      value.materializes_worktree !== false
+    ) {
+      throw new Error("Graft returned an invalid SQLite snapshot capture")
+    }
+    return {
+      path: returnedPath,
+      output,
+      snapshotToken,
+      contentFingerprint,
+      sha256,
+      bytes: numberValue(value.bytes),
+      pageCount: numberValue(value.page_count),
+      changedPages: numberValue(value.changed_pages),
+      reusedSnapshot: value.reused_snapshot === true,
+      pageHashCacheHit: value.page_hash_cache_hit === true,
+      ...(stringValue(value.delta_output)
+        ? { deltaOutput: stringValue(value.delta_output) }
+        : {}),
+      ...(typeof value.delta_bytes === "number"
+        ? { deltaBytes: numberValue(value.delta_bytes) }
+        : {}),
+      ...(typeof value.delta_changed_pages === "number"
+        ? { deltaChangedPages: numberValue(value.delta_changed_pages) }
+        : {}),
+      ...(stringValue(value.delta_base_content_fingerprint)
+        ? {
+            deltaBaseContentFingerprint: stringValue(
+              value.delta_base_content_fingerprint
+            ),
+          }
+        : {}),
+      ...(stringValue(value.delta_base_sha256)
+        ? { deltaBaseSha256: stringValue(value.delta_base_sha256) }
+        : {}),
+      ...(stringValue(value.delta_target_sha256)
+        ? { deltaTargetSha256: stringValue(value.delta_target_sha256) }
+        : {}),
+      materializesWorktree: false,
+    }
   }
 
   async commit(root: string, message: string): Promise<GraftCommitResult> {

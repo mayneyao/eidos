@@ -85,6 +85,21 @@ Gateway instead of consuming Container cache or egress.
   interrupted process resumes the same immutable Version;
 - the Worker never buffers a complete source body.
 
+When Eidos Lite has local Graft versioning enabled, a successful publication
+observation retains an opaque Graft snapshot token beside the local Publish
+binding. The next publication captures another immutable standalone `.eidos`
+file and may also produce a `GRAFTD01` archive containing only changed 4 KiB
+pages. The archive embeds the exact base and target lengths and SHA-256
+digests, so the CLI and Worker reject a mismatched snapshot before applying
+it. The CLI uses that archive only when it is smaller than the complete
+source and no larger than 32 MiB. The Worker verifies the bounded delta,
+streams the previous tenant-scoped content object from R2, overlays the changed
+pages with backpressure, and writes the exact new content-addressed object.
+R2 validates the reconstructed target SHA-256 before the Version can become
+ready. A missing base object, unsupported server, invalid delta, or larger
+delta falls back to the existing complete-source upload; Containers and Tenant
+SQLite never consume or store the delta format.
+
 Published attachment resolution is intercepted by the Gateway before the
 Container. It maps a Runtime File-entry ID to the active Version's immutable R2
 object, applies the Publication's public/password/private authorization, and

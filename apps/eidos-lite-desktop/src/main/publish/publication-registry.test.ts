@@ -74,6 +74,10 @@ const localObservation: PublicationSourceObservation = {
     inode: "2",
   },
   attachments: [],
+  graftSnapshot: {
+    token: "opaque-snapshot-token",
+    contentFingerprint: `graft-sqlite-v1:${"c".repeat(64)}`,
+  },
 }
 
 afterEach(() => {

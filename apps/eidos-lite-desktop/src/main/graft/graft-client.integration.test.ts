@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { createHash } from "node:crypto"
 import http from "node:http"
 import os from "node:os"
 import path from "node:path"
@@ -59,6 +60,12 @@ async function insertBlankRow(filePath: string): Promise<void> {
   } finally {
     runtime.close()
   }
+}
+
+async function fileSha256(filePath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await fs.readFile(filePath))
+    .digest("hex")
 }
 
 describe("whole-Space real Graft integration", () => {
@@ -211,6 +218,66 @@ describe("whole-Space real Graft integration", () => {
       expect(runtime.info().formatVersion).toBe("1.0")
     } finally {
       runtime.close()
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
+  it("captures consecutive Publish snapshots as an exact bounded page delta", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-publish-delta-")
+    )
+    const sourcePath = path.join(root, "records.eidos")
+    const firstSnapshotPath = path.join(root, "first-publish.eidos")
+    const secondSnapshotPath = path.join(root, "second-publish.eidos")
+    const deltaPath = path.join(root, "second-publish.graft-delta")
+    const runtime = createEidosFile(sourcePath)
+    runtime.importTable(
+      {
+        name: "Records",
+        fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+      },
+      [{ Name: "Base" }]
+    )
+    runtime.close()
+    const client = createGraftClient()
+    try {
+      await client.open(root)
+      await client.initialize(root)
+      await client.stageAll(root)
+      const committed = await client.commit(root, "Base")
+      const first = await client.captureSqliteSnapshot(root, {
+        path: "records.eidos",
+        output: firstSnapshotPath,
+      })
+
+      await insertBlankRow(sourcePath)
+      const worktreeSha256 = await fileSha256(sourcePath)
+      const second = await client.captureSqliteSnapshot(root, {
+        path: "records.eidos",
+        output: secondSnapshotPath,
+        baseSnapshotToken: first.snapshotToken,
+        deltaOutput: deltaPath,
+      })
+
+      expect(await fileSha256(firstSnapshotPath)).toBe(first.sha256)
+      expect(await fileSha256(secondSnapshotPath)).toBe(second.sha256)
+      expect(await fileSha256(sourcePath)).toBe(worktreeSha256)
+      expect(second).toMatchObject({
+        deltaOutput: deltaPath,
+        deltaBaseSha256: first.sha256,
+        deltaTargetSha256: second.sha256,
+        reusedSnapshot: false,
+        materializesWorktree: false,
+      })
+      expect(second.deltaBytes).toBeGreaterThan(0)
+      expect(second.deltaBytes).toBeLessThan(second.bytes)
+      expect((await client.status(root)).currentHead).toBe(committed.id)
+      await Promise.all([
+        validateEidosFile(firstSnapshotPath),
+        validateEidosFile(secondSnapshotPath),
+      ])
+    } finally {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })
     }

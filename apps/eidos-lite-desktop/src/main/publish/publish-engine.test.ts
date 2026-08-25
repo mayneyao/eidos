@@ -232,6 +232,20 @@ describe("Eidos Publish engine boundary", () => {
         attachments: [{ path: "assets/diagram.png", bytes: "3" }],
       })
 
+      const captured = await observePublishSource(
+        sourcePath,
+        ["assets/diagram.png"],
+        undefined,
+        {
+          token: "opaque-snapshot-token",
+          contentFingerprint: `graft-sqlite-v1:${"a".repeat(64)}`,
+        }
+      )
+      expect(captured.graftSnapshot).toEqual({
+        token: "opaque-snapshot-token",
+        contentFingerprint: `graft-sqlite-v1:${"a".repeat(64)}`,
+      })
+
       await expect(
         observePublishSource(sourcePath, ["../secret.txt"])
       ).rejects.toThrow("invalid attachment path")

@@ -740,6 +740,152 @@ describe("Eidos Publish control plane", () => {
     })
   })
 
+  it("materializes an Eidos source from a bounded Graft SQLite page delta", async () => {
+    const slug = "incremental"
+    const token = "free-graft-delta-upload"
+    await authenticatedFetch(
+      `/api/publications/${slug}`,
+      token,
+      mutation("create-incremental")
+    )
+    const base = new Uint8Array(8192)
+    base.fill(17, 0, 4096)
+    base.fill(29, 4096)
+    const baseSha256 = await digestHex(base)
+    const baseVersionResponse = await authenticatedFetch(
+      `/api/publications/${slug}/versions`,
+      token,
+      mutation("begin-incremental-base", {
+        driver: { id: "org.eidos.driver.eidos", version: "1.0" },
+        manifest: manifest("source.eidos", base.byteLength, baseSha256),
+        activate: false,
+      })
+    )
+    const baseVersion = (await baseVersionResponse.json()) as {
+      versionId: string
+    }
+    const baseUpload = await authenticatedFetch(
+      `/api/publications/${slug}/versions/${baseVersion.versionId}/objects/${baseSha256}`,
+      token,
+      {
+        method: "PUT",
+        headers: {
+          "Idempotency-Key": "upload-incremental-base",
+          "Content-Length": base.byteLength.toString(),
+          "X-Eidos-Content-SHA256": baseSha256,
+        },
+        body: base,
+      }
+    )
+    expect(baseUpload.status).toBe(200)
+
+    const target = new Uint8Array(12_288)
+    target.set(base)
+    target.fill(43, 4096, 8192)
+    target.fill(47, 8192)
+    const targetSha256 = await digestHex(target)
+    const targetVersionResponse = await authenticatedFetch(
+      `/api/publications/${slug}/versions`,
+      token,
+      mutation("begin-incremental-target", {
+        driver: { id: "org.eidos.driver.eidos", version: "1.0" },
+        manifest: manifest("source.eidos", target.byteLength, targetSha256),
+        activate: false,
+      })
+    )
+    const targetVersion = (await targetVersionResponse.json()) as {
+      versionId: string
+      entrypointObjectKey: string
+    }
+    const delta = sqlitePageDelta(
+      base,
+      target,
+      [2, 3],
+      baseSha256,
+      targetSha256
+    )
+    const mismatchedDelta = delta.slice()
+    mismatchedDelta[40] = (mismatchedDelta[40] ?? 0) ^ 0xff
+    const mismatchedDeltaSha256 = await digestHex(mismatchedDelta)
+    const mismatched = await authenticatedFetch(
+      `/api/publications/${slug}/versions/${targetVersion.versionId}/objects/${targetSha256}`,
+      token,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/vnd.eidos.sqlite-page-delta",
+          "Content-Length": mismatchedDelta.byteLength.toString(),
+          "Idempotency-Key": "reject-mismatched-delta-base",
+          "X-Eidos-Content-SHA256": targetSha256,
+          "X-Eidos-Target-Content-Bytes": target.byteLength.toString(),
+          "X-Eidos-Base-Content-SHA256": baseSha256,
+          "X-Eidos-Delta-SHA256": mismatchedDeltaSha256,
+        },
+        body: mismatchedDelta.buffer as ArrayBuffer,
+      }
+    )
+    expect(mismatched.status).toBe(400)
+    expect(await mismatched.json()).toMatchObject({
+      error: { code: "invalid_sqlite_delta" },
+    })
+    const oversizedDelta = new Uint8Array(delta.byteLength + 1)
+    oversizedDelta.set(delta)
+    oversizedDelta[oversizedDelta.byteLength - 1] = 1
+    const oversized = await authenticatedFetch(
+      `/api/publications/${slug}/versions/${targetVersion.versionId}/objects/${targetSha256}`,
+      token,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/vnd.eidos.sqlite-page-delta",
+          "Content-Length": delta.byteLength.toString(),
+          "Idempotency-Key": "reject-oversized-delta-body",
+          "X-Eidos-Content-SHA256": targetSha256,
+          "X-Eidos-Target-Content-Bytes": target.byteLength.toString(),
+          "X-Eidos-Base-Content-SHA256": baseSha256,
+          "X-Eidos-Delta-SHA256": await digestHex(oversizedDelta),
+        },
+        body: oversizedDelta.buffer as ArrayBuffer,
+      }
+    )
+    expect(oversized.status).toBe(409)
+    expect(await oversized.json()).toMatchObject({
+      error: { code: "sqlite_delta_size_mismatch" },
+    })
+    const deltaSha256 = await digestHex(delta)
+    const uploaded = await authenticatedFetch(
+      `/api/publications/${slug}/versions/${targetVersion.versionId}/objects/${targetSha256}`,
+      token,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/vnd.eidos.sqlite-page-delta",
+          "Content-Length": delta.byteLength.toString(),
+          "Idempotency-Key": "upload-incremental-target",
+          "X-Eidos-Content-SHA256": targetSha256,
+          "X-Eidos-Target-Content-Bytes": target.byteLength.toString(),
+          "X-Eidos-Base-Content-SHA256": baseSha256,
+          "X-Eidos-Delta-SHA256": deltaSha256,
+        },
+        body: delta.buffer as ArrayBuffer,
+      }
+    )
+    expect(uploaded.status).toBe(200)
+    expect(await uploaded.json()).toMatchObject({
+      state: "ready",
+      bytes: target.byteLength.toString(),
+      sha256: targetSha256,
+    })
+    const stored = await env.PUBLISH_OBJECTS.get(
+      targetVersion.entrypointObjectKey
+    )
+    expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(target)
+    expect(stored?.customMetadata).toMatchObject({
+      materializedFrom: baseSha256,
+      transport: "graft-sqlite-page-delta-v1",
+    })
+  })
+
   it("deduplicates attachment objects and serves authorized immutable assets with ranges", async () => {
     const slug = "attachments"
     const token = "free-attachments"
@@ -2834,6 +2980,53 @@ async function authenticatedFetch(
   const headers = new Headers(init.headers)
   headers.set("Authorization", `Bearer ${token}`)
   return await SELF.fetch(ORIGIN + path, { ...init, headers })
+}
+
+function sqlitePageDelta(
+  base: Uint8Array,
+  target: Uint8Array,
+  changedPages: number[],
+  baseSha256: string,
+  targetSha256: string
+): Uint8Array {
+  const pageBytes = 4096
+  if (
+    base.byteLength % pageBytes !== 0 ||
+    target.byteLength % pageBytes !== 0
+  ) {
+    throw new Error("SQLite delta fixture must contain complete pages")
+  }
+  const headerBytes = 104
+  const bytes = new Uint8Array(
+    headerBytes + changedPages.length * (4 + pageBytes)
+  )
+  bytes.set(new TextEncoder().encode("GRAFTD01"), 0)
+  const view = new DataView(bytes.buffer)
+  view.setUint32(8, headerBytes, true)
+  view.setUint32(12, 0, true)
+  view.setUint32(16, pageBytes, true)
+  view.setUint32(20, changedPages.length, true)
+  view.setBigUint64(24, BigInt(base.byteLength), true)
+  view.setBigUint64(32, BigInt(target.byteLength), true)
+  bytes.set(hexStringBytes(baseSha256), 40)
+  bytes.set(hexStringBytes(targetSha256), 72)
+  let offset = headerBytes
+  for (const page of changedPages) {
+    view.setUint32(offset, page, true)
+    offset += 4
+    const pageOffset = (page - 1) * pageBytes
+    bytes.set(target.subarray(pageOffset, pageOffset + pageBytes), offset)
+    offset += pageBytes
+  }
+  return bytes
+}
+
+function hexStringBytes(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length / 2)
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16)
+  }
+  return bytes
 }
 
 async function uploadVersion(
