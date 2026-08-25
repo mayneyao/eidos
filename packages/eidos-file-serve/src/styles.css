@@ -180,6 +180,14 @@
   font-weight: 600;
 }
 
+[data-eidos-file-sheet-tabs]:has(.eidos-publish-brand-inline) {
+  border-top-width: 0;
+}
+
+[data-eidos-file-sheet-status]:has(.eidos-publish-brand-inline) {
+  border-left-width: 0;
+}
+
 .eidos-publish-empty-statusbar {
   display: flex;
   min-height: 1.75rem;
@@ -187,7 +195,6 @@
   align-items: center;
   justify-content: flex-end;
   padding: 0 0.625rem;
-  border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--muted) 20%, transparent);
 }
 
