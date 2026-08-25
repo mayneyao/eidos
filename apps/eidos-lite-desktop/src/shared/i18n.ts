@@ -36,6 +36,9 @@ const zh: Record<string, string> = {
   "Start week on Monday": "每周从周一开始",
   "Show Monday as the first day in Calendar views.":
     "在日历视图中将周一显示为每周的第一天。",
+  "Built-in Plugins": "内置插件",
+  "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it.":
+    "用于在当前空间中打开 Shell 的内置插件。启用前不会出现在工作区，也不会加载。",
   English: "English",
   Chinese: "简体中文",
   "Account & Services": "账户与服务",

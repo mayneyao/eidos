@@ -42,6 +42,7 @@ import type {
   EidosFileIssue,
   EidosLiteAppearance,
   EidosLiteAppInfo,
+  EidosLitePreferences,
   EidosLiteUpdateStatus,
   EidosPublicationBinding,
   EidosSyncMergeStatus,
@@ -52,6 +53,7 @@ import type {
   SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
 import { eidosLiteNewFileKind } from "../shared/new-file"
 import { fileManagerMessage } from "../shared/platform-copy"
 import {
@@ -745,6 +747,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [timeZone, setTimeZone] = useState(
     DEFAULT_RENDERER_PREFERENCES.timeZone
   )
+  const [builtInPlugins, setBuiltInPlugins] = useState(
+    DEFAULT_RENDERER_PREFERENCES.builtInPlugins
+  )
+  const terminalPluginEnabled = builtInPlugins.terminal
   const versionShortcutLabel = workspaceShortcutLabel(
     "toggle-version",
     macos,
@@ -989,16 +995,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   )
 
   useEffect(() => {
-    void window.eidosLite.getPreferences().then((preferences) => {
+    const acceptPreferences = (preferences: EidosLitePreferences) => {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
-    })
-    return window.eidosLite.onPreferencesChanged((preferences) => {
-      setKeyboardShortcuts(preferences.keyboardShortcuts)
-      setWeekStartsOnMonday(preferences.weekStartsOnMonday)
-      setTimeZone(preferences.timeZone)
-    })
+      setBuiltInPlugins(preferences.builtInPlugins)
+      if (!preferences.builtInPlugins.terminal) {
+        setTerminalPanelOpen(false)
+        setTerminalPanelInitialized(false)
+      }
+    }
+    void window.eidosLite.getPreferences().then(acceptPreferences)
+    return window.eidosLite.onPreferencesChanged(acceptPreferences)
   }, [])
 
   useEffect(
@@ -1963,20 +1971,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   }, [space])
 
   const toggleTerminalPanel = useCallback(() => {
-    if (!space) return
+    if (!space || !terminalPluginEnabled) return
     if (terminalPanelOpen) terminalToggleRef.current?.focus()
     setTerminalPanelInitialized(true)
     setTerminalPanelOpen((current) => !current)
-  }, [space, terminalPanelOpen])
+  }, [space, terminalPanelOpen, terminalPluginEnabled])
 
   const toggleTerminalPanelPlacement = useCallback(() => {
-    if (!space) return
+    if (!space || !terminalPluginEnabled) return
     setTerminalPanelInitialized(true)
     setTerminalPanelOpen(true)
     setTerminalPanelPlacement((current) =>
       current === "bottom" ? "right" : "bottom"
     )
-  }, [space])
+  }, [space, terminalPluginEnabled])
 
   useEffect(() => {
     const handleKeyboardShortcut = (
@@ -1998,6 +2006,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       }
       if (workspaceShortcut === "toggle-theme") {
         toggleTheme()
+        return
+      }
+      if (!isEidosLiteShortcutEnabled(workspaceShortcut, builtInPlugins)) {
         return
       }
       if (space) {
@@ -2033,6 +2044,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     toggleSyncPanel,
     toggleTerminalPanel,
     toggleTerminalPanelPlacement,
+    builtInPlugins,
+    terminalPluginEnabled,
     toggleTheme,
     toggleVersionPanel,
   ])
@@ -2315,6 +2328,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     activeDocumentPath,
     busyFile
   )
+  const terminalPanelVisible = terminalPluginEnabled && terminalPanelOpen
 
   return (
     <div
@@ -2322,7 +2336,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       data-platform={platform}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
-      data-terminal-open={terminalPanelOpen ? "true" : "false"}
+      data-terminal-open={terminalPanelVisible ? "true" : "false"}
       data-terminal-placement={terminalPanelPlacement}
       style={
         {
@@ -2619,23 +2633,28 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 <Cloud />
               )}
             </button>
-            <button
-              ref={terminalToggleRef}
-              type="button"
-              className="icon-button titlebar-tool-button"
-              data-titlebar-action="terminal"
-              aria-pressed={terminalPanelOpen}
-              aria-label={t("Toggle terminal")}
-              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
-                "toggle-terminal",
-                macos,
-                keyboardShortcuts
-              )}
-              onClick={toggleTerminalPanel}
-              title={shortcutTitle(t("Toggle terminal"), terminalShortcutLabel)}
-            >
-              <SquareTerminal />
-            </button>
+            {terminalPluginEnabled ? (
+              <button
+                ref={terminalToggleRef}
+                type="button"
+                className="icon-button titlebar-tool-button"
+                data-titlebar-action="terminal"
+                aria-pressed={terminalPanelVisible}
+                aria-label={t("Toggle terminal")}
+                aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                  "toggle-terminal",
+                  macos,
+                  keyboardShortcuts
+                )}
+                onClick={toggleTerminalPanel}
+                title={shortcutTitle(
+                  t("Toggle terminal"),
+                  terminalShortcutLabel
+                )}
+              >
+                <SquareTerminal />
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -2953,12 +2972,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           </div>
         </div>
       </main>
-      {terminalPanelInitialized ? (
+      {terminalPluginEnabled && terminalPanelInitialized ? (
         <>
           <div
             className="terminal-panel-resizer"
             data-terminal-panel-resizer
-            data-open={terminalPanelOpen ? "true" : "false"}
+            data-open={terminalPanelVisible ? "true" : "false"}
             data-placement={terminalPanelPlacement}
             role="separator"
             aria-label={t("Resize terminal")}
@@ -2980,7 +2999,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 ? terminalPanelWidth
                 : terminalPanelHeight
             }
-            tabIndex={terminalPanelOpen ? 0 : -1}
+            tabIndex={terminalPanelVisible ? 0 : -1}
             onPointerDown={startTerminalPanelResize}
             onDoubleClick={(event) => {
               if (terminalPanelPlacement === "right") {
@@ -3028,7 +3047,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           >
             <TerminalPanel
               key={space.id}
-              open={terminalPanelOpen}
+              open={terminalPanelVisible}
               placement={terminalPanelPlacement}
               placementShortcutLabel={terminalPlacementShortcutLabel}
               spaceName={space.name}

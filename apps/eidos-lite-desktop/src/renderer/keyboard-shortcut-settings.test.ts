@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  enabledShortcutGroups,
   keyboardShortcutRowMode,
   SHORTCUT_GROUPS,
 } from "./keyboard-shortcut-settings"
@@ -26,6 +27,18 @@ describe("Keyboard shortcut row actions", () => {
       "next-table",
       "open-cell-actions",
     ])
+  })
+
+  it("reveals terminal shortcuts only while its built-in plugin is enabled", () => {
+    const workspaceCommands = (terminal: boolean) =>
+      enabledShortcutGroups({ terminal }).find(
+        (group) => group.label === "Workspace"
+      )?.commands
+
+    expect(workspaceCommands(false)).not.toContain("toggle-terminal")
+    expect(workspaceCommands(false)).not.toContain("toggle-terminal-position")
+    expect(workspaceCommands(true)).toContain("toggle-terminal")
+    expect(workspaceCommands(true)).toContain("toggle-terminal-position")
   })
 
   it("offers removal only while the shortcut matches its default", () => {

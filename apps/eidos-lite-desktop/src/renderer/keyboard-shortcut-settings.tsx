@@ -2,6 +2,10 @@ import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { RotateCcw, X } from "lucide-react"
 
 import {
+  isEidosLiteShortcutEnabled,
+  type EidosLiteBuiltInPlugins,
+} from "../shared/built-in-plugins"
+import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   EIDOS_LITE_SHORTCUT_COMMANDS,
   eidosLiteShortcutLabel,
@@ -72,6 +76,7 @@ type ShortcutIssue =
     }
 
 interface KeyboardShortcutSettingsProps {
+  builtInPlugins: EidosLiteBuiltInPlugins
   shortcuts: EidosLiteKeyboardShortcuts
   macos: boolean
   onChange(shortcuts: EidosLiteKeyboardShortcuts): void
@@ -84,11 +89,23 @@ export function keyboardShortcutRowMode(
   return binding === defaultBinding ? "remove" : "reset"
 }
 
+export function enabledShortcutGroups(
+  builtInPlugins: EidosLiteBuiltInPlugins
+): typeof SHORTCUT_GROUPS {
+  return SHORTCUT_GROUPS.map((group) => ({
+    ...group,
+    commands: group.commands.filter((command) =>
+      isEidosLiteShortcutEnabled(command, builtInPlugins)
+    ),
+  })).filter((group) => group.commands.length > 0)
+}
+
 function isModifierKey(key: string): boolean {
   return ["Alt", "Control", "Meta", "Shift"].includes(key)
 }
 
 export function KeyboardShortcutSettings({
+  builtInPlugins,
   shortcuts,
   macos,
   onChange,
@@ -192,7 +209,7 @@ export function KeyboardShortcutSettings({
         </button>
       </div>
 
-      {SHORTCUT_GROUPS.map((group) => (
+      {enabledShortcutGroups(builtInPlugins).map((group) => (
         <section
           className="settings-shortcut-section"
           aria-labelledby={`settings-shortcuts-${group.label.toLowerCase()}`}

@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react"
 import { FitAddon } from "@xterm/addon-fit"
+import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 
@@ -93,10 +94,9 @@ function terminalTheme(
     foreground: color("--ink", "#d4d4d4"),
     cursor: color("--lite-accent", "#4ec9b0"),
     cursorAccent: background,
-    selectionBackground: color(
-      "--terminal-selection-background",
-      "rgba(78, 201, 176, 0.3)"
-    ),
+    // xterm applies 30% opacity to opaque selection colors. Keeping this
+    // opaque also avoids its parser falling back to white for modern CSS colors.
+    selectionBackground: color("--lite-accent", "#4ec9b0"),
   }
   for (const [name, [property, fallback]] of Object.entries(
     TERMINAL_THEME_COLORS
@@ -213,6 +213,9 @@ export function TerminalPanel({
     const fontFamily =
       window.getComputedStyle(mount).getPropertyValue("--font-code").trim() ||
       '"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace'
+    const openTerminalUrl = (uri: string) => {
+      void window.eidosLite.openExternalUrl(uri).catch(() => {})
+    }
     const terminal = new Terminal({
       cols: dimensionsRef.current.cols,
       rows: dimensionsRef.current.rows,
@@ -228,15 +231,33 @@ export function TerminalPanel({
       theme: terminalTheme(mount, theme),
       linkHandler: {
         activate: (_event, uri) => {
-          void window.eidosLite.openExternalUrl(uri).catch(() => {})
+          openTerminalUrl(uri)
         },
       },
     })
     const fitAddon = new FitAddon()
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      openTerminalUrl(uri)
+    })
     terminal.loadAddon(fitAddon)
+    terminal.loadAddon(webLinksAddon)
     terminal.open(mount)
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || event.altKey) return true
+      const copyRequested =
+        event.key.toLowerCase() === "c" && (event.metaKey || event.ctrlKey)
+      if (!copyRequested) return true
+      if (!terminal.hasSelection()) {
+        return event.ctrlKey && !event.metaKey && !event.shiftKey
+      }
+      const selection = terminal.getSelection()
+      if (!selection) return true
+      void window.eidosLite.writeClipboardText(selection).catch(() => {})
+      return false
+    })
 
     const dataSubscription = terminal.onData((data) => {
       const sessionId = sessionIdRef.current

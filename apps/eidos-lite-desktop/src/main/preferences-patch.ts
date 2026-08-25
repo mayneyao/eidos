@@ -1,4 +1,5 @@
 import type { EidosLitePreferences } from "../shared/contracts"
+import { isEidosLiteBuiltInPlugins } from "../shared/built-in-plugins"
 import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import { normalizeEidosLiteTimeZone } from "./app-preferences"
 
@@ -42,6 +43,12 @@ export function eidosLitePreferencesPatch(
       throw new Error("Invalid first day of week preference")
     }
     patch.weekStartsOnMonday = candidate.weekStartsOnMonday
+  }
+  if ("builtInPlugins" in candidate) {
+    if (!isEidosLiteBuiltInPlugins(candidate.builtInPlugins)) {
+      throw new Error("Invalid built-in plugin preferences")
+    }
+    patch.builtInPlugins = { ...candidate.builtInPlugins }
   }
   if ("keyboardShortcuts" in candidate) {
     if (!isEidosLiteKeyboardShortcuts(candidate.keyboardShortcuts)) {

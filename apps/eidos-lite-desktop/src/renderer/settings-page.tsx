@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import {
+  Blocks,
   Cloud,
   Copy,
   ExternalLink,
@@ -45,6 +46,7 @@ const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "spaces", label: "Spaces", icon: FolderOpen },
+  { id: "plugins", label: "Built-in Plugins", icon: Blocks },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
@@ -577,11 +579,47 @@ export function SettingsPage() {
             </section>
 
             <section
+              aria-labelledby="settings-plugins"
+              hidden={activePage !== "plugins"}
+            >
+              <h2 id="settings-plugins">{t("Built-in Plugins")}</h2>
+              <div className="settings-group">
+                <div className="settings-row" data-built-in-plugin="terminal">
+                  <div className="settings-row-copy">
+                    <strong>{t("Terminal")}</strong>
+                    <small>
+                      {t(
+                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+                      )}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    className="settings-switch"
+                    aria-label={t("Terminal")}
+                    aria-checked={preferences.builtInPlugins.terminal}
+                    onClick={() =>
+                      void updatePreferences({
+                        builtInPlugins: {
+                          terminal: !preferences.builtInPlugins.terminal,
+                        },
+                      })
+                    }
+                  >
+                    <span />
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section
               aria-labelledby="settings-shortcuts"
               hidden={activePage !== "shortcuts"}
             >
               <h2 id="settings-shortcuts">{t("Keyboard Shortcuts")}</h2>
               <KeyboardShortcutSettings
+                builtInPlugins={preferences.builtInPlugins}
                 shortcuts={preferences.keyboardShortcuts}
                 macos={navigator.userAgent.includes("Macintosh")}
                 onChange={(keyboardShortcuts) =>

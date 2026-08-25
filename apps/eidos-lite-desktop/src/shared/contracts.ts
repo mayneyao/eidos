@@ -11,6 +11,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
+import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
@@ -44,6 +45,7 @@ export const IPC_CHANNELS = {
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
   clipboardReadText: "eidos-lite:clipboard-read-text",
+  clipboardWriteText: "eidos-lite:clipboard-write-text",
   openExternalUrl: "eidos-lite:url-open-external",
   openSpace: "eidos-lite:space-open",
   newSpace: "eidos-lite:space-new",
@@ -681,6 +683,7 @@ export interface EidosLitePreferences {
   language: EidosLiteLanguage
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean
+  builtInPlugins: EidosLiteBuiltInPlugins
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   automaticUpdates: boolean
   automaticCheckpoints: boolean
@@ -1548,6 +1551,7 @@ export interface EidosLiteApi {
   getDiagnostics(): Promise<EidosLiteDiagnostics>
   copyDiagnostics(): Promise<EidosLiteDiagnostics>
   readClipboardText(): Promise<string>
+  writeClipboardText(text: string): Promise<void>
   openExternalUrl(uri: string): Promise<void>
   openSpace(): Promise<SpaceSnapshot | null>
   newSpace(): Promise<SpaceSnapshot | null>

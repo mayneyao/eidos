@@ -6,12 +6,26 @@ import { expect, it } from "vitest"
 
 const rendererRoot = path.dirname(fileURLToPath(import.meta.url))
 
-it("integrates one persistent, resizable xterm panel into the workbench grid", async () => {
-  const [appSource, panelSource, styles, appHtml] = await Promise.all([
+it("integrates one opt-in, persistent, resizable xterm panel into the workbench grid", async () => {
+  const [
+    appSource,
+    panelSource,
+    styles,
+    appHtml,
+    ipcSource,
+    controllerSource,
+    settingsSource,
+  ] = await Promise.all([
     fs.readFile(path.join(rendererRoot, "app.tsx"), "utf8"),
     fs.readFile(path.join(rendererRoot, "terminal-panel.tsx"), "utf8"),
     fs.readFile(path.join(rendererRoot, "styles.css"), "utf8"),
     fs.readFile(path.join(rendererRoot, "../../index.html"), "utf8"),
+    fs.readFile(path.join(rendererRoot, "../main/ipc.ts"), "utf8"),
+    fs.readFile(
+      path.join(rendererRoot, "../main/window-controller.ts"),
+      "utf8"
+    ),
+    fs.readFile(path.join(rendererRoot, "settings-page.tsx"), "utf8"),
   ])
 
   expect(appSource).toContain('"toggle-terminal"')
@@ -35,6 +49,9 @@ it("integrates one persistent, resizable xterm panel into the workbench grid", a
   )
 
   expect(panelSource).toContain('import { FitAddon } from "@xterm/addon-fit"')
+  expect(panelSource).toContain(
+    'import { WebLinksAddon } from "@xterm/addon-web-links"'
+  )
   expect(panelSource).toContain(
     'import { Terminal, type ITheme } from "@xterm/xterm"'
   )
@@ -66,7 +83,24 @@ it("integrates one persistent, resizable xterm panel into the workbench grid", a
     /\.terminal-panel-actions\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/
   )
   expect(appSource).toMatch(
-    /<\/main>\s*\{terminalPanelInitialized \? \([\s\S]*?<TerminalPanel/
+    /<\/main>\s*\{terminalPluginEnabled && terminalPanelInitialized \? \([\s\S]*?<TerminalPanel/
+  )
+  expect(appSource).toContain(
+    "const terminalPanelVisible = terminalPluginEnabled && terminalPanelOpen"
+  )
+  expect(appSource).toMatch(
+    /\{terminalPluginEnabled \? \([\s\S]*?data-titlebar-action="terminal"/
+  )
+  expect(settingsSource).toContain('data-built-in-plugin="terminal"')
+  const terminalStartHandler = ipcSource.slice(
+    ipcSource.indexOf("IPC_CHANNELS.terminalStart")
+  )
+  expect(terminalStartHandler).toMatch(
+    /if \(!preferences\.builtInPlugins\.terminal\)[\s\S]*?const manager = await terminalSessions\(\)/
+  )
+  expect(controllerSource).toContain("isEidosLiteShortcutEnabled")
+  expect(controllerSource).toContain(
+    "isEidosLiteShortcutEnabled(command, this.builtInPlugins)"
   )
   expect(styles).toMatch(
     /\.terminal-emulator \.xterm\s*\{[\s\S]*?font-family:\s*var\(--font-code\);/
@@ -80,6 +114,8 @@ it("integrates one persistent, resizable xterm panel into the workbench grid", a
   expect(panelSource).toContain('mount.className = "terminal-emulator"')
   expect(panelSource).toContain("terminalRef.current !== terminal")
   expect(panelSource).toContain("terminal.loadAddon(fitAddon)")
+  expect(panelSource).toContain("terminal.loadAddon(webLinksAddon)")
+  expect(panelSource).toContain("terminal.attachCustomKeyEventHandler")
   expect(appHtml).toContain("script-src 'self';")
   expect(appHtml).not.toContain("wasm-unsafe-eval")
   expect(appHtml).not.toMatch(/script-src[^;]*\s'unsafe-eval'/u)

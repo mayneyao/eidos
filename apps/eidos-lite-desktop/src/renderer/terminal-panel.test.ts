@@ -7,12 +7,15 @@ interface MockTerminalInstance {
   element: HTMLElement | null
   options: Record<string, unknown>
   emitData(data: string): void
+  emitKey(event: KeyboardEvent): boolean
   emitResize(cols: number, rows: number): void
+  setSelection(selection: string): void
 }
 
 const xtermState = vi.hoisted(() => ({
   instances: [] as MockTerminalInstance[],
   fitCalls: 0,
+  webLinkHandlers: [] as Array<(event: MouseEvent, uri: string) => void>,
 }))
 
 vi.mock("@xterm/xterm", () => ({
@@ -20,9 +23,11 @@ vi.mock("@xterm/xterm", () => ({
     element: HTMLElement | null = null
     options: Record<string, unknown>
     private dataListener: ((data: string) => void) | null = null
+    private keyHandler: ((event: KeyboardEvent) => boolean) | null = null
     private resizeListener:
       | ((size: { cols: number; rows: number }) => void)
       | null = null
+    private selection = ""
 
     constructor(options: Record<string, unknown>) {
       this.options = options
@@ -30,6 +35,18 @@ vi.mock("@xterm/xterm", () => ({
     }
 
     loadAddon() {}
+
+    attachCustomKeyEventHandler(listener: (event: KeyboardEvent) => boolean) {
+      this.keyHandler = listener
+    }
+
+    hasSelection() {
+      return this.selection.length > 0
+    }
+
+    getSelection() {
+      return this.selection
+    }
 
     open(element: HTMLElement) {
       this.element = element
@@ -52,8 +69,16 @@ vi.mock("@xterm/xterm", () => ({
       this.dataListener?.(data)
     }
 
+    emitKey(event: KeyboardEvent) {
+      return this.keyHandler?.(event) ?? true
+    }
+
     emitResize(cols: number, rows: number) {
       this.resizeListener?.({ cols, rows })
+    }
+
+    setSelection(selection: string) {
+      this.selection = selection
     }
 
     focus() {}
@@ -70,6 +95,14 @@ vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class MockFitAddon {
     fit() {
       xtermState.fitCalls += 1
+    }
+  },
+}))
+
+vi.mock("@xterm/addon-web-links", () => ({
+  WebLinksAddon: class MockWebLinksAddon {
+    constructor(handler: (event: MouseEvent, uri: string) => void) {
+      xtermState.webLinkHandlers.push(handler)
     }
   },
 }))
@@ -107,6 +140,25 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
       const colorScheme =
         styledElement.style.getPropertyValue("color-scheme") ||
         document.documentElement.dataset.theme
+      if (styledElement.style.color.includes("--canvas")) {
+        return {
+          color:
+            colorScheme === "light" ? "rgb(255, 255, 255)" : "rgb(12, 18, 21)",
+        } as CSSStyleDeclaration
+      }
+      if (styledElement.style.color.includes("--lite-accent")) {
+        return {
+          color:
+            colorScheme === "light" ? "rgb(0, 120, 150)" : "rgb(80, 200, 220)",
+        } as CSSStyleDeclaration
+      }
+      if (
+        styledElement.style.color.includes("--terminal-selection-background")
+      ) {
+        return {
+          color: "rgba(255, 255, 255, 0.3)",
+        } as CSSStyleDeclaration
+      }
       return {
         color:
           colorScheme === "light" ? "rgb(255, 255, 255)" : "rgb(12, 18, 21)",
@@ -119,15 +171,18 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
     .fn()
     .mockResolvedValue({ id: "terminal-session", shell: "zsh" })
   const closeTerminal = vi.fn().mockResolvedValue(undefined)
+  const openExternalUrl = vi.fn().mockResolvedValue(undefined)
   const writeTerminal = vi.fn()
+  const writeClipboardText = vi.fn().mockResolvedValue(undefined)
   const resizeTerminal = vi.fn()
   Object.assign(window, {
     eidosLite: {
       startTerminal,
       closeTerminal,
       writeTerminal,
+      writeClipboardText,
       resizeTerminal,
-      openExternalUrl: vi.fn().mockResolvedValue(undefined),
+      openExternalUrl,
       onTerminalData: vi.fn(() => () => {}),
       onTerminalExit: vi.fn(() => () => {}),
     },
@@ -170,6 +225,29 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
   terminal?.emitResize(120, 36)
   expect(resizeTerminal).toHaveBeenCalledWith("terminal-session", 120, 36)
 
+  terminal?.setSelection("selected 中文 output")
+  expect(
+    terminal?.emitKey(new KeyboardEvent("keydown", { key: "c", metaKey: true }))
+  ).toBe(false)
+  expect(writeClipboardText).toHaveBeenCalledWith("selected 中文 output")
+  terminal?.setSelection("")
+  expect(
+    terminal?.emitKey(new KeyboardEvent("keydown", { key: "c", ctrlKey: true }))
+  ).toBe(true)
+  expect(
+    terminal?.emitKey(new KeyboardEvent("keydown", { key: "c", metaKey: true }))
+  ).toBe(false)
+
+  const plainUrl = "https://eidos.space/docs"
+  xtermState.webLinkHandlers.at(-1)?.(new MouseEvent("click"), plainUrl)
+  expect(openExternalUrl).toHaveBeenCalledWith(plainUrl)
+  const oscLinkHandler = terminal?.options.linkHandler as
+    | { activate(event: MouseEvent, uri: string): void }
+    | undefined
+  const oscUrl = "https://editor.eidos.space/"
+  oscLinkHandler?.activate(new MouseEvent("click"), oscUrl)
+  expect(openExternalUrl).toHaveBeenCalledWith(oscUrl)
+
   await act(async () => {
     root.render(
       createElement(
@@ -191,6 +269,10 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
   expect((terminal?.options.theme as { background?: string }).background).toBe(
     "rgb(255, 255, 255)"
   )
+  expect(
+    (terminal?.options.theme as { selectionBackground?: string })
+      .selectionBackground
+  ).toBe("rgb(0, 120, 150)")
 
   await act(async () => root.unmount())
   expect(closeTerminal).toHaveBeenCalledWith("terminal-session")

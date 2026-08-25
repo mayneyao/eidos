@@ -23,7 +23,7 @@ describe("Eidos Lite preferences", () => {
     ).toEqual(DEFAULT_EIDOS_LITE_PREFERENCES)
   })
 
-  it("persists appearance, calendar, language, time zone, shortcuts, and Space defaults", async () => {
+  it("persists appearance, calendar, language, time zone, built-in plugins, shortcuts, and Space defaults", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-preferences-")
     )
@@ -37,6 +37,7 @@ describe("Eidos Lite preferences", () => {
         language: "zh",
         timeZone: "America/New_York",
         weekStartsOnMonday: false,
+        builtInPlugins: { terminal: true },
         keyboardShortcuts: {
           ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
           "toggle-sidebar": "Mod+Shift+B",
@@ -50,6 +51,7 @@ describe("Eidos Lite preferences", () => {
       language: "zh",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
+      builtInPlugins: { terminal: true },
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         "toggle-sidebar": "Mod+Shift+B",
@@ -66,6 +68,7 @@ describe("Eidos Lite preferences", () => {
       language: "zh",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
+      builtInPlugins: { terminal: true },
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         "toggle-sidebar": "Mod+Shift+B",

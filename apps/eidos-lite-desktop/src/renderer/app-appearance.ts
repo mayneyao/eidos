@@ -2,6 +2,7 @@ import type {
   EidosLiteAppearance,
   EidosLitePreferences,
 } from "../shared/contracts"
+import { DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS } from "../shared/built-in-plugins"
 import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 export type ResolvedAppearance = "light" | "dark"
@@ -36,6 +37,7 @@ export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   language: "system",
   timeZone: "system",
   weekStartsOnMonday: true,
+  builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
   automaticCheckpoints: false,

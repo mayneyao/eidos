@@ -649,6 +649,18 @@ export function registerIpc(
     )
     return terminalSessionsPromise
   }
+  const unsubscribeTerminalPlugin = controller.onPreferencesChanged(
+    (preferences) => {
+      if (preferences.builtInPlugins.terminal || !terminalSessionsPromise) {
+        return
+      }
+      void terminalSessionsPromise
+        .then((manager) => manager.close())
+        .catch((error) =>
+          console.warn("Could not close terminal plugin", error)
+        )
+    }
+  )
   const releaseAssetLeases = (ownerId: number, sessionId?: string) => {
     for (const [leaseId, record] of assetLeases) {
       if (
@@ -838,6 +850,9 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.updateDownload, () => updater.download())
   ipcMain.handle(IPC_CHANNELS.updateInstall, () => updater.restartToInstall())
   ipcMain.handle(IPC_CHANNELS.clipboardReadText, () => clipboard.readText())
+  ipcMain.handle(IPC_CHANNELS.clipboardWriteText, (_event, value: unknown) => {
+    clipboard.writeText(requiredString(value, "clipboard text"))
+  })
   ipcMain.handle(
     IPC_CHANNELS.terminalStart,
     async (event, cols: unknown, rows: unknown) => {
@@ -845,6 +860,10 @@ export function registerIpc(
         throw new Error("Invalid terminal dimensions")
       }
       const session = controller.requireSession(event.sender)
+      const preferences = await controller.getPreferences()
+      if (!preferences.builtInPlugins.terminal) {
+        throw new Error("Terminal plugin is disabled")
+      }
       const manager = await terminalSessions()
       const terminal = manager.start({
         ownerId: event.sender.id,
@@ -898,7 +917,8 @@ export function registerIpc(
     }
   )
   ipcMain.handle(IPC_CHANNELS.terminalClose, async (event, sessionId) => {
-    const manager = await terminalSessions()
+    if (!terminalSessionsPromise) return
+    const manager = await terminalSessionsPromise
     manager.closeSession(event.sender.id, sessionId)
   })
   ipcMain.handle(
@@ -2241,6 +2261,7 @@ export function registerIpc(
   )
   return {
     async close() {
+      unsubscribeTerminalPlugin()
       htmlPreviewViews.closeAll()
       assetLeases.clear()
       publishEngine.close()

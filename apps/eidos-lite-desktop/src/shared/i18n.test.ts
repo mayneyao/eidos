@@ -17,5 +17,12 @@ describe("Eidos Lite internationalization", () => {
     ).toBe("可以更新到 0.2.0。")
     expect(translateEidosLite("en", "Settings")).toBe("Settings")
     expect(translateEidosLite("zh", "Recent files")).toBe("最近打开")
+    expect(translateEidosLite("zh", "Built-in Plugins")).toBe("内置插件")
+    expect(
+      translateEidosLite(
+        "zh",
+        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+      )
+    ).toContain("内置插件")
   })
 })

@@ -23,6 +23,7 @@ import {
   type SpaceSnapshot,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
 import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -34,7 +35,10 @@ import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
 } from "./diagnostics"
-import { EidosLitePreferencesStore } from "./app-preferences"
+import {
+  DEFAULT_EIDOS_LITE_PREFERENCES,
+  EidosLitePreferencesStore,
+} from "./app-preferences"
 import { GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
@@ -96,6 +100,9 @@ export class WindowController {
     app.getPath("userData")
   )
   private keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS
+  private builtInPlugins = {
+    ...DEFAULT_EIDOS_LITE_PREFERENCES.builtInPlugins,
+  }
   private closing = false
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {}
@@ -432,6 +439,7 @@ export class WindowController {
   async getPreferences(): Promise<EidosLitePreferences> {
     const preferences = await this.preferences().get()
     this.keyboardShortcuts = preferences.keyboardShortcuts
+    this.builtInPlugins = preferences.builtInPlugins
     return preferences
   }
 
@@ -440,6 +448,7 @@ export class WindowController {
   ): Promise<EidosLitePreferences> {
     const preferences = await this.preferences().update(patch)
     this.keyboardShortcuts = preferences.keyboardShortcuts
+    this.builtInPlugins = preferences.builtInPlugins
     for (const session of new Set(this.sessionByWebContents.values())) {
       session.setAutomaticCheckpointsEnabled(preferences.automaticCheckpoints)
     }
@@ -479,6 +488,7 @@ export class WindowController {
     // Editor-scoped shortcuts must reach the renderer DOM. Only global
     // workspace commands are intercepted before Electron dispatches them.
     if (!command || !isEidosLiteWorkspaceShortcutCommand(command)) return
+    if (!isEidosLiteShortcutEnabled(command, this.builtInPlugins)) return
     event.preventDefault()
     if (!owner.isDestroyed()) {
       owner.send(IPC_CHANNELS.workspaceShortcutCommand, command)

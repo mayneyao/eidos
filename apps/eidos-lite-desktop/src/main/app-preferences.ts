@@ -7,6 +7,10 @@ import type {
   EidosLiteTimeZone,
 } from "../shared/contracts"
 import {
+  DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS,
+  normalizeEidosLiteBuiltInPlugins,
+} from "../shared/built-in-plugins"
+import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   normalizeEidosLiteKeyboardShortcuts,
 } from "../shared/keyboard-shortcuts"
@@ -16,6 +20,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   language: "system",
   timeZone: "system",
   weekStartsOnMonday: true,
+  builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
   automaticCheckpoints: false,
@@ -63,6 +68,7 @@ export function normalizeEidosLitePreferences(
       typeof candidate.weekStartsOnMonday === "boolean"
         ? candidate.weekStartsOnMonday
         : DEFAULT_EIDOS_LITE_PREFERENCES.weekStartsOnMonday,
+    builtInPlugins: normalizeEidosLiteBuiltInPlugins(candidate.builtInPlugins),
     keyboardShortcuts: normalizeEidosLiteKeyboardShortcuts(
       candidate.keyboardShortcuts
     ),

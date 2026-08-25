@@ -53,6 +53,8 @@ const api: EidosLiteApi = {
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
   copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
   readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
+  writeClipboardText: (text) =>
+    ipcRenderer.invoke(IPC_CHANNELS.clipboardWriteText, text),
   openExternalUrl: (uri) =>
     ipcRenderer.invoke(IPC_CHANNELS.openExternalUrl, uri),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),

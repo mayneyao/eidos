@@ -91,6 +91,7 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.dependencies).toMatchObject({
       "@eidos.space/graft": expect.any(String),
       "@xterm/addon-fit": expect.any(String),
+      "@xterm/addon-web-links": expect.any(String),
       "@xterm/xterm": expect.any(String),
       "node-pty": expect.any(String),
     })

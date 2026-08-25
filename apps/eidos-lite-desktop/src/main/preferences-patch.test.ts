@@ -8,6 +8,7 @@ describe("Eidos Lite preference IPC patch", () => {
       language: "zh" as const,
       timeZone: "Europe/London",
       weekStartsOnMonday: false,
+      builtInPlugins: { terminal: true },
       keyboardShortcuts: DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
       automaticUpdates: false,
       automaticCheckpoints: true,
@@ -24,5 +25,19 @@ describe("Eidos Lite preference IPC patch", () => {
     expect(() =>
       eidosLitePreferencesPatch({ timeZone: "Mars/Olympus_Mons" })
     ).toThrow("Invalid time zone preference")
+  })
+
+  it("accepts only the complete built-in plugin preference shape", () => {
+    expect(
+      eidosLitePreferencesPatch({ builtInPlugins: { terminal: false } })
+    ).toEqual({ builtInPlugins: { terminal: false } })
+    expect(() =>
+      eidosLitePreferencesPatch({ builtInPlugins: { terminal: "yes" } })
+    ).toThrow("Invalid built-in plugin preferences")
+    expect(() =>
+      eidosLitePreferencesPatch({
+        builtInPlugins: { terminal: true, unknown: true },
+      })
+    ).toThrow("Invalid built-in plugin preferences")
   })
 })
