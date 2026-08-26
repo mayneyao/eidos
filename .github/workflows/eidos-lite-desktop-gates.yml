@@ -41,11 +41,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
+        run: pnpm --filter "@eidos.space/eidos-lite-desktop" typecheck
 
       - name: Verify clone validation is read-only
         run: >-
-          pnpm --filter @eidos.space/eidos-lite-desktop exec node
+          pnpm --filter "@eidos.space/eidos-lite-desktop" exec node
           ../../scripts/run-electron-node.mjs
           ../../node_modules/vitest/vitest.mjs run
           --config vitest.config.ts
