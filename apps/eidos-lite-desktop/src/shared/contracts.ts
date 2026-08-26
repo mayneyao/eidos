@@ -1475,6 +1475,7 @@ export type RuntimeWorkerRequest =
       type: "open"
       requestId: number
       filePath: string
+      readOnly?: boolean
     }
   | {
       type: "call"

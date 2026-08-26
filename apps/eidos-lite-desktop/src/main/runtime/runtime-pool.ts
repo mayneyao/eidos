@@ -328,7 +328,7 @@ export class RuntimePool {
         crashed: false,
         lastAccess: 0,
       }
-      await this.spawnAndOpen(probe)
+      await this.spawnAndOpen(probe, undefined, true)
       await this.closeEntry(probe)
     }
   }
@@ -618,7 +618,8 @@ export class RuntimePool {
 
   private async spawnAndOpen(
     entry: RuntimeEntry,
-    createTitle?: string
+    createTitle?: string,
+    readOnly = false
   ): Promise<RuntimeCalls["getSnapshot"]["result"]> {
     if (entry.child) throw new Error("Eidos File runtime is already open")
     const child = utilityProcess.fork(this.workerPath, [], {
@@ -657,6 +658,7 @@ export class RuntimePool {
               type: "open",
               requestId: entry.nextRequestId++,
               filePath: entry.filePath,
+              readOnly,
             }
           : {
               type: "create",

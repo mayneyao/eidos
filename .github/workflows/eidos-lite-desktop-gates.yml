@@ -21,6 +21,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows-clone-validation:
+    name: Windows clone validation
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
+
+      - name: Verify clone validation is read-only
+        run: >-
+          pnpm --filter @eidos.space/eidos-lite-desktop exec node
+          ../../scripts/run-electron-node.mjs
+          ../../node_modules/vitest/vitest.mjs run
+          --config vitest.config.ts
+          src/main/runtime/runtime-pool.test.ts
+          src/runtime/eidos-file-runtime.test.ts
+
   source-and-real-graft:
     name: Source and real Graft SDK
     runs-on: ubuntu-latest

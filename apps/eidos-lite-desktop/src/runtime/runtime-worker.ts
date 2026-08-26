@@ -280,7 +280,9 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       }
       if (openedRuntime)
         throw new Error("Runtime already has an open Eidos File")
-      openedRuntime = await openEidosLiteFileRuntime(request.filePath)
+      openedRuntime = await openEidosLiteFileRuntime(request.filePath, {
+        readOnly: request.readOnly,
+      })
       source = openedRuntime.source
       return openedRuntime.initialSnapshot
     }

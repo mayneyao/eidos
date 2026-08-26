@@ -859,26 +859,30 @@ export async function createEidosLiteFileRuntime(
 }
 
 export async function openEidosLiteFileRuntime(
-  filePath: string
+  filePath: string,
+  options: { readOnly?: boolean } = {}
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
   if (!hasSqliteHeader(filePath)) {
     throw new Error(`Not a SQLite file: ${filePath}`)
   }
+  const readOnly = options.readOnly ?? false
   const connection = new NodeSqliteConnectionPort(
     new DatabaseSync(filePath, {
       allowExtension: false,
       defensive: true,
       enableDoubleQuotedStringLiterals: false,
       enableForeignKeyConstraints: true,
+      readOnly,
       timeout: 5_000,
-    })
+    }),
+    { readOnly }
   )
   try {
     const binding = await Runtime.open(
       connection,
       environment(),
-      "readwrite",
+      readOnly ? "read" : "readwrite",
       factoryContext
     )
     return await bindRuntime(

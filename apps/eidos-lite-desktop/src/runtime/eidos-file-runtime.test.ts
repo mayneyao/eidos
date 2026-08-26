@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
@@ -15,6 +15,55 @@ import {
 } from "./eidos-file-runtime"
 
 describe("Eidos Lite Runtime 1.0 editor adapter", () => {
+  it("validates a legacy Eidos File without materializing disposable indexes", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-validation-"))
+    const filePath = path.join(root, "legacy-calendar.eidos")
+    let opened = await createEidosLiteFileRuntime(filePath, "Legacy calendar")
+    let dueFieldId = ""
+    try {
+      let snapshot = opened.initialSnapshot
+      const tableId = snapshot.tables[0]!.table.id
+      snapshot = await opened.source.addField(tableId, {
+        name: "Due",
+        type: "date",
+      })
+      const due = snapshot.tables[0]!.fields.find(
+        (field) => field.name === "Due"
+      )!
+      dueFieldId = due.id!
+      await opened.source.createView(tableId, {
+        name: "Calendar",
+        type: "calendar",
+        properties: { dateField: due.id },
+      })
+    } finally {
+      await opened.close()
+    }
+
+    const indexName = `idx_eidos_calendar_${dueFieldId.replace(/-/g, "")}`
+    const database = new DatabaseSync(filePath)
+    try {
+      database.exec(`DROP INDEX "${indexName}"`)
+    } finally {
+      database.close()
+    }
+    const before = await readFile(filePath)
+
+    opened = await openEidosLiteFileRuntime(filePath, { readOnly: true })
+    try {
+      expect(opened.initialSnapshot.tables[0]!.views).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Calendar", type: "calendar" }),
+        ])
+      )
+    } finally {
+      await opened.close()
+    }
+
+    expect(await readFile(filePath)).toEqual(before)
+    await rm(root, { recursive: true, force: true })
+  })
+
   it("undoes and redoes record deletion through the local editor Runtime", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-row-undo-"))
     const filePath = path.join(root, "row-undo.eidos")
