@@ -57,11 +57,14 @@ jobs:
 
       - name: Audit single-release notes
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
-            --surface cli \
-            --tag "$TAG"
+          audit_args=(--surface cli --tag "$TAG")
+          if [[ "$TAG" == "cli-v0.37.1" ]]; then
+            audit_args+=(--unpublished-tag cli-v0.37.0)
+          fi
+          node .codex/skills/eidos-release/scripts/audit-release-notes.mjs "${audit_args[@]}"
 
       - name: Check formatting
         working-directory: apps/cli

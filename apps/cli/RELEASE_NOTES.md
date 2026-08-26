@@ -28,7 +28,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.37.0/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.37.1/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -45,5 +45,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.37.0 and verify the downloaded archive against the
+The installers select v0.37.1 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
