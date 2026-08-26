@@ -266,6 +266,13 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("pnpm build:eidos-lite:release")
     expect(workflow).toContain("Build signed and notarized macOS release")
     expect(workflow).toContain('--config.mac.notarize.teamId="$APPLE_TEAM_ID"')
+    const macReleaseStep = workflow.match(
+      /- name: Build signed and notarized macOS release[\s\S]*?(?=\n\s+- name:)/
+    )?.[0]
+    expect(macReleaseStep).toContain("prepare:publish-engine")
+    expect(macReleaseStep?.indexOf("prepare:publish-engine")).toBeLessThan(
+      macReleaseStep?.indexOf("electron-builder") ?? -1
+    )
     expect(workflow).toContain("Build unsigned Windows release")
     expect(workflow).toContain("Build unsigned Linux release")
     expect(workflow).toContain("pnpm build:eidos-lite:release:linux")
@@ -289,6 +296,8 @@ describe("Eidos Lite package identity", () => {
     expect(packagedSmoke).toContain(
       "const resolvedExecutable = await fs.realpath(executable)"
     )
+    expect(packagedSmoke).toContain('"publish-engine"')
+    expect(packagedSmoke).toContain('["publish", "collect"]')
     expect(workflow).toContain("EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe")
     expect(workflow).toMatch(
       /name: Enforce packaged macOS release performance\n\s+if: matrix\.platform == 'mac'/

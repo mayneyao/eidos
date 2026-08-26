@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -162,7 +162,8 @@ try {
     fs.writeFile(path.join(space, "Empty.md"), ""),
   ])
   const executable = await executablePath()
-  const packagedCli = path.join(await resourcesPath(executable), "graft")
+  const packagedResources = await resourcesPath(executable)
+  const packagedCli = path.join(packagedResources, "graft")
   if (
     await fs.stat(packagedCli).then(
       () => true,
@@ -170,6 +171,28 @@ try {
     )
   ) {
     throw new Error(`Packaged Eidos Lite still contains ${packagedCli}`)
+  }
+  const publishEngine = path.join(
+    packagedResources,
+    "publish-engine",
+    process.platform === "win32" ? "eidos.exe" : "eidos"
+  )
+  const publishEngineHelp = spawnSync(publishEngine, ["--help"], {
+    encoding: "utf8",
+    timeout: 15_000,
+  })
+  if (publishEngineHelp.error) throw publishEngineHelp.error
+  if (publishEngineHelp.status !== 0) {
+    throw new Error(
+      `Packaged Eidos Publish engine exited with ${publishEngineHelp.status}`
+    )
+  }
+  for (const command of ["publish", "collect"]) {
+    if (!new RegExp(`^  ${command}\\s`, "m").test(publishEngineHelp.stdout)) {
+      throw new Error(
+        `Packaged Eidos Publish engine does not expose ${command}`
+      )
+    }
   }
   await run(executable, space, result)
   const reportText = await fs.readFile(result, "utf8").catch((error) => {
