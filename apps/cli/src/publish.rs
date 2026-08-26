@@ -2100,11 +2100,11 @@ fn file_sha256(
 }
 
 fn progress_percent(current: u64, total: u64) -> u64 {
-    if total == 0 {
-        100
-    } else {
-        current.min(total).saturating_mul(100) / total
-    }
+    current
+        .min(total)
+        .saturating_mul(100)
+        .checked_div(total)
+        .unwrap_or(100)
 }
 
 fn progress_bytes_line(label: &str, current: u64, total: u64) -> String {
