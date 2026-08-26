@@ -8,8 +8,8 @@ Canonical language: English
 
 ## Abstract
 
-Eidos File is an open, local-first persistence format for multidimensional
-tables. An Eidos File is one SQLite database with the `.eidos` extension.
+Eidos File is an open, local-first persistence format for relational
+spreadsheets. An Eidos File is one SQLite database with the `.eidos` extension.
 Stored source fields are ordinary SQLite columns whose names and raw values
 are intentionally close to what users see. Stable IDs preserve references
 across rename and reorder without turning user data into opaque physical
@@ -1564,7 +1564,7 @@ Security considerations: Section 19 and +sqlite3 considerations apply.
 Interoperability considerations: SQLite 3 database with application ID
   0x45494453 and Eidos File Format 1.0 schema.
 Published specification: this document
-Applications: local-first multidimensional table editors and data tools
+Applications: local-first relational spreadsheet editors and data tools
 Fragment identifier considerations: N/A
 Magic numbers: "SQLite format 3\\0" at offset 0; 0x45494453 at offset 68
 File extension: .eidos

@@ -11,8 +11,8 @@
 
 ## 摘要
 
-Eidos File 是开放、本地优先的持久格式：一个 `.eidos` 文件就是一个 SQLite 3
-主数据库。用户编辑的 stored Field 是真实 SQLite column；正常情况下 physical
+Eidos File 是面向多维表格的开放、本地优先持久格式：一个 `.eidos` 文件就是一个
+SQLite 3 主数据库。用户编辑的 stored Field 是真实 SQLite column；正常情况下 physical
 table/column name 就是用户名称。稳定 ID 用来跨 rename/reorder 保存身份与引用，
 而不是把表列名变成不透明编码。
 
@@ -1329,7 +1329,7 @@ Security considerations: Section 19 and +sqlite3 considerations apply.
 Interoperability considerations: SQLite 3 database with application ID
   0x45494453 and Eidos File Format 1.0 schema.
 Published specification: this document
-Applications: local-first multidimensional table editors and data tools
+Applications: local-first relational spreadsheet editors and data tools
 Fragment identifier considerations: N/A
 Magic numbers: "SQLite format 3\\0" at offset 0; 0x45494453 at offset 68
 File extension: .eidos

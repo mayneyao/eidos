@@ -53,7 +53,7 @@ const en = {
   recoveryPrivate: "Recovered from this browser’s private storage.",
   recoverEdits: "Recover edits",
   discardCopy: "Discard copy",
-  formatEyebrow: "Open multidimensional table format",
+  formatEyebrow: "Open relational spreadsheet format",
   formatTitleOne: "One file.",
   formatTitleTwo: "Many useful views.",
   formatIntro:
@@ -90,7 +90,7 @@ const en = {
   stackGraftBody:
     "Graft gives SQLite commit history, logical diffs, branches, checkout, reset, and repository synchronization.",
   openGraft: "Open version control",
-  stackEidosFile: "Open format + multidimensional UI",
+  stackEidosFile: "Open format + relational spreadsheet UI",
   stackEidosFileBody:
     "Eidos File defines the portable file, shared runtime, typed fields, relations, saved views, and table experiences.",
   stackEidos: "Local-first application",
