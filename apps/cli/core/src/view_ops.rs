@@ -258,9 +258,10 @@ fn validate_request(request: &ViewMutationRequest) -> Result<()> {
     Ok(())
 }
 
-pub fn mutate_views(
+fn run_views(
     conn: &mut Connection,
     request: &ViewMutationRequest,
+    commit: bool,
 ) -> Result<ViewMutationResult> {
     if request.changes.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -388,7 +389,7 @@ pub fn mutate_views(
     } else {
         before.revision
     };
-    if changed {
+    if commit && changed {
         tx.commit()?;
     } else {
         tx.rollback()?;
@@ -400,6 +401,23 @@ pub fn mutate_views(
         created_views,
         affected_view_ids: affected_view_ids.into_iter().collect(),
     })
+}
+
+pub fn mutate_views(
+    conn: &mut Connection,
+    request: &ViewMutationRequest,
+) -> Result<ViewMutationResult> {
+    run_views(conn, request, true)
+}
+
+/// Execute the exact View mutation inside an IMMEDIATE transaction and roll
+/// it back. Created View IDs in the result are planning IDs and must not be
+/// reused for a later command.
+pub fn preview_views(
+    conn: &mut Connection,
+    request: &ViewMutationRequest,
+) -> Result<ViewMutationResult> {
+    run_views(conn, request, false)
 }
 
 #[cfg(test)]

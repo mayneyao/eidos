@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Read};
 use std::net::{Ipv4Addr, TcpListener};
@@ -5,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use eidos_file_core::ddl::{configure_connection, create_eidos_file};
 use eidos_file_core::model::{
-    FieldMeta, FileMeta, TableMeta, load_fields, load_file_meta, load_formula_fields,
+    FieldMeta, FileMeta, TableMeta, ViewMeta, load_fields, load_file_meta, load_formula_fields,
     load_lookup_fields, load_relation_fields, load_tables, load_views,
 };
 use eidos_file_core::query::{
@@ -18,19 +19,29 @@ use eidos_file_core::schema_ops::{
     SchemaLeafChange, apply_initial_table, apply_schema_change, preview_schema_change,
 };
 use eidos_file_core::validate::{ValidationLevel, validate};
-use eidos_file_core::view_ops::{ViewMutationRequest, mutate_views};
+use eidos_file_core::view_ops::{
+    SavedViewQuery, ViewChange, ViewMutationRequest, ViewPatch, mutate_views, preview_views,
+};
 use eidos_file_core::{EidosError, Result as CoreResult};
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::cli::{
-    AccountArgs, ApplyArgs, CollectArgs, Command, ContextArgs, CreateArgs, FileArgs, PublishArgs,
-    QueryArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs,
-    SchemaArgs, ServeArgs, UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
+    AccountArgs, ApplyArgs, CardSizeArg, CollectArgs, Command, ContextArgs, CreateArgs,
+    FieldAddArgs, FieldArgs, FieldCommand, FieldDeleteArgs, FieldRenameArgs, FileArgs,
+    FormulaAddArgs, FormulaArgs, FormulaCommand, FormulaDeleteArgs, FormulaPreviewArgs,
+    FormulaUpdateArgs, LookupAddArgs, LookupArgs, LookupCommand, LookupDeleteArgs,
+    LookupUpdateArgs, PublishArgs, QueryArgs, RelationAddArgs, RelationArgs, RelationCommand,
+    RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs, RowUpdateArgs, RowUpsertArgs, RowsArgs,
+    SchemaApplyArgs, SchemaArgs, ServeArgs, StandardViewTypeArg, TableArgs, TableCommand,
+    TableCreateArgs, TableDeleteArgs, TableRenameArgs, UpgradeArgs, ValidateArgs,
+    ValidationLevelArg, ViewApplyArgs, ViewArgs, ViewCommand, ViewCreateArgs, ViewDeleteArgs,
+    ViewInspectArgs, ViewListArgs, ViewUpdateArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
+use crate::runtime::with_session as with_runtime_session;
 
 pub struct CommandOutput {
     pub value: Value,
@@ -63,6 +74,12 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Validate(args) => validate_file(args),
         Command::SchemaApply(args) => schema_apply(args),
         Command::ViewApply(args) => view_apply(args),
+        Command::View(args) => view(*args),
+        Command::Table(args) => table(*args),
+        Command::Field(args) => field(*args),
+        Command::Relation(args) => relation(*args),
+        Command::Formula(args) => formula(*args),
+        Command::Lookup(args) => lookup(*args),
         Command::Serve(args) => serve_file(args),
         Command::Publish(args) => publish_file(args, show_progress),
         Command::Collect(args) => collect_form(args, show_progress),
@@ -364,8 +381,9 @@ fn inspect(FileArgs { file }: FileArgs) -> Result<CommandOutput> {
             "mutateView": true,
             "mutateSchema": true,
             "validate": true,
-            "formulaEvaluation": false,
-            "lookupEvaluation": false,
+            "formulaPreview": true,
+            "formulaEvaluation": true,
+            "lookupEvaluation": true,
         },
     })))
 }
@@ -555,6 +573,8 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
         args.sort.as_deref(),
         args.search,
         args.search_fields,
+        &fields,
+        &table.id,
     )?;
     let projection = if args.fields.is_empty() {
         (!args.full).then(|| {
@@ -567,18 +587,30 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
     } else {
         Some(args.fields)
     };
-    let page = read_rows(
-        &conn,
-        table,
-        &fields,
-        &query,
-        &ReadRowsOptions {
+    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+        runtime_query_rows(
+            &args.file,
+            &table.id,
+            &fields,
+            &query,
             projection,
-            include_virtual: false,
-            limit: Some(args.limit),
-            offset: Some(args.offset),
-        },
-    )?;
+            args.limit,
+            args.offset,
+        )?
+    } else {
+        read_rows(
+            &conn,
+            table,
+            &fields,
+            &query,
+            &ReadRowsOptions {
+                projection,
+                include_virtual: false,
+                limit: Some(args.limit),
+                offset: Some(args.offset),
+            },
+        )?
+    };
     let label = fields
         .iter()
         .find(|field| field.id == table.label_field_id)
@@ -683,8 +715,9 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
             "offset": args.offset,
             "capabilities": {
                 "apply": true,
-                "formulaEvaluation": false,
-                "lookupEvaluation": false,
+                "formulaPreview": true,
+                "formulaEvaluation": true,
+                "lookupEvaluation": true,
             },
         })
     };
@@ -696,6 +729,8 @@ fn parse_row_query(
     sort_json: Option<&str>,
     search: Option<String>,
     search_fields: Vec<String>,
+    fields: &[FieldMeta],
+    table_id: &str,
 ) -> Result<RowQuery> {
     if search.is_some() && search_fields.is_empty() {
         return Err(AppError::invalid_request(
@@ -706,14 +741,24 @@ fn parse_row_query(
         .map(read_json_source)
         .transpose()?
         .map(normalize_field_members)
-        .map(serde_json::from_value::<FilterNode>)
+        .map(|mut value| {
+            resolve_query_field_ids(&mut value, fields, table_id)?;
+            serde_json::from_value::<FilterNode>(value).map_err(AppError::from)
+        })
         .transpose()?;
     let sort = sort_json
         .map(read_json_source)
         .transpose()?
         .map(normalize_field_members)
-        .map(serde_json::from_value::<Vec<SortTerm>>)
+        .map(|mut value| {
+            resolve_query_field_ids(&mut value, fields, table_id)?;
+            serde_json::from_value::<Vec<SortTerm>>(value).map_err(AppError::from)
+        })
         .transpose()?;
+    let search_fields = search_fields
+        .into_iter()
+        .map(|reference| resolve_field_in_table(fields, table_id, &reference))
+        .collect::<Result<Vec<_>>>()?;
     Ok(RowQuery {
         filter,
         search: search.map(|text| SearchSpec {
@@ -738,19 +783,34 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         args.sort.as_deref(),
         args.search,
         args.search_fields,
-    )?;
-    let page = read_rows(
-        &conn,
-        table,
         &fields,
-        &query,
-        &ReadRowsOptions {
-            projection: (!args.fields.is_empty()).then_some(args.fields),
-            include_virtual: false,
-            limit: Some(args.limit),
-            offset: Some(args.offset),
-        },
+        &table.id,
     )?;
+    let projection = (!args.fields.is_empty()).then_some(args.fields);
+    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+        runtime_query_rows(
+            &args.file,
+            &table.id,
+            &fields,
+            &query,
+            projection,
+            args.limit,
+            args.offset,
+        )?
+    } else {
+        read_rows(
+            &conn,
+            table,
+            &fields,
+            &query,
+            &ReadRowsOptions {
+                projection,
+                include_virtual: false,
+                limit: Some(args.limit),
+                offset: Some(args.offset),
+            },
+        )?
+    };
     Ok(CommandOutput::success(json!({
         "fileId": meta.file_id,
         "revision": meta.revision.to_string(),
@@ -760,6 +820,99 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         "limit": args.limit,
         "offset": args.offset,
     })))
+}
+
+fn runtime_query_rows(
+    file: &Path,
+    table_id: &str,
+    fields: &[FieldMeta],
+    query: &RowQuery,
+    projection: Option<Vec<String>>,
+    limit: u32,
+    offset: u32,
+) -> Result<eidos_file_core::query::RowPage> {
+    let projection = projection
+        .map(|references| {
+            references
+                .iter()
+                .map(|reference| resolve_field_in_table(fields, table_id, reference))
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()?
+        .unwrap_or_else(|| fields.iter().map(|field| field.id.clone()).collect());
+    let query = serde_json::to_value(query)
+        .map_err(|error| AppError::internal(format!("serialize Runtime query: {error}")))?;
+    with_runtime_session(file, false, |session| {
+        let page = session.call(
+            "queryRows",
+            &json!({
+                "tableId": table_id,
+                "query": query,
+                "projection": {
+                    "fields": projection,
+                    "resolveRelations": [],
+                },
+                "limit": limit,
+                "offset": offset,
+            }),
+        )?;
+        let aggregate = session.call(
+            "aggregate",
+            &json!({
+                "tableId": table_id,
+                "query": query,
+                "items": [{"key": "count", "op": "count-all"}],
+            }),
+        )?;
+        let total_estimate = aggregate
+            .get("results")
+            .and_then(Value::as_array)
+            .and_then(|results| results.first())
+            .and_then(|result| result.get("value"))
+            .and_then(|value| match value {
+                Value::String(value) => value.parse::<u64>().ok(),
+                Value::Number(value) => value.as_u64(),
+                _ => None,
+            });
+        let columns = page
+            .get("columns")
+            .and_then(Value::as_array)
+            .ok_or_else(|| AppError::internal("Runtime query response has no columns"))?;
+        let raw_rows = page
+            .get("rows")
+            .and_then(Value::as_array)
+            .ok_or_else(|| AppError::internal("Runtime query response has no rows"))?;
+        let mut rows = Vec::with_capacity(raw_rows.len());
+        for raw_row in raw_rows {
+            let row_id = raw_row
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::internal("Runtime query row has no id"))?;
+            let values = raw_row
+                .get("values")
+                .and_then(Value::as_array)
+                .ok_or_else(|| AppError::internal("Runtime query row has no values"))?;
+            if values.len() != columns.len() {
+                return Err(AppError::internal(
+                    "Runtime query row values do not match columns",
+                ));
+            }
+            let mut row = Map::new();
+            row.insert("_id".into(), json!(row_id));
+            for (column, value) in columns.iter().zip(values.iter()) {
+                let name = column
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::internal("Runtime query column has no name"))?;
+                row.insert(name.to_string(), value.clone());
+            }
+            rows.push(row);
+        }
+        Ok(eidos_file_core::query::RowPage {
+            rows,
+            total_estimate,
+        })
+    })
 }
 
 fn normalize_field_members(value: Value) -> Value {
@@ -979,6 +1132,8 @@ fn rows(RowsArgs { file, command }: RowsArgs) -> Result<CommandOutput> {
         RowCommand::Add(args) => rows_add(file, args),
         RowCommand::Update(args) => rows_update(file, args),
         RowCommand::Delete(args) => rows_delete(file, args),
+        RowCommand::Mutate(args) => rows_mutate(file, args),
+        RowCommand::Upsert(args) => rows_upsert(file, args),
     }
 }
 
@@ -1069,12 +1224,953 @@ fn rows_delete(file: PathBuf, args: RowDeleteArgs) -> Result<CommandOutput> {
     Ok(CommandOutput::success(json!(result)))
 }
 
+fn rows_mutate(file: PathBuf, args: RowMutateArgs) -> Result<CommandOutput> {
+    let changes: Vec<RowChange> = serde_json::from_value(read_json_source(&args.changes)?)?;
+    execute_row_intent(
+        file,
+        args.table,
+        args.expected_revision,
+        changes,
+        args.dry_run,
+    )
+}
+
+fn execute_row_intent(
+    file: PathBuf,
+    table_reference: String,
+    expected_revision: String,
+    changes: Vec<RowChange>,
+    dry_run: bool,
+) -> Result<CommandOutput> {
+    let mut conn = open_file(&file, true)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(EidosError::from)?;
+    ensure_revision(&tx, &expected_revision)?;
+    let table = resolve_table(&load_tables(&tx)?, &table_reference)?.clone();
+    let result = mutate_rows_in_transaction(
+        &tx,
+        &RowMutation {
+            table_id: table.id.clone(),
+            expected_revision: Some(expected_revision.clone()),
+            changes,
+        },
+    )?;
+    if dry_run || !result.changed {
+        tx.rollback().map_err(EidosError::from)?;
+    } else {
+        tx.commit().map_err(EidosError::from)?;
+    }
+    Ok(CommandOutput::success(json!({
+        "dryRun": dry_run,
+        "createdIdsAreEphemeral": dry_run,
+        "table": {"id": table.id, "name": table.name},
+        "expectedRevision": expected_revision,
+        "result": result,
+    })))
+}
+
+fn rows_upsert(file: PathBuf, args: RowUpsertArgs) -> Result<CommandOutput> {
+    let payload = read_json_source(&args.values)?;
+    let objects = match payload {
+        Value::Object(object) => vec![object],
+        Value::Array(values) => values
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                value.as_object().cloned().ok_or_else(|| {
+                    AppError::invalid_request(format!(
+                        "row {} in --values is not a JSON object",
+                        index + 1
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>>>()?,
+        _ => {
+            return Err(AppError::invalid_request(
+                "--values must be a JSON object or array of objects",
+            ));
+        }
+    };
+    if objects.is_empty() {
+        return Err(AppError::invalid_request(
+            "--values array must not be empty",
+        ));
+    }
+
+    let mut conn = open_file(&file, true)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(EidosError::from)?;
+    ensure_revision(&tx, &args.expected_revision)?;
+    let table = resolve_table(&load_tables(&tx)?, &args.table)?.clone();
+    let fields: Vec<FieldMeta> = load_fields(&tx)?
+        .into_iter()
+        .filter(|field| field.table_id == table.id)
+        .collect();
+    let key_fields = resolve_upsert_key_fields(&fields, &table.id, &args.key)?;
+    let key_ids: Vec<String> = key_fields.iter().map(|field| field.id.clone()).collect();
+    let mut seen_keys = HashSet::new();
+    let mut seen_row_ids = HashSet::new();
+    let mut changes = Vec::with_capacity(objects.len());
+    let mut plan = Vec::with_capacity(objects.len());
+
+    for (index, values) in objects.into_iter().enumerate() {
+        let key_values: Vec<Value> = key_fields
+            .iter()
+            .map(|field| {
+                values
+                    .get(&field.name)
+                    .or_else(|| values.get(&field.id))
+                    .cloned()
+                    .ok_or_else(|| {
+                        AppError::invalid_request(format!(
+                            "upsert row {} is missing key field {:?}",
+                            index + 1,
+                            field.name
+                        ))
+                    })
+            })
+            .collect::<Result<_>>()?;
+        if key_values.iter().any(Value::is_null) {
+            return Err(AppError::invalid_request(format!(
+                "upsert row {} has a null key; key fields must be non-null",
+                index + 1
+            )));
+        }
+        let signature = serde_json::to_string(&key_values)
+            .map_err(|error| AppError::internal(format!("serialize upsert key: {error}")))?;
+        if !seen_keys.insert(signature) {
+            return Err(AppError::invalid_request(format!(
+                "upsert values contain a duplicate key in row {}",
+                index + 1
+            )));
+        }
+        let filter = if key_ids.len() == 1 {
+            FilterNode::Eq {
+                field_id: key_ids[0].clone(),
+                value: key_values[0].clone(),
+            }
+        } else {
+            FilterNode::And {
+                args: key_ids
+                    .iter()
+                    .zip(key_values.iter())
+                    .map(|(field_id, value)| FilterNode::Eq {
+                        field_id: field_id.clone(),
+                        value: value.clone(),
+                    })
+                    .collect(),
+            }
+        };
+        let page = read_rows(
+            &tx,
+            &table,
+            &fields,
+            &RowQuery {
+                filter: Some(filter),
+                search: None,
+                sort: None,
+            },
+            &ReadRowsOptions {
+                projection: Some(Vec::new()),
+                include_virtual: false,
+                limit: Some(2),
+                offset: Some(0),
+            },
+        )?;
+        let matched = page.total_estimate.unwrap_or(page.rows.len() as u64);
+        if matched > 1 {
+            return Err(AppError::invalid_request(format!(
+                "upsert key for row {} matches {matched} existing rows; key fields must identify at most one row",
+                index + 1
+            )));
+        }
+        if let Some(row) = page.rows.first() {
+            let row_id = row
+                .get("_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::internal("matched upsert row has no _id"))?
+                .to_string();
+            if !seen_row_ids.insert(row_id.clone()) {
+                return Err(AppError::invalid_request(format!(
+                    "upsert values resolve to the same row more than once (row {})",
+                    index + 1
+                )));
+            }
+            plan.push(json!({"index": index + 1, "action": "update", "rowId": row_id}));
+            changes.push(RowChange::Update { row_id, values });
+        } else {
+            let client_key = format!("upsert-{}", index + 1);
+            plan.push(json!({"index": index + 1, "action": "create", "clientKey": client_key}));
+            changes.push(RowChange::Create { client_key, values });
+        }
+    }
+
+    let result = mutate_rows_in_transaction(
+        &tx,
+        &RowMutation {
+            table_id: table.id.clone(),
+            expected_revision: Some(args.expected_revision.clone()),
+            changes,
+        },
+    )?;
+    if args.dry_run || !result.changed {
+        tx.rollback().map_err(EidosError::from)?;
+    } else {
+        tx.commit().map_err(EidosError::from)?;
+    }
+    Ok(CommandOutput::success(json!({
+        "dryRun": args.dry_run,
+        "createdIdsAreEphemeral": args.dry_run,
+        "table": {"id": table.id, "name": table.name},
+        "keyFields": key_fields.iter().map(|field| json!({"id": field.id, "name": field.name})).collect::<Vec<_>>(),
+        "expectedRevision": args.expected_revision,
+        "plan": plan,
+        "result": result,
+    })))
+}
+
+fn resolve_upsert_key_fields(
+    fields: &[FieldMeta],
+    table_id: &str,
+    references: &[String],
+) -> Result<Vec<FieldMeta>> {
+    let mut ids = HashSet::new();
+    let mut resolved = Vec::with_capacity(references.len());
+    for reference in references {
+        let field_id = resolve_field_in_table(fields, table_id, reference)?;
+        if !ids.insert(field_id.clone()) {
+            return Err(AppError::invalid_request(format!(
+                "--key contains duplicate Field {reference:?}"
+            )));
+        }
+        let field = fields
+            .iter()
+            .find(|field| field.id == field_id)
+            .ok_or_else(|| AppError::internal("resolved upsert key Field disappeared"))?;
+        if field.system_role.is_some() || field.physical_name.is_none() {
+            return Err(AppError::invalid_request(format!(
+                "upsert key Field {:?} must be a stored user Field",
+                field.name
+            )));
+        }
+        resolved.push(field.clone());
+    }
+    Ok(resolved)
+}
+
 fn view_apply(args: ViewApplyArgs) -> Result<CommandOutput> {
     let request: ViewMutationRequest = serde_json::from_value(read_json_source(&args.request)?)?;
     let mut conn = open_file(&args.file, true)?;
     Ok(CommandOutput::success(json!(mutate_views(
         &mut conn, &request
     )?)))
+}
+
+fn view(args: ViewArgs) -> Result<CommandOutput> {
+    let ViewArgs { file, command } = args;
+    match command {
+        ViewCommand::List(args) => view_list(file, args),
+        ViewCommand::Inspect(args) => view_inspect(file, args),
+        ViewCommand::Create(args) => view_create(file, args),
+        ViewCommand::Update(args) => view_update(file, args),
+        ViewCommand::Delete(args) => view_delete(file, args),
+    }
+}
+
+fn saved_view_json(view: &ViewMeta, tables: &[TableMeta]) -> Value {
+    let table = tables.iter().find(|table| table.id == view.table_id);
+    json!({
+        "id": view.id,
+        "name": view.name,
+        "type": view.view_type,
+        "tableId": view.table_id,
+        "table": table.map(|table| table.name.clone()),
+        "query": parse_stored_json(&view.query_json),
+        "layout": parse_stored_json(&view.layout_json),
+        "position": view.position.to_string(),
+    })
+}
+
+fn view_list(file: PathBuf, _args: ViewListArgs) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let views = load_views(&conn)?;
+    Ok(CommandOutput::success(json!({
+        "fileId": meta.file_id,
+        "revision": meta.revision.to_string(),
+        "views": views.iter().map(|view| saved_view_json(view, &tables)).collect::<Vec<_>>(),
+    })))
+}
+
+fn view_inspect(file: PathBuf, args: ViewInspectArgs) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let views = load_views(&conn)?;
+    let view = resolve_view(&views, &args.reference)?;
+    Ok(CommandOutput::success(json!({
+        "fileId": meta.file_id,
+        "revision": meta.revision.to_string(),
+        "view": saved_view_json(view, &tables),
+    })))
+}
+
+fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
+    let mut conn = open_file(&file, true)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let fields = load_fields(&conn)?;
+    let views = load_views(&conn)?;
+    let table = resolve_selected_table(&tables, &meta, args.table.as_deref())?;
+    let view_type = args.view_type.as_str();
+    validate_view_options(
+        view_type,
+        ViewOptionPresence {
+            has_filter: args.where_json.is_some(),
+            has_sort: args.sort.is_some(),
+            has_group: args.group_by.is_some(),
+            has_date: args.date_by.is_some(),
+            has_card: !args.card_fields.is_empty()
+                || args.cover_by.is_some()
+                || args.card_size.is_some(),
+            has_empty_group_setting: args.hide_empty_groups,
+            has_form_setting: args.title.is_some()
+                || args.description.is_some()
+                || args.submit_label.is_some()
+                || args.success_message.is_some(),
+        },
+    )?;
+    let query =
+        parse_saved_view_query(&args.where_json, &args.sort, &fields, &table.id, view_type)?;
+    let layout = build_view_layout(ViewLayoutInput {
+        fields: &fields,
+        table_id: &table.id,
+        ordered_fields: &args.fields,
+        hide_fields: &args.hide_fields,
+        show_fields: &[],
+        group_by: args.group_by.as_deref(),
+        date_by: args.date_by.as_deref(),
+        card_fields: &args.card_fields,
+        cover_by: args.cover_by.as_deref(),
+        card_size: args.card_size,
+        hide_empty_groups: args.hide_empty_groups,
+        show_empty_groups: false,
+        title: args.title.as_deref(),
+        description: args.description.as_deref(),
+        submit_label: args.submit_label.as_deref(),
+        success_message: args.success_message.as_deref(),
+    })?;
+    let position = args.position.unwrap_or_else(|| {
+        views
+            .iter()
+            .filter(|view| view.table_id == table.id)
+            .map(|view| view.position)
+            .max()
+            .map_or(0, |position| position.saturating_add(1))
+            .to_string()
+    });
+    let expected_revision = args
+        .expected_revision
+        .unwrap_or_else(|| meta.revision.to_string());
+    let request = ViewMutationRequest {
+        expected_revision,
+        changes: vec![ViewChange::CreateView {
+            client_key: "agent-view".into(),
+            table_id: table.id.clone(),
+            name: args.name,
+            view_type: view_type.into(),
+            query,
+            layout,
+            position,
+        }],
+    };
+    let resolved = json!({
+        "table": {"id": table.id, "name": table.name},
+        "viewType": view_type,
+    });
+    execute_view_request(&mut conn, request, args.dry_run, resolved)
+}
+
+fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
+    let mut conn = open_file(&file, true)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let fields = load_fields(&conn)?;
+    let views = load_views(&conn)?;
+    let current = resolve_view(&views, &args.reference)?.clone();
+    let current_type = standard_view_type(&current.view_type)?;
+    let view_type = args.view_type.unwrap_or(current_type);
+    validate_view_options(
+        view_type.as_str(),
+        ViewOptionPresence {
+            has_filter: args.where_json.is_some(),
+            has_sort: args.sort.is_some(),
+            has_group: args.group_by.is_some(),
+            has_date: args.date_by.is_some(),
+            has_card: !args.card_fields.is_empty()
+                || args.cover_by.is_some()
+                || args.card_size.is_some(),
+            has_empty_group_setting: args.hide_empty_groups || args.show_empty_groups,
+            has_form_setting: args.title.is_some()
+                || args.description.is_some()
+                || args.submit_label.is_some()
+                || args.success_message.is_some(),
+        },
+    )?;
+    if args.hide_empty_groups && args.show_empty_groups {
+        return Err(AppError::invalid_request(
+            "--hide-empty-groups and --show-empty-groups cannot be used together",
+        ));
+    }
+    let table = tables
+        .iter()
+        .find(|table| table.id == current.table_id)
+        .ok_or_else(|| EidosError::InvalidSchema("View Table does not exist".into()))?;
+    let query = if args.where_json.is_some() || args.sort.is_some() {
+        let current_query: SavedViewQuery = serde_json::from_str(&current.query_json)?;
+        Some(SavedViewQuery {
+            filter: args
+                .where_json
+                .as_deref()
+                .map(|source| parse_filter(source, &fields, &table.id))
+                .transpose()?
+                .or(current_query.filter),
+            sort: args
+                .sort
+                .as_deref()
+                .map(|source| parse_sort(source, &fields, &table.id))
+                .transpose()?
+                .or(current_query.sort),
+        })
+    } else {
+        None
+    };
+    let layout_changed = args.view_type.is_some()
+        || !args.fields.is_empty()
+        || !args.hide_fields.is_empty()
+        || !args.show_fields.is_empty()
+        || args.group_by.is_some()
+        || args.date_by.is_some()
+        || !args.card_fields.is_empty()
+        || args.cover_by.is_some()
+        || args.card_size.is_some()
+        || args.hide_empty_groups
+        || args.show_empty_groups
+        || args.title.is_some()
+        || args.description.is_some()
+        || args.submit_label.is_some()
+        || args.success_message.is_some();
+    let layout = layout_changed
+        .then(|| {
+            update_view_layout(
+                &current.layout_json,
+                ViewLayoutInput {
+                    fields: &fields,
+                    table_id: &table.id,
+                    ordered_fields: &args.fields,
+                    hide_fields: &args.hide_fields,
+                    show_fields: &args.show_fields,
+                    group_by: args.group_by.as_deref(),
+                    date_by: args.date_by.as_deref(),
+                    card_fields: &args.card_fields,
+                    cover_by: args.cover_by.as_deref(),
+                    card_size: args.card_size,
+                    hide_empty_groups: args.hide_empty_groups,
+                    show_empty_groups: args.show_empty_groups,
+                    title: args.title.as_deref(),
+                    description: args.description.as_deref(),
+                    submit_label: args.submit_label.as_deref(),
+                    success_message: args.success_message.as_deref(),
+                },
+            )
+        })
+        .transpose()?;
+    if args.name.is_none()
+        && args.view_type.is_none()
+        && query.is_none()
+        && layout.is_none()
+        && args.position.is_none()
+    {
+        return Err(AppError::invalid_request(
+            "View update requires at least one change",
+        ));
+    }
+    let expected_revision = args
+        .expected_revision
+        .unwrap_or_else(|| meta.revision.to_string());
+    let request = ViewMutationRequest {
+        expected_revision,
+        changes: vec![ViewChange::UpdateView {
+            view_id: current.id.clone(),
+            patch: ViewPatch {
+                name: args.name,
+                view_type: args.view_type.map(|view_type| view_type.as_str().into()),
+                query,
+                layout,
+                position: args.position,
+            },
+        }],
+    };
+    let resolved = json!({
+        "view": {"id": current.id, "name": current.name, "table": table.name},
+        "viewType": view_type.as_str(),
+    });
+    execute_view_request(&mut conn, request, args.dry_run, resolved)
+}
+
+fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
+    let mut conn = open_file(&file, true)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let views = load_views(&conn)?;
+    let current = resolve_view(&views, &args.reference)?.clone();
+    let expected_revision = args
+        .expected_revision
+        .unwrap_or_else(|| meta.revision.to_string());
+    let request = ViewMutationRequest {
+        expected_revision,
+        changes: vec![ViewChange::DeleteView {
+            view_id: current.id.clone(),
+        }],
+    };
+    let resolved = json!({"view": saved_view_json(&current, &tables)});
+    execute_view_request(&mut conn, request, args.dry_run, resolved)
+}
+
+fn execute_view_request(
+    conn: &mut Connection,
+    request: ViewMutationRequest,
+    dry_run: bool,
+    resolved: Value,
+) -> Result<CommandOutput> {
+    let request_value = serde_json::to_value(&request)
+        .map_err(|error| AppError::internal(format!("serialize View request: {error}")))?;
+    let result = if dry_run {
+        preview_views(conn, &request)?
+    } else {
+        mutate_views(conn, &request)?
+    };
+    Ok(CommandOutput::success(json!({
+        "dryRun": dry_run,
+        "createdIdsAreEphemeral": dry_run,
+        "resolved": resolved,
+        "request": request_value,
+        "result": result,
+    })))
+}
+
+fn resolve_view<'a>(views: &'a [ViewMeta], reference: &str) -> Result<&'a ViewMeta> {
+    let matches: Vec<&ViewMeta> = views
+        .iter()
+        .filter(|view| view.id == reference || view.name == reference)
+        .collect();
+    match matches.as_slice() {
+        [view] => Ok(view),
+        [] => Err(EidosError::NotFound(format!("View {reference:?}")).into()),
+        _ => Err(AppError::invalid_request(format!(
+            "View reference {reference:?} is ambiguous; use a stable View ID"
+        ))),
+    }
+}
+
+fn resolve_selected_table<'a>(
+    tables: &'a [TableMeta],
+    meta: &FileMeta,
+    reference: Option<&str>,
+) -> Result<&'a TableMeta> {
+    if let Some(reference) = reference {
+        return resolve_table(tables, reference).map_err(Into::into);
+    }
+    if let Some(default_id) = meta.default_table_id.as_deref() {
+        return resolve_table(tables, default_id).map_err(Into::into);
+    }
+    match tables {
+        [only] => Ok(only),
+        [] => Err(EidosError::NotFound("file has no tables".into()).into()),
+        _ => Err(AppError::invalid_request(
+            "--table is required when the File has multiple Tables and no default",
+        )),
+    }
+}
+
+fn standard_view_type(value: &str) -> Result<StandardViewTypeArg> {
+    match value {
+        "grid" => Ok(StandardViewTypeArg::Grid),
+        "gallery" => Ok(StandardViewTypeArg::Gallery),
+        "kanban" => Ok(StandardViewTypeArg::Kanban),
+        "calendar" => Ok(StandardViewTypeArg::Calendar),
+        "form" => Ok(StandardViewTypeArg::Form),
+        _ => Err(AppError::invalid_request(format!(
+            "View type {value:?} is not a standard View type; use view-apply for opaque types"
+        ))),
+    }
+}
+
+fn resolve_field_in_table(fields: &[FieldMeta], table_id: &str, reference: &str) -> Result<String> {
+    let matches: Vec<&FieldMeta> = fields
+        .iter()
+        .filter(|field| {
+            field.table_id == table_id && (field.id == reference || field.name == reference)
+        })
+        .collect();
+    match matches.as_slice() {
+        [field] => Ok(field.id.clone()),
+        [] => Err(EidosError::NotFound(format!("Field {reference:?} in Table {table_id}")).into()),
+        _ => Err(AppError::invalid_request(format!(
+            "Field reference {reference:?} is ambiguous"
+        ))),
+    }
+}
+
+fn resolve_field_list(
+    fields: &[FieldMeta],
+    table_id: &str,
+    references: &[String],
+    label: &str,
+) -> Result<Vec<String>> {
+    let mut resolved = Vec::with_capacity(references.len());
+    for reference in references {
+        let id = resolve_field_in_table(fields, table_id, reference)?;
+        if resolved.contains(&id) {
+            return Err(AppError::invalid_request(format!(
+                "{label} contains duplicate Field {reference:?}"
+            )));
+        }
+        resolved.push(id);
+    }
+    Ok(resolved)
+}
+
+fn resolve_query_field_ids(value: &mut Value, fields: &[FieldMeta], table_id: &str) -> Result<()> {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                resolve_query_field_ids(item, fields, table_id)?;
+            }
+        }
+        Value::Object(object) => {
+            if let Some(field) = object.get_mut("fieldId") {
+                let reference = field.as_str().ok_or_else(|| {
+                    AppError::invalid_request("View query fieldId must be a string")
+                })?;
+                *field = json!(resolve_field_in_table(fields, table_id, reference)?);
+            }
+            for (key, child) in object.iter_mut() {
+                if key != "fieldId" {
+                    resolve_query_field_ids(child, fields, table_id)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn parse_filter(source: &str, fields: &[FieldMeta], table_id: &str) -> Result<FilterNode> {
+    let mut value = normalize_field_members(read_json_source(source)?);
+    resolve_query_field_ids(&mut value, fields, table_id)?;
+    Ok(serde_json::from_value(value)?)
+}
+
+fn parse_sort(source: &str, fields: &[FieldMeta], table_id: &str) -> Result<Vec<SortTerm>> {
+    let mut value = normalize_field_members(read_json_source(source)?);
+    resolve_query_field_ids(&mut value, fields, table_id)?;
+    Ok(serde_json::from_value(value)?)
+}
+
+fn parse_saved_view_query(
+    where_json: &Option<String>,
+    sort_json: &Option<String>,
+    fields: &[FieldMeta],
+    table_id: &str,
+    _view_type: &str,
+) -> Result<SavedViewQuery> {
+    Ok(SavedViewQuery {
+        filter: where_json
+            .as_deref()
+            .map(|source| parse_filter(source, fields, table_id))
+            .transpose()?,
+        sort: sort_json
+            .as_deref()
+            .map(|source| parse_sort(source, fields, table_id))
+            .transpose()?,
+    })
+}
+
+struct ViewOptionPresence {
+    has_filter: bool,
+    has_sort: bool,
+    has_group: bool,
+    has_date: bool,
+    has_card: bool,
+    has_empty_group_setting: bool,
+    has_form_setting: bool,
+}
+
+fn validate_view_options(view_type: &str, options: ViewOptionPresence) -> Result<()> {
+    if options.has_group && view_type != "kanban" {
+        return Err(AppError::invalid_request(
+            "--group-by is only valid for a kanban View",
+        ));
+    }
+    if options.has_date && view_type != "calendar" {
+        return Err(AppError::invalid_request(
+            "--date-by is only valid for a calendar View",
+        ));
+    }
+    if options.has_card && !matches!(view_type, "gallery" | "kanban") {
+        return Err(AppError::invalid_request(
+            "card options are only valid for gallery or kanban Views",
+        ));
+    }
+    if options.has_empty_group_setting && view_type != "kanban" {
+        return Err(AppError::invalid_request(
+            "Kanban group options are only valid for a kanban View",
+        ));
+    }
+    if options.has_form_setting && view_type != "form" {
+        return Err(AppError::invalid_request(
+            "Form options are only valid for a form View",
+        ));
+    }
+    if view_type == "form" && (options.has_filter || options.has_sort) {
+        return Err(AppError::invalid_request(
+            "Form Views cannot have a saved filter or sort",
+        ));
+    }
+    Ok(())
+}
+
+struct ViewLayoutInput<'a> {
+    fields: &'a [FieldMeta],
+    table_id: &'a str,
+    ordered_fields: &'a [String],
+    hide_fields: &'a [String],
+    show_fields: &'a [String],
+    group_by: Option<&'a str>,
+    date_by: Option<&'a str>,
+    card_fields: &'a [String],
+    cover_by: Option<&'a str>,
+    card_size: Option<CardSizeArg>,
+    hide_empty_groups: bool,
+    show_empty_groups: bool,
+    title: Option<&'a str>,
+    description: Option<&'a str>,
+    submit_label: Option<&'a str>,
+    success_message: Option<&'a str>,
+}
+
+fn build_view_layout(options: ViewLayoutInput<'_>) -> Result<Value> {
+    let ViewLayoutInput {
+        fields,
+        table_id,
+        ordered_fields,
+        hide_fields,
+        show_fields: _,
+        group_by,
+        date_by,
+        card_fields,
+        cover_by,
+        card_size,
+        hide_empty_groups,
+        show_empty_groups: _,
+        title,
+        description,
+        submit_label,
+        success_message,
+    } = options;
+    let mut layout = Map::new();
+    let set_field_array =
+        |layout: &mut Map<String, Value>, key: &str, values: &[String], label: &str| {
+            if !values.is_empty() {
+                layout.insert(
+                    key.into(),
+                    json!(resolve_field_list(fields, table_id, values, label)?),
+                );
+            }
+            Ok::<(), AppError>(())
+        };
+    set_field_array(&mut layout, "fieldOrder", ordered_fields, "--fields")?;
+    set_field_array(&mut layout, "hiddenFields", hide_fields, "--hide-fields")?;
+    set_field_array(&mut layout, "cardFields", card_fields, "--card-fields")?;
+    if let Some(reference) = group_by {
+        layout.insert(
+            "groupField".into(),
+            json!(resolve_field_in_table(fields, table_id, reference)?),
+        );
+    }
+    if let Some(reference) = date_by {
+        let field_id = resolve_field_in_table(fields, table_id, reference)?;
+        let field = fields
+            .iter()
+            .find(|field| field.id == field_id)
+            .expect("resolved field exists");
+        if !matches!(
+            field.field_type,
+            eidos_file_core::model::FieldType::Date | eidos_file_core::model::FieldType::Datetime
+        ) {
+            return Err(AppError::invalid_request(format!(
+                "calendar --date-by field {:?} must be date or datetime",
+                field.name
+            )));
+        }
+        layout.insert("dateField".into(), json!(field_id));
+    }
+    if let Some(reference) = cover_by {
+        layout.insert(
+            "coverField".into(),
+            json!(resolve_field_in_table(fields, table_id, reference)?),
+        );
+    }
+    if let Some(card_size) = card_size {
+        layout.insert("cardSize".into(), json!(card_size.as_str()));
+    }
+    if hide_empty_groups {
+        layout.insert("showEmptyGroups".into(), json!(false));
+    }
+    if let Some(value) = title {
+        layout.insert("title".into(), json!(value));
+    }
+    if let Some(value) = description {
+        layout.insert("description".into(), json!(value));
+    }
+    if let Some(value) = submit_label {
+        layout.insert("submitLabel".into(), json!(value));
+    }
+    if let Some(value) = success_message {
+        layout.insert("successMessage".into(), json!(value));
+    }
+    Ok(Value::Object(layout))
+}
+
+fn layout_field_array(layout: &Map<String, Value>, key: &str) -> Result<Vec<String>> {
+    let Some(value) = layout.get(key) else {
+        return Ok(Vec::new());
+    };
+    value
+        .as_array()
+        .ok_or_else(|| AppError::invalid_request(format!("View layout {key} must be an array")))?
+        .iter()
+        .map(|value| {
+            value.as_str().map(ToOwned::to_owned).ok_or_else(|| {
+                AppError::invalid_request(format!("View layout {key} must contain strings"))
+            })
+        })
+        .collect()
+}
+
+fn update_view_layout(current_layout: &str, options: ViewLayoutInput<'_>) -> Result<Value> {
+    let ViewLayoutInput {
+        fields,
+        table_id,
+        ordered_fields,
+        hide_fields,
+        show_fields,
+        group_by,
+        date_by,
+        card_fields,
+        cover_by,
+        card_size,
+        hide_empty_groups,
+        show_empty_groups,
+        title,
+        description,
+        submit_label,
+        success_message,
+        ..
+    } = options;
+    let value: Value = serde_json::from_str(current_layout)?;
+    let mut layout = value
+        .as_object()
+        .cloned()
+        .ok_or_else(|| AppError::invalid_request("stored View layout must be an object"))?;
+    if !ordered_fields.is_empty() {
+        layout.insert(
+            "fieldOrder".into(),
+            json!(resolve_field_list(
+                fields,
+                table_id,
+                ordered_fields,
+                "--fields"
+            )?),
+        );
+    }
+    if !hide_fields.is_empty() || !show_fields.is_empty() {
+        let mut hidden = layout_field_array(&layout, "hiddenFields")?;
+        let to_hide = resolve_field_list(fields, table_id, hide_fields, "--hide-fields")?;
+        let to_show = resolve_field_list(fields, table_id, show_fields, "--show-fields")?;
+        for field_id in to_hide {
+            if !hidden.contains(&field_id) {
+                hidden.push(field_id);
+            }
+        }
+        hidden.retain(|field_id| !to_show.contains(field_id));
+        layout.insert("hiddenFields".into(), json!(hidden));
+    }
+    if let Some(reference) = group_by {
+        layout.insert(
+            "groupField".into(),
+            json!(resolve_field_in_table(fields, table_id, reference)?),
+        );
+    }
+    if let Some(reference) = date_by {
+        let field_id = resolve_field_in_table(fields, table_id, reference)?;
+        let field = fields
+            .iter()
+            .find(|field| field.id == field_id)
+            .expect("resolved field exists");
+        if !matches!(
+            field.field_type,
+            eidos_file_core::model::FieldType::Date | eidos_file_core::model::FieldType::Datetime
+        ) {
+            return Err(AppError::invalid_request(format!(
+                "calendar --date-by field {:?} must be date or datetime",
+                field.name
+            )));
+        }
+        layout.insert("dateField".into(), json!(field_id));
+    }
+    if !card_fields.is_empty() {
+        layout.insert(
+            "cardFields".into(),
+            json!(resolve_field_list(
+                fields,
+                table_id,
+                card_fields,
+                "--card-fields"
+            )?),
+        );
+    }
+    if let Some(reference) = cover_by {
+        layout.insert(
+            "coverField".into(),
+            json!(resolve_field_in_table(fields, table_id, reference)?),
+        );
+    }
+    if let Some(card_size) = card_size {
+        layout.insert("cardSize".into(), json!(card_size.as_str()));
+    }
+    if hide_empty_groups {
+        layout.insert("showEmptyGroups".into(), json!(false));
+    } else if show_empty_groups {
+        layout.insert("showEmptyGroups".into(), json!(true));
+    }
+    if let Some(value) = title {
+        layout.insert("title".into(), json!(value));
+    }
+    if let Some(value) = description {
+        layout.insert("description".into(), json!(value));
+    }
+    if let Some(value) = submit_label {
+        layout.insert("submitLabel".into(), json!(value));
+    }
+    if let Some(value) = success_message {
+        layout.insert("successMessage".into(), json!(value));
+    }
+    Ok(Value::Object(layout))
 }
 
 fn validate_file(args: ValidateArgs) -> Result<CommandOutput> {
@@ -1087,6 +2183,27 @@ fn validate_file(args: ValidateArgs) -> Result<CommandOutput> {
         ValidationLevelArg::Semantic => ValidationLevel::Semantic,
         ValidationLevelArg::Full => ValidationLevel::Full,
     };
+    if load_fields(&conn)?
+        .iter()
+        .any(|field| field.physical_name.is_none())
+    {
+        let level = serde_json::to_value(level)
+            .map_err(|error| AppError::internal(format!("serialize validation level: {error}")))?;
+        let value = with_runtime_session(&args.file, false, |session| {
+            session.call(
+                "validate",
+                &json!({
+                    "level": level,
+                    "diagnosticsLimit": args.diagnostics_limit,
+                }),
+            )
+        })?;
+        let valid = value.get("valid").and_then(Value::as_bool).unwrap_or(false);
+        return Ok(CommandOutput {
+            value,
+            success: valid,
+        });
+    }
     let report = validate(&conn, level, args.diagnostics_limit)?;
     let value = json!({
         "fileId": meta.file_id,
@@ -1103,8 +2220,17 @@ fn validate_file(args: ValidateArgs) -> Result<CommandOutput> {
 }
 
 fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
-    let mut conn = open_file(&args.file, true)?;
     let operation = read_json_source(&args.op)?;
+    if let Some(runtime_operation) = runtime_virtual_schema_operation(&args.file, &operation)? {
+        return runtime_schema_intent_with_options(
+            args.file,
+            runtime_operation,
+            Some(args.expected_revision),
+            args.dry_run,
+            args.confirm_lossy,
+        );
+    }
+    let mut conn = open_file(&args.file, true)?;
     let change = normalize_schema_change(&conn, operation)?;
     let result = if args.dry_run {
         preview_schema_change(&mut conn, &change, Some(&args.expected_revision))?
@@ -1114,6 +2240,866 @@ fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
     Ok(CommandOutput::success(json!({
         "dryRun": args.dry_run,
         "createdIdsAreEphemeral": args.dry_run,
+        "operation": change,
+        "result": result,
+    })))
+}
+
+fn table(args: TableArgs) -> Result<CommandOutput> {
+    let TableArgs { file, command } = args;
+    match command {
+        TableCommand::Create(args) => table_create(args, file),
+        TableCommand::Rename(args) => table_rename(args, file),
+        TableCommand::Delete(args) => table_delete(args, file),
+    }
+}
+
+fn table_create(args: TableCreateArgs, file: PathBuf) -> Result<CommandOutput> {
+    let fields = read_json_source(&args.fields)?;
+    if !fields.is_array() {
+        return Err(AppError::invalid_request(
+            "--fields must be a JSON array of field definitions",
+        ));
+    }
+    let mut operation = json!({
+        "kind": "create-table",
+        "name": args.name,
+        "fields": fields,
+    });
+    if let Some(label_field) = args.label_field {
+        operation["labelField"] = json!(label_field);
+    }
+    if let Some(settings) = args.settings {
+        operation["settings"] = read_json_source(&settings)?;
+    }
+    if let Some(runtime_operation) = runtime_virtual_schema_operation(&file, &operation)? {
+        return runtime_schema_intent(
+            file,
+            runtime_operation,
+            args.expected_revision,
+            args.dry_run,
+        );
+    }
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn table_rename(args: TableRenameArgs, file: PathBuf) -> Result<CommandOutput> {
+    let operation = json!({
+        "kind": "rename-table",
+        "table": args.reference,
+        "name": args.name,
+    });
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn table_delete(args: TableDeleteArgs, file: PathBuf) -> Result<CommandOutput> {
+    let operation = json!({
+        "kind": "delete-table",
+        "table": args.reference,
+    });
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn field(args: FieldArgs) -> Result<CommandOutput> {
+    let FieldArgs { file, command } = args;
+    match command {
+        FieldCommand::Add(args) => field_add(args, file),
+        FieldCommand::Rename(args) => field_rename(args, file),
+        FieldCommand::Delete(args) => field_delete(args, file),
+    }
+}
+
+fn field_add(args: FieldAddArgs, file: PathBuf) -> Result<CommandOutput> {
+    let FieldAddArgs {
+        table,
+        name,
+        field_type,
+        settings,
+        definition,
+        nullable,
+        not_nullable,
+        expected_revision,
+        dry_run,
+    } = args;
+    if matches!(field_type.as_str(), "formula" | "lookup") {
+        let definition = definition.ok_or_else(|| {
+            AppError::invalid_request(format!("--definition is required for {field_type} Fields"))
+        })?;
+        let definition = read_json_source(&definition)?;
+        let conn = open_file(&file, false)?;
+        let table_id = resolve_table_id(&conn, &table)?;
+        let position = next_field_position(&file, &table_id)?;
+        let mut field = json!({
+            "clientKey": format!("{field_type}-field"),
+            "name": name,
+            "kind": field_type,
+            "position": position,
+            "nullable": true,
+            "definition": definition,
+        });
+        if let Some(settings) = settings {
+            field["settings"] = read_json_source(&settings)?;
+        }
+        let operation = json!({
+            "kind": "create-field",
+            "tableId": table_id,
+            "field": field,
+        });
+        return runtime_schema_intent(file, operation, expected_revision, dry_run);
+    }
+    let mut operation = json!({
+        "kind": "create-field",
+        "table": table,
+        "name": name,
+        "type": field_type,
+    });
+    if let Some(settings) = settings {
+        operation["settings"] = read_json_source(&settings)?;
+    }
+    if let Some(definition) = definition {
+        operation["definition"] = read_json_source(&definition)?;
+    }
+    if nullable {
+        operation["nullable"] = json!(true);
+    } else if not_nullable {
+        operation["nullable"] = json!(false);
+    }
+    execute_schema_intent(file, operation, expected_revision, dry_run)
+}
+
+fn field_rename(args: FieldRenameArgs, file: PathBuf) -> Result<CommandOutput> {
+    let (field, _, fields) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if matches!(
+        field.field_type,
+        eidos_file_core::model::FieldType::Formula | eidos_file_core::model::FieldType::Lookup
+    ) || fields.iter().any(|candidate| {
+        candidate.table_id == field.table_id
+            && candidate.field_type == eidos_file_core::model::FieldType::Formula
+    }) {
+        let operation = json!({
+            "kind": "rename-field",
+            "fieldId": field.id,
+            "name": args.name,
+        });
+        return runtime_schema_intent(file, operation, args.expected_revision, args.dry_run);
+    }
+    let operation = json!({
+        "kind": "rename-field",
+        "field": args.reference,
+        "table": args.table,
+        "name": args.name,
+    });
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn field_delete(args: FieldDeleteArgs, file: PathBuf) -> Result<CommandOutput> {
+    let (field, _, fields) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if matches!(
+        field.field_type,
+        eidos_file_core::model::FieldType::Formula | eidos_file_core::model::FieldType::Lookup
+    ) {
+        let replacement = args
+            .replacement_label_field
+            .as_deref()
+            .map(|reference| resolve_field_in_table(&fields, &field.table_id, reference))
+            .transpose()?;
+        let mut operation = json!({
+            "kind": "delete-field",
+            "fieldId": field.id,
+        });
+        if let Some(replacement) = replacement {
+            operation["replacementLabelFieldId"] = json!(replacement);
+        }
+        return runtime_schema_intent_with_options(
+            file,
+            operation,
+            args.expected_revision,
+            args.dry_run,
+            args.confirm_lossy,
+        );
+    }
+    let operation = json!({
+        "kind": "delete-field",
+        "field": args.reference,
+        "table": args.table,
+        "replacementLabelField": args.replacement_label_field,
+    });
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn relation(args: RelationArgs) -> Result<CommandOutput> {
+    let RelationArgs { file, command } = args;
+    match command {
+        RelationCommand::Add(args) => relation_add(args, file),
+    }
+}
+
+fn relation_add(args: RelationAddArgs, file: PathBuf) -> Result<CommandOutput> {
+    let operation = json!({
+        "kind": "create-field",
+        "table": args.table,
+        "name": args.name,
+        "type": "relation",
+        "definition": {
+            "direction": "forward",
+            "targetTable": args.target_table,
+            "cardinality": args.cardinality,
+            "onDelete": args.on_delete,
+        },
+    });
+    execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn formula(args: FormulaArgs) -> Result<CommandOutput> {
+    let FormulaArgs { file, command } = args;
+    match command {
+        FormulaCommand::Preview(args) => formula_preview(file, args),
+        FormulaCommand::Add(args) => formula_add(file, args),
+        FormulaCommand::Update(args) => formula_update(file, args),
+        FormulaCommand::Delete(args) => formula_delete(file, args),
+    }
+}
+
+fn lookup(args: LookupArgs) -> Result<CommandOutput> {
+    let LookupArgs { file, command } = args;
+    match command {
+        LookupCommand::Add(args) => lookup_add(file, args),
+        LookupCommand::Update(args) => lookup_update(file, args),
+        LookupCommand::Delete(args) => lookup_delete(file, args),
+    }
+}
+
+fn formula_result_type(value: &str) -> Result<String> {
+    match value {
+        "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" => {
+            Ok(value.to_string())
+        }
+        _ => Err(AppError::invalid_request(format!(
+            "Formula result type {value:?} must be text, number, integer, checkbox, date, datetime, or url"
+        ))),
+    }
+}
+
+fn lookup_aggregate(value: &str) -> Result<String> {
+    match value {
+        "values" | "first" | "count" | "sum" | "average" | "min" | "max" => Ok(value.to_string()),
+        _ => Err(AppError::invalid_request(format!(
+            "Lookup aggregate {value:?} must be values, first, count, sum, average, min, or max"
+        ))),
+    }
+}
+
+fn field_reference_info(
+    file: &Path,
+    reference: &str,
+    table_reference: Option<&str>,
+) -> Result<(FieldMeta, Vec<TableMeta>, Vec<FieldMeta>)> {
+    let conn = open_file(file, false)?;
+    let tables = load_tables(&conn)?;
+    let fields = load_fields(&conn)?;
+    let field_id = resolve_field_id(&conn, table_reference, reference)?;
+    let field = fields
+        .iter()
+        .find(|field| field.id == field_id)
+        .cloned()
+        .ok_or_else(|| AppError::internal("resolved Field disappeared"))?;
+    Ok((field, tables, fields))
+}
+
+fn next_field_position(file: &Path, table_id: &str) -> Result<String> {
+    let conn = open_file(file, false)?;
+    let position = load_fields(&conn)?
+        .into_iter()
+        .filter(|field| field.table_id == table_id && field.system_role.is_none())
+        .map(|field| field.position)
+        .max()
+        .unwrap_or(-1)
+        + 1;
+    Ok(position.to_string())
+}
+
+fn next_table_position(conn: &Connection) -> Result<String> {
+    let position = load_tables(conn)?
+        .into_iter()
+        .map(|table| table.position)
+        .max()
+        .unwrap_or(-1)
+        + 1;
+    Ok(position.to_string())
+}
+
+fn runtime_schema_intent(
+    file: PathBuf,
+    operation: Value,
+    expected_revision: Option<String>,
+    dry_run: bool,
+) -> Result<CommandOutput> {
+    runtime_schema_intent_with_options(file, operation, expected_revision, dry_run, false)
+}
+
+fn runtime_schema_intent_with_options(
+    file: PathBuf,
+    operation: Value,
+    expected_revision: Option<String>,
+    dry_run: bool,
+    confirm_lossy: bool,
+) -> Result<CommandOutput> {
+    with_runtime_session(&file, true, |session| {
+        let snapshot = session.call("getSnapshot", &json!({}))?;
+        let expected_revision = expected_revision
+            .or_else(|| {
+                snapshot
+                    .get("revision")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned)
+            })
+            .ok_or_else(|| AppError::internal("Runtime snapshot has no revision"))?;
+        let preflight = session.call(
+            "preflightSchema",
+            &json!({
+                "expectedRevision": expected_revision,
+                "change": operation,
+            }),
+        )?;
+        if dry_run {
+            return Ok(CommandOutput::success(json!({
+                "dryRun": true,
+                "createdIdsAreEphemeral": true,
+                "expectedRevision": expected_revision,
+                "operation": operation,
+                "result": preflight,
+            })));
+        }
+        let plan_token = preflight
+            .get("planToken")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::internal("Runtime schema preflight has no planToken"))?;
+        let actions_hash = preflight
+            .get("actionsHash")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::internal("Runtime schema preflight has no actionsHash"))?;
+        let mut mutation = json!({
+            "expectedRevision": expected_revision,
+            "planToken": plan_token,
+            "actionsHash": actions_hash,
+        });
+        if confirm_lossy {
+            mutation["confirmLossy"] = json!(true);
+        }
+        let result = session.call("mutateSchema", &mutation)?;
+        Ok(CommandOutput::success(json!({
+            "dryRun": false,
+            "createdIdsAreEphemeral": false,
+            "expectedRevision": expected_revision,
+            "operation": operation,
+            "preflight": preflight,
+            "result": result,
+        })))
+    })
+}
+
+fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Option<Value>> {
+    let Some(object) = operation.as_object() else {
+        return Ok(None);
+    };
+    let Some(kind) = object.get("kind").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    match kind {
+        "create-table" => {
+            let source_fields = object
+                .get("fields")
+                .and_then(Value::as_array)
+                .ok_or_else(|| AppError::invalid_request("create-table requires fields array"))?;
+            let has_formula = source_fields.iter().any(|value| {
+                value
+                    .as_object()
+                    .and_then(|field| string_member(field, &["kind", "type", "fieldType"]))
+                    == Some(String::from("formula"))
+            });
+            if !has_formula {
+                return Ok(None);
+            }
+            let mut fields = Vec::with_capacity(source_fields.len());
+            for (index, value) in source_fields.iter().cloned().enumerate() {
+                let mut field = value;
+                normalize_new_field(&mut field, index)?;
+                let field_object = field.as_object_mut().ok_or_else(|| {
+                    AppError::invalid_request("field definition must be a JSON object")
+                })?;
+                if field_object.get("kind").and_then(Value::as_str) == Some("formula") {
+                    let definition = field_object
+                        .get("definition")
+                        .and_then(Value::as_object)
+                        .ok_or_else(|| {
+                            AppError::invalid_request("formula Field requires definition object")
+                        })?;
+                    let definition = json!({
+                        "sourceText": string_member(definition, &["sourceText", "formula"])
+                            .ok_or_else(|| AppError::invalid_request("Formula definition requires sourceText"))?,
+                        "resultType": string_member(definition, &["resultType", "displayType", "type"])
+                            .ok_or_else(|| AppError::invalid_request("Formula definition requires resultType"))?,
+                    });
+                    field_object.insert("definition".into(), definition);
+                }
+                fields.push(field);
+            }
+            let conn = open_file(file, false)?;
+            let position = object
+                .get("position")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .unwrap_or(next_table_position(&conn)?);
+            let mut normalized = json!({
+                "kind": "create-table",
+                "clientKey": object
+                    .get("clientKey")
+                    .and_then(Value::as_str)
+                    .unwrap_or("table"),
+                "name": object
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::invalid_request("create-table requires name"))?,
+                "position": position,
+                "fields": fields,
+            });
+            if let Some(settings) = object.get("settings") {
+                normalized["settings"] = settings.clone();
+            }
+            let label_key = object
+                .get("labelFieldClientKey")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .or_else(|| {
+                    let label_name = object.get("labelField").and_then(Value::as_str)?;
+                    normalized["fields"].as_array()?.iter().find_map(|field| {
+                        let field = field.as_object()?;
+                        (field.get("name")?.as_str()? == label_name)
+                            .then(|| field.get("clientKey")?.as_str().map(ToOwned::to_owned))
+                            .flatten()
+                    })
+                });
+            if let Some(label_key) = label_key {
+                normalized["labelFieldClientKey"] = json!(label_key);
+            }
+            Ok(Some(normalized))
+        }
+        "create-field" => {
+            let table_reference = string_member(object, &["tableId", "table"])
+                .ok_or_else(|| AppError::invalid_request("create-field requires table/tableId"))?;
+            let conn = open_file(file, false)?;
+            let table_id = resolve_table_id(&conn, &table_reference)?;
+            let mut field = object.get("field").cloned().unwrap_or_else(|| {
+                let mut flat = Map::new();
+                for key in [
+                    "clientKey",
+                    "name",
+                    "type",
+                    "fieldType",
+                    "position",
+                    "settings",
+                    "definition",
+                ] {
+                    if let Some(value) = object.get(key) {
+                        let key = if key == "fieldType" { "type" } else { key };
+                        flat.insert(key.into(), value.clone());
+                    }
+                }
+                Value::Object(flat)
+            });
+            let field_object = field.as_object_mut().ok_or_else(|| {
+                AppError::invalid_request("create-field field must be a JSON object")
+            })?;
+            let field_kind = string_member(field_object, &["kind", "type"])
+                .ok_or_else(|| AppError::invalid_request("create-field requires field type"))?;
+            if !matches!(field_kind.as_str(), "formula" | "lookup") {
+                return Ok(None);
+            }
+            let name = field_object
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::invalid_request("virtual Field requires name"))?;
+            let client_key = field_object
+                .get("clientKey")
+                .and_then(Value::as_str)
+                .unwrap_or("virtual-field");
+            let position = field_object
+                .get("position")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .unwrap_or(next_field_position(file, &table_id)?);
+            let settings = field_object.get("settings").cloned();
+            let definition = field_object
+                .get("definition")
+                .and_then(Value::as_object)
+                .ok_or_else(|| {
+                    AppError::invalid_request(format!(
+                        "{field_kind} Field requires definition object"
+                    ))
+                })?;
+            let definition = if field_kind == "formula" {
+                json!({
+                    "sourceText": string_member(definition, &["sourceText", "formula"])
+                        .ok_or_else(|| AppError::invalid_request("Formula definition requires sourceText"))?,
+                    "resultType": string_member(definition, &["resultType", "displayType", "type"])
+                        .ok_or_else(|| AppError::invalid_request("Formula definition requires resultType"))?,
+                })
+            } else {
+                let fields = load_fields(&conn)?;
+                let relation_reference =
+                    string_member(definition, &["relationFieldId", "relationField"]).ok_or_else(
+                        || AppError::invalid_request("Lookup definition requires relationFieldId"),
+                    )?;
+                let relation_field_id =
+                    resolve_field_in_table(&fields, &table_id, &relation_reference)?;
+                let relation = load_relation_fields(&conn)?
+                    .into_iter()
+                    .find(|relation| relation.field_id == relation_field_id)
+                    .ok_or_else(|| {
+                        AppError::invalid_request("Lookup relationField must be a Relation Field")
+                    })?;
+                let target_reference = string_member(definition, &["targetFieldId", "targetField"])
+                    .ok_or_else(|| {
+                        AppError::invalid_request("Lookup definition requires targetFieldId")
+                    })?;
+                let target_field_id =
+                    resolve_field_in_table(&fields, &relation.target_table_id, &target_reference)?;
+                json!({
+                    "relationFieldId": relation_field_id,
+                    "targetFieldId": target_field_id,
+                    "aggregate": string_member(definition, &["aggregate"])
+                        .ok_or_else(|| AppError::invalid_request("Lookup definition requires aggregate"))?,
+                    "distinctValues": definition
+                        .get("distinctValues")
+                        .or_else(|| definition.get("distinct"))
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                })
+            };
+            let mut new_field = json!({
+                "clientKey": client_key,
+                "name": name,
+                "kind": field_kind,
+                "position": position,
+                "nullable": true,
+                "definition": definition,
+            });
+            if let Some(settings) = settings {
+                new_field["settings"] = settings;
+            }
+            Ok(Some(json!({
+                "kind": "create-field",
+                "tableId": table_id,
+                "field": new_field,
+            })))
+        }
+        "rename-field" => {
+            let field_reference = string_member(object, &["fieldId", "field"])
+                .ok_or_else(|| AppError::invalid_request("rename-field requires field/fieldId"))?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, _, fields) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            let needs_runtime = field.physical_name.is_none()
+                || fields.iter().any(|candidate| {
+                    candidate.table_id == field.table_id
+                        && candidate.field_type == eidos_file_core::model::FieldType::Formula
+                });
+            if !needs_runtime {
+                return Ok(None);
+            }
+            let name = object
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::invalid_request("rename-field requires name"))?;
+            Ok(Some(json!({
+                "kind": "rename-field",
+                "fieldId": field.id,
+                "name": name,
+            })))
+        }
+        "delete-field" => {
+            let field_reference = string_member(object, &["fieldId", "field"])
+                .ok_or_else(|| AppError::invalid_request("delete-field requires field/fieldId"))?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, _, fields) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            let needs_runtime = field.physical_name.is_none()
+                || fields.iter().any(|candidate| {
+                    candidate.table_id == field.table_id
+                        && candidate.field_type == eidos_file_core::model::FieldType::Formula
+                });
+            if !needs_runtime {
+                return Ok(None);
+            }
+            let replacement = string_member(
+                object,
+                &["replacementLabelFieldId", "replacementLabelField"],
+            )
+            .map(|reference| resolve_field_in_table(&fields, &field.table_id, &reference))
+            .transpose()?;
+            let mut normalized = json!({
+                "kind": "delete-field",
+                "fieldId": field.id,
+            });
+            if let Some(replacement) = replacement {
+                normalized["replacementLabelFieldId"] = json!(replacement);
+            }
+            Ok(Some(normalized))
+        }
+        "set-formula" | "set-lookup" => {
+            let field_reference = string_member(object, &["fieldId", "field"])
+                .ok_or_else(|| AppError::invalid_request(format!("{kind} requires fieldId")))?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, _, _) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            let expected_kind = if kind == "set-formula" {
+                eidos_file_core::model::FieldType::Formula
+            } else {
+                eidos_file_core::model::FieldType::Lookup
+            };
+            if field.field_type != expected_kind {
+                return Err(AppError::invalid_request(format!(
+                    "Field {:?} is not a {} Field",
+                    field.name,
+                    if kind == "set-formula" {
+                        "Formula"
+                    } else {
+                        "Lookup"
+                    }
+                )));
+            }
+            let definition = object
+                .get("definition")
+                .cloned()
+                .ok_or_else(|| AppError::invalid_request(format!("{kind} requires definition")))?;
+            Ok(Some(json!({
+                "kind": kind,
+                "fieldId": field.id,
+                "definition": definition,
+            })))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn formula_preview(file: PathBuf, args: FormulaPreviewArgs) -> Result<CommandOutput> {
+    let table_id = resolve_table_id(&open_file(&file, false)?, &args.table)?;
+    let result_type = formula_result_type(&args.result_type)?;
+    let mut request = json!({
+        "tableId": table_id,
+        "candidateName": args.name,
+        "sourceText": args.formula,
+        "declaredResultType": result_type,
+    });
+    if !args.row_ids.is_empty() {
+        request["rowIds"] = json!(args.row_ids);
+    }
+    with_runtime_session(&file, false, |session| {
+        Ok(CommandOutput::success(
+            session.call("previewFormula", &request)?,
+        ))
+    })
+}
+
+fn formula_add(file: PathBuf, args: FormulaAddArgs) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
+    let table_id = resolve_table_id(&conn, &args.table)?;
+    let result_type = formula_result_type(&args.result_type)?;
+    let position = args
+        .position
+        .unwrap_or(next_field_position(&file, &table_id)?);
+    let mut field = json!({
+        "clientKey": "formula-field",
+        "name": args.name,
+        "kind": "formula",
+        "position": position,
+        "nullable": true,
+        "definition": {
+            "sourceText": args.formula,
+            "resultType": result_type,
+        },
+    });
+    if let Some(settings) = args.settings {
+        field["settings"] = read_json_source(&settings)?;
+    }
+    let operation = json!({
+        "kind": "create-field",
+        "tableId": table_id,
+        "field": field,
+    });
+    runtime_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn formula_update(file: PathBuf, args: FormulaUpdateArgs) -> Result<CommandOutput> {
+    let (field, _, _) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if field.field_type != eidos_file_core::model::FieldType::Formula {
+        return Err(AppError::invalid_request(format!(
+            "Field {:?} is not a Formula Field",
+            field.name
+        )));
+    }
+    let operation = json!({
+        "kind": "set-formula",
+        "fieldId": field.id,
+        "definition": {
+            "sourceText": args.formula,
+            "resultType": formula_result_type(&args.result_type)?,
+        },
+    });
+    runtime_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn formula_delete(file: PathBuf, args: FormulaDeleteArgs) -> Result<CommandOutput> {
+    let (field, _, fields) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if field.field_type != eidos_file_core::model::FieldType::Formula {
+        return Err(AppError::invalid_request(format!(
+            "Field {:?} is not a Formula Field",
+            field.name
+        )));
+    }
+    let replacement = args
+        .replacement_label_field
+        .as_deref()
+        .map(|reference| {
+            let table = field.table_id.as_str();
+            resolve_field_in_table(&fields, table, reference)
+        })
+        .transpose()?;
+    let mut operation = json!({
+        "kind": "delete-field",
+        "fieldId": field.id,
+    });
+    if let Some(replacement) = replacement {
+        operation["replacementLabelFieldId"] = json!(replacement);
+    }
+    runtime_schema_intent_with_options(
+        file,
+        operation,
+        args.expected_revision,
+        args.dry_run,
+        args.confirm_lossy,
+    )
+}
+
+fn lookup_add(file: PathBuf, args: LookupAddArgs) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
+    let fields = load_fields(&conn)?;
+    let table_id = resolve_table_id(&conn, &args.table)?;
+    let relation_field_id = resolve_field_in_table(&fields, &table_id, &args.relation_field)?;
+    let relation = load_relation_fields(&conn)?
+        .into_iter()
+        .find(|relation| relation.field_id == relation_field_id)
+        .ok_or_else(|| {
+            AppError::invalid_request("Lookup relationField must be a Relation Field")
+        })?;
+    let target_field_id =
+        resolve_field_in_table(&fields, &relation.target_table_id, &args.target_field)?;
+    let position = args
+        .position
+        .unwrap_or(next_field_position(&file, &table_id)?);
+    let mut field = json!({
+        "clientKey": "lookup-field",
+        "name": args.name,
+        "kind": "lookup",
+        "position": position,
+        "nullable": true,
+        "definition": {
+            "relationFieldId": relation_field_id,
+            "targetFieldId": target_field_id,
+            "aggregate": lookup_aggregate(&args.aggregate)?,
+            "distinctValues": args.distinct,
+        },
+    });
+    if let Some(settings) = args.settings {
+        field["settings"] = read_json_source(&settings)?;
+    }
+    let operation = json!({
+        "kind": "create-field",
+        "tableId": table_id,
+        "field": field,
+    });
+    runtime_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn lookup_update(file: PathBuf, args: LookupUpdateArgs) -> Result<CommandOutput> {
+    let (field, _, fields) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if field.field_type != eidos_file_core::model::FieldType::Lookup {
+        return Err(AppError::invalid_request(format!(
+            "Field {:?} is not a Lookup Field",
+            field.name
+        )));
+    }
+    let relation_field_id = resolve_field_in_table(&fields, &field.table_id, &args.relation_field)?;
+    let conn = open_file(&file, false)?;
+    let relation = load_relation_fields(&conn)?
+        .into_iter()
+        .find(|relation| relation.field_id == relation_field_id)
+        .ok_or_else(|| {
+            AppError::invalid_request("Lookup relationField must be a Relation Field")
+        })?;
+    let target_field_id =
+        resolve_field_in_table(&fields, &relation.target_table_id, &args.target_field)?;
+    let operation = json!({
+        "kind": "set-lookup",
+        "fieldId": field.id,
+        "definition": {
+            "relationFieldId": relation_field_id,
+            "targetFieldId": target_field_id,
+            "aggregate": lookup_aggregate(&args.aggregate)?,
+            "distinctValues": args.distinct,
+        },
+    });
+    runtime_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn lookup_delete(file: PathBuf, args: LookupDeleteArgs) -> Result<CommandOutput> {
+    let (field, _, fields) = field_reference_info(&file, &args.reference, args.table.as_deref())?;
+    if field.field_type != eidos_file_core::model::FieldType::Lookup {
+        return Err(AppError::invalid_request(format!(
+            "Field {:?} is not a Lookup Field",
+            field.name
+        )));
+    }
+    let replacement = args
+        .replacement_label_field
+        .as_deref()
+        .map(|reference| resolve_field_in_table(&fields, &field.table_id, reference))
+        .transpose()?;
+    let mut operation = json!({
+        "kind": "delete-field",
+        "fieldId": field.id,
+    });
+    if let Some(replacement) = replacement {
+        operation["replacementLabelFieldId"] = json!(replacement);
+    }
+    runtime_schema_intent_with_options(
+        file,
+        operation,
+        args.expected_revision,
+        args.dry_run,
+        args.confirm_lossy,
+    )
+}
+
+fn execute_schema_intent(
+    file: PathBuf,
+    operation: Value,
+    expected_revision: Option<String>,
+    dry_run: bool,
+) -> Result<CommandOutput> {
+    let mut conn = open_file(&file, true)?;
+    let meta = load_file_meta(&conn)?;
+    let expected_revision = expected_revision.unwrap_or_else(|| meta.revision.to_string());
+    let change = normalize_schema_change(&conn, operation)?;
+    let result = if dry_run {
+        preview_schema_change(&mut conn, &change, Some(&expected_revision))?
+    } else {
+        apply_schema_change(&mut conn, &change, Some(&expected_revision))?
+    };
+    Ok(CommandOutput::success(json!({
+        "dryRun": dry_run,
+        "createdIdsAreEphemeral": dry_run,
+        "expectedRevision": expected_revision,
         "operation": change,
         "result": result,
     })))

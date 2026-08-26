@@ -41,6 +41,45 @@ impl AppError {
         }
     }
 
+    pub fn runtime(
+        code: &str,
+        message: impl Into<String>,
+        current_revision: Option<String>,
+    ) -> Self {
+        let code = match code {
+            "invalid-request" => "invalid-request",
+            "unsupported" => "unsupported",
+            "not-found" => "not-found",
+            "already-exists" => "already-exists",
+            "invalid-value" => "invalid-value",
+            "invalid-query" => "invalid-query",
+            "invalid-formula" => "invalid-formula",
+            "cycle" => "cycle",
+            "constraint" => "constraint",
+            "stale-revision" => "stale-revision",
+            "conflict" => "conflict",
+            "forbidden" => "forbidden",
+            "lossy-confirmation-required" => "lossy-confirmation-required",
+            "invalid-plan" => "invalid-plan",
+            "plan-expired" => "plan-expired",
+            "resource-limit" => "resource-limit",
+            "busy" => "busy",
+            "corrupt-file" => "corrupt-file",
+            "unsupported-version" => "unsupported-version",
+            "adapter-error" => "adapter-error",
+            "closed" => "closed",
+            "cancelled" => "cancelled",
+            "deadline-exceeded" => "deadline-exceeded",
+            "fatal" => "fatal",
+            _ => "internal",
+        };
+        Self {
+            code,
+            message: message.into(),
+            current_revision,
+        }
+    }
+
     pub fn to_json(&self) -> Value {
         let mut error = serde_json::Map::new();
         error.insert("code".into(), json!(self.code));

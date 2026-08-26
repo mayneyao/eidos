@@ -62,11 +62,101 @@ eidos --json validate tracker.eidos --level full
 
 任一步返回非零 exit status，都应视为整个工作流失败。不要根据猜测或不完整解析继续执行。
 
+## 面向智能体的记录与 Schema 意图命令
+
+常见 Schema 修改应优先使用意图命令，而不是手写底层 operation JSON。Table 和 Field
+可以使用显示名称或 stable ID；CLI 会在带 revision 检查的事务中先完成解析：
+
+```bash
+eidos --json field add tracker.eidos \
+  --table Tasks --name Due --type date \
+  --expected-revision 1 --dry-run
+
+eidos --json relation add tracker.eidos \
+  --table Tasks --name Owners --target-table People \
+  --cardinality many --on-delete detach \
+  --expected-revision 2
+```
+
+当调用方拥有稳定的业务键、但还没有 Row ID 时，使用 `rows upsert`。它接受一个对象或
+对象数组：匹配到一条记录就更新，没有匹配就新增。业务键必须是存储字段、值不能为空，
+并且最多只能匹配一条已有记录：
+
+```bash
+eidos --json rows upsert tracker.eidos \
+  --table Tasks \
+  --key "External ID" \
+  --values '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
+  --expected-revision 3 \
+  --dry-run
+```
+
+返回结果中的 `plan` 会标明每一项是 `create` 还是 `update`；dry-run 产生的 Row ID
+只是临时规划 ID。去掉 `--dry-run` 后，整个数组只提交一个 revision。输入数组中有重复
+业务键，或业务键匹配多条已有记录时，CLI 会拒绝请求且不修改文件。
+
+当一次操作需要在同一张表中混合新增、更新和删除时，使用 `rows mutate`：
+
+```bash
+eidos --json rows mutate tracker.eidos \
+  --table Tasks \
+  --expected-revision 4 \
+  --changes '[
+    {"kind":"update","rowId":"019...","values":{"Status":"done"}},
+    {"kind":"create","clientKey":"new-task","values":{"External ID":"task-2","Title":"Document"}},
+    {"kind":"delete","rowId":"019..."}
+  ]'
+```
+
+`rows mutate` 复用 Runtime 的 RowChange 合同，所有修改要么全部提交，要么全部回滚。
+需要查看计划时添加 `--dry-run`。当智能体已经掌握完整的 stable ID mutation document
+时，仍可使用低层的 `rows add/update/delete`、`schema-apply` 和 `view-apply`。
+
+## Runtime Formula 与 Lookup
+
+派生字段应使用 canonical Runtime。提交 Formula 前先预览表达式；返回结果包含推导出的类型、
+依赖字段、诊断信息以及可选的样例值：
+
+```bash
+eidos --json formula preview tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer
+```
+
+Formula 的创建和更新都经过带 revision 检查的 Runtime preflight：
+
+```bash
+eidos --json formula add tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer \
+  --expected-revision 4 --dry-run
+
+eidos --json formula update tracker.eidos Total \
+  --table Tasks --formula '"Estimate" + 1' --type integer \
+  --expected-revision 4
+```
+
+Relation 和目标 Field 已存在后，再创建 Lookup：
+
+```bash
+eidos --json lookup add tracker.eidos \
+  --table Tasks --name OwnerScore \
+  --relation-field Owners --target-field Score \
+  --aggregate sum --expected-revision 5
+```
+
+`table create` 的初始 fields 数组可以包含 Formula，并会走相同的 Runtime preflight 路径。
+Relation 和 Lookup 需要在引用的 Schema 已存在后再添加。
+
+Lookup 聚合支持 `values`、`first`、`count`、`sum`、`average`、`min` 和 `max`；需要去重时添加
+`--distinct`。当表中包含 Formula、Lookup 或 inverse Relation 时，`query` 和 `context` 会自动
+通过 Runtime 计算，因此派生字段可以投影、筛选和排序。派生字段不能通过 rows mutation 直接写入。
+Runtime 会在提交前拒绝无效类型、缺失目标、过期 plan 和依赖循环。删除 Formula 或 Lookup
+属于显式有损操作：先用 dry-run 预览，确认影响后再添加 `--confirm-lossy` 提交。
+
 ## 低层操作
 
-已经掌握 stable ID 与 revision state 的自动化仍可以使用 `rows add`、`rows update`、
-`rows delete`、`schema-apply` 与 `view-apply`。Schema change 支持在提交前通过真实
-transaction path 执行 dry run。
+Schema change 支持在提交前通过真实 transaction path 执行 dry run。
 
 ```bash
 eidos --json schema-apply tracker.eidos \

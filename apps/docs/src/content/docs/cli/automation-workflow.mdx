@@ -67,12 +67,114 @@ eidos --json validate tracker.eidos --level full
 Treat a nonzero exit status at any step as a failed workflow. Do not continue
 from guessed or partially parsed output.
 
+## Agent-facing row and schema intent
+
+For common schema changes, use the intent commands instead of assembling raw
+operation JSON. Table and Field references may be display names or stable IDs;
+the CLI resolves them before the revision-checked transaction:
+
+```bash
+eidos --json field add tracker.eidos \
+  --table Tasks --name Due --type date \
+  --expected-revision 1 --dry-run
+
+eidos --json relation add tracker.eidos \
+  --table Tasks --name Owners --target-table People \
+  --cardinality many --on-delete detach \
+  --expected-revision 2
+```
+
+Use `rows upsert` when a caller has a stable business key but not a Row ID.
+It accepts one object or an array, updates the single matching row, and
+creates a row when no match exists. The key must contain stored, non-null
+Fields and identify at most one existing row:
+
+```bash
+eidos --json rows upsert tracker.eidos \
+  --table Tasks \
+  --key "External ID" \
+  --values '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
+  --expected-revision 3 \
+  --dry-run
+```
+
+The response includes a `plan` showing `create` or `update` for each input;
+dry-run Row IDs are ephemeral, so use the IDs returned by the committed apply.
+Remove `--dry-run` to commit the entire batch as one revision. Duplicate input
+keys and keys matching multiple existing rows are rejected without changing
+the File.
+
+Use `rows mutate` when a single atomic batch must mix creates, updates, and
+deletes for one Table:
+
+```bash
+eidos --json rows mutate tracker.eidos \
+  --table Tasks \
+  --expected-revision 4 \
+  --changes '[
+    {"kind":"update","rowId":"019...","values":{"Status":"done"}},
+    {"kind":"create","clientKey":"new-task","values":{"External ID":"task-2","Title":"Document"}},
+    {"kind":"delete","rowId":"019..."}
+  ]'
+```
+
+`rows mutate` reuses the Runtime RowChange contract and either applies every
+change or none. Use `--dry-run` to inspect the result without changing the
+revision. The lower-level `rows add/update/delete`, `schema-apply`, and
+`view-apply` commands remain available when an Agent already owns the exact
+stable-ID mutation document.
+
+## Runtime Formula and Lookup
+
+Use the canonical Runtime for derived Fields. Preview Formula source text
+before committing it; the result includes the inferred type, dependencies,
+diagnostics, and optional sample values:
+
+```bash
+eidos --json formula preview tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer
+```
+
+Create or update a Formula with revision-checked Runtime preflight:
+
+```bash
+eidos --json formula add tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer \
+  --expected-revision 4 --dry-run
+
+eidos --json formula update tracker.eidos Total \
+  --table Tasks --formula '"Estimate" + 1' --type integer \
+  --expected-revision 4
+```
+
+Create a Lookup after its Relation and target Field exist:
+
+```bash
+eidos --json lookup add tracker.eidos \
+  --table Tasks --name OwnerScore \
+  --relation-field Owners --target-field Score \
+  --aggregate sum --expected-revision 5
+```
+
+`table create` may include Formula fields in its initial field array and uses
+the same Runtime preflight path. Relation and Lookup fields are added after
+their referenced schema exists.
+
+Lookup aggregates are `values`, `first`, `count`, `sum`, `average`, `min`,
+and `max`; add `--distinct` when distinct values are required. `query` and
+`context` automatically evaluate Formula, Lookup, and inverse Relation Fields
+when a Table contains them, so derived Fields may be projected, filtered, and
+sorted. Derived Fields are read-only in row mutations. Runtime rejects invalid
+types, missing targets, stale plans, and dependency cycles before commit.
+Deleting Formula or Lookup is explicitly lossy: preview it first and pass
+`--confirm-lossy` only after confirming the impact.
+
 ## Lower-level operations
 
-`rows add`, `rows update`, `rows delete`, `schema-apply`, and `view-apply`
-remain available for automation that already owns stable IDs and revision
-state. Schema changes support dry-run execution against the real transaction
-path before commit.
+Schema changes support dry-run execution against the real transaction path
+before commit.
 
 ```bash
 eidos --json schema-apply tracker.eidos \

@@ -1,10 +1,11 @@
 //! Revision-checked Eidos File schema mutations used by the agent CLI.
 //!
-//! This alpha deliberately implements the high-value stored-field surface:
-//! table lifecycle, stored scalar/list fields, forward Relations, display
-//! renames, File title/default Table, and safe deletion. Formula, Lookup, and
-//! inverse-Relation creation remains unsupported; existing definitions are
-//! preserved and exposed by schema inspection.
+//! This direct Rust layer deliberately implements the high-value stored-field
+//! surface: table lifecycle, stored scalar/list fields, forward Relations,
+//! display renames, File title/default Table, and safe deletion. Formula,
+//! Lookup, and inverse-Relation changes are handled by the canonical Runtime
+//! bridge in the Agent CLI; existing definitions remain visible here for
+//! inspection and stored-only callers.
 
 use std::collections::HashSet;
 

@@ -504,6 +504,12 @@ pub struct QjsHost {
     context: Context,
 }
 
+/// Drop the thread-local QuickJS context retained by SQLite scalar callbacks.
+/// CLI one-shot calls do not need it after the Runtime session closes.
+pub fn clear_active_context() {
+    ACTIVE_CTX.with(|slot| *slot.borrow_mut() = None);
+}
+
 impl QjsHost {
     pub fn new(state: &Rc<HostState>) -> anyhow::Result<Self> {
         let runtime = Runtime::new().context("create QuickJS runtime")?;

@@ -1147,10 +1147,19 @@ export function validateEidosFile(
       continue
     }
     const sql = (trigger.sql ?? "").toLowerCase()
+    // Older CLI writers used the format-spec marker while the Runtime writer
+    // uses the newer explicit marker. Both are behaviorally equivalent safety
+    // triggers and must remain readable for existing Files.
+    const validFragments = expected.fragments.every((fragment) =>
+      fragment === "eidos_invalid_relation_value"
+        ? sql.includes("eidos_invalid_relation_value") ||
+          sql.includes("eidos_relation_invalid")
+        : sql.includes(fragment)
+    )
     if (
       trigger.tbl_name !== expected.table ||
       sql.includes("hex(") ||
-      expected.fragments.some((fragment) => !sql.includes(fragment))
+      !validFragments
     ) {
       add(
         errors,

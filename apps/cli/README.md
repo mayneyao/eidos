@@ -10,6 +10,11 @@ default, and does not require a running Eidos application.
 - Read logical tables, fields, relations, views, and file metadata.
 - Query rows through the Eidos query model rather than raw SQL.
 - Apply atomic row, saved View, and schema mutations with optimistic revision checks.
+- Upsert rows by stored business keys and apply mixed row batches atomically.
+- Create and update standard Views from user-facing Table and Field names.
+- Create, rename, and delete Tables and Fields, and create forward Relations from user-facing intent.
+- Preview and manage Formula and Lookup Fields through the canonical Runtime.
+- Query Formula and Lookup values, including filters and sorts, through Runtime evaluation.
 - Validate file identity, structure, content, and supported semantics.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
 - Publish immutable Eidos File or Markdown Versions, including attachments, to a stable read-only URL.
@@ -127,6 +132,20 @@ target/debug/eidos tracker.eidos apply - <<'JSON'
 JSON
 ```
 
+For synchronization without pre-known Row IDs, use a stored business key:
+
+```bash
+target/debug/eidos --json rows upsert tracker.eidos \
+  --table Tasks \
+  --key "External ID" \
+  --values '[{"External ID":"task-1","Title":"Ship CLI"}]' \
+  --expected-revision 1 \
+  --dry-run
+```
+
+Use `rows mutate` for a mixed create/update/delete batch that must commit as
+one revision. Both commands support JSON from inline input, `@path`, or stdin.
+
 Lower-level mutation commands remain available for creation, deletion, and
 automation that already owns stable row IDs. They require the current revision:
 
@@ -138,8 +157,73 @@ target/debug/eidos tracker.eidos rows add Tasks \
 target/debug/eidos tracker.eidos validate --level full
 ```
 
-Create a Calendar View from the stable Table and date Field IDs returned by
-`schema`:
+Create standard Views directly from user-facing names. The command resolves
+stable IDs, applies type-specific defaults, and can show the exact plan with
+`--dry-run`:
+
+```bash
+target/debug/eidos --json view create tracker.eidos \
+  --table Tasks \
+  --name "By status" \
+  --type kanban \
+  --group-by Status \
+  --dry-run
+
+target/debug/eidos --json view create tracker.eidos \
+  --table Tasks \
+  --name "Delivery calendar" \
+  --type calendar \
+  --date-by Due
+```
+
+Use `view list`, `view inspect`, `view update`, and `view delete` for the
+remaining lifecycle operations. `view-apply` remains available when an Agent
+needs to submit an exact Runtime mutation document.
+
+Schema intent commands cover the common Agent path and resolve names to stable
+IDs before applying one revision-checked transaction:
+
+```bash
+target/debug/eidos --json field add tracker.eidos \
+  --table Tasks --name Due --type date --dry-run
+
+target/debug/eidos --json table create tracker.eidos \
+  --name People --label-field Name \
+  --fields '[{"name":"Name","type":"text","nullable":false}]'
+
+target/debug/eidos --json relation add tracker.eidos \
+  --table Tasks --name Owners --target-table People --on-delete detach
+```
+
+Use `table rename/delete` and `field rename/delete` for lifecycle changes.
+`schema-apply` remains available for supported schema payloads that need
+lower-level control. Formula and Lookup Fields use the embedded TypeScript
+Runtime for preflight, dependency checks, cycle detection, and commit:
+
+```bash
+target/debug/eidos --json formula preview tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer
+
+target/debug/eidos --json formula add tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer --expected-revision 3 --dry-run
+
+target/debug/eidos --json lookup add tracker.eidos \
+  --table Tasks --name OwnerScore \
+  --relation-field Owners --target-field Score \
+  --aggregate sum --expected-revision 4
+```
+
+`query` and `context` automatically evaluate Formula, Lookup, and inverse
+Relation Fields when present. Inverse Relation creation remains outside the
+high-level CLI intent surface. Deleting Formula or Lookup Fields is explicitly
+lossy and requires `--confirm-lossy` after a dry run. A `table create` field
+array may include Formula fields; Relation and Lookup fields are added after
+their referenced schema exists.
+
+For advanced automation, the equivalent low-level Calendar mutation uses the
+stable Table and date Field IDs returned by `schema`:
 
 ```bash
 target/debug/eidos tracker.eidos view-apply - <<'JSON'
@@ -333,14 +417,20 @@ in [Publish a file](../docs/src/content/docs/cli/publish.mdx).
 - `--expected-revision` prevents writes based on stale reads.
 - `context` combines compact schema discovery with a bounded logical query.
 - `apply` validates the proposed final state before committing matched updates.
+- `rows upsert` resolves stored business keys and plans create/update actions in one transaction.
+- `rows mutate` applies mixed RowChange batches atomically, with `--dry-run` rollback support.
 - `schema-apply --dry-run` executes and rolls back the exact schema transaction.
+- Runtime-backed lossy Formula/Lookup deletes require `--confirm-lossy` on the real commit.
+- `view create/update/delete --dry-run` resolves intent and rolls back the exact View transaction.
 - `view-apply` uses the Runtime View mutation document and one revision-checked transaction.
 - `validate --level full` should follow a completed write workflow.
 - Raw SQLite writes are unsupported.
 
-The alpha supports stored scalar/list fields, forward Relations, and saved View
-lifecycle operations. It preserves and reports existing Formula, Lookup, and
-inverse Relation metadata but does not create or evaluate virtual fields yet.
+The CLI supports stored scalar/list fields, forward Relations, saved View
+lifecycle operations, and Runtime-backed Formula/Lookup evaluation. Formula
+and Lookup fields are read-only in row mutations. The CLI preserves existing
+inverse Relation metadata but does not create inverse Relations through the
+high-level intent surface.
 
 ## Development
 

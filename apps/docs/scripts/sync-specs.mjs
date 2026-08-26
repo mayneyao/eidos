@@ -96,7 +96,7 @@ function generatedPage(source, language, order) {
     "",
     sourceNotice,
     "",
-    rewriteLinks(lines.join("\n").trimStart()).replaceAll("```ebnf", "```text"),
+    rewriteLinks(lines.join("\n").trim()).replaceAll("```ebnf", "```text"),
     "",
   ].join("\n")
 }

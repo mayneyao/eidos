@@ -6,7 +6,13 @@
 //! the Runtime logical value encoding (integers as canonical decimal
 //! strings, JSON as JCS text); `values.rs` owns coercion into SQL bindings.
 //!
-//! v1 limitations (documented, all reported as `invalid-query`):
+//! The Rust core remains a stored-field SQL compiler. The Agent CLI routes
+//! queries for virtual Fields through the canonical TypeScript Runtime, so the
+//! limitations below apply to direct core callers and the stored-only fast
+//! path, not to the CLI's Runtime fallback.
+//!
+//! v1 limitations of this stored-only path (documented, all reported as
+//! `invalid-query`):
 //!
 //! - Only STORED fields are filterable/sortable/searchable; Formula,
 //!   Lookup, and inverse Relation fields have no physical column and are

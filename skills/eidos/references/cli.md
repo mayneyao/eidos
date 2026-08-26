@@ -9,8 +9,11 @@
 - [Query](#query)
 - [Atomic matched update](#atomic-matched-update)
 - [Row mutations](#row-mutations)
+- [Agent-facing row commands](#agent-facing-row-commands)
+- [Agent-facing schema commands](#agent-facing-schema-commands)
+- [Runtime Formula and Lookup commands](#runtime-formula-and-lookup-commands)
 - [Schema mutations](#schema-mutations)
-- [View mutations](#view-mutations)
+- [View commands and mutations](#view-commands-and-mutations)
 - [Validation](#validation)
 - [Local web editor](#local-web-editor)
 - [Logical values](#logical-values)
@@ -149,6 +152,11 @@ Filter nodes accept `field` or `fieldId`:
 
 Rows are keyed by display names and always include `_id`. Integer values are returned as canonical decimal strings.
 
+When a Table contains Formula, Lookup, or inverse Relation Fields, `query` and
+`context` transparently use the Eidos Runtime evaluator. Derived Fields can be
+projected, filtered, and sorted with the same `field`/`fieldId` query grammar;
+their values are returned using Runtime logical value types.
+
 ## Atomic matched update
 
 Use `apply` for the common read-check-update-validate loop:
@@ -208,9 +216,140 @@ eidos --json rows file.eidos delete Tasks 019... 019... --expected-revision 7
 
 Successful mutations return the new `revision`. Creation also returns stable row IDs under `created[].rowId`.
 
+## Agent-facing row commands
+
+Use `rows upsert` when the caller has a stable business key but not a Row ID.
+`--key` accepts one or more stored Field names or IDs; `--values` accepts one
+object or an array of objects:
+
+```bash
+eidos --json rows upsert file.eidos \
+  --table Tasks \
+  --key "External ID" \
+  --values '[{"External ID":"task-1","Title":"Ship CLI"},{"External ID":"task-2","Title":"Write docs"}]' \
+  --expected-revision 8 \
+  --dry-run
+```
+
+Each key must be non-null, refer to a stored user Field, and match at most one
+existing row. The response includes `plan`, with one `create` or `update`
+entry per input. Duplicate input keys, ambiguous existing matches, and all
+request or coercion failures leave the File unchanged. Planned create Row IDs
+are ephemeral; use the IDs returned by the committed apply.
+
+Use `rows mutate` for a mixed batch in one Table:
+
+```bash
+eidos --json rows mutate file.eidos \
+  --table Tasks \
+  --expected-revision 8 \
+  --changes '[
+    {"kind":"update","rowId":"019...","values":{"Status":"done"}},
+    {"kind":"create","clientKey":"task-3","values":{"External ID":"task-3","Title":"Review"}},
+    {"kind":"delete","rowId":"019..."}
+  ]'
+```
+
+The changes use the Runtime `RowChange` shape and commit atomically. Add
+`--dry-run` to inspect the result while rolling back the transaction. Use the
+existing `rows add/update/delete` commands when separate operations or exact
+Row IDs are already part of the caller's plan.
+
+## Agent-facing schema commands
+
+Use these commands for common schema intent. Table and Field references may be
+display names or stable IDs; the JSON response includes the normalized
+operation with stable IDs and the committed or planned revision:
+
+```bash
+eidos --json field add file.eidos \
+  --table Tasks --name Due --type date --dry-run
+
+eidos --json table create file.eidos \
+  --name People \
+  --label-field Name \
+  --fields '[{"name":"Name","type":"text","nullable":false}]'
+
+eidos --json relation add file.eidos \
+  --table Tasks --name Owners --target-table People \
+  --cardinality many --on-delete detach
+```
+
+The lifecycle commands are `table rename`, `table delete`, `field rename`,
+and `field delete`. `field delete` accepts `--table` to disambiguate a name
+and `--replacement-label-field` when deleting the current record-label Field.
+All schema intent commands accept `--expected-revision` and `--dry-run`.
+When the expected revision is omitted, the CLI uses the revision read when the
+command starts. Formula and Lookup Fields use the canonical TypeScript Runtime
+for preflight, dependency checks, and commit; `field add --type formula|lookup`
+also accepts their Runtime definitions. `table create` can include Formula
+fields in its initial field array; Relation and Lookup fields are added after
+their referenced Tables/Fields exist.
+
+## Runtime Formula and Lookup commands
+
+Preview a Formula without changing the File. `--row-ids` is optional; when it
+is present, the response contains sample values for those exact rows:
+
+```bash
+eidos --json formula preview file.eidos \
+  --table Tasks \
+  --name Total \
+  --formula '"Estimate" * 2' \
+  --type integer \
+  --row-ids 019...
+```
+
+Create, update, or delete a Formula:
+
+```bash
+eidos --json formula add file.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer \
+  --expected-revision 8 --dry-run
+
+eidos --json formula update file.eidos Total \
+  --table Tasks --formula '"Estimate" + 1' --type integer \
+  --expected-revision 8
+
+eidos --json formula delete file.eidos Total \
+  --table Tasks --expected-revision 9 --confirm-lossy
+```
+
+Formula result types are `text`, `number`, `integer`, `checkbox`, `date`,
+`datetime`, and `url`. Runtime preflight returns the plan classification,
+dependencies, diagnostics, and expiry; a non-dry-run command binds the commit
+to that plan and the expected revision.
+
+Create, update, or delete a Lookup after the source Relation and target Field
+have stable IDs. Names are resolved by the CLI:
+
+```bash
+eidos --json lookup add file.eidos \
+  --table Tasks --name OwnerScore \
+  --relation-field Owners --target-field Score \
+  --aggregate sum --expected-revision 10
+
+eidos --json lookup update file.eidos OwnerScore \
+  --table Tasks --relation-field Owners --target-field Score \
+  --aggregate values --distinct --expected-revision 11
+
+eidos --json lookup delete file.eidos OwnerScore \
+  --table Tasks --expected-revision 12 --confirm-lossy
+```
+
+Lookup aggregates are `values`, `first`, `count`, `sum`, `average`, `min`, and
+`max`. `--distinct` requests distinct values where the aggregate supports it.
+Runtime validates relation ownership, target-table membership, aggregate/type
+compatibility, and cross-Table dependency cycles. Formula and Lookup Fields
+are read-only in row mutation commands. Deleting one is explicitly lossy:
+`--dry-run` shows the plan, while a real deletion requires `--confirm-lossy`.
+
 ## Schema mutations
 
 Every schema operation takes one JSON object and one expected revision. Add `--dry-run` to execute the same transaction and roll it back.
+When a Runtime-backed Formula/Lookup deletion is explicitly lossy, add
+`--confirm-lossy` only for the real commit after reviewing the dry-run plan.
 
 IDs returned in a dry-run `createdObjects` array are ephemeral planning IDs. They will differ from IDs allocated by the real apply and must never be stored or used in later commands. Read actual IDs from the apply result.
 
@@ -253,9 +392,64 @@ Forward Relation field:
 }
 ```
 
-Formula, Lookup, and inverse Relation creation is intentionally rejected in the alpha.
+Inverse Relation creation remains outside the high-level CLI intent surface.
+Formula and Lookup creation is supported by the Runtime-backed commands above.
 
-## View mutations
+## View commands and mutations
+
+### Agent-facing View commands
+
+Prefer these commands for normal Agent requests. The CLI resolves Table, View,
+and Field names, builds standard View layout JSON, chooses the next position,
+and commits the resulting Runtime mutation atomically:
+
+```bash
+eidos --json view list file.eidos
+eidos --json view inspect file.eidos "By status"
+
+eidos --json view create file.eidos \
+  --table Tasks \
+  --name "By status" \
+  --type kanban \
+  --group-by Status
+
+eidos --json view create file.eidos \
+  --table Tasks \
+  --name "Delivery calendar" \
+  --type calendar \
+  --date-by Due \
+  --where '{"op":"is-not-null","field":"Due"}' \
+  --sort '[{"field":"Due","direction":"asc"}]'
+```
+
+Use `--dry-run` to produce the resolved operation without changing the File:
+
+```bash
+eidos --json view create file.eidos \
+  --table Tasks --name "By status" --type kanban \
+  --group-by Status --dry-run
+```
+
+`view update` accepts `--name`, `--type`, `--where`, `--sort`, `--fields`,
+`--hide-fields`, `--show-fields`, `--group-by`, `--date-by`, `--card-fields`,
+`--cover-by`, `--card-size`, and Form presentation options. `view delete`
+accepts a View name or stable ID and also supports `--dry-run`.
+
+The standard type-specific options are:
+
+- `grid`: `--fields`, `--hide-fields`, `--where`, and `--sort`.
+- `gallery`: `--fields`, `--hide-fields`, `--card-fields`, `--cover-by`, and `--card-size`.
+- `kanban`: gallery options plus `--group-by` and `--hide-empty-groups`.
+- `calendar`: `--date-by`.
+- `form`: `--fields`, `--hide-fields`, `--title`, `--description`, `--submit-label`, and `--success-message`.
+
+All Field references may be display names or stable IDs. The response
+contains `resolved`, the canonical low-level `request`, and `result`. A
+dry-run result has `createdIdsAreEphemeral: true`; never reuse its generated
+View ID. The command accepts both `view create file.eidos` and
+`file.eidos view create` forms.
+
+### Low-level View mutation
 
 Use `schema` first and keep the current revision plus the stable Table, View,
 and Field IDs. `view-apply` accepts the exact Runtime `ViewMutationRequest` and

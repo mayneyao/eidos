@@ -2,9 +2,9 @@
 //!
 //! The alpha validator covers File identity, canonical core metadata,
 //! physical user-table shape, required triggers, foreign keys, SQLite
-//! integrity, and stored logical-value decoding. Formula/Lookup evaluation
-//! remains outside the Rust alpha and is reported as a capability limitation
-//! by `eidos inspect`, not as invalid File state.
+//! integrity, and stored logical-value decoding. Formula/Lookup semantic
+//! validation is provided by the canonical TypeScript Runtime when virtual
+//! Fields exist.
 
 use std::collections::{HashMap, HashSet};
 

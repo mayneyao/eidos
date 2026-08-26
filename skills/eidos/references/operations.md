@@ -63,9 +63,58 @@ returns the committed row. A separate final validation call is unnecessary.
 For batch creation, one `rows add` with a JSON array is atomic and preferable
 to separate calls; validate after lower-level mutations.
 
+For idempotent synchronization keyed by an external identifier, use `rows
+upsert`. Preview a batch before committing it:
+
+```bash
+eidos --json rows upsert tracker.eidos \
+  --table Tasks --key "External ID" \
+  --values '[{"External ID":"task-1","Title":"Ship CLI","Status":"done"}]' \
+  --expected-revision 12 --dry-run
+
+eidos --json rows upsert tracker.eidos \
+  --table Tasks --key "External ID" \
+  --values '@/absolute/path/tasks.json' \
+  --expected-revision 12
+```
+
+Use `rows mutate` when the same revision must contain a mixture of creates,
+updates, and deletes. It accepts the Runtime `RowChange` array and commits the
+whole batch or none of it. Both commands require an explicit expected revision
+and reject duplicate or ambiguous upsert keys.
+
 ## Safe schema change
 
-Run the exact operation as a dry run, confirm the file revision did not change, then apply it using the same revision only if no other writer intervened:
+Prefer the intent command for common changes. Run it as a dry run, confirm the
+file revision did not change, then apply it using the same revision only if no
+other writer intervened:
+
+```bash
+eidos --json field add tracker.eidos \
+  --table Tasks --name Due --type date \
+  --expected-revision 12 --dry-run
+
+eidos --json field add tracker.eidos \
+  --table Tasks --name Due --type date \
+  --expected-revision 12
+```
+
+For a new Table or a forward Relation, use `table create` and `relation add`:
+
+```bash
+eidos --json table create tracker.eidos \
+  --name People --label-field Name \
+  --fields '[{"name":"Name","type":"text","nullable":false}]' \
+  --expected-revision 12 --dry-run
+
+eidos --json relation add tracker.eidos \
+  --table Tasks --name Owners --target-table People \
+  --cardinality many --on-delete detach \
+  --expected-revision 13
+```
+
+Use the lower-level form only when the schema operation needs a payload not
+covered by the intent flags:
 
 ```bash
 eidos --json inspect tracker.eidos
@@ -86,10 +135,54 @@ Treat every `createdObjects[].id` returned by the dry run as ephemeral. The real
 
 Adding a non-null scalar field to a non-empty table is rejected because existing rows would have no valid value. Add it nullable, populate it, and only use a later supported migration to strengthen the constraint.
 
+## Runtime-derived Fields
+
+Use Runtime-backed Formula and Lookup commands when a schema change introduces
+derived values. Preview Formula source text before commit and carry the
+returned revision into the mutation:
+
+```bash
+eidos --json formula preview tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer
+
+eidos --json formula add tracker.eidos \
+  --table Tasks --name Total \
+  --formula '"Estimate" * 2' --type integer \
+  --expected-revision 12
+```
+
+Lookup definitions must reference an existing Relation Field and a Field in
+that Relation's target Table:
+
+```bash
+eidos --json lookup add tracker.eidos \
+  --table Tasks --name OwnerScore \
+  --relation-field Owners --target-field Score \
+  --aggregate sum --expected-revision 13 --dry-run
+```
+
+Runtime preflight rejects invalid Formula types, missing Lookup targets, and
+derived-field cycles before the File changes. `query` and `context` evaluate
+these Fields through Runtime; never replace them with raw SQLite expressions.
+
 ## Create a Calendar view
 
-Read the full schema, select the owning Table ID and a same-Table `date` or
-`datetime` Field ID, then submit one View mutation at that revision:
+Prefer the Agent-facing command. It resolves the Table and date Field names,
+builds the canonical layout, and commits one revision-checked mutation:
+
+```bash
+eidos --json view create tracker.eidos \
+  --table Tasks \
+  --name "Delivery calendar" \
+  --type calendar \
+  --date-by Due
+```
+
+Use `--dry-run` first when the user wants to review the plan. If the request
+needs layout keys not exposed by the high-level flags, read the full schema,
+select the owning Table ID and a same-Table `date` or `datetime` Field ID, then
+submit the low-level View mutation:
 
 ```bash
 eidos --json schema tracker.eidos Tasks
@@ -152,13 +245,13 @@ For rows, query first and keep the exact `_id` set visible in the plan:
 eidos --json rows tracker.eidos delete Tasks 019... 019... --expected-revision 20
 ```
 
-For a field or table, dry-run first:
+For a field or table, use the intent command and dry-run first:
 
 ```bash
-eidos --json schema-apply tracker.eidos \
+eidos --json field delete tracker.eidos Obsolete \
+  --table Tasks \
   --expected-revision 21 \
-  --dry-run \
-  --op '{"kind":"delete-field","table":"Tasks","field":"Obsolete"}'
+  --dry-run
 ```
 
 The CLI blocks deletion of system fields, referenced Relation targets, defaults, labels without replacement, and known Formula/Lookup/view dependencies.

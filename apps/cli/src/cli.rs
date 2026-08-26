@@ -54,6 +54,18 @@ pub enum Command {
     /// Create, update, delete, or reorder saved Views atomically.
     #[command(name = "view-apply")]
     ViewApply(ViewApplyArgs),
+    /// Create and manage saved Views using user-facing options.
+    View(Box<ViewArgs>),
+    /// Create, rename, or delete Tables using user-facing options.
+    Table(Box<TableArgs>),
+    /// Add, rename, or delete Fields using user-facing options.
+    Field(Box<FieldArgs>),
+    /// Create forward Relation Fields using user-facing options.
+    Relation(Box<RelationArgs>),
+    /// Preview and manage Formula Fields through the Eidos Runtime.
+    Formula(Box<FormulaArgs>),
+    /// Manage Lookup Fields through the Eidos Runtime.
+    Lookup(Box<LookupArgs>),
     /// Serve a local web editor for one file over HTTP.
     Serve(ServeArgs),
     /// Publish an immutable Eidos File or Markdown document.
@@ -359,6 +371,10 @@ pub enum RowCommand {
     Update(RowUpdateArgs),
     /// Delete one or more row IDs atomically.
     Delete(RowDeleteArgs),
+    /// Apply a mixed create/update/delete batch atomically.
+    Mutate(RowMutateArgs),
+    /// Update rows matched by key fields or create them when absent.
+    Upsert(RowUpsertArgs),
 }
 
 #[derive(Debug, Args)]
@@ -391,6 +407,41 @@ pub struct RowDeleteArgs {
     pub expected_revision: String,
 }
 
+#[derive(Debug, Args)]
+pub struct RowMutateArgs {
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// JSON array of create/update/delete changes. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub changes: String,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: String,
+    /// Validate and plan inside a transaction, then roll it back.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct RowUpsertArgs {
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Comma-separated stored Field names or stable IDs used as the match key.
+    #[arg(long, value_delimiter = ',', num_args = 1..)]
+    pub key: Vec<String>,
+    /// JSON object or array of row values. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub values: String,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: String,
+    /// Validate and plan inside a transaction, then roll it back.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ValidationLevelArg {
     Identity,
@@ -420,6 +471,9 @@ pub struct SchemaApplyArgs {
     /// Validate and plan inside a transaction, then roll it back.
     #[arg(long)]
     pub dry_run: bool,
+    /// Confirm an explicitly lossy Runtime schema plan.
+    #[arg(long)]
+    pub confirm_lossy: bool,
 }
 
 #[derive(Debug, Args)]
@@ -427,6 +481,597 @@ pub struct ViewApplyArgs {
     pub file: PathBuf,
     /// View mutation request JSON. Accepts inline JSON, @path, or stdin (-).
     pub request: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ViewArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: ViewCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ViewCommand {
+    /// List saved Views with their resolved Table names.
+    List(ViewListArgs),
+    /// Inspect one saved View by name or stable ID.
+    Inspect(ViewInspectArgs),
+    /// Create a standard View from user-facing Table and Field references.
+    Create(ViewCreateArgs),
+    /// Update a standard View without writing raw layout JSON.
+    Update(ViewUpdateArgs),
+    /// Delete one saved View by name or stable ID.
+    Delete(ViewDeleteArgs),
+}
+
+#[derive(Debug, Args, Default)]
+pub struct ViewListArgs {}
+
+#[derive(Debug, Args)]
+pub struct ViewInspectArgs {
+    pub reference: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum StandardViewTypeArg {
+    Grid,
+    Gallery,
+    Kanban,
+    Calendar,
+    Form,
+}
+
+impl StandardViewTypeArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Grid => "grid",
+            Self::Gallery => "gallery",
+            Self::Kanban => "kanban",
+            Self::Calendar => "calendar",
+            Self::Form => "form",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum CardSizeArg {
+    Small,
+    Medium,
+    Large,
+}
+
+impl CardSizeArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Small => "small",
+            Self::Medium => "medium",
+            Self::Large => "large",
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct ViewCreateArgs {
+    /// View name.
+    #[arg(long)]
+    pub name: String,
+    /// Table name or stable ID. Defaults to the File default or only Table.
+    #[arg(long)]
+    pub table: Option<String>,
+    #[arg(long = "type", value_enum)]
+    pub view_type: StandardViewTypeArg,
+    /// FilterNode JSON. Field references may be display names or stable IDs.
+    #[arg(long = "where")]
+    pub where_json: Option<String>,
+    /// SortTerm JSON array. Field references may be display names or stable IDs.
+    #[arg(long)]
+    pub sort: Option<String>,
+    /// Comma-separated ordered fields for the View.
+    #[arg(long, value_delimiter = ',')]
+    pub fields: Vec<String>,
+    /// Comma-separated fields hidden in the View.
+    #[arg(long, value_delimiter = ',')]
+    pub hide_fields: Vec<String>,
+    /// Kanban grouping Field.
+    #[arg(long)]
+    pub group_by: Option<String>,
+    /// Calendar date Field.
+    #[arg(long)]
+    pub date_by: Option<String>,
+    /// Gallery/Kanban secondary card Fields.
+    #[arg(long, value_delimiter = ',')]
+    pub card_fields: Vec<String>,
+    /// Gallery/Kanban cover Field.
+    #[arg(long)]
+    pub cover_by: Option<String>,
+    #[arg(long, value_enum)]
+    pub card_size: Option<CardSizeArg>,
+    /// Hide empty Kanban groups.
+    #[arg(long)]
+    pub hide_empty_groups: bool,
+    /// Form respondent-facing title.
+    #[arg(long)]
+    pub title: Option<String>,
+    /// Form respondent-facing description.
+    #[arg(long)]
+    pub description: Option<String>,
+    /// Form submit button label.
+    #[arg(long)]
+    pub submit_label: Option<String>,
+    /// Form success message.
+    #[arg(long)]
+    pub success_message: Option<String>,
+    /// Explicit View position. Defaults to the end of the Table's Views.
+    #[arg(long)]
+    pub position: Option<String>,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ViewUpdateArgs {
+    pub reference: String,
+    /// New View name.
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long = "type", value_enum)]
+    pub view_type: Option<StandardViewTypeArg>,
+    /// Replacement FilterNode JSON. Field references may be display names or stable IDs.
+    #[arg(long = "where")]
+    pub where_json: Option<String>,
+    /// Replacement SortTerm JSON array. Field references may be display names or stable IDs.
+    #[arg(long)]
+    pub sort: Option<String>,
+    /// Replace ordered fields in the View.
+    #[arg(long, value_delimiter = ',')]
+    pub fields: Vec<String>,
+    /// Add fields to hiddenFields.
+    #[arg(long, value_delimiter = ',')]
+    pub hide_fields: Vec<String>,
+    /// Remove fields from hiddenFields.
+    #[arg(long, value_delimiter = ',')]
+    pub show_fields: Vec<String>,
+    #[arg(long)]
+    pub group_by: Option<String>,
+    #[arg(long)]
+    pub date_by: Option<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub card_fields: Vec<String>,
+    #[arg(long)]
+    pub cover_by: Option<String>,
+    #[arg(long, value_enum)]
+    pub card_size: Option<CardSizeArg>,
+    #[arg(long)]
+    pub hide_empty_groups: bool,
+    #[arg(long)]
+    pub show_empty_groups: bool,
+    #[arg(long)]
+    pub title: Option<String>,
+    #[arg(long)]
+    pub description: Option<String>,
+    #[arg(long)]
+    pub submit_label: Option<String>,
+    #[arg(long)]
+    pub success_message: Option<String>,
+    #[arg(long)]
+    pub position: Option<String>,
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ViewDeleteArgs {
+    pub reference: String,
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TableArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: TableCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TableCommand {
+    /// Create a Table with stored Fields.
+    Create(TableCreateArgs),
+    /// Rename a Table by name or stable ID.
+    Rename(TableRenameArgs),
+    /// Delete a Table by name or stable ID.
+    Delete(TableDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct TableCreateArgs {
+    /// Table name.
+    #[arg(long)]
+    pub name: String,
+    /// JSON array of Field definitions. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub fields: String,
+    /// Record-label Field name from --fields.
+    #[arg(long)]
+    pub label_field: Option<String>,
+    /// Table settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TableRenameArgs {
+    /// Table name or stable ID.
+    pub reference: String,
+    /// New Table name.
+    #[arg(long)]
+    pub name: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TableDeleteArgs {
+    /// Table name or stable ID.
+    pub reference: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FieldArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: FieldCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FieldCommand {
+    /// Add a stored Field to a Table.
+    Add(FieldAddArgs),
+    /// Rename a Field by name or stable ID.
+    Rename(FieldRenameArgs),
+    /// Delete a Field by name or stable ID.
+    Delete(FieldDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct FieldAddArgs {
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Field name.
+    #[arg(long)]
+    pub name: String,
+    /// Field type, such as text, integer, date, formula, or lookup.
+    #[arg(long = "type")]
+    pub field_type: String,
+    /// Field settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Relation or other Field definition JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub definition: Option<String>,
+    /// Make the Field nullable (the default for supported types).
+    #[arg(long, conflicts_with = "not_nullable")]
+    pub nullable: bool,
+    /// Make the Field non-nullable.
+    #[arg(long = "not-null", conflicts_with = "nullable")]
+    pub not_nullable: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FieldRenameArgs {
+    /// Field name or stable ID.
+    pub reference: String,
+    /// Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// New Field name.
+    #[arg(long)]
+    pub name: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FieldDeleteArgs {
+    /// Field name or stable ID.
+    pub reference: String,
+    /// Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Replacement label Field when deleting the current record-label Field.
+    #[arg(long)]
+    pub replacement_label_field: Option<String>,
+    /// Confirm deletion when the Runtime classifies the change as explicitly lossy.
+    #[arg(long)]
+    pub confirm_lossy: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct RelationArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: RelationCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RelationCommand {
+    /// Add a forward Relation Field.
+    Add(RelationAddArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct RelationAddArgs {
+    /// Source Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Relation Field name.
+    #[arg(long)]
+    pub name: String,
+    /// Target Table name or stable ID.
+    #[arg(long)]
+    pub target_table: String,
+    /// Relation cardinality: one or many.
+    #[arg(long, default_value = "many")]
+    pub cardinality: String,
+    /// Target deletion policy: restrict, detach, or preserve.
+    #[arg(long, default_value = "restrict")]
+    pub on_delete: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FormulaArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: FormulaCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FormulaCommand {
+    /// Validate a Formula and optionally evaluate sample rows without writing.
+    Preview(FormulaPreviewArgs),
+    /// Add a Formula Field with Runtime type checking and dependency analysis.
+    Add(FormulaAddArgs),
+    /// Replace a Formula definition with Runtime dependency checks.
+    Update(FormulaUpdateArgs),
+    /// Delete a Formula Field with dependency checks.
+    Delete(FormulaDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct FormulaPreviewArgs {
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Candidate Formula Field name used for diagnostics.
+    #[arg(long)]
+    pub name: String,
+    /// Formula source text.
+    #[arg(long)]
+    pub formula: String,
+    /// Declared result type: text, number, integer, checkbox, date, datetime, or url.
+    #[arg(long = "type")]
+    pub result_type: String,
+    /// Comma-separated row IDs used for sample evaluation.
+    #[arg(long, value_delimiter = ',')]
+    pub row_ids: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct FormulaAddArgs {
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Formula Field name.
+    #[arg(long)]
+    pub name: String,
+    /// Formula source text.
+    #[arg(long)]
+    pub formula: String,
+    /// Declared result type: text, number, integer, checkbox, date, datetime, or url.
+    #[arg(long = "type")]
+    pub result_type: String,
+    /// Field settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Explicit Field position; defaults to the end of the Table.
+    #[arg(long)]
+    pub position: Option<String>,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FormulaUpdateArgs {
+    /// Formula Field name or stable ID.
+    pub reference: String,
+    /// Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Replacement Formula source text.
+    #[arg(long)]
+    pub formula: String,
+    /// Declared result type: text, number, integer, checkbox, date, datetime, or url.
+    #[arg(long = "type")]
+    pub result_type: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FormulaDeleteArgs {
+    /// Formula Field name or stable ID.
+    pub reference: String,
+    /// Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Replacement label Field when deleting the current record-label Field.
+    #[arg(long)]
+    pub replacement_label_field: Option<String>,
+    /// Confirm deletion when the Runtime classifies the change as explicitly lossy.
+    #[arg(long)]
+    pub confirm_lossy: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LookupArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: LookupCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum LookupCommand {
+    /// Add a Lookup Field over a Relation and target Field.
+    Add(LookupAddArgs),
+    /// Replace a Lookup definition with Runtime dependency checks.
+    Update(LookupUpdateArgs),
+    /// Delete a Lookup Field with dependency checks.
+    Delete(LookupDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct LookupAddArgs {
+    /// Source Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Lookup Field name.
+    #[arg(long)]
+    pub name: String,
+    /// Relation Field name or stable ID in the source Table.
+    #[arg(long)]
+    pub relation_field: String,
+    /// Target Field name or stable ID in the Relation target Table.
+    #[arg(long)]
+    pub target_field: String,
+    /// Aggregate: values, first, count, sum, average, min, or max.
+    #[arg(long)]
+    pub aggregate: String,
+    /// Return only distinct values for values/aggregate-compatible Lookups.
+    #[arg(long)]
+    pub distinct: bool,
+    /// Field settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Explicit Field position; defaults to the end of the Table.
+    #[arg(long)]
+    pub position: Option<String>,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LookupUpdateArgs {
+    /// Lookup Field name or stable ID.
+    pub reference: String,
+    /// Source Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Relation Field name or stable ID in the source Table.
+    #[arg(long)]
+    pub relation_field: String,
+    /// Target Field name or stable ID in the Relation target Table.
+    #[arg(long)]
+    pub target_field: String,
+    /// Aggregate: values, first, count, sum, average, min, or max.
+    #[arg(long)]
+    pub aggregate: String,
+    /// Return only distinct values for values/aggregate-compatible Lookups.
+    #[arg(long)]
+    pub distinct: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LookupDeleteArgs {
+    /// Lookup Field name or stable ID.
+    pub reference: String,
+    /// Source Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Replacement label Field when deleting the current record-label Field.
+    #[arg(long)]
+    pub replacement_label_field: Option<String>,
+    /// Confirm deletion when the Runtime classifies the change as explicitly lossy.
+    #[arg(long)]
+    pub confirm_lossy: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 const COMMANDS: &[&str] = &[
@@ -441,6 +1086,12 @@ const COMMANDS: &[&str] = &[
     "validate",
     "schema-apply",
     "view-apply",
+    "view",
+    "table",
+    "field",
+    "relation",
+    "formula",
+    "lookup",
     "serve",
     "publish",
 ];
@@ -449,21 +1100,21 @@ const COMMANDS: &[&str] = &[
 /// clap model conventional (`eidos query file.eidos ...`).
 pub fn normalize_args(mut args: Vec<OsString>) -> Vec<OsString> {
     if args.len() < 3 {
-        return args;
+        return normalize_nested_args(args);
     }
     let Some(file_index) =
         args.iter().enumerate().skip(1).find_map(|(index, value)| {
             (!value.to_string_lossy().starts_with('-')).then_some(index)
         })
     else {
-        return args;
+        return normalize_nested_args(args);
     };
     let candidate = args[file_index].to_string_lossy();
     if candidate.starts_with('-')
         || COMMANDS.contains(&candidate.as_ref())
         || !candidate.to_ascii_lowercase().ends_with(".eidos")
     {
-        return args;
+        return normalize_nested_args(args);
     }
     let Some(command_index) =
         args.iter()
@@ -474,11 +1125,56 @@ pub fn normalize_args(mut args: Vec<OsString>) -> Vec<OsString> {
                 COMMANDS.contains(&value.as_ref()).then_some(index)
             })
     else {
-        return args;
+        return normalize_nested_args(args);
     };
     let file = args.remove(file_index);
     let adjusted_command_index = command_index - 1;
     args.insert(adjusted_command_index + 1, file);
+    normalize_nested_args(args)
+}
+
+fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
+    for (command, subcommands) in [
+        (
+            "view",
+            ["list", "inspect", "create", "update", "delete"].as_slice(),
+        ),
+        (
+            "rows",
+            ["add", "update", "delete", "mutate", "upsert"].as_slice(),
+        ),
+        ("table", ["create", "rename", "delete"].as_slice()),
+        ("field", ["add", "rename", "delete"].as_slice()),
+        ("relation", ["add"].as_slice()),
+        ("formula", ["preview", "add", "update", "delete"].as_slice()),
+        ("lookup", ["add", "update", "delete"].as_slice()),
+    ] {
+        let Some(command_index) = args.iter().position(|value| value == command) else {
+            continue;
+        };
+        let Some(subcommand) = args
+            .get(command_index + 1)
+            .map(|value| value.to_string_lossy())
+        else {
+            continue;
+        };
+        if !subcommands.contains(&subcommand.as_ref()) {
+            continue;
+        }
+        let Some(candidate) = args.get(command_index + 2) else {
+            continue;
+        };
+        if candidate.to_string_lossy().starts_with('-')
+            || !candidate
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .ends_with(".eidos")
+        {
+            continue;
+        }
+        let file = args.remove(command_index + 2);
+        args.insert(command_index + 1, file);
+    }
     args
 }
 

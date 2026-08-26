@@ -5,6 +5,7 @@ mod error;
 mod output;
 mod publish;
 mod relay_auth;
+mod runtime;
 mod upgrade;
 
 use std::ffi::OsString;
@@ -81,7 +82,10 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::{Command, RowCommand};
+    use crate::cli::{
+        Command, FieldCommand, FormulaCommand, LookupCommand, RelationCommand, RowCommand,
+        TableCommand, ViewCommand,
+    };
     use clap::CommandFactory;
 
     fn parse_ok(args: &[&str]) -> Cli {
@@ -116,6 +120,42 @@ mod tests {
             Command::Rows(ref args) if matches!(args.command, RowCommand::Add(_))
         ));
 
+        let batch = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "rows",
+            "mutate",
+            "--table",
+            "Tasks",
+            "--changes",
+            r#"[{"kind":"delete","rowId":"01900000-0000-7000-8000-000000000000"}]"#,
+            "--expected-revision",
+            "0",
+        ]);
+        assert!(matches!(
+            batch.command,
+            Command::Rows(ref args) if matches!(args.command, RowCommand::Mutate(_))
+        ));
+
+        let upsert = parse_ok(&[
+            "eidos",
+            "rows",
+            "upsert",
+            "tasks.eidos",
+            "--table",
+            "Tasks",
+            "--key",
+            "External ID",
+            "--values",
+            r#"{"External ID":"task-1","Title":"Ship"}"#,
+            "--expected-revision",
+            "0",
+        ]);
+        assert!(matches!(
+            upsert.command,
+            Command::Rows(ref args) if matches!(args.command, RowCommand::Upsert(_))
+        ));
+
         let context = parse_ok(&[
             "eidos",
             "tasks.eidos",
@@ -133,6 +173,125 @@ mod tests {
             r#"{"revision":"0","table":"Tasks","match":{"_id":"01900000-0000-7000-8000-000000000000"},"set":{"Status":"done"}}"#,
         ]);
         assert!(matches!(apply.command, Command::Apply(_)));
+
+        let view_command_first = parse_ok(&[
+            "eidos",
+            "view",
+            "create",
+            "tasks.eidos",
+            "--name",
+            "Calendar",
+            "--type",
+            "calendar",
+        ]);
+        assert!(matches!(
+            view_command_first.command,
+            Command::View(ref args) if matches!(args.command, ViewCommand::Create(_))
+        ));
+
+        let view_file_first = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "view",
+            "create",
+            "--name",
+            "Calendar",
+            "--type",
+            "calendar",
+        ]);
+        assert!(matches!(
+            view_file_first.command,
+            Command::View(ref args) if matches!(args.command, ViewCommand::Create(_))
+        ));
+
+        let table = parse_ok(&[
+            "eidos",
+            "table",
+            "create",
+            "tasks.eidos",
+            "--name",
+            "People",
+            "--fields",
+            r#"[{"name":"Name","type":"text"}]"#,
+        ]);
+        assert!(matches!(
+            table.command,
+            Command::Table(ref args) if matches!(args.command, TableCommand::Create(_))
+        ));
+
+        let field = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "field",
+            "add",
+            "--table",
+            "Tasks",
+            "--name",
+            "Due",
+            "--type",
+            "date",
+        ]);
+        assert!(matches!(
+            field.command,
+            Command::Field(ref args) if matches!(args.command, FieldCommand::Add(_))
+        ));
+
+        let relation = parse_ok(&[
+            "eidos",
+            "relation",
+            "add",
+            "tasks.eidos",
+            "--table",
+            "Tasks",
+            "--name",
+            "Owner",
+            "--target-table",
+            "People",
+        ]);
+        assert!(matches!(
+            relation.command,
+            Command::Relation(ref args) if matches!(args.command, RelationCommand::Add(_))
+        ));
+
+        let formula = parse_ok(&[
+            "eidos",
+            "formula",
+            "preview",
+            "tasks.eidos",
+            "--table",
+            "Tasks",
+            "--name",
+            "Total",
+            "--formula",
+            "Amount + 1",
+            "--type",
+            "integer",
+        ]);
+        assert!(matches!(
+            formula.command,
+            Command::Formula(ref args) if matches!(args.command, FormulaCommand::Preview(_))
+        ));
+
+        let lookup = parse_ok(&[
+            "eidos",
+            "lookup",
+            "add",
+            "tasks.eidos",
+            "--table",
+            "Tasks",
+            "--name",
+            "Scores",
+            "--relation-field",
+            "People",
+            "--target-field",
+            "Score",
+            "--aggregate",
+            "sum",
+        ]);
+        assert!(matches!(
+            lookup.command,
+            Command::Lookup(ref args) if matches!(args.command, LookupCommand::Add(_))
+        ));
 
         let view_apply = parse_ok(&[
             "eidos",
