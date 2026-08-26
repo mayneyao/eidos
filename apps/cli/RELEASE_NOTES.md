@@ -1,25 +1,26 @@
 ## What's new
 
-### Create and manage saved Views from automation
+### Publish and collect from the terminal
 
-The new revision-checked `view-apply` command creates, updates, reorders, and
-deletes saved Views atomically. Agents can now create a Calendar from stable
-Table and date Field IDs, receive the allocated View ID, and keep the same
-layout contract used by Eidos Lite, Web, and Serve.
+`eidos publish` now publishes Eidos Files, Markdown documents, and Form views
+with attachments, access controls, visible upload progress, unchanged-version
+detection, and bounded delta uploads for later Eidos File versions. The new
+`eidos collect` command imports committed Form responses back into the source
+Eidos File with retry-safe receipts.
 
-### Preserve views created by newer Eidos versions
+### Build complete agent workflows with intent commands
 
-The embedded editor now keeps unfamiliar view, filter, and sort configuration
-intact. Unsupported views remain visible with an update-required explanation,
-while partial queries and exports are blocked instead of silently displaying
-incorrect rows or replacing settings the installed CLI does not understand.
+Agents can now upsert rows by business key, apply mixed row batches, and create
+or manage Tables, Fields, Relations, and saved Views through user-facing
+commands. Revision checks, exact-match assertions, dry runs, and atomic
+validation remain part of the mutation boundary.
 
-### Keep date and time behavior consistent
+### Work with Formula and Lookup fields
 
-Date-time values, editors, record details, and Calendar grouping now agree on
-the Serve host's time zone, including daylight-saving transitions. Calendar
-records also expose their normal open, copy-ID, and delete actions from the
-context menu.
+New `formula` and `lookup` commands preview, create, update, and delete derived
+Fields through the canonical Eidos Runtime. `query`, `context`, and `validate`
+now evaluate Formula, Lookup, and inverse Relation values instead of exposing
+an incomplete stored-only projection.
 
 ## Use with Codex
 
@@ -27,7 +28,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.11/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.37.0/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -44,5 +45,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.11 and verify the downloaded archive against the
+The installers select v0.37.0 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
