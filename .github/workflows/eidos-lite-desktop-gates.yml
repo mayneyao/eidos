@@ -21,8 +21,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  macos-clone-fixture:
+    name: Prepare macOS clone fixture
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare committed macOS Graft Space
+        run: >-
+          node apps/eidos-lite-desktop/scripts/prepare-cross-platform-clone-fixture.mjs
+          "${{ runner.temp }}/eidos-lite-clone-fixture"
+
+      - name: Upload committed macOS Graft Space
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-graft-space
+          path: ${{ runner.temp }}/eidos-lite-clone-fixture
+          include-hidden-files: true
+          if-no-files-found: error
+
   windows-clone-validation:
     name: Windows clone validation
+    needs: macos-clone-fixture
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -40,10 +73,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download committed macOS Graft Space
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-graft-space
+          path: ${{ runner.temp }}/eidos-lite-clone-fixture
+
       - name: Typecheck
         run: pnpm --filter "@eidos.space/eidos-lite-desktop" typecheck
 
       - name: Verify clone validation is read-only
+        env:
+          EIDOS_LITE_CROSS_PLATFORM_FIXTURE: ${{ runner.temp }}/eidos-lite-clone-fixture
         run: >-
           pnpm --filter "@eidos.space/eidos-lite-desktop" exec node
           ../../scripts/run-electron-node.mjs
@@ -51,6 +92,7 @@ jobs:
           --config vitest.config.ts
           src/main/runtime/runtime-pool.test.ts
           src/runtime/eidos-file-runtime.test.ts
+          src/runtime/cross-platform-clone.test.ts
 
   source-and-real-graft:
     name: Source and real Graft SDK
