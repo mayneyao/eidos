@@ -30,6 +30,8 @@ pub enum Command {
     Logout(AccountArgs),
     /// Upgrade this Eidos CLI installation from a verified release.
     Upgrade(UpgradeArgs),
+    /// Install the Eidos Agent Skill from this CLI into a project or user scope.
+    Skills(SkillsArgs),
     /// Create a new Eidos File, optionally with an initial table.
     Create(CreateArgs),
     /// Inspect file identity, revision, and capabilities.
@@ -91,6 +93,31 @@ pub struct UpgradeArgs {
     #[arg(long, value_name = "SEMVER")]
     pub version: Option<String>,
     /// Reinstall the current version or explicitly allow a downgrade.
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillsArgs {
+    #[command(subcommand)]
+    pub command: SkillsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillsCommand {
+    /// Initialize the bundled Eidos Skill for the current Space or user.
+    Init(SkillsInitArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SkillsInitArgs {
+    /// Install for all projects in the current user's Agent Skills directory.
+    #[arg(long, conflicts_with = "path")]
+    pub global: bool,
+    /// Space or project directory. Defaults to the current directory.
+    #[arg(long, visible_alias = "space", value_name = "DIR")]
+    pub path: Option<PathBuf>,
+    /// Update files that already exist but differ from the bundled Skill.
     #[arg(long)]
     pub force: bool,
 }
@@ -1092,6 +1119,7 @@ const COMMANDS: &[&str] = &[
     "relation",
     "formula",
     "lookup",
+    "skills",
     "serve",
     "publish",
 ];

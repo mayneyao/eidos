@@ -9,6 +9,22 @@ Use `eidos` as the typed transaction boundary for `.eidos` files. Use ordinary f
 
 Before the first operation, run `eidos --version`. If the command is unavailable, stop and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request.
 
+This Skill is bundled with the Eidos CLI, so it does not require Node.js,
+`npm`, or `npx`. To initialize or update it for the current Space, run:
+
+```bash
+eidos skills init
+```
+
+To make it available to all of the user's projects, run:
+
+```bash
+eidos skills init --global
+```
+
+The initializer writes the standard `.agents/skills/eidos` layout. It is
+idempotent and refuses to replace an edited file unless `--force` is explicit.
+
 Always pass the global `--json` flag for structured reads, mutations, and validation. Human-readable output is the interactive default; Agent workflows must use the stable JSON contract explicitly.
 
 ## Start with one compact context

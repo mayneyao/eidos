@@ -10,6 +10,19 @@ sidebar:
 
 以下自动化命令都显式传入 `--json`。默认输出面向人类阅读，不属于机器合同。
 
+## 0. 初始化 Eidos Skill
+
+独立 CLI 已经内置智能体工作流使用的 Skill。可以初始化到当前 Space / 项目，也可以
+安装到当前用户、供所有项目使用：
+
+```bash
+eidos skills init
+eidos skills init --global
+```
+
+不需要 Node.js、`npm` 或 `npx`。要初始化其他 Space，可使用 `--space <DIR>`；如果已有
+Skill 文件被编辑，命令会停止，只有显式传入 `--force` 才会覆盖。
+
 ## 1. 读取有界上下文
 
 ```bash

@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -1054,4 +1055,42 @@ fn human_output_is_default_and_json_is_explicit() {
     assert_eq!(usage_json.status.code(), Some(2));
     let error: Value = serde_json::from_slice(&usage_json.stderr).expect("stderr is JSON");
     assert_eq!(error["error"]["code"], "invalid-request");
+}
+
+#[test]
+fn agent_skill_can_be_initialized_in_a_space_without_npx() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = path_string(dir.path());
+
+    let initialized = success(&["skills", "init", "--path", &root]);
+    assert_eq!(initialized["skill"], "eidos");
+    assert_eq!(initialized["scope"], "project");
+    assert_eq!(initialized["changed"], true);
+
+    for relative in [
+        "SKILL.md",
+        "agents/openai.yaml",
+        "references/cli.md",
+        "references/operations.md",
+    ] {
+        assert!(
+            dir.path()
+                .join(".agents/skills/eidos")
+                .join(relative)
+                .is_file()
+        );
+    }
+
+    let second = success(&["skills", "init", "--path", &root]);
+    assert_eq!(second["changed"], false);
+
+    let skill = dir.path().join(".agents/skills/eidos/SKILL.md");
+    fs::write(&skill, "local edit\n").unwrap();
+    let protected = run_json(&["skills", "init", "--path", &root]);
+    assert_eq!(protected.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&protected.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "already-exists");
+
+    let forced = success(&["skills", "init", "--path", &root, "--force"]);
+    assert_eq!(forced["changed"], true);
 }

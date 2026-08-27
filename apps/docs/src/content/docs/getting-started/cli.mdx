@@ -32,6 +32,22 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 Restart the terminal if `eidos` is not immediately on `PATH`, then run
 `eidos --help`.
 
+## Optional: initialize the Agent Skill
+
+The standalone CLI includes the Eidos Skill. No Node.js or `npx` is required:
+
+```bash
+# Current Space/project
+eidos skills init
+
+# Current user, for all projects
+eidos skills init --global
+```
+
+Use `--space <DIR>` to target another Space. The initializer keeps the Skill
+aligned with the installed CLI and will not overwrite local edits without
+`--force`.
+
 ## 2. Create a file with a table
 
 ```bash

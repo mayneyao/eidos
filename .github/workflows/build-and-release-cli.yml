@@ -83,16 +83,13 @@ jobs:
 
       - name: Smoke-test public Eidos Skill install
         shell: bash
-        env:
-          REPOSITORY: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           qa_dir="$(mktemp -d)"
+          cargo run --quiet --locked \
+            --manifest-path apps/cli/Cargo.toml \
+            --bin eidos -- skills init --path "$qa_dir"
           cd "$qa_dir"
-          npx -y skills add \
-            "https://github.com/${REPOSITORY}/tree/${TAG}/skills/eidos" \
-            --skill eidos -a codex -y
           test -f .agents/skills/eidos/SKILL.md
           test -f .agents/skills/eidos/agents/openai.yaml
           test -f .agents/skills/eidos/references/cli.md

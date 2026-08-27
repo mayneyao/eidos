@@ -6,6 +6,7 @@ mod output;
 mod publish;
 mod relay_auth;
 mod runtime;
+mod skills;
 mod upgrade;
 
 use std::ffi::OsString;
@@ -84,7 +85,7 @@ mod tests {
     use super::*;
     use crate::cli::{
         Command, FieldCommand, FormulaCommand, LookupCommand, RelationCommand, RowCommand,
-        TableCommand, ViewCommand,
+        SkillsCommand, TableCommand, ViewCommand,
     };
     use clap::CommandFactory;
 
@@ -375,6 +376,21 @@ mod tests {
             parse_ok(&["eidos", "upgrade", "--version", "0.36.8", "--force"]).command,
             Command::Upgrade(ref args)
                 if args.version.as_deref() == Some("0.36.8") && args.force
+        ));
+        assert!(matches!(
+            parse_ok(&["eidos", "skills", "init", "--global"]).command,
+            Command::Skills(ref args)
+                if matches!(args.command, SkillsCommand::Init(ref init)
+                    if init.global && init.path.is_none() && !init.force)
+        ));
+        assert!(matches!(
+            parse_ok(&["eidos", "skills", "init", "--space", "./my-space", "--force"])
+                .command,
+            Command::Skills(ref args)
+                if matches!(args.command, SkillsCommand::Init(ref init)
+                    if !init.global
+                        && init.path == Some(std::path::PathBuf::from("./my-space"))
+                        && init.force)
         ));
     }
 

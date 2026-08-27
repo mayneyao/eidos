@@ -19,6 +19,7 @@ default, and does not require a running Eidos application.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
 - Publish immutable Eidos File or Markdown Versions, including attachments, to a stable read-only URL.
 - Upgrade its own installation from a verified standalone release.
+- Initialize the bundled Agent Skill for a Space/project or the current user.
 
 The CLI does not manage Space lifecycle, ordinary documents, application RPC,
 version history, or Sync. Use ordinary file tools for text and attachments,
@@ -67,30 +68,28 @@ directory must be writable by the current user. On Windows, the verified
 replacement is finalized by a one-time helper immediately after the running
 CLI process exits.
 
-## Install the Eidos Skill for Codex
+## Initialize the Eidos Skill for an Agent
 
-The CLI is the typed transaction boundary. The matching Eidos Skill teaches
-Codex the safe `context` → `apply` → `validate` workflow and when to use Graft
-for review or recovery. Install the Skill from the same public tag as the
-stable CLI:
+The CLI is the typed transaction boundary. It also bundles the matching Eidos
+Skill, so initialization does not require Node.js, `npm`, or `npx`:
 
 ```bash
-npx skills add \
-  https://github.com/mayneyao/eidos/tree/cli-v0.37.1/skills/eidos \
-  --skill eidos -g -a codex -y
+# Install in the current Space/project.
+eidos skills init
+
+# Install for the current user and all projects.
+eidos skills init --global
 ```
 
-This uses the open [`skills`](https://github.com/vercel-labs/skills) installer
-and requires Node.js 18 or newer. Start a new Codex task after installation,
-then try:
+Use `eidos skills init --space <DIR>` to initialize another Space. The command
+writes the standard `.agents/skills/eidos` layout. It is safe to repeat; if a
+file has local edits, pass `--force` explicitly to update it from the bundled
+CLI Skill. Start a new Agent task after initialization, then try:
 
 ```text
 Use the Eidos skill to inspect ./tracker.eidos.
 Show context first and do not mutate yet.
 ```
-
-The versioned GitHub path keeps the Agent workflow aligned with the installed
-CLI rather than following the repository's moving development branch.
 
 ## Quick start
 

@@ -39,6 +39,24 @@ eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
 
 Use `eidos --help` to list commands, and `eidos <command> --help` for the options of one command.
 
+## Initialize the Agent Skill
+
+The CLI bundles the Eidos Skill, so an Agent setup does not need Node.js,
+`npm`, or `npx`:
+
+```bash
+# Install in the current Space/project.
+eidos skills init
+
+# Install for the current user and all projects.
+eidos skills init --global
+```
+
+Use `eidos skills init --space <DIR>` for another Space. The command writes the
+standard `.agents/skills/eidos` layout, is safe to repeat, and refuses to
+replace locally edited files unless `--force` is explicit. Start a new Agent
+task after initialization.
+
 ## Advanced
 
 <CardGrid>

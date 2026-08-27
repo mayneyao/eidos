@@ -22,13 +22,14 @@ Fields through the canonical Eidos Runtime. `query`, `context`, and `validate`
 now evaluate Formula, Lookup, and inverse Relation values instead of exposing
 an incomplete stored-only projection.
 
-## Use with Codex
+## Use with an Agent
 
-Install the Eidos Skill from this immutable CLI tag to keep the safe
-`context` → `apply` → `validate` workflow aligned with the release:
+The CLI now bundles the matching Eidos Skill. Initialize it in the current
+Space/project or install it for the current user without Node.js or `npx`:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.37.1/skills/eidos --skill eidos -g -a codex -y
+eidos skills init
+eidos skills init --global
 ```
 
 ## Install

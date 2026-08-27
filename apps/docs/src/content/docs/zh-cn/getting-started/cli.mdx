@@ -30,6 +30,21 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 
 如果安装后 `eidos` 没有立即进入 `PATH`，请重启终端，然后运行 `eidos --help`。
 
+## 可选：初始化智能体 Skill
+
+独立 CLI 已经内置 Eidos Skill，不需要 Node.js 或 `npx`：
+
+```bash
+# 当前 Space / 项目
+eidos skills init
+
+# 当前用户，供所有项目使用
+eidos skills init --global
+```
+
+使用 `--space <DIR>` 可以指定其他 Space。初始化器会让 Skill 与已安装的 CLI 保持一致；
+如果文件存在本地修改，只有显式传入 `--force` 才会覆盖。
+
 ## 2. 创建带数据表的文件
 
 ```bash

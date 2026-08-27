@@ -3,6 +3,7 @@
 ## Contents
 
 - [Invocation](#invocation)
+- [Agent Skill initialization](#agent-skill-initialization)
 - [CLI upgrades](#cli-upgrades)
 - [Inspection and creation](#inspection-and-creation)
 - [Compact agent context](#compact-agent-context)
@@ -43,6 +44,25 @@ Arguments containing JSON accept:
 - inline JSON: `'{"Title":"Ship"}'`
 - file input: `@/absolute/path/operation.json`
 - stdin: `-`
+
+## Agent Skill initialization
+
+The Eidos Skill ships inside the CLI. It does not require Node.js, `npm`, or
+`npx`:
+
+```bash
+# Install for the current Space/project.
+eidos skills init
+
+# Install for the current user and all projects.
+eidos skills init --global
+```
+
+Use `--space <DIR>` (an alias for `--path <DIR>`) to initialize a different
+Space. Initialization writes the standard `.agents/skills/eidos` directory and
+is idempotent. If a file has been edited locally, the command stops with an
+`already-exists` error; pass `--force` only when the bundled CLI version should
+replace those edits.
 
 ## CLI upgrades
 

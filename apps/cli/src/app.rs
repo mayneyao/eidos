@@ -34,10 +34,10 @@ use crate::cli::{
     FormulaUpdateArgs, LookupAddArgs, LookupArgs, LookupCommand, LookupDeleteArgs,
     LookupUpdateArgs, PublishArgs, QueryArgs, RelationAddArgs, RelationArgs, RelationCommand,
     RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs, RowUpdateArgs, RowUpsertArgs, RowsArgs,
-    SchemaApplyArgs, SchemaArgs, ServeArgs, StandardViewTypeArg, TableArgs, TableCommand,
-    TableCreateArgs, TableDeleteArgs, TableRenameArgs, UpgradeArgs, ValidateArgs,
-    ValidationLevelArg, ViewApplyArgs, ViewArgs, ViewCommand, ViewCreateArgs, ViewDeleteArgs,
-    ViewInspectArgs, ViewListArgs, ViewUpdateArgs,
+    SchemaApplyArgs, SchemaArgs, ServeArgs, SkillsArgs, SkillsCommand, StandardViewTypeArg,
+    TableArgs, TableCommand, TableCreateArgs, TableDeleteArgs, TableRenameArgs, UpgradeArgs,
+    ValidateArgs, ValidationLevelArg, ViewApplyArgs, ViewArgs, ViewCommand, ViewCreateArgs,
+    ViewDeleteArgs, ViewInspectArgs, ViewListArgs, ViewUpdateArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -49,7 +49,7 @@ pub struct CommandOutput {
 }
 
 impl CommandOutput {
-    fn success(value: Value) -> Self {
+    pub(crate) fn success(value: Value) -> Self {
         Self {
             value,
             success: true,
@@ -63,6 +63,7 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Whoami(args) => whoami(args),
         Command::Logout(args) => logout(args),
         Command::Upgrade(args) => upgrade(args),
+        Command::Skills(args) => skills(args),
         Command::Create(args) => create(args),
         Command::Inspect(args) => inspect(args),
         Command::Tables(args) => tables(args),
@@ -83,6 +84,12 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Serve(args) => serve_file(args),
         Command::Publish(args) => publish_file(args, show_progress),
         Command::Collect(args) => collect_form(args, show_progress),
+    }
+}
+
+fn skills(args: SkillsArgs) -> Result<CommandOutput> {
+    match args.command {
+        SkillsCommand::Init(args) => crate::skills::init(args),
     }
 }
 

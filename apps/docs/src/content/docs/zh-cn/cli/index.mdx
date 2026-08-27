@@ -37,6 +37,22 @@ eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
 
 运行 `eidos --help` 查看所有命令；运行 `eidos <命令> --help` 查看某个命令的参数。
 
+## 初始化智能体 Skill
+
+CLI 已经内置 Eidos Skill，智能体配置不需要 Node.js、`npm` 或 `npx`：
+
+```bash
+# 安装到当前 Space / 项目。
+eidos skills init
+
+# 安装到当前用户，供所有项目使用。
+eidos skills init --global
+```
+
+要初始化其他 Space，可使用 `eidos skills init --space <DIR>`。命令会写入标准的
+`.agents/skills/eidos` 目录，可以安全重复执行；如果文件已有本地修改，必须显式传入
+`--force` 才会更新。初始化后请新建一个智能体任务。
+
 ## 进阶使用
 
 <CardGrid>

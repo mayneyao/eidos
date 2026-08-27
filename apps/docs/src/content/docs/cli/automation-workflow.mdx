@@ -12,6 +12,19 @@ the committed file still satisfies the requested validation level.
 Every automation command below passes `--json` explicitly. The default output
 is designed for people and is not a machine contract.
 
+## 0. Initialize the Eidos Skill
+
+The standalone CLI bundles the Skill used by Agent workflows. Initialize it in
+the current Space/project, or install it for the current user and all projects:
+
+```bash
+eidos skills init
+eidos skills init --global
+```
+
+No Node.js, `npm`, or `npx` is required. Use `--space <DIR>` for another Space;
+the command refuses to replace edited Skill files unless `--force` is explicit.
+
 ## 1. Read a bounded context
 
 ```bash

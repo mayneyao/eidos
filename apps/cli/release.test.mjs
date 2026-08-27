@@ -15,6 +15,7 @@ const files = {
   latest: "apps/cli/LATEST",
   releaseNotes: "apps/cli/RELEASE_NOTES.md",
   releaseWorkflow: ".github/workflows/build-and-release-cli.yml",
+  skillsModule: "apps/cli/src/skills.rs",
   skill: "skills/eidos/SKILL.md",
   skillCliReference: "skills/eidos/references/cli.md",
   skillOperationsReference: "skills/eidos/references/operations.md",
@@ -86,8 +87,8 @@ test("CLI workflow publishes the complete independent release contract", async (
     releaseNotes,
     /https:\/\/download\.eidos\.space\/cli\/install\.sh/u
   )
-  assert.match(workflow, /npx -y skills add/u)
-  assert.match(workflow, /tree\/\$\{TAG\}\/skills\/eidos/u)
+  assert.match(workflow, /cargo run[\s\\]+--quiet[\s\\]+--locked[\s\\]+[\s\\]*--manifest-path apps\/cli\/Cargo\.toml[\s\\]+[\s\\]*--bin eidos -- skills init/u)
+  assert.doesNotMatch(workflow, /npx(?: -y)? skills add/u)
   assert.match(workflow, /\.agents\/skills\/eidos\/SKILL\.md/u)
 })
 
@@ -133,7 +134,8 @@ test("CLI release notes are versioned and scoped to the standalone CLI", async (
 
   assert.ok(version)
   assert.match(releaseNotes, /^## What's new$/mu)
-  assert.match(releaseNotes, new RegExp(`cli-v${version}/skills/eidos`, "u"))
+  assert.match(releaseNotes, /eidos skills init --global/u)
+  assert.doesNotMatch(releaseNotes, /npx skills add/u)
   assert.match(releaseNotes, new RegExp(`select v${version}`, "u"))
   assert.doesNotMatch(releaseNotes, /github\.com\/mayneyao\/eidos\/compare\//u)
 })
@@ -161,8 +163,8 @@ test("Serve release notes provide a complete runnable example", async () => {
   )
 })
 
-test("public Eidos Skill stays complete and pinned to the stable CLI tag", async () => {
-  const [cargo, latest, readme, skill, cliReference, operationsReference] =
+test("public Eidos Skill stays complete and is bundled with the CLI", async () => {
+  const [cargo, latest, readme, skill, cliReference, operationsReference, skillsModule] =
     await Promise.all([
       read(files.cargo),
       read(files.latest),
@@ -170,6 +172,7 @@ test("public Eidos Skill stays complete and pinned to the stable CLI tag", async
       read(files.skill),
       read(files.skillCliReference),
       read(files.skillOperationsReference),
+      read(files.skillsModule),
     ])
   const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
 
@@ -180,12 +183,11 @@ test("public Eidos Skill stays complete and pinned to the stable CLI tag", async
   assert.match(skill, /references\/operations\.md/u)
   assert.ok(cliReference.trim().length > 0)
   assert.ok(operationsReference.trim().length > 0)
-  assert.match(
-    readme,
-    new RegExp(`tree/cli-v${version}/skills/eidos`, "u"),
-    "CLI README must install the Skill from the matching stable CLI tag"
-  )
-  assert.match(readme, /--skill eidos -g -a codex -y/u)
+  assert.match(readme, /eidos skills init --global/u)
+  assert.doesNotMatch(readme, /npx skills add/u)
+  assert.match(skillsModule, /include_str!\("\.\.\/\.\.\/\.\.\/skills\/eidos\/SKILL\.md"\)/u)
+  assert.match(skillsModule, /references\/cli\.md/u)
+  assert.match(skillsModule, /references\/operations\.md/u)
 })
 
 test("Eidos Lite releases do not rewrite the CLI version", async () => {
