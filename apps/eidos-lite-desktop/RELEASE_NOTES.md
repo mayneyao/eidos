@@ -1,16 +1,11 @@
 ## What's new
 
-### Publish reliably from macOS
+### Keep Windows clones clean
 
-The macOS installer now includes the dedicated Eidos Publish engine used by
-Eidos Lite. Publishing and collecting no longer fail with an unavailable-engine
-message after installation, and packaged release checks now execute the bundled
-engine before an installer can be published.
-
-### Keep cloned Spaces unchanged
-
-Validation after cloning is now read-only. Opening a Space cloned from another
-device no longer rewrites valid Eidos Files or makes every file appear modified
-before the user changes anything.
+Eidos Lite now treats SQLite page-header values rewritten by a Windows backup
+snapshot as non-user changes. A Space checkpointed on macOS stays clean after
+it is cloned to Windows, so Sync can continue without an empty checkpoint.
+Derived Graft status caches rebuild automatically; files and history are
+unchanged.
 
 No migration is required.
