@@ -84,6 +84,12 @@ it("integrates one opt-in, persistent, resizable xterm panel into the workbench 
     /\.workbench\[data-terminal-placement="right"\][\s\S]*?\.terminal-panel-header\s*\{[\s\S]*?-webkit-app-region:\s*drag;/
   )
   expect(styles).toMatch(
+    /\.workbench:is\([\s\S]*?\)\[data-terminal-placement="right"\][\s\S]*?\.file-titlebar\s*\{[\s\S]*?padding-right:\s*0\.75rem;/
+  )
+  expect(styles).toMatch(
+    /\.workbench:is\([\s\S]*?\)\[data-terminal-placement="right"\][\s\S]*?> \.terminal-panel[\s\S]*?\.terminal-panel-header\s*\{[\s\S]*?padding-right:\s*calc\(var\(--window-controls-overlay-width\) \+ 0\.5rem\);/
+  )
+  expect(styles).toMatch(
     /\.terminal-panel-actions\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/
   )
   expect(appSource).toMatch(

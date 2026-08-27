@@ -45,6 +45,7 @@ export interface EidosFileDataGridProps {
   view?: EidosFileViewInfo
   search?: string
   searchResultIndex?: number | null
+  showRowMarkers?: boolean
   disabled?: boolean
   reloadToken?: number
   propertyField?: EidosFileFieldInfo | null
@@ -160,6 +161,7 @@ export function EidosFileDataGrid({
   view,
   search = "",
   searchResultIndex = null,
+  showRowMarkers = true,
   disabled = false,
   reloadToken = 0,
   propertyField,
@@ -379,6 +381,7 @@ export function EidosFileDataGrid({
         reloadToken={reloadToken}
         historyScopeKey={JSON.stringify(query)}
         searchResultIndex={searchResultIndex}
+        showRowMarkers={showRowMarkers}
         loadPage={loadPage}
         locateRow={locateRow}
         loadColumnStats={loadColumnStats}

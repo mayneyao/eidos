@@ -215,6 +215,8 @@ export interface EidosFileGridProps {
   view?: EidosFileViewInfo
   gridTheme?: Partial<Theme>
   disabled?: boolean
+  /** Hide Glide's always-frozen row marker gutter when space is constrained. */
+  showRowMarkers?: boolean
   reloadToken?: number
   /** Stable identity for the active row query; changing it invalidates positional history. */
   historyScopeKey?: string
@@ -468,6 +470,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   view,
   gridTheme,
   disabled = false,
+  showRowMarkers = true,
   reloadToken = 0,
   historyScopeKey,
   loadPage,
@@ -1109,9 +1112,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         ...defaultConfig.trailingRowOptions,
         hint: t("New"),
       },
+      rowMarkers: showRowMarkers ? defaultConfig.rowMarkers : "none",
       ...eidosFileGridScrollbarConfig(hasHorizontalScroll),
     }),
-    [hasHorizontalScroll, t]
+    [hasHorizontalScroll, showRowMarkers, t]
   )
 
   useLayoutEffect(() => {
@@ -2560,7 +2564,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden"
     >
       <div
-        className="relative min-w-0 flex-1 overflow-hidden"
+        className={`relative min-w-0 flex-1 overflow-hidden ${showRowMarkers ? "" : "pl-2"}`}
         onPointerDownCapture={markExplicitDraftLeave}
         onKeyDownCapture={onGridContainerKeyDownCapture}
         onKeyDown={onGridContainerKeyDown}

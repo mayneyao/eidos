@@ -296,6 +296,7 @@ export function EidosFileRecordInspector({
 
   const editorDisabled =
     disabled || loading || savingField !== null || failedEdit !== null
+  const editable = Boolean(onCellEdit) && !disabled
   const Root = variant === "page" ? "section" : "aside"
 
   return (
@@ -465,7 +466,7 @@ export function EidosFileRecordInspector({
                 >
                   {eidosFileFieldDisplayName(field)}
                 </p>
-                {onCellEdit && field.type === "file" ? (
+                {editable && field.type === "file" ? (
                   <EidosFileRecordAttachmentEditor
                     value={currentRow[field.tableColumnName]}
                     disabled={editorDisabled}
@@ -474,7 +475,7 @@ export function EidosFileRecordInspector({
                     onImportDroppedFiles={onImportDroppedFiles}
                     onError={onError}
                   />
-                ) : onCellEdit &&
+                ) : editable &&
                   field.type === "relation" &&
                   onSearchRelation ? (
                   <EidosFileRecordRelationEditor
@@ -485,7 +486,7 @@ export function EidosFileRecordInspector({
                     onSearch={onSearchRelation}
                     onError={onError}
                   />
-                ) : onCellEdit &&
+                ) : editable &&
                   field.valueKind === "source" &&
                   field.type !== "file" &&
                   field.type !== "relation" ? (

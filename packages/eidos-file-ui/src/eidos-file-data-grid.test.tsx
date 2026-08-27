@@ -218,6 +218,7 @@ describe("EidosFileDataGrid", () => {
           table={table}
           search="Ada"
           searchResultIndex={2}
+          showRowMarkers={false}
           onSearchResultCountChange={onSearchResultCountChange}
         />
       )
@@ -225,6 +226,7 @@ describe("EidosFileDataGrid", () => {
     })
 
     expect(mocks.props?.searchResultIndex).toBe(2)
+    expect(mocks.props?.showRowMarkers).toBe(false)
     expect(mocks.props?.onRowCountChange).toBe(onSearchResultCountChange)
   })
 

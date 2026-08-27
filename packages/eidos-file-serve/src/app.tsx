@@ -109,6 +109,27 @@ function initialTheme(): Theme {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
+const COMPACT_PUBLISH_MEDIA_QUERY = "(max-width: 42rem)"
+
+function useCompactPublishViewport(): boolean {
+  const [compact, setCompact] = useState(() =>
+    typeof window.matchMedia === "function"
+      ? window.matchMedia(COMPACT_PUBLISH_MEDIA_QUERY).matches
+      : false
+  )
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return
+    const media = window.matchMedia(COMPACT_PUBLISH_MEDIA_QUERY)
+    const update = () => setCompact(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
+
+  return compact
+}
+
 function initialLocale(): "en" | "zh" {
   return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en"
 }
@@ -334,6 +355,20 @@ export function ServeApp() {
     )
   }, [activeTable, activeViews])
   const readOnly = manifest?.access === "read"
+  const published = manifest?.mode === "publish"
+  const compactPublishViewport = useCompactPublishViewport()
+  const renderedActiveView = useMemo(() => {
+    if (!published || !compactPublishViewport || activeView?.type !== "grid") {
+      return activeView
+    }
+    return {
+      ...activeView,
+      properties: {
+        ...(activeView.properties ?? {}),
+        freezeColumns: 0,
+      },
+    }
+  }, [activeView, compactPublishViewport, published])
   const mutationDisabled = saving || readOnly
   const assetSession = useMemo(
     () =>
@@ -1049,7 +1084,6 @@ export function ServeApp() {
     : saving
       ? "Saving"
       : "Saved"
-  const published = manifest?.mode === "publish"
   const showPublishBrand = published && browserPublishBrandingVisible()
 
   return (
@@ -1063,6 +1097,7 @@ export function ServeApp() {
       <main className="serve-shell">
         <EidosFileEditorShell
           className="min-h-0 flex-1 !h-auto"
+          data-eidos-publish-editor={published ? "" : undefined}
           searchNavigation={{
             search,
             scopeKey: `${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id ?? "default"}`,
@@ -1305,8 +1340,9 @@ export function ServeApp() {
               source={client}
               table={activeTable}
               tables={snapshot.tables}
-              view={activeView}
+              view={renderedActiveView}
               search={search}
+              showRowMarkers={!published || !compactPublishViewport}
               disabled={mutationDisabled}
               reloadToken={viewReloadToken}
               capabilities={{

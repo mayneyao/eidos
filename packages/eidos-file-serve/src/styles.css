@@ -148,6 +148,7 @@
 
 .eidos-publish-brand-inline {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 0.375rem;
   color: var(--muted-foreground);
@@ -155,6 +156,7 @@
   font-weight: 500;
   line-height: 1;
   text-decoration: none;
+  white-space: nowrap;
   transition: color 140ms ease;
 }
 
@@ -185,7 +187,68 @@
 }
 
 [data-eidos-file-sheet-status]:has(.eidos-publish-brand-inline) {
+  width: auto;
+  min-width: max-content;
+  flex: 0 0 auto;
   border-left-width: 0;
+}
+
+@media (max-width: 42rem) {
+  [data-eidos-publish-editor] .eidos-shell-workbar {
+    height: 2.75rem;
+  }
+
+  [data-eidos-publish-editor] .eidos-file-workbar {
+    --eidos-file-view-tab-height: 2.75rem;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    padding-inline: 0.25rem;
+  }
+
+  [data-eidos-publish-editor] [data-eidos-file-view-tabs] {
+    width: auto;
+    height: 2.75rem;
+    flex: 1 1 auto;
+    padding-inline: 0;
+    border-bottom-width: 0;
+  }
+
+  [data-eidos-publish-editor] [data-eidos-file-view-tabs] > button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  [data-eidos-publish-editor] [data-eidos-file-workbar-actions] {
+    width: auto;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    padding-inline: 0;
+  }
+
+  [data-eidos-publish-editor] .eidos-file-workbar-action {
+    width: 2.5rem;
+    height: 2.5rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  [data-eidos-publish-editor] .eidos-file-workbar-search {
+    width: min(9rem, calc(100vw - 11rem));
+  }
+
+  [data-eidos-publish-editor] .eidos-file-record-panel {
+    width: 100cqi;
+    min-width: 100cqi;
+    max-width: 100cqi;
+  }
+
+  [data-eidos-publish-editor]
+    [data-eidos-file-sheet-status]:has(.eidos-publish-brand-inline) {
+    width: auto;
+    min-width: max-content;
+    justify-content: flex-start;
+    padding-inline: 0.625rem;
+  }
 }
 
 .eidos-publish-empty-statusbar {

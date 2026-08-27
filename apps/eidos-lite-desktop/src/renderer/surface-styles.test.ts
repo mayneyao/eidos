@@ -111,16 +111,34 @@ describe("Eidos Lite surface hierarchy", () => {
     const overlayShells = ruleContaining("--window-controls-overlay-width")
     const actionRules = rulesContaining("var(--window-controls-overlay-width)")
 
-    expect(actionRules).toHaveLength(3)
+    expect(actionRules).toHaveLength(4)
     for (const overlayRule of [overlayShells, ...actionRules]) {
       expect(overlayRule).toContain('[data-platform="linux"]')
       expect(overlayRule).toContain('[data-platform="other"]')
     }
     expect(overlayShells).toContain("--window-controls-overlay-width")
-    expect(actionRules[0]).toContain(".welcome-settings-button")
-    expect(actionRules[1]).toContain(".file-titlebar")
-    expect(actionRules[2]).toContain(".sync-dialog")
-    expect(actionRules[2]).toContain("> header")
+    expect(
+      actionRules.some((actionRule) =>
+        actionRule.includes(".welcome-settings-button")
+      )
+    ).toBe(true)
+    expect(
+      actionRules.some((actionRule) => actionRule.includes(".file-titlebar"))
+    ).toBe(true)
+    expect(
+      actionRules.some(
+        (actionRule) =>
+          actionRule.includes(".workbench:is(") &&
+          actionRule.includes('[data-terminal-placement="right"]') &&
+          actionRule.includes(".terminal-panel-header")
+      )
+    ).toBe(true)
+    expect(
+      actionRules.some(
+        (actionRule) =>
+          actionRule.includes(".sync-dialog") && actionRule.includes("> header")
+      )
+    ).toBe(true)
   })
 
   it("aligns Linux title rows to the system window controls overlay", () => {

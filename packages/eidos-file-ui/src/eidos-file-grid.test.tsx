@@ -206,6 +206,7 @@ describe("EidosFileGrid", () => {
       root.render(
         <EidosFileGrid
           table={table}
+          showRowMarkers={false}
           loadPage={loadPage}
           onAddRow={vi.fn()}
           onCellEdit={onCellEdit}
@@ -213,6 +214,12 @@ describe("EidosFileGrid", () => {
       )
       await Promise.resolve()
     })
+
+    expect(mocks.props?.rowMarkers).toBe("none")
+    expect(
+      container.querySelector('[data-testid="glide-grid"]')?.parentElement
+        ?.classList
+    ).toContain("pl-2")
 
     expect(container.firstElementChild?.classList).toContain(
       "eidos-file-detail-layout"

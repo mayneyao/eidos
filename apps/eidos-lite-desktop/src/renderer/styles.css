@@ -1584,6 +1584,25 @@ body {
   padding-right: calc(var(--window-controls-overlay-width) + 0.5rem);
 }
 
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )[data-terminal-placement="right"]
+  .file-titlebar {
+  padding-right: 0.75rem;
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )[data-terminal-placement="right"]
+  > .terminal-panel
+  .terminal-panel-header {
+  padding-right: calc(var(--window-controls-overlay-width) + 0.5rem);
+}
+
 .workbench[data-sidebar-collapsed="true"] .file-titlebar {
   padding-left: 7rem;
 }

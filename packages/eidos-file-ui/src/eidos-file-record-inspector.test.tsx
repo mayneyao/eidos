@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { EidosFileUIProvider } from "./context"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 
 ;(
@@ -142,6 +143,44 @@ describe("EidosFileRecordInspector", () => {
     expect(container.textContent).toContain("Formula")
     expect(container.textContent).toContain("2")
     expect(container.querySelectorAll("textarea")).toHaveLength(1)
+  })
+
+  it("renders disabled records as readable values and keeps URLs activatable", async () => {
+    const uri = "https://example.com/published-record"
+    const activateUrl = vi.fn(async () => undefined)
+    const urlField: EidosFileFieldInfo = {
+      ...fields[0],
+      name: "Website",
+      type: "url",
+      tableColumnName: "website",
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider activateUrl={activateUrl}>
+          <EidosFileRecordInspector
+            row={{ _id: "row_1", website: uri }}
+            fields={[urlField]}
+            disabled
+            onClose={vi.fn()}
+            onCopyRecordId={vi.fn()}
+            onCellEdit={vi.fn()}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    expect(container.querySelector("input, textarea, [role=switch]")).toBeNull()
+    const link = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes(uri)
+    )
+    expect(link).toBeTruthy()
+
+    await act(async () => {
+      link?.click()
+      await Promise.resolve()
+    })
+    expect(activateUrl).toHaveBeenCalledWith(uri)
   })
 
   it("keeps a failed draft recoverable while persisted data refreshes", async () => {

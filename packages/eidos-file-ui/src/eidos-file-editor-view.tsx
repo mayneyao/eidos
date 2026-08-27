@@ -31,6 +31,8 @@ export interface EidosFileViewRendererProps {
   search: string
   searchResultIndex?: number | null
   onSearchResultCountChange?: (rowCount: number | null) => void
+  /** Host display policy for the Grid's leading row-number/selection gutter. */
+  showRowMarkers?: boolean
   disabled: boolean
   reloadToken: number
   commands: readonly EidosFileViewCommand[]
@@ -139,6 +141,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       view={props.view}
       search={props.search}
       searchResultIndex={props.searchResultIndex}
+      showRowMarkers={props.showRowMarkers}
       disabled={props.disabled}
       reloadToken={props.reloadToken}
       propertyField={props.propertyField}

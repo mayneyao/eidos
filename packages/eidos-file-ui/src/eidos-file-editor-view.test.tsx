@@ -220,6 +220,7 @@ describe("EidosFileEditorView registry", () => {
           table={table}
           view={view}
           search=" release "
+          showRowMarkers={false}
           plugins={[timelinePlugin]}
         />
       )
@@ -233,6 +234,7 @@ describe("EidosFileEditorView registry", () => {
       filter: view.filter,
       sorts: view.sorts,
     })
+    expect(received[0]?.showRowMarkers).toBe(false)
   })
 
   it("coordinates toolbar navigation and active-view highlighting inside the shared UI package", () => {
