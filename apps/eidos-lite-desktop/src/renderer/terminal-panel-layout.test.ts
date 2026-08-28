@@ -136,8 +136,14 @@ it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench g
   expect(styles).toMatch(
     /\.terminal-panel-tab-strip\s*\{[\s\S]*?gap:\s*0\.5rem;/
   )
+  expect(styles).not.toMatch(
+    /\.terminal-panel-tab-strip\s*\{[^}]*-webkit-app-region:\s*no-drag;/u
+  )
   expect(styles).toMatch(
-    /\.terminal-panel-tabs\s*\{[\s\S]*?gap:\s*0\.5rem;[\s\S]*?overflow-x:\s*auto;/
+    /\.terminal-panel-tabs\s*\{[^}]*overflow-x:\s*auto;[^}]*-webkit-app-region:\s*no-drag;/u
+  )
+  expect(styles).toMatch(
+    /\.terminal-panel-tab-add\s*\{[^}]*-webkit-app-region:\s*no-drag;/u
   )
   expect(styles).toMatch(
     /\.terminal-session-viewport\[hidden\]\s*\{[\s\S]*?display:\s*none;/

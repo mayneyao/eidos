@@ -4574,7 +4574,6 @@ body {
   flex: 1 1 auto;
   align-items: stretch;
   gap: 0.5rem;
-  -webkit-app-region: no-drag;
 }
 
 .terminal-panel-tabs {
@@ -4587,6 +4586,7 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  -webkit-app-region: no-drag;
 }
 
 .terminal-panel-tabs::-webkit-scrollbar {
@@ -4675,6 +4675,7 @@ body {
   border-radius: 0.25rem;
   background: transparent;
   color: var(--ink-muted);
+  -webkit-app-region: no-drag;
 }
 
 .terminal-panel-tab-add:is(:hover, :focus-visible) {
