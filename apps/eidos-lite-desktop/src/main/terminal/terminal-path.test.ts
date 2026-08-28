@@ -20,4 +20,24 @@ describe("terminalPathInput", () => {
       '"C:\\My Space\\notes & ideas.md"'
     )
   })
+
+  it("uses literal PowerShell quoting for the selected shell", () => {
+    expect(
+      terminalPathInput(
+        "C:\\My Space\\$draft's.md",
+        "win32",
+        "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+      )
+    ).toBe("'C:\\My Space\\$draft''s.md'")
+  })
+
+  it("uses POSIX paths and quoting for Git Bash", () => {
+    expect(
+      terminalPathInput(
+        "C:\\My Space\\$draft's.md",
+        "win32",
+        "C:\\Program Files\\Git\\bin\\bash.exe"
+      )
+    ).toBe("'C:/My Space/$draft'\\''s.md'")
+  })
 })

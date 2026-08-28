@@ -143,8 +143,8 @@ describe("TerminalSessionManager", () => {
   })
 
   it("starts a configured PowerShell profile on Windows", () => {
-    const { manager, spawn } = setup()
-    manager.start({
+    const { manager, ptys, spawn } = setup()
+    const session = manager.start({
       ownerId: 9,
       cwd: "C:\\spaces\\notes",
       cols: 80,
@@ -163,6 +163,8 @@ describe("TerminalSessionManager", () => {
       ["-NoLogo"],
       expect.objectContaining({ cwd: "C:\\spaces\\notes" })
     )
+    manager.writePath(9, session.id, "C:\\My Space\\$draft.md")
+    expect(ptys[0]?.write).toHaveBeenCalledWith("'C:\\My Space\\$draft.md'")
   })
 
   it("keeps multiple sessions per owner and rejects unsafe dimensions", () => {

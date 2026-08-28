@@ -8,6 +8,7 @@ import {
   type EidosLiteTerminalExit,
   type EidosLiteTerminalSession,
 } from "../../shared/contracts"
+import { terminalPathInput } from "./terminal-path"
 
 const TERMINAL_INPUT_BYTES_MAX = 256 * 1024
 const TERMINAL_DIMENSION_MAX = 1_000
@@ -22,6 +23,8 @@ interface ManagedTerminalSession {
   id: string
   ownerId: number
   pty: IPty
+  platform: NodeJS.Platform
+  shellExecutable: string
   disposeData(): void
   disposeExit(): void
   onExit(exit: EidosLiteTerminalExit): void
@@ -135,6 +138,8 @@ export class TerminalSessionManager {
       id,
       ownerId: options.ownerId,
       pty,
+      platform,
+      shellExecutable: shell.executable,
       disposeData: () => dataSubscription.dispose(),
       disposeExit: () => exitSubscription?.dispose(),
       onExit: options.onExit,
@@ -157,6 +162,13 @@ export class TerminalSessionManager {
       throw new Error("Terminal input is too large")
     }
     session.pty.write(value)
+  }
+
+  writePath(ownerId: number, sessionId: unknown, absolutePath: string): void {
+    const session = this.requireOwned(ownerId, sessionId)
+    session.pty.write(
+      terminalPathInput(absolutePath, session.platform, session.shellExecutable)
+    )
   }
 
   resize(

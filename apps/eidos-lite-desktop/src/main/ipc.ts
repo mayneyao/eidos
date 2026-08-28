@@ -74,7 +74,6 @@ import {
   requiredPublishRequest,
 } from "./publish/publish-engine"
 import type { TerminalSessionManager } from "./terminal/terminal-session-manager"
-import { terminalPathInput } from "./terminal/terminal-path"
 import {
   configuredTerminalShell,
   detectTerminalShells,
@@ -923,11 +922,7 @@ export function registerIpc(
         .requireSession(event.sender)
         .resolveUserPath(requiredString(relativePath, "terminal path"))
       const manager = await terminalSessions()
-      manager.write(
-        event.sender.id,
-        sessionId,
-        terminalPathInput(resolvedPath, process.platform)
-      )
+      manager.writePath(event.sender.id, sessionId, resolvedPath)
     }
   )
   ipcMain.on(
