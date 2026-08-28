@@ -1021,6 +1021,10 @@ describe("SyncPanel failure states", () => {
     expect(failure?.textContent).toContain("Hosted storage is full")
     expect(failure?.textContent).toContain("Local files safe")
     expect(host.querySelector("[data-sync-phase='push']")).not.toBeNull()
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
+        ?.textContent
+    ).toContain("Try again")
 
     const action = host.querySelector<HTMLButtonElement>(
       "[data-sync-failure-primary-action]"
@@ -1047,12 +1051,13 @@ describe("SyncPanel failure states", () => {
         status: 413,
       },
     } satisfies EidosSyncRunResponse
+    const runSync = vi.fn().mockResolvedValue(uploadTooLarge)
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
         getSyncStatus: vi.fn().mockResolvedValue(status),
         getSyncQueueStatus: vi.fn().mockResolvedValue(null),
-        runSync: vi.fn().mockResolvedValue(uploadTooLarge),
+        runSync,
         onSyncProgress: vi.fn().mockReturnValue(() => undefined),
         onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
       } as unknown as EidosLiteApi,
@@ -1083,10 +1088,17 @@ describe("SyncPanel failure states", () => {
       host.querySelector<HTMLButtonElement>(
         "[data-sync-failure-primary-action]"
       )?.textContent
-    ).toContain("Close")
+    ).toContain("Try again")
     expect(
       host.querySelector("[data-sync-storage-used]")?.textContent
     ).toContain("2 GiB")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
+        ?.click()
+    })
+    expect(runSync).toHaveBeenCalledTimes(2)
   })
 
   it("surfaces a pending background retry without hiding Local safety", async () => {
@@ -1847,6 +1859,20 @@ describe("SyncPanel failure states", () => {
 
   it("turns an expired session into a direct sign-in recovery", async () => {
     const beginSyncSignIn = vi.fn().mockResolvedValue(status)
+    const authenticationFailure = {
+      code: "authentication-required",
+      state: "paused-sign-in",
+      title: "Sign in again to resume Sync",
+      message: "The account session expired. Local editing remains available.",
+      action: "sign-in",
+      actionLabel: "Sign in again",
+      retryable: false,
+      localSafe: true,
+    } as const
+    const runSync = vi.fn().mockResolvedValue({
+      ...failureResponse,
+      failure: authenticationFailure,
+    } satisfies EidosSyncRunResponse)
     const api = {
       getSyncStatus: vi.fn().mockResolvedValue(status),
       getSyncQueueStatus: vi.fn().mockResolvedValue({
@@ -1855,19 +1881,10 @@ describe("SyncPanel failure states", () => {
         trigger: "manual",
         attempt: 1,
         maxAttempts: 5,
-        lastFailure: {
-          code: "authentication-required",
-          state: "paused-sign-in",
-          title: "Sign in again to resume Sync",
-          message:
-            "The account session expired. Local editing remains available.",
-          action: "sign-in",
-          actionLabel: "Sign in again",
-          retryable: false,
-          localSafe: true,
-        },
+        lastFailure: authenticationFailure,
       }),
       beginSyncSignIn,
+      runSync,
       onSyncProgress: vi.fn().mockReturnValue(() => undefined),
       onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
     } as unknown as EidosLiteApi
@@ -1887,6 +1904,17 @@ describe("SyncPanel failure states", () => {
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
       "Sign in again to resume Sync"
     )
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
+        ?.textContent
+    ).toContain("Try again")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
+        ?.click()
+    })
+    expect(runSync).toHaveBeenCalledOnce()
 
     await act(async () => {
       host

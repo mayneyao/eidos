@@ -642,19 +642,16 @@ export function SyncPanel({
     }
   }
 
+  const retryFailure = async () => {
+    if (!syncFailure) return
+    if (failureContext === "connect") await enableSync()
+    else if (failureContext === "clone" && selectedRepository) {
+      await cloneRepository(selectedRepository)
+    } else await syncNow()
+  }
+
   const runFailureAction = async () => {
     if (!syncFailure) return
-    if (syncFailure.action === "work-locally") {
-      onClose()
-      return
-    }
-    if (syncFailure.action === "retry-now") {
-      if (failureContext === "connect") await enableSync()
-      else if (failureContext === "clone" && selectedRepository) {
-        await cloneRepository(selectedRepository)
-      } else await syncNow()
-      return
-    }
     if (syncFailure.action === "sign-in") {
       await signIn()
       return
@@ -924,31 +921,51 @@ export function SyncPanel({
 
           {syncFailure && !loadError ? (
             <div className="sync-actions">
+              {syncFailure.action !== "retry-now" &&
+              syncFailure.action !== "work-locally" ? (
+                <button
+                  type="button"
+                  className="primary-action"
+                  data-sync-failure-primary-action
+                  disabled={
+                    busy !== null ||
+                    (syncFailure.action === "clone-hosted" &&
+                      mode !== "clone" &&
+                      !onRequestClone) ||
+                    (syncFailure.action === "review-local" && !onReviewLocal)
+                  }
+                  onClick={() => void runFailureAction()}
+                >
+                  {busy === "help" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <FailureActionIcon action={syncFailure.action} />
+                  )}
+                  {syncFailure.actionLabel}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={
-                  syncFailure.action === "work-locally"
+                  syncFailure.action !== "retry-now" &&
+                  syncFailure.action !== "work-locally"
                     ? "secondary-action"
                     : "primary-action"
                 }
-                data-sync-failure-primary-action
-                disabled={
-                  busy !== null ||
-                  (syncFailure.action === "clone-hosted" &&
-                    mode !== "clone" &&
-                    !onRequestClone) ||
-                  (syncFailure.action === "review-local" && !onReviewLocal)
-                }
-                onClick={() => void runFailureAction()}
+                data-sync-failure-retry
+                {...(syncFailure.action === "retry-now" ||
+                syncFailure.action === "work-locally"
+                  ? { "data-sync-failure-primary-action": "" }
+                  : {})}
+                disabled={busy !== null}
+                onClick={() => void retryFailure()}
               >
-                {busy === "help" ? (
+                {busy === "sync" || busy === "enable" || busy === "clone" ? (
                   <LoaderCircle className="spin" />
-                ) : syncFailure.action === "work-locally" ? null : (
-                  <FailureActionIcon action={syncFailure.action} />
+                ) : (
+                  <RefreshCw />
                 )}
-                {syncFailure.action === "work-locally"
-                  ? "Close"
-                  : syncFailure.actionLabel}
+                Try again
               </button>
             </div>
           ) : null}
