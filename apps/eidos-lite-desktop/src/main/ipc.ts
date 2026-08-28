@@ -75,6 +75,10 @@ import {
 } from "./publish/publish-engine"
 import type { TerminalSessionManager } from "./terminal/terminal-session-manager"
 import { terminalPathInput } from "./terminal/terminal-path"
+import {
+  configuredTerminalShell,
+  detectTerminalShells,
+} from "./terminal/terminal-shells"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
@@ -846,6 +850,7 @@ export function registerIpc(
       return preferences
     }
   )
+  ipcMain.handle(IPC_CHANNELS.terminalShells, () => detectTerminalShells())
   ipcMain.handle(IPC_CHANNELS.updateStatus, () => updater.getStatus())
   ipcMain.handle(IPC_CHANNELS.updateCheck, () => updater.check())
   ipcMain.handle(IPC_CHANNELS.updateDownload, () => updater.download())
@@ -865,12 +870,19 @@ export function registerIpc(
       if (!preferences.builtInPlugins.terminal) {
         throw new Error("Terminal plugin is disabled")
       }
+      const shellExecutable = preferences.terminalShell
+        ? configuredTerminalShell(
+            preferences.terminalShell,
+            await detectTerminalShells()
+          )
+        : undefined
       const manager = await terminalSessions()
       const terminal = manager.start({
         ownerId: event.sender.id,
         cwd: session.canonical.root,
         cols,
         rows,
+        shellExecutable,
         onData: (terminalId, data) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send(IPC_CHANNELS.terminalData, terminalId, data)

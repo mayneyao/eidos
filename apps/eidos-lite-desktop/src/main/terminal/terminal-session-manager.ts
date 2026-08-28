@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto"
 
 import type { IPty, IPtyForkOptions } from "node-pty"
 
-import type {
-  EidosLiteTerminalExit,
-  EidosLiteTerminalSession,
+import {
+  EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX,
+  type EidosLiteTerminalExit,
+  type EidosLiteTerminalSession,
 } from "../../shared/contracts"
 
 const TERMINAL_INPUT_BYTES_MAX = 256 * 1024
@@ -33,6 +34,7 @@ interface StartTerminalSessionOptions {
   rows: number
   environment?: NodeJS.ProcessEnv
   platform?: NodeJS.Platform
+  shellExecutable?: string
   onData(sessionId: string, data: string): void
   onExit(exit: EidosLiteTerminalExit): void
 }
@@ -72,16 +74,31 @@ function cleanTerminalEnvironment(
 
 function terminalShell(
   environment: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform
+  platform: NodeJS.Platform,
+  configuredExecutable?: string
 ): { executable: string; args: string[]; name: string } {
   const executable =
-    platform === "win32"
+    configuredExecutable ??
+    (platform === "win32"
       ? (environment.ComSpec ?? "C:\\Windows\\System32\\cmd.exe")
-      : (environment.SHELL ?? "/bin/sh")
+      : (environment.SHELL ?? "/bin/sh"))
+  const pathApi = platform === "win32" ? path.win32 : path.posix
+  const executableName = pathApi.basename(executable).toLowerCase()
+  const args =
+    platform !== "win32"
+      ? ["-l"]
+      : executableName === "pwsh.exe" || executableName === "powershell.exe"
+        ? ["-NoLogo"]
+        : executableName === "bash.exe" ||
+            executableName === "zsh.exe" ||
+            executableName === "fish.exe" ||
+            executableName === "nu.exe"
+          ? ["-l"]
+          : []
   return {
     executable,
-    args: platform === "win32" ? [] : ["-l"],
-    name: path.basename(executable).replace(/\.exe$/iu, ""),
+    args,
+    name: pathApi.basename(executable).replace(/\.exe$/iu, ""),
   }
 }
 
@@ -93,11 +110,17 @@ export class TerminalSessionManager {
   start(options: StartTerminalSessionOptions): EidosLiteTerminalSession {
     const cols = requiredTerminalDimension(options.cols, "columns")
     const rows = requiredTerminalDimension(options.rows, "rows")
-    this.closeOwner(options.ownerId)
+    let ownerSessionCount = 0
+    for (const session of this.sessions.values()) {
+      if (session.ownerId === options.ownerId) ownerSessionCount += 1
+    }
+    if (ownerSessionCount >= EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX) {
+      throw new Error("Too many terminal sessions")
+    }
 
     const environment = options.environment ?? process.env
     const platform = options.platform ?? process.platform
-    const shell = terminalShell(environment, platform)
+    const shell = terminalShell(environment, platform, options.shellExecutable)
     const id = randomUUID()
     const pty = this.spawnPty(shell.executable, shell.args, {
       name: "xterm-256color",

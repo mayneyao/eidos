@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client"
 interface MockTerminalInstance {
   element: HTMLElement | null
   options: Record<string, unknown>
+  writes: string[]
   emitData(data: string): void
   emitKey(event: KeyboardEvent): boolean
   emitResize(cols: number, rows: number): void
@@ -22,6 +23,7 @@ vi.mock("@xterm/xterm", () => ({
   Terminal: class MockTerminal implements MockTerminalInstance {
     element: HTMLElement | null = null
     options: Record<string, unknown>
+    writes: string[] = []
     private dataListener: ((data: string) => void) | null = null
     private keyHandler: ((event: KeyboardEvent) => boolean) | null = null
     private resizeListener:
@@ -82,7 +84,9 @@ vi.mock("@xterm/xterm", () => ({
     }
 
     focus() {}
-    write() {}
+    write(data: string) {
+      this.writes.push(data)
+    }
     reset() {}
     clear() {}
     dispose() {
@@ -110,7 +114,7 @@ vi.mock("@xterm/addon-web-links", () => ({
 import { TerminalPanel } from "./terminal-panel"
 import { EIDOS_LITE_SPACE_PATH_DRAG_TYPE } from "./space-path-drag"
 
-it("keeps one current xterm session through Strict Mode remounts", async () => {
+it("keeps independent terminal tabs through Strict Mode remounts", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const frames = new Map<number, FrameRequestCallback>()
   let nextFrame = 0
@@ -168,15 +172,19 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
     return nativeGetComputedStyle(element)
   })
 
-  const startTerminal = vi
-    .fn()
-    .mockResolvedValue({ id: "terminal-session", shell: "zsh" })
+  let nextSession = 0
+  const startTerminal = vi.fn(async () => ({
+    id: `terminal-session-${++nextSession}`,
+    shell: "zsh",
+  }))
   const closeTerminal = vi.fn().mockResolvedValue(undefined)
   const openExternalUrl = vi.fn().mockResolvedValue(undefined)
   const writeTerminal = vi.fn()
   const writeTerminalPath = vi.fn().mockResolvedValue(undefined)
   const writeClipboardText = vi.fn().mockResolvedValue(undefined)
   const resizeTerminal = vi.fn()
+  let terminalDataListener: ((sessionId: string, data: string) => void) | null =
+    null
   Object.assign(window, {
     eidosLite: {
       startTerminal,
@@ -186,7 +194,12 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
       writeClipboardText,
       resizeTerminal,
       openExternalUrl,
-      onTerminalData: vi.fn(() => () => {}),
+      onTerminalData: vi.fn((listener) => {
+        terminalDataListener = listener
+        return () => {
+          if (terminalDataListener === listener) terminalDataListener = null
+        }
+      }),
       onTerminalExit: vi.fn(() => () => {}),
     },
   })
@@ -224,9 +237,9 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
 
   const terminal = xtermState.instances.at(-1)
   terminal?.emitData("中文输入")
-  expect(writeTerminal).toHaveBeenCalledWith("terminal-session", "中文输入")
+  expect(writeTerminal).toHaveBeenCalledWith("terminal-session-1", "中文输入")
   terminal?.emitResize(120, 36)
-  expect(resizeTerminal).toHaveBeenCalledWith("terminal-session", 120, 36)
+  expect(resizeTerminal).toHaveBeenCalledWith("terminal-session-1", 120, 36)
 
   const dataTransfer = {
     dropEffect: "none",
@@ -246,7 +259,7 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
   terminalViewport?.dispatchEvent(drop)
   expect(drop.defaultPrevented).toBe(true)
   expect(writeTerminalPath).toHaveBeenCalledWith(
-    "terminal-session",
+    "terminal-session-1",
     "notes/today's draft.md"
   )
 
@@ -299,8 +312,112 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
       .selectionBackground
   ).toBe("rgb(0, 120, 150)")
 
+  const addTerminalButton = host.querySelector<HTMLButtonElement>(
+    'button[aria-label="New terminal"]'
+  )
+  expect(
+    addTerminalButton?.parentElement?.classList.contains(
+      "terminal-panel-tab-strip"
+    )
+  ).toBe(true)
+  expect(addTerminalButton?.previousElementSibling?.getAttribute("role")).toBe(
+    "tablist"
+  )
+  expect(
+    host.querySelector('.terminal-panel-actions [aria-label="New terminal"]')
+  ).toBeNull()
+
+  await act(async () => {
+    addTerminalButton?.click()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(startTerminal).toHaveBeenCalledTimes(2)
+  expect(host.querySelectorAll(".terminal-emulator")).toHaveLength(2)
+  const tabButtons = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  expect(tabButtons).toHaveLength(2)
+  expect(tabButtons[0]?.getAttribute("aria-selected")).toBe("false")
+  expect(tabButtons[1]?.getAttribute("aria-selected")).toBe("true")
+
+  const secondTerminal = xtermState.instances.at(-1)
+  secondTerminal?.emitData("second tab input")
+  expect(writeTerminal).toHaveBeenCalledWith(
+    "terminal-session-2",
+    "second tab input"
+  )
+  await act(async () => {
+    terminalDataListener?.("terminal-session-1", "first output")
+    terminalDataListener?.("terminal-session-2", "second output")
+  })
+  expect(terminal?.writes).toContain("first output")
+  expect(secondTerminal?.writes).toContain("second output")
+
+  await act(async () => tabButtons[0]?.click())
+  const panes = host.querySelectorAll<HTMLElement>(".terminal-session-viewport")
+  expect(panes[0]?.hidden).toBe(false)
+  expect(panes[1]?.hidden).toBe(true)
+  terminal?.emitData("first tab again")
+  expect(writeTerminal).toHaveBeenCalledWith(
+    "terminal-session-1",
+    "first tab again"
+  )
+
+  await act(async () => {
+    host
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Close terminal tab: Terminal 1"]'
+      )
+      ?.click()
+    await Promise.resolve()
+  })
+  expect(closeTerminal).toHaveBeenCalledWith("terminal-session-1")
+  expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1)
+  expect(
+    host.querySelector('[role="tab"]')?.getAttribute("aria-selected")
+  ).toBe("true")
+
+  await act(async () => {
+    addTerminalButton?.click()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(
+    [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].map(
+      (button) => button.textContent
+    )
+  ).toEqual(["Terminal 2", "Terminal 1"])
+  expect(startTerminal).toHaveBeenCalledTimes(3)
+
+  await act(async () => {
+    host
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Close terminal tab: Terminal 2"]'
+      )
+      ?.click()
+    await Promise.resolve()
+  })
+  await act(async () => {
+    host
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Close terminal tab: Terminal 1"]'
+      )
+      ?.click()
+    await Promise.resolve()
+  })
+  expect(host.querySelectorAll('[role="tab"]')).toHaveLength(0)
+  expect(closeTerminal).toHaveBeenCalledWith("terminal-session-2")
+  expect(closeTerminal).toHaveBeenCalledWith("terminal-session-3")
+
+  await act(async () => {
+    addTerminalButton?.click()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(host.querySelector('[role="tab"]')?.textContent).toBe("Terminal 1")
+  expect(startTerminal).toHaveBeenCalledTimes(4)
+
   await act(async () => root.unmount())
-  expect(closeTerminal).toHaveBeenCalledWith("terminal-session")
+  expect(closeTerminal).toHaveBeenCalledWith("terminal-session-4")
   host.remove()
   delete document.documentElement.dataset.theme
   vi.unstubAllGlobals()

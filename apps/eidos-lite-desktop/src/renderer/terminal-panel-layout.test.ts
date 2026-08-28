@@ -6,7 +6,7 @@ import { expect, it } from "vitest"
 
 const rendererRoot = path.dirname(fileURLToPath(import.meta.url))
 
-it("integrates one opt-in, persistent, resizable xterm panel into the workbench grid", async () => {
+it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench grid", async () => {
   const [
     appSource,
     panelSource,
@@ -102,12 +102,16 @@ it("integrates one opt-in, persistent, resizable xterm panel into the workbench 
     /\{terminalPluginEnabled \? \([\s\S]*?data-titlebar-action="terminal"/
   )
   expect(settingsSource).toContain('data-built-in-plugin="terminal"')
+  expect(settingsSource).toContain(".listTerminalShells()")
+  expect(settingsSource).toContain("preferences.terminalShell")
   const terminalStartHandler = ipcSource.slice(
     ipcSource.indexOf("IPC_CHANNELS.terminalStart")
   )
   expect(terminalStartHandler).toMatch(
     /if \(!preferences\.builtInPlugins\.terminal\)[\s\S]*?const manager = await terminalSessions\(\)/
   )
+  expect(terminalStartHandler).toContain("configuredTerminalShell(")
+  expect(terminalStartHandler).toContain("shellExecutable,")
   expect(controllerSource).toContain("isEidosLiteShortcutEnabled")
   expect(controllerSource).toContain(
     "isEidosLiteShortcutEnabled(command, this.builtInPlugins)"
@@ -126,6 +130,18 @@ it("integrates one opt-in, persistent, resizable xterm panel into the workbench 
   expect(panelSource).toContain("terminal.loadAddon(fitAddon)")
   expect(panelSource).toContain("terminal.loadAddon(webLinksAddon)")
   expect(panelSource).toContain("terminal.attachCustomKeyEventHandler")
+  expect(panelSource).toContain('role="tablist"')
+  expect(panelSource).toContain('role="tab"')
+  expect(panelSource).toContain("EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX")
+  expect(styles).toMatch(
+    /\.terminal-panel-tab-strip\s*\{[\s\S]*?gap:\s*0\.5rem;/
+  )
+  expect(styles).toMatch(
+    /\.terminal-panel-tabs\s*\{[\s\S]*?gap:\s*0\.5rem;[\s\S]*?overflow-x:\s*auto;/
+  )
+  expect(styles).toMatch(
+    /\.terminal-session-viewport\[hidden\]\s*\{[\s\S]*?display:\s*none;/
+  )
   expect(appHtml).toContain("script-src 'self';")
   expect(appHtml).not.toContain("wasm-unsafe-eval")
   expect(appHtml).not.toMatch(/script-src[^;]*\s'unsafe-eval'/u)

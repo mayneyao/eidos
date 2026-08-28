@@ -21,6 +21,7 @@ import type {
   EidosLiteLanguage,
   EidosLitePreferences,
   EidosLiteSettingsDestination,
+  EidosLiteTerminalShell,
   EidosLiteUpdateStatus,
 } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
@@ -79,6 +80,10 @@ export function SettingsPage() {
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
   )
+  const [terminalShells, setTerminalShells] = useState<
+    EidosLiteTerminalShell[]
+  >([])
+  const [terminalShellsLoading, setTerminalShellsLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [accountBusy, setAccountBusy] = useState<"sign-in" | "sign-out" | null>(
     null
@@ -104,6 +109,28 @@ export function SettingsPage() {
       setError(cause instanceof Error ? cause.message : String(cause))
     })
     return window.eidosLite.onPreferencesChanged(setPreferences)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.eidosLite
+      .listTerminalShells()
+      .then(
+        (shells) => {
+          if (!cancelled) setTerminalShells(shells)
+        },
+        (cause) => {
+          if (!cancelled) {
+            setError(cause instanceof Error ? cause.message : String(cause))
+          }
+        }
+      )
+      .finally(() => {
+        if (!cancelled) setTerminalShellsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -273,6 +300,14 @@ export function SettingsPage() {
       version: updateStatus.currentVersion,
     })
   })()
+  const systemTerminalShell = terminalShells.find(
+    (shell) => shell.systemDefault
+  )
+  const selectedTerminalShellUnavailable =
+    preferences.terminalShell !== null &&
+    !terminalShells.some(
+      (shell) => shell.executable === preferences.terminalShell
+    )
 
   return (
     <main
@@ -609,6 +644,52 @@ export function SettingsPage() {
                   >
                     <span />
                   </button>
+                </div>
+                <div
+                  className="settings-row settings-row-stacked"
+                  data-terminal-shell
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t("Default shell")}</strong>
+                    <small>
+                      {t(
+                        "Choose which installed shell new Terminal tabs use. Existing tabs are not restarted."
+                      )}
+                    </small>
+                  </div>
+                  <select
+                    className="settings-shell-select"
+                    aria-label={t("Default shell")}
+                    value={preferences.terminalShell ?? ""}
+                    disabled={terminalShellsLoading}
+                    onChange={(event) =>
+                      void updatePreferences({
+                        terminalShell: event.currentTarget.value || null,
+                      })
+                    }
+                  >
+                    <option value="">
+                      {terminalShellsLoading
+                        ? t("Detecting shells…")
+                        : systemTerminalShell
+                          ? t("System default — {shell}", {
+                              shell: systemTerminalShell.name,
+                            })
+                          : t("System default")}
+                    </option>
+                    {selectedTerminalShellUnavailable ? (
+                      <option value={preferences.terminalShell ?? ""}>
+                        {t("Unavailable — {shell}", {
+                          shell: preferences.terminalShell ?? "",
+                        })}
+                      </option>
+                    ) : null}
+                    {terminalShells.map((shell) => (
+                      <option key={shell.executable} value={shell.executable}>
+                        {shell.name} — {shell.executable}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </section>

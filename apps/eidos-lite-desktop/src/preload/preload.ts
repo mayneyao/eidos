@@ -94,6 +94,7 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.workspaceShortcutCommand, handler)
   },
+  listTerminalShells: () => ipcRenderer.invoke(IPC_CHANNELS.terminalShells),
   startTerminal: (cols, rows) =>
     ipcRenderer.invoke(IPC_CHANNELS.terminalStart, cols, rows),
   writeTerminal: (sessionId, data) =>

@@ -21,6 +21,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   timeZone: "system",
   weekStartsOnMonday: true,
   builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
+  terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
   automaticCheckpoints: false,
@@ -52,6 +53,19 @@ export function normalizeEidosLiteTimeZone(value: unknown): EidosLiteTimeZone {
   }
 }
 
+export function normalizeEidosLiteTerminalShell(value: unknown): string | null {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 4_096 ||
+    value.includes("\0") ||
+    !path.isAbsolute(value)
+  ) {
+    return null
+  }
+  return path.normalize(value)
+}
+
 export function normalizeEidosLitePreferences(
   value: unknown
 ): EidosLitePreferences {
@@ -69,6 +83,7 @@ export function normalizeEidosLitePreferences(
         ? candidate.weekStartsOnMonday
         : DEFAULT_EIDOS_LITE_PREFERENCES.weekStartsOnMonday,
     builtInPlugins: normalizeEidosLiteBuiltInPlugins(candidate.builtInPlugins),
+    terminalShell: normalizeEidosLiteTerminalShell(candidate.terminalShell),
     keyboardShortcuts: normalizeEidosLiteKeyboardShortcuts(
       candidate.keyboardShortcuts
     ),

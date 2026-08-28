@@ -61,6 +61,7 @@ export const IPC_CHANNELS = {
   navigationCommand: "eidos-lite:navigation-command",
   workspaceShortcutCommand: "eidos-lite:workspace-shortcut-command",
   terminalStart: "eidos-lite:terminal-start",
+  terminalShells: "eidos-lite:terminal-shells",
   terminalWrite: "eidos-lite:terminal-write",
   terminalWritePath: "eidos-lite:terminal-write-path",
   terminalResize: "eidos-lite:terminal-resize",
@@ -154,6 +155,7 @@ export const IPC_CHANNELS = {
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
 export type EidosLiteNavigationDirection = "back" | "forward"
 export type EidosLitePathClipboardMode = "absolute" | "relative"
+export const EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX = 16
 
 export type EidosPublishAccessMode = "public" | "password" | "private"
 export type EidosPublishAccessSelection = "unchanged" | EidosPublishAccessMode
@@ -625,6 +627,12 @@ export interface EidosLiteTerminalSession {
   shell: string
 }
 
+export interface EidosLiteTerminalShell {
+  executable: string
+  name: string
+  systemDefault: boolean
+}
+
 export interface EidosLiteTerminalExit {
   sessionId: string
   exitCode: number
@@ -685,6 +693,7 @@ export interface EidosLitePreferences {
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean
   builtInPlugins: EidosLiteBuiltInPlugins
+  terminalShell: string | null
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   automaticUpdates: boolean
   automaticCheckpoints: boolean
@@ -1572,6 +1581,7 @@ export interface EidosLiteApi {
   onWorkspaceShortcutCommand(
     listener: (command: EidosLiteShortcutCommand) => void
   ): () => void
+  listTerminalShells(): Promise<EidosLiteTerminalShell[]>
   startTerminal(cols: number, rows: number): Promise<EidosLiteTerminalSession>
   writeTerminal(sessionId: string, data: string): void
   writeTerminalPath(sessionId: string, relativePath: string): Promise<void>

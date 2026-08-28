@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import type { IDisposable, IPty } from "node-pty"
 
+import { EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX } from "../../shared/contracts"
 import {
   TerminalSessionManager,
   type TerminalPtySpawner,
@@ -141,7 +142,30 @@ describe("TerminalSessionManager", () => {
     )
   })
 
-  it("replaces an existing owner session and rejects unsafe dimensions", () => {
+  it("starts a configured PowerShell profile on Windows", () => {
+    const { manager, spawn } = setup()
+    manager.start({
+      ownerId: 9,
+      cwd: "C:\\spaces\\notes",
+      cols: 80,
+      rows: 24,
+      environment: {
+        ComSpec: "C:\\Windows\\System32\\cmd.exe",
+      },
+      platform: "win32",
+      shellExecutable: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    })
+
+    expect(spawn).toHaveBeenCalledWith(
+      "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      ["-NoLogo"],
+      expect.objectContaining({ cwd: "C:\\spaces\\notes" })
+    )
+  })
+
+  it("keeps multiple sessions per owner and rejects unsafe dimensions", () => {
     const { manager, ptys } = setup()
     const options = {
       ownerId: 2,
@@ -151,9 +175,17 @@ describe("TerminalSessionManager", () => {
       onData: vi.fn(),
       onExit: vi.fn(),
     }
-    manager.start(options)
-    manager.start(options)
+    const first = manager.start(options)
+    const second = manager.start(options)
+    expect(ptys[0]?.kill).not.toHaveBeenCalled()
+    manager.write(2, first.id, "first")
+    manager.write(2, second.id, "second")
+    expect(ptys[0]?.write).toHaveBeenCalledWith("first")
+    expect(ptys[1]?.write).toHaveBeenCalledWith("second")
+
+    manager.closeOwner(2)
     expect(ptys[0]?.kill).toHaveBeenCalledOnce()
+    expect(ptys[1]?.kill).toHaveBeenCalledOnce()
 
     expect(() => manager.start({ ...options, cols: 0 })).toThrow(
       "Invalid terminal columns"
@@ -161,5 +193,28 @@ describe("TerminalSessionManager", () => {
     expect(() => manager.resize(2, "missing", 80, 24)).toThrow(
       "Terminal session is unavailable"
     )
+  })
+
+  it("bounds the number of sessions owned by one window", () => {
+    const { manager, ptys } = setup()
+    const options = {
+      ownerId: 12,
+      cwd: "/spaces/bounded",
+      cols: 80,
+      rows: 24,
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    }
+    for (
+      let index = 0;
+      index < EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX;
+      index += 1
+    ) {
+      manager.start(options)
+    }
+
+    expect(ptys).toHaveLength(EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX)
+    expect(() => manager.start(options)).toThrow("Too many terminal sessions")
+    expect(() => manager.start({ ...options, ownerId: 13 })).not.toThrow()
   })
 })

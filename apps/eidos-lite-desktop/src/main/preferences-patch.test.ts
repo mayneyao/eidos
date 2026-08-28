@@ -9,6 +9,7 @@ describe("Eidos Lite preference IPC patch", () => {
       timeZone: "Europe/London",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
+      terminalShell: "/bin/zsh",
       keyboardShortcuts: DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
       automaticUpdates: false,
       automaticCheckpoints: true,
@@ -39,5 +40,17 @@ describe("Eidos Lite preference IPC patch", () => {
         builtInPlugins: { terminal: true, unknown: true },
       })
     ).toThrow("Invalid built-in plugin preferences")
+  })
+
+  it("accepts only absolute terminal shell paths or the system default", () => {
+    expect(eidosLitePreferencesPatch({ terminalShell: "/bin/zsh" })).toEqual({
+      terminalShell: "/bin/zsh",
+    })
+    expect(eidosLitePreferencesPatch({ terminalShell: null })).toEqual({
+      terminalShell: null,
+    })
+    expect(() => eidosLitePreferencesPatch({ terminalShell: "zsh" })).toThrow(
+      "Invalid terminal shell preference"
+    )
   })
 })
