@@ -766,12 +766,18 @@ const rendererProbe = `
   const spaceHeading = document.querySelector(".space-heading")
   const fileTitlebar = document.querySelector(".file-titlebar")
   if (!fileTitlebar) throw new Error("File titlebar is missing")
-  const originalPlatform = workbench.dataset.platform
-  const originalTerminalOpen = workbench.dataset.terminalOpen
-  const originalTerminalPlacement = workbench.dataset.terminalPlacement
-  const originalOverlayWidth = workbench.style.getPropertyValue(
-    "--window-controls-overlay-width"
+  const workbenchStyleFixture = document.createElement("div")
+  workbenchStyleFixture.className = "workbench"
+  workbenchStyleFixture.dataset.platform = "win32"
+  workbenchStyleFixture.dataset.terminalPlacement = "right"
+  workbenchStyleFixture.style.setProperty(
+    "--window-controls-overlay-width",
+    "160px"
   )
+  workbenchStyleFixture.style.position = "fixed"
+  workbenchStyleFixture.style.visibility = "hidden"
+  const fileTitlebarFixture = document.createElement("header")
+  fileTitlebarFixture.className = "file-titlebar"
   const terminalPanelFixture = document.createElement("section")
   terminalPanelFixture.className = "terminal-panel"
   const terminalHeaderFixture = document.createElement("header")
@@ -785,6 +791,7 @@ const rendererProbe = `
   terminalTabStripFixture.append(terminalTabsFixture, terminalAddFixture)
   terminalHeaderFixture.append(terminalTabStripFixture)
   terminalPanelFixture.append(terminalHeaderFixture)
+  workbenchStyleFixture.append(fileTitlebarFixture, terminalPanelFixture)
   let closedRightTerminalPadding = 0
   let openRightTerminalPadding = 0
   let openRightTerminalHeaderPadding = 0
@@ -793,18 +800,15 @@ const rendererProbe = `
   let terminalTabsRegion = ""
   let terminalAddRegion = ""
   try {
-    workbench.dataset.platform = "win32"
-    workbench.dataset.terminalPlacement = "right"
-    workbench.style.setProperty("--window-controls-overlay-width", "160px")
-    workbench.dataset.terminalOpen = "false"
+    document.body.append(workbenchStyleFixture)
+    workbenchStyleFixture.dataset.terminalOpen = "false"
     closedRightTerminalPadding = Number.parseFloat(
-      getComputedStyle(fileTitlebar).paddingRight
+      getComputedStyle(fileTitlebarFixture).paddingRight
     )
-    workbench.dataset.terminalOpen = "true"
+    workbenchStyleFixture.dataset.terminalOpen = "true"
     openRightTerminalPadding = Number.parseFloat(
-      getComputedStyle(fileTitlebar).paddingRight
+      getComputedStyle(fileTitlebarFixture).paddingRight
     )
-    workbench.append(terminalPanelFixture)
     const terminalHeaderStyle = getComputedStyle(terminalHeaderFixture)
     openRightTerminalHeaderPadding = Number.parseFloat(
       terminalHeaderStyle.paddingRight
@@ -822,22 +826,7 @@ const rendererProbe = `
       .getPropertyValue("-webkit-app-region")
       .trim()
   } finally {
-    terminalPanelFixture.remove()
-    originalPlatform === undefined
-      ? delete workbench.dataset.platform
-      : (workbench.dataset.platform = originalPlatform)
-    originalTerminalOpen === undefined
-      ? delete workbench.dataset.terminalOpen
-      : (workbench.dataset.terminalOpen = originalTerminalOpen)
-    originalTerminalPlacement === undefined
-      ? delete workbench.dataset.terminalPlacement
-      : (workbench.dataset.terminalPlacement = originalTerminalPlacement)
-    originalOverlayWidth
-      ? workbench.style.setProperty(
-          "--window-controls-overlay-width",
-          originalOverlayWidth
-        )
-      : workbench.style.removeProperty("--window-controls-overlay-width")
+    workbenchStyleFixture.remove()
   }
   const workbenchTop = workbench.getBoundingClientRect().top
   const sidebarHeaderRect = sidebarHeader?.getBoundingClientRect()
