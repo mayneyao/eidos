@@ -795,7 +795,7 @@ const rendererProbe = `
   try {
     workbench.dataset.platform = "win32"
     workbench.dataset.terminalPlacement = "right"
-    workbench.style.setProperty("--window-controls-overlay-width", "8.625rem")
+    workbench.style.setProperty("--window-controls-overlay-width", "160px")
     workbench.dataset.terminalOpen = "false"
     closedRightTerminalPadding = Number.parseFloat(
       getComputedStyle(fileTitlebar).paddingRight
@@ -882,7 +882,18 @@ const rendererProbe = `
   if (Object.values(workbenchLayout).some((value) => !value)) {
     throw new Error(
       "Space workbench layout contract is incomplete: " +
-      JSON.stringify(workbenchLayout)
+      JSON.stringify({
+        ...workbenchLayout,
+        measurements: {
+          closedRightTerminalPadding,
+          openRightTerminalPadding,
+          openRightTerminalHeaderPadding,
+          terminalHeaderRegion,
+          terminalTabStripRegion,
+          terminalTabsRegion,
+          terminalAddRegion,
+        },
+      })
     )
   }
   const canonicalShell = await waitFor(
