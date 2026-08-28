@@ -5,6 +5,8 @@ packages:
   # exclude packages that are inside test directories
   - "!**/test/**"
 
+pmOnFail: ignore
+
 peerDependencyRules:
   ignoreMissing:
     - "next"
@@ -18,10 +20,10 @@ packageExtensions:
     peerDependencies:
       vite: "^8.1.0"
 
-onlyBuiltDependencies:
-  - "better-sqlite3"
-  - "electron"
-  - "node-pty"
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  node-pty: true
 
 overrides:
   "@eidos.space/bashkit": "^0.6.5"
