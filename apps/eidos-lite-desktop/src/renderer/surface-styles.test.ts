@@ -129,10 +129,15 @@ describe("Eidos Lite surface hierarchy", () => {
       actionRules.some(
         (actionRule) =>
           actionRule.includes(".workbench:is(") &&
+          actionRule.includes('[data-terminal-open="true"]') &&
           actionRule.includes('[data-terminal-placement="right"]') &&
           actionRule.includes(".terminal-panel-header")
       )
     ).toBe(true)
+    const rightTerminalTitlebarRule = ruleContaining("padding-right: 0.75rem")
+    expect(rightTerminalTitlebarRule).toContain(
+      '[data-terminal-open="true"][data-terminal-placement="right"]'
+    )
     expect(
       actionRules.some(
         (actionRule) =>

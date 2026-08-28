@@ -1624,7 +1624,7 @@ body {
     [data-platform="win32"],
     [data-platform="linux"],
     [data-platform="other"]
-  )[data-terminal-placement="right"]
+  )[data-terminal-open="true"][data-terminal-placement="right"]
   .file-titlebar {
   padding-right: 0.75rem;
 }
@@ -1633,7 +1633,7 @@ body {
     [data-platform="win32"],
     [data-platform="linux"],
     [data-platform="other"]
-  )[data-terminal-placement="right"]
+  )[data-terminal-open="true"][data-terminal-placement="right"]
   > .terminal-panel
   .terminal-panel-header {
   padding-right: calc(var(--window-controls-overlay-width) + 0.5rem);
