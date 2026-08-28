@@ -149,6 +149,10 @@ interface RendererSmokeResult {
     sidebarWidthRestored: boolean
     singleTitleRow: boolean
     compactTitleRow: boolean
+    closedRightTerminalReservesWindowControls: boolean
+    openRightTerminalReservesWindowControls: boolean
+    rightTerminalHeaderDraggable: boolean
+    terminalInteractionsRemainClickable: boolean
     unifiedSidebar: boolean
   }
   styleContract: {
@@ -761,6 +765,80 @@ const rendererProbe = `
   const sidebarHeader = document.querySelector(".sidebar-header")
   const spaceHeading = document.querySelector(".space-heading")
   const fileTitlebar = document.querySelector(".file-titlebar")
+  if (!fileTitlebar) throw new Error("File titlebar is missing")
+  const originalPlatform = workbench.dataset.platform
+  const originalTerminalOpen = workbench.dataset.terminalOpen
+  const originalTerminalPlacement = workbench.dataset.terminalPlacement
+  const originalOverlayWidth = workbench.style.getPropertyValue(
+    "--window-controls-overlay-width"
+  )
+  const terminalPanelFixture = document.createElement("section")
+  terminalPanelFixture.className = "terminal-panel"
+  const terminalHeaderFixture = document.createElement("header")
+  terminalHeaderFixture.className = "terminal-panel-header"
+  const terminalTabStripFixture = document.createElement("div")
+  terminalTabStripFixture.className = "terminal-panel-tab-strip"
+  const terminalTabsFixture = document.createElement("div")
+  terminalTabsFixture.className = "terminal-panel-tabs"
+  const terminalAddFixture = document.createElement("button")
+  terminalAddFixture.className = "terminal-panel-tab-add"
+  terminalTabStripFixture.append(terminalTabsFixture, terminalAddFixture)
+  terminalHeaderFixture.append(terminalTabStripFixture)
+  terminalPanelFixture.append(terminalHeaderFixture)
+  let closedRightTerminalPadding = 0
+  let openRightTerminalPadding = 0
+  let openRightTerminalHeaderPadding = 0
+  let terminalHeaderRegion = ""
+  let terminalTabStripRegion = ""
+  let terminalTabsRegion = ""
+  let terminalAddRegion = ""
+  try {
+    workbench.dataset.platform = "win32"
+    workbench.dataset.terminalPlacement = "right"
+    workbench.style.setProperty("--window-controls-overlay-width", "8.625rem")
+    workbench.dataset.terminalOpen = "false"
+    closedRightTerminalPadding = Number.parseFloat(
+      getComputedStyle(fileTitlebar).paddingRight
+    )
+    workbench.dataset.terminalOpen = "true"
+    openRightTerminalPadding = Number.parseFloat(
+      getComputedStyle(fileTitlebar).paddingRight
+    )
+    workbench.append(terminalPanelFixture)
+    const terminalHeaderStyle = getComputedStyle(terminalHeaderFixture)
+    openRightTerminalHeaderPadding = Number.parseFloat(
+      terminalHeaderStyle.paddingRight
+    )
+    terminalHeaderRegion = terminalHeaderStyle
+      .getPropertyValue("-webkit-app-region")
+      .trim()
+    terminalTabStripRegion = getComputedStyle(terminalTabStripFixture)
+      .getPropertyValue("-webkit-app-region")
+      .trim()
+    terminalTabsRegion = getComputedStyle(terminalTabsFixture)
+      .getPropertyValue("-webkit-app-region")
+      .trim()
+    terminalAddRegion = getComputedStyle(terminalAddFixture)
+      .getPropertyValue("-webkit-app-region")
+      .trim()
+  } finally {
+    terminalPanelFixture.remove()
+    originalPlatform === undefined
+      ? delete workbench.dataset.platform
+      : (workbench.dataset.platform = originalPlatform)
+    originalTerminalOpen === undefined
+      ? delete workbench.dataset.terminalOpen
+      : (workbench.dataset.terminalOpen = originalTerminalOpen)
+    originalTerminalPlacement === undefined
+      ? delete workbench.dataset.terminalPlacement
+      : (workbench.dataset.terminalPlacement = originalTerminalPlacement)
+    originalOverlayWidth
+      ? workbench.style.setProperty(
+          "--window-controls-overlay-width",
+          originalOverlayWidth
+        )
+      : workbench.style.removeProperty("--window-controls-overlay-width")
+  }
   const workbenchTop = workbench.getBoundingClientRect().top
   const sidebarHeaderRect = sidebarHeader?.getBoundingClientRect()
   const fileTitlebarRect = fileTitlebar?.getBoundingClientRect()
@@ -782,6 +860,14 @@ const rendererProbe = `
       Math.abs(sidebarHeaderRect.height - fileTitlebarRect.height) < 1,
     compactTitleRow:
       fileTitlebarRect !== undefined && fileTitlebarRect.height <= 40,
+    closedRightTerminalReservesWindowControls:
+      closedRightTerminalPadding - openRightTerminalPadding >= 100,
+    openRightTerminalReservesWindowControls:
+      openRightTerminalHeaderPadding - openRightTerminalPadding >= 100,
+    rightTerminalHeaderDraggable:
+      terminalHeaderRegion === "drag" && terminalTabStripRegion !== "no-drag",
+    terminalInteractionsRemainClickable:
+      terminalTabsRegion === "no-drag" && terminalAddRegion === "no-drag",
     sidebarSettingsAction: Boolean(
       document.querySelector('[data-sidebar-action="settings"]')
     ),

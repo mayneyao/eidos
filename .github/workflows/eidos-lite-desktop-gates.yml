@@ -2,6 +2,18 @@ name: Eidos Lite Desktop Gates
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - dev
+    paths:
+      - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - "apps/eidos-lite-desktop/**"
+      - "apps/eidos-file-web/fixtures/**"
+      - "packages/eidos-file/**"
+      - "packages/eidos-file-ui/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
@@ -54,10 +66,10 @@ jobs:
           if-no-files-found: error
 
   windows-clone-validation:
-    name: Windows clone validation
+    name: Windows packaged and clone validation
     needs: macos-clone-fixture
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,6 +105,14 @@ jobs:
           src/main/runtime/runtime-pool.test.ts
           src/runtime/eidos-file-runtime.test.ts
           src/runtime/cross-platform-clone.test.ts
+
+      - name: Build unsigned staging package
+        run: pnpm build:eidos-lite:dev
+
+      - name: Observe fresh packaged smoke
+        env:
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: pnpm smoke:eidos-lite-packaged
 
   source-and-real-graft:
     name: Source and real Graft SDK
