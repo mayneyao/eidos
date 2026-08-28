@@ -766,18 +766,33 @@ const rendererProbe = `
   const spaceHeading = document.querySelector(".space-heading")
   const fileTitlebar = document.querySelector(".file-titlebar")
   if (!fileTitlebar) throw new Error("File titlebar is missing")
-  const workbenchStyleFixture = document.createElement("div")
-  workbenchStyleFixture.className = "workbench"
-  workbenchStyleFixture.dataset.platform = "win32"
-  workbenchStyleFixture.dataset.terminalPlacement = "right"
-  workbenchStyleFixture.style.setProperty(
+  const closedWorkbenchStyleFixture = document.createElement("div")
+  closedWorkbenchStyleFixture.className = "workbench"
+  closedWorkbenchStyleFixture.dataset.platform = "win32"
+  closedWorkbenchStyleFixture.dataset.terminalOpen = "false"
+  closedWorkbenchStyleFixture.dataset.terminalPlacement = "right"
+  closedWorkbenchStyleFixture.style.setProperty(
     "--window-controls-overlay-width",
     "160px"
   )
-  workbenchStyleFixture.style.position = "fixed"
-  workbenchStyleFixture.style.visibility = "hidden"
-  const fileTitlebarFixture = document.createElement("header")
-  fileTitlebarFixture.className = "file-titlebar"
+  closedWorkbenchStyleFixture.style.position = "fixed"
+  closedWorkbenchStyleFixture.style.visibility = "hidden"
+  const closedFileTitlebarFixture = document.createElement("header")
+  closedFileTitlebarFixture.className = "file-titlebar"
+  closedWorkbenchStyleFixture.append(closedFileTitlebarFixture)
+  const openWorkbenchStyleFixture = document.createElement("div")
+  openWorkbenchStyleFixture.className = "workbench"
+  openWorkbenchStyleFixture.dataset.platform = "win32"
+  openWorkbenchStyleFixture.dataset.terminalOpen = "true"
+  openWorkbenchStyleFixture.dataset.terminalPlacement = "right"
+  openWorkbenchStyleFixture.style.setProperty(
+    "--window-controls-overlay-width",
+    "160px"
+  )
+  openWorkbenchStyleFixture.style.position = "fixed"
+  openWorkbenchStyleFixture.style.visibility = "hidden"
+  const openFileTitlebarFixture = document.createElement("header")
+  openFileTitlebarFixture.className = "file-titlebar"
   const terminalPanelFixture = document.createElement("section")
   terminalPanelFixture.className = "terminal-panel"
   const terminalHeaderFixture = document.createElement("header")
@@ -791,7 +806,7 @@ const rendererProbe = `
   terminalTabStripFixture.append(terminalTabsFixture, terminalAddFixture)
   terminalHeaderFixture.append(terminalTabStripFixture)
   terminalPanelFixture.append(terminalHeaderFixture)
-  workbenchStyleFixture.append(fileTitlebarFixture, terminalPanelFixture)
+  openWorkbenchStyleFixture.append(openFileTitlebarFixture, terminalPanelFixture)
   let closedRightTerminalPadding = 0
   let openRightTerminalPadding = 0
   let openRightTerminalHeaderPadding = 0
@@ -800,14 +815,15 @@ const rendererProbe = `
   let terminalTabsRegion = ""
   let terminalAddRegion = ""
   try {
-    document.body.append(workbenchStyleFixture)
-    workbenchStyleFixture.dataset.terminalOpen = "false"
-    closedRightTerminalPadding = Number.parseFloat(
-      getComputedStyle(fileTitlebarFixture).paddingRight
+    document.body.append(
+      closedWorkbenchStyleFixture,
+      openWorkbenchStyleFixture
     )
-    workbenchStyleFixture.dataset.terminalOpen = "true"
+    closedRightTerminalPadding = Number.parseFloat(
+      getComputedStyle(closedFileTitlebarFixture).paddingRight
+    )
     openRightTerminalPadding = Number.parseFloat(
-      getComputedStyle(fileTitlebarFixture).paddingRight
+      getComputedStyle(openFileTitlebarFixture).paddingRight
     )
     const terminalHeaderStyle = getComputedStyle(terminalHeaderFixture)
     openRightTerminalHeaderPadding = Number.parseFloat(
@@ -826,7 +842,8 @@ const rendererProbe = `
       .getPropertyValue("-webkit-app-region")
       .trim()
   } finally {
-    workbenchStyleFixture.remove()
+    closedWorkbenchStyleFixture.remove()
+    openWorkbenchStyleFixture.remove()
   }
   const workbenchTop = workbench.getBoundingClientRect().top
   const sidebarHeaderRect = sidebarHeader?.getBoundingClientRect()
