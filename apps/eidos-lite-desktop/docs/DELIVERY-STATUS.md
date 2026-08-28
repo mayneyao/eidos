@@ -22,7 +22,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 | Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                    |
 | Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK     |
 | Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery         |
-| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.22           |
+| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.25           |
 | Recovery                | Release verified          | Durable merge reopen/abort, operation journals, close/validate/reopen materialization, two-copy recovery, external invalidation, and utility crash reopen         |
 | Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                             |
 | Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                  |
@@ -39,7 +39,7 @@ The final local audit passed:
   reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
   full validation -> two-parent continue -> push/fetch equality. The same test
   covers partial resolution, reopen, abort, cancellation, idempotent status,
-  and a transient filesystem Remote failure. Graft SDK 0.3.22 is pinned in the
+  and a transient filesystem Remote failure. Graft SDK 0.3.25 is pinned in the
   lockfile, and the real merge flow passed against the published registry
   package.
 
@@ -55,9 +55,9 @@ The final local audit passed:
   Two validation-required candidate families retain an executable Graft API
   gap documented in the compatibility matrix; their safe Local recovery path
   passes and is not mislabeled as an automatic merged result.
-- Published Graft SDK integration: 14 passed, covering whole-Space push/clone,
+- Published Graft SDK integration: 15 passed, covering whole-Space push/clone,
   diff/restore, retained session lifecycle, memory-only HTTP credentials and
-  divergence analysis. The published Graft 0.3.22 merge E2E also passed both
+  divergence analysis. The published Graft 0.3.25 merge E2E also passed both
   availability and full dual-client cases. The semantic-provider integration
   additionally proves automatic Eidos system-metadata acceptance, persisted
   domain conflicts, exact state tokens, and Runtime validation.

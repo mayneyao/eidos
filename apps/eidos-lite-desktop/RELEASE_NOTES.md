@@ -1,16 +1,16 @@
 ## What's new
 
-### Keep Windows titlebar actions clear
+### Sync merged Spaces without oversized uploads
 
-Closing a right-side Terminal now restores the space reserved for Windows
-system controls. Version History, Sync, and Terminal actions stay clear of the
-minimize, maximize, and close buttons even when the saved Terminal position is
-Right.
+Sync now avoids uploading history that already exists on the Remote after a
+merge. If an optimized upload is still too large for one request, Eidos Lite
+automatically sends the same data in smaller parts. Spaces with long or merged
+histories can resume Sync without losing Local checkpoints.
 
-### Drag the window from the Terminal header
+### Retry any Sync error manually
 
-The unused area after Terminal tabs moves the window again when the panel is on
-the right. Tabs, the New Terminal button, and Terminal actions remain fully
-interactive.
+Every Sync error keeps a **Try again** action. Account, quota, update, and
+re-clone guidance remains available beside it, so you can retry after fixing
+the cause without creating another checkpoint or restarting Eidos Lite.
 
 No migration is required.

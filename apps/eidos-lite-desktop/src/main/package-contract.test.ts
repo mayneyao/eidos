@@ -87,6 +87,11 @@ describe("Eidos Lite package identity", () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")
     const scripts = packageJson.scripts as Record<string, string>
+    const dependencies = packageJson.dependencies as Record<string, string>
+    const optionalDependencies = packageJson.optionalDependencies as Record<
+      string,
+      string
+    >
 
     expect(packageJson.dependencies).toMatchObject({
       "@eidos.space/graft": expect.any(String),
@@ -99,6 +104,17 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.dependencies).not.toHaveProperty("better-sqlite3")
     expect(packageJson.dependencies).not.toHaveProperty("bindings")
     expect(packageJson.dependencies).not.toHaveProperty("file-uri-to-path")
+    for (const platformPackage of [
+      "@eidos.space/graft-darwin-arm64",
+      "@eidos.space/graft-darwin-x64",
+      "@eidos.space/graft-linux-arm64-gnu",
+      "@eidos.space/graft-linux-x64-gnu",
+      "@eidos.space/graft-win32-x64-msvc",
+    ]) {
+      expect(optionalDependencies[platformPackage]).toBe(
+        dependencies["@eidos.space/graft"]
+      )
+    }
     expect(scripts["native:node"]).toBeUndefined()
     expect(scripts["native:electron"]).toBeUndefined()
     expect(JSON.stringify(builder)).not.toContain("better-sqlite3")

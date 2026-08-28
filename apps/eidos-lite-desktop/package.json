@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-lite-desktop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Independent local-first desktop client for Eidos File Spaces",
   "author": "mayneyao",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
-    "@eidos.space/graft": "0.3.22",
+    "@eidos.space/graft": "0.3.25",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.3.2",
     "@pierre/trees": "1.0.0-beta.5",
@@ -41,6 +41,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
+    "csv-parse": "^5.6.0",
     "electron-updater": "^6.6.2",
     "lucide-react": "^0.471.2",
     "marked": "^4.3.0",
@@ -48,6 +49,13 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "smol-toml": "1.6.1"
+  },
+  "optionalDependencies": {
+    "@eidos.space/graft-darwin-arm64": "0.3.25",
+    "@eidos.space/graft-darwin-x64": "0.3.25",
+    "@eidos.space/graft-linux-arm64-gnu": "0.3.25",
+    "@eidos.space/graft-linux-x64-gnu": "0.3.25",
+    "@eidos.space/graft-win32-x64-msvc": "0.3.25"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

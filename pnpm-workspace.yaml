@@ -7,6 +7,15 @@ packages:
 
 pmOnFail: ignore
 
+minimumReleaseAgeExclude:
+  - "@eidos.space/graft@0.3.25"
+  - "@eidos.space/graft-darwin-arm64@0.3.25"
+  - "@eidos.space/graft-darwin-x64@0.3.25"
+  - "@eidos.space/graft-linux-arm64-gnu@0.3.25"
+  - "@eidos.space/graft-linux-x64-gnu@0.3.25"
+  - "@eidos.space/graft-win32-x64-msvc@0.3.25"
+minimumReleaseAgeExcludePrune: true
+
 peerDependencyRules:
   ignoreMissing:
     - "next"
@@ -21,9 +30,16 @@ packageExtensions:
       vite: "^8.1.0"
 
 allowBuilds:
+  "@parcel/watcher": false
+  "@swc/core": false
   better-sqlite3: true
+  bufferutil: false
   electron: true
+  esbuild: false
   node-pty: true
+  sharp: false
+  utf-8-validate: false
+  workerd: false
 
 overrides:
   "@eidos.space/bashkit": "^0.6.5"
