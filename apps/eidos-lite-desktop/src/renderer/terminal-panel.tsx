@@ -13,6 +13,7 @@ import { Terminal, type ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 
 import { useEidosLiteI18n } from "./i18n"
+import { hasSpacePathDragData, spacePathDragData } from "./space-path-drag"
 
 type TerminalStatus = "starting" | "running" | "exited" | "error"
 
@@ -411,6 +412,28 @@ export function TerminalPanel({
         ref={hostRef}
         className="terminal-viewport"
         data-space-name={spaceName}
+        onDragOverCapture={(event) => {
+          if (
+            !sessionIdRef.current ||
+            !hasSpacePathDragData(event.dataTransfer)
+          ) {
+            return
+          }
+          event.preventDefault()
+          event.stopPropagation()
+          event.dataTransfer.dropEffect = "copy"
+        }}
+        onDropCapture={(event) => {
+          const sessionId = sessionIdRef.current
+          const relativePath = spacePathDragData(event.dataTransfer)
+          if (!sessionId || !relativePath) return
+          event.preventDefault()
+          event.stopPropagation()
+          void window.eidosLite
+            .writeTerminalPath(sessionId, relativePath)
+            .catch(() => {})
+          terminalRef.current?.focus()
+        }}
       />
     </section>
   )

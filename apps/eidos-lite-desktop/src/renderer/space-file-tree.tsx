@@ -19,6 +19,7 @@ import {
 
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
+import { setSpacePathDragData } from "./space-path-drag"
 
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
@@ -420,6 +421,13 @@ export function SpaceFileTree({
         activePath && selectedPaths.includes(activePath) ? "true" : "false"
       }
       style={SPACE_FILE_TREE_STYLES}
+      onDragStart={(event) => {
+        const treePath = eventTreePath(event)
+        if (!treePath || disabled) return
+        const entry = treeRef.current.entryByTreePath.get(treePath)
+        if (!entry) return
+        setSpacePathDragData(event.dataTransfer, entry.relativePath)
+      }}
       onClick={(event) => openTreePath(eventTreePath(event))}
       onContextMenu={(event) => {
         const treePath = eventTreePath(event)

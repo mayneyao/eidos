@@ -108,6 +108,7 @@ vi.mock("@xterm/addon-web-links", () => ({
 }))
 
 import { TerminalPanel } from "./terminal-panel"
+import { EIDOS_LITE_SPACE_PATH_DRAG_TYPE } from "./space-path-drag"
 
 it("keeps one current xterm session through Strict Mode remounts", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -173,6 +174,7 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
   const closeTerminal = vi.fn().mockResolvedValue(undefined)
   const openExternalUrl = vi.fn().mockResolvedValue(undefined)
   const writeTerminal = vi.fn()
+  const writeTerminalPath = vi.fn().mockResolvedValue(undefined)
   const writeClipboardText = vi.fn().mockResolvedValue(undefined)
   const resizeTerminal = vi.fn()
   Object.assign(window, {
@@ -180,6 +182,7 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
       startTerminal,
       closeTerminal,
       writeTerminal,
+      writeTerminalPath,
       writeClipboardText,
       resizeTerminal,
       openExternalUrl,
@@ -224,6 +227,28 @@ it("keeps one current xterm session through Strict Mode remounts", async () => {
   expect(writeTerminal).toHaveBeenCalledWith("terminal-session", "中文输入")
   terminal?.emitResize(120, 36)
   expect(resizeTerminal).toHaveBeenCalledWith("terminal-session", 120, 36)
+
+  const dataTransfer = {
+    dropEffect: "none",
+    types: [EIDOS_LITE_SPACE_PATH_DRAG_TYPE],
+    getData: (type: string) =>
+      type === EIDOS_LITE_SPACE_PATH_DRAG_TYPE ? "notes/today's draft.md" : "",
+  }
+  const terminalViewport = host.querySelector(".terminal-viewport")
+  const dragOver = new Event("dragover", { bubbles: true, cancelable: true })
+  Object.defineProperty(dragOver, "dataTransfer", { value: dataTransfer })
+  terminalViewport?.dispatchEvent(dragOver)
+  expect(dragOver.defaultPrevented).toBe(true)
+  expect(dataTransfer.dropEffect).toBe("copy")
+
+  const drop = new Event("drop", { bubbles: true, cancelable: true })
+  Object.defineProperty(drop, "dataTransfer", { value: dataTransfer })
+  terminalViewport?.dispatchEvent(drop)
+  expect(drop.defaultPrevented).toBe(true)
+  expect(writeTerminalPath).toHaveBeenCalledWith(
+    "terminal-session",
+    "notes/today's draft.md"
+  )
 
   terminal?.setSelection("selected 中文 output")
   expect(

@@ -74,6 +74,7 @@ import {
   requiredPublishRequest,
 } from "./publish/publish-engine"
 import type { TerminalSessionManager } from "./terminal/terminal-session-manager"
+import { terminalPathInput } from "./terminal/terminal-path"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
@@ -901,6 +902,20 @@ export function registerIpc(
           console.warn("Could not write terminal input", error)
         }
       })
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.terminalWritePath,
+    async (event, sessionId: unknown, relativePath: unknown) => {
+      const resolvedPath = controller
+        .requireSession(event.sender)
+        .resolveUserPath(requiredString(relativePath, "terminal path"))
+      const manager = await terminalSessions()
+      manager.write(
+        event.sender.id,
+        sessionId,
+        terminalPathInput(resolvedPath, process.platform)
+      )
     }
   )
   ipcMain.on(

@@ -98,6 +98,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.terminalStart, cols, rows),
   writeTerminal: (sessionId, data) =>
     ipcRenderer.send(IPC_CHANNELS.terminalWrite, sessionId, data),
+  writeTerminalPath: (sessionId, relativePath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalWritePath, sessionId, relativePath),
   resizeTerminal: (sessionId, cols, rows) =>
     ipcRenderer.send(IPC_CHANNELS.terminalResize, sessionId, cols, rows),
   closeTerminal: (sessionId) =>

@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
   workspaceShortcutCommand: "eidos-lite:workspace-shortcut-command",
   terminalStart: "eidos-lite:terminal-start",
   terminalWrite: "eidos-lite:terminal-write",
+  terminalWritePath: "eidos-lite:terminal-write-path",
   terminalResize: "eidos-lite:terminal-resize",
   terminalClose: "eidos-lite:terminal-close",
   terminalData: "eidos-lite:terminal-data",
@@ -1573,6 +1574,7 @@ export interface EidosLiteApi {
   ): () => void
   startTerminal(cols: number, rows: number): Promise<EidosLiteTerminalSession>
   writeTerminal(sessionId: string, data: string): void
+  writeTerminalPath(sessionId: string, relativePath: string): Promise<void>
   resizeTerminal(sessionId: string, cols: number, rows: number): void
   closeTerminal(sessionId: string): Promise<void>
   onTerminalData(
