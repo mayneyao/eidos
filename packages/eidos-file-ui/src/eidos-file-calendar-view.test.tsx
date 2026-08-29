@@ -15,11 +15,15 @@ import {
   eidosFileCalendarCreateMode,
   eidosFileCalendarCreateValue,
   eidosFileCalendarDateFields,
+  eidosFileCalendarLayout,
   eidosFileCalendarRowDateKey,
   type EidosFileCalendarPageRequest,
   type EidosFileCalendarRange,
 } from "./eidos-file-calendar-view"
-import { eidosFileCalendarRangeFilter } from "./plugins/calendar"
+import {
+  eidosFileCalendarPlugin,
+  eidosFileCalendarRangeFilter,
+} from "./plugins/calendar"
 
 const contextMocks = vi.hoisted(() => ({
   weekStartsOnMonday: true,
@@ -166,7 +170,8 @@ function calendarLoader(rows: EidosFileRow[]) {
     ) => {
       const key = localDayKey(range.start)
       const matching = rows.filter(
-        (row) => eidosFileCalendarRowDateKey(row, field) === key
+        (row) =>
+          eidosFileCalendarRowDateKey(row, field, contextMocks.timeZone) === key
       )
       const offset = request.cursor
         ? Number(request.cursor.replace("cursor:", ""))
@@ -214,6 +219,22 @@ describe("EidosFileCalendarView", () => {
     expect(
       eidosFileCalendarRowDateKey({ _id: "one", due: "2026-08-21" }, fields[1]!)
     ).toBe("2026-08-21")
+  })
+
+  it("defaults unknown saved Calendar layouts to month", () => {
+    expect(eidosFileCalendarLayout(undefined)).toBe("month")
+    expect(eidosFileCalendarLayout("agenda")).toBe("month")
+    expect(eidosFileCalendarLayout("week")).toBe("week")
+    expect(eidosFileCalendarLayout("day")).toBe("month")
+  })
+
+  it("creates new Calendar views in month layout", () => {
+    expect(
+      eidosFileCalendarPlugin.views[0]?.create?.properties?.(fields)
+    ).toEqual({
+      dateField: fields[1]!.id,
+      calendarLayout: "month",
+    })
   })
 
   it("derives safe creation behavior from the selected field", () => {
@@ -307,7 +328,7 @@ describe("EidosFileCalendarView", () => {
     expect(container.textContent).toContain("Ship calendar")
     const toolbar = container.querySelector("header")
     expect(toolbar?.className).toContain("h-10")
-    expect(toolbar?.className).toContain("justify-between")
+    expect(toolbar?.className).toContain("gap-3")
     expect(toolbar?.firstElementChild?.tagName).toBe("H2")
     expect(toolbar?.firstElementChild?.textContent).toBe("August 2026")
     expect(
@@ -317,7 +338,7 @@ describe("EidosFileCalendarView", () => {
       Array.from(toolbar?.querySelectorAll("button") ?? []).map(
         (button) => button.getAttribute("aria-label") ?? button.textContent
       )
-    ).toEqual(["Previous month", "Today", "Next month"])
+    ).toEqual(["Month", "Week", "Previous month", "Today", "Next month"])
     expect(loadRows).toHaveBeenCalledTimes(42)
     expect(loadRows).toHaveBeenNthCalledWith(
       1,
@@ -342,6 +363,128 @@ describe("EidosFileCalendarView", () => {
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
     ).toBe("Ship calendar")
+  })
+
+  it("loads one Host-aligned week for the saved week layout", async () => {
+    const loadRows = calendarLoader([])
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={{
+            ...view,
+            properties: { ...view.properties, calendarLayout: "week" },
+          }}
+          loadRows={loadRows}
+        />
+      )
+      await settleCalendarLoad()
+    })
+
+    expect(
+      container
+        .querySelector("[data-eidos-file-calendar]")
+        ?.getAttribute("data-eidos-file-calendar-layout")
+    ).toBe("week")
+    expect(loadRows).toHaveBeenCalledTimes(7)
+    expect(loadRows.mock.calls[0]?.[2]).toEqual({ limit: 9 })
+    expect(
+      container.querySelector("[data-eidos-file-calendar-time-axis]")
+    ).toBeNull()
+    expect(loadRows.mock.calls[0]?.[1]).toEqual({
+      start: new Date(2026, 7, 17),
+      end: new Date(2026, 7, 18),
+    })
+    expect(loadRows.mock.calls.at(-1)?.[1]).toEqual({
+      start: new Date(2026, 7, 23),
+      end: new Date(2026, 7, 24),
+    })
+    expect(
+      container.querySelector('[aria-label="Previous week"]')
+    ).not.toBeNull()
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Next week"]')
+        ?.click()
+      await settleCalendarLoad()
+    })
+    expect(loadRows).toHaveBeenCalledTimes(14)
+    expect(loadRows.mock.calls[7]?.[1]).toEqual({
+      start: new Date(2026, 7, 24),
+      end: new Date(2026, 7, 25),
+    })
+  })
+
+  it("shows local times and keeps eight week cards before folding", async () => {
+    contextMocks.timeZone = "UTC"
+    const busyRows = Array.from({ length: 10 }, (_, index) => ({
+      _id: `timed-${index}`,
+      title: `Timed event ${index}`,
+      calculated_time: `2026-08-21T${String(index).padStart(2, "0")}:30:00.000Z`,
+    }))
+    const loadRows = calendarLoader(busyRows)
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={{
+            ...view,
+            properties: {
+              ...view.properties,
+              dateField: fields[2]!.id,
+              calendarLayout: "week",
+            },
+          }}
+          loadRows={loadRows}
+        />
+      )
+      await settleCalendarLoad()
+    })
+
+    const timeLabels = container.querySelectorAll(
+      "[data-eidos-file-calendar-record-time]"
+    )
+    expect(timeLabels).toHaveLength(8)
+    expect(timeLabels[0]?.textContent).toBe(
+      new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "UTC",
+      }).format(new Date("2026-08-21T00:30:00.000Z"))
+    )
+    expect(container.textContent).toContain("Timed event 7")
+    expect(container.textContent).not.toContain("Timed event 8")
+    expect(container.textContent).toContain("2 more")
+  })
+
+  it("switches Calendar layout optimistically and requests persistence", async () => {
+    const onLayoutChange = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={calendarLoader([])}
+          loadDayTotals={async () => new Map()}
+          onLayoutChange={onLayoutChange}
+        />
+      )
+      await settleCalendarLoad()
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Week")
+        ?.click()
+      await settleCalendarLoad()
+    })
+
+    expect(onLayoutChange).toHaveBeenCalledWith("week")
+    expect(
+      container
+        .querySelector("[data-eidos-file-calendar]")
+        ?.getAttribute("data-eidos-file-calendar-layout")
+    ).toBe("week")
   })
 
   it("keeps a busy month bounded and pages only the expanded day", async () => {
@@ -383,6 +526,51 @@ describe("EidosFileCalendarView", () => {
     })
     expect(container.textContent).toContain("Busy event 7")
     expect(container.textContent).toContain("Show less")
+  })
+
+  it("keeps multiple busy days expanded independently", async () => {
+    const busyRows = ["2026-08-21", "2026-08-22"].flatMap((due) =>
+      Array.from({ length: 5 }, (_, index) => ({
+        _id: `${due}-${index}`,
+        title: `${due} event ${index}`,
+        due,
+      }))
+    )
+    const loadRows = calendarLoader(busyRows)
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={loadRows}
+          loadDayTotals={async () =>
+            new Map([
+              ["2026-08-21", 5],
+              ["2026-08-22", 5],
+            ])
+          }
+        />
+      )
+      await settleCalendarLoad()
+    })
+
+    const showMore = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).filter((button) => button.textContent === "2 more")
+    expect(showMore).toHaveLength(2)
+    await act(async () => {
+      showMore[0]?.click()
+      showMore[1]?.click()
+      await settleCalendarLoad()
+    })
+
+    expect(container.textContent).toContain("2026-08-21 event 4")
+    expect(container.textContent).toContain("2026-08-22 event 4")
+    expect(
+      Array.from(
+        container.querySelectorAll<HTMLButtonElement>("button")
+      ).filter((button) => button.textContent === "Show less")
+    ).toHaveLength(2)
   })
 
   it("starts Calendar weeks on Sunday when the Host preference is off", async () => {

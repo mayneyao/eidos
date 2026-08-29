@@ -146,6 +146,10 @@ describe("EidosFileViewTabs", () => {
   let root: Root
 
   beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -357,6 +361,75 @@ describe("EidosFileViewTabs", () => {
       await Promise.resolve()
     })
     expect(onCreate).toHaveBeenCalledWith("Calendar", "calendar")
+  })
+
+  it("configures and persists the Calendar period layout", async () => {
+    const calendarView: EidosFileViewInfo = {
+      ...views[0]!,
+      id: "calendar",
+      name: "Schedule",
+      type: "calendar",
+      properties: {
+        dateField: dueField.id,
+        calendarLayout: "month",
+      },
+    }
+    const onUpdate = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileViewTabs
+          views={[calendarView]}
+          fields={[dueField]}
+          activeView={calendarView}
+          onSelect={vi.fn()}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onUpdate={onUpdate}
+          onReorder={vi.fn()}
+        />
+      )
+    })
+
+    await openViewMenu(container, "calendar")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Configure view"))
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    const layoutSelect = document.body.querySelector<HTMLElement>(
+      '[aria-label="Calendar layout"]'
+    )
+    expect(layoutSelect?.textContent).toContain("Month")
+    await act(async () => {
+      layoutSelect?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    const layoutOptions = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    )
+    expect(layoutOptions.map((option) => option.textContent)).toEqual([
+      "Month",
+      "Week",
+    ])
+    await act(async () => {
+      layoutOptions.find((option) => option.textContent === "Week")?.click()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("calendar", {
+      properties: {
+        dateField: dueField.id,
+        calendarLayout: "week",
+      },
+    })
   })
 
   it("creates a Form with existing fields or from scratch", async () => {

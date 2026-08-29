@@ -53,7 +53,10 @@ import {
 } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
-import { eidosFileCalendarDateFields } from "./eidos-file-calendar-view"
+import {
+  eidosFileCalendarDateFields,
+  eidosFileCalendarLayout,
+} from "./eidos-file-calendar-view"
 import { nextEidosFileViewName } from "./eidos-file-view-name"
 
 export interface EidosFileExternalViewContribution {
@@ -527,6 +530,9 @@ export function EidosFileViewSelector({
           properties: {
             ...(managedView.properties ?? {}),
             dateField,
+            calendarLayout: eidosFileCalendarLayout(
+              managedView.properties?.calendarLayout
+            ),
           },
         })
       )
@@ -1027,6 +1033,29 @@ export function EidosFileViewSelector({
             ) : null}
             {managedView.type === "calendar" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">{t("Calendar layout")}</p>
+                <Select
+                  value={eidosFileCalendarLayout(
+                    managedView.properties?.calendarLayout
+                  )}
+                  disabled={busy}
+                  onValueChange={(calendarLayout) =>
+                    updateProperties({
+                      calendarLayout: eidosFileCalendarLayout(calendarLayout),
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    aria-label={t("Calendar layout")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">{t("Month")}</SelectItem>
+                    <SelectItem value="week">{t("Week")}</SelectItem>
+                  </SelectContent>
+                </Select>
                 <p className="text-xs font-medium">{t("Date field")}</p>
                 <Select
                   value={

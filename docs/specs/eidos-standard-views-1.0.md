@@ -247,9 +247,10 @@ because version 1 has no manual row-order key.
 
 ### 8.1 Layout and reading
 
-| Key         | Type               | Read default | Meaning                                                                          |
-| ----------- | ------------------ | ------------ | -------------------------------------------------------------------------------- |
-| `dateField` | Field ID or `null` | `null`       | temporal Field used to place Records on days; `null` is incomplete configuration |
+| Key              | Type               | Read default | Meaning                                                                          |
+| ---------------- | ------------------ | ------------ | -------------------------------------------------------------------------------- |
+| `dateField`      | Field ID or `null` | `null`       | temporal Field used to place Records on days; `null` is incomplete configuration |
+| `calendarLayout` | `month` or `week`  | `month`      | visible Calendar period                                                          |
 
 An eligible Field is Date, Datetime, a Formula or Lookup with one of those
 display types, or the created/updated system Field. A missing, deleted,
@@ -257,8 +258,14 @@ non-temporal, or `null` `dateField` produces an accessible
 configuration-required state. Records with an empty date are not placed.
 
 Date uses its canonical `YYYY-MM-DD` day directly. Datetime is assigned using
-the Editor's current local time zone. Visible month, today, expanded day, and
-scroll position are transient UI state. Calendar reads compose the visible
+the Editor's current local time zone. Month layout includes complete weeks that
+intersect the selected month. Week layout includes the selected seven-day week
+and renders a Datetime Record's local wall-clock time with its card; Date
+Records remain day-only. Implementations MAY use layout-specific collapsed-card
+thresholds, and SHOULD show more cards before folding in Week than in Month. The
+period anchor, today, expanded days, and scroll position are transient UI state.
+More than one visible day MAY be expanded at the same time; each day's expansion
+and bounded pagination are independent. Calendar reads compose the visible
 range with saved filter and search rather than replacing either.
 
 Host MAY provide a global first-weekday preference. Calendar uses it for both
@@ -480,6 +487,10 @@ parsed `layout`. The envelope is not stored. UTF-8 byte limits and duplicate
         "dateField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
+        },
+        "calendarLayout": {
+          "enum": ["month", "week"],
+          "default": "month"
         },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": ["string", "null"] },

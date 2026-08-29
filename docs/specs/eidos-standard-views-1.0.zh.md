@@ -210,17 +210,22 @@ Formula、Lookup、inverse Relation、list 与 read-only group 不能接受移�
 
 ### 8.1 Layout 与读取
 
-| Key         | 类型               | 读取默认值 | 含义                                                             |
-| ----------- | ------------------ | ---------- | ---------------------------------------------------------------- |
-| `dateField` | Field ID 或 `null` | `null`     | 用于把 Record 放到日期上的 temporal Field；`null` 表示配置不完整 |
+| Key              | 类型               | 读取默认值 | 含义                                                             |
+| ---------------- | ------------------ | ---------- | ---------------------------------------------------------------- |
+| `dateField`      | Field ID 或 `null` | `null`     | 用于把 Record 放到日期上的 temporal Field；`null` 表示配置不完整 |
+| `calendarLayout` | `month` 或 `week`  | `month`    | Calendar 显示的时间范围                                          |
 
 Eligible Field 是 Date、Datetime、显示类型为两者之一的 Formula/Lookup，或 created/
 updated system Field。Missing、deleted、non-temporal 或 `null` 的 `dateField` 必须产生
 accessible configuration-required state。Date 为空的 Record 不进入 Calendar。
 
 Date 直接使用 canonical `YYYY-MM-DD`；Datetime 按 Editor 当前 local time zone 分配。
-Visible month、today、expanded day 与 scroll position 都是 transient UI state。
-Calendar read 必须把 visible range 与 saved filter/search 组合，不能替换它们。
+Month layout 包含与所选月份相交的完整周。Week layout 包含所选的七天，并在 Datetime
+Record 卡片中显示 local wall-clock time；Date Record 仍只有日期语义。实现可以按
+layout 使用不同的折叠阈值，并且 Week 应当比 Month 在折叠前展示更多卡片。Period
+anchor、today、expanded days 与 scroll position 都是 transient UI state。多个 visible
+day 可以同时展开；每一天的展开状态与 bounded pagination 彼此独立。Calendar read
+必须把 visible range 与 saved filter/search 组合，不能替换它们。
 
 Host 可以提供 global first-weekday preference。Calendar 必须同时用它决定 weekday
 column order 与 requested visible range；默认是 Monday。该 preference 不是 View
@@ -426,6 +431,10 @@ Conformance tool 使用 stored View `type` 与解析后的 `layout` 组装 envel
         "dateField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
+        },
+        "calendarLayout": {
+          "enum": ["month", "week"],
+          "default": "month"
         },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": ["string", "null"] },

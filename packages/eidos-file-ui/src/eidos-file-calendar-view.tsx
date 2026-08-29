@@ -42,6 +42,7 @@ import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
+import { cn } from "./lib/cn"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
 import {
   ContextMenu,
@@ -74,12 +75,23 @@ interface EidosFileCalendarDayPage extends EidosFileCalendarPage {
   loadMoreError: string | null
 }
 
-const CALENDAR_INITIAL_DAY_LIMIT = 4
 const CALENDAR_EXPANDED_DAY_LIMIT = 100
 const CALENDAR_LOAD_CONCURRENCY = 3
 
 export type EidosFileCalendarFieldType = "date" | "datetime"
 export type EidosFileCalendarCreateMode = "all-days" | "today" | "none"
+export type EidosFileCalendarLayout = "month" | "week"
+
+const CALENDAR_COLLAPSED_DAY_LIMIT: Record<EidosFileCalendarLayout, number> = {
+  month: 3,
+  week: 8,
+}
+
+export function eidosFileCalendarLayout(
+  value: unknown
+): EidosFileCalendarLayout {
+  return value === "week" ? value : "month"
+}
 
 export function eidosFileCalendarFieldType(
   field: EidosFileFieldInfo
@@ -168,22 +180,88 @@ export function eidosFileCalendarRowDateKey(
     : eidosFileDateKey(instant, timeZone)
 }
 
+function calendarRowTimeLabel(
+  row: EidosFileRow,
+  field: EidosFileFieldInfo,
+  timeZone?: string
+): string | null {
+  if (eidosFileCalendarFieldType(field) !== "datetime") return null
+  const value = row[field.tableColumnName]
+  if (typeof value !== "string" || value.length === 0) return null
+  const instant = new Date(value)
+  if (Number.isNaN(instant.getTime())) return null
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  }).format(instant)
+}
+
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
+function startOfWeek(date: Date, weekStartsOnMonday: boolean): Date {
+  const firstDayOfWeek = weekStartsOnMonday ? 1 : 0
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const offset = (start.getDay() - firstDayOfWeek + 7) % 7
+  start.setDate(start.getDate() - offset)
+  return start
+}
+
 function calendarRange(
-  month: Date,
+  anchorDate: Date,
+  layout: EidosFileCalendarLayout,
   weekStartsOnMonday: boolean
 ): EidosFileCalendarRange {
-  const firstDayOfWeek = weekStartsOnMonday ? 1 : 0
-  const start = startOfMonth(month)
-  const startOffset = (start.getDay() - firstDayOfWeek + 7) % 7
-  start.setDate(start.getDate() - startOffset)
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
-  const daysUntilFirstWeekday = (firstDayOfWeek - end.getDay() + 7) % 7
-  end.setDate(end.getDate() + daysUntilFirstWeekday)
+  if (layout === "week") {
+    const start = startOfWeek(anchorDate, weekStartsOnMonday)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+    return { start, end }
+  }
+  const start = startOfWeek(startOfMonth(anchorDate), weekStartsOnMonday)
+  const end = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1)
+  const nextWeekStart = startOfWeek(end, weekStartsOnMonday)
+  if (nextWeekStart.getTime() !== end.getTime()) {
+    nextWeekStart.setDate(nextWeekStart.getDate() + 7)
+  }
+  end.setTime(nextWeekStart.getTime())
   return { start, end }
+}
+
+function shiftCalendarAnchor(
+  anchorDate: Date,
+  layout: EidosFileCalendarLayout,
+  amount: -1 | 1
+): Date {
+  if (layout === "month") {
+    return new Date(anchorDate.getFullYear(), anchorDate.getMonth() + amount, 1)
+  }
+  const next = new Date(anchorDate)
+  next.setDate(next.getDate() + amount * 7)
+  return next
+}
+
+function calendarPeriodLabel(
+  anchorDate: Date,
+  layout: EidosFileCalendarLayout,
+  range: EidosFileCalendarRange
+): string {
+  if (layout === "month") {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "long",
+      year: "numeric",
+    }).format(anchorDate)
+  }
+  const end = new Date(range.end)
+  end.setDate(end.getDate() - 1)
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+  return `${formatter.format(range.start)} – ${formatter.format(end)}`
 }
 
 function rangeDays(range: EidosFileCalendarRange): Date[] {
@@ -221,6 +299,7 @@ export function EidosFileCalendarView({
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
+  onLayoutChange,
   onRowCountChange,
   onError,
   sidePanel,
@@ -255,6 +334,7 @@ export function EidosFileCalendarView({
     field: EidosFileFieldInfo,
     query: string
   ) => Promise<EidosFileRelationValue[]>
+  onLayoutChange?: (layout: EidosFileCalendarLayout) => void | Promise<void>
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -273,21 +353,28 @@ export function EidosFileCalendarView({
       (field) => eidosFileFieldKey(field) === configuredDateField
     ) ?? dateFields[0]
   const dateFieldKey = dateField ? eidosFileFieldKey(dateField) : null
-  const [month, setMonth] = useState(() =>
-    startOfMonth(eidosFileWallDate(new Date(), timeZone))
+  const configuredLayout = eidosFileCalendarLayout(
+    view.properties?.calendarLayout
+  )
+  const [layout, setLayout] =
+    useState<EidosFileCalendarLayout>(configuredLayout)
+  const [anchorDate, setAnchorDate] = useState(() =>
+    eidosFileWallDate(new Date(), timeZone)
   )
   const [dayPages, setDayPages] = useState<
     Map<string, EidosFileCalendarDayPage>
   >(() => new Map())
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [expandedDay, setExpandedDay] = useState<string | null>(null)
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(() => new Set())
   const [creatingDay, setCreatingDay] = useState<string | null>(null)
   const [deleteRow, setDeleteRow] = useState<EidosFileRow | null>(null)
   const requestGenerationRef = useRef(0)
+  const collapsedDayLimit = CALENDAR_COLLAPSED_DAY_LIMIT[layout]
+  const initialDayLimit = collapsedDayLimit + 1
   const range = useMemo(
-    () => calendarRange(month, weekStartsOnMonday),
-    [month, weekStartsOnMonday]
+    () => calendarRange(anchorDate, layout, weekStartsOnMonday),
+    [anchorDate, layout, weekStartsOnMonday]
   )
   const days = useMemo(() => rangeDays(range), [range])
   const fields = useMemo(
@@ -352,7 +439,7 @@ export function EidosFileCalendarView({
               dateField,
               { start, end },
               {
-                limit: CALENDAR_INITIAL_DAY_LIMIT,
+                limit: initialDayLimit,
                 ...(totalHint === undefined ? {} : { totalHint }),
               }
             )
@@ -387,12 +474,24 @@ export function EidosFileCalendarView({
     } finally {
       if (generation === requestGenerationRef.current) setLoading(false)
     }
-  }, [dateField, days, loadDayTotals, loadRows, onRowCountChange, range])
+  }, [
+    dateField,
+    days,
+    initialDayLimit,
+    loadDayTotals,
+    loadRows,
+    onRowCountChange,
+    range,
+  ])
 
   useEffect(() => {
     closeInspectorRow()
-    setExpandedDay(null)
+    setExpandedDays(new Set())
   }, [closeInspectorRow, dateFieldKey, view.id])
+
+  useEffect(() => {
+    setLayout(configuredLayout)
+  }, [configuredLayout, view.id])
 
   useEffect(() => {
     if (!dateField) {
@@ -597,28 +696,211 @@ export function EidosFileCalendarView({
       firstWeekday
     )
   })
+  const previousPeriodLabel =
+    layout === "month" ? t("Previous month") : t("Previous week")
+  const nextPeriodLabel = layout === "month" ? t("Next month") : t("Next week")
+  const calendarGridClassName = "min-w-[49rem] grid-cols-7"
+
+  const changeLayout = (nextLayout: EidosFileCalendarLayout) => {
+    if (nextLayout === layout) return
+    const previousLayout = layout
+    setLayout(nextLayout)
+    setExpandedDays(new Set())
+    if (!onLayoutChange) return
+    void Promise.resolve()
+      .then(() => onLayoutChange(nextLayout))
+      .catch((error) => {
+        setLayout(previousLayout)
+        onError?.(error)
+      })
+  }
+
+  const canCreateOnDay = (key: string) =>
+    Boolean(onAddRow) &&
+    !disabled &&
+    (createMode === "all-days" || (createMode === "today" && key === todayKey))
+
+  const renderCreateButton = (day: Date, key: string) =>
+    canCreateOnDay(key) ? (
+      <button
+        type="button"
+        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 outline-hidden hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100 disabled:cursor-wait disabled:opacity-50"
+        aria-label={t("New record on {date}", { date: key })}
+        title={t("New record")}
+        disabled={creatingDay !== null}
+        onClick={() => void createRecord(day)}
+      >
+        {creatingDay === key ? (
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+        ) : (
+          <Plus className="h-3.5 w-3.5" />
+        )}
+      </button>
+    ) : null
+
+  const activateDayExpansion = (
+    day: Date,
+    key: string,
+    dayPage: EidosFileCalendarDayPage | undefined,
+    expanded: boolean
+  ) => {
+    if (!expanded) {
+      setExpandedDays((current) => new Set(current).add(key))
+      if (dayPage?.nextCursor) void loadMoreDay(day, key)
+      return
+    }
+    if (dayPage?.nextCursor) {
+      void loadMoreDay(day, key)
+      return
+    }
+    setExpandedDays((current) => {
+      const next = new Set(current)
+      next.delete(key)
+      return next
+    })
+  }
+
+  const renderDayMoreButton = (
+    day: Date,
+    key: string,
+    dayPage: EidosFileCalendarDayPage | undefined,
+    expanded: boolean,
+    className?: string
+  ) => {
+    if ((dayPage?.total ?? 0) <= collapsedDayLimit) return null
+    return (
+      <button
+        type="button"
+        className={cn(
+          "w-fit rounded px-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground",
+          className
+        )}
+        disabled={dayPage?.loadingMore}
+        aria-expanded={expanded}
+        title={dayPage?.loadMoreError ?? undefined}
+        onClick={() => activateDayExpansion(day, key, dayPage, expanded)}
+      >
+        {dayPage?.loadingMore
+          ? t("Loading more records…")
+          : expanded && dayPage?.nextCursor
+            ? t("Load more")
+            : expanded
+              ? t("Show less")
+              : t("{count} more", {
+                  count: (dayPage?.total ?? 0) - collapsedDayLimit,
+                })}
+      </button>
+    )
+  }
+
+  const renderRecordCard = (
+    row: EidosFileRow,
+    {
+      showTime = false,
+      className,
+    }: {
+      showTime?: boolean
+      className?: string
+    } = {}
+  ) => {
+    const title = eidosFileRecordTitle(row, table.fields)
+    const timeLabel = showTime
+      ? calendarRowTimeLabel(row, dateField, timeZone)
+      : null
+    return (
+      <ContextMenu key={String(row._id)}>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex min-w-0 items-baseline gap-1.5 rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring",
+              className
+            )}
+            title={timeLabel ? `${timeLabel} ${title}` : title}
+            onClick={() => openInspectorRow(row)}
+          >
+            {timeLabel ? (
+              <time
+                className="shrink-0 tabular-nums text-muted-foreground"
+                dateTime={String(row[dateField.tableColumnName])}
+                data-eidos-file-calendar-record-time
+              >
+                {timeLabel}
+              </time>
+            ) : null}
+            <span className="min-w-0 truncate">
+              {title === "Empty" ? t("Untitled") : title}
+            </span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          className="w-44"
+          data-eidos-file-calendar-record-menu=""
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          <ContextMenuItem onSelect={() => openInspectorRow(row)}>
+            <PanelRightOpen />
+            {t("Open record")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => copyRecordId(String(row._id))}>
+            <Copy />
+            {t("Copy record ID")}
+          </ContextMenuItem>
+          {onDeleteRow && !disabled ? (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => setDeleteRow(row)}
+              >
+                <Trash2 />
+                {t("Delete record")}
+              </ContextMenuItem>
+            </>
+          ) : null}
+        </ContextMenuContent>
+      </ContextMenu>
+    )
+  }
 
   return (
     <div className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-10 shrink-0 items-center justify-between gap-3 border-b px-3">
+        <header className="flex h-10 shrink-0 items-center gap-3 border-b px-3">
           <h2 className="min-w-0 truncate text-sm font-semibold tabular-nums">
-            {new Intl.DateTimeFormat(undefined, {
-              month: "long",
-              year: "numeric",
-            }).format(month)}
+            {calendarPeriodLabel(anchorDate, layout, range)}
           </h2>
-          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <div
+            className="ml-auto flex shrink-0 items-center rounded-md border border-border/70 p-0.5"
+            role="group"
+            aria-label={t("Calendar layout")}
+          >
+            {(["month", "week"] as const).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={cn(
+                  "h-6 rounded px-2 text-[11px] font-medium text-muted-foreground outline-hidden hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
+                  layout === candidate && "bg-accent text-accent-foreground"
+                )}
+                aria-pressed={layout === candidate}
+                disabled={disabled}
+                onClick={() => changeLayout(candidate)}
+              >
+                {t(candidate === "month" ? "Month" : "Week")}
+              </button>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              aria-label={t("Previous month")}
+              aria-label={previousPeriodLabel}
               onClick={() =>
-                setMonth(
-                  (current) =>
-                    new Date(current.getFullYear(), current.getMonth() - 1, 1)
+                setAnchorDate((current) =>
+                  shiftCalendarAnchor(current, layout, -1)
                 )
               }
             >
@@ -630,7 +912,7 @@ export function EidosFileCalendarView({
               size="sm"
               className="h-7 w-fit px-2.5 text-xs"
               onClick={() =>
-                setMonth(startOfMonth(eidosFileWallDate(new Date(), timeZone)))
+                setAnchorDate(eidosFileWallDate(new Date(), timeZone))
               }
             >
               {t("Today")}
@@ -640,11 +922,10 @@ export function EidosFileCalendarView({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              aria-label={t("Next month")}
+              aria-label={nextPeriodLabel}
               onClick={() =>
-                setMonth(
-                  (current) =>
-                    new Date(current.getFullYear(), current.getMonth() + 1, 1)
+                setAnchorDate((current) =>
+                  shiftCalendarAnchor(current, layout, 1)
                 )
               }
             >
@@ -656,9 +937,13 @@ export function EidosFileCalendarView({
           className="min-h-0 flex-1 overflow-auto"
           aria-busy={loading}
           data-eidos-file-calendar
+          data-eidos-file-calendar-layout={layout}
         >
           <div
-            className="sticky top-0 z-10 grid min-w-[49rem] grid-cols-7 border-b bg-background"
+            className={cn(
+              "sticky top-0 z-10 grid border-b bg-background",
+              calendarGridClassName
+            )}
             data-eidos-file-calendar-weekdays
           >
             {weekdayLabels.map((label) => (
@@ -699,7 +984,7 @@ export function EidosFileCalendarView({
             </div>
           ) : (
             <div
-              className="grid min-w-[49rem] grid-cols-7"
+              className={cn("grid", calendarGridClassName)}
               role="grid"
               aria-label={t("{view} calendar", { view: view.name })}
             >
@@ -707,20 +992,21 @@ export function EidosFileCalendarView({
                 const key = localDateKey(day)
                 const dayPage = dayPages.get(key)
                 const dayRows = dayPage?.rows ?? []
-                const expanded = expandedDay === key
-                const visibleRows = expanded ? dayRows : dayRows.slice(0, 3)
-                const currentMonth = day.getMonth() === month.getMonth()
-                const canCreate =
-                  Boolean(onAddRow) &&
-                  !disabled &&
-                  (createMode === "all-days" ||
-                    (createMode === "today" && key === todayKey))
+                const expanded = expandedDays.has(key)
+                const visibleRows = expanded
+                  ? dayRows
+                  : dayRows.slice(0, collapsedDayLimit)
+                const currentMonth =
+                  layout === "week" || day.getMonth() === anchorDate.getMonth()
                 return (
                   <div
                     key={key}
                     role="gridcell"
                     aria-label={day.toLocaleDateString()}
-                    className="group min-h-28 border-b border-r p-1.5 last:border-r-0"
+                    className={cn(
+                      "group border-b border-r p-1.5 last:border-r-0",
+                      layout === "month" ? "min-h-28" : "min-h-[24rem]"
+                    )}
                     data-eidos-file-calendar-day={key}
                   >
                     <div className="mb-1 flex h-6 items-center justify-between">
@@ -736,108 +1022,16 @@ export function EidosFileCalendarView({
                       >
                         {day.getDate()}
                       </time>
-                      {canCreate ? (
-                        <button
-                          type="button"
-                          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 outline-hidden hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100 disabled:cursor-wait disabled:opacity-50"
-                          aria-label={t("New record on {date}", {
-                            date: key,
-                          })}
-                          title={t("New record")}
-                          disabled={creatingDay !== null}
-                          onClick={() => void createRecord(day)}
-                        >
-                          {creatingDay === key ? (
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-                          ) : (
-                            <Plus className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      ) : null}
+                      {renderCreateButton(day, key)}
                     </div>
                     <div className="grid gap-1">
-                      {visibleRows.map((row) => {
-                        const title = eidosFileRecordTitle(row, table.fields)
-                        return (
-                          <ContextMenu key={String(row._id)}>
-                            <ContextMenuTrigger asChild>
-                              <button
-                                type="button"
-                                className="truncate rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring"
-                                title={title}
-                                onClick={() => openInspectorRow(row)}
-                              >
-                                {title === "Empty" ? t("Untitled") : title}
-                              </button>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent
-                              className="w-44"
-                              data-eidos-file-calendar-record-menu=""
-                              onCloseAutoFocus={(event) =>
-                                event.preventDefault()
-                              }
-                            >
-                              <ContextMenuItem
-                                onSelect={() => openInspectorRow(row)}
-                              >
-                                <PanelRightOpen />
-                                {t("Open record")}
-                              </ContextMenuItem>
-                              <ContextMenuItem
-                                onSelect={() => copyRecordId(String(row._id))}
-                              >
-                                <Copy />
-                                {t("Copy record ID")}
-                              </ContextMenuItem>
-                              {onDeleteRow && !disabled ? (
-                                <>
-                                  <ContextMenuSeparator />
-                                  <ContextMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onSelect={() => setDeleteRow(row)}
-                                  >
-                                    <Trash2 />
-                                    {t("Delete record")}
-                                  </ContextMenuItem>
-                                </>
-                              ) : null}
-                            </ContextMenuContent>
-                          </ContextMenu>
-                        )
-                      })}
-                      {(dayPage?.total ?? 0) > 3 ? (
-                        <button
-                          type="button"
-                          className="w-fit rounded px-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                          disabled={dayPage?.loadingMore}
-                          title={dayPage?.loadMoreError ?? undefined}
-                          onClick={() => {
-                            if (!expanded) {
-                              setExpandedDay(key)
-                              if (dayPage?.nextCursor) {
-                                void loadMoreDay(day, key)
-                              }
-                              return
-                            }
-                            if (dayPage?.nextCursor) {
-                              void loadMoreDay(day, key)
-                              return
-                            }
-                            setExpandedDay(null)
-                          }}
-                        >
-                          {dayPage?.loadingMore
-                            ? t("Loading more records…")
-                            : expanded && dayPage?.nextCursor
-                              ? t("Load more")
-                              : expanded
-                                ? t("Show less")
-                                : t("{count} more", {
-                                    count:
-                                      (dayPage?.total ?? dayRows.length) - 3,
-                                  })}
-                        </button>
-                      ) : null}
+                      {visibleRows.map((row) =>
+                        renderRecordCard(row, {
+                          showTime: layout === "week",
+                          className: "w-full",
+                        })
+                      )}
+                      {renderDayMoreButton(day, key, dayPage, expanded)}
                     </div>
                   </div>
                 )

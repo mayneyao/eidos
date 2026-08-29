@@ -15,6 +15,7 @@ import {
   eidosFileCalendarCreateValue,
   eidosFileCalendarDateFields,
   eidosFileCalendarFieldType,
+  type EidosFileCalendarLayout,
   type EidosFileCalendarPageRequest,
   type EidosFileCalendarRange,
 } from "../eidos-file-calendar-view"
@@ -196,6 +197,19 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         : undefined,
     [source, table.table.id]
   )
+  const changeLayout = useCallback(
+    async (calendarLayout: EidosFileCalendarLayout) => {
+      if (!view) return
+      const snapshot = await source.updateView(view.id, {
+        properties: {
+          ...(view.properties ?? {}),
+          calendarLayout,
+        },
+      })
+      props.onSnapshot?.(snapshot)
+    },
+    [props.onSnapshot, source, view]
+  )
 
   if (!view) return null
   return (
@@ -213,6 +227,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       onImportFiles={props.onImportFiles}
       onImportDroppedFiles={props.onImportDroppedFiles}
       onSearchRelation={searchRelation}
+      onLayoutChange={changeLayout}
       onRowCountChange={props.onSearchResultCountChange}
       onError={onError}
       sidePanel={
@@ -250,7 +265,10 @@ export const eidosFileCalendarPlugin = defineEidosFilePlugin({
         properties: (fields) => {
           const dateField = eidosFileCalendarDateFields(fields)[0]
           return dateField
-            ? { dateField: eidosFileFieldKey(dateField) }
+            ? {
+                dateField: eidosFileFieldKey(dateField),
+                calendarLayout: "month",
+              }
             : undefined
         },
       },
