@@ -131,6 +131,7 @@ const zh: Record<string, string> = {
   "Checking for updates…": "正在检查更新…",
   "You're up to date.": "已是最新版本。",
   "Update {version} is available.": "可以更新到 {version}。",
+  "Downloading {percent}%": "下载中 {percent}%",
   "Downloading update… {percent}%": "正在下载更新… {percent}%",
   "Version {version} is ready to install.": "{version} 版本已可安装。",
   "Restart to update": "重启并更新",

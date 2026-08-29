@@ -213,13 +213,19 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(primary).toContain("margin: 0")
   })
 
-  it("groups updates above the persistent sidebar Settings entry", () => {
-    expect(rule(".sidebar-footer")).toContain("flex-direction: column")
+  it("keeps update progress beside the persistent sidebar Settings entry", () => {
+    expect(rule(".sidebar-footer")).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto"
+    )
     expect(rule(".sidebar-footer")).not.toContain("border-top")
     expect(rule(".sidebar-settings-button")).toContain(
       "background: transparent"
     )
     expect(rule(".sidebar-settings-button")).toContain("height: 2rem")
     expect(rule(".sidebar-update-action")).not.toContain("border-top")
+    expect(rule(".sidebar-update-action")).toContain(
+      "animation: sidebar-update-enter"
+    )
+    expect(rule(".sidebar-update-pill")).toContain("border-radius: 999px")
   })
 })

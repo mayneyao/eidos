@@ -99,7 +99,7 @@ import {
   type PublishTaskState,
 } from "./publish-task-dock"
 import {
-  isSidebarUpdateReady,
+  isSidebarUpdateVisible,
   SidebarUpdateAction,
 } from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
@@ -2474,15 +2474,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ) : null}
         </nav>
         <footer className="sidebar-footer">
-          {isSidebarUpdateReady(updateStatus) ? (
-            <SidebarUpdateAction
-              label={t("Restart to update")}
-              description={t("Version {version} is ready to install.", {
-                version: updateStatus.version ?? "",
-              })}
-              onRestart={() => void window.eidosLite.restartToInstallUpdate()}
-            />
-          ) : null}
           <button
             type="button"
             className="sidebar-settings-button"
@@ -2496,6 +2487,35 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <span>{t("Settings")}</span>
             <kbd aria-hidden="true">{macos ? "⌘," : "Ctrl+,"}</kbd>
           </button>
+          {isSidebarUpdateVisible(updateStatus) ? (
+            <SidebarUpdateAction
+              status={updateStatus}
+              label={
+                updateStatus.state === "available"
+                  ? t("Download update")
+                  : updateStatus.state === "downloading"
+                    ? t("Downloading {percent}%", {
+                        percent: Math.round(updateStatus.progressPercent ?? 0),
+                      })
+                    : t("Restart to update")
+              }
+              description={
+                updateStatus.state === "available"
+                  ? t("Update {version} is available.", {
+                      version: updateStatus.version ?? "",
+                    })
+                  : updateStatus.state === "downloading"
+                    ? t("Downloading update… {percent}%", {
+                        percent: Math.round(updateStatus.progressPercent ?? 0),
+                      })
+                    : t("Version {version} is ready to install.", {
+                        version: updateStatus.version ?? "",
+                      })
+              }
+              onDownload={() => void window.eidosLite.downloadUpdate()}
+              onRestart={() => void window.eidosLite.restartToInstallUpdate()}
+            />
+          ) : null}
         </footer>
       </aside>
 
