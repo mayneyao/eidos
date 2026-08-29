@@ -1,4 +1,8 @@
-import type { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file"
+import type {
+  EidosFileFieldInfo,
+  EidosFileRow,
+  EidosFileViewInfo,
+} from "@eidos.space/eidos-file"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -196,6 +200,52 @@ describe("createEidosFileRecordCardLayout", () => {
     ])
     expect(layout.fieldLimit).toBe(2)
     expect(layout.fitContent).toBe(true)
+  })
+
+  it("omits the Kanban grouping field by default but respects an explicit card layout", () => {
+    const title = {
+      ...recordField(0).field,
+      tableColumnName: "title",
+      isRecordLabel: true,
+    }
+    const detail = recordField(1).field
+    const group = { ...recordField(2).field, type: "select" as const }
+    const board: EidosFileViewInfo = {
+      id: "view_board",
+      name: "Board",
+      type: "kanban",
+      tableId: "tasks",
+      query: "SELECT * FROM tb_tasks",
+      properties: { groupField: group.id },
+      filter: null,
+      sorts: [],
+      orderMap: null,
+      hiddenFields: [],
+      position: 1,
+      createdAt: "2026-07-14T00:00:00.000Z",
+      updatedAt: "2026-07-14T00:00:00.000Z",
+    }
+
+    expect(
+      createEidosFileRecordCardLayout(
+        [title, detail, group],
+        board,
+        true
+      ).fields.map(({ field }) => field.id)
+    ).toEqual([detail.id])
+    expect(
+      createEidosFileRecordCardLayout(
+        [title, detail, group],
+        {
+          ...board,
+          properties: {
+            ...board.properties,
+            cardFields: [group.id, detail.id],
+          },
+        },
+        true
+      ).fields.map(({ field }) => field.id)
+    ).toEqual([group.id, detail.id])
   })
 })
 

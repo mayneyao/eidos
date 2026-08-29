@@ -64,15 +64,25 @@ vi.mock("./ui/kanban", () => ({
   KanbanBoard: ({
     children,
     id,
+    className,
+    style,
     role,
     "aria-label": ariaLabel,
   }: {
     children: React.ReactNode
     id: string
+    className?: string
+    style?: React.CSSProperties
     role?: AriaRole
     "aria-label"?: string
   }) => (
-    <section data-board-id={id} role={role} aria-label={ariaLabel}>
+    <section
+      className={className}
+      style={style}
+      data-board-id={id}
+      role={role}
+      aria-label={ariaLabel}
+    >
       {children}
     </section>
   ),
@@ -458,6 +468,15 @@ describe("EidosFileKanbanView", () => {
     expect(
       container.querySelector('[role="region"][aria-label="todo, 1 records"]')
     ).not.toBeNull()
+    const todoColumn = container.querySelector<HTMLElement>(
+      '[role="region"][aria-label="todo, 1 records"]'
+    )
+    expect(todoColumn?.classList).toContain("border-0")
+    expect(todoColumn?.style.backgroundColor).toBe("rgba(160, 196, 255, 0.08)")
+    expect(
+      container.querySelector<HTMLElement>("[data-eidos-file-kanban-scroll]")
+        ?.className
+    ).not.toContain("scrollbar-width:thin")
     expect(
       container.querySelector('[role="list"][aria-label="todo records"]')
     ).not.toBeNull()

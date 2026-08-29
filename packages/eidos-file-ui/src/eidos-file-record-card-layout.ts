@@ -87,6 +87,12 @@ export function createEidosFileRecordCardLayout(
       !isEidosFileRecordLabelField(field) && field.valueKind !== "system"
   )
   const configuredCardFields = view.properties?.cardFields
+  const defaultCardFields =
+    view.type === "kanban" && typeof view.properties?.groupField === "string"
+      ? availableFields.filter(
+          (field) => eidosFileFieldKey(field) !== view.properties?.groupField
+        )
+      : availableFields
   const cardFields = Array.isArray(configuredCardFields)
     ? configuredCardFields.flatMap((fieldId) => {
         if (typeof fieldId !== "string") return []
@@ -95,7 +101,7 @@ export function createEidosFileRecordCardLayout(
         )
         return field ? [field] : []
       })
-    : availableFields
+    : defaultCardFields
   const coverFit = view.properties?.coverFit
   return {
     fields: cardFields.map((field) => {

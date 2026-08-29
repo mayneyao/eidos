@@ -305,6 +305,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
   const { themeName: theme, timeZone, translate: t } = useEidosFileUI()
+  const quietKanbanSurface = view.type === "kanban"
   const uniformFields = view.type === "gallery" || fixedHeight !== undefined
   const visibleFields = uniformFields
     ? layout.fields.slice(0, layout.fieldLimit)
@@ -362,7 +363,10 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   const card = (
     <article
       className={cn(
-        "group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs outline-hidden transition-[box-shadow,border-color] hover:shadow-sm",
+        "group/card relative overflow-hidden border bg-card text-card-foreground outline-hidden transition-[background-color,border-color,box-shadow]",
+        quietKanbanSurface
+          ? "rounded-md border-border/50 shadow-none hover:border-border"
+          : "rounded-lg shadow-xs hover:shadow-sm",
         role === "listitem" && "cursor-pointer",
         focused &&
           "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
@@ -372,6 +376,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
       aria-posinset={role === "listitem" ? positionInSet : undefined}
       aria-setsize={role === "listitem" ? setSize : undefined}
       data-eidos-file-row-id={String(row._id)}
+      data-eidos-file-card-surface={quietKanbanSurface ? "quiet" : "outlined"}
       role={role}
       onClick={openFromCard}
       onPointerDown={trackPointerStart}
@@ -465,7 +470,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
           ) : null}
         </span>
         <div className="flex min-w-0 items-start gap-2">
-          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          {quietKanbanSurface ? null : (
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          )}
           <h3
             className="line-clamp-3 min-w-0 flex-1 break-words text-sm font-medium leading-5"
             style={

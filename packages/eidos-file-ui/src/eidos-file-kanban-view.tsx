@@ -713,12 +713,12 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
         count: group.total,
       })}
       className={cn(
-        "shrink-0 gap-2 rounded-lg border p-2",
+        "shrink-0 gap-2 rounded-md border-0 p-2",
         collapsed && "items-center"
       )}
       style={{
         width: collapsed ? 48 : width,
-        backgroundColor: `${color}22`,
+        backgroundColor: `${color}14`,
       }}
     >
       <KanbanHeader>

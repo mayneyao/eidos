@@ -361,6 +361,27 @@ describe("EidosFileRecordCard", () => {
     )
   })
 
+  it("uses a subtle, icon-free card surface inside Kanban columns", () => {
+    act(() => {
+      root.render(
+        <EidosFileRecordCard
+          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          fields={fields}
+          view={{ ...view, type: "kanban", properties: null }}
+          onOpen={vi.fn()}
+        />
+      )
+    })
+
+    const card = container.querySelector<HTMLElement>(
+      '[data-eidos-file-row-id="row_1"]'
+    )
+    expect(card?.dataset.eidosFileCardSurface).toBe("quiet")
+    expect(card?.classList).toContain("border-border/50")
+    expect(card?.classList).toContain("shadow-none")
+    expect(card?.querySelector(".lucide-file-text")).toBeNull()
+  })
+
   it("uses natural title height up to the three-line card limit", () => {
     const renderTitle = (title: string) =>
       root.render(
