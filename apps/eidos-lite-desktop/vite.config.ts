@@ -1,4 +1,3 @@
-import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import tailwindcss from "@tailwindcss/vite"
@@ -12,26 +11,9 @@ import {
   EIDOS_LITE_SERVICE_ENVIRONMENTS,
   type EidosLiteEnvironmentName,
 } from "./src/shared/service-environment"
+import { cleanElectronOutput } from "./src/main/electron-output-cleaner"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
-
-function cleanElectronOutput(): Plugin {
-  let cleaned = false
-
-  return {
-    name: "eidos-lite-clean-electron-output",
-    async buildStart() {
-      if (cleaned) {
-        return
-      }
-      cleaned = true
-      await fs.rm(path.join(appRoot, "dist-electron"), {
-        recursive: true,
-        force: true,
-      })
-    },
-  }
-}
 
 function buildEnvironmentManifest(
   environment: EidosLiteEnvironmentName
@@ -95,7 +77,7 @@ export default defineConfig(({ mode }) => {
           vite: {
             define: environmentDefine,
             plugins: [
-              cleanElectronOutput(),
+              cleanElectronOutput(path.join(appRoot, "dist-electron")),
               buildEnvironmentManifest(defaultEnvironment),
             ],
             resolve: { alias: aliases },
@@ -150,6 +132,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: "127.0.0.1",
+      port: 5179,
+      strictPort: true,
     },
   }
 })
