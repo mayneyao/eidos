@@ -1,23 +1,11 @@
 ## What's new
 
-### Rename Select options safely in Serve
+### Keep attachments visible after restarting Serve
 
-The editor opened by `eidos serve` can rename Select and Multi-select options
-without leaving existing records or Saved Views behind. Before applying a
-rename, it shows how many rows and dependencies will change and asks for
-confirmation when values must be rewritten or merged.
-
-### Keep Saved Views valid as schemas evolve
-
-`eidos validate` now reports Saved View filters, groups, and sorts that refer to
-missing fields. The embedded Runtime also preserves compatible legacy query
-storage while normalizing field references, so schema changes do not silently
-leave views with stale dependencies.
-
-### Return to the last Grid cell after menus close
-
-Pressing Escape to close a Grid menu now restores focus to the last active cell
-in the editor opened by `eidos serve`, keeping keyboard navigation continuous.
+When `eidos serve` restarts on the same address, an already-open browser now
+detects the new Serve process, reopens its Runtime session, and reloads asset
+capabilities automatically. Attachments render again without manually
+refreshing the page, including after restarting Serve with `--assets-dir`.
 
 ## Use with an Agent
 
@@ -43,5 +31,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.39.0 and verify the downloaded archive against the
+The installers select v0.39.1 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
