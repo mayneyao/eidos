@@ -44,9 +44,12 @@ export class SpaceOperationGate {
     recoverable: true,
   }
   private activeMutations = 0
+  private activeRuntimeReads = 0
   private acceptingMutations = true
+  private acceptingRuntimeReads = true
   private closing = false
-  private drain: PendingDrain | null = null
+  private mutationDrain: PendingDrain | null = null
+  private runtimeDrain: PendingDrain | null = null
   private readonly listeners = new Set<(state: SpaceOperationState) => void>()
 
   constructor(
@@ -72,11 +75,13 @@ export class SpaceOperationGate {
     const interrupted = await this.journal.read()
     if (!interrupted) return null
     this.acceptingMutations = false
+    this.acceptingRuntimeReads = false
     try {
       this.transition(
         "validating",
         `Recovering interrupted ${interrupted.kind}`
       )
+      await this.waitForRuntimeDrain()
       await this.hooks.closeRuntimes()
       await this.hooks.validateWorktree()
       this.transition(
@@ -86,6 +91,7 @@ export class SpaceOperationGate {
       await this.hooks.reopenRuntimes()
       await this.journal.clear()
       this.acceptingMutations = true
+      this.acceptingRuntimeReads = true
       this.transition("ready")
       return interrupted
     } catch (error) {
@@ -109,10 +115,19 @@ export class SpaceOperationGate {
       return await operation()
     } finally {
       this.activeMutations -= 1
-      if (this.activeMutations === 0) {
-        this.drain?.resolve()
-        this.drain = null
-      }
+      this.resolveDrains()
+    }
+  }
+
+  async withRuntimeRead<T>(operation: () => Promise<T>): Promise<T> {
+    while (!this.tryBeginRuntimeRead()) {
+      await this.waitForRuntimeReadAvailability()
+    }
+    try {
+      return await operation()
+    } finally {
+      this.activeRuntimeReads -= 1
+      this.resolveDrains()
     }
   }
 
@@ -147,8 +162,9 @@ export class SpaceOperationGate {
   ): Promise<T> {
     return this.withRepositoryOperation(detail, async () => {
       this.acceptingMutations = false
+      this.acceptingRuntimeReads = false
       this.transition("quiescing", detail)
-      await this.waitForMutationDrain()
+      await this.waitForRuntimeDrain()
       this.transition("syncing", detail)
       try {
         return await operation()
@@ -188,6 +204,7 @@ export class SpaceOperationGate {
           }
         }
         this.acceptingMutations = !this.closing
+        this.acceptingRuntimeReads = !this.closing
         if (!this.closing && this.state.phase !== "failed") {
           this.transition("ready")
         }
@@ -244,6 +261,8 @@ export class SpaceOperationGate {
         }
         let runtimesClosed = false
         try {
+          this.acceptingRuntimeReads = false
+          await this.waitForRuntimeDrain()
           await this.hooks.closeRuntimes()
           runtimesClosed = true
           this.transition("materializing", options.detail ?? options.kind)
@@ -262,6 +281,7 @@ export class SpaceOperationGate {
           await this.hooks.reopenRuntimes()
           await this.journal.clear()
           this.acceptingMutations = true
+          this.acceptingRuntimeReads = true
           this.transition("ready")
           return result
         } catch (error) {
@@ -280,6 +300,7 @@ export class SpaceOperationGate {
             throw recoveryError
           }
           this.acceptingMutations = true
+          this.acceptingRuntimeReads = true
           this.transition("ready")
           throw error
         }
@@ -295,15 +316,68 @@ export class SpaceOperationGate {
     }
     this.closing = true
     this.acceptingMutations = false
-    await this.waitForMutationDrain()
+    this.acceptingRuntimeReads = false
+    await this.waitForRuntimeDrain()
     await this.repository.close()
     this.transition("closed")
   }
 
   private waitForMutationDrain(): Promise<void> {
     if (this.activeMutations === 0) return Promise.resolve()
-    this.drain ??= pendingDrain()
-    return this.drain.promise
+    this.mutationDrain ??= pendingDrain()
+    return this.mutationDrain.promise
+  }
+
+  private waitForRuntimeDrain(): Promise<void> {
+    if (this.activeMutations === 0 && this.activeRuntimeReads === 0) {
+      return Promise.resolve()
+    }
+    this.runtimeDrain ??= pendingDrain()
+    return this.runtimeDrain.promise
+  }
+
+  private tryBeginRuntimeRead(): boolean {
+    if (this.closing || this.state.phase === "closed") {
+      throw new Error("Space is closed")
+    }
+    if (this.state.phase === "failed") {
+      throw new Error("Space runtime is unavailable while failed")
+    }
+    if (!this.acceptingRuntimeReads) return false
+    this.activeRuntimeReads += 1
+    return true
+  }
+
+  private waitForRuntimeReadAvailability(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const unsubscribe = this.subscribe((state) => {
+        if (this.closing || state.phase === "closed") {
+          unsubscribe()
+          reject(new Error("Space is closed"))
+          return
+        }
+        if (state.phase === "failed") {
+          unsubscribe()
+          reject(new Error("Space runtime is unavailable while failed"))
+          return
+        }
+        if (this.acceptingRuntimeReads) {
+          unsubscribe()
+          resolve()
+        }
+      })
+    })
+  }
+
+  private resolveDrains(): void {
+    if (this.activeMutations === 0) {
+      this.mutationDrain?.resolve()
+      this.mutationDrain = null
+    }
+    if (this.activeMutations === 0 && this.activeRuntimeReads === 0) {
+      this.runtimeDrain?.resolve()
+      this.runtimeDrain = null
+    }
   }
 
   private transition(

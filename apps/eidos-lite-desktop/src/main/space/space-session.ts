@@ -827,22 +827,27 @@ export class SpaceSession {
     method: M,
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
-    if (!csvOperationControlMethods.has(method)) this.assertRuntimeAvailable()
-    if (mutationMethods.has(method)) this.prioritizeLocalWork()
+    const isMutation = mutationMethods.has(method)
+    const isCsvOperationControl = csvOperationControlMethods.has(method)
+    if (isMutation) this.prioritizeLocalWork()
     let result: RuntimeCalls[M]["result"]
     try {
-      result = mutationMethods.has(method)
+      result = isMutation
         ? await this.gate.withMutation(() =>
             this.runtimePool.call(sessionId, method, args)
           )
-        : await this.runtimePool.call(sessionId, method, args)
+        : isCsvOperationControl
+          ? await this.runtimePool.call(sessionId, method, args)
+          : await this.gate.withRuntimeRead(() =>
+              this.runtimePool.call(sessionId, method, args)
+            )
     } catch (error) {
       if (error instanceof EidosFileRuntimeError) {
         this.fileIssuesByPath.set(error.issue.relativePath, error.issue)
       }
       throw error
     }
-    if (mutationMethods.has(method)) {
+    if (isMutation) {
       this.noteLocalChange()
       void this.refreshAndEmit()
     }

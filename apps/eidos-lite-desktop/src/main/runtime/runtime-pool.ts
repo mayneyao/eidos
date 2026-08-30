@@ -262,13 +262,18 @@ export class RuntimePool {
       throw new EidosFileRuntimeError(issue)
     }
     this.touch(entry)
-    await this.ensureResident(entry)
-    return this.request(entry, {
-      type: "call",
-      requestId: entry.nextRequestId++,
-      method,
-      args,
-    }) as Promise<RuntimeCalls[M]["result"]>
+    let call: Promise<RuntimeCalls[M]["result"]> | null = null
+    await this.withResidencyLock(async () => {
+      await this.ensureResidentLocked(entry)
+      call = this.request(entry, {
+        type: "call",
+        requestId: entry.nextRequestId++,
+        method,
+        args,
+      }) as Promise<RuntimeCalls[M]["result"]>
+    })
+    if (!call) throw new Error("Eidos File runtime call did not start")
+    return call
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -574,26 +579,33 @@ export class RuntimePool {
     entry: RuntimeEntry,
     createTitle?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
-    return this.withResidencyLock(async () => {
-      if (entry.child) return null
-      while (this.residentCount() >= this.maxResidentRuntimes) {
-        const sessionId = selectLruRuntimeToEvict(
-          [...this.entriesBySession.values()].map((candidate) => ({
-            sessionId: candidate.sessionId,
-            resident: candidate.child !== null,
-            pendingRequests: candidate.pending.size,
-            lastAccess: candidate.lastAccess,
-          })),
-          entry.sessionId
-        )
-        if (!sessionId) {
-          await this.waitForIdleResident(entry.sessionId)
-          continue
-        }
-        await this.closeEntry(this.requireEntry(sessionId))
+    return this.withResidencyLock(() =>
+      this.ensureResidentLocked(entry, createTitle)
+    )
+  }
+
+  private async ensureResidentLocked(
+    entry: RuntimeEntry,
+    createTitle?: string
+  ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
+    if (entry.child) return null
+    while (this.residentCount() >= this.maxResidentRuntimes) {
+      const sessionId = selectLruRuntimeToEvict(
+        [...this.entriesBySession.values()].map((candidate) => ({
+          sessionId: candidate.sessionId,
+          resident: candidate.child !== null,
+          pendingRequests: candidate.pending.size,
+          lastAccess: candidate.lastAccess,
+        })),
+        entry.sessionId
+      )
+      if (!sessionId) {
+        await this.waitForIdleResident(entry.sessionId)
+        continue
       }
-      return this.spawnAndOpen(entry, createTitle)
-    })
+      await this.closeEntry(this.requireEntry(sessionId))
+    }
+    return this.spawnAndOpen(entry, createTitle)
   }
 
   private residentCount(): number {

@@ -96,6 +96,72 @@ describe("SpaceOperationGate", () => {
     expect(await journal.read()).toBeNull()
   })
 
+  it("drains active Runtime reads before closing application handles", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const read = deferred()
+    const runningRead = gate.withRuntimeRead(async () => {
+      calls.push("read-start")
+      await read.promise
+      calls.push("read-end")
+    })
+    const materialization = gate.withMaterialization({
+      kind: "restore",
+      materialize: async () => {
+        calls.push("materialize")
+      },
+    })
+
+    await Promise.resolve()
+    expect(gate.current().phase).toBe("quiescing")
+    expect(calls).toEqual(["read-start"])
+    read.resolve()
+
+    await Promise.all([runningRead, materialization])
+    expect(calls).toEqual([
+      "read-start",
+      "read-end",
+      "close",
+      "materialize",
+      "validate",
+      "reopen",
+    ])
+  })
+
+  it("defers new Runtime reads until materialization reopens handles", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const release = deferred()
+    const started = deferred()
+    const materialization = gate.withMaterialization({
+      kind: "restore",
+      materialize: async () => {
+        calls.push("materialize-start")
+        started.resolve()
+        await release.promise
+        calls.push("materialize-end")
+      },
+    })
+    await started.promise
+
+    const queuedRead = gate.withRuntimeRead(async () => {
+      calls.push("read")
+      return "ready"
+    })
+    await Promise.resolve()
+    expect(calls).not.toContain("read")
+    release.resolve()
+
+    await expect(materialization).resolves.toBeUndefined()
+    await expect(queuedRead).resolves.toBe("ready")
+    expect(calls).toEqual([
+      "close",
+      "materialize-start",
+      "materialize-end",
+      "validate",
+      "reopen",
+      "read",
+    ])
+  })
+
   it("drains non-materializing repository writes without closing runtimes", async () => {
     const { gate, calls, journal } = await gateWithHooks()
     const mutation = deferred()

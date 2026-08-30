@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { utilityProcess, type UtilityProcess } from "electron"
@@ -66,6 +66,36 @@ describe("RuntimePool LRU policy", () => {
 
   it("keeps the resident set deliberately small", () => {
     expect(DEFAULT_MAX_RESIDENT_RUNTIMES).toBe(3)
+  })
+
+  it("registers a call before another session can evict its Runtime", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-call-"))
+    )
+    await Promise.all([
+      writeFile(path.join(root, "first.eidos"), "fixture"),
+      writeFile(path.join(root, "second.eidos"), "fixture"),
+    ])
+    vi.mocked(utilityProcess.fork).mockImplementation(
+      () => new FakeRuntimeUtilityProcess() as unknown as UtilityProcess
+    )
+
+    try {
+      const pool = new RuntimePool(root, "/tmp/runtime-worker.js", 1)
+      const first = await pool.open("first.eidos")
+      const second = await pool.open("second.eidos")
+
+      const call = pool.call(first.sessionId, "getSnapshot", [])
+      const reopen = pool.open("second.eidos")
+
+      await expect(call).resolves.toBeUndefined()
+      await expect(reopen).resolves.toMatchObject({
+        sessionId: second.sessionId,
+      })
+      await pool.destroy()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it("evicts the least recently used resident and ignores closed metadata", () => {
