@@ -569,6 +569,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const explicitDraftLeaveRef = useRef(false)
   const followInteractionRevisionRef = useRef(0)
   const gridSelectionRef = useRef<GridSelection | null>(null)
+  const lastActiveGridCellRef = useRef<Item | null>(null)
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
   const pageAccessRef = useRef(new Map<number, number>())
@@ -1864,12 +1865,38 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection
+  if (history.gridSelection?.current) {
+    lastActiveGridCellRef.current = history.gridSelection.current.cell
+  }
 
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
+    if (!history.gridSelection?.current && rowCount > 0 && fields.length > 0) {
+      const previousCell = lastActiveGridCellRef.current ?? [0, 0]
+      const cell: Item = [
+        Math.min(Math.max(0, previousCell[0]), fields.length - 1),
+        Math.min(Math.max(0, previousCell[1]), rowCount - 1),
+      ]
+      history.onGridSelectionChange({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell,
+          range: { x: cell[0], y: cell[1], width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    }
     restoreGridFocus()
-  }, [focusRequestToken, restoreGridFocus])
+  }, [
+    fields.length,
+    focusRequestToken,
+    history.gridSelection?.current,
+    history.onGridSelectionChange,
+    restoreGridFocus,
+    rowCount,
+  ])
 
   const refreshAfterRowCommand = useCallback((nextRowCount: number) => {
     rowCountRef.current = nextRowCount

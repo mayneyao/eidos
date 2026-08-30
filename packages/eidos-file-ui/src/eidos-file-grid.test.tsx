@@ -199,6 +199,56 @@ describe("EidosFileGrid", () => {
     container.remove()
   })
 
+  it("restores the last Grid cell after Escape when the host requests file-content focus", async () => {
+    const renderGrid = (focusRequestToken: number) => (
+      <EidosFileGrid
+        table={table}
+        focusRequestToken={focusRequestToken}
+        loadPage={createLoadPage()}
+        onAddRow={vi.fn()}
+        onCellEdit={createCellEdit()}
+      />
+    )
+
+    await act(async () => {
+      root.render(renderGrid(0))
+      await Promise.resolve()
+    })
+    mocks.focus.mockClear()
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [1, 0],
+          range: { x: 1, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    act(() => {
+      // Glide maps Escape to an empty controlled selection.
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: undefined,
+      })
+    })
+    expect(mocks.props?.gridSelection?.current).toBeUndefined()
+
+    await act(async () => {
+      root.render(renderGrid(1))
+      await Promise.resolve()
+    })
+
+    expect(mocks.focus).toHaveBeenCalledTimes(1)
+    expect(mocks.props?.gridSelection?.current?.cell).toEqual([1, 0])
+    expect(document.activeElement).toBe(
+      container.querySelector('[data-testid="glide-grid"]')
+    )
+  })
+
   it("adapts paged Eidos File rows to the production grid contract", async () => {
     const onCellEdit = createCellEdit()
     const loadPage = createLoadPage()
