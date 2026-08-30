@@ -14,7 +14,10 @@ import type {
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../shared/contracts"
-import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
+import {
+  EIDOS_LITE_CSV_IMPORT_BYTES_MAX,
+  eidosLiteSchemaImpactRequiredResult,
+} from "../shared/contracts"
 import {
   createEidosLiteFileRuntime,
   openEidosLiteFileRuntime,
@@ -223,7 +226,13 @@ async function runtimeCall(
         ...methodArgs<"revertRowMutation">(args)
       )
     case "updateField":
-      return dataSource.updateField(...methodArgs<"updateField">(args))
+      try {
+        return await dataSource.updateField(...methodArgs<"updateField">(args))
+      } catch (error) {
+        const impactRequired = eidosLiteSchemaImpactRequiredResult(error)
+        if (impactRequired) return impactRequired
+        throw error
+      }
     case "addField":
       return dataSource.addField(...methodArgs<"addField">(args))
     case "deleteField":

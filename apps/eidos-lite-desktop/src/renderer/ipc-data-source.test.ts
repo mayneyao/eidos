@@ -6,7 +6,11 @@ import type {
   EidosFileSnapshot,
 } from "@eidos.space/eidos-file"
 
-import type { EidosLiteApi } from "../shared/contracts"
+import {
+  eidosLiteSchemaImpactRequiredResult,
+  type EidosLiteApi,
+} from "../shared/contracts"
+import { EidosFileSchemaImpactRequiredError } from "../../../../packages/eidos-file-ui/src/schema-impact-confirmation"
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 
@@ -108,6 +112,51 @@ it("routes deletion undo through the opaque runtime session", async () => {
     "tasks",
     "undo-delete",
   ])
+})
+
+it("restores schema impact confirmation errors after the IPC boundary", async () => {
+  const impact = {
+    classification: "lossless-rewrite" as const,
+    affectedRows: "3",
+    dependencyCount: "1",
+    warnings: [],
+    warningsTruncated: false,
+    valueChanges: [],
+    valueChangesTruncated: false,
+  }
+  const workerSignal = eidosLiteSchemaImpactRequiredResult(
+    Object.assign(
+      new Error("Review the schema change impact before applying it"),
+      {
+        name: "EidosFileSchemaImpactRequiredError",
+        code: "schema-impact-confirmation-required",
+        impact,
+      }
+    )
+  )
+  expect(workerSignal).not.toBeNull()
+  const callRuntime = vi.fn(async () => workerSignal)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime } as unknown as EidosLiteApi,
+  })
+  const source = new IpcEidosFileDataSource("session-1", snapshot)
+
+  let received: unknown
+  try {
+    await source.updateField("tasks", "status", {
+      optionValueChanges: [{ from: "Twitter", to: "X" }],
+    })
+  } catch (error) {
+    received = error
+  }
+
+  expect(received).toBeInstanceOf(EidosFileSchemaImpactRequiredError)
+  expect(received).toMatchObject({
+    code: "schema-impact-confirmation-required",
+    impact,
+  })
+  expect(callRuntime).toHaveBeenCalledTimes(1)
 })
 
 it("builds a portable CSV export name from the active file, table, and view", () => {

@@ -7,6 +7,7 @@ import type {
   EidosFileSnapshot,
   EidosSystemMergeResult,
   FileEntry,
+  SchemaPreflightResult,
   UrlImageLease,
 } from "@eidos.space/eidos-file"
 
@@ -1477,6 +1478,73 @@ type RuntimeCall<M extends RuntimeMethod> = M extends keyof RuntimeCustomCalls
 
 export type RuntimeCalls = {
   [M in RuntimeMethod]: RuntimeCall<M>
+}
+
+export type EidosLiteSchemaImpact = Pick<
+  SchemaPreflightResult,
+  | "classification"
+  | "affectedRows"
+  | "dependencyCount"
+  | "warnings"
+  | "warningsTruncated"
+  | "valueChanges"
+  | "valueChangesTruncated"
+>
+
+export interface EidosLiteSchemaImpactRequiredResult {
+  __eidosLiteRuntimeSignal: "schema-impact-confirmation-required"
+  impact: EidosLiteSchemaImpact
+}
+
+function isEidosLiteSchemaImpact(
+  value: unknown
+): value is EidosLiteSchemaImpact {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  return (
+    (candidate.classification === "metadata-only" ||
+      candidate.classification === "lossless-rewrite" ||
+      candidate.classification === "explicit-lossy" ||
+      candidate.classification === "forbidden") &&
+    typeof candidate.affectedRows === "string" &&
+    typeof candidate.dependencyCount === "string" &&
+    Array.isArray(candidate.warnings) &&
+    typeof candidate.warningsTruncated === "boolean" &&
+    Array.isArray(candidate.valueChanges) &&
+    typeof candidate.valueChangesTruncated === "boolean"
+  )
+}
+
+export function eidosLiteSchemaImpactRequiredResult(
+  error: unknown
+): EidosLiteSchemaImpactRequiredResult | null {
+  if (typeof error !== "object" || error === null || Array.isArray(error)) {
+    return null
+  }
+  const candidate = error as Record<string, unknown>
+  return candidate.code === "schema-impact-confirmation-required" &&
+    isEidosLiteSchemaImpact(candidate.impact)
+    ? {
+        __eidosLiteRuntimeSignal: "schema-impact-confirmation-required",
+        impact: candidate.impact,
+      }
+    : null
+}
+
+export function isEidosLiteSchemaImpactRequiredResult(
+  value: unknown
+): value is EidosLiteSchemaImpactRequiredResult {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  return (
+    candidate.__eidosLiteRuntimeSignal ===
+      "schema-impact-confirmation-required" &&
+    isEidosLiteSchemaImpact(candidate.impact)
+  )
 }
 
 export type RuntimeWorkerRequest =

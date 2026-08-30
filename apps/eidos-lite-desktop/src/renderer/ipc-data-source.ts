@@ -6,7 +6,11 @@ import type {
   EidosFileSnapshot,
 } from "@eidos.space/eidos-file"
 import type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
-import type { RuntimeCalls, RuntimeMutationMethod } from "../shared/contracts"
+import {
+  isEidosLiteSchemaImpactRequiredResult,
+  type RuntimeCalls,
+  type RuntimeMutationMethod,
+} from "../shared/contracts"
 
 export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   constructor(
@@ -24,6 +28,16 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
       method,
       args
     )
+    if (isEidosLiteSchemaImpactRequiredResult(result)) {
+      throw Object.assign(
+        new Error("Review the schema change impact before applying it"),
+        {
+          name: "EidosFileSchemaImpactRequiredError",
+          code: "schema-impact-confirmation-required",
+          impact: result.impact,
+        }
+      )
+    }
     await this.getSnapshot()
     this.onSnapshot?.(this.snapshotValue)
     return result
