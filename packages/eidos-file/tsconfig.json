@@ -5,7 +5,8 @@
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": ["node", "vitest/globals", "@types/wicg-file-system-access"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-file",
-  "version": "2.0.5",
+  "version": "2.1.0",
   "description": "Independent SQLite-backed runtime for the open Eidos File format",
   "type": "module",
   "main": "./dist/index.mjs",
@@ -88,6 +88,7 @@
     "@microsoft/api-extractor": "7.58.11",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.12.2",
+    "@types/wicg-file-system-access": "^2023.10.5",
     "better-sqlite3": "^12.0.0",
     "tsdown": "^0.21.7",
     "typescript": "^5.8.3",

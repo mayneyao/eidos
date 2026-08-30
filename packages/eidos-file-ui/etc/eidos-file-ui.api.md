@@ -188,7 +188,7 @@ interface EidosFileGridProps {
   onRowCountChange?: (rowCount: number | null) => void;
   searchResultIndex?: number | null;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onOpenRecordInTab?: (row: EidosFileRow) => void;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   propertyField?: EidosFileFieldInfo | null;
@@ -404,7 +404,7 @@ declare function EidosFileRecordAttachmentEditor({
   disabled: boolean;
   onChange: (value: string | null) => Promise<void>;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onError?: (error: unknown) => void;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
@@ -427,7 +427,7 @@ interface EidosFileRecordInspectorProps {
   onRetryLoad?: () => void;
   onError?: (error: unknown) => void;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
 }
 declare function EidosFileRecordInspector({
@@ -475,7 +475,7 @@ interface EidosFileRelatedRecordPanelProps {
   onMutation?: (result: EidosFileRowMutationResult) => void;
   onError?: (error: unknown) => void;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
 }
 /** Host-neutral detail panel for a record reached through a relation field. */
 declare function EidosFileRelatedRecordPanel({
@@ -938,7 +938,7 @@ declare function EidosFileCalendarView({
   onAddRow?: (field: EidosFileFieldInfo, day: Date) => Promise<EidosFileRowMutationResult>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   onLayoutChange?: (layout: EidosFileCalendarLayout) => void | Promise<void>;
   onRowCountChange?: (rowCount: number | null) => void;
@@ -1033,7 +1033,7 @@ interface EidosFileDataGridProps {
   onSearchResultCountChange?: (rowCount: number | null) => void;
   onError?: (error: unknown) => void;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
 }
 /**
  * Convenience adapter for hosts that expose the public EidosFileEditorDataSource.
@@ -1289,7 +1289,7 @@ declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
   onOpenRecordInTab?: (row: EidosFileRow) => void;
@@ -1322,7 +1322,7 @@ declare const EidosFileKanbanView: _$react.NamedExoticComponent<{
   onAddRow: (field: EidosFileFieldInfo, value: string | null, title: string) => Promise<EidosFileRowMutationResult>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
   onImportFiles?: () => Promise<FileEntry[]>;
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   onOpenRecordInTab?: (row: EidosFileRow) => void;
   onRowCountChange?: (rowCount: number | null) => void;
