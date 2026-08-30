@@ -30,6 +30,19 @@ function ensureEmptyEditorCaretTarget(
   emptyLine.replaceChildren(document.createElement("br"))
 }
 
+function focusTextEditor(editor: Editor<undefined>, content: string) {
+  if (editor.getState().selections?.length) {
+    editor.focus({ preventScroll: true })
+    return
+  }
+
+  editor.focus(
+    content.length === 0
+      ? { lineNumber: 1, character: 0, preventScroll: true }
+      : { lineNumber: "first-visible", preventScroll: true }
+  )
+}
+
 export default function PierreTextEditorSurface({
   relativePath,
   content,
@@ -49,6 +62,12 @@ export default function PierreTextEditorSurface({
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
+  const contentPropRef = useRef(content)
+  const currentContentRef = useRef(content)
+  if (contentPropRef.current !== content) {
+    contentPropRef.current = content
+    currentContentRef.current = content
+  }
   const createEditor = useCallback(
     (options: EditorOptions<undefined>) => {
       const persistentOptions: EditorOptions<undefined> = {
@@ -70,14 +89,10 @@ export default function PierreTextEditorSurface({
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
-    editorRef.current?.focus()
+    if (editorRef.current) {
+      focusTextEditor(editorRef.current, currentContentRef.current)
+    }
   }, [focusRequestToken])
-  const contentPropRef = useRef(content)
-  const currentContentRef = useRef(content)
-  if (contentPropRef.current !== content) {
-    contentPropRef.current = content
-    currentContentRef.current = content
-  }
   // Pierre keeps the editable tokenizer and theme CSS inside an imperative
   // Shadow DOM instance. Recreate that instance for each application theme,
   // while carrying the live buffer across the remount.
@@ -108,11 +123,7 @@ export default function PierreTextEditorSurface({
             },
             onAttach: (editor) => {
               if (!autoFocus) return
-              if (content.length === 0) {
-                editor.focus({ lineNumber: 1, character: 0 })
-                return
-              }
-              editor.focus()
+              focusTextEditor(editor, currentContentRef.current)
             },
             onChange: (nextFile) => {
               currentContentRef.current = nextFile.contents

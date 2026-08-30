@@ -28,6 +28,7 @@ vi.mock("@pierre/diffs/edit", () => ({
     initialOptions: Record<string, unknown>
     cleanUp = vi.fn()
     focus = vi.fn()
+    getState = vi.fn(() => ({ selections: undefined, view: undefined }))
     setOptions = vi.fn()
 
     constructor(options: Record<string, unknown>) {
@@ -289,6 +290,7 @@ describe("PierreTextEditorSurface", () => {
     expect(editor.focus).toHaveBeenCalledWith({
       lineNumber: 1,
       character: 0,
+      preventScroll: true,
     })
     expect(pierre.fileLineMarkup).toHaveBeenCalledWith("<br>")
 
@@ -318,7 +320,39 @@ describe("PierreTextEditorSurface", () => {
     await act(async () => {
       root.render(renderEditor(1))
     })
-    expect(editor.focus).toHaveBeenCalledTimes(1)
+    expect(editor.focus).toHaveBeenCalledWith({
+      lineNumber: "first-visible",
+      preventScroll: true,
+    })
+
+    await act(async () => root.unmount())
+  })
+
+  it("preserves an existing Source caret when focus returns", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const renderEditor = (focusRequestToken: number) =>
+      createElement(PierreTextEditorSurface, {
+        relativePath: "notes/readme.md",
+        content: "# Readme",
+        theme: "light" as const,
+        focusRequestToken,
+        onChange: () => undefined,
+      })
+
+    await act(async () => {
+      root.render(renderEditor(0))
+    })
+    const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
+      focus: ReturnType<typeof vi.fn>
+      getState: ReturnType<typeof vi.fn>
+    }
+    editor.getState.mockReturnValue({ selections: [{}], view: undefined })
+
+    await act(async () => {
+      root.render(renderEditor(1))
+    })
+    expect(editor.focus).toHaveBeenCalledWith({ preventScroll: true })
 
     await act(async () => root.unmount())
   })
