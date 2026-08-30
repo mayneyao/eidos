@@ -175,6 +175,8 @@ interface EidosFileGridProps {
   /** Hide Glide's always-frozen row marker gutter when space is constrained. */
   showRowMarkers?: boolean;
   reloadToken?: number;
+  /** Monotonic Host request used to return keyboard focus to the Grid. */
+  focusRequestToken?: number;
   /** Stable identity for the active row query; changing it invalidates positional history. */
   historyScopeKey?: string;
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>;
@@ -1021,6 +1023,7 @@ interface EidosFileDataGridProps {
   showRowMarkers?: boolean;
   disabled?: boolean;
   reloadToken?: number;
+  focusRequestToken?: number;
   propertyField?: EidosFileFieldInfo | null;
   onMutation?: (result: EidosFileRowMutationResult) => void;
   onDeleteRows?: (ranges: EidosFileRowRange[], query: EidosFileRowQuery) => Promise<EidosFileRowsDeleteResult | void>;
@@ -1050,6 +1053,7 @@ declare function EidosFileDataGrid({
   showRowMarkers,
   disabled,
   reloadToken,
+  focusRequestToken,
   propertyField,
   onMutation,
   onDeleteRows,
