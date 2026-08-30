@@ -532,6 +532,19 @@ export function ServeApp() {
           void refresh()
         }
       },
+      onInstanceChange() {
+        if (disposed) return
+        disposed = true
+        client.terminate()
+        clientRef.current = null
+        snapshotRef.current = null
+        setClient(null)
+        setSnapshot(null)
+        setManifest(null)
+        setNotice(null)
+        setBootPhase("loading")
+        setBootAttempt((attempt) => attempt + 1)
+      },
       onOpen() {
         if (hasOpened) void refresh()
         hasOpened = true

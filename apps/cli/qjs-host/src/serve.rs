@@ -1542,23 +1542,34 @@ fn mutation_event(method: &str, result: &str) -> Option<RevisionEvent> {
     })
 }
 
-fn respond_with_event_stream(request: tiny_http::Request, subscription: EventSubscription) {
-    thread::spawn(move || {
-        // tiny_http's chunked encoder buffers 8 KiB before flushing, which
-        // defeats low-volume SSE. Own the response writer here so every
-        // revision frame is visible to other browsers immediately.
-        let mut writer = request.into_writer();
-        if writer
-            .write_all(
-                b"HTTP/1.1 200 OK\r\n\
+fn event_stream_preamble(instance_id: &str) -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\n\
 Content-Type: text/event-stream; charset=utf-8\r\n\
 Cache-Control: private, no-cache, no-store\r\n\
 X-Accel-Buffering: no\r\n\
 X-Content-Type-Options: nosniff\r\n\
 Connection: close\r\n\
 \r\n\
-retry: 1000\n\n",
-            )
+retry: 1000\n\n\
+event: instance\ndata: {}\n\n",
+        serde_json::json!({ "instanceId": instance_id })
+    )
+}
+
+fn respond_with_event_stream(
+    request: tiny_http::Request,
+    subscription: EventSubscription,
+    instance_id: String,
+) {
+    thread::spawn(move || {
+        // tiny_http's chunked encoder buffers 8 KiB before flushing, which
+        // defeats low-volume SSE. Own the response writer here so every
+        // revision frame is visible to other browsers immediately.
+        let mut writer = request.into_writer();
+        let preamble = event_stream_preamble(&instance_id);
+        if writer
+            .write_all(preamble.as_bytes())
             .and_then(|()| writer.flush())
             .is_err()
         {
@@ -1709,6 +1720,7 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
     let host = QjsHost::new(&state)?;
     let network = ServeNetwork::new(port, lan, requested_host, publish)?;
     let events = EventHub::default();
+    let serve_instance_id = random_token();
     let assets_mounted = assets_dir.is_some();
     let assets = match assets_dir.as_deref() {
         Some(root) => AssetMount::new(root)?,
@@ -1808,7 +1820,11 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
 
         if method == "GET" && url_path == "/api/events" {
             let client_id = query_parameter(&request_url, "client");
-            respond_with_event_stream(request, events.subscribe(client_id));
+            respond_with_event_stream(
+                request,
+                events.subscribe(client_id),
+                serve_instance_id.clone(),
+            );
             continue;
         }
 
@@ -2123,11 +2139,11 @@ mod tests {
 
     use super::{
         allowed_host, allowed_origin, collision_asset_name, decode_asset_uri,
-        detect_url_image_media_type, detected_remote_asset_media_type, is_lan_address,
-        is_proxy_synthetic_url_image_address, is_public_url_image_address, mutation_event,
-        query_parameter, query_text_parameter, remote_asset_name, validated_remote_asset_url,
-        AssetEntry, AssetLeaseSource, AssetMount, EmbeddedUi, EventHub, RevisionEvent,
-        ServeNetwork,
+        detect_url_image_media_type, detected_remote_asset_media_type, event_stream_preamble,
+        is_lan_address, is_proxy_synthetic_url_image_address, is_public_url_image_address,
+        mutation_event, query_parameter, query_text_parameter, remote_asset_name,
+        validated_remote_asset_url, AssetEntry, AssetLeaseSource, AssetMount, EmbeddedUi, EventHub,
+        RevisionEvent, ServeNetwork,
     };
 
     fn relative_asset_references(source: &str) -> Vec<&str> {
@@ -2357,6 +2373,15 @@ mod tests {
 
         assert_eq!(hub.subscribers.lock().unwrap().len(), 1);
         assert_eq!(connected.try_recv().unwrap().revision, "9");
+    }
+
+    #[test]
+    fn event_stream_identifies_the_serve_process() {
+        let preamble = event_stream_preamble("serve-instance-one");
+        assert!(preamble.contains("Cache-Control: private, no-cache, no-store\r\n"));
+        assert!(preamble.contains(
+            "retry: 1000\n\nevent: instance\ndata: {\"instanceId\":\"serve-instance-one\"}\n\n"
+        ));
     }
 
     #[test]

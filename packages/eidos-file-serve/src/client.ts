@@ -225,6 +225,7 @@ export async function establishCliHostSession(
 
 export function subscribeCliHostEvents(callbacks: {
   onRevision: (revision: string) => void
+  onInstanceChange: () => void
   onOpen?: () => void
   onError?: () => void
 }): () => void {
@@ -232,6 +233,41 @@ export function subscribeCliHostEvents(callbacks: {
   const events = new EventSource(
     `/api/events?client=${encodeURIComponent(HTTP_CLIENT_ID)}`
   )
+  let serveInstanceId: string | undefined
+  let reconnectPending = false
+  let reconnectFallback: ReturnType<typeof setTimeout> | undefined
+
+  const clearReconnectFallback = () => {
+    if (reconnectFallback === undefined) return
+    clearTimeout(reconnectFallback)
+    reconnectFallback = undefined
+  }
+
+  events.addEventListener("instance", (event) => {
+    try {
+      const value = JSON.parse((event as MessageEvent<string>).data) as {
+        instanceId?: unknown
+      }
+      if (typeof value.instanceId !== "string" || !value.instanceId) return
+      if (
+        serveInstanceId !== undefined &&
+        value.instanceId !== serveInstanceId
+      ) {
+        clearReconnectFallback()
+        events.close()
+        callbacks.onInstanceChange()
+        return
+      }
+      serveInstanceId = value.instanceId
+      if (reconnectPending) {
+        reconnectPending = false
+        clearReconnectFallback()
+        callbacks.onOpen?.()
+      }
+    } catch {
+      // Ignore malformed instance frames and keep the current session.
+    }
+  })
   events.addEventListener("revision", (event) => {
     try {
       const value = JSON.parse((event as MessageEvent<string>).data) as {
@@ -244,9 +280,27 @@ export function subscribeCliHostEvents(callbacks: {
       // Ignore malformed event payloads and wait for the next revision.
     }
   })
-  if (callbacks.onOpen) events.addEventListener("open", callbacks.onOpen)
+  if (callbacks.onOpen) {
+    events.addEventListener("open", () => {
+      if (serveInstanceId === undefined) {
+        callbacks.onOpen?.()
+        return
+      }
+      reconnectPending = true
+      clearReconnectFallback()
+      reconnectFallback = setTimeout(() => {
+        reconnectFallback = undefined
+        if (!reconnectPending) return
+        reconnectPending = false
+        callbacks.onOpen?.()
+      }, 1_000)
+    })
+  }
   if (callbacks.onError) events.addEventListener("error", callbacks.onError)
-  return () => events.close()
+  return () => {
+    clearReconnectFallback()
+    events.close()
+  }
 }
 
 function bytesToBase64(bytes: Uint8Array): string {

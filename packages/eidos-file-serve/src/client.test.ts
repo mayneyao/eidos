@@ -5,6 +5,7 @@ import {
   createBrowserId,
   establishCliHostSession,
   fetchCliHostManifest,
+  subscribeCliHostEvents,
   uploadCliHostAssets,
 } from "./client"
 import type { CliHostAccessError } from "./client"
@@ -14,6 +15,64 @@ afterEach(() => {
 })
 
 describe("CLI Serve browser pairing", () => {
+  it("reopens the app after reconnecting to a different Serve process", () => {
+    class TestEventSource {
+      static current: TestEventSource | undefined
+      readonly close = vi.fn()
+      private readonly listeners = new Map<
+        string,
+        Array<(event: { data?: string }) => void>
+      >()
+
+      constructor(readonly url: string) {
+        TestEventSource.current = this
+      }
+
+      addEventListener(
+        type: string,
+        listener: (event: { data?: string }) => void
+      ) {
+        const listeners = this.listeners.get(type) ?? []
+        listeners.push(listener)
+        this.listeners.set(type, listeners)
+      }
+
+      emit(type: string, value?: unknown) {
+        const event = value === undefined ? {} : { data: JSON.stringify(value) }
+        for (const listener of this.listeners.get(type) ?? []) listener(event)
+      }
+    }
+
+    const onOpen = vi.fn()
+    const onInstanceChange = vi.fn()
+    vi.stubGlobal("EventSource", TestEventSource)
+
+    const unsubscribe = subscribeCliHostEvents({
+      onRevision: vi.fn(),
+      onOpen,
+      onInstanceChange,
+    })
+    const events = TestEventSource.current!
+    expect(events.url).toContain("/api/events?client=")
+
+    events.emit("open")
+    events.emit("instance", { instanceId: "serve-one" })
+    expect(onOpen).toHaveBeenCalledTimes(1)
+
+    events.emit("open")
+    events.emit("instance", { instanceId: "serve-one" })
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onInstanceChange).not.toHaveBeenCalled()
+
+    events.emit("open")
+    events.emit("instance", { instanceId: "serve-two" })
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(events.close).toHaveBeenCalledOnce()
+    expect(onInstanceChange).toHaveBeenCalledOnce()
+
+    unsubscribe()
+  })
+
   it("accepts a strict read-only Publish manifest", async () => {
     vi.stubGlobal(
       "fetch",
