@@ -1,28 +1,23 @@
 ## What's new
 
-### Follow updates from the sidebar
+### Rename Select options with an impact review
 
-Available updates now appear in the lower-left sidebar instead of staying
-hidden in Settings. The compact status shows download progress and becomes a
-clear restart action as soon as the update is ready.
+Select and Multi-select options can now be renamed without leaving existing
+records or Saved Views behind. Before applying a rename, Eidos Lite shows how
+many rows and dependencies will change and asks for confirmation when values
+must be rewritten or merged.
 
-### Plan in month or week views
+### Arrange the workspace around your task
 
-Calendar views can switch between Month and Week layouts. Week view gives each
-day more room and keeps more cards visible, while busy days in either layout
-can expand independently without collapsing another day.
+The main workspace now keeps navigation, the active file, Version History, and
+Terminal panels in a more stable layout. Terminal placement remains
+configurable, diff navigation no longer shifts as panels change, and externally
+updated Eidos Files refresh without reopening the Space.
 
-### Read cleaner Kanban boards
+### Return keyboard focus where you expect
 
-Kanban columns use lighter framing while cards retain a subtle boundary. Cards
-also omit the redundant grouping field and title icon by default, making the
-record title and useful fields easier to scan.
-
-### Keep pasted attachment names readable
-
-Images pasted from the clipboard no longer accumulate generic names such as
-`image (1).png`. Eidos Lite gives unnamed clipboard images readable timestamped
-names while preserving meaningful filenames and the original names of files
-you drag into a record.
+Leaving a menu with Escape restores the last active Grid cell. The configurable
+file-content focus command now places an editable caret in Source documents and
+preserves an existing selection when focus returns.
 
 No migration is required.
