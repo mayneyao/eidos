@@ -12,6 +12,7 @@ The production build consumes source directly from:
 - `apps/eidos-file-web`
 - `packages/eidos-file`
 - `packages/eidos-file-ui`
+- `packages/eidos-file-serve`
 
 Inspect `apps/eidos-file-web/wrangler.jsonc` and require the Worker name `editor-eidos-space`, custom domain `editor.eidos.space`, and static asset directory `./dist` to remain intentional.
 

@@ -17,6 +17,11 @@ Use this runbook for `apps/eidos-lite-desktop` and `lite-v*` tags.
   AppImage plus Debian packages.
 - `apps/download` routes stable and beta updater metadata independently by
   platform and architecture.
+- Lite packaging builds the current `apps/cli` workspace per platform and
+  bundles the resulting `eidos` binary as its Publish engine. It does not
+  download a standalone CLI Release. CLI Publish/Collect/Runtime changes may
+  therefore require a Lite release even when the Lite renderer is unchanged;
+  unrelated CLI commands and docs do not.
 - A bundled Graft update changes the Lite dependency and lockfile; it does not
   modify a sibling Graft repository or publish Graft itself.
 
@@ -40,9 +45,11 @@ manifest completely:
 ```bash
 git tag --list 'lite-v*' --sort=-v:refname | head -10
 git log --oneline <previous-lite-tag>..HEAD -- \
-  apps/eidos-lite-desktop apps/download packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
+  apps/eidos-lite-desktop apps/download apps/cli \
+  packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
 git diff --stat <previous-lite-tag>..HEAD -- \
-  apps/eidos-lite-desktop apps/download packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
+  apps/eidos-lite-desktop apps/download apps/cli \
+  packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
 ```
 
 Rewrite `apps/eidos-lite-desktop/RELEASE_NOTES.md` as concise user-facing
@@ -105,6 +112,11 @@ git diff --check
 When Graft changes, also run the real Graft integration suite and inspect the
 resolved dependency in the lockfile. Do not substitute mocked transport tests
 for the real SDK gate.
+
+When the bundled CLI Publish engine changed, also run the CLI formatter,
+Clippy, workspace tests, and Publish/Collect integration coverage. Include only
+outcomes observable through Lite in Lite release notes; the standalone CLI has
+its own release history.
 
 ## Tag and monitor
 

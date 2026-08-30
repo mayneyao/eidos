@@ -1,13 +1,25 @@
 ---
 name: eidos-release
-description: Release Eidos File npm packages, Eidos Lite, the standalone Eidos CLI, and editor.eidos.space. Use when asked to prepare or publish packages or a Lite/CLI version, write or audit release notes, deploy the Web editor, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
+description: Assess release impact and release Eidos File npm packages, Eidos Lite, the standalone CLI, editor.eidos.space, or Eidos Publish. Use when asked what changes need shipping, to prepare or publish a version, deploy a hosted surface, write or audit release notes, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
 ---
 
 # Eidos Release
 
-Release one explicit surface at a time. Establish exact inputs, run the
-surface-specific gates, create an immutable tag or deployment, monitor the
-publisher, and prove the public result.
+Assess all affected surfaces before mutating release state, then release one
+explicit surface at a time. Establish exact inputs, run the surface-specific
+gates, create an immutable tag or deployment, monitor the publisher, and prove
+the public result.
+
+## Assess release impact
+
+When the user asks what needs to ship, or the change set crosses shared Runtime,
+UI, CLI, or hosted-service boundaries, read
+[references/release-impact.md](references/release-impact.md). Produce an
+evidence-backed plan before choosing versions, tags, or deployment commands.
+
+Impact assessment may identify multiple required surfaces. That does not make
+their versions, publishers, release notes, or proof interchangeable. Prepare and
+prove each selected surface independently.
 
 ## Select the release surface
 
@@ -21,6 +33,8 @@ publisher, and prove the public result.
   [references/cli-release.md](references/cli-release.md).
 - **Eidos File Web:** read
   [references/web-editor-release.md](references/web-editor-release.md).
+- **Eidos Publish:** read
+  [references/publish-service-release.md](references/publish-service-release.md).
 
 Do not conflate version namespaces or publishers:
 
@@ -32,8 +46,10 @@ Do not conflate version namespaces or publishers:
 - CLI uses `cli-v<semver>` and
   `.github/workflows/build-and-release-cli.yml`.
 - Web deploys independently through Wrangler to `editor.eidos.space`.
-- Package, Lite, CLI, and Web publication remain independent even when the same
-  source changes affect more than one surface.
+- Publish deploys independently through Wrangler to `publish.eidos.space`, its
+  Container Runtime, and the public `*.eidos.ink` viewer path owned by Relay.
+- Package, Lite, CLI, Web, and Publish delivery remain independent even when
+  the same source changes affect more than one surface.
 
 ## Preserve release invariants
 
@@ -98,8 +114,10 @@ Release, artifact, or plausible consumer.
 
 For tagged releases, verify local and remote SHAs, the exact workflow run, the
 GitHub Release, its non-empty curated body, expected assets, checksums, and an
-installed or packaged smoke. For Web deployments, verify the active Cloudflare
-version plus fresh public HTML, service worker, bundle, and user-flow evidence.
+installed or packaged smoke. For Web and Publish deployments, verify the active
+Cloudflare version plus commit provenance, fresh public assets, and relevant
+production user-flow evidence. Publish proof must also cover its Container
+Runtime and public viewer path.
 
 Always report the released/deployed commit, tag or deployment ID, public URLs,
 validation performed, artifact/platform coverage, and branch/worktree state.

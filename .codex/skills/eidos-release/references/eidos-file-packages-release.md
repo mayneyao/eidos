@@ -15,8 +15,10 @@ Use this procedure for the public npm packages
 - Never run `npm publish` locally and never obtain a local npm token for this
   release. The workflow uses npm Trusted Publishing through GitHub OIDC and
   requests only a short-lived token.
-- A package release does not imply a Lite, CLI, Web, or GitHub Release. Prepare
-  and prove those surfaces independently when requested.
+- A package release does not imply a Lite, CLI, Web, Publish, or GitHub Release.
+  Shared package changes may create downstream candidates, but prepare and prove
+  those surfaces independently when requested. Use
+  [release-impact.md](release-impact.md) to trace source into each consumer.
 
 The npm package settings must name `mayneyao/eidos` and
 `publish-eidos-file-packages.yml` as the trusted publisher for both packages.

@@ -1,7 +1,7 @@
 # Standalone Eidos CLI release
 
 Use this runbook for the Rust CLI in `apps/cli`. A CLI release is independent
-from Eidos Lite and Eidos File Web.
+from Eidos Lite, Eidos File Web, and Eidos Publish.
 
 ## Establish the release contract
 
@@ -19,6 +19,11 @@ from Eidos Lite and Eidos File Web.
 - Eidos Lite version bumps never rewrite the CLI version.
 - CLI Releases set `make_latest: false` so they do not replace the repository's
   Eidos Lite Latest Release pointer.
+- the CLI embeds the committed QuickJS Runtime in `qjs-host/bundle` and Serve UI
+  in `qjs-host/ui`. The same source and generated UI are also inputs to the
+  Publish Container, and Lite builds the CLI as its bundled Publish engine.
+  Releasing the CLI does not deploy Publish or release Lite; assess both
+  independently when the changed CLI path affects them.
 - `https://download.eidos.space/cli/install.sh`, `/cli/install.ps1`, and
   `/cli/latest` are served by `apps/download`. CLI tags never participate in
   Lite installer or update selection.
@@ -43,6 +48,18 @@ cd apps/cli
 cargo check --workspace
 git diff -- Cargo.toml Cargo.lock
 ```
+
+Before the version commit, refresh committed generated inputs when their source
+changed:
+
+```bash
+pnpm --filter @eidos.space/eidos-file build:quickjs
+pnpm --filter @eidos.space/eidos-file-serve build
+git diff -- apps/cli/qjs-host/bundle apps/cli/qjs-host/ui
+```
+
+Reject stale or unrelated generated churn. The generated diff is delivery
+evidence, not a separate release-note feature.
 
 For a stable version, write the exact version without a `v` prefix to
 `apps/cli/LATEST`. Rewrite `apps/cli/RELEASE_NOTES.md` for the exact version and

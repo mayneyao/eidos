@@ -1,4 +1,4 @@
 interface:
   display_name: "Eidos Release"
-  short_description: "Release Eidos Lite, CLI, and Web editor"
-  default_prompt: "Use $eidos-release to validate and publish an Eidos Lite, CLI, or editor.eidos.space release with remote proof."
+  short_description: "Plan and release Eidos product surfaces"
+  default_prompt: "Use $eidos-release to determine which Eidos surfaces need shipping, then validate and publish each selected release or deployment with remote proof."
