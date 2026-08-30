@@ -1,26 +1,25 @@
 ## What's new
 
-### Publish and collect from the terminal
+### Initialize the matching Agent Skill without Node.js
 
-`eidos publish` now publishes Eidos Files, Markdown documents, and Form views
-with attachments, access controls, visible upload progress, unchanged-version
-detection, and bounded delta uploads for later Eidos File versions. The new
-`eidos collect` command imports committed Form responses back into the source
-Eidos File with retry-safe receipts.
+The CLI now carries its matching Eidos Skill. Run `eidos skills init` in a
+Space or project, use `--space <DIR>` for another location, or add `--global`
+to install it for the current user. Repeating the command is safe, while
+`--force` is required before replacing locally edited Skill files.
 
-### Build complete agent workflows with intent commands
+### Plan in month or week views
 
-Agents can now upsert rows by business key, apply mixed row batches, and create
-or manage Tables, Fields, Relations, and saved Views through user-facing
-commands. Revision checks, exact-match assertions, dry runs, and atomic
-validation remain part of the mutation boundary.
+The editor opened by `eidos serve` can switch Calendar views between month and
+week layouts. Week view shows more records per day, multiple busy days can stay
+expanded independently, and datetime records retain a compact time label
+without introducing an hourly schedule grid.
 
-### Work with Formula and Lookup fields
+### Read cards and published pages with less visual noise
 
-New `formula` and `lookup` commands preview, create, update, and delete derived
-Fields through the canonical Eidos Runtime. `query`, `context`, and `validate`
-now evaluate Formula, Lookup, and inverse Relation values instead of exposing
-an incomplete stored-only projection.
+Kanban cards in the embedded editor now use quieter group surfaces, lighter
+card boundaries, and native-looking scrollbars. Published views also adapt
+their toolbar, grid markers, frozen columns, and record panel to narrow browser
+windows.
 
 ## Use with an Agent
 
@@ -46,5 +45,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.37.1 and verify the downloaded archive against the
+The installers select v0.38.0 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
