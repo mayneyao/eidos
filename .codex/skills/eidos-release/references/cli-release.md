@@ -94,10 +94,11 @@ git diff --check
 Also inspect `install.sh`, `install.ps1`, the workflow matrix, archive names,
 checksum verification, `RELEASE_NOTES.md`, and the branded download routes
 whenever the release surface changes. The notes MUST describe only standalone
-CLI changes, contain the matching immutable Skill tag, and pass comparison with
-the previous three stable or previous three prerelease CLI bodies. Before the
-first CLI Release—or after changing those public routes—deploy `apps/download`
-separately and verify all three branded URLs.
+CLI changes, document initialization from the Skill bundled in that exact CLI
+version, and pass comparison with the previous three stable or previous three
+prerelease CLI bodies. Before the first CLI Release—or after changing those
+public routes—deploy `apps/download` separately and verify all three branded
+URLs.
 
 ## Tag and monitor
 
