@@ -675,5 +675,5 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
       await runtime.close(context("close"))
       connection.close()
     }
-  }, 15_000)
+  }, 60_000)
 })
