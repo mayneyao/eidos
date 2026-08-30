@@ -104,10 +104,6 @@
       "type": "durable-object",
       "storage": "sqlite",
     },
-    "PublishTenantDurableObject": {
-      "type": "durable-object",
-      "state": "deleted",
-    },
     "PublishTenant": {
       "type": "durable-object",
       "storage": "sqlite",
