@@ -28,7 +28,10 @@ export function EidosFileRecordAttachmentEditor({
   disabled: boolean
   onChange: (value: string | null) => Promise<void>
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
   onError?: (error: unknown) => void
 }) {
   const { assetSession, translate: t } = useEidosFileUI()
@@ -93,7 +96,7 @@ export function EidosFileRecordAttachmentEditor({
         const files = Array.from(event.dataTransfer.files)
         if (files.length === 0) return
         setImporting(true)
-        void onImportDroppedFiles(files)
+        void onImportDroppedFiles(files, "drop")
           .then(append)
           .catch((error) => onError?.(error))
           .finally(() => setImporting(false))

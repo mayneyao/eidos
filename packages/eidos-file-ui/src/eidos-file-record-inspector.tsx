@@ -166,7 +166,10 @@ export interface EidosFileRecordInspectorProps {
   onRetryLoad?: () => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string

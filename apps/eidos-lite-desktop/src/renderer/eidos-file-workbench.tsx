@@ -142,8 +142,12 @@ export function EidosFileWorkbench({
     [source.sessionId]
   )
   const importDroppedFiles = useMemo(
-    () => (files: File[]) =>
-      window.eidosLite.importDroppedEidosFileAssets(source.sessionId, files),
+    () => (files: File[], importSource?: "drop" | "paste") =>
+      window.eidosLite.importDroppedEidosFileAssets(
+        source.sessionId,
+        files,
+        importSource
+      ),
     [source.sessionId]
   )
 

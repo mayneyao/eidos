@@ -3457,7 +3457,7 @@ describe("EidosFileGrid", () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(onImportDroppedFiles).toHaveBeenCalledWith([dropped])
+    expect(onImportDroppedFiles).toHaveBeenCalledWith([dropped], "drop")
     expect(onCellEdit).toHaveBeenCalledWith(row, fileField, expect.any(String))
     expect(
       decodeEidosFileValues(
@@ -3550,7 +3550,7 @@ describe("EidosFileGrid", () => {
     })
     const handledPaste = dispatchPaste(pasted)
     expect(handledPaste.defaultPrevented).toBe(true)
-    expect(onImportDroppedFiles).toHaveBeenCalledWith([pasted])
+    expect(onImportDroppedFiles).toHaveBeenCalledWith([pasted], "paste")
     await act(async () => {
       await Promise.resolve()
       await Promise.resolve()

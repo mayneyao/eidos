@@ -24,7 +24,10 @@ export interface EidosFileRelatedRecordPanelProps {
   onMutation?: (result: EidosFileRowMutationResult) => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
 }
 
 /** Host-neutral detail panel for a record reached through a relation field. */

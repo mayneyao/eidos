@@ -243,7 +243,10 @@ export interface EidosFileGridProps {
   onRowCountChange?: (rowCount: number | null) => void
   searchResultIndex?: number | null
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onSearchRelation?: (
     field: EidosFileFieldInfo,
@@ -2189,7 +2192,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
 
   const importFilesIntoAttachmentCell = useCallback(
-    (location: Item, files: readonly File[]): boolean => {
+    (
+      location: Item,
+      files: readonly File[],
+      source: "drop" | "paste"
+    ): boolean => {
       if (!onImportDroppedFiles || gridWriteLocked || files.length === 0) {
         return false
       }
@@ -2201,7 +2208,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ) {
         return false
       }
-      void onImportDroppedFiles([...files])
+      void onImportDroppedFiles([...files], source)
         .then((imported) => {
           if (imported.length === 0) return
           const fileCell = current as EidosFileAttachmentCell
@@ -2237,7 +2244,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     (location, transfer) => {
       setFileDropHighlights([])
       if (!transfer) return
-      importFilesIntoAttachmentCell(location, Array.from(transfer.files))
+      importFilesIntoAttachmentCell(
+        location,
+        Array.from(transfer.files),
+        "drop"
+      )
     },
     [importFilesIntoAttachmentCell]
   )
@@ -2264,7 +2275,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       if (!files || files.length === 0) return
       const cell = history.gridSelection?.current?.cell
       if (!cell) return
-      if (!importFilesIntoAttachmentCell(cell, Array.from(files))) return
+      if (!importFilesIntoAttachmentCell(cell, Array.from(files), "paste"))
+        return
       event.preventDefault()
     }
     ownerDocument.addEventListener("paste", onPasteFiles, true)

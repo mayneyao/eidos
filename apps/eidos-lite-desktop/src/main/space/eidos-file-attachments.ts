@@ -20,6 +20,18 @@ const SAFE_RASTER_MEDIA_TYPES = new Set([
   "image/webp",
   "image/x-icon",
 ])
+const GENERIC_PASTED_IMAGE_STEM =
+  /^(?:clipboard[-_ ]?image|image|pasted[-_ ]?image)(?:\s*\(\d+\)|[-_ ]+\d+)?$/iu
+const PASTED_ASSET_EXTENSION: Readonly<Record<string, string>> = {
+  "application/pdf": ".pdf",
+  "image/avif": ".avif",
+  "image/bmp": ".bmp",
+  "image/gif": ".gif",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/x-icon": ".ico",
+}
 const URI_SCHEME = /^[a-z][a-z\d+.-]*:/iu
 const URI_REFERENCE_ASCII =
   /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?#\[\]]|%[0-9A-Fa-f]{2})*$/u
@@ -229,6 +241,40 @@ export function detectAssetMediaType(
   )
 }
 
+function pastedAssetTimestamp(timestamp: number): string {
+  const iso = new Date(timestamp).toISOString()
+  return `${iso.slice(0, 10).replaceAll("-", "")}-${iso
+    .slice(11, 19)
+    .replaceAll(":", "")}-${iso.slice(20, 23)}`
+}
+
+function pastedAssetName(
+  source: EidosFileAttachmentDataSource,
+  timestamp: number,
+  ordinal: number
+): string | null {
+  const portableName = portableEidosFileAssetName(source.name)
+  const originalExtension = path.extname(portableName)
+  const originalStem = portableName.slice(
+    0,
+    Math.max(0, portableName.length - originalExtension.length)
+  )
+  if (
+    source.name.trim().length > 0 &&
+    !GENERIC_PASTED_IMAGE_STEM.test(originalStem)
+  ) {
+    return null
+  }
+
+  const mediaType = detectAssetMediaType(source.data, portableName)
+  const extension = PASTED_ASSET_EXTENSION[mediaType] ?? originalExtension
+  const kind = mediaType.startsWith("image/")
+    ? "pasted-image"
+    : "pasted-attachment"
+  const suffix = ordinal === 1 ? "" : `-${ordinal}`
+  return `${kind}-${pastedAssetTimestamp(timestamp)}${suffix}${extension}`
+}
+
 async function requireOrdinarySource(sourcePath: string) {
   if (!path.isAbsolute(sourcePath)) {
     throw new Error("Attachment source path must be absolute")
@@ -423,6 +469,7 @@ function importedAssetRecord(
 export interface EidosFileAttachmentDataSource {
   name: string
   data: Uint8Array
+  source?: "drop" | "paste"
 }
 
 async function writeDataToStage(
@@ -470,9 +517,17 @@ export async function importEidosFileAttachmentData(
     entry: FileEntry
   }> = []
   const published: string[] = []
+  const importedAt = Date.now()
+  let pastedAssetOrdinal = 0
   try {
     for (const source of sources) {
-      const name = uniqueAssetName(existingKeys, source.name)
+      const generatedName =
+        source.source === "paste"
+          ? pastedAssetName(source, importedAt, pastedAssetOrdinal + 1)
+          : null
+      if (generatedName) pastedAssetOrdinal += 1
+      const requestedName = generatedName ?? source.name
+      const name = uniqueAssetName(existingKeys, requestedName)
       const stagePath = path.join(assetRoot, `.eidos-asset-${randomUUID()}.tmp`)
       const targetPath = path.join(assetRoot, name)
       let written: Awaited<ReturnType<typeof writeDataToStage>>

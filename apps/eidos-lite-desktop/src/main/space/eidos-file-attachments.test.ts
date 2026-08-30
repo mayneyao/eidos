@@ -108,6 +108,40 @@ describe("Eidos Lite attachment files", () => {
     ).resolves.toEqual(Buffer.from(PNG))
   })
 
+  it("replaces generic pasted image names with stable timestamped names", async () => {
+    const root = await fixture()
+    const now = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(Date.UTC(2026, 7, 30, 1, 2, 3, 456))
+    try {
+      const imported = await importEidosFileAttachmentData(
+        root,
+        "project/data.eidos",
+        [
+          { name: "diagram.png", data: PNG, source: "paste" },
+          { name: "image (1).png", data: PNG, source: "paste" },
+          { name: "", data: PNG, source: "paste" },
+          { name: "image.png", data: PNG, source: "drop" },
+        ]
+      )
+
+      expect(imported.entries.map((entry) => entry.name)).toEqual([
+        "diagram.png",
+        "pasted-image-20260830-010203-456.png",
+        "pasted-image-20260830-010203-456-2.png",
+        "image.png",
+      ])
+      expect(imported.entries.map((entry) => entry.uri)).toEqual([
+        "assets/diagram.png",
+        "assets/pasted-image-20260830-010203-456.png",
+        "assets/pasted-image-20260830-010203-456-2.png",
+        "assets/image.png",
+      ])
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   it("rejects clipboard imports above the count limit", async () => {
     const root = await fixture()
     await expect(

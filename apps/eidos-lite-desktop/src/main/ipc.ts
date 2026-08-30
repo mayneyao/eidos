@@ -559,11 +559,16 @@ function requiredAssetDataSources(
     value.length > EIDOS_LITE_ASSET_IMPORT_COUNT_MAX ||
     value.some((candidate) => {
       if (typeof candidate !== "object" || candidate === null) return true
-      const { name, data } = candidate as { name?: unknown; data?: unknown }
+      const { name, data, source } = candidate as {
+        name?: unknown
+        data?: unknown
+        source?: unknown
+      }
       return (
         typeof name !== "string" ||
         !(data instanceof Uint8Array) ||
-        data.byteLength > EIDOS_LITE_ASSET_BYTES_MAX
+        data.byteLength > EIDOS_LITE_ASSET_BYTES_MAX ||
+        (source !== undefined && source !== "drop" && source !== "paste")
       )
     })
   ) {

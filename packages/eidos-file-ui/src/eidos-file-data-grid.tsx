@@ -67,7 +67,10 @@ export interface EidosFileDataGridProps {
   onSearchResultCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
 }
 
 function isStaleRevision(error: unknown): boolean {

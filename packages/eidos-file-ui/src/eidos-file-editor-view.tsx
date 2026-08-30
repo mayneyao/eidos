@@ -63,7 +63,10 @@ export interface EidosFileViewRendererProps {
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
 }
 
 export interface EidosFileCommandContext {

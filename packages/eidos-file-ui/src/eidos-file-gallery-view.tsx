@@ -230,7 +230,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string

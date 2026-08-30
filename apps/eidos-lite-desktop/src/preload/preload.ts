@@ -165,7 +165,7 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
   selectEidosFileAssets: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.selectEidosFileAssets, sessionId),
-  importDroppedEidosFileAssets: async (sessionId, files) => {
+  importDroppedEidosFileAssets: async (sessionId, files, source) => {
     if (files.length === 0) return []
     const importedByIndex: (FileEntry | null)[] = files.map(() => null)
     const sourcePaths: string[] = []
@@ -182,6 +182,7 @@ const api: EidosLiteApi = {
         dataSources.push({
           name: file.name,
           data: new Uint8Array(await file.arrayBuffer()),
+          ...(source ? { source } : {}),
         })
       }
     }

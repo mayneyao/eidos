@@ -20,6 +20,7 @@ import type {
 export interface EidosLiteAssetDataSource {
   name: string
   data: Uint8Array
+  source?: "drop" | "paste"
 }
 
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
@@ -1633,7 +1634,8 @@ export interface EidosLiteApi {
   selectEidosFileAssets(sessionId: string): Promise<FileEntry[]>
   importDroppedEidosFileAssets(
     sessionId: string,
-    files: readonly File[]
+    files: readonly File[],
+    source?: "drop" | "paste"
   ): Promise<FileEntry[]>
   acquireRemoteEidosFileAsset(
     sessionId: string,

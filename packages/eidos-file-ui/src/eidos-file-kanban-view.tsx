@@ -933,7 +933,10 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
   onImportFiles?: () => Promise<FileEntry[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
+  onImportDroppedFiles?: (
+    files: File[],
+    source?: "drop" | "paste"
+  ) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string
