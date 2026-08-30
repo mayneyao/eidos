@@ -1,25 +1,23 @@
 ## What's new
 
-### Initialize the matching Agent Skill without Node.js
+### Rename Select options safely in Serve
 
-The CLI now carries its matching Eidos Skill. Run `eidos skills init` in a
-Space or project, use `--space <DIR>` for another location, or add `--global`
-to install it for the current user. Repeating the command is safe, while
-`--force` is required before replacing locally edited Skill files.
+The editor opened by `eidos serve` can rename Select and Multi-select options
+without leaving existing records or Saved Views behind. Before applying a
+rename, it shows how many rows and dependencies will change and asks for
+confirmation when values must be rewritten or merged.
 
-### Plan in month or week views
+### Keep Saved Views valid as schemas evolve
 
-The editor opened by `eidos serve` can switch Calendar views between month and
-week layouts. Week view shows more records per day, multiple busy days can stay
-expanded independently, and datetime records retain a compact time label
-without introducing an hourly schedule grid.
+`eidos validate` now reports Saved View filters, groups, and sorts that refer to
+missing fields. The embedded Runtime also preserves compatible legacy query
+storage while normalizing field references, so schema changes do not silently
+leave views with stale dependencies.
 
-### Read cards and published pages with less visual noise
+### Return to the last Grid cell after menus close
 
-Kanban cards in the embedded editor now use quieter group surfaces, lighter
-card boundaries, and native-looking scrollbars. Published views also adapt
-their toolbar, grid markers, frozen columns, and record panel to narrow browser
-windows.
+Pressing Escape to close a Grid menu now restores focus to the last active cell
+in the editor opened by `eidos serve`, keeping keyboard navigation continuous.
 
 ## Use with an Agent
 
@@ -45,5 +43,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.38.0 and verify the downloaded archive against the
+The installers select v0.39.0 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
