@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 use crate::ddl::{EIDOS_FILE_APPLICATION_ID, EIDOS_FILE_SCHEMA_VERSION};
 use crate::error::{EidosError, Result};
@@ -193,6 +194,85 @@ fn expected_sql_type(field: &FieldMeta) -> Option<&'static str> {
     }
 }
 
+fn validate_view_query_field_references(
+    value: &JsonValue,
+    field_ids: &HashSet<&str>,
+) -> std::result::Result<(), String> {
+    match value {
+        JsonValue::Array(values) => {
+            for value in values {
+                validate_view_query_field_references(value, field_ids)?;
+            }
+        }
+        JsonValue::Object(object) => {
+            for key in ["fieldId", "field"] {
+                if let Some(value) = object.get(key) {
+                    let field_id = value
+                        .as_str()
+                        .ok_or_else(|| format!("View query {key} must be a string"))?;
+                    if !field_ids.contains(field_id) {
+                        return Err("View filter references an unknown Field ID".into());
+                    }
+                }
+            }
+            for value in object.values() {
+                validate_view_query_field_references(value, field_ids)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn validate_view_layout_field_references(
+    value: &JsonValue,
+    field_ids: &HashSet<&str>,
+) -> std::result::Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "View layout_json must be an object".to_string())?;
+    for key in ["cardFields", "fieldOrder", "hiddenFields"] {
+        let Some(value) = object.get(key) else {
+            continue;
+        };
+        let values = value
+            .as_array()
+            .ok_or_else(|| format!("View {key} must contain Field IDs from its Table"))?;
+        if !values
+            .iter()
+            .all(|value| value.as_str().is_some_and(|id| field_ids.contains(id)))
+        {
+            return Err(format!("View {key} must contain Field IDs from its Table"));
+        }
+    }
+    for key in ["coverField", "groupField", "dateField"] {
+        let Some(value) = object.get(key) else {
+            continue;
+        };
+        if !value.is_null()
+            && !value
+                .as_str()
+                .is_some_and(|field_id| field_ids.contains(field_id))
+        {
+            return Err(format!(
+                "View {key} must be null or a Field ID from its Table"
+            ));
+        }
+    }
+    if let Some(value) = object.get("fieldWidths") {
+        let widths = value
+            .as_object()
+            .ok_or_else(|| "View fieldWidths must be an object".to_string())?;
+        if widths
+            .keys()
+            .any(|field_id| !field_ids.contains(field_id.as_str()))
+        {
+            return Err("View fieldWidths keys must be Field IDs from its Table".into());
+        }
+    }
+    Ok(())
+}
+
 fn validate_structural(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bool {
     let tables = match load_tables(conn) {
         Ok(tables) => tables,
@@ -286,6 +366,70 @@ fn validate_structural(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> 
                 "view names must be unique within a table under SQLite NOCASE",
                 format!("/views/{}/name", view.id),
             );
+        }
+        if !table_ids.contains(view.table_id.as_str()) {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-reference-invalid",
+                "View references an unknown Table",
+                format!("/views/{}/tableId", view.id),
+            );
+            continue;
+        }
+        let view_field_ids: HashSet<&str> = fields
+            .iter()
+            .filter(|field| field.table_id == view.table_id)
+            .map(|field| field.id.as_str())
+            .collect();
+        for (raw, member) in [(&view.query_json, "query"), (&view.layout_json, "layout")] {
+            if !jcs::is_canonical_jcs(raw) {
+                diagnostic(
+                    diagnostics,
+                    Severity::Error,
+                    "file-json-invalid",
+                    format!("View {member}_json is not canonical JSON"),
+                    format!("/views/{}/{member}", view.id),
+                );
+                continue;
+            }
+            let value: JsonValue = match serde_json::from_str::<JsonValue>(raw) {
+                Ok(value) if value.is_object() => value,
+                Ok(_) => {
+                    diagnostic(
+                        diagnostics,
+                        Severity::Error,
+                        "file-json-invalid",
+                        format!("View {member}_json must be an object"),
+                        format!("/views/{}/{member}", view.id),
+                    );
+                    continue;
+                }
+                Err(error) => {
+                    diagnostic(
+                        diagnostics,
+                        Severity::Error,
+                        "file-json-invalid",
+                        error.to_string(),
+                        format!("/views/{}/{member}", view.id),
+                    );
+                    continue;
+                }
+            };
+            let result = if member == "query" {
+                validate_view_query_field_references(&value, &view_field_ids)
+            } else {
+                validate_view_layout_field_references(&value, &view_field_ids)
+            };
+            if let Err(message) = result {
+                diagnostic(
+                    diagnostics,
+                    Severity::Error,
+                    "file-reference-invalid",
+                    message,
+                    format!("/views/{}/{member}", view.id),
+                );
+            }
         }
     }
     let mut table_names = HashSet::new();
@@ -657,6 +801,45 @@ pub fn validate(
 mod tests {
     use super::*;
     use crate::ddl;
+    use crate::id::generate_uuidv7;
+    use crate::model::{FieldType, load_fields, load_tables, load_views};
+    use crate::schema_ops::{NewField, SchemaLeafChange, apply_initial_table};
+    use serde_json::json;
+
+    fn file_with_view() -> (tempfile::TempDir, Connection, String, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("views.eidos");
+        ddl::create_eidos_file(&path, Some("Views")).unwrap();
+        let mut conn = Connection::open(path).unwrap();
+        ddl::configure_connection(&conn).unwrap();
+        apply_initial_table(
+            &mut conn,
+            &SchemaLeafChange::CreateTable {
+                client_key: "tasks".into(),
+                name: "Tasks".into(),
+                position: Some("0".into()),
+                settings: None,
+                fields: vec![NewField {
+                    client_key: "title".into(),
+                    name: "Title".into(),
+                    kind: FieldType::Text,
+                    position: Some("0".into()),
+                    nullable: None,
+                    settings: None,
+                    definition: None,
+                }],
+                label_field_client_key: Some("title".into()),
+            },
+        )
+        .unwrap();
+        let table = load_tables(&conn).unwrap().remove(0);
+        let field = load_fields(&conn)
+            .unwrap()
+            .into_iter()
+            .find(|field| field.table_id == table.id && field.name == "Title")
+            .unwrap();
+        (dir, conn, table.id, field.id)
+    }
 
     #[test]
     fn fresh_file_passes_full_validation() {
@@ -667,5 +850,52 @@ mod tests {
         ddl::configure_connection(&conn).unwrap();
         let report = validate(&conn, ValidationLevel::Full, 100).unwrap();
         assert!(report.valid, "{:?}", report.diagnostics);
+    }
+
+    #[test]
+    fn canonical_saved_view_field_references_pass_full_validation() {
+        let (_dir, conn, _table_id, field_id) = file_with_view();
+        let view = load_views(&conn).unwrap().remove(0);
+        let query_json = jcs::to_jcs(&json!({
+            "filter": {"fieldId": field_id, "op": "eq", "value": "Roadmap"},
+            "sort": [{"direction": "asc", "fieldId": field_id}],
+        }))
+        .unwrap();
+        conn.execute(
+            "UPDATE eidos__views SET query_json=? WHERE id=?",
+            [&query_json, &view.id],
+        )
+        .unwrap();
+
+        let report = validate(&conn, ValidationLevel::Full, 100).unwrap();
+        assert!(report.valid, "{:?}", report.diagnostics);
+    }
+
+    #[test]
+    fn saved_view_unknown_field_reference_fails_full_validation() {
+        let (_dir, conn, _table_id, _field_id) = file_with_view();
+        let view = load_views(&conn).unwrap().remove(0);
+        let unknown_field_id = generate_uuidv7();
+        let query_json = jcs::to_jcs(&json!({
+            "filter": {
+                "fieldId": unknown_field_id,
+                "op": "eq",
+                "value": "Roadmap"
+            }
+        }))
+        .unwrap();
+        conn.execute(
+            "UPDATE eidos__views SET query_json=? WHERE id=?",
+            [&query_json, &view.id],
+        )
+        .unwrap();
+
+        let report = validate(&conn, ValidationLevel::Full, 100).unwrap();
+        assert!(!report.valid);
+        assert!(report.diagnostics.iter().any(|item| {
+            item.code == "file-reference-invalid"
+                && item.path == format!("/views/{}/query", view.id)
+                && item.message == "View filter references an unknown Field ID"
+        }));
     }
 }

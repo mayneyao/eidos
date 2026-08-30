@@ -264,6 +264,25 @@ const FILTER_OPERATORS = new Set([
   "is-between",
   "is-relative-to-today",
 ])
+const RUNTIME_FILTER_OPERATORS = new Set([
+  "is-null",
+  "is-not-null",
+  "eq",
+  "ne",
+  "lt",
+  "lte",
+  "gt",
+  "gte",
+  "between",
+  "in",
+  "contains",
+  "starts-with",
+  "ends-with",
+  "has-any",
+  "has-all",
+  "relation-has",
+  "relative-date",
+])
 
 const LEVELS: Record<EidosFileValidationLevel, number> = {
   identity: 0,
@@ -1605,29 +1624,159 @@ export function validateEidosFile(
           let unsupportedQuery = Object.keys(query).some(
             (key) => key !== "filter" && key !== "sort"
           )
+          const hasOnlyKeys = (
+            value: Record<string, unknown>,
+            keys: string[]
+          ): boolean => Object.keys(value).every((key) => keys.includes(key))
           const checkFilter = (value: unknown): void => {
             if (!value || typeof value !== "object" || Array.isArray(value)) {
               throw new Error("View filter nodes must be objects")
             }
             const node = value as Record<string, unknown>
-            if (Array.isArray(node.args)) {
-              if (typeof node.op !== "string") {
-                throw new Error("View filter group has an invalid op")
-              }
-              if (
-                (node.op !== "and" && node.op !== "or") ||
-                Object.keys(node).some((key) => key !== "op" && key !== "args")
-              ) {
-                unsupportedQuery = true
-              }
+            if (node.op === "and" || node.op === "or") {
+              if (!Array.isArray(node.args))
+                throw new Error("View filter group must contain args")
+              if (!hasOnlyKeys(node, ["op", "args"])) unsupportedQuery = true
               node.args.forEach(checkFilter)
               return
             }
-            if (typeof node.field !== "string" || !fieldIds.has(node.field)) {
-              throw new Error("View filter references an unknown Field ID")
+            if (node.op === "not") {
+              if (!("arg" in node))
+                throw new Error("View filter negation must contain an arg")
+              if (!hasOnlyKeys(node, ["op", "arg"])) unsupportedQuery = true
+              checkFilter(node.arg)
+              return
             }
             if (typeof node.op !== "string") {
               throw new Error("View filter rule has an invalid operator")
+            }
+
+            if ("fieldId" in node) {
+              if (
+                typeof node.fieldId !== "string" ||
+                !fieldIds.has(node.fieldId)
+              ) {
+                throw new Error("View filter references an unknown Field ID")
+              }
+              if (!RUNTIME_FILTER_OPERATORS.has(node.op)) {
+                unsupportedQuery = true
+                return
+              }
+              const field = fieldsById.get(node.fieldId)!
+              const list =
+                field.storageCodec === "json_array" ||
+                field.storageCodec === "relation"
+              if (
+                list &&
+                ["lt", "lte", "gt", "gte", "starts-with", "ends-with"].includes(
+                  node.op
+                )
+              ) {
+                throw new Error(
+                  "View filter uses a scalar comparison on a list Field"
+                )
+              }
+              if (node.op === "is-null" || node.op === "is-not-null") {
+                if (!hasOnlyKeys(node, ["op", "fieldId"]))
+                  unsupportedQuery = true
+                return
+              }
+              if (["eq", "ne", "lt", "lte", "gt", "gte"].includes(node.op)) {
+                if (!("value" in node) || node.value === null)
+                  throw new Error("View filter operand must be non-null")
+                if (!hasOnlyKeys(node, ["op", "fieldId", "value"]))
+                  unsupportedQuery = true
+                if (
+                  field.type === "relation" &&
+                  (!Array.isArray(node.value) ||
+                    !node.value.every(isEidosFileUuid))
+                ) {
+                  throw new Error(
+                    "View Relation filter values must be canonical Row IDs"
+                  )
+                }
+                return
+              }
+              if (node.op === "between") {
+                if (!("lower" in node) || !("upper" in node))
+                  throw new Error("View between filter is missing an operand")
+                if (node.lower === null || node.upper === null)
+                  throw new Error("View between operands must be non-null")
+                if (!hasOnlyKeys(node, ["op", "fieldId", "lower", "upper"]))
+                  unsupportedQuery = true
+                return
+              }
+              if (["in", "has-any", "has-all"].includes(node.op)) {
+                if (
+                  !Array.isArray(node.values) ||
+                  node.values.some((entry) => entry === null)
+                ) {
+                  throw new Error(
+                    "View membership filter values must be a non-null array"
+                  )
+                }
+                if (!hasOnlyKeys(node, ["op", "fieldId", "values"]))
+                  unsupportedQuery = true
+                if (
+                  field.type === "relation" &&
+                  !(node.op === "in"
+                    ? node.values.every(
+                        (value) =>
+                          Array.isArray(value) && value.every(isEidosFileUuid)
+                      )
+                    : node.values.every(isEidosFileUuid))
+                ) {
+                  throw new Error(
+                    "View Relation filter values must be canonical Row IDs"
+                  )
+                }
+                return
+              }
+              if (["contains", "starts-with", "ends-with"].includes(node.op)) {
+                if (typeof node.value !== "string")
+                  throw new Error("View text filter value must be a string")
+                if (!hasOnlyKeys(node, ["op", "fieldId", "value"]))
+                  unsupportedQuery = true
+                return
+              }
+              if (node.op === "relation-has") {
+                if (field.type !== "relation" || !isEidosFileUuid(node.rowId)) {
+                  throw new Error(
+                    "View Relation filter must reference a canonical Row ID"
+                  )
+                }
+                if (!hasOnlyKeys(node, ["op", "fieldId", "rowId"]))
+                  unsupportedQuery = true
+                return
+              }
+              if (node.op === "relative-date") {
+                if (
+                  field.type !== "date" &&
+                  field.type !== "datetime" &&
+                  field.type !== "created-time" &&
+                  field.type !== "last-edited-time"
+                ) {
+                  throw new Error(
+                    "View relative filter requires a Date or Datetime Field"
+                  )
+                }
+                if (
+                  !["past", "next", "this"].includes(String(node.direction)) ||
+                  !["day", "week", "month", "year"].includes(String(node.unit))
+                ) {
+                  throw new Error("View relative filter value is invalid")
+                }
+                if (
+                  !hasOnlyKeys(node, ["op", "fieldId", "direction", "unit"])
+                ) {
+                  unsupportedQuery = true
+                }
+                return
+              }
+            }
+
+            if (typeof node.field !== "string" || !fieldIds.has(node.field)) {
+              throw new Error("View filter references an unknown Field ID")
             }
             if (!FILTER_OPERATORS.has(node.op)) {
               unsupportedQuery = true
@@ -1724,12 +1873,18 @@ export function validateEidosFile(
             if (!Array.isArray(query.sort))
               throw new Error("View sort must be an array")
             for (const item of query.sort) {
+              const fieldId =
+                item && !Array.isArray(item) && typeof item === "object"
+                  ? typeof item.fieldId === "string"
+                    ? item.fieldId
+                    : item.field
+                  : undefined
               if (
                 !item ||
                 Array.isArray(item) ||
                 typeof item !== "object" ||
-                typeof item.field !== "string" ||
-                !fieldIds.has(item.field)
+                typeof fieldId !== "string" ||
+                !fieldIds.has(fieldId)
               ) {
                 throw new Error(
                   "View sort contains an invalid Field reference or direction"
@@ -1742,7 +1897,10 @@ export function validateEidosFile(
                   item.nulls !== "last") ||
                 Object.keys(item).some(
                   (key) =>
-                    key !== "field" && key !== "direction" && key !== "nulls"
+                    key !== "field" &&
+                    key !== "fieldId" &&
+                    key !== "direction" &&
+                    key !== "nulls"
                 )
               ) {
                 unsupportedQuery = true

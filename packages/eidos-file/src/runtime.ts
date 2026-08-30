@@ -442,9 +442,16 @@ function transformOptionValue(
   }
   if (!value || typeof value !== "object") return value
   const object = value as Record<string, unknown>
+  const referencesField = object.fieldId === fieldId || object.field === fieldId
   const next: Record<string, unknown> = {}
   for (const [key, entry] of Object.entries(object)) {
-    if (object.field === fieldId && key === "value") {
+    if (
+      referencesField &&
+      (key === "value" ||
+        key === "values" ||
+        key === "lower" ||
+        key === "upper")
+    ) {
       next[key] = Array.isArray(entry)
         ? entry.map((item) =>
             typeof item === "string" ? (changes.get(item) ?? item) : item
@@ -677,32 +684,152 @@ function filterToStorage(
 ): Record<string, unknown> | null {
   const normalized = normalizeEidosFileFilter(filter)
   if (!normalized) return null
-  const byKey = new Map<string, string>()
+  const byKey = new Map<string, EidosFileFieldInfo>()
   for (const field of fields) {
     if (field.id) {
-      byKey.set(field.id, field.id)
-      byKey.set(field.tableColumnName, field.id)
-      byKey.set(field.name, field.id)
+      byKey.set(field.id, field)
+      byKey.set(field.tableColumnName, field)
+      byKey.set(field.name, field)
     }
   }
-  const convert = (group: EidosFileFilterGroup): Record<string, unknown> => {
-    const args: Record<string, unknown>[] = []
-    for (const child of group.children) {
-      if (child.type === "group") args.push(convert(child))
-      else {
-        const field = byKey.get(child.field)
-        if (field) {
-          args.push({
-            field,
-            op: child.operator,
-            ...("value" in child ? { value: child.value } : {}),
-          })
-        }
+  const convertRule = (
+    rule: EidosFileFilterRule
+  ): Record<string, unknown> | null => {
+    const field = byKey.get(rule.field)
+    if (!field?.id) return null
+    const fieldId = field.id
+    const list =
+      field.storageCodec === "json_array" || field.storageCodec === "relation"
+    const values = Array.isArray(rule.value) ? rule.value : [rule.value ?? null]
+    const scalar = values[0] ?? null
+    const equalityValue =
+      list && Array.isArray(rule.value) ? rule.value : scalar
+    const requireValue = () => {
+      if (scalar === null) {
+        throw new EidosFileError(
+          "invalid-query",
+          `Saved View filter ${rule.operator} requires an operand`
+        )
+      }
+      return scalar
+    }
+    const requireValues = () => {
+      if (values.some((value) => value === null)) {
+        throw new EidosFileError(
+          "invalid-query",
+          `Saved View filter ${rule.operator} requires non-null operands`
+        )
+      }
+      return values
+    }
+    const membership = (): Record<string, unknown> =>
+      list
+        ? { fieldId, op: "has-any", values: requireValues() }
+        : { fieldId, op: "in", values: requireValues() }
+
+    if (rule.operator === "is-relative-to-today") {
+      const relative = rule.value
+      if (
+        !relative ||
+        typeof relative !== "object" ||
+        Array.isArray(relative) ||
+        !("direction" in relative) ||
+        !("unit" in relative) ||
+        !["past", "next", "this"].includes(String(relative.direction)) ||
+        !["day", "week", "month", "year"].includes(String(relative.unit))
+      ) {
+        throw new EidosFileError(
+          "invalid-query",
+          "Saved View relative date filter is invalid"
+        )
+      }
+      return {
+        direction: relative.direction,
+        fieldId,
+        op: "relative-date",
+        unit: relative.unit,
       }
     }
-    return { args, op: group.conjunction }
+    if (rule.operator === "is-between") {
+      if (
+        !Array.isArray(rule.value) ||
+        rule.value.length !== 2 ||
+        rule.value.some((value) => value === null)
+      ) {
+        throw new EidosFileError(
+          "invalid-query",
+          "Saved View between filter is invalid"
+        )
+      }
+      return {
+        fieldId,
+        lower: rule.value[0],
+        op: "between",
+        upper: rule.value[1],
+      }
+    }
+    switch (rule.operator) {
+      case "is-empty":
+        return list
+          ? { fieldId, op: "eq", value: [] }
+          : { fieldId, op: "is-null" }
+      case "is-not-empty":
+        return list
+          ? { fieldId, op: "ne", value: [] }
+          : { fieldId, op: "is-not-null" }
+      case "equals":
+        return equalityValue === null
+          ? { fieldId, op: "is-null" }
+          : { fieldId, op: "eq", value: equalityValue }
+      case "not-equals":
+        return equalityValue === null
+          ? { fieldId, op: "is-not-null" }
+          : { fieldId, op: "ne", value: equalityValue }
+      case "less-than":
+        return { fieldId, op: "lt", value: requireValue() }
+      case "less-than-or-equal":
+        return { fieldId, op: "lte", value: requireValue() }
+      case "greater-than":
+        return { fieldId, op: "gt", value: requireValue() }
+      case "greater-than-or-equal":
+        return { fieldId, op: "gte", value: requireValue() }
+      case "contains":
+        return list
+          ? membership()
+          : { fieldId, op: "contains", value: String(requireValue()) }
+      case "not-contains":
+        return {
+          arg: list
+            ? membership()
+            : { fieldId, op: "contains", value: String(requireValue()) },
+          op: "not",
+        }
+      case "starts-with":
+        return { fieldId, op: "starts-with", value: String(requireValue()) }
+      case "ends-with":
+        return { fieldId, op: "ends-with", value: String(requireValue()) }
+      case "is-any-of":
+        return membership()
+      case "is-all-of":
+        return { fieldId, op: "has-all", values: requireValues() }
+      case "is-none-of":
+        return { arg: membership(), op: "not" }
+    }
   }
-  return convert(normalized)
+  const convertGroup = (
+    group: EidosFileFilterGroup
+  ): Record<string, unknown> => {
+    const node: Record<string, unknown> = {
+      args: group.children.flatMap((child) => {
+        const converted =
+          child.type === "group" ? convertGroup(child) : convertRule(child)
+        return converted ? [converted] : []
+      }),
+      op: group.conjunction,
+    }
+    return group.negated ? { arg: node, op: "not" } : node
+  }
+  return convertGroup(normalized)
 }
 
 function filterFromStorage(
@@ -742,7 +869,185 @@ function filterFromStorage(
       children,
     }
   }
-  return normalizeEidosFileFilter(convert(value))
+  const runtimeGroup = (
+    conjunction: "and" | "or",
+    children: EidosFileFilterGroup["children"]
+  ): EidosFileFilterGroup => ({ type: "group", conjunction, children })
+  const convertRuntime = (
+    input: unknown
+  ): EidosFileFilterGroup["children"][number] | null => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null
+    const node = input as Record<string, unknown>
+    if ((node.op === "and" || node.op === "or") && Array.isArray(node.args)) {
+      return runtimeGroup(
+        node.op,
+        node.args.flatMap((child) => {
+          const converted = convertRuntime(child)
+          return converted ? [converted] : []
+        })
+      )
+    }
+    if (node.op === "not" && node.arg !== undefined) {
+      const child = convertRuntime(node.arg)
+      if (!child) return null
+      const nested =
+        child.type === "group" ? child : runtimeGroup("and", [child])
+      return { ...nested, negated: nested.negated !== true }
+    }
+    if (
+      typeof node.fieldId !== "string" ||
+      !ids.has(node.fieldId) ||
+      typeof node.op !== "string"
+    ) {
+      return null
+    }
+    const field = node.fieldId
+    if (node.op === "between") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-between",
+        value: [node.lower, node.upper] as never,
+      }
+    }
+    if (node.op === "relative-date") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-relative-to-today",
+        value: { direction: node.direction, unit: node.unit } as never,
+      }
+    }
+    if (node.op === "has-all") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-all-of",
+        value: node.values as never,
+      }
+    }
+    if (node.op === "in") {
+      return runtimeGroup(
+        "or",
+        (node.values as unknown[]).map((entry) => ({
+          type: "rule" as const,
+          field,
+          operator: "equals" as const,
+          value: entry as never,
+        }))
+      )
+    }
+    if (node.op === "is-null" || node.op === "is-not-null") {
+      return {
+        type: "rule",
+        field,
+        operator: node.op === "is-null" ? "equals" : "not-equals",
+        value: null,
+      }
+    }
+    const operator = RUNTIME_TO_COMPATIBILITY_OPERATOR[node.op]
+    if (!operator) return null
+    return {
+      type: "rule",
+      field,
+      operator,
+      ...(node.op === "has-any"
+        ? { value: node.values as never }
+        : node.op === "relation-has"
+          ? { value: [node.rowId] as never }
+          : "value" in node
+            ? { value: node.value as never }
+            : {}),
+    }
+  }
+  const containsRuntimeField = (input: unknown): boolean => {
+    if (!input || typeof input !== "object") return false
+    if (Array.isArray(input)) return input.some(containsRuntimeField)
+    const node = input as Record<string, unknown>
+    return (
+      typeof node.fieldId === "string" ||
+      Object.values(node).some(containsRuntimeField)
+    )
+  }
+  if (!containsRuntimeField(value)) {
+    return normalizeEidosFileFilter(convert(value))
+  }
+  const converted = convertRuntime(value)
+  return normalizeEidosFileFilter(
+    converted?.type === "group"
+      ? converted
+      : converted
+        ? runtimeGroup("and", [converted])
+        : null
+  )
+}
+
+const RUNTIME_TO_COMPATIBILITY_OPERATOR: Record<
+  string,
+  EidosFileFilterRule["operator"] | undefined
+> = {
+  eq: "equals",
+  ne: "not-equals",
+  lt: "less-than",
+  lte: "less-than-or-equal",
+  gt: "greater-than",
+  gte: "greater-than-or-equal",
+  contains: "contains",
+  "starts-with": "starts-with",
+  "ends-with": "ends-with",
+  "has-any": "is-any-of",
+  "relation-has": "is-any-of",
+}
+
+const RUNTIME_FILTER_OPERATORS = new Set([
+  "is-null",
+  "is-not-null",
+  "eq",
+  "ne",
+  "lt",
+  "lte",
+  "gt",
+  "gte",
+  "between",
+  "in",
+  "contains",
+  "starts-with",
+  "ends-with",
+  "has-any",
+  "has-all",
+  "relation-has",
+  "relative-date",
+])
+
+function sortsFromStorage(value: unknown): EidosFileSort[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
+    const sort = entry as Record<string, unknown>
+    const field =
+      typeof sort.fieldId === "string"
+        ? sort.fieldId
+        : typeof sort.field === "string"
+          ? sort.field
+          : null
+    if (!field) return []
+    return [
+      {
+        field,
+        direction:
+          sort.direction === "desc" ? ("desc" as const) : ("asc" as const),
+        nulls: sort.nulls === "first" ? ("first" as const) : ("last" as const),
+      },
+    ]
+  })
+}
+
+function sortsToStorage(sorts: EidosFileSort[]): Record<string, unknown>[] {
+  return sorts.map((sort) => ({
+    direction: sort.direction,
+    fieldId: sort.field,
+    ...(sort.nulls === "first" ? { nulls: "first" } : {}),
+  }))
 }
 
 function storedViewQueryStatus(
@@ -794,12 +1099,70 @@ function storedViewQueryStatus(
     if (!value || typeof value !== "object" || Array.isArray(value))
       return false
     const node = value as Record<string, unknown>
-    if (Array.isArray(node.args)) {
+    if ((node.op === "and" || node.op === "or") && Array.isArray(node.args)) {
       return (
-        (node.op === "and" || node.op === "or") &&
         Object.keys(node).every((key) => key === "op" || key === "args") &&
         node.args.every(filterSupported)
       )
+    }
+    if (node.op === "not") {
+      return (
+        Object.keys(node).every((key) => key === "op" || key === "arg") &&
+        filterSupported(node.arg)
+      )
+    }
+    if (typeof node.fieldId === "string") {
+      if (
+        !fieldIds.has(node.fieldId) ||
+        typeof node.op !== "string" ||
+        !RUNTIME_FILTER_OPERATORS.has(node.op)
+      ) {
+        return false
+      }
+      const allowed = new Set(["fieldId", "op"])
+      if (
+        [
+          "eq",
+          "ne",
+          "lt",
+          "lte",
+          "gt",
+          "gte",
+          "contains",
+          "starts-with",
+          "ends-with",
+        ].includes(node.op)
+      ) {
+        allowed.add("value")
+        if (!("value" in node) || node.value === null) return false
+      } else if (["in", "has-any", "has-all"].includes(node.op)) {
+        allowed.add("values")
+        if (!Array.isArray(node.values)) return false
+      } else if (node.op === "between") {
+        allowed.add("lower")
+        allowed.add("upper")
+        if (
+          !("lower" in node) ||
+          !("upper" in node) ||
+          node.lower === null ||
+          node.upper === null
+        ) {
+          return false
+        }
+      } else if (node.op === "relation-has") {
+        allowed.add("rowId")
+        if (typeof node.rowId !== "string") return false
+      } else if (node.op === "relative-date") {
+        allowed.add("direction")
+        allowed.add("unit")
+        if (
+          !["past", "next", "this"].includes(String(node.direction)) ||
+          !["day", "week", "month", "year"].includes(String(node.unit))
+        ) {
+          return false
+        }
+      }
+      return Object.keys(node).every((key) => allowed.has(key))
     }
     if (
       typeof node.field !== "string" ||
@@ -823,15 +1186,22 @@ function storedViewQueryStatus(
         return "unsupported"
       }
       const sort = value as Record<string, unknown>
+      const field =
+        typeof sort.fieldId === "string"
+          ? sort.fieldId
+          : typeof sort.field === "string"
+            ? sort.field
+            : null
+      const fieldKey = typeof sort.fieldId === "string" ? "fieldId" : "field"
       if (
-        typeof sort.field !== "string" ||
-        !fieldIds.has(sort.field) ||
+        !field ||
+        !fieldIds.has(field) ||
         (sort.direction !== "asc" && sort.direction !== "desc") ||
         (sort.nulls !== undefined &&
           sort.nulls !== "first" &&
           sort.nulls !== "last") ||
         Object.keys(sort).some(
-          (key) => key !== "field" && key !== "direction" && key !== "nulls"
+          (key) => key !== fieldKey && key !== "direction" && key !== "nulls"
         )
       ) {
         return "unsupported"
@@ -2707,7 +3077,7 @@ export class EidosFileRuntime {
     const query = jsonObject(row.query_json)
     const layout = jsonObject(row.layout_json)
     const queryStatus = storedViewQueryStatus(query, fields)
-    const storedSorts = normalizeEidosFileSorts(query.sort)
+    const storedSorts = sortsFromStorage(query.sort)
     const fieldIds = new Set(
       fields.flatMap((field) => (field.id ? [field.id] : []))
     )
@@ -2853,7 +3223,7 @@ export class EidosFileRuntime {
             ...(filterToStorage(input.filter, fields)
               ? { filter: filterToStorage(input.filter, fields) }
               : {}),
-            ...(sorts.length > 0 ? { sort: sorts } : {}),
+            ...(sorts.length > 0 ? { sort: sortsToStorage(sorts) } : {}),
           }),
           canonicalizeEidosFileJson({
             ...properties,
@@ -2973,7 +3343,7 @@ export class EidosFileRuntime {
                 ...(filterToStorage(next.filter, fields)
                   ? { filter: filterToStorage(next.filter, fields) }
                   : {}),
-                ...(sorts.length ? { sort: sorts } : {}),
+                ...(sorts.length ? { sort: sortsToStorage(sorts) } : {}),
               })
             : currentRow.query_json,
           layoutChanged
