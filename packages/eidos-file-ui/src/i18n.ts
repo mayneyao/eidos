@@ -423,6 +423,17 @@ const zh: EidosFileUIMessageOverrides = {
   "{option} option value": "{option}选项值",
   "Delete {option}": "删除{option}",
   Options: "选项",
+  "Review option rename": "确认重命名选项",
+  "Records updated": "将更新的记录",
+  "Affected saved views": "受影响的已保存视图",
+  "Records with duplicate choices collapsed": "将合并重复选项的记录",
+  "The destination value already exists. Renaming will merge both values and cannot preserve their distinction.":
+    "目标值已经存在。重命名会合并这两个值，无法继续区分它们。",
+  "Matching cells, the default option, and saved view filters are updated atomically.":
+    "匹配的单元格、默认选项和已保存视图筛选会以原子方式一起更新。",
+  "Additional impact details were omitted.": "还有部分影响详情未显示。",
+  "Merge options": "合并选项",
+  "Rename option": "重命名选项",
   "Add the first option below.": "在下方添加第一个选项。",
   "New option value": "新选项值",
   "Option values must be unique.": "选项值不能重复。",

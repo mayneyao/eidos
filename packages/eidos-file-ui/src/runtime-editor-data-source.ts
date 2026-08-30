@@ -62,6 +62,7 @@ import {
   type SchemaChange,
   type SchemaDescriptor,
   type SchemaLeafChange,
+  type SchemaPreflightResult,
   type StoredFieldType,
   type TableDescriptor,
   type TypeRef,
@@ -72,6 +73,7 @@ import {
 } from "@eidos.space/eidos-file"
 
 import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileSchemaImpactRequiredError } from "./schema-impact-confirmation"
 
 interface RowDeletionUndoRuntimeClient extends RuntimeClient {
   mutateRowsWithUndo?(
@@ -88,6 +90,11 @@ interface RowDeletionUndoRuntimeClient extends RuntimeClient {
 
 const DEFAULT_PAGE_SIZE = 250
 const MAX_INFERRED_FIELD_OPTIONS = 1_000
+const pendingSchemaImpacts = new WeakMap<
+  object,
+  { changeKey: string; plan: SchemaPreflightResult }
+>()
+
 const INFERRED_OPTION_COLORS = [
   "gray",
   "brown",
@@ -210,7 +217,6 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private fieldsByTable = new Map<string, FieldDescriptor[]>()
   private views = new Map<string, ViewDescriptor>()
   private cursorCache = new Map<string, Map<number, string | undefined>>()
-
   constructor(
     readonly runtime: RuntimeClient,
     readonly path: string
@@ -1074,7 +1080,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       try {
         await this.commitSchema(
           leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves },
-          changes.confirmLossy === true
+          changes.confirmLossy === true,
+          (changes.optionValueChanges?.length ?? 0) > 0
         )
       } catch (error) {
         if (changes.type === undefined) throw error
@@ -1475,19 +1482,39 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
   }
 
-  private async commitSchema(change: SchemaChange, confirmLossy = false) {
+  private async commitSchema(
+    change: SchemaChange,
+    confirmLossy = false,
+    requireImpactConfirmation = false
+  ) {
     const expectedRevision = this.revision()
-    const plan = await this.runtime.preflightSchema(
-      { change, expectedRevision },
-      this.context("schema-preflight")
-    )
+    const changeKey = canonicalizeEidosFileJson(change)
+    const pendingSchemaImpact = pendingSchemaImpacts.get(this)
+    const confirmedImpactPlan =
+      requireImpactConfirmation &&
+      confirmLossy &&
+      pendingSchemaImpact?.changeKey === changeKey &&
+      pendingSchemaImpact.plan.baseRevision === expectedRevision
+        ? pendingSchemaImpact.plan
+        : null
+    const plan =
+      confirmedImpactPlan ??
+      (await this.runtime.preflightSchema(
+        { change, expectedRevision },
+        this.context("schema-preflight")
+      ))
     if (plan.classification === "forbidden") {
+      pendingSchemaImpacts.delete(this)
       throw new Error(
         plan.warnings
           .map((warning) => warning.message)
           .filter(Boolean)
           .join("; ") || "Schema change is forbidden"
       )
+    }
+    if (requireImpactConfirmation && !confirmedImpactPlan) {
+      pendingSchemaImpacts.set(this, { changeKey, plan })
+      throw new EidosFileSchemaImpactRequiredError(plan)
     }
     if (plan.classification === "explicit-lossy" && !confirmLossy) {
       throw new Error(
@@ -1498,18 +1525,25 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           "Schema change would discard data and requires explicit confirmation"
       )
     }
-    const result = await this.runtime.mutateSchema(
-      {
-        planToken: plan.planToken,
-        expectedRevision,
-        actionsHash: plan.actionsHash,
-        ...(plan.classification === "explicit-lossy" && confirmLossy
-          ? { confirmLossy: true as const }
-          : {}),
-      },
-      this.context("schema-mutate")
-    )
+    let result
+    try {
+      result = await this.runtime.mutateSchema(
+        {
+          planToken: plan.planToken,
+          expectedRevision,
+          actionsHash: plan.actionsHash,
+          ...(plan.classification === "explicit-lossy" && confirmLossy
+            ? { confirmLossy: true as const }
+            : {}),
+        },
+        this.context("schema-mutate")
+      )
+    } catch (error) {
+      if (confirmedImpactPlan) pendingSchemaImpacts.delete(this)
+      throw error
+    }
     this.acceptRevision(result.revision)
+    if (confirmedImpactPlan) pendingSchemaImpacts.delete(this)
     return result
   }
 

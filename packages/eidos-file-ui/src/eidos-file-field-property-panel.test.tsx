@@ -10,6 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
+import { EidosFileSchemaImpactRequiredError } from "./schema-impact-confirmation"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -506,7 +507,7 @@ describe("EidosFileFieldPropertyPanel", () => {
       root.render(
         <EidosFileFieldPropertyPanel
           field={field("select", {
-            options: [{ name: "Done", color: "green" }],
+            options: [{ name: "Done", color: "green", icon: "check-circle" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -533,9 +534,108 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
 
     expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
-      property: { options: [{ name: "Complete", color: "green" }] },
+      property: {
+        options: [{ name: "Complete", color: "green", icon: "check-circle" }],
+      },
       optionValueChanges: [{ from: "Done", to: "Complete" }],
     })
+  })
+
+  it("shows Runtime impact and requires confirmation before merging option values", async () => {
+    const onUpdate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new EidosFileSchemaImpactRequiredError({
+          classification: "explicit-lossy",
+          affectedRows: "3",
+          dependencyCount: "1",
+          warnings: [
+            {
+              code: "option-merge-loss",
+              severity: "warning",
+              message: "Existing option values will merge",
+            },
+          ],
+          warningsTruncated: false,
+          valueChanges: [
+            {
+              code: "option-value-renamed",
+              rows: "3",
+              tableId: "0198c72d-82b5-7000-8000-000000000010",
+              fieldId: "0198c72d-82b5-7000-8000-000000000001",
+            },
+            {
+              code: "option-duplicate-collapsed",
+              rows: "1",
+              tableId: "0198c72d-82b5-7000-8000-000000000010",
+              fieldId: "0198c72d-82b5-7000-8000-000000000001",
+            },
+          ],
+          valueChangesTruncated: false,
+        })
+      )
+      .mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("select", {
+            options: [{ name: "Done", color: "green" }],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const optionInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Done option value"]'
+    )
+    await act(async () => {
+      optionInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(optionInput, "Complete")
+      optionInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      optionInput?.blur()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Review option rename")
+    expect(container.textContent).toContain("Records updated3")
+    expect(container.textContent).toContain("Affected saved views1")
+    expect(container.textContent).toContain(
+      "Records with duplicate choices collapsed1"
+    )
+    expect(container.textContent).toContain(
+      "The destination value already exists"
+    )
+    const pendingInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Done option value"]'
+    )
+    expect(pendingInput?.value).toBe("Done")
+    expect(pendingInput?.disabled).toBe(true)
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+
+    const confirm = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Merge options"
+    )
+    await act(async () => {
+      confirm?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.any(Object), {
+      property: { options: [{ name: "Complete", color: "green" }] },
+      optionValueChanges: [{ from: "Done", to: "Complete" }],
+      confirmLossy: true,
+    })
+    expect(container.textContent).not.toContain("Review option rename")
   })
 
   it("cancels an inline Select option rename with Escape", async () => {

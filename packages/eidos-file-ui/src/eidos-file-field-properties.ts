@@ -64,9 +64,19 @@ export function eidosFileSelectOptions(
   field: EidosFileFieldInfo
 ): EidosFileSelectOption[] {
   const canonical = parseEidosFileSelectOptions(field.property)
+  const rawOptions = Array.isArray(field.property?.options)
+    ? field.property.options
+    : []
   const options =
     canonical.length > 0
-      ? canonical
+      ? canonical.map((option, index) => ({
+          ...(rawOptions[index] &&
+          typeof rawOptions[index] === "object" &&
+          !Array.isArray(rawOptions[index])
+            ? (rawOptions[index] as Record<string, unknown>)
+            : {}),
+          ...option,
+        }))
       : Array.isArray(field.property?.options)
         ? field.property.options.flatMap((option) => {
             if (

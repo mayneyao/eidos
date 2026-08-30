@@ -896,6 +896,7 @@ describe("EidosRuntimeEditorDataSource", () => {
       expect.not.objectContaining({ confirmLossy: true }),
       expect.any(Object)
     )
+    expect(fixture.preflightSchema).toHaveBeenCalledTimes(1)
   })
 
   it("maps a Record Label Field update to the canonical schema leaf", async () => {
@@ -946,6 +947,91 @@ describe("EidosRuntimeEditorDataSource", () => {
       expect.objectContaining({ confirmLossy: true }),
       expect.any(Object)
     )
+  })
+
+  it("returns structured impact before applying an option rename", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    const changes = {
+      property: {
+        options: [{ name: "Reliability", color: "blue" }],
+      },
+      optionValueChanges: [{ from: "Quality", to: "Reliability" }],
+    }
+
+    await expect(
+      source.updateField(PROJECTS, SIGNALS, changes)
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: {
+        classification: "lossless-rewrite",
+        affectedRows: "1",
+        dependencyCount: "0",
+      },
+    })
+    expect(fixture.plannedChange()).toEqual({
+      kind: "batch",
+      changes: [
+        {
+          kind: "set-field-settings",
+          fieldId: SIGNALS,
+          settings: {
+            options: [{ name: "Reliability", color: "blue" }],
+          },
+        },
+        {
+          kind: "rename-option",
+          fieldId: SIGNALS,
+          from: "Quality",
+          to: "Reliability",
+          collision: "merge",
+        },
+      ],
+    })
+    expect(fixture.mutateSchema).not.toHaveBeenCalled()
+
+    await source.updateField(PROJECTS, SIGNALS, {
+      ...changes,
+      confirmLossy: true,
+    })
+    expect(fixture.mutateSchema).toHaveBeenCalledWith(
+      expect.not.objectContaining({ confirmLossy: true }),
+      expect.any(Object)
+    )
+  })
+
+  it("forwards explicit confirmation for an option merge", async () => {
+    const fixture = conversionRuntime("explicit-lossy")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    const changes = {
+      property: { options: [{ name: "Speed", color: "green" }] },
+      optionValueChanges: [{ from: "Quality", to: "Speed" }],
+    }
+    await expect(
+      source.updateField(PROJECTS, SIGNALS, changes)
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: { classification: "explicit-lossy" },
+    })
+    await source.updateField(PROJECTS, SIGNALS, {
+      ...changes,
+      confirmLossy: true,
+    })
+
+    expect(fixture.mutateSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmLossy: true }),
+      expect.any(Object)
+    )
+    expect(fixture.preflightSchema).toHaveBeenCalledTimes(1)
   })
 
   it("keeps editor deletes in one Runtime transaction and counts only deleted rows", async () => {

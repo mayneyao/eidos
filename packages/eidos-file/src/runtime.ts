@@ -407,6 +407,17 @@ function presentationSettingsObject(
   return property
 }
 
+function assertedRawSelectOptions(
+  property: Record<string, unknown> | null | undefined
+): Array<Record<string, unknown>> {
+  assertEidosFileSelectOptions(property)
+  return Array.isArray(property?.options)
+    ? property.options.map((option) => ({
+        ...(option as Record<string, unknown>),
+      }))
+    : []
+}
+
 function presentationSettings(
   input: CreateEidosFileFieldInput
 ): Record<string, unknown> {
@@ -414,13 +425,9 @@ function presentationSettings(
     "property" in input ? input.property : undefined
   )
   if (input.type === "select" || input.type === "multi-select") {
-    const options = assertEidosFileSelectOptions(
+    property.options = assertedRawSelectOptions(
       "property" in input ? input.property : undefined
     )
-    property.options = options.map((option) => ({
-      color: option.color,
-      name: option.name,
-    }))
     if (input.type === "select") {
       const defaultOption = assertEidosFileSelectDefaultOption(property)
       if (defaultOption === null) delete property.defaultOption
@@ -2346,10 +2353,12 @@ export class EidosFileRuntime {
         const replacements = new Map(
           changes.optionValueChanges.map((change) => [change.from, change.to])
         )
-        const options = assertEidosFileSelectOptions(settings)
-        const existingNames = new Set(options.map((option) => option.name))
+        const options = assertedRawSelectOptions(settings)
+        const existingNames = new Set(
+          options.map((option) => option.name as string)
+        )
         settings.options = options.flatMap((option) => {
-          const replacement = replacements.get(option.name)
+          const replacement = replacements.get(option.name as string)
           if (replacement === undefined) return [option]
           if (existingNames.has(replacement)) return []
           return [{ ...option, name: replacement }]
@@ -2363,12 +2372,7 @@ export class EidosFileRuntime {
         }
       }
       if (field.type === "select" || field.type === "multi-select") {
-        settings.options = assertEidosFileSelectOptions(settings).map(
-          (option) => ({
-            color: option.color,
-            name: option.name,
-          })
-        )
+        settings.options = assertedRawSelectOptions(settings)
         if (field.type === "select") {
           const defaultOption = assertEidosFileSelectDefaultOption(settings)
           if (defaultOption === null) delete settings.defaultOption

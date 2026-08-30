@@ -1,6 +1,6 @@
 import type { ConnectionPort, SqlValue } from "./adapter-contract"
 import type { EidosFileSqlPrimitive } from "./connection"
-import { canonicalizeEidosFileJson } from "./canonical-json"
+import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { parseEidosFileCsvRows } from "./csv"
 import {
   eidosFileConversionCanReusePhysicalColumn,
@@ -112,7 +112,10 @@ import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
 } from "./temporal"
-import { parseEidosFileSelectDefaultOption } from "./select-options"
+import {
+  assertEidosFileSelectOptions,
+  parseEidosFileSelectDefaultOption,
+} from "./select-options"
 import { cancellationPortFromSignal } from "./protocol-types"
 import { validateEidosFile } from "./validation"
 
@@ -3187,26 +3190,194 @@ export class EidosRuntimeService implements RuntimeClient {
         case "set-formula":
         case "set-lookup":
         case "set-relation":
-        case "rename-option":
           if (!fieldsById.has(leaf.fieldId)) {
             forbid("dependency-blocked", "Field does not exist", {
               fieldId: leaf.fieldId,
             })
           }
+          break
+        case "rename-option": {
           if (
-            leaf.kind === "rename-option" &&
-            leaf.collision === "merge" &&
-            !warnings.some((warning) => warning.severity === "error")
+            typeof leaf.from !== "string" ||
+            typeof leaf.to !== "string" ||
+            leaf.from === leaf.to ||
+            (leaf.collision !== "reject" && leaf.collision !== "merge")
           ) {
-            classification = "explicit-lossy"
+            throw runtimeError(
+              "invalid-request",
+              "Option rename requires distinct string values and a valid collision policy"
+            )
+          }
+          const field = fieldsById.get(leaf.fieldId)
+          if (!field) {
+            forbid("dependency-blocked", "Field does not exist", {
+              fieldId: leaf.fieldId,
+            })
+            break
+          }
+          if (
+            (field.type !== "select" && field.type !== "multi-select") ||
+            !field.physicalName
+          ) {
+            forbid(
+              "dependency-blocked",
+              "Option rename requires a stored Select or Multi-select Field",
+              { tableId: field.tableId, fieldId: leaf.fieldId }
+            )
+            break
+          }
+
+          const options = assertEidosFileSelectOptions(field.settings)
+          const sourceCatalog = options.some(
+            (option) => option.name === leaf.from
+          )
+          const destinationCatalog = options.some(
+            (option) => option.name === leaf.to
+          )
+          const defaultOption = parseEidosFileSelectDefaultOption(
+            field.settings
+          )
+          const sourceDefault = defaultOption === leaf.from
+          const destinationDefault = defaultOption === leaf.to
+          const table = this.core.getTable(field.tableId)
+          const tableName = quoteSqlIdentifier(
+            table.physicalName ?? table.rawTableName
+          )
+          const columnName = quoteSqlIdentifier(field.physicalName)
+          let sourceRows = 0n
+          let destinationRows = 0n
+          let collapsedRows = 0n
+          if (field.type === "select") {
+            const counts = this.core.connection.get<{
+              source_count: number | bigint
+              destination_count: number | bigint
+            }>(
+              `SELECT
+                 sum(CASE WHEN ${columnName} = ? THEN 1 ELSE 0 END) AS source_count,
+                 sum(CASE WHEN ${columnName} = ? THEN 1 ELSE 0 END) AS destination_count
+                 FROM ${tableName}`,
+              [leaf.from, leaf.to]
+            )
+            sourceRows = BigInt(counts?.source_count ?? 0)
+            destinationRows = BigInt(counts?.destination_count ?? 0)
+          } else {
+            const counts = this.core.connection.get<{
+              source_count: number | bigint
+              destination_count: number | bigint
+              collapsed_count: number | bigint
+            }>(
+              `SELECT
+                 sum(CASE WHEN EXISTS (
+                   SELECT 1 FROM json_each(${columnName}) WHERE value = ?
+                 ) THEN 1 ELSE 0 END) AS source_count,
+                 sum(CASE WHEN EXISTS (
+                   SELECT 1 FROM json_each(${columnName}) WHERE value = ?
+                 ) THEN 1 ELSE 0 END) AS destination_count,
+                 sum(CASE WHEN EXISTS (
+                   SELECT 1 FROM json_each(${columnName}) WHERE value = ?
+                 ) AND EXISTS (
+                   SELECT 1 FROM json_each(${columnName}) WHERE value = ?
+                 ) THEN 1 ELSE 0 END) AS collapsed_count
+                 FROM ${tableName}`,
+              [leaf.from, leaf.to, leaf.from, leaf.to]
+            )
+            sourceRows = BigInt(counts?.source_count ?? 0)
+            destinationRows = BigInt(counts?.destination_count ?? 0)
+            collapsedRows = BigInt(counts?.collapsed_count ?? 0)
+          }
+
+          let sourceViewOccurrences = 0
+          let destinationViewOccurrences = 0
+          for (const view of this.allViews()) {
+            const query = parseEidosFileJson(view.query)
+            const sourceReferences =
+              countTypedOptionReferences(query, leaf.fieldId, leaf.from) +
+              countTypedOptionReferences(
+                view.properties,
+                leaf.fieldId,
+                leaf.from
+              )
+            const destinationReferences =
+              countTypedOptionReferences(query, leaf.fieldId, leaf.to) +
+              countTypedOptionReferences(view.properties, leaf.fieldId, leaf.to)
+            sourceViewOccurrences += sourceReferences
+            destinationViewOccurrences += destinationReferences
+            if (sourceReferences > 0 || destinationReferences > 0) {
+              dependencies.set("view:" + view.id, {
+                object: "view",
+                id: view.id,
+              })
+            }
+            if (sourceReferences > 0) {
+              warnings.push({
+                code: "dependent-source-rewritten",
+                severity: "info",
+                tableId: field.tableId,
+                fieldId: leaf.fieldId,
+                viewId: view.id,
+                message: "Saved View option operands will be renamed",
+              })
+            }
+          }
+
+          const sourceExists =
+            sourceCatalog ||
+            sourceDefault ||
+            sourceRows > 0n ||
+            sourceViewOccurrences > 0
+          const destinationExists =
+            destinationCatalog ||
+            destinationDefault ||
+            destinationRows > 0n ||
+            destinationViewOccurrences > 0
+
+          if (leaf.collision === "reject" && destinationExists) {
+            forbid(
+              "dependency-blocked",
+              "The destination option already occurs in this Field",
+              { tableId: field.tableId, fieldId: leaf.fieldId }
+            )
+            break
+          }
+          if (!sourceExists) break
+
+          affectedRows += sourceRows
+          if (sourceRows > 0n) {
+            valueChanges.push({
+              code: "option-value-renamed",
+              rows: String(sourceRows),
+              tableId: field.tableId,
+              fieldId: leaf.fieldId,
+            })
+          }
+          if (collapsedRows > 0n) {
+            valueChanges.push({
+              code: "option-duplicate-collapsed",
+              rows: String(collapsedRows),
+              tableId: field.tableId,
+              fieldId: leaf.fieldId,
+            })
+          }
+          if (leaf.collision === "merge" && destinationExists) {
+            classification = highestSchemaClassification(
+              classification,
+              "explicit-lossy"
+            )
             warnings.push({
               code: "option-merge-loss",
               severity: "warning",
+              tableId: field.tableId,
               fieldId: leaf.fieldId,
-              message: "Option values may merge",
+              message: "Existing option values will merge",
             })
+          } else {
+            classification = highestSchemaClassification(
+              classification,
+              "lossless-rewrite"
+            )
           }
           break
+        }
         case "set-record-label":
           if (
             !tableIds.has(leaf.tableId) ||
@@ -5035,6 +5206,41 @@ function simulatedRelationProperty(
 
 function asciiNoCase(value: string): string {
   return value.replace(/[A-Z]/g, (character) => character.toLowerCase())
+}
+
+function countTypedOptionReferences(
+  value: unknown,
+  fieldId: string,
+  option: string
+): number {
+  if (Array.isArray(value)) {
+    return value.reduce(
+      (count, entry) =>
+        count + countTypedOptionReferences(entry, fieldId, option),
+      0
+    )
+  }
+  if (!value || typeof value !== "object") return 0
+  const object = value as Record<string, unknown>
+  const referencesField = object.fieldId === fieldId || object.field === fieldId
+  let count = 0
+  for (const [key, entry] of Object.entries(object)) {
+    if (
+      referencesField &&
+      (key === "value" ||
+        key === "values" ||
+        key === "lower" ||
+        key === "upper")
+    ) {
+      if (entry === option) count += 1
+      if (Array.isArray(entry)) {
+        count += entry.filter((item) => item === option).length
+      }
+    } else {
+      count += countTypedOptionReferences(entry, fieldId, option)
+    }
+  }
+  return count
 }
 
 function highestSchemaClassification(

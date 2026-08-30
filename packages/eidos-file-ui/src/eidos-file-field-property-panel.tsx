@@ -39,6 +39,10 @@ import {
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
 import { EidosFileSelectOptionsEditor } from "./eidos-file-select-options-editor"
+import {
+  EidosFileSchemaImpactRequiredError,
+  type EidosFileSchemaImpact,
+} from "./schema-impact-confirmation"
 
 const TYPE_LABELS: Record<MutableEidosFileFieldType, string> = {
   text: "Text",
@@ -61,6 +65,13 @@ const LOOKUP_AGGREGATE_LABELS: Record<string, string> = {
   average: "Average",
   min: "Minimum",
   max: "Maximum",
+}
+
+interface PendingOptionRename {
+  changes: UpdateEidosFileFieldInput
+  from: string
+  to: string
+  impact: EidosFileSchemaImpact
 }
 
 export function EidosFileFieldPropertyPanel({
@@ -91,6 +102,9 @@ export function EidosFileFieldPropertyPanel({
     useState<MutableEidosFileFieldType | null>(null)
   const [applyingType, setApplyingType] = useState(false)
   const [pendingUpdate, setPendingUpdate] = useState(false)
+  const [pendingOptionRename, setPendingOptionRename] =
+    useState<PendingOptionRename | null>(null)
+  const [optionEditorVersion, setOptionEditorVersion] = useState(0)
   const pendingUpdateRef = useRef(false)
   const skipNameCommitRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -163,11 +177,15 @@ export function EidosFileFieldPropertyPanel({
     try {
       await onUpdate(field, changes)
     } catch (updateError) {
-      setError(
-        updateError instanceof Error
-          ? updateError.message
-          : t("Unable to update field")
-      )
+      if (updateError instanceof EidosFileSchemaImpactRequiredError) {
+        setError(null)
+      } else {
+        setError(
+          updateError instanceof Error
+            ? updateError.message
+            : t("Unable to update field")
+        )
+      }
       throw updateError
     } finally {
       pendingUpdateRef.current = false
@@ -199,7 +217,7 @@ export function EidosFileFieldPropertyPanel({
 
   const saveProperty = (property: Record<string, unknown>) =>
     update({ property })
-  const saveOptionsProperty = (
+  const saveOptionsProperty = async (
     property: Record<string, unknown>,
     optionValueChanges?: EidosFileOptionValueChange[]
   ) => {
@@ -216,8 +234,11 @@ export function EidosFileFieldPropertyPanel({
                 ? candidate.value
                 : null
           if (name === null) return []
+          const next = { ...candidate }
+          delete next.value
           return [
             {
+              ...next,
               name,
               color:
                 typeof candidate.color === "string"
@@ -227,10 +248,43 @@ export function EidosFileFieldPropertyPanel({
           ]
         })
       : undefined
-    return update({
+    const changes: UpdateEidosFileFieldInput = {
       property: options ? { ...property, options } : property,
       ...(optionValueChanges ? { optionValueChanges } : {}),
-    })
+    }
+    try {
+      await update(changes)
+      setPendingOptionRename(null)
+    } catch (updateError) {
+      const rename = optionValueChanges?.[0]
+      if (rename && updateError instanceof EidosFileSchemaImpactRequiredError) {
+        setPendingOptionRename({
+          changes,
+          from: rename.from,
+          to: rename.to,
+          impact: updateError.impact,
+        })
+      }
+      throw updateError
+    }
+  }
+
+  const applyPendingOptionRename = async () => {
+    if (!pendingOptionRename) return
+    try {
+      await update({
+        ...pendingOptionRename.changes,
+        confirmLossy: true,
+      })
+      setPendingOptionRename(null)
+    } catch (updateError) {
+      if (updateError instanceof EidosFileSchemaImpactRequiredError) {
+        setPendingOptionRename((current) =>
+          current ? { ...current, impact: updateError.impact } : current
+        )
+      }
+      // The refreshed structured impact or ordinary mutation error remains.
+    }
   }
 
   const applyType = async () => {
@@ -388,11 +442,103 @@ export function EidosFileFieldPropertyPanel({
             </div>
           ) : null}
           {field.type === "select" || field.type === "multi-select" ? (
-            <EidosFileSelectOptionsEditor
-              field={field}
-              disabled={busy}
-              onChange={saveOptionsProperty}
-            />
+            <>
+              <EidosFileSelectOptionsEditor
+                key={`${field.id ?? field.tableColumnName}:${optionEditorVersion}`}
+                field={field}
+                disabled={busy || pendingOptionRename !== null}
+                onChange={saveOptionsProperty}
+              />
+              {pendingOptionRename ? (
+                <div
+                  className="grid gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs"
+                  role="status"
+                >
+                  <div className="grid gap-0.5">
+                    <p className="font-medium">{t("Review option rename")}</p>
+                    <p className="break-words text-muted-foreground">
+                      “{pendingOptionRename.from}” → “{pendingOptionRename.to}”
+                    </p>
+                  </div>
+                  <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[11px]">
+                    <dt className="text-muted-foreground">
+                      {t("Records updated")}
+                    </dt>
+                    <dd className="font-medium tabular-nums">
+                      {pendingOptionRename.impact.affectedRows}
+                    </dd>
+                    <dt className="text-muted-foreground">
+                      {t("Affected saved views")}
+                    </dt>
+                    <dd className="font-medium tabular-nums">
+                      {pendingOptionRename.impact.dependencyCount}
+                    </dd>
+                    {pendingOptionRename.impact.valueChanges.find(
+                      (change) => change.code === "option-duplicate-collapsed"
+                    ) ? (
+                      <>
+                        <dt className="text-destructive">
+                          {t("Records with duplicate choices collapsed")}
+                        </dt>
+                        <dd className="font-medium tabular-nums text-destructive">
+                          {
+                            pendingOptionRename.impact.valueChanges.find(
+                              (change) =>
+                                change.code === "option-duplicate-collapsed"
+                            )!.rows
+                          }
+                        </dd>
+                      </>
+                    ) : null}
+                  </dl>
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    {pendingOptionRename.impact.classification ===
+                    "explicit-lossy"
+                      ? t(
+                          "The destination value already exists. Renaming will merge both values and cannot preserve their distinction."
+                        )
+                      : t(
+                          "Matching cells, the default option, and saved view filters are updated atomically."
+                        )}
+                  </p>
+                  {pendingOptionRename.impact.warningsTruncated ||
+                  pendingOptionRename.impact.valueChangesTruncated ? (
+                    <p className="text-[11px] leading-4 text-destructive">
+                      {t("Additional impact details were omitted.")}
+                    </p>
+                  ) : null}
+                  <div className="flex justify-end gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={pendingUpdate}
+                      onClick={() => {
+                        setPendingOptionRename(null)
+                        setOptionEditorVersion((version) => version + 1)
+                      }}
+                    >
+                      {t("Cancel")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={pendingUpdate}
+                      onClick={() => void applyPendingOptionRename()}
+                    >
+                      {pendingUpdate
+                        ? t("Applying…")
+                        : pendingOptionRename.impact.classification ===
+                            "explicit-lossy"
+                          ? t("Merge options")
+                          : t("Rename option")}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : null}
           {field.type === "number" ? (
             <EidosFileNumberPropertiesEditor

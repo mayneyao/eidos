@@ -144,6 +144,309 @@ describe("Eidos Runtime P0 data safety regressions", () => {
     }
   })
 
+  it("classifies an option rename as lossless when the destination is unused", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "status", name: "Status", kind: "select" },
+      ])
+      const titleId = table.fieldIds.title!
+      const statusId = table.fieldIds.status!
+      const configured = await applySchema(runtime, {
+        kind: "set-field-settings",
+        fieldId: statusId,
+        settings: {
+          options: [
+            {
+              name: "Todo",
+              color: "gray",
+              icon: "circle",
+              presentation: { emphasis: true },
+            },
+            { name: "Done", color: "green" },
+          ],
+          defaultOption: "Todo",
+        },
+      })
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: configured.result.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "todo",
+              values: { [titleId]: "One", [statusId]: "Todo" },
+            },
+            {
+              kind: "create",
+              clientKey: "done",
+              values: { [titleId]: "Two", [statusId]: "Done" },
+            },
+          ],
+        },
+        context("create-option-rows")
+      )
+      const view = await runtime.mutateView(
+        {
+          expectedRevision: rows.revision,
+          changes: [
+            {
+              kind: "create-view",
+              clientKey: "todo-view",
+              tableId: table.tableId,
+              name: "Todo",
+              type: "grid",
+              query: {
+                filter: { op: "eq", fieldId: statusId, value: "Todo" },
+              },
+              layout: {},
+              position: "0",
+            },
+          ],
+        },
+        context("create-option-view")
+      )
+      const viewId = view.createdViews[0]!.viewId
+      const plan = await runtime.preflightSchema(
+        {
+          expectedRevision: view.revision,
+          change: {
+            kind: "rename-option",
+            fieldId: statusId,
+            from: "Todo",
+            to: "Backlog",
+            collision: "merge",
+          },
+        },
+        context("rename-option-preflight")
+      )
+
+      expect(plan.classification).toBe("lossless-rewrite")
+      expect(plan.affectedRows).toBe("1")
+      expect(plan.dependencyCount).toBe("1")
+      expect(plan.dependencies).toContainEqual({ object: "view", id: viewId })
+      expect(plan.valueChanges).toContainEqual({
+        code: "option-value-renamed",
+        rows: "1",
+        tableId: table.tableId,
+        fieldId: statusId,
+      })
+      expect(plan.warnings).not.toContainEqual(
+        expect.objectContaining({ code: "option-merge-loss" })
+      )
+      expect(plan.warnings).toContainEqual(
+        expect.objectContaining({
+          code: "dependent-source-rewritten",
+          severity: "info",
+          viewId,
+        })
+      )
+
+      const renamed = await runtime.mutateSchema(
+        {
+          planToken: plan.planToken,
+          expectedRevision: plan.baseRevision,
+          actionsHash: plan.actionsHash,
+        },
+        context("rename-option")
+      )
+      const result = await runtime.queryRows(
+        {
+          tableId: table.tableId,
+          query: { sort: [{ fieldId: titleId, direction: "asc" }] },
+          projection: {
+            fields: [titleId, statusId],
+            resolveRelations: [],
+          },
+          limit: 10,
+          direction: "forward",
+        },
+        context("renamed-option-values")
+      )
+      expect(result.revision).toBe(renamed.revision)
+      expect(result.rows.map((row) => row.values)).toEqual([
+        ["One", "Backlog"],
+        ["Two", "Done"],
+      ])
+      const schema = await runtime.getSchemaPage(
+        { revision: renamed.revision, limit: 100 },
+        context("renamed-option-schema")
+      )
+      expect(schema.objects).toContainEqual(
+        expect.objectContaining({
+          object: "field",
+          id: statusId,
+          settings: {
+            defaultOption: "Backlog",
+            options: [
+              {
+                name: "Backlog",
+                color: "gray",
+                icon: "circle",
+                presentation: { emphasis: true },
+              },
+              { name: "Done", color: "green" },
+            ],
+          },
+        })
+      )
+      expect(schema.objects).toContainEqual(
+        expect.objectContaining({
+          object: "view",
+          id: viewId,
+          query: {
+            filter: {
+              op: "and",
+              args: [{ op: "eq", fieldId: statusId, value: "Backlog" }],
+            },
+          },
+        })
+      )
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("reports affected and collapsed rows for a lossy Multi-select option merge", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "tags", name: "Tags", kind: "multi-select" },
+      ])
+      const titleId = table.fieldIds.title!
+      const tagsId = table.fieldIds.tags!
+      const configured = await applySchema(runtime, {
+        kind: "set-field-settings",
+        fieldId: tagsId,
+        settings: {
+          options: [
+            { name: "Feature", color: "blue" },
+            { name: "Improvement", color: "green" },
+          ],
+        },
+      })
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: configured.result.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "both",
+              values: {
+                [titleId]: "Both",
+                [tagsId]: ["Feature", "Improvement"],
+              },
+            },
+            {
+              kind: "create",
+              clientKey: "source",
+              values: { [titleId]: "Source", [tagsId]: ["Feature"] },
+            },
+            {
+              kind: "create",
+              clientKey: "destination",
+              values: {
+                [titleId]: "Destination",
+                [tagsId]: ["Improvement"],
+              },
+            },
+          ],
+        },
+        context("create-multi-select-rows")
+      )
+      const plan = await runtime.preflightSchema(
+        {
+          expectedRevision: rows.revision,
+          change: {
+            kind: "rename-option",
+            fieldId: tagsId,
+            from: "Feature",
+            to: "Improvement",
+            collision: "merge",
+          },
+        },
+        context("merge-option-preflight")
+      )
+
+      expect(plan.classification).toBe("explicit-lossy")
+      expect(plan.affectedRows).toBe("2")
+      expect(plan.valueChanges).toEqual(
+        expect.arrayContaining([
+          {
+            code: "option-value-renamed",
+            rows: "2",
+            tableId: table.tableId,
+            fieldId: tagsId,
+          },
+          {
+            code: "option-duplicate-collapsed",
+            rows: "1",
+            tableId: table.tableId,
+            fieldId: tagsId,
+          },
+        ])
+      )
+      expect(plan.warnings).toContainEqual(
+        expect.objectContaining({
+          code: "option-merge-loss",
+          severity: "warning",
+          tableId: table.tableId,
+          fieldId: tagsId,
+        })
+      )
+      await expect(
+        runtime.mutateSchema(
+          {
+            planToken: plan.planToken,
+            expectedRevision: plan.baseRevision,
+            actionsHash: plan.actionsHash,
+          },
+          context("unconfirmed-option-merge")
+        )
+      ).rejects.toMatchObject({ code: "lossy-confirmation-required" })
+
+      const confirmedPlan = await preflight(runtime, {
+        kind: "rename-option",
+        fieldId: tagsId,
+        from: "Feature",
+        to: "Improvement",
+        collision: "merge",
+      })
+      await runtime.mutateSchema(
+        {
+          planToken: confirmedPlan.planToken,
+          expectedRevision: confirmedPlan.baseRevision,
+          actionsHash: confirmedPlan.actionsHash,
+          confirmLossy: true,
+        },
+        context("confirmed-option-merge")
+      )
+      const result = await runtime.queryRows(
+        {
+          tableId: table.tableId,
+          query: { sort: [{ fieldId: titleId, direction: "asc" }] },
+          projection: { fields: [titleId, tagsId], resolveRelations: [] },
+          limit: 10,
+          direction: "forward",
+        },
+        context("merged-option-values")
+      )
+      expect(result.rows.map((row) => row.values)).toEqual([
+        ["Both", ["Improvement"]],
+        ["Destination", ["Improvement"]],
+        ["Source", ["Improvement"]],
+      ])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
   it("removes known layout references in the same transaction as Field deletion", async () => {
     const { runtime, connection } = await createRuntime()
     try {
