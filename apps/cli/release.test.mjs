@@ -15,6 +15,7 @@ const files = {
   latest: "apps/cli/LATEST",
   releaseNotes: "apps/cli/RELEASE_NOTES.md",
   releaseWorkflow: ".github/workflows/build-and-release-cli.yml",
+  publishDockerfile: "apps/eidos-publish/container/Dockerfile",
   skillsModule: "apps/cli/src/skills.rs",
   skill: "skills/eidos/SKILL.md",
   skillCliReference: "skills/eidos/references/cli.md",
@@ -87,7 +88,10 @@ test("CLI workflow publishes the complete independent release contract", async (
     releaseNotes,
     /https:\/\/download\.eidos\.space\/cli\/install\.sh/u
   )
-  assert.match(workflow, /cargo run[\s\\]+--quiet[\s\\]+--locked[\s\\]+[\s\\]*--manifest-path apps\/cli\/Cargo\.toml[\s\\]+[\s\\]*--bin eidos -- skills init/u)
+  assert.match(
+    workflow,
+    /cargo run[\s\\]+--quiet[\s\\]+--locked[\s\\]+[\s\\]*--manifest-path apps\/cli\/Cargo\.toml[\s\\]+[\s\\]*--bin eidos -- skills init/u
+  )
   assert.doesNotMatch(workflow, /npx(?: -y)? skills add/u)
   assert.match(workflow, /\.agents\/skills\/eidos\/SKILL\.md/u)
 })
@@ -163,17 +167,26 @@ test("Serve release notes provide a complete runnable example", async () => {
   )
 })
 
-test("public Eidos Skill stays complete and is bundled with the CLI", async () => {
-  const [cargo, latest, readme, skill, cliReference, operationsReference, skillsModule] =
-    await Promise.all([
-      read(files.cargo),
-      read(files.latest),
-      read(files.cliReadme),
-      read(files.skill),
-      read(files.skillCliReference),
-      read(files.skillOperationsReference),
-      read(files.skillsModule),
-    ])
+test("public Eidos Skill stays complete and is bundled with every CLI build", async () => {
+  const [
+    cargo,
+    latest,
+    readme,
+    skill,
+    cliReference,
+    operationsReference,
+    skillsModule,
+    publishDockerfile,
+  ] = await Promise.all([
+    read(files.cargo),
+    read(files.latest),
+    read(files.cliReadme),
+    read(files.skill),
+    read(files.skillCliReference),
+    read(files.skillOperationsReference),
+    read(files.skillsModule),
+    read(files.publishDockerfile),
+  ])
   const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
 
   assert.equal(latest.trim(), version)
@@ -185,9 +198,17 @@ test("public Eidos Skill stays complete and is bundled with the CLI", async () =
   assert.ok(operationsReference.trim().length > 0)
   assert.match(readme, /eidos skills init --global/u)
   assert.doesNotMatch(readme, /npx skills add/u)
-  assert.match(skillsModule, /include_str!\("\.\.\/\.\.\/\.\.\/skills\/eidos\/SKILL\.md"\)/u)
+  assert.match(
+    skillsModule,
+    /include_str!\("\.\.\/\.\.\/\.\.\/skills\/eidos\/SKILL\.md"\)/u
+  )
   assert.match(skillsModule, /references\/cli\.md/u)
   assert.match(skillsModule, /references\/operations\.md/u)
+  assert.match(
+    publishDockerfile,
+    /COPY skills\/eidos \/build\/skills\/eidos/u,
+    "Publish Container must include the CLI's compile-time Skill resources"
+  )
 })
 
 test("Eidos Lite releases do not rewrite the CLI version", async () => {
