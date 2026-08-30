@@ -1,7 +1,9 @@
+import { useRef } from "react"
 import { FileMusic, FolderOpen, Image, MonitorPlay } from "lucide-react"
 
 import type { TextFilePreviewResult } from "../shared/contracts"
 import { fileManagerMessage } from "../shared/platform-copy"
+import { useFileContentFocusRequest } from "./file-content-focus"
 import { useEidosLiteI18n } from "./i18n"
 
 type MediaPreview = Extract<TextFilePreviewResult, { type: "media" }>
@@ -15,13 +17,21 @@ function formatBytes(bytes: number): string {
 export function MediaFilePreview({
   preview,
   platform,
+  focusRequestToken = 0,
   onReveal,
 }: {
   preview: MediaPreview
   platform?: string
+  focusRequestToken?: number
   onReveal?(): void
 }) {
   const { t } = useEidosLiteI18n()
+  const previewRef = useRef<HTMLElement>(null)
+  useFileContentFocusRequest(focusRequestToken, () => {
+    const preview = previewRef.current
+    const media = preview?.querySelector<HTMLElement>("video, audio")
+    ;(media ?? preview)?.focus({ preventScroll: true })
+  })
   const kindLabel =
     preview.mediaKind === "image"
       ? t("Image")
@@ -31,6 +41,8 @@ export function MediaFilePreview({
 
   return (
     <section
+      ref={previewRef}
+      tabIndex={-1}
       className="media-file-preview"
       aria-label={t("{kind} preview of {path}", {
         kind: kindLabel,

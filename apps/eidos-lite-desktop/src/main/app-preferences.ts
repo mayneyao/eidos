@@ -4,6 +4,7 @@ import path from "node:path"
 import type {
   EidosLiteAppearance,
   EidosLitePreferences,
+  EidosLiteTerminalLayout,
   EidosLiteTimeZone,
 } from "../shared/contracts"
 import {
@@ -18,6 +19,7 @@ import {
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
+  terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
   builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
@@ -38,6 +40,19 @@ function language(value: unknown): EidosLitePreferences["language"] {
   return value === "system" || value === "en" || value === "zh"
     ? value
     : DEFAULT_EIDOS_LITE_PREFERENCES.language
+}
+
+function terminalLayout(
+  value: unknown,
+  legacyWorkspaceLayout: unknown
+): EidosLiteTerminalLayout {
+  if (value === "bottom" || value === "side") {
+    return value
+  }
+  if (value === "main" || value === "right") return "side"
+  return legacyWorkspaceLayout === "terminal-primary"
+    ? "side"
+    : DEFAULT_EIDOS_LITE_PREFERENCES.terminalLayout
 }
 
 export function normalizeEidosLiteTimeZone(value: unknown): EidosLiteTimeZone {
@@ -77,6 +92,10 @@ export function normalizeEidosLitePreferences(
   return {
     appearance: appearance(candidate.appearance),
     language: language(candidate.language),
+    terminalLayout: terminalLayout(
+      candidate.terminalLayout,
+      candidate.workspaceLayout
+    ),
     timeZone: normalizeEidosLiteTimeZone(candidate.timeZone),
     weekStartsOnMonday:
       typeof candidate.weekStartsOnMonday === "boolean"

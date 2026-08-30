@@ -72,8 +72,17 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
+  it("uses the right sidebar header as a window drag surface without capturing its controls", () => {
+    expect(styles).toMatch(
+      /\.version-panel > header,\s*\.sync-dialog-inspector > header\s*\{[^}]*-webkit-app-region:\s*drag;[^}]*-webkit-user-select:\s*none;/u
+    )
+    expect(styles).toMatch(
+      /\.version-panel > header button,\s*\.sync-dialog-inspector > header button\s*\{[^}]*-webkit-app-region:\s*no-drag;/u
+    )
+  })
+
   it("uses one compact height for title bars, workbars, and panel headers", () => {
-    const utilityLayout = rule(".editor-primary-area.with-utility-panel")
+    const utilityLayout = ruleContaining("--eidos-shell-workbar-height")
 
     expect(rule(":root", themeStyles)).toContain(
       "--chrome-header-height: 2.5rem"
@@ -93,6 +102,9 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".workbench")).toContain(
       "--workbench-titlebar-height: var(--window-titlebar-height)"
     )
+    expect(rule(".workbench")).toContain(
+      "--version-header-height: var(--workbench-titlebar-height)"
+    )
     expect(rule(".sync-dialog")).toContain(
       "grid-template-rows: var(--window-titlebar-height)"
     )
@@ -101,9 +113,6 @@ describe("Eidos Lite surface hierarchy", () => {
     )
     expect(utilityLayout).toContain(
       "--eidos-shell-workbar-height: var(--chrome-header-height)"
-    )
-    expect(utilityLayout).toContain(
-      "--version-header-height: var(--chrome-header-height)"
     )
   })
 
@@ -128,15 +137,17 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(
       actionRules.some(
         (actionRule) =>
-          actionRule.includes(".workbench:is(") &&
-          actionRule.includes('[data-terminal-open="true"]') &&
-          actionRule.includes('[data-terminal-placement="right"]') &&
-          actionRule.includes(".terminal-panel-header")
+          actionRule.includes('[data-right-sidebar-open="true"]') &&
+          actionRule.includes(".version-panel") &&
+          actionRule.includes(".sync-inspector-host")
       )
     ).toBe(true)
-    const rightTerminalTitlebarRule = ruleContaining("padding-right: 0.75rem")
-    expect(rightTerminalTitlebarRule).toContain(
-      '[data-terminal-open="true"][data-terminal-placement="right"]'
+    expect(styles).not.toContain('[data-main-surface="terminal"]')
+    const contentTitlebarWithRightSidebarRule = ruleContaining(
+      "padding-right: 0.75rem"
+    )
+    expect(contentTitlebarWithRightSidebarRule).toContain(
+      '[data-right-sidebar-open="true"]'
     )
     expect(
       actionRules.some(
@@ -190,6 +201,16 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".markdown-document")).toContain("cursor: text")
     expect(rule(".markdown-document")).toContain("user-select: text")
     expect(rule(".markdown-document")).toContain("-webkit-user-select: text")
+  })
+
+  it("lets version diff text be selected and copied", () => {
+    const diffSurface = rule(
+      ".version-text-diff-surface,\n.version-text-diff-virtualizer"
+    )
+
+    expect(diffSurface).toContain("cursor: text")
+    expect(diffSurface).toContain("user-select: text")
+    expect(diffSurface).toContain("-webkit-user-select: text")
   })
 
   it("presents recent files as a compact flat list", () => {

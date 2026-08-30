@@ -23,7 +23,7 @@ describe("Eidos Lite preferences", () => {
     ).toEqual(DEFAULT_EIDOS_LITE_PREFERENCES)
   })
 
-  it("persists appearance, calendar, language, time zone, built-in plugins, shortcuts, and Space defaults", async () => {
+  it("persists appearance, layout, calendar, language, time zone, built-in plugins, shortcuts, and Space defaults", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-preferences-")
     )
@@ -35,6 +35,7 @@ describe("Eidos Lite preferences", () => {
       store.update({
         appearance: "dark",
         language: "zh",
+        terminalLayout: "side",
         timeZone: "America/New_York",
         weekStartsOnMonday: false,
         builtInPlugins: { terminal: true },
@@ -50,6 +51,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      terminalLayout: "side",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
@@ -68,6 +70,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      terminalLayout: "side",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
@@ -80,5 +83,21 @@ describe("Eidos Lite preferences", () => {
       automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
+  })
+
+  it("migrates the earlier Terminal-primary preference into the unified layout", () => {
+    expect(
+      normalizeEidosLitePreferences({ workspaceLayout: "terminal-primary" })
+        .terminalLayout
+    ).toBe("side")
+  })
+
+  it("migrates retired main and right Terminal layouts to the side split", () => {
+    expect(
+      normalizeEidosLitePreferences({ terminalLayout: "main" }).terminalLayout
+    ).toBe("side")
+    expect(
+      normalizeEidosLitePreferences({ terminalLayout: "right" }).terminalLayout
+    ).toBe("side")
   })
 })

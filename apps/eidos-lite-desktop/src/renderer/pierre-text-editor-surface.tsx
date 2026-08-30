@@ -36,6 +36,7 @@ export default function PierreTextEditorSurface({
   theme,
   persistEditorState = true,
   autoFocus = false,
+  focusRequestToken = 0,
   onChange,
 }: {
   relativePath: string
@@ -43,9 +44,11 @@ export default function PierreTextEditorSurface({
   theme: ResolvedAppearance
   persistEditorState?: boolean
   autoFocus?: boolean
+  focusRequestToken?: number
   onChange(content: string): void
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
+  const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
   const createEditor = useCallback(
     (options: EditorOptions<undefined>) => {
       const persistentOptions: EditorOptions<undefined> = {
@@ -64,6 +67,11 @@ export default function PierreTextEditorSurface({
   useEffect(() => {
     editorRef.current?.setOptions({ persistState: persistEditorState })
   }, [persistEditorState])
+  useEffect(() => {
+    if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
+    acceptedFocusRequestTokenRef.current = focusRequestToken
+    editorRef.current?.focus()
+  }, [focusRequestToken])
   const contentPropRef = useRef(content)
   const currentContentRef = useRef(content)
   if (contentPropRef.current !== content) {

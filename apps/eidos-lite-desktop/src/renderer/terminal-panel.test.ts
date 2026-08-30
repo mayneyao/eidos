@@ -88,7 +88,6 @@ vi.mock("@xterm/xterm", () => ({
       this.writes.push(data)
     }
     reset() {}
-    clear() {}
     dispose() {
       this.element?.replaceChildren()
     }
@@ -183,6 +182,8 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
   const writeTerminalPath = vi.fn().mockResolvedValue(undefined)
   const writeClipboardText = vi.fn().mockResolvedValue(undefined)
   const resizeTerminal = vi.fn()
+  const onCycleLayout = vi.fn()
+  const titlebarNavigationClick = vi.fn()
   let terminalDataListener: ((sessionId: string, data: string) => void) | null =
     null
   Object.assign(window, {
@@ -213,13 +214,21 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
         StrictMode,
         null,
         createElement(TerminalPanel, {
+          layout: "bottom",
+          layoutShortcutLabel: "⌃⇧`",
           open: true,
-          placement: "bottom",
-          placementShortcutLabel: "⌃⇧`",
           spaceName: "Test Space",
           theme: "dark",
+          titlebarNavigation: createElement(
+            "button",
+            {
+              "data-test-titlebar-navigation": true,
+              onClick: titlebarNavigationClick,
+            },
+            "Toggle sidebar"
+          ),
           onClose: vi.fn(),
-          onTogglePlacement: vi.fn(),
+          onCycleLayout,
         })
       )
     )
@@ -234,6 +243,21 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
   ).not.toBeNull()
   expect(startTerminal).toHaveBeenCalledOnce()
   expect(xtermState.fitCalls).toBeGreaterThan(0)
+  const titlebarNavigation = host.querySelector<HTMLButtonElement>(
+    "[data-test-titlebar-navigation]"
+  )
+  expect(titlebarNavigation?.closest(".terminal-panel-header")).not.toBeNull()
+  titlebarNavigation?.click()
+  expect(titlebarNavigationClick).toHaveBeenCalledOnce()
+
+  await act(async () => {
+    host
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Move terminal beside file content"]'
+      )
+      ?.click()
+  })
+  expect(onCycleLayout).toHaveBeenCalledOnce()
 
   const terminal = xtermState.instances.at(-1)
   terminal?.emitData("中文输入")
@@ -292,13 +316,13 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
         StrictMode,
         null,
         createElement(TerminalPanel, {
+          layout: "bottom",
+          layoutShortcutLabel: "⌃⇧`",
           open: true,
-          placement: "bottom",
-          placementShortcutLabel: "⌃⇧`",
           spaceName: "Test Space",
           theme: "light",
           onClose: vi.fn(),
-          onTogglePlacement: vi.fn(),
+          onCycleLayout,
         })
       )
     )

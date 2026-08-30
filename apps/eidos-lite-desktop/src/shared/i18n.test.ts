@@ -18,6 +18,27 @@ describe("Eidos Lite internationalization", () => {
     expect(translateEidosLite("en", "Settings")).toBe("Settings")
     expect(translateEidosLite("zh", "Recent files")).toBe("最近打开")
     expect(translateEidosLite("zh", "Built-in Plugins")).toBe("内置插件")
+    expect(translateEidosLite("zh", "Retry")).toBe("重试")
+    expect(
+      translateEidosLite("zh", "Could not load change details. {message}", {
+        message: "读取失败",
+      })
+    ).toBe("无法加载变更详情。读取失败")
+    expect(translateEidosLite("zh", "Terminal layout")).toBe("终端布局")
+    expect(translateEidosLite("zh", "Bottom")).toBe("底部")
+    expect(translateEidosLite("zh", "Beside file content")).toBe("文件内容左侧")
+    expect(translateEidosLite("zh", "Move terminal beside file content")).toBe(
+      "将终端移到文件内容左侧"
+    )
+    expect(translateEidosLite("zh", "Move terminal below file content")).toBe(
+      "将终端移到文件内容下方"
+    )
+    expect(
+      translateEidosLite(
+        "zh",
+        "Choose how Terminal and file content share the middle work area."
+      )
+    ).toBe("选择终端与文件内容如何共享中间工作区。")
     expect(
       translateEidosLite(
         "zh",

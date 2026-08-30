@@ -56,6 +56,30 @@ function textContentMatches(content: SpaceVersionTextContentDiff): boolean {
   return before !== null && after !== null && before === after
 }
 
+export function VersionDiffWrapControl({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean
+  onCheckedChange(checked: boolean): void
+}) {
+  return (
+    <div className="version-diff-wrap-control">
+      <span>Wrap</span>
+      <button
+        type="button"
+        role="switch"
+        className="version-diff-wrap-switch"
+        aria-label="Wrap lines"
+        aria-checked={checked}
+        onClick={() => onCheckedChange(!checked)}
+      >
+        <span />
+      </button>
+    </div>
+  )
+}
+
 export function VersionRenameSummary({
   previousPath,
   path,
@@ -177,6 +201,12 @@ export function InlineTextDiff({
           (!fixedLayout ||
           (defaultSoftWrap !== undefined && fixedSoftWrap === undefined) ? (
             <div className="version-text-diff-display-controls">
+              {defaultSoftWrap !== undefined && fixedSoftWrap === undefined ? (
+                <VersionDiffWrapControl
+                  checked={resolvedSoftWrap}
+                  onCheckedChange={setSoftWrap}
+                />
+              ) : null}
               {!fixedLayout ? (
                 <div
                   className="version-text-diff-layout"
@@ -195,20 +225,6 @@ export function InlineTextDiff({
                     onClick={() => setLayout("unified")}
                   >
                     Unified
-                  </button>
-                </div>
-              ) : null}
-              {defaultSoftWrap !== undefined && fixedSoftWrap === undefined ? (
-                <div
-                  className="version-text-diff-layout"
-                  aria-label="Line wrapping"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={resolvedSoftWrap}
-                    onClick={() => setSoftWrap((current) => !current)}
-                  >
-                    Wrap
                   </button>
                 </div>
               ) : null}
@@ -265,7 +281,11 @@ export function VersionTextDiffContent({
       <VersionRenameSummary previousPath={previousPath} path={content.path} />
     )
   }
-  if (!previousPath) return <InlineTextDiff content={content} theme={theme} />
+  if (!previousPath) {
+    return (
+      <InlineTextDiff content={content} theme={theme} defaultSoftWrap={false} />
+    )
+  }
   return (
     <div className="version-text-change-stack">
       <VersionRenameSummary
@@ -273,7 +293,7 @@ export function VersionTextDiffContent({
         path={content.path}
         compact
       />
-      <InlineTextDiff content={content} theme={theme} />
+      <InlineTextDiff content={content} theme={theme} defaultSoftWrap={false} />
     </div>
   )
 }

@@ -9,7 +9,7 @@ import type {
   SpaceVersionTextContentDiff,
 } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
-import { InlineTextDiff } from "./version-text-diff"
+import { InlineTextDiff, VersionDiffWrapControl } from "./version-text-diff"
 
 const VERSION_ROW_DIFF_ESTIMATED_HEIGHT = 40
 const VERSION_ROW_DIFF_LOAD_AHEAD = 12
@@ -807,19 +807,10 @@ export function VersionTableDiff({
               className="version-text-diff-display-controls"
               aria-label="Record diff display"
             >
-              <div className="version-diff-wrap-control">
-                <span>Wrap</span>
-                <button
-                  type="button"
-                  role="switch"
-                  className="version-diff-wrap-switch"
-                  aria-label="Wrap lines"
-                  aria-checked={recordSoftWrap}
-                  onClick={() => setRecordSoftWrap((current) => !current)}
-                >
-                  <span />
-                </button>
-              </div>
+              <VersionDiffWrapControl
+                checked={recordSoftWrap}
+                onCheckedChange={setRecordSoftWrap}
+              />
               <div
                 className="version-text-diff-layout"
                 aria-label="Record diff layout"

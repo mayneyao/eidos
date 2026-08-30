@@ -29,6 +29,7 @@ import type {
 } from "../shared/contracts"
 import { fileManagerMessage } from "../shared/platform-copy"
 import type { ResolvedAppearance } from "./app-appearance"
+import { useFileContentFocusRequest } from "./file-content-focus"
 import { useEidosLiteI18n } from "./i18n"
 import { renderSafeMarkdown } from "./markdown-preview"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
@@ -118,6 +119,7 @@ function EditableTextFile({
   draft,
   theme,
   autoFocus = false,
+  focusRequestToken = 0,
   onSaved,
   onReload,
   onDraftChange,
@@ -126,6 +128,7 @@ function EditableTextFile({
   draft?: TextFileDraft
   theme: ResolvedAppearance
   autoFocus?: boolean
+  focusRequestToken?: number
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -297,6 +300,7 @@ function EditableTextFile({
           content={editorContent}
           theme={theme}
           autoFocus={autoFocus}
+          focusRequestToken={focusRequestToken}
           onChange={handleChange}
         />
       </Suspense>
@@ -323,13 +327,18 @@ function HtmlPreviewSurface({
   previewId,
   url,
   visible,
+  focusRequestToken,
 }: {
   previewId: string
   url: string
   visible: boolean
+  focusRequestToken: number
 }) {
   const { t } = useEidosLiteI18n()
   const hostRef = useRef<HTMLDivElement>(null)
+  useFileContentFocusRequest(focusRequestToken, () =>
+    hostRef.current?.focus({ preventScroll: true })
+  )
   const visibleRef = useRef(visible)
   const [state, setState] = useState<"loading" | "ready" | "error">("loading")
   const [error, setError] = useState<string | null>(null)
@@ -406,6 +415,7 @@ function HtmlPreviewSurface({
   return (
     <div
       ref={hostRef}
+      tabIndex={-1}
       className="html-preview-native-host"
       data-html-preview-state={state}
     >
@@ -424,8 +434,18 @@ function HtmlPreviewSurface({
   )
 }
 
-function MarkdownPreview({ preview }: { preview: BrowserTextPreview }) {
+function MarkdownPreview({
+  preview,
+  focusRequestToken,
+}: {
+  preview: BrowserTextPreview
+  focusRequestToken: number
+}) {
   const { t } = useEidosLiteI18n()
+  const articleRef = useRef<HTMLElement>(null)
+  useFileContentFocusRequest(focusRequestToken, () =>
+    articleRef.current?.focus({ preventScroll: true })
+  )
   const document = useMemo(
     () => renderSafeMarkdown(preview.content),
     [preview.content]
@@ -442,6 +462,8 @@ function MarkdownPreview({ preview }: { preview: BrowserTextPreview }) {
   return (
     <div className="markdown-preview-scroll">
       <article
+        ref={articleRef}
+        tabIndex={-1}
         className="markdown-document"
         aria-label={t("Markdown preview of {path}", {
           path: preview.relativePath,
@@ -459,6 +481,7 @@ function DocumentFilePreview({
   theme,
   platform,
   nativePreviewSuppressed,
+  focusRequestToken,
   onReveal,
   onSaved,
   onReload,
@@ -469,6 +492,7 @@ function DocumentFilePreview({
   theme: ResolvedAppearance
   platform: string
   nativePreviewSuppressed: boolean
+  focusRequestToken: number
   onReveal(): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -561,9 +585,13 @@ function DocumentFilePreview({
               previewId={previewId}
               url={htmlPreview.url}
               visible={!nativePreviewSuppressed}
+              focusRequestToken={focusRequestToken}
             />
           ) : (
-            <MarkdownPreview preview={preview} />
+            <MarkdownPreview
+              preview={preview}
+              focusRequestToken={focusRequestToken}
+            />
           )
         ) : (
           <EditableTextFile
@@ -572,6 +600,7 @@ function DocumentFilePreview({
             draft={draft}
             theme={theme}
             autoFocus
+            focusRequestToken={focusRequestToken}
             onSaved={onSaved}
             onReload={onReload}
             onDraftChange={onDraftChange}
@@ -588,6 +617,7 @@ export function TextFilePreview({
   theme,
   platform,
   nativePreviewSuppressed = false,
+  focusRequestToken = 0,
   onReveal,
   onSaved,
   onReload,
@@ -598,15 +628,22 @@ export function TextFilePreview({
   theme: ResolvedAppearance
   platform: string
   nativePreviewSuppressed?: boolean
+  focusRequestToken?: number
   onReveal(): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
 }) {
   const { t } = useEidosLiteI18n()
+  const fallbackFocusRef = useRef<HTMLElement>(null)
+  useFileContentFocusRequest(focusRequestToken, () =>
+    fallbackFocusRef.current?.focus({ preventScroll: true })
+  )
   if (preview.type === "unavailable") {
     return (
       <section
+        ref={fallbackFocusRef}
+        tabIndex={-1}
         className="editor-empty text-preview-unavailable"
         aria-labelledby="text-preview-unavailable-title"
         data-text-file-preview={preview.relativePath}
@@ -636,6 +673,7 @@ export function TextFilePreview({
           theme={theme}
           platform={platform}
           nativePreviewSuppressed={nativePreviewSuppressed}
+          focusRequestToken={focusRequestToken}
           onReveal={onReveal}
           onSaved={onSaved}
           onReload={onReload}
@@ -649,6 +687,7 @@ export function TextFilePreview({
         preview={preview}
         draft={draft}
         theme={theme}
+        focusRequestToken={focusRequestToken}
         onSaved={onSaved}
         onReload={onReload}
         onDraftChange={onDraftChange}
@@ -658,6 +697,8 @@ export function TextFilePreview({
 
   return (
     <section
+      ref={fallbackFocusRef}
+      tabIndex={-1}
       className="text-file-preview"
       aria-label={t("Read-only preview of {path}", {
         path: preview.relativePath,

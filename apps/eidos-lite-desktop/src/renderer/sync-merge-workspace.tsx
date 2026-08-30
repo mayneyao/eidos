@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import {
   AlertTriangle,
   Check,
@@ -202,9 +210,11 @@ export function SyncMergeWorkbench({
   onStatusChange,
   onFilesMaterialized,
   theme,
+  titlebarNavigation,
 }: {
   initialStatus: ActiveMergeStatus
   theme: ResolvedAppearance
+  titlebarNavigation?: ReactNode
   onClose(): void
   onStatusChange(status: EidosSyncMergeStatus): void
   onFilesMaterialized(
@@ -685,6 +695,7 @@ export function SyncMergeWorkbench({
     <>
       <main className="sync-merge-editor" data-sync-merge-workbench>
         <header className="sync-merge-editor-toolbar">
+          {titlebarNavigation}
           <div className="sync-merge-editor-title">
             <MergePathIcon path={selectedPath} />
             <div>

@@ -34,6 +34,15 @@ export function eidosLitePreferencesPatch(
     }
     patch.language = candidate.language
   }
+  if ("terminalLayout" in candidate) {
+    if (
+      candidate.terminalLayout !== "bottom" &&
+      candidate.terminalLayout !== "side"
+    ) {
+      throw new Error("Invalid terminal layout preference")
+    }
+    patch.terminalLayout = candidate.terminalLayout
+  }
   if ("timeZone" in candidate) {
     const normalized = normalizeEidosLiteTimeZone(candidate.timeZone)
     if (normalized !== candidate.timeZone) {

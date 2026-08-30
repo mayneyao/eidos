@@ -295,6 +295,34 @@ describe("PierreTextEditorSurface", () => {
     await act(async () => root.unmount())
   })
 
+  it("restores the editor focus when the host requests file-content focus", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const renderEditor = (focusRequestToken: number) =>
+      createElement(PierreTextEditorSurface, {
+        relativePath: "notes/readme.md",
+        content: "# Readme",
+        theme: "light" as const,
+        focusRequestToken,
+        onChange: () => undefined,
+      })
+
+    await act(async () => {
+      root.render(renderEditor(0))
+    })
+    const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
+      focus: ReturnType<typeof vi.fn>
+    }
+    expect(editor.focus).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.render(renderEditor(1))
+    })
+    expect(editor.focus).toHaveBeenCalledTimes(1)
+
+    await act(async () => root.unmount())
+  })
+
   it("does not rewrite the first line of a non-empty file", () => {
     renderToStaticMarkup(
       createElement(PierreTextEditorSurface, {

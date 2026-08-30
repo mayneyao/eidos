@@ -35,6 +35,8 @@ export interface EidosFileViewRendererProps {
   showRowMarkers?: boolean
   disabled: boolean
   reloadToken: number
+  /** Monotonic Host request for the active view to reclaim keyboard focus. */
+  focusRequestToken?: number
   commands: readonly EidosFileViewCommand[]
   selection: EidosFileViewSelection
   onSelectionChange?: (selection: EidosFileViewSelection) => void
@@ -147,6 +149,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       showRowMarkers={props.showRowMarkers}
       disabled={props.disabled}
       reloadToken={props.reloadToken}
+      focusRequestToken={props.focusRequestToken}
       propertyField={props.propertyField}
       onMutation={props.onMutation}
       onDeleteRows={props.onDeleteRows}
@@ -233,6 +236,7 @@ export function EidosFileEditorView({
   onSearchResultCountChange,
   disabled = false,
   reloadToken = 0,
+  focusRequestToken = 0,
   commands = [],
   selection = { rowIds: [] },
   state = {},
@@ -269,6 +273,7 @@ export function EidosFileEditorView({
     onSearchResultCountChange: reportSearchResultCount,
     disabled,
     reloadToken,
+    focusRequestToken,
     commands,
     selection,
     state,

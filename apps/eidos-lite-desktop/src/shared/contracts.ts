@@ -621,6 +621,8 @@ export interface SpaceSnapshot {
   fileIssues?: EidosFileIssue[]
   /** Files rewritten outside their resident Runtime before this snapshot was emitted. */
   materializedPaths?: string[]
+  /** Filesystem paths observed by the Space watcher after an out-of-band write. */
+  externalChangePaths?: string[]
 }
 
 export interface EidosLiteTerminalSession {
@@ -685,12 +687,14 @@ export interface EidosLiteAppInfo {
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
 export type EidosLiteLanguage = "system" | "en" | "zh"
+export type EidosLiteTerminalLayout = "bottom" | "side"
 /** `system` follows the operating system; every other value is an IANA zone. */
 export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
+  terminalLayout: EidosLiteTerminalLayout
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean
   builtInPlugins: EidosLiteBuiltInPlugins

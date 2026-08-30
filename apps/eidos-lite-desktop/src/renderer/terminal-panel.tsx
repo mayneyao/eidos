@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
-  Eraser,
+  Columns2,
   PanelBottom,
-  PanelRight,
   Plus,
   RefreshCw,
   SquareTerminal,
@@ -13,20 +12,24 @@ import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 
-import { EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX } from "../shared/contracts"
+import {
+  EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX,
+  type EidosLiteTerminalLayout,
+} from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 import { hasSpacePathDragData, spacePathDragData } from "./space-path-drag"
 
 type TerminalStatus = "starting" | "running" | "exited" | "error"
 
 interface TerminalPanelProps {
+  layout: EidosLiteTerminalLayout
+  layoutShortcutLabel: string
   open: boolean
-  placement: "bottom" | "right"
-  placementShortcutLabel: string
   spaceName: string
   theme: "light" | "dark"
+  titlebarNavigation?: ReactNode
   onClose(): void
-  onTogglePlacement(): void
+  onCycleLayout(): void
 }
 
 const PENDING_OUTPUT_CHARACTERS_MAX = 1024 * 1024
@@ -132,7 +135,6 @@ interface TerminalTabState {
 }
 
 interface TerminalTabController {
-  clear(): void
   restart(): void
   writePath(relativePath: string): void
 }
@@ -150,7 +152,7 @@ interface PendingTerminalSessionDelivery {
 interface TerminalSessionViewportProps {
   active: boolean
   open: boolean
-  placement: "bottom" | "right"
+  placement: EidosLiteTerminalLayout
   tab: TerminalTab
   theme: "light" | "dark"
   onControllerChange(
@@ -340,7 +342,6 @@ function TerminalSessionViewport({
     resizeObserver.observe(host)
 
     const controller: TerminalTabController = {
-      clear: () => terminal.clear(),
       restart: () => {
         terminal.reset()
         void beginSession(terminal)
@@ -416,15 +417,17 @@ function TerminalSessionViewport({
 }
 
 export function TerminalPanel({
+  layout,
+  layoutShortcutLabel,
   open,
-  placement,
-  placementShortcutLabel,
   spaceName,
   theme,
+  titlebarNavigation,
   onClose,
-  onTogglePlacement,
+  onCycleLayout,
 }: TerminalPanelProps) {
   const { t } = useEidosLiteI18n()
+  const placement = layout
   const [tabs, setTabs] = useState<TerminalTab[]>([{ id: 1, number: 1 }])
   const [activeTabId, setActiveTabId] = useState<number | null>(1)
   const [tabStates, setTabStates] = useState(
@@ -568,14 +571,14 @@ export function TerminalPanel({
         : status === "error"
           ? t("Terminal could not start")
           : shell
-  const placementLabel =
-    placement === "bottom"
-      ? t("Move terminal to right")
-      : t("Move terminal to bottom")
-  const placementTitle =
-    placementShortcutLabel === "—"
-      ? placementLabel
-      : `${placementLabel} (${placementShortcutLabel})`
+  const layoutLabel =
+    layout === "bottom"
+      ? t("Move terminal beside file content")
+      : t("Move terminal below file content")
+  const layoutTitle =
+    layoutShortcutLabel === "—"
+      ? layoutLabel
+      : `${layoutLabel} (${layoutShortcutLabel})`
 
   return (
     <section
@@ -586,6 +589,7 @@ export function TerminalPanel({
       aria-hidden={!open}
     >
       <header className="terminal-panel-header">
+        {titlebarNavigation}
         <div className="terminal-panel-tab-strip">
           <div
             className="terminal-panel-tabs"
@@ -667,24 +671,11 @@ export function TerminalPanel({
           <button
             type="button"
             className="icon-button"
-            onClick={onTogglePlacement}
-            aria-label={placementLabel}
-            title={placementTitle}
+            onClick={onCycleLayout}
+            aria-label={layoutLabel}
+            title={layoutTitle}
           >
-            {placement === "bottom" ? <PanelRight /> : <PanelBottom />}
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() =>
-              activeTabId === null
-                ? undefined
-                : controllersRef.current.get(activeTabId)?.clear()
-            }
-            aria-label={t("Clear terminal")}
-            title={t("Clear terminal")}
-          >
-            <Eraser />
+            {layout === "bottom" ? <Columns2 /> : <PanelBottom />}
           </button>
           <button
             type="button"

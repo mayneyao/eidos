@@ -1146,6 +1146,89 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   }, 15_000)
 
+  it("identifies an externally changed open Eidos File for renderer refresh", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-external-eidos-refresh-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-external-eidos-refresh-state-")
+    )
+    const relativePath = "records.eidos"
+    const filePath = path.join(root, relativePath)
+    const file = createEidosFile(filePath, {
+      title: "Records",
+      defaultTable: {
+        name: "Records",
+        fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+      },
+    })
+    file.close()
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.22",
+      close: async () => undefined,
+      inspectSpace: async (): Promise<GraftSpaceStatus> => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.22",
+        expectedVersion: "0.3.22",
+        initialized: false,
+      }),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: false,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "open").mockResolvedValue({
+        sessionId: "runtime-session",
+        relativePath,
+        snapshot: {} as never,
+        readOnly: false,
+      })
+      await session.openEidosFile(relativePath)
+      const changed = new Promise<SpaceSnapshot>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          unsubscribe()
+          reject(
+            new Error("External Eidos File refresh signal was not emitted")
+          )
+        }, 2_000)
+        const unsubscribe = session!.onChanged((snapshot) => {
+          if (!("externalChangePaths" in snapshot)) return
+          clearTimeout(timer)
+          unsubscribe()
+          resolve(snapshot)
+        })
+      })
+
+      const external = openEidosFile(filePath)
+      try {
+        const tableId = external.schema()[0]!.table.id
+        external.insertRow(tableId, { Name: "Ada" })
+      } finally {
+        external.close()
+      }
+
+      const snapshot = await changed
+      expect(snapshot.externalChangePaths).toEqual(expect.any(Array))
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
   it("signals affected Eidos Files to refresh after collecting published Form responses", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-publish-collect-refresh-")

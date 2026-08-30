@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react"
 import {
   Check,
@@ -36,6 +37,8 @@ import type {
   SpaceSyncHistoryStatus,
 } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
+import { useFileContentFocusRequest } from "./file-content-focus"
+import type { VersionDiffNavigationLocation } from "./navigation-history"
 import {
   VersionChangeTree,
   type VersionChangeDiscardTarget,
@@ -144,6 +147,74 @@ export function loadVersionPathDiff(
     })
   versionPathDiffCache.set(key, entry)
   return entry.promise
+}
+
+export async function loadVersionInspectionRoute(
+  location: VersionDiffNavigationLocation
+): Promise<VersionInspection> {
+  const commitId = location.mode === "history" ? location.commitId : null
+  const comparisonParent =
+    location.mode === "history" ? location.comparisonParent : null
+  const diff = await window.eidosLite.getVersionPathDiff(
+    location.path,
+    commitId,
+    comparisonParent,
+    location.tableName
+  )
+  const file =
+    diff.files.find((candidate) => candidate.path === location.path) ?? null
+  const change =
+    diff.paths.find((candidate) => candidate.path === location.path) ?? file
+  if (!change) {
+    throw new Error(`${location.path} is not present in this version diff.`)
+  }
+
+  const commit: SpaceVersionCommit | null =
+    location.mode === "history"
+      ? {
+          id: location.commitId,
+          parent: location.commitParent,
+          ...(location.commitParents
+            ? { parents: location.commitParents }
+            : {}),
+          message: "",
+          timestampMs: 0,
+          files: 0,
+          changes: [],
+          tables: [],
+          changedTables: 0,
+        }
+      : null
+  const keyPrefix = `${location.mode}:${commitId ?? diff.currentHead ?? "working"}:${location.path}`
+  if (location.tableName) {
+    const table = file?.tables.find(
+      (candidate) => candidate.name === location.tableName
+    )
+    if (!file || !table) {
+      throw new Error(
+        `${location.tableName} is not present in the diff for ${location.path}.`
+      )
+    }
+    return {
+      type: "table",
+      key: `${keyPrefix}:${location.tableName}`,
+      mode: location.mode,
+      diff,
+      change,
+      file,
+      table,
+      commit,
+    }
+  }
+  return {
+    type: "file",
+    key: keyPrefix,
+    mode: location.mode,
+    diff,
+    change,
+    file,
+    commit,
+  }
 }
 
 function hasConcreteSqliteChanges(
@@ -526,12 +597,20 @@ export function VersionDiffPreview({
   onClose,
   onNavigate,
   theme,
+  titlebarNavigation,
+  focusRequestToken = 0,
 }: {
   inspection: VersionInspection
   onClose(): void
   onNavigate?(inspection: VersionInspection): void
   theme: ResolvedAppearance
+  titlebarNavigation?: ReactNode
+  focusRequestToken?: number
 }) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  useFileContentFocusRequest(focusRequestToken, () =>
+    contentRef.current?.focus({ preventScroll: true })
+  )
   const inspectionTable = inspection.type === "table" ? inspection.table : null
   const [pagedTable, setPagedTable] = useState<SpaceVersionTableDiff | null>(
     inspectionTable
@@ -646,21 +725,13 @@ export function VersionDiffPreview({
 
   return (
     <section
-      className="version-inspector"
+      className="version-inspector version-inspector-route"
       aria-label={`Change details for ${title}`}
       data-version-inspector={inspection.type}
     >
       <header className="version-inspector-bar">
+        {titlebarNavigation}
         <div>
-          <button
-            type="button"
-            className="version-inspector-crumb"
-            aria-label={`Back to ${inspection.mode === "changes" ? "Changes" : "History"} overview`}
-            onClick={onClose}
-          >
-            {inspection.mode === "changes" ? "Changes" : "History"}
-          </button>
-          <ChevronRight aria-hidden="true" />
           {inspection.type === "table" ? (
             <button
               type="button"
@@ -704,13 +775,15 @@ export function VersionDiffPreview({
           className="icon-button"
           onClick={onClose}
           aria-label="Close change details"
-          title="Return to the Eidos File editor"
+          title="Close change details"
         >
           <X />
         </button>
       </header>
 
       <div
+        ref={contentRef}
+        tabIndex={-1}
         className={`version-inspector-scroll${inspection.type === "table" ? " version-inspector-table-layout" : ""}${showsTextDiff ? " version-inspector-text-layout" : ""}${showsWorkingBinaryPreview ? " version-inspector-media-layout" : ""}`}
       >
         {inspection.type === "table" ? (
@@ -763,7 +836,7 @@ export function VersionDiffPreview({
             <VersionTextDiff
               mode="history"
               commitId={inspection.commit.id}
-              parentId={inspection.commit.parent}
+              parentId={inspection.diff.from ?? inspection.commit.parent}
               path={inspection.change.path}
               previousPath={inspection.change.previousPath}
               theme={theme}
@@ -1071,6 +1144,8 @@ export function VersionPanel({
   >(null)
   const selectedInspectionKeyRef = useRef<string | null>(null)
   const selectedInspectionRef = useRef<VersionInspection | null>(null)
+  const onInspectionChangeRef = useRef(onInspectionChange)
+  onInspectionChangeRef.current = onInspectionChange
   const previousWorkingChangeTokenRef = useRef(space.graft.changeToken)
   const checkpointInFlightRef = useRef(false)
   const inspectionRequestIdRef = useRef(0)
@@ -1098,14 +1173,17 @@ export function VersionPanel({
   const [error, setError] = useState<string | null>(null)
 
   const clearInspection = useCallback(() => {
+    const hadInspection =
+      selectedInspectionKeyRef.current !== null ||
+      selectedInspectionRef.current !== null
     inspectionRequestIdRef.current += 1
     activeVersionPathDiffKeyRef.current = null
     discardPendingVersionPathDiffs()
     selectedInspectionKeyRef.current = null
     selectedInspectionRef.current = null
     setSelectedInspectionKey(null)
-    onInspectionChange(null)
-  }, [onInspectionChange])
+    if (hadInspection) onInspectionChangeRef.current(null)
+  }, [])
 
   const inspect = useCallback(
     async (inspection: VersionInspection) => {
@@ -1125,7 +1203,7 @@ export function VersionPanel({
           void window.eidosLite.cancelVersionReads().catch(() => undefined)
         }
         selectedInspectionRef.current = inspection
-        onInspectionChange(inspection)
+        onInspectionChangeRef.current(inspection)
         return
       }
 
@@ -1156,7 +1234,7 @@ export function VersionPanel({
               detailsError: "The selected table is not present in this change.",
             }
             selectedInspectionRef.current = nextInspection
-            onInspectionChange(nextInspection)
+            onInspectionChangeRef.current(nextInspection)
             return
           }
           const nextInspection: VersionInspection = {
@@ -1168,7 +1246,7 @@ export function VersionPanel({
             detailsError: undefined,
           }
           selectedInspectionRef.current = nextInspection
-          onInspectionChange(nextInspection)
+          onInspectionChangeRef.current(nextInspection)
           return
         }
         const nextInspection: VersionInspection = {
@@ -1179,7 +1257,7 @@ export function VersionPanel({
           detailsError: undefined,
         }
         selectedInspectionRef.current = nextInspection
-        onInspectionChange(nextInspection)
+        onInspectionChangeRef.current(nextInspection)
       }
 
       setError(null)
@@ -1203,7 +1281,7 @@ export function VersionPanel({
         detailsError: undefined,
       }
       selectedInspectionRef.current = loadingInspection
-      onInspectionChange(loadingInspection)
+      onInspectionChangeRef.current(loadingInspection)
       try {
         const tableName =
           inspection.type === "table" ? inspection.table.name : undefined
@@ -1243,7 +1321,7 @@ export function VersionPanel({
             detailsError: message,
           }
           selectedInspectionRef.current = failedInspection
-          onInspectionChange(failedInspection)
+          onInspectionChangeRef.current(failedInspection)
         }
       } finally {
         if (inspectionRequestIdRef.current === requestId) {
@@ -1254,7 +1332,6 @@ export function VersionPanel({
     [
       changes,
       mode,
-      onInspectionChange,
       refreshKey,
       selectedDiff,
       space.graft.changeToken,

@@ -21,6 +21,7 @@ import type {
   EidosLiteLanguage,
   EidosLitePreferences,
   EidosLiteSettingsDestination,
+  EidosLiteTerminalLayout,
   EidosLiteTerminalShell,
   EidosLiteUpdateStatus,
 } from "../shared/contracts"
@@ -42,6 +43,14 @@ const APPEARANCE_OPTIONS: Array<{
 const LANGUAGE_OPTIONS: Array<{
   value: EidosLiteLanguage
 }> = [{ value: "system" }, { value: "en" }, { value: "zh" }]
+
+const TERMINAL_LAYOUT_OPTIONS: Array<{
+  label: string
+  value: EidosLiteTerminalLayout
+}> = [
+  { label: "Bottom", value: "bottom" },
+  { label: "Beside file content", value: "side" },
+]
 
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
@@ -647,6 +656,45 @@ export function SettingsPage() {
                 </div>
                 <div
                   className="settings-row settings-row-stacked"
+                  data-terminal-layout
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t("Terminal layout")}</strong>
+                    <small>
+                      {t(
+                        "Choose how Terminal and file content share the middle work area."
+                      )}
+                    </small>
+                  </div>
+                  <div
+                    className="settings-segmented-control"
+                    data-segment-count={TERMINAL_LAYOUT_OPTIONS.length}
+                    role="radiogroup"
+                    aria-label={t("Terminal layout")}
+                  >
+                    {TERMINAL_LAYOUT_OPTIONS.map((option) => (
+                      <button
+                        type="button"
+                        role="radio"
+                        data-terminal-layout={option.value}
+                        aria-checked={
+                          preferences.terminalLayout === option.value
+                        }
+                        disabled={!preferences.builtInPlugins.terminal}
+                        key={option.value}
+                        onClick={() =>
+                          void updatePreferences({
+                            terminalLayout: option.value,
+                          })
+                        }
+                      >
+                        {t(option.label)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className="settings-row settings-row-stacked"
                   data-terminal-shell
                 >
                   <div className="settings-row-copy">
@@ -661,7 +709,10 @@ export function SettingsPage() {
                     className="settings-shell-select"
                     aria-label={t("Default shell")}
                     value={preferences.terminalShell ?? ""}
-                    disabled={terminalShellsLoading}
+                    disabled={
+                      terminalShellsLoading ||
+                      !preferences.builtInPlugins.terminal
+                    }
                     onChange={(event) =>
                       void updatePreferences({
                         terminalShell: event.currentTarget.value || null,

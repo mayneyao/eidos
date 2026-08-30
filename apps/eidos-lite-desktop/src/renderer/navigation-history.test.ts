@@ -30,6 +30,52 @@ describe("Eidos Lite browser navigation history", () => {
     expect(parseNavigationHash("#invalid")).toBeNull()
   })
 
+  it("round-trips working and historical diff routes", () => {
+    const working = {
+      type: "version-diff" as const,
+      mode: "changes" as const,
+      path: "notes/road map.md",
+    }
+    const history = {
+      type: "version-diff" as const,
+      mode: "history" as const,
+      path: "data/crm.eidos",
+      tableName: "Sales / APAC",
+      commitId: "c".repeat(64),
+      commitParent: "a".repeat(64),
+      comparisonParent: "b".repeat(64),
+      commitParents: ["a".repeat(64), "b".repeat(64)],
+    }
+
+    expect(parseNavigationHash(navigationHash("space/一", working))).toEqual({
+      spaceId: "space/一",
+      location: working,
+    })
+    expect(parseNavigationHash(navigationHash("space/一", history))).toEqual({
+      spaceId: "space/一",
+      location: history,
+    })
+  })
+
+  it("does not duplicate a diff route when its loaded inspection updates", () => {
+    const spaceId = "space-id"
+    const location = {
+      type: "version-diff" as const,
+      mode: "changes" as const,
+      path: "data/crm.eidos",
+      tableName: "Customers",
+    }
+    let snapshot = initializeNavigationHistory(spaceId)
+    snapshot = pushNavigationLocation(snapshot, spaceId, location)
+
+    const unchanged = pushNavigationLocation(snapshot, spaceId, {
+      ...location,
+    })
+
+    expect(unchanged).toBe(snapshot)
+    expect(unchanged).toMatchObject({ index: 1, length: 2 })
+  })
+
   it("branches with browser URLs and restores forward availability", () => {
     const spaceId = "space-id"
     let snapshot = initializeNavigationHistory(spaceId)

@@ -218,6 +218,8 @@ export interface EidosFileGridProps {
   /** Hide Glide's always-frozen row marker gutter when space is constrained. */
   showRowMarkers?: boolean
   reloadToken?: number
+  /** Monotonic Host request used to return keyboard focus to the Grid. */
+  focusRequestToken?: number
   /** Stable identity for the active row query; changing it invalidates positional history. */
   historyScopeKey?: string
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
@@ -485,6 +487,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onRowsEdit,
   onSelectedRowsChange,
   onRowCountChange,
+  focusRequestToken = 0,
   searchResultIndex = null,
   onImportFiles,
   onImportDroppedFiles,
@@ -522,6 +525,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
   const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
+  const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
   const attachmentThumbnails = useMemo(
     () =>
       new EidosFileAttachmentThumbnailManager(
@@ -1860,6 +1864,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection
+
+  useEffect(() => {
+    if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
+    acceptedFocusRequestTokenRef.current = focusRequestToken
+    restoreGridFocus()
+  }, [focusRequestToken, restoreGridFocus])
 
   const refreshAfterRowCommand = useCallback((nextRowCount: number) => {
     rowCountRef.current = nextRowCount

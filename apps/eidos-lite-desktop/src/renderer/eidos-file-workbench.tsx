@@ -77,6 +77,8 @@ export interface EidosFileWorkbenchProps {
   relativePath: string
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
+  refreshToken?: number
+  focusRequestToken?: number
   activeTableId: string
   disabled: boolean
   theme: "light" | "dark"
@@ -93,6 +95,8 @@ export function EidosFileWorkbench({
   relativePath,
   snapshot,
   source,
+  refreshToken = 0,
+  focusRequestToken = 0,
   activeTableId,
   disabled,
   theme,
@@ -125,9 +129,17 @@ export function EidosFileWorkbench({
     null
   )
   const [reloadToken, setReloadToken] = useState(0)
+  const acceptedRefreshTokenRef = useRef(refreshToken)
   const [relatedRecordTarget, setRelatedRecordTarget] =
     useState<EidosFileRelationRecordTarget | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+  const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
+
+  useEffect(() => {
+    if (acceptedRefreshTokenRef.current === refreshToken) return
+    acceptedRefreshTokenRef.current = refreshToken
+    setReloadToken((current) => current + 1)
+  }, [refreshToken])
   const assetSession = useMemo(
     () =>
       createEidosLiteAssetSession(source.sessionId, snapshot.metadata.fileId),
@@ -272,6 +284,14 @@ export function EidosFileWorkbench({
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
+  useEffect(() => {
+    if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
+    acceptedFocusRequestTokenRef.current = focusRequestToken
+    if ((activeView?.type ?? "grid") === "grid") return
+    editorRef.current
+      ?.querySelector<HTMLElement>(".eidos-file-content")
+      ?.focus({ preventScroll: true })
+  }, [activeView?.type, focusRequestToken])
   const activeFormMode: EidosFileFormEditorMode =
     activeView?.type === "form"
       ? (formModes[activeView.id] ?? "build")
@@ -558,6 +578,7 @@ export function EidosFileWorkbench({
         contentProps={{
           className: "eidos-file-content",
           id: "eidos-file-grid",
+          tabIndex: -1,
         }}
         sheetTabs={
           <EidosFileSheetTabs
@@ -671,6 +692,7 @@ export function EidosFileWorkbench({
             state={{ formMode: activeFormMode }}
             disabled={disabled}
             reloadToken={reloadToken}
+            focusRequestToken={focusRequestToken}
             propertyField={currentPropertyField}
             capabilities={{
               read: true,

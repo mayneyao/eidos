@@ -35,6 +35,7 @@ export function applyAppearance(
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
+  terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
   builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },

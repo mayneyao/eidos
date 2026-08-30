@@ -7,7 +7,7 @@ import type { EidosLiteApi, EidosLitePreferences } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { SettingsPage } from "./settings-page"
 
-it("lists installed shells and saves the shell selected for new terminals", async () => {
+it("saves the Terminal workspace layout and shell preferences", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   let preferences: EidosLitePreferences = {
     ...DEFAULT_RENDERER_PREFERENCES,
@@ -57,6 +57,34 @@ it("lists installed shells and saves the shell selected for new terminals", asyn
   ].find((button) => button.textContent === "Built-in Plugins")
   await act(async () => pluginsPage?.click())
 
+  const terminalSide = host.querySelector<HTMLButtonElement>(
+    'button[data-terminal-layout="side"]'
+  )
+  expect(
+    host.querySelector<HTMLElement>(
+      "[data-terminal-layout] > .settings-segmented-control"
+    )?.dataset.segmentCount
+  ).toBe("2")
+  expect(
+    host.querySelectorAll<HTMLButtonElement>("button[data-terminal-layout]")
+  ).toHaveLength(2)
+  expect(
+    host.querySelector<HTMLButtonElement>(
+      'button[data-terminal-layout="right"]'
+    )
+  ).toBeNull()
+  expect(
+    host.querySelector<HTMLButtonElement>('button[data-terminal-layout="main"]')
+  ).toBeNull()
+  expect(terminalSide?.disabled).toBe(false)
+  await act(async () => {
+    terminalSide?.click()
+    await Promise.resolve()
+  })
+  expect(updatePreferences).toHaveBeenCalledWith({
+    terminalLayout: "side",
+  })
+
   const select = host.querySelector<HTMLSelectElement>(
     'select[aria-label="Default shell"]'
   )
@@ -73,6 +101,16 @@ it("lists installed shells and saves the shell selected for new terminals", asyn
   expect(updatePreferences).toHaveBeenCalledWith({
     terminalShell: "/bin/bash",
   })
+
+  const terminalSwitch = host.querySelector<HTMLButtonElement>(
+    '[data-built-in-plugin="terminal"] button[role="switch"]'
+  )
+  await act(async () => {
+    terminalSwitch?.click()
+    await Promise.resolve()
+  })
+  expect(terminalSide?.disabled).toBe(true)
+  expect(select?.disabled).toBe(true)
 
   await act(async () => root.unmount())
   host.remove()

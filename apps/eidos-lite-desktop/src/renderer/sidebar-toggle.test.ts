@@ -20,8 +20,11 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   )?.[1]
 
   expect(sidebarHeader).toContain("<TitlebarNavigation")
-  expect(fileTitlebar).toContain("<TitlebarNavigation")
+  expect(fileTitlebar).toContain("collapsedTitlebarNavigation")
   expect(appSource.match(/<TitlebarNavigation/g)).toHaveLength(2)
+  expect(appSource).toContain(
+    'sidebarCollapsed && workbenchSurfaces.terminal === "side"'
+  )
   expect(appSource).toContain('data-navigation-action="back"')
   expect(appSource).toContain('data-navigation-action="forward"')
   expect(styles).toMatch(
@@ -46,13 +49,24 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource.match(/workspaceShortcutAriaKeyShortcuts\(/g)).toHaveLength(
     5
   )
+  expect(appSource).toContain(
+    'workspaceShortcut === "toggle-terminal-position"'
+  )
+  expect(appSource).toContain(
+    'workspaceShortcutLabel(\n    "toggle-terminal-position"'
+  )
   expect(appSource).toContain('"--space-sidebar-track-width": sidebarCollapsed')
+  expect(appSource).toContain('"--space-sidebar-min-width": sidebarCollapsed')
+  expect(appSource).not.toContain("MAX_SIDEBAR_WIDTH")
   expect(styles).toMatch(
-    /\.workbench\s*\{[\s\S]*?--sidebar-motion-enter:\s*120ms;[\s\S]*?grid-template-columns:\s*var\(--space-sidebar-track-width\)/
+    /\.workbench\s*\{[\s\S]*?--sidebar-motion-enter:\s*120ms;[\s\S]*?grid-template-columns:\s*var\(--effective-space-sidebar-width\)/
   )
   expect(styles).not.toMatch(/transition:\s*grid-template-columns/)
   expect(styles).toMatch(
-    /\.space-sidebar\s*\{[\s\S]*?width:\s*var\(--space-sidebar-width\);[\s\S]*?contain:\s*paint;[\s\S]*?will-change:\s*transform, opacity;/
+    /\.space-sidebar\s*\{[\s\S]*?width:\s*100%;[\s\S]*?contain:\s*paint;[\s\S]*?will-change:\s*transform, opacity;/
+  )
+  expect(styles).not.toMatch(
+    /\.space-sidebar\s*\{[^}]*width:\s*var\(--effective-space-sidebar-width\);/u
   )
   expect(styles).toMatch(
     /\.workbench\[data-sidebar-collapsed="true"\]\s+\.space-sidebar\s*\{[\s\S]*?transform:\s*translate3d\(-0\.35rem, 0, 0\);[\s\S]*?visibility 0s linear var\(--sidebar-motion-exit\)/
@@ -62,7 +76,7 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
     /\.resizing-space-sidebar \.workbench,[\s\S]*?\.resizing-space-sidebar \.sidebar-resizer\s*\{\s*transition:\s*none;/
   )
   expect(styles).toMatch(
-    /\.sidebar-resizer\s*\{[\s\S]*?z-index:\s*50;[\s\S]*?left:\s*calc\(var\(--space-sidebar-width\) - 12px\);[\s\S]*?width:\s*12px;/
+    /\.sidebar-resizer\s*\{[\s\S]*?z-index:\s*50;[\s\S]*?left:\s*calc\(var\(--effective-space-sidebar-width\) - 12px\);[\s\S]*?width:\s*12px;/
   )
   expect(styles).toMatch(
     /\.sidebar-resizer::after\s*\{[\s\S]*?right:\s*0;[\s\S]*?width:\s*1px;/

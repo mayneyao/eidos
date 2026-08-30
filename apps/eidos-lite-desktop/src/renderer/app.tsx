@@ -43,6 +43,7 @@ import type {
   EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLitePreferences,
+  EidosLiteTerminalLayout,
   EidosLiteUpdateStatus,
   EidosPublicationBinding,
   EidosSyncMergeStatus,
@@ -76,12 +77,14 @@ import { useEidosLiteI18n } from "./i18n"
 import {
   canNavigateHistory,
   initializeNavigationHistory,
+  isVersionDiffNavigationLocation,
   pathMatchesPrefix,
   pushNavigationLocation,
   readNavigationHistory,
   replaceNavigationLocation,
   type NavigationLocation,
   type NavigationSnapshot,
+  type VersionDiffNavigationLocation,
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { rendererPlatform } from "./renderer-platform"
@@ -123,6 +126,7 @@ import {
   workspaceShortcutAriaKeyShortcuts,
   workspaceShortcutLabel,
 } from "./workspace-shortcuts"
+import { resolveWorkbenchSurfaces } from "./workbench-layout"
 
 let eidosFileWorkbenchModule:
   | Promise<{
@@ -183,6 +187,25 @@ interface CachedFile {
   tableId: string
 }
 
+function externalChangeAffectsEidosFile(
+  relativePath: string,
+  changedPaths: readonly string[]
+): boolean {
+  const filePath = relativePath.split("\\").join("/")
+  return (
+    changedPaths.length === 0 ||
+    changedPaths.some((candidate) => {
+      const changedPath = candidate.split("\\").join("/").replace(/\/+$/u, "")
+      if (!changedPath) return true
+      if (changedPath === filePath) return true
+      if (filePath.startsWith(`${changedPath}/`)) return true
+      return ["-wal", "-shm", "-journal"].some(
+        (suffix) => changedPath === `${filePath}${suffix}`
+      )
+    })
+  )
+}
+
 interface RecentFileState {
   spaceId: string | null
   files: RecentFileEntry[]
@@ -219,6 +242,34 @@ function useAppTheme(): ResolvedAppearance {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function navigationLocationForVersionInspection(
+  inspection: VersionInspection
+): VersionDiffNavigationLocation | null {
+  const tableName =
+    inspection.type === "table" ? inspection.table.name : undefined
+  if (inspection.mode === "changes") {
+    return {
+      type: "version-diff",
+      mode: "changes",
+      path: inspection.change.path,
+      ...(tableName ? { tableName } : {}),
+    }
+  }
+  if (!inspection.commit) return null
+  return {
+    type: "version-diff",
+    mode: "history",
+    path: inspection.change.path,
+    ...(tableName ? { tableName } : {}),
+    commitId: inspection.commit.id,
+    commitParent: inspection.commit.parent,
+    comparisonParent: inspection.diff.from,
+    ...(inspection.commit.parents
+      ? { commitParents: inspection.commit.parents }
+      : {}),
+  }
 }
 
 interface TitlebarNavigationProps {
@@ -300,31 +351,61 @@ function TitlebarNavigation({
 
 const DEFAULT_SIDEBAR_WIDTH = 280
 const MIN_SIDEBAR_WIDTH = 208
-const MAX_SIDEBAR_WIDTH = 480
 const SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:space-sidebar-width"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "eidos-lite:space-sidebar-collapsed"
-const DEFAULT_UTILITY_PANEL_WIDTH = 352
-const MIN_UTILITY_PANEL_WIDTH = 304
-const MAX_UTILITY_PANEL_WIDTH = 640
-const MIN_EDITOR_WORK_WIDTH = 304
+const MIN_WORKBENCH_CONTENT_WIDTH = 360
+const WORKBENCH_SEPARATOR_WIDTH = 12
+// Read this legacy key when a user has only resized History or Sync before the
+// right sidebar became a shared workbench region.
 const UTILITY_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:utility-panel-width"
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 256
 const MIN_TERMINAL_PANEL_HEIGHT = 128
 const MAX_TERMINAL_PANEL_HEIGHT = 640
-const DEFAULT_TERMINAL_PANEL_WIDTH = 400
-const MIN_TERMINAL_PANEL_WIDTH = 288
-const MAX_TERMINAL_PANEL_WIDTH = 720
+const DEFAULT_TERMINAL_PANEL_WIDTH = 480
+const MIN_TERMINAL_PANEL_WIDTH = 300
+const DEFAULT_RIGHT_SIDEBAR_WIDTH = 400
+const MIN_RIGHT_SIDEBAR_WIDTH = 288
 const MIN_EDITOR_WORK_HEIGHT = 160
 const TERMINAL_PANEL_HEIGHT_STORAGE_KEY = "eidos-lite:terminal-panel-height"
+// Retain this key so side-split users keep their saved Terminal width.
 const TERMINAL_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:terminal-panel-width"
+const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:right-sidebar-width"
 const TERMINAL_PANEL_PLACEMENT_STORAGE_KEY =
   "eidos-lite:terminal-panel-placement"
 const MAX_CACHED_FILES = 3
 
-type TerminalPanelPlacement = "bottom" | "right"
+function clampSidebarWidth(
+  width: number,
+  maximum = Number.POSITIVE_INFINITY
+): number {
+  return Math.min(
+    Math.max(MIN_SIDEBAR_WIDTH, maximum),
+    Math.max(MIN_SIDEBAR_WIDTH, width)
+  )
+}
 
-function clampSidebarWidth(width: number): number {
-  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width))
+function maximumSidebarWidth(
+  container: HTMLElement | null,
+  rightSidebarVisible: boolean,
+  rightSidebarWidth: number,
+  terminalSideVisible: boolean,
+  terminalPanelWidth: number
+): number {
+  if (!container) return Number.POSITIVE_INFINITY
+  const reservedWidth =
+    MIN_WORKBENCH_CONTENT_WIDTH +
+    (terminalSideVisible
+      ? WORKBENCH_SEPARATOR_WIDTH +
+        Math.max(MIN_TERMINAL_PANEL_WIDTH, terminalPanelWidth)
+      : 0) +
+    (rightSidebarVisible
+      ? WORKBENCH_SEPARATOR_WIDTH +
+        Math.max(MIN_RIGHT_SIDEBAR_WIDTH, rightSidebarWidth)
+      : 0)
+  return Math.max(
+    MIN_SIDEBAR_WIDTH,
+    container.getBoundingClientRect().width - reservedWidth
+  )
 }
 
 function storedSidebarWidth(): number {
@@ -339,37 +420,6 @@ function storedSidebarWidth(): number {
 
 function storedSidebarCollapsed(): boolean {
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
-}
-
-function clampUtilityPanelWidth(
-  width: number,
-  maximum = MAX_UTILITY_PANEL_WIDTH
-): number {
-  return Math.min(
-    Math.max(MIN_UTILITY_PANEL_WIDTH, maximum),
-    Math.max(MIN_UTILITY_PANEL_WIDTH, width)
-  )
-}
-
-function maximumUtilityPanelWidth(container: HTMLElement | null): number {
-  if (!container) return MAX_UTILITY_PANEL_WIDTH
-  return Math.min(
-    MAX_UTILITY_PANEL_WIDTH,
-    Math.max(
-      MIN_UTILITY_PANEL_WIDTH,
-      container.getBoundingClientRect().width - MIN_EDITOR_WORK_WIDTH
-    )
-  )
-}
-
-function storedUtilityPanelWidth(): number {
-  const stored = Number.parseInt(
-    window.localStorage.getItem(UTILITY_PANEL_WIDTH_STORAGE_KEY) ?? "",
-    10
-  )
-  return Number.isFinite(stored)
-    ? clampUtilityPanelWidth(stored)
-    : DEFAULT_UTILITY_PANEL_WIDTH
 }
 
 function clampTerminalPanelHeight(
@@ -403,9 +453,19 @@ function storedTerminalPanelHeight(): number {
     : DEFAULT_TERMINAL_PANEL_HEIGHT
 }
 
+function clampRightSidebarWidth(
+  width: number,
+  maximum = Number.POSITIVE_INFINITY
+): number {
+  return Math.min(
+    Math.max(MIN_RIGHT_SIDEBAR_WIDTH, maximum),
+    Math.max(MIN_RIGHT_SIDEBAR_WIDTH, width)
+  )
+}
+
 function clampTerminalPanelWidth(
   width: number,
-  maximum = MAX_TERMINAL_PANEL_WIDTH
+  maximum = Number.POSITIVE_INFINITY
 ): number {
   return Math.min(
     Math.max(MIN_TERMINAL_PANEL_WIDTH, maximum),
@@ -413,21 +473,50 @@ function clampTerminalPanelWidth(
   )
 }
 
-function maximumTerminalPanelWidth(container: HTMLElement | null): number {
-  if (!container) return MAX_TERMINAL_PANEL_WIDTH
-  const sidebarWidth = Number.parseFloat(
-    window
-      .getComputedStyle(container)
-      .getPropertyValue("--space-sidebar-track-width")
+function visibleSpaceSidebarWidth(container: HTMLElement): number {
+  if (container.dataset.sidebarCollapsed === "true") return 0
+  return (
+    container
+      .querySelector<HTMLElement>(".space-sidebar")
+      ?.getBoundingClientRect().width ?? 0
   )
-  return Math.min(
-    MAX_TERMINAL_PANEL_WIDTH,
-    Math.max(
-      MIN_TERMINAL_PANEL_WIDTH,
-      container.getBoundingClientRect().width -
-        (Number.isFinite(sidebarWidth) ? sidebarWidth : 0) -
-        MIN_EDITOR_WORK_WIDTH
-    )
+}
+
+function maximumTerminalPanelWidth(
+  container: HTMLElement | null,
+  rightSidebarVisible: boolean,
+  rightSidebarWidth: number
+): number {
+  if (!container) return Number.POSITIVE_INFINITY
+  return Math.max(
+    MIN_TERMINAL_PANEL_WIDTH,
+    container.getBoundingClientRect().width -
+      visibleSpaceSidebarWidth(container) -
+      MIN_WORKBENCH_CONTENT_WIDTH -
+      WORKBENCH_SEPARATOR_WIDTH -
+      (rightSidebarVisible
+        ? WORKBENCH_SEPARATOR_WIDTH +
+          Math.max(MIN_RIGHT_SIDEBAR_WIDTH, rightSidebarWidth)
+        : 0)
+  )
+}
+
+function maximumRightSidebarWidth(
+  container: HTMLElement | null,
+  terminalSideVisible: boolean,
+  terminalPanelWidth: number
+): number {
+  if (!container) return Number.POSITIVE_INFINITY
+  return Math.max(
+    MIN_RIGHT_SIDEBAR_WIDTH,
+    container.getBoundingClientRect().width -
+      visibleSpaceSidebarWidth(container) -
+      MIN_WORKBENCH_CONTENT_WIDTH -
+      WORKBENCH_SEPARATOR_WIDTH -
+      (terminalSideVisible
+        ? WORKBENCH_SEPARATOR_WIDTH +
+          Math.max(MIN_TERMINAL_PANEL_WIDTH, terminalPanelWidth)
+        : 0)
   )
 }
 
@@ -441,11 +530,28 @@ function storedTerminalPanelWidth(): number {
     : DEFAULT_TERMINAL_PANEL_WIDTH
 }
 
-function storedTerminalPanelPlacement(): TerminalPanelPlacement {
-  return window.localStorage.getItem(TERMINAL_PANEL_PLACEMENT_STORAGE_KEY) ===
-    "right"
-    ? "right"
-    : "bottom"
+function storedRightSidebarWidth(): number {
+  for (const key of [
+    RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
+    UTILITY_PANEL_WIDTH_STORAGE_KEY,
+  ]) {
+    const stored = Number.parseInt(window.localStorage.getItem(key) ?? "", 10)
+    if (Number.isFinite(stored)) return clampRightSidebarWidth(stored)
+  }
+  return DEFAULT_RIGHT_SIDEBAR_WIDTH
+}
+
+function storedLegacyTerminalLayout(): EidosLiteTerminalLayout | null {
+  const stored = window.localStorage.getItem(
+    TERMINAL_PANEL_PLACEMENT_STORAGE_KEY
+  )
+  return stored === "right" ? "side" : stored === "bottom" ? "bottom" : null
+}
+
+function nextTerminalLayout(
+  current: EidosLiteTerminalLayout
+): EidosLiteTerminalLayout {
+  return current === "bottom" ? "side" : "bottom"
 }
 
 function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
@@ -747,6 +853,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [timeZone, setTimeZone] = useState(
     DEFAULT_RENDERER_PREFERENCES.timeZone
   )
+  const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
+    () =>
+      storedLegacyTerminalLayout() ??
+      DEFAULT_RENDERER_PREFERENCES.terminalLayout
+  )
   const [builtInPlugins, setBuiltInPlugins] = useState(
     DEFAULT_RENDERER_PREFERENCES.builtInPlugins
   )
@@ -771,7 +882,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     macos,
     keyboardShortcuts
   )
-  const terminalPlacementShortcutLabel = workspaceShortcutLabel(
+  const terminalLayoutShortcutLabel = workspaceShortcutLabel(
     "toggle-terminal-position",
     macos,
     keyboardShortcuts
@@ -786,6 +897,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const [fileSurfaceFocusRequestToken, setFileSurfaceFocusRequestToken] =
+    useState(0)
+  const [diffSurfaceFocusRequestToken, setDiffSurfaceFocusRequestToken] =
+    useState(0)
   const [textFileDrafts, setTextFileDrafts] = useState<
     Record<string, TextFileDraft | undefined>
   >({})
@@ -796,6 +911,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
+  const [versionRouteError, setVersionRouteError] = useState<string | null>(
+    null
+  )
   const [syncPanelMode, setSyncPanelMode] = useState<"enable" | "clone" | null>(
     null
   )
@@ -806,6 +924,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   })
   const [versionRefreshKey, setVersionRefreshKey] = useState(0)
   const [fileMaterializationKey, setFileMaterializationKey] = useState(0)
+  const [externalFileRefreshToken, setExternalFileRefreshToken] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
@@ -813,10 +932,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     storedSidebarCollapsed
   )
-  const [utilityPanelWidth, setUtilityPanelWidth] = useState(
-    storedUtilityPanelWidth
-  )
-  const [utilityPanelResizing, setUtilityPanelResizing] = useState(false)
   const [terminalPanelOpen, setTerminalPanelOpen] = useState(false)
   const [terminalPanelInitialized, setTerminalPanelInitialized] =
     useState(false)
@@ -826,11 +941,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [terminalPanelWidth, setTerminalPanelWidth] = useState(
     storedTerminalPanelWidth
   )
-  const [terminalPanelPlacement, setTerminalPanelPlacement] = useState(
-    storedTerminalPanelPlacement
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(
+    storedRightSidebarWidth
   )
+  const terminalPanelVisible = terminalPluginEnabled && terminalPanelOpen
   const [terminalPanelResizing, setTerminalPanelResizing] = useState(false)
+  const [rightSidebarResizing, setRightSidebarResizing] = useState(false)
+  const workbenchRef = useRef<HTMLDivElement>(null)
   const terminalToggleRef = useRef<HTMLButtonElement>(null)
+  const acceptedTerminalPreferencesRef = useRef<Pick<
+    EidosLitePreferences,
+    "builtInPlugins" | "terminalLayout"
+  > | null>(null)
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
 
@@ -996,9 +1118,36 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   useEffect(() => {
     const acceptPreferences = (preferences: EidosLitePreferences) => {
+      const previousTerminalPreferences = acceptedTerminalPreferencesRef.current
+      const legacyLayout = previousTerminalPreferences
+        ? null
+        : storedLegacyTerminalLayout()
+      const resolvedTerminalLayout =
+        legacyLayout && preferences.terminalLayout === "bottom"
+          ? legacyLayout
+          : preferences.terminalLayout
+      acceptedTerminalPreferencesRef.current = {
+        builtInPlugins: preferences.builtInPlugins,
+        terminalLayout: resolvedTerminalLayout,
+      }
+      if (legacyLayout) {
+        if (resolvedTerminalLayout === preferences.terminalLayout) {
+          window.localStorage.removeItem(TERMINAL_PANEL_PLACEMENT_STORAGE_KEY)
+        } else {
+          void window.eidosLite
+            .updatePreferences({ terminalLayout: resolvedTerminalLayout })
+            .then(() =>
+              window.localStorage.removeItem(
+                TERMINAL_PANEL_PLACEMENT_STORAGE_KEY
+              )
+            )
+            .catch((cause) => setError(errorMessage(cause)))
+        }
+      }
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
+      setTerminalLayout(resolvedTerminalLayout)
       setBuiltInPlugins(preferences.builtInPlugins)
       if (!preferences.builtInPlugins.terminal) {
         setTerminalPanelOpen(false)
@@ -1039,14 +1188,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   }, [])
 
   const recordNavigationLocation = useCallback(
-    (relativePath: string | null) => {
+    (location: NavigationLocation) => {
       const current = navigationSnapshotRef.current
-      if (!current || !space) return
-      const next = pushNavigationLocation(current, space.id, relativePath)
+      const spaceId = space?.id
+      if (!current || !spaceId) return
+      const next = pushNavigationLocation(current, spaceId, location)
       navigationSnapshotRef.current = next
       setNavigationSnapshot(next)
     },
-    [space]
+    [space?.id]
   )
 
   const updateRecentFiles = useCallback(
@@ -1106,32 +1256,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     [activeSession, invalidateCachedSessions]
   )
 
-  const refreshMaterializedFiles = useCallback(
+  const refreshCachedEidosFiles = useCallback(
     async (
       snapshot: SpaceSnapshot,
-      materializedPaths: readonly string[] | null = []
+      shouldRefresh: (file: CachedFile) => boolean = () => true
     ) => {
-      // Sync and merge materialization return an authoritative Space snapshot.
-      // Keep the shell's Graft/Sync relationship and open file snapshots in
-      // step with the files that were replaced on disk.
       acceptSpaceSnapshot(snapshot)
       const invalidated = new Set(snapshot.invalidatedSessionIds)
-      const materialized = materializedPaths ? new Set(materializedPaths) : null
-      if (materialized && materialized.size > 0) {
-        setTextFileDrafts((current) => {
-          const next = { ...current }
-          for (const relativePath of materialized) delete next[relativePath]
-          return next
-        })
-      }
+      const candidates = cachedFiles.filter(
+        (file) => !invalidated.has(file.sessionId) && shouldRefresh(file)
+      )
       const results = await Promise.allSettled(
-        cachedFiles
-          .filter((file) => !invalidated.has(file.sessionId))
-          .map(async (file) => ({
-            sessionId: file.sessionId,
-            source: file.source,
-            snapshot: await file.source.getSnapshot(),
-          }))
+        candidates.map(async (file) => ({
+          sessionId: file.sessionId,
+          source: file.source,
+          snapshot: await file.source.getSnapshot(),
+        }))
       )
       const refreshed = new Map(
         results.flatMap((result) =>
@@ -1158,7 +1298,35 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ]
         })
       )
-      setFileMaterializationKey((current) => current + 1)
+      const failure = results.find((result) => result.status === "rejected")
+      if (failure?.status === "rejected") {
+        setError(
+          `Space files changed, but an open Eidos File could not refresh. ${errorMessage(failure.reason)}`
+        )
+      }
+      return refreshed.size > 0
+    },
+    [acceptSpaceSnapshot, cachedFiles]
+  )
+
+  const refreshMaterializedFiles = useCallback(
+    async (
+      snapshot: SpaceSnapshot,
+      materializedPaths: readonly string[] | null = []
+    ) => {
+      // Sync and merge materialization return an authoritative Space snapshot.
+      // Keep the shell's Graft/Sync relationship and open file snapshots in
+      // step with the files that were replaced on disk.
+      const refreshed = await refreshCachedEidosFiles(snapshot)
+      if (refreshed) setFileMaterializationKey((current) => current + 1)
+      const materialized = materializedPaths ? new Set(materializedPaths) : null
+      if (materialized && materialized.size > 0) {
+        setTextFileDrafts((current) => {
+          const next = { ...current }
+          for (const relativePath of materialized) delete next[relativePath]
+          return next
+        })
+      }
       if (
         textPreview &&
         (!materialized || materialized.has(textPreview.relativePath))
@@ -1176,14 +1344,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           setTextPreview(null)
         }
       }
-      const failure = results.find((result) => result.status === "rejected")
-      if (failure?.status === "rejected") {
-        setError(
-          `Space files changed, but an open Eidos File could not refresh. ${errorMessage(failure.reason)}`
-        )
-      }
     },
-    [acceptSpaceSnapshot, cachedFiles, textPreview]
+    [refreshCachedEidosFiles, textPreview]
+  )
+
+  const refreshExternallyChangedEidosFiles = useCallback(
+    async (snapshot: SpaceSnapshot, changedPaths: readonly string[]) => {
+      const refreshed = await refreshCachedEidosFiles(snapshot, (file) =>
+        externalChangeAffectsEidosFile(file.relativePath, changedPaths)
+      )
+      if (refreshed) setExternalFileRefreshToken((current) => current + 1)
+    },
+    [refreshCachedEidosFiles]
   )
 
   useEffect(() => {
@@ -1204,9 +1376,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         void refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
         return
       }
+      if (snapshot.externalChangePaths !== undefined) {
+        void refreshExternallyChangedEidosFiles(
+          snapshot,
+          snapshot.externalChangePaths
+        )
+        return
+      }
       acceptSpaceSnapshot(snapshot)
     })
-  }, [acceptSpaceSnapshot, refreshMaterializedFiles])
+  }, [
+    acceptSpaceSnapshot,
+    refreshExternallyChangedEidosFiles,
+    refreshMaterializedFiles,
+  ])
 
   useEffect(() => {
     if (!space) {
@@ -1244,7 +1427,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setSyncMergeStatus(response.value)
         if (response.value.state === "merging") {
           setSyncPanelMode(null)
-          setVersionInspection(null)
           setVersionPanelOpen(true)
         }
       },
@@ -1296,13 +1478,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   useEffect(() => {
     window.localStorage.setItem(
-      UTILITY_PANEL_WIDTH_STORAGE_KEY,
-      String(utilityPanelWidth)
-    )
-  }, [utilityPanelWidth])
-
-  useEffect(() => {
-    window.localStorage.setItem(
       TERMINAL_PANEL_HEIGHT_STORAGE_KEY,
       String(terminalPanelHeight)
     )
@@ -1317,10 +1492,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   useEffect(() => {
     window.localStorage.setItem(
-      TERMINAL_PANEL_PLACEMENT_STORAGE_KEY,
-      terminalPanelPlacement
+      RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
+      String(rightSidebarWidth)
     )
-  }, [terminalPanelPlacement])
+  }, [rightSidebarWidth])
 
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
@@ -1334,6 +1509,79 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const activeDocumentDirty = Boolean(
     activeDocumentPath && textFileDrafts[activeDocumentPath]
   )
+  const auxiliaryView = versionPanelOpen
+    ? ("history" as const)
+    : syncPanelMode
+      ? ("sync" as const)
+      : null
+  const mergeWorkbenchOpen =
+    versionPanelOpen && syncMergeStatus.state === "merging"
+  const versionDiffRouteOpen = isVersionDiffNavigationLocation(
+    navigationSnapshot?.location ?? null
+  )
+  const workbenchSurfaces = resolveWorkbenchSurfaces({
+    terminalLayout,
+    terminalVisible: terminalPanelVisible,
+    auxiliaryView,
+    diffOpen: versionDiffRouteOpen,
+    mergeOpen: mergeWorkbenchOpen,
+  })
+  const rightSidebarVisible = workbenchSurfaces.right !== null
+  const editorSurfaceVisible = workbenchSurfaces.content === "file"
+  const terminalSurfaceVisible = workbenchSurfaces.terminal !== null
+  const terminalSideVisible = workbenchSurfaces.terminal === "side"
+
+  useEffect(() => {
+    if (!rightSidebarVisible) return
+    const fitRightSidebar = () => {
+      const maximum = maximumRightSidebarWidth(
+        workbenchRef.current,
+        terminalSideVisible,
+        terminalPanelWidth
+      )
+      setRightSidebarWidth((current) =>
+        clampRightSidebarWidth(current, maximum)
+      )
+    }
+    const frame = window.requestAnimationFrame(fitRightSidebar)
+    window.addEventListener("resize", fitRightSidebar)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener("resize", fitRightSidebar)
+    }
+  }, [
+    rightSidebarVisible,
+    sidebarCollapsed,
+    sidebarWidth,
+    terminalPanelWidth,
+    terminalSideVisible,
+  ])
+
+  useEffect(() => {
+    if (!terminalSideVisible) return
+    const fitTerminalPanel = () => {
+      const maximum = maximumTerminalPanelWidth(
+        workbenchRef.current,
+        rightSidebarVisible,
+        rightSidebarWidth
+      )
+      setTerminalPanelWidth((current) =>
+        clampTerminalPanelWidth(current, maximum)
+      )
+    }
+    const frame = window.requestAnimationFrame(fitTerminalPanel)
+    window.addEventListener("resize", fitTerminalPanel)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener("resize", fitTerminalPanel)
+    }
+  }, [
+    rightSidebarVisible,
+    rightSidebarWidth,
+    sidebarCollapsed,
+    sidebarWidth,
+    terminalSideVisible,
+  ])
 
   const updateTextFileDraft = useCallback(
     (relativePath: string, draft: TextFileDraft | null) => {
@@ -1353,16 +1601,30 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       if (sidebarCollapsed || event.button !== 0) return
       event.preventDefault()
       const startX = event.clientX
-      const startWidth = sidebarWidth
       const pointerId = event.pointerId
       const resizer = event.currentTarget
+      const container = resizer.parentElement
+      const maximum = maximumSidebarWidth(
+        container,
+        rightSidebarVisible,
+        rightSidebarWidth,
+        terminalSideVisible,
+        terminalPanelWidth
+      )
+      const startWidth = clampSidebarWidth(
+        container
+          ? resizer.getBoundingClientRect().right -
+              container.getBoundingClientRect().left
+          : sidebarWidth,
+        maximum
+      )
       resizer.setPointerCapture(pointerId)
       flushSync(() => setSidebarResizing(true))
       document.documentElement.classList.add("resizing-space-sidebar")
 
       const move = (pointerEvent: PointerEvent) => {
         setSidebarWidth(
-          clampSidebarWidth(startWidth + pointerEvent.clientX - startX)
+          clampSidebarWidth(startWidth + pointerEvent.clientX - startX, maximum)
         )
       }
       const cleanup = () => {
@@ -1384,64 +1646,35 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       window.addEventListener("pointercancel", stop)
       resizer.addEventListener("lostpointercapture", cleanup)
     },
-    [sidebarCollapsed, sidebarWidth]
+    [
+      rightSidebarVisible,
+      rightSidebarWidth,
+      sidebarCollapsed,
+      sidebarWidth,
+      terminalPanelWidth,
+      terminalSideVisible,
+    ]
   )
 
-  const adjustSidebarWidth = useCallback((delta: number) => {
-    setSidebarWidth((current) => clampSidebarWidth(current + delta))
-  }, [])
-
-  const startUtilityPanelResize = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return
-      event.preventDefault()
-      const pointerId = event.pointerId
-      const resizer = event.currentTarget
-      const maximum = maximumUtilityPanelWidth(resizer.parentElement)
-      const startX = event.clientX
-      const startWidth = clampUtilityPanelWidth(utilityPanelWidth, maximum)
-      resizer.setPointerCapture(pointerId)
-      flushSync(() => setUtilityPanelResizing(true))
-      document.documentElement.classList.add("resizing-utility-panel")
-
-      const move = (pointerEvent: PointerEvent) => {
-        setUtilityPanelWidth(
-          clampUtilityPanelWidth(
-            startWidth + startX - pointerEvent.clientX,
-            maximum
-          )
-        )
-      }
-      const cleanup = () => {
-        document.documentElement.classList.remove("resizing-utility-panel")
-        window.removeEventListener("pointermove", move)
-        window.removeEventListener("pointerup", stop)
-        window.removeEventListener("pointercancel", stop)
-        resizer.removeEventListener("lostpointercapture", cleanup)
-        setUtilityPanelResizing(false)
-      }
-      const stop = () => {
-        cleanup()
-        if (resizer.hasPointerCapture(pointerId)) {
-          resizer.releasePointerCapture(pointerId)
-        }
-      }
-      window.addEventListener("pointermove", move)
-      window.addEventListener("pointerup", stop)
-      window.addEventListener("pointercancel", stop)
-      resizer.addEventListener("lostpointercapture", cleanup)
-    },
-    [utilityPanelWidth]
-  )
-
-  const adjustUtilityPanelWidth = useCallback(
+  const adjustSidebarWidth = useCallback(
     (delta: number, container: HTMLElement | null) => {
-      const maximum = maximumUtilityPanelWidth(container)
-      setUtilityPanelWidth((current) =>
-        clampUtilityPanelWidth(current + delta, maximum)
+      const maximum = maximumSidebarWidth(
+        container,
+        rightSidebarVisible,
+        rightSidebarWidth,
+        terminalSideVisible,
+        terminalPanelWidth
+      )
+      setSidebarWidth((current) =>
+        clampSidebarWidth(clampSidebarWidth(current, maximum) + delta, maximum)
       )
     },
-    []
+    [
+      rightSidebarVisible,
+      rightSidebarWidth,
+      terminalPanelWidth,
+      terminalSideVisible,
+    ]
   )
 
   const startTerminalPanelResize = useCallback(
@@ -1451,38 +1684,47 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       const pointerId = event.pointerId
       const resizer = event.currentTarget
       const container = resizer.parentElement
-      const startX = event.clientX
-      const startY = event.clientY
-      const maximumHeight = maximumTerminalPanelHeight(container)
-      const maximumWidth = maximumTerminalPanelWidth(container)
-      const startHeight = clampTerminalPanelHeight(
-        terminalPanelHeight,
-        maximumHeight
-      )
-      const startWidth = clampTerminalPanelWidth(
-        terminalPanelWidth,
-        maximumWidth
-      )
+      const side = terminalLayout === "side"
+      const startPosition = side ? event.clientX : event.clientY
+      const maximum = side
+        ? maximumTerminalPanelWidth(
+            container,
+            rightSidebarVisible,
+            rightSidebarWidth
+          )
+        : maximumTerminalPanelHeight(container)
+      const terminalPanel =
+        container?.querySelector<HTMLElement>(".terminal-panel")
+      const startSize = side
+        ? clampTerminalPanelWidth(
+            terminalPanel?.getBoundingClientRect().width ?? terminalPanelWidth,
+            maximum
+          )
+        : clampTerminalPanelHeight(
+            terminalPanel?.getBoundingClientRect().height ??
+              terminalPanelHeight,
+            maximum
+          )
       resizer.setPointerCapture(pointerId)
       flushSync(() => setTerminalPanelResizing(true))
       document.documentElement.classList.add("resizing-terminal-panel")
 
       const move = (pointerEvent: PointerEvent) => {
-        if (terminalPanelPlacement === "right") {
+        if (side) {
           setTerminalPanelWidth(
             clampTerminalPanelWidth(
-              startWidth + startX - pointerEvent.clientX,
-              maximumWidth
+              startSize + pointerEvent.clientX - startPosition,
+              maximum
             )
           )
-        } else {
-          setTerminalPanelHeight(
-            clampTerminalPanelHeight(
-              startHeight + startY - pointerEvent.clientY,
-              maximumHeight
-            )
-          )
+          return
         }
+        setTerminalPanelHeight(
+          clampTerminalPanelHeight(
+            startSize + startPosition - pointerEvent.clientY,
+            maximum
+          )
+        )
       }
       const cleanup = () => {
         document.documentElement.classList.remove("resizing-terminal-panel")
@@ -1503,24 +1745,108 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       window.addEventListener("pointercancel", stop)
       resizer.addEventListener("lostpointercapture", cleanup)
     },
-    [terminalPanelHeight, terminalPanelPlacement, terminalPanelWidth]
+    [
+      rightSidebarVisible,
+      rightSidebarWidth,
+      terminalLayout,
+      terminalPanelHeight,
+      terminalPanelWidth,
+    ]
   )
 
-  const adjustTerminalPanelSize = useCallback(
+  const adjustTerminalPanelHeight = useCallback(
     (delta: number, container: HTMLElement | null) => {
-      if (terminalPanelPlacement === "right") {
-        const maximum = maximumTerminalPanelWidth(container)
-        setTerminalPanelWidth((current) =>
-          clampTerminalPanelWidth(current + delta, maximum)
-        )
-      } else {
-        const maximum = maximumTerminalPanelHeight(container)
-        setTerminalPanelHeight((current) =>
-          clampTerminalPanelHeight(current + delta, maximum)
+      const maximum = maximumTerminalPanelHeight(container)
+      setTerminalPanelHeight((current) =>
+        clampTerminalPanelHeight(current + delta, maximum)
+      )
+    },
+    []
+  )
+
+  const adjustTerminalPanelWidth = useCallback(
+    (delta: number, container: HTMLElement | null) => {
+      const maximum = maximumTerminalPanelWidth(
+        container,
+        rightSidebarVisible,
+        rightSidebarWidth
+      )
+      setTerminalPanelWidth((current) =>
+        clampTerminalPanelWidth(current + delta, maximum)
+      )
+    },
+    [rightSidebarVisible, rightSidebarWidth]
+  )
+
+  const startRightSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      const pointerId = event.pointerId
+      const resizer = event.currentTarget
+      const container = resizer.parentElement
+      const startX = event.clientX
+      const maximumWidth = maximumRightSidebarWidth(
+        container,
+        terminalSideVisible,
+        terminalPanelWidth
+      )
+      const startWidth = clampRightSidebarWidth(
+        container
+          ? container.getBoundingClientRect().right -
+              resizer.getBoundingClientRect().right
+          : rightSidebarWidth,
+        maximumWidth
+      )
+      resizer.setPointerCapture(pointerId)
+      flushSync(() => setRightSidebarResizing(true))
+      document.documentElement.classList.add("resizing-right-sidebar")
+
+      const move = (pointerEvent: PointerEvent) => {
+        setRightSidebarWidth(
+          clampRightSidebarWidth(
+            startWidth + startX - pointerEvent.clientX,
+            maximumWidth
+          )
         )
       }
+      const cleanup = () => {
+        document.documentElement.classList.remove("resizing-right-sidebar")
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", stop)
+        window.removeEventListener("pointercancel", stop)
+        resizer.removeEventListener("lostpointercapture", cleanup)
+        setRightSidebarResizing(false)
+      }
+      const stop = () => {
+        cleanup()
+        if (resizer.hasPointerCapture(pointerId)) {
+          resizer.releasePointerCapture(pointerId)
+        }
+      }
+      window.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", stop)
+      window.addEventListener("pointercancel", stop)
+      resizer.addEventListener("lostpointercapture", cleanup)
     },
-    [terminalPanelPlacement]
+    [rightSidebarWidth, terminalPanelWidth, terminalSideVisible]
+  )
+
+  const adjustRightSidebarWidth = useCallback(
+    (delta: number, container: HTMLElement | null) => {
+      const maximum = maximumRightSidebarWidth(
+        container,
+        terminalSideVisible,
+        terminalPanelWidth
+      )
+      setRightSidebarWidth((current) =>
+        clampRightSidebarWidth(
+          clampRightSidebarWidth(current, maximum) + delta,
+          maximum
+        )
+      )
+    },
+    [terminalPanelWidth, terminalSideVisible]
   )
 
   const copyDiagnostics = useCallback(async () => {
@@ -1579,7 +1905,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       options: { recordHistory?: boolean } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
-      setVersionInspection(null)
       if (entry.kind !== "eidos") {
         if (fileOpenInFlight.current) return false
         fileOpenInFlight.current = true
@@ -1846,6 +2171,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             let currentSpace = launchSpace.current
             if (!currentSpace) continue
             if (target === null) {
+              setVersionRouteError(null)
               setVersionInspection(null)
               setFileIssue(null)
               setActiveSession(null)
@@ -1853,6 +2179,27 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setSelectedEntry(null)
               continue
             }
+
+            if (isVersionDiffNavigationLocation(target)) {
+              setVersionRouteError(null)
+              setVersionInspection(null)
+              try {
+                const { loadVersionInspectionRoute } =
+                  await import("./version-panel")
+                const inspection = await loadVersionInspectionRoute(target)
+                if (pendingNavigationLocation.current === undefined) {
+                  setVersionInspection(inspection)
+                }
+              } catch (cause) {
+                if (pendingNavigationLocation.current === undefined) {
+                  setVersionInspection(null)
+                  setVersionRouteError(errorMessage(cause))
+                }
+              }
+              continue
+            }
+
+            setVersionRouteError(null)
 
             let directoryPath = ""
             for (const segment of target.split("/").slice(0, -1)) {
@@ -1944,6 +2291,40 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     [pathMutationBusy, space]
   )
 
+  const closeVersionDiffRoute = useCallback(() => {
+    const current = navigationSnapshotRef.current
+    if (!current || !isVersionDiffNavigationLocation(current.location)) {
+      setVersionInspection(null)
+      setVersionRouteError(null)
+      return
+    }
+    recordNavigationLocation(activeDocumentPath)
+    setVersionInspection(null)
+    setVersionRouteError(null)
+  }, [activeDocumentPath, recordNavigationLocation])
+
+  const handleVersionInspectionChange = useCallback(
+    (inspection: VersionInspection | null) => {
+      if (!inspection) {
+        closeVersionDiffRoute()
+        return
+      }
+      const location = navigationLocationForVersionInspection(inspection)
+      if (!location) return
+      setVersionRouteError(null)
+      setVersionInspection(inspection)
+      recordNavigationLocation(location)
+    },
+    [closeVersionDiffRoute, recordNavigationLocation]
+  )
+
+  const reloadVersionDiffRoute = useCallback(() => {
+    const location = navigationSnapshotRef.current?.location ?? null
+    if (isVersionDiffNavigationLocation(location)) {
+      applyNavigationLocation(location)
+    }
+  }, [applyNavigationLocation])
+
   const toggleSidebar = useCallback(() => {
     if (!space) return
     setSidebarCollapsed((current) => !current)
@@ -1959,14 +2340,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const toggleVersionPanel = useCallback(() => {
     if (!space?.graft.available) return
     setSyncPanelMode(null)
-    if (versionPanelOpen) setVersionInspection(null)
     setVersionPanelOpen((current) => !current)
-  }, [space?.graft.available, versionPanelOpen])
+  }, [space?.graft.available])
 
   const toggleSyncPanel = useCallback(() => {
     if (!space) return
     setVersionPanelOpen(false)
-    setVersionInspection(null)
     setSyncPanelMode((current) => (current === null ? "enable" : null))
   }, [space])
 
@@ -1977,14 +2356,42 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setTerminalPanelOpen((current) => !current)
   }, [space, terminalPanelOpen, terminalPluginEnabled])
 
-  const toggleTerminalPanelPlacement = useCallback(() => {
+  const requestFileContentFocus = useCallback(() => {
+    if (quickOpenVisible || pathDialog || publishPanel) return
+    const hasFocusableContent =
+      workbenchSurfaces.content === "diff"
+        ? Boolean(versionInspection)
+        : Boolean(activeFile || textPreview)
+    if (!hasFocusableContent) return
+    if (workbenchSurfaces.content === "diff") {
+      setDiffSurfaceFocusRequestToken((current) => current + 1)
+    } else {
+      setFileSurfaceFocusRequestToken((current) => current + 1)
+    }
+  }, [
+    activeFile,
+    pathDialog,
+    publishPanel,
+    quickOpenVisible,
+    textPreview,
+    versionInspection,
+    workbenchSurfaces.content,
+  ])
+
+  const cycleTerminalLayout = useCallback(() => {
     if (!space || !terminalPluginEnabled) return
     setTerminalPanelInitialized(true)
     setTerminalPanelOpen(true)
-    setTerminalPanelPlacement((current) =>
-      current === "bottom" ? "right" : "bottom"
-    )
-  }, [space, terminalPluginEnabled])
+    const previousLayout = terminalLayout
+    const nextLayout = nextTerminalLayout(previousLayout)
+    setTerminalLayout(nextLayout)
+    void window.eidosLite
+      .updatePreferences({ terminalLayout: nextLayout })
+      .catch((cause) => {
+        setTerminalLayout(previousLayout)
+        setError(errorMessage(cause))
+      })
+  }, [space, terminalLayout, terminalPluginEnabled])
 
   useEffect(() => {
     const handleKeyboardShortcut = (
@@ -2004,6 +2411,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setQuickOpenVisible((current) => !current)
         return
       }
+      if (workspaceShortcut === "focus-file-content") {
+        requestFileContentFocus()
+        return
+      }
       if (workspaceShortcut === "toggle-theme") {
         toggleTheme()
         return
@@ -2020,7 +2431,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         else if (workspaceShortcut === "toggle-sync") toggleSyncPanel()
         else if (workspaceShortcut === "toggle-terminal") toggleTerminalPanel()
         else if (workspaceShortcut === "toggle-terminal-position") {
-          toggleTerminalPanelPlacement()
+          cycleTerminalLayout()
         }
       }
     }
@@ -2038,12 +2449,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     navigateHistory,
     pathDialog,
     pathMutationBusy,
+    requestFileContentFocus,
     selectedEntry,
     space,
     toggleSidebar,
     toggleSyncPanel,
     toggleTerminalPanel,
-    toggleTerminalPanelPlacement,
+    cycleTerminalLayout,
     builtInPlugins,
     terminalPluginEnabled,
     toggleTheme,
@@ -2328,25 +2740,47 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     activeDocumentPath,
     busyFile
   )
-  const terminalPanelVisible = terminalPluginEnabled && terminalPanelOpen
-
+  const terminalOwnsTitlebarNavigation =
+    sidebarCollapsed && workbenchSurfaces.terminal === "side"
+  const collapsedTitlebarNavigation = sidebarCollapsed ? (
+    <TitlebarNavigation
+      collapsed
+      canGoBack={canGoBack}
+      canGoForward={canGoForward}
+      keyboardShortcuts={keyboardShortcuts}
+      macos={macos}
+      onToggle={toggleSidebar}
+      onBack={() => navigateHistory(-1)}
+      onForward={() => navigateHistory(1)}
+    />
+  ) : null
   return (
     <div
+      ref={workbenchRef}
       className="workbench"
       data-platform={platform}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       data-terminal-open={terminalPanelVisible ? "true" : "false"}
-      data-terminal-placement={terminalPanelPlacement}
+      data-terminal-layout={terminalLayout}
+      data-content-surface={workbenchSurfaces.content}
+      data-right-sidebar-open={rightSidebarVisible ? "true" : "false"}
+      data-right-sidebar-view={workbenchSurfaces.right ?? "none"}
+      data-terminal-bottom-open={
+        workbenchSurfaces.terminal === "bottom" ? "true" : "false"
+      }
       style={
         {
           "--space-sidebar-width": `${sidebarWidth}px`,
+          "--space-sidebar-min-width": sidebarCollapsed
+            ? "0px"
+            : `${MIN_SIDEBAR_WIDTH}px`,
           "--space-sidebar-track-width": sidebarCollapsed
             ? "0px"
             : `${sidebarWidth}px`,
-          "--utility-panel-width": `${utilityPanelWidth}px`,
           "--terminal-panel-height": `${terminalPanelHeight}px`,
           "--terminal-panel-width": `${terminalPanelWidth}px`,
+          "--right-sidebar-width": `${rightSidebarWidth}px`,
         } as CSSProperties
       }
     >
@@ -2526,7 +2960,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         aria-label={t("Resize Space Explorer")}
         aria-orientation="vertical"
         aria-valuemin={MIN_SIDEBAR_WIDTH}
-        aria-valuemax={MAX_SIDEBAR_WIDTH}
         aria-valuenow={sidebarWidth}
         tabIndex={sidebarCollapsed ? -1 : 0}
         onPointerDown={startSidebarResize}
@@ -2535,24 +2968,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
           event.preventDefault()
           const step = event.shiftKey ? 32 : 16
-          adjustSidebarWidth(event.key === "ArrowLeft" ? -step : step)
+          adjustSidebarWidth(
+            event.key === "ArrowLeft" ? -step : step,
+            event.currentTarget.parentElement
+          )
         }}
       />
 
-      <main className="editor-region" id="main-content">
+      <main
+        className="editor-region"
+        id="main-content"
+        hidden={!editorSurfaceVisible}
+      >
         <header className="file-titlebar">
-          {sidebarCollapsed ? (
-            <TitlebarNavigation
-              collapsed
-              canGoBack={canGoBack}
-              canGoForward={canGoForward}
-              keyboardShortcuts={keyboardShortcuts}
-              macos={macos}
-              onToggle={toggleSidebar}
-              onBack={() => navigateHistory(-1)}
-              onForward={() => navigateHistory(1)}
-            />
-          ) : null}
+          {sidebarCollapsed && !terminalOwnsTitlebarNavigation
+            ? collapsedTitlebarNavigation
+            : null}
           <div className="file-titlebar-identity">
             <div>
               <strong>{titlebarPresentation.title}</strong>
@@ -2581,6 +3012,28 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             role="toolbar"
             aria-label={t("Space actions")}
           >
+            {terminalPluginEnabled ? (
+              <button
+                ref={terminalToggleRef}
+                type="button"
+                className="icon-button titlebar-tool-button"
+                data-titlebar-action="terminal"
+                aria-pressed={terminalPanelVisible}
+                aria-label={t("Toggle terminal")}
+                aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                  "toggle-terminal",
+                  macos,
+                  keyboardShortcuts
+                )}
+                onClick={toggleTerminalPanel}
+                title={shortcutTitle(
+                  t("Toggle terminal"),
+                  terminalShortcutLabel
+                )}
+              >
+                <SquareTerminal />
+              </button>
+            ) : null}
             <button
               type="button"
               className="icon-button titlebar-tool-button"
@@ -2653,28 +3106,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 <Cloud />
               )}
             </button>
-            {terminalPluginEnabled ? (
-              <button
-                ref={terminalToggleRef}
-                type="button"
-                className="icon-button titlebar-tool-button"
-                data-titlebar-action="terminal"
-                aria-pressed={terminalPanelVisible}
-                aria-label={t("Toggle terminal")}
-                aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
-                  "toggle-terminal",
-                  macos,
-                  keyboardShortcuts
-                )}
-                onClick={toggleTerminalPanel}
-                title={shortcutTitle(
-                  t("Toggle terminal"),
-                  terminalShortcutLabel
-                )}
-              >
-                <SquareTerminal />
-              </button>
-            ) : null}
           </div>
         </header>
 
@@ -2724,332 +3155,365 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         ) : null}
 
         <div className="editor-work-area">
-          <div
-            className={`editor-primary-area${versionPanelOpen || syncPanelMode ? " with-utility-panel" : ""}`}
-          >
-            {versionPanelOpen && syncMergeStatus.state === "merging" ? (
-              <Suspense
-                fallback={
-                  <div className="editor-empty" role="status">
-                    <LoaderCircle className="spin" aria-hidden="true" />
-                    <p>{t("Loading merge conflicts…")}</p>
-                  </div>
-                }
-              >
-                <SyncMergeWorkbench
-                  initialStatus={syncMergeStatus}
-                  theme={theme}
-                  onClose={() => setVersionPanelOpen(false)}
-                  onStatusChange={(merge) => {
-                    setSyncMergeStatus(merge)
-                    if (merge.state === "none") {
-                      setVersionInspection(null)
-                      setVersionRefreshKey((current) => current + 1)
+          <div className="editor-primary-area">
+            <div className="editor-work-content">
+              {textPreview ? (
+                textPreview.type === "media" ? (
+                  <MediaFilePreview
+                    preview={textPreview}
+                    platform={platform}
+                    focusRequestToken={fileSurfaceFocusRequestToken}
+                    onReveal={() =>
+                      void window.eidosLite
+                        .revealPath(textPreview.relativePath)
+                        .catch((cause) => setError(errorMessage(cause)))
                     }
-                  }}
-                  onFilesMaterialized={refreshMaterializedFiles}
-                />
-              </Suspense>
-            ) : (
-              <>
-                <div className="editor-work-content">
-                  {versionPanelOpen && versionInspection ? (
-                    <Suspense
-                      fallback={
-                        <div className="editor-empty" role="status">
-                          <LoaderCircle className="spin" aria-hidden="true" />
-                          <p>{t("Loading change details…")}</p>
-                        </div>
-                      }
-                    >
-                      <VersionDiffPreview
-                        inspection={versionInspection}
-                        theme={theme}
-                        onClose={() => setVersionInspection(null)}
-                        onNavigate={setVersionInspection}
-                      />
-                    </Suspense>
-                  ) : textPreview ? (
-                    textPreview.type === "media" ? (
-                      <MediaFilePreview
-                        preview={textPreview}
-                        platform={platform}
-                        onReveal={() =>
-                          void window.eidosLite
-                            .revealPath(textPreview.relativePath)
-                            .catch((cause) => setError(errorMessage(cause)))
-                        }
-                      />
-                    ) : (
-                      <TextFilePreview
-                        preview={textPreview}
-                        draft={textFileDrafts[textPreview.relativePath]}
-                        theme={theme}
-                        platform={platform}
-                        nativePreviewSuppressed={
-                          quickOpenVisible ||
-                          Boolean(pathDialog) ||
-                          sidebarResizing ||
-                          utilityPanelResizing ||
-                          terminalPanelResizing
-                        }
-                        onSaved={(file) =>
-                          setTextPreview((current) =>
-                            current?.relativePath === file.relativePath
-                              ? file
-                              : current
+                  />
+                ) : (
+                  <TextFilePreview
+                    preview={textPreview}
+                    draft={textFileDrafts[textPreview.relativePath]}
+                    theme={theme}
+                    platform={platform}
+                    nativePreviewSuppressed={
+                      quickOpenVisible ||
+                      Boolean(pathDialog) ||
+                      sidebarResizing ||
+                      rightSidebarResizing ||
+                      terminalPanelResizing
+                    }
+                    focusRequestToken={fileSurfaceFocusRequestToken}
+                    onSaved={(file) =>
+                      setTextPreview((current) =>
+                        current?.relativePath === file.relativePath
+                          ? file
+                          : current
+                      )
+                    }
+                    onReload={(preview) =>
+                      setTextPreview((current) =>
+                        current?.relativePath === preview.relativePath
+                          ? preview
+                          : current
+                      )
+                    }
+                    onDraftChange={updateTextFileDraft}
+                    onReveal={() =>
+                      void window.eidosLite
+                        .revealPath(textPreview.relativePath)
+                        .catch((cause) => setError(errorMessage(cause)))
+                    }
+                  />
+                )
+              ) : activeFile && activeTable ? (
+                <section
+                  className="file-editor"
+                  aria-label={activeFile.relativePath}
+                  data-eidos-file-relative-path={activeFile.relativePath}
+                  data-eidos-file-row-count={activeTable.rowCount}
+                >
+                  <Suspense
+                    fallback={
+                      <div className="editor-empty" role="status">
+                        <LoaderCircle className="spin" aria-hidden="true" />
+                        <p>{t("Loading Eidos File editor…")}</p>
+                      </div>
+                    }
+                  >
+                    <EidosFileWorkbench
+                      key={`${activeFile.sessionId}:${fileMaterializationKey}`}
+                      relativePath={activeFile.relativePath}
+                      snapshot={activeFile.snapshot}
+                      source={activeFile.source}
+                      refreshToken={externalFileRefreshToken}
+                      focusRequestToken={fileSurfaceFocusRequestToken}
+                      activeTableId={activeFile.tableId}
+                      disabled={localInteractionBlocked}
+                      theme={theme}
+                      weekStartsOnMonday={weekStartsOnMonday}
+                      timeZone={timeZone === "system" ? undefined : timeZone}
+                      keyboardShortcuts={keyboardShortcuts}
+                      macos={macos}
+                      onTableSelect={(tableId) =>
+                        setCachedFiles((current) =>
+                          current.map((file) =>
+                            file.sessionId === activeFile.sessionId
+                              ? { ...file, tableId }
+                              : file
                           )
-                        }
-                        onReload={(preview) =>
-                          setTextPreview((current) =>
-                            current?.relativePath === preview.relativePath
-                              ? preview
-                              : current
-                          )
-                        }
-                        onDraftChange={updateTextFileDraft}
-                        onReveal={() =>
-                          void window.eidosLite
-                            .revealPath(textPreview.relativePath)
-                            .catch((cause) => setError(errorMessage(cause)))
-                        }
-                      />
-                    )
-                  ) : activeFile && activeTable ? (
-                    <section
-                      className="file-editor"
-                      aria-label={activeFile.relativePath}
-                      data-eidos-file-relative-path={activeFile.relativePath}
-                      data-eidos-file-row-count={activeTable.rowCount}
-                    >
-                      <Suspense
-                        fallback={
-                          <div className="editor-empty" role="status">
-                            <LoaderCircle className="spin" aria-hidden="true" />
-                            <p>{t("Loading Eidos File editor…")}</p>
-                          </div>
-                        }
-                      >
-                        <EidosFileWorkbench
-                          key={`${activeFile.sessionId}:${fileMaterializationKey}`}
-                          relativePath={activeFile.relativePath}
-                          snapshot={activeFile.snapshot}
-                          source={activeFile.source}
-                          activeTableId={activeFile.tableId}
-                          disabled={localInteractionBlocked}
-                          theme={theme}
-                          weekStartsOnMonday={weekStartsOnMonday}
-                          timeZone={
-                            timeZone === "system" ? undefined : timeZone
-                          }
-                          keyboardShortcuts={keyboardShortcuts}
-                          macos={macos}
-                          onTableSelect={(tableId) =>
-                            setCachedFiles((current) =>
-                              current.map((file) =>
-                                file.sessionId === activeFile.sessionId
-                                  ? { ...file, tableId }
-                                  : file
-                              )
-                            )
-                          }
-                          onSnapshot={(snapshot) =>
-                            setCachedFiles((current) =>
-                              current.map((file) =>
-                                file.sessionId === activeFile.sessionId
-                                  ? { ...file, snapshot }
-                                  : file
-                              )
-                            )
-                          }
-                          onError={(cause) => setError(errorMessage(cause))}
-                        />
-                      </Suspense>
-                    </section>
-                  ) : recentFiles.length === 0 &&
-                    space.eidosFileCount === 0 &&
-                    !spaceTreeIncomplete ? (
-                    <section
-                      className="editor-empty editor-empty-onboarding"
-                      data-empty-space-onboarding
-                    >
-                      <Database aria-hidden="true" />
-                      <h2>{t("Create your first Eidos File")}</h2>
-                      <p>
-                        {t(
-                          "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
-                          { extension: ".eidos" }
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        className="editor-empty-action"
-                        data-create-first-eidos
-                        disabled={pathMutationBusy || localInteractionBlocked}
-                        onClick={() =>
-                          setPathDialog({ action: "create-file", entry: null })
-                        }
-                      >
-                        <FilePlus2 /> {t("New Eidos File")}
-                      </button>
-                    </section>
-                  ) : (
-                    <RecentFilesEmptyState
-                      files={recentFiles}
-                      busyPath={busyFile}
-                      onOpen={(file) => void openRecentFile(file)}
-                    />
-                  )}
-                </div>
-                {versionPanelOpen && space.graft.available ? (
-                  <Suspense fallback={null}>
-                    <VersionPanel
-                      space={space}
-                      refreshKey={versionRefreshKey}
-                      onClose={() => {
-                        setVersionPanelOpen(false)
-                        setVersionInspection(null)
-                      }}
-                      onSpaceChange={acceptSpaceSnapshot}
-                      onFilesMaterialized={refreshMaterializedFiles}
-                      onRefresh={() =>
-                        setVersionRefreshKey((current) => current + 1)
+                        )
                       }
-                      onInspectionChange={setVersionInspection}
+                      onSnapshot={(snapshot) =>
+                        setCachedFiles((current) =>
+                          current.map((file) =>
+                            file.sessionId === activeFile.sessionId
+                              ? { ...file, snapshot }
+                              : file
+                          )
+                        )
+                      }
+                      onError={(cause) => setError(errorMessage(cause))}
                     />
                   </Suspense>
-                ) : null}
-              </>
-            )}
-            {syncPanelMode ? (
-              <Suspense fallback={null}>
-                <SyncPanel
-                  mode={syncPanelMode}
-                  variant="inspector"
-                  platform={platform}
-                  cacheKey={space.id}
-                  hasUncheckpointedChanges={
-                    syncMergeStatus.state !== "merging" &&
-                    space.graft.initialized &&
-                    space.graft.clean === false
-                  }
-                  syncHistory={space.graft.sync}
-                  onClose={() => setSyncPanelMode(null)}
-                  onRequestClone={() => setSyncPanelMode("clone")}
-                  onReviewLocal={() => {
-                    setSyncPanelMode(null)
-                    setVersionPanelOpen(true)
-                    setVersionInspection(null)
-                  }}
-                  onMergeStatusChange={setSyncMergeStatus}
-                  onReviewMerge={() => {
-                    setSyncPanelMode(null)
-                    setVersionInspection(null)
-                    setVersionPanelOpen(true)
-                  }}
-                  onSpaceChange={acceptSpaceSnapshot}
-                  onFilesMaterialized={refreshMaterializedFiles}
+                </section>
+              ) : recentFiles.length === 0 &&
+                space.eidosFileCount === 0 &&
+                !spaceTreeIncomplete ? (
+                <section
+                  className="editor-empty editor-empty-onboarding"
+                  data-empty-space-onboarding
+                >
+                  <Database aria-hidden="true" />
+                  <h2>{t("Create your first Eidos File")}</h2>
+                  <p>
+                    {t(
+                      "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
+                      { extension: ".eidos" }
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    className="editor-empty-action"
+                    data-create-first-eidos
+                    disabled={pathMutationBusy || localInteractionBlocked}
+                    onClick={() =>
+                      setPathDialog({ action: "create-file", entry: null })
+                    }
+                  >
+                    <FilePlus2 /> {t("New Eidos File")}
+                  </button>
+                </section>
+              ) : (
+                <RecentFilesEmptyState
+                  files={recentFiles}
+                  busyPath={busyFile}
+                  onOpen={(file) => void openRecentFile(file)}
                 />
-              </Suspense>
-            ) : null}
-            {versionPanelOpen || syncPanelMode ? (
-              <div
-                className="utility-panel-resizer"
-                data-utility-panel-resizer
-                role="separator"
-                aria-label={t(
-                  syncPanelMode ? "Resize Sync panel" : "Resize Versions panel"
-                )}
-                aria-orientation="vertical"
-                aria-valuemin={MIN_UTILITY_PANEL_WIDTH}
-                aria-valuemax={MAX_UTILITY_PANEL_WIDTH}
-                aria-valuenow={utilityPanelWidth}
-                tabIndex={0}
-                onPointerDown={startUtilityPanelResize}
-                onDoubleClick={(event) =>
-                  setUtilityPanelWidth(
-                    clampUtilityPanelWidth(
-                      DEFAULT_UTILITY_PANEL_WIDTH,
-                      maximumUtilityPanelWidth(
-                        event.currentTarget.parentElement
-                      )
-                    )
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-                    return
-                  }
-                  event.preventDefault()
-                  const step = event.shiftKey ? 32 : 16
-                  adjustUtilityPanelWidth(
-                    event.key === "ArrowLeft" ? step : -step,
-                    event.currentTarget.parentElement
-                  )
-                }}
-              />
-            ) : null}
+              )}
+            </div>
           </div>
         </div>
       </main>
+      {workbenchSurfaces.content === "diff" ? (
+        versionInspection ? (
+          <Suspense
+            fallback={
+              <div
+                className="editor-empty workbench-main-loading"
+                role="status"
+              >
+                <LoaderCircle className="spin" aria-hidden="true" />
+                <p>{t("Loading change details…")}</p>
+              </div>
+            }
+          >
+            <VersionDiffPreview
+              inspection={versionInspection}
+              theme={theme}
+              focusRequestToken={diffSurfaceFocusRequestToken}
+              titlebarNavigation={
+                sidebarCollapsed && !terminalOwnsTitlebarNavigation
+                  ? collapsedTitlebarNavigation
+                  : null
+              }
+              onClose={closeVersionDiffRoute}
+              onNavigate={handleVersionInspectionChange}
+            />
+          </Suspense>
+        ) : (
+          <div
+            className="editor-empty workbench-main-loading"
+            role={versionRouteError ? "alert" : "status"}
+          >
+            {versionRouteError ? (
+              <CircleAlert aria-hidden="true" />
+            ) : (
+              <LoaderCircle className="spin" aria-hidden="true" />
+            )}
+            <p>
+              {versionRouteError
+                ? t("Could not load change details. {message}", {
+                    message: versionRouteError,
+                  })
+                : t("Loading change details…")}
+            </p>
+            {versionRouteError && versionDiffRouteOpen ? (
+              <button type="button" onClick={reloadVersionDiffRoute}>
+                <RefreshCw aria-hidden="true" />
+                {t("Retry")}
+              </button>
+            ) : null}
+          </div>
+        )
+      ) : null}
+      {mergeWorkbenchOpen && syncMergeStatus.state === "merging" ? (
+        <Suspense
+          fallback={
+            <div className="editor-empty workbench-main-loading" role="status">
+              <LoaderCircle className="spin" aria-hidden="true" />
+              <p>{t("Loading merge conflicts…")}</p>
+            </div>
+          }
+        >
+          <SyncMergeWorkbench
+            initialStatus={syncMergeStatus}
+            theme={theme}
+            titlebarNavigation={
+              sidebarCollapsed && !terminalOwnsTitlebarNavigation
+                ? collapsedTitlebarNavigation
+                : null
+            }
+            onClose={() => setVersionPanelOpen(false)}
+            onStatusChange={(merge) => {
+              setSyncMergeStatus(merge)
+              if (merge.state === "none") {
+                setVersionRefreshKey((current) => current + 1)
+                reloadVersionDiffRoute()
+              }
+            }}
+            onFilesMaterialized={refreshMaterializedFiles}
+          />
+        </Suspense>
+      ) : workbenchSurfaces.right === "history" && space.graft.available ? (
+        <Suspense fallback={null}>
+          <VersionPanel
+            space={space}
+            refreshKey={versionRefreshKey}
+            onClose={() => setVersionPanelOpen(false)}
+            onSpaceChange={acceptSpaceSnapshot}
+            onFilesMaterialized={refreshMaterializedFiles}
+            onRefresh={() => setVersionRefreshKey((current) => current + 1)}
+            onInspectionChange={handleVersionInspectionChange}
+          />
+        </Suspense>
+      ) : null}
+      {workbenchSurfaces.right === "sync" && syncPanelMode ? (
+        <Suspense fallback={null}>
+          <SyncPanel
+            mode={syncPanelMode}
+            variant="inspector"
+            platform={platform}
+            cacheKey={space.id}
+            hasUncheckpointedChanges={
+              syncMergeStatus.state !== "merging" &&
+              space.graft.initialized &&
+              space.graft.clean === false
+            }
+            syncHistory={space.graft.sync}
+            onClose={() => setSyncPanelMode(null)}
+            onRequestClone={() => setSyncPanelMode("clone")}
+            onReviewLocal={() => {
+              setSyncPanelMode(null)
+              setVersionPanelOpen(true)
+            }}
+            onMergeStatusChange={setSyncMergeStatus}
+            onReviewMerge={() => {
+              setSyncPanelMode(null)
+              setVersionPanelOpen(true)
+            }}
+            onSpaceChange={acceptSpaceSnapshot}
+            onFilesMaterialized={refreshMaterializedFiles}
+          />
+        </Suspense>
+      ) : null}
+      <div
+        className="right-sidebar-resizer"
+        data-right-sidebar-resizer
+        data-open={rightSidebarVisible ? "true" : "false"}
+        role="separator"
+        aria-label={t("Resize right sidebar")}
+        aria-orientation="vertical"
+        aria-valuemin={MIN_RIGHT_SIDEBAR_WIDTH}
+        aria-valuenow={rightSidebarWidth}
+        tabIndex={rightSidebarVisible ? 0 : -1}
+        onPointerDown={startRightSidebarResize}
+        onDoubleClick={(event) =>
+          setRightSidebarWidth(
+            clampRightSidebarWidth(
+              DEFAULT_RIGHT_SIDEBAR_WIDTH,
+              maximumRightSidebarWidth(
+                event.currentTarget.parentElement,
+                terminalSideVisible,
+                terminalPanelWidth
+              )
+            )
+          )
+        }
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+          event.preventDefault()
+          const step = event.shiftKey ? 32 : 16
+          adjustRightSidebarWidth(
+            event.key === "ArrowLeft" ? step : -step,
+            event.currentTarget.parentElement
+          )
+        }}
+      />
       {terminalPluginEnabled && terminalPanelInitialized ? (
         <>
           <div
             className="terminal-panel-resizer"
             data-terminal-panel-resizer
-            data-open={terminalPanelVisible ? "true" : "false"}
-            data-placement={terminalPanelPlacement}
+            data-open={terminalSurfaceVisible ? "true" : "false"}
             role="separator"
             aria-label={t("Resize terminal")}
             aria-orientation={
-              terminalPanelPlacement === "right" ? "vertical" : "horizontal"
+              terminalLayout === "side" ? "vertical" : "horizontal"
             }
             aria-valuemin={
-              terminalPanelPlacement === "right"
+              terminalLayout === "side"
                 ? MIN_TERMINAL_PANEL_WIDTH
                 : MIN_TERMINAL_PANEL_HEIGHT
             }
             aria-valuemax={
-              terminalPanelPlacement === "right"
-                ? MAX_TERMINAL_PANEL_WIDTH
-                : MAX_TERMINAL_PANEL_HEIGHT
+              terminalLayout === "side" ? undefined : MAX_TERMINAL_PANEL_HEIGHT
             }
             aria-valuenow={
-              terminalPanelPlacement === "right"
+              terminalLayout === "side"
                 ? terminalPanelWidth
                 : terminalPanelHeight
             }
-            tabIndex={terminalPanelVisible ? 0 : -1}
+            tabIndex={terminalSurfaceVisible ? 0 : -1}
             onPointerDown={startTerminalPanelResize}
             onDoubleClick={(event) => {
-              if (terminalPanelPlacement === "right") {
+              if (terminalLayout === "side") {
                 setTerminalPanelWidth(
                   clampTerminalPanelWidth(
                     DEFAULT_TERMINAL_PANEL_WIDTH,
-                    maximumTerminalPanelWidth(event.currentTarget.parentElement)
-                  )
-                )
-              } else {
-                setTerminalPanelHeight(
-                  clampTerminalPanelHeight(
-                    DEFAULT_TERMINAL_PANEL_HEIGHT,
-                    maximumTerminalPanelHeight(
-                      event.currentTarget.parentElement
+                    maximumTerminalPanelWidth(
+                      event.currentTarget.parentElement,
+                      rightSidebarVisible,
+                      rightSidebarWidth
                     )
                   )
                 )
+                return
               }
+              setTerminalPanelHeight(
+                clampTerminalPanelHeight(
+                  DEFAULT_TERMINAL_PANEL_HEIGHT,
+                  maximumTerminalPanelHeight(event.currentTarget.parentElement)
+                )
+              )
             }}
             onKeyDown={(event) => {
-              const growKey =
-                terminalPanelPlacement === "right" ? "ArrowLeft" : "ArrowUp"
-              const shrinkKey =
-                terminalPanelPlacement === "right" ? "ArrowRight" : "ArrowDown"
-              if (event.key !== growKey && event.key !== shrinkKey) return
+              if (terminalLayout === "side") {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+                  return
+                }
+                event.preventDefault()
+                const step = event.shiftKey ? 32 : 16
+                adjustTerminalPanelWidth(
+                  event.key === "ArrowLeft" ? -step : step,
+                  event.currentTarget.parentElement
+                )
+                return
+              }
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
               event.preventDefault()
               const step = event.shiftKey ? 32 : 16
-              adjustTerminalPanelSize(
-                event.key === growKey ? step : -step,
+              adjustTerminalPanelHeight(
+                event.key === "ArrowUp" ? step : -step,
                 event.currentTarget.parentElement
               )
             }}
@@ -3058,7 +3522,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             fallback={
               <section
                 className="terminal-panel terminal-panel-loading"
+                data-open={terminalSurfaceVisible ? "true" : "false"}
                 aria-label={t("Terminal")}
+                aria-hidden={!terminalSurfaceVisible}
               >
                 <LoaderCircle className="spin" aria-hidden="true" />
                 <span>{t("Starting terminal…")}</span>
@@ -3067,16 +3533,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           >
             <TerminalPanel
               key={space.id}
-              open={terminalPanelVisible}
-              placement={terminalPanelPlacement}
-              placementShortcutLabel={terminalPlacementShortcutLabel}
+              layout={terminalLayout}
+              layoutShortcutLabel={terminalLayoutShortcutLabel}
+              open={terminalSurfaceVisible}
               spaceName={space.name}
               theme={theme}
+              titlebarNavigation={
+                terminalOwnsTitlebarNavigation
+                  ? collapsedTitlebarNavigation
+                  : null
+              }
               onClose={() => {
                 terminalToggleRef.current?.focus()
                 setTerminalPanelOpen(false)
               }}
-              onTogglePlacement={toggleTerminalPanelPlacement}
+              onCycleLayout={cycleTerminalLayout}
             />
           </Suspense>
         </>

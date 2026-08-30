@@ -11,6 +11,9 @@ export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
   ...EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS,
   "toggle-terminal",
   "toggle-terminal-position",
+  // Keep new commands after established ones so preference migration never
+  // steals an existing custom binding when a new default is introduced.
+  "focus-file-content",
 ] as const
 
 export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
@@ -31,6 +34,7 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   // steals an existing custom binding when a new default is introduced.
   "toggle-terminal",
   "toggle-terminal-position",
+  "focus-file-content",
 ] as const
 
 export type EidosLiteShortcutCommand =
@@ -59,6 +63,7 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "open-cell-actions": "Shift+F10",
     "toggle-terminal": "Ctrl+Backquote",
     "toggle-terminal-position": "Ctrl+Shift+Backquote",
+    "focus-file-content": "Mod+1",
   })
 
 const MODIFIERS = ["Mod", "Ctrl", "Alt", "Shift"] as const
@@ -199,12 +204,18 @@ export function normalizeEidosLiteKeyboardShortcuts(
   const isCurrentShape = EIDOS_LITE_SHORTCUT_COMMANDS.every(
     (command) => command in candidate
   )
+  const isPreFileContentFocusShape = EIDOS_LITE_SHORTCUT_COMMANDS.filter(
+    (command) => command !== "focus-file-content"
+  ).every((command) => command in candidate)
   const isPreviousShape = EIDOS_LITE_SHORTCUT_COMMANDS.filter(
-    (command) => command !== "toggle-terminal-position"
+    (command) =>
+      command !== "toggle-terminal-position" && command !== "focus-file-content"
   ).every((command) => command in candidate)
   const isPreTerminalShape = EIDOS_LITE_SHORTCUT_COMMANDS.filter(
     (command) =>
-      command !== "toggle-terminal" && command !== "toggle-terminal-position"
+      command !== "toggle-terminal" &&
+      command !== "toggle-terminal-position" &&
+      command !== "focus-file-content"
   ).every((command) => command in candidate)
   const isLegacyWorkspaceShape =
     EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS.every(
@@ -212,6 +223,7 @@ export function normalizeEidosLiteKeyboardShortcuts(
     )
   if (
     !isCurrentShape &&
+    !isPreFileContentFocusShape &&
     !isPreviousShape &&
     !isPreTerminalShape &&
     !isLegacyWorkspaceShape

@@ -50,12 +50,21 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain("<KeyboardShortcutSettings")
     expect(settings).toContain("builtInPlugins={preferences.builtInPlugins}")
     expect(settings).toContain('t("Start week on Monday")')
+    expect(settings).toContain('t("Terminal layout")')
+    expect(settings).toContain("data-terminal-layout")
+    expect(settings).toContain(
+      "data-segment-count={TERMINAL_LAYOUT_OPTIONS.length}"
+    )
+    expect(settings).toContain("data-terminal-layout={option.value}")
+    expect(settings).toContain("preferences.terminalLayout === option.value")
+    expect(settings).toContain("terminalLayout: option.value")
     expect(settings).toContain('data-built-in-plugin="terminal"')
     expect(settings).toContain("preferences.builtInPlugins.terminal")
     expect(settings).toContain("builtInPlugins: {")
     expect(settings).toContain(".listTerminalShells()")
     expect(settings).toContain("data-terminal-shell")
     expect(settings).toContain("preferences.terminalShell")
+    expect(settings).toContain("!preferences.builtInPlugins.terminal")
     expect(settings).toContain('className="settings-shell-select"')
     expect(settings).toContain('t("Time zone")')
     expect(settings).toContain("<TimeZonePicker")
@@ -64,5 +73,8 @@ describe("Settings responsive layout", () => {
       "weekStartsOnMonday: !preferences.weekStartsOnMonday"
     )
     expect(settings).toContain("data-settings-page={activePage}")
+    expect(styles).toMatch(
+      /\.settings-segmented-control\[data-segment-count="2"\]\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(3\.2rem, 1fr\)\)/
+    )
   })
 })

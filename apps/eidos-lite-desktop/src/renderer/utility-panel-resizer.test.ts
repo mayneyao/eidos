@@ -6,7 +6,7 @@ import { expect, it } from "vitest"
 
 const rendererRoot = path.dirname(fileURLToPath(import.meta.url))
 
-it("resizes Sync and Versions through one persistent accessible boundary", async () => {
+it("resizes every auxiliary view through one persistent right boundary", async () => {
   const [appSource, styles] = await Promise.all([
     fs.readFile(path.join(rendererRoot, "app.tsx"), "utf8"),
     fs.readFile(path.join(rendererRoot, "styles.css"), "utf8"),
@@ -16,28 +16,33 @@ it("resizes Sync and Versions through one persistent accessible boundary", async
     'const UTILITY_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:utility-panel-width"'
   )
   expect(appSource).toContain(
-    '"--utility-panel-width": `${utilityPanelWidth}px`'
+    'const TERMINAL_PANEL_WIDTH_STORAGE_KEY = "eidos-lite:terminal-panel-width"'
   )
-  expect(appSource).toContain("data-utility-panel-resizer")
-  expect(appSource).toContain('role="separator"')
-  expect(appSource).toContain('syncPanelMode ? "Resize Sync panel"')
   expect(appSource).toContain(
-    'document.documentElement.classList.add("resizing-utility-panel")'
+    'const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:right-sidebar-width"'
+  )
+  expect(appSource).toContain(
+    '"--right-sidebar-width": `${rightSidebarWidth}px`'
+  )
+  expect(appSource).toContain("data-right-sidebar-resizer")
+  expect(appSource).toContain('role="separator"')
+  expect(appSource).toContain('aria-label={t("Resize right sidebar")}')
+  expect(appSource).toContain(
+    'document.documentElement.classList.add("resizing-right-sidebar")'
   )
   expect(appSource).toContain("startWidth + startX - pointerEvent.clientX")
   expect(appSource).toContain("resizer.setPointerCapture(pointerId)")
   expect(appSource).toContain("resizer.releasePointerCapture(pointerId)")
   expect(appSource).toMatch(
-    /nativePreviewSuppressed=\{[\s\S]*?sidebarResizing \|\|[\s\S]*?utilityPanelResizing/
+    /nativePreviewSuppressed=\{[\s\S]*?sidebarResizing \|\|[\s\S]*?rightSidebarResizing/
   )
 
-  expect(styles).toContain(
-    "min(var(--utility-panel-width, 22rem), calc(100% - 19rem))"
+  expect(styles).not.toContain("--utility-panel-width")
+  expect(styles).toMatch(
+    /\.right-sidebar-resizer\s*\{[\s\S]*?grid-column:\s*5;[\s\S]*?width:\s*12px;[\s\S]*?cursor:\s*col-resize;/
   )
   expect(styles).toMatch(
-    /\.utility-panel-resizer\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?width:\s*12px;[\s\S]*?cursor:\s*col-resize;/
+    /\.workbench > \.version-panel,[\s\S]*?\.workbench > \.sync-inspector-host,[\s\S]*?grid-column:\s*6;/
   )
-  expect(styles).toMatch(
-    /\.editor-primary-area\.with-utility-panel > \.version-panel,[\s\S]*?grid-column:\s*3;/
-  )
+  expect(styles).toContain('.workbench[data-right-sidebar-open="true"]')
 })

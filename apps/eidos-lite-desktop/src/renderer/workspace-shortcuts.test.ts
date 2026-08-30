@@ -30,6 +30,11 @@ describe("Eidos Lite workspace shortcuts", () => {
     ).toBe("new-file")
     expect(
       workspaceShortcutForKeyboardEvent(
+        shortcutEvent({ key: "1", metaKey: true })
+      )
+    ).toBe("focus-file-content")
+    expect(
+      workspaceShortcutForKeyboardEvent(
         shortcutEvent({ key: "\\", metaKey: true })
       )
     ).toBe("toggle-sidebar")
@@ -92,6 +97,8 @@ describe("Eidos Lite workspace shortcuts", () => {
 
   it("renders platform-appropriate labels", () => {
     expect(workspaceShortcutLabel("new-file", true)).toBe("⌘N")
+    expect(workspaceShortcutLabel("focus-file-content", true)).toBe("⌘1")
+    expect(workspaceShortcutLabel("focus-file-content", false)).toBe("Ctrl+1")
     expect(workspaceShortcutLabel("toggle-sidebar", true)).toBe("⌘\\")
     expect(workspaceShortcutLabel("toggle-theme", true)).toBe("⌘⇧L")
     expect(workspaceShortcutLabel("toggle-version", true)).toBe("⌘⇧H")

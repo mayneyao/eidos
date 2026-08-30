@@ -5,6 +5,35 @@ import { describe, expect, it } from "vitest"
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
 
 describe("Version panel layout", () => {
+  it("owns a dedicated draggable main workbench route", () => {
+    const routeRule = styles.match(
+      /\.workbench > \.version-inspector-route,\s*\.workbench > \.sync-merge-editor,\s*\.workbench > \.workbench-main-loading\s*\{([^}]*)\}/
+    )?.[1]
+    const headerRule = styles.match(
+      /\.version-inspector-bar\s*\{([^}]*)\}/
+    )?.[1]
+    const headerButtonRule = styles.match(
+      /\.version-inspector-bar button\s*\{([^}]*)\}/
+    )?.[1]
+
+    expect(routeRule).toContain("grid-row: 1")
+    expect(routeRule).toContain("grid-column: 4")
+    expect(headerRule).toContain("-webkit-app-region: drag")
+    expect(headerButtonRule).toContain("-webkit-app-region: no-drag")
+  })
+
+  it("inherits the compact inspector header height from the whole workbench", () => {
+    const workbenchRule = styles.match(/\.workbench\s*\{([^}]*)\}/)?.[1]
+    const inspectorRule = styles.match(/\.version-inspector\s*\{([^}]*)\}/)?.[1]
+
+    expect(workbenchRule).toContain(
+      "--version-header-height: var(--workbench-titlebar-height)"
+    )
+    expect(inspectorRule).toContain(
+      "grid-template-rows: var(--version-header-height) minmax(0, 1fr)"
+    )
+  })
+
   it("keeps the changes panel on summary, content, and save rows", () => {
     const changesPanelRule = styles.match(
       /\.version-panel-body\.version-panel-changes\s*\{([^}]*)\}/

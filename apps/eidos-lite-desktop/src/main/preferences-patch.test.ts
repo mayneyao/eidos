@@ -6,6 +6,7 @@ describe("Eidos Lite preference IPC patch", () => {
     const patch = {
       appearance: "dark" as const,
       language: "zh" as const,
+      terminalLayout: "side" as const,
       timeZone: "Europe/London",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
@@ -26,6 +27,19 @@ describe("Eidos Lite preference IPC patch", () => {
     expect(() =>
       eidosLitePreferencesPatch({ timeZone: "Mars/Olympus_Mons" })
     ).toThrow("Invalid time zone preference")
+  })
+
+  it("accepts only supported Terminal layouts", () => {
+    for (const terminalLayout of ["bottom", "side"] as const) {
+      expect(eidosLitePreferencesPatch({ terminalLayout })).toEqual({
+        terminalLayout,
+      })
+    }
+    for (const terminalLayout of ["main", "right", "left"]) {
+      expect(() => eidosLitePreferencesPatch({ terminalLayout })).toThrow(
+        "Invalid terminal layout preference"
+      )
+    }
   })
 
   it("accepts only the complete built-in plugin preference shape", () => {

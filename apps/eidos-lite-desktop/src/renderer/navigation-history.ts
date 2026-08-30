@@ -1,4 +1,22 @@
-export type NavigationLocation = string | null
+export type VersionDiffNavigationLocation =
+  | {
+      type: "version-diff"
+      mode: "changes"
+      path: string
+      tableName?: string
+    }
+  | {
+      type: "version-diff"
+      mode: "history"
+      path: string
+      tableName?: string
+      commitId: string
+      commitParent: string | null
+      comparisonParent: string | null
+      commitParents?: string[]
+    }
+
+export type NavigationLocation = string | VersionDiffNavigationLocation | null
 
 export interface NavigationSnapshot {
   stackId: string
@@ -69,24 +87,85 @@ export function navigationHash(
   location: NavigationLocation
 ): string {
   const space = encodeURIComponent(spaceId)
-  return location === null
-    ? `#/space/${space}`
-    : `#/space/${space}/file/${encodeURIComponent(location)}`
+  if (location === null) return `#/space/${space}`
+  if (typeof location === "string") {
+    return `#/space/${space}/file/${encodeURIComponent(location)}`
+  }
+
+  const route = `#/space/${space}/diff/${location.mode}/${encodeURIComponent(location.path)}`
+  const params = new URLSearchParams()
+  if (location.tableName) params.set("table", location.tableName)
+  if (location.mode === "history") {
+    params.set("commit", location.commitId)
+    if (location.commitParent) params.set("parent", location.commitParent)
+    if (location.comparisonParent) {
+      params.set("compare", location.comparisonParent)
+    }
+    for (const parent of location.commitParents ?? []) {
+      params.append("mergeParent", parent)
+    }
+  }
+  const query = params.toString()
+  return query ? `${route}?${query}` : route
 }
 
 export function parseNavigationHash(
   hash: string
 ): { spaceId: string; location: NavigationLocation } | null {
-  const match = hash.match(/^#\/space\/([^/]+)(?:\/file\/(.+))?$/)
-  if (!match) return null
+  const diffMatch = hash.match(
+    /^#\/space\/([^/]+)\/diff\/(changes|history)\/([^?]+)(?:\?(.*))?$/
+  )
   try {
+    if (diffMatch) {
+      const spaceId = decodeURIComponent(diffMatch[1])
+      const mode = diffMatch[2] as "changes" | "history"
+      const path = decodeURIComponent(diffMatch[3])
+      const params = new URLSearchParams(diffMatch[4] ?? "")
+      const tableName = params.get("table") || undefined
+      if (mode === "changes") {
+        return {
+          spaceId,
+          location: {
+            type: "version-diff",
+            mode,
+            path,
+            ...(tableName ? { tableName } : {}),
+          },
+        }
+      }
+      const commitId = params.get("commit")
+      if (!commitId) return null
+      const commitParents = params.getAll("mergeParent")
+      return {
+        spaceId,
+        location: {
+          type: "version-diff",
+          mode,
+          path,
+          ...(tableName ? { tableName } : {}),
+          commitId,
+          commitParent: params.get("parent"),
+          comparisonParent: params.get("compare"),
+          ...(commitParents.length ? { commitParents } : {}),
+        },
+      }
+    }
+
+    const fileMatch = hash.match(/^#\/space\/([^/]+)(?:\/file\/(.+))?$/)
+    if (!fileMatch) return null
     return {
-      spaceId: decodeURIComponent(match[1]),
-      location: match[2] ? decodeURIComponent(match[2]) : null,
+      spaceId: decodeURIComponent(fileMatch[1]),
+      location: fileMatch[2] ? decodeURIComponent(fileMatch[2]) : null,
     }
   } catch {
     return null
   }
+}
+
+export function isVersionDiffNavigationLocation(
+  location: NavigationLocation
+): location is VersionDiffNavigationLocation {
+  return typeof location === "object" && location?.type === "version-diff"
 }
 
 export function initializeNavigationHistory(
@@ -137,7 +216,12 @@ export function pushNavigationLocation(
   spaceId: string,
   location: NavigationLocation
 ): NavigationSnapshot {
-  if (snapshot.location === location) return snapshot
+  if (
+    navigationHash(spaceId, snapshot.location) ===
+    navigationHash(spaceId, location)
+  ) {
+    return snapshot
+  }
   const index = snapshot.index + 1
   const length = index + 1
   const state: NavigationState = {
@@ -180,7 +264,7 @@ export function pathMatchesPrefix(
   sourcePath: string
 ): relativePath is string {
   return (
-    relativePath !== null &&
+    typeof relativePath === "string" &&
     (relativePath === sourcePath || relativePath.startsWith(`${sourcePath}/`))
   )
 }

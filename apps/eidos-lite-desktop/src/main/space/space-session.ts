@@ -338,7 +338,7 @@ export class SpaceSession {
         if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
           this.checkpointScheduler.notifyStableChange()
         }
-        void this.refreshAndEmit(true, directoriesToRefresh)
+        void this.refreshAndEmit(true, directoriesToRefresh, relativePaths)
       },
       150,
       async (relativePaths) => {
@@ -3202,7 +3202,8 @@ export class SpaceSession {
 
   private async refreshAndEmit(
     scheduleGraftStatus = true,
-    directoriesToRefresh: readonly string[] = []
+    directoriesToRefresh: readonly string[] = [],
+    externalChangePaths?: readonly string[]
   ): Promise<void> {
     if (this.closed) return
     try {
@@ -3212,7 +3213,10 @@ export class SpaceSession {
         )
       )
       const snapshot = await this.readSnapshot(scheduleGraftStatus)
-      for (const listener of this.changeListeners) listener(snapshot)
+      const emittedSnapshot = externalChangePaths
+        ? { ...snapshot, externalChangePaths: [...externalChangePaths] }
+        : snapshot
+      for (const listener of this.changeListeners) listener(emittedSnapshot)
     } catch {
       // The next explicit renderer refresh surfaces the actionable filesystem error.
     }

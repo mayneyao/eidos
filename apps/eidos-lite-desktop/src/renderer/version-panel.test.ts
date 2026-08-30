@@ -26,6 +26,7 @@ import {
   historySyncPresentation,
   isVersionReadAbortError,
   loadHistoricalVersionPathDiff,
+  loadVersionInspectionRoute,
   loadVersionPathDiff,
   mergeVersionDiffPages,
   TableDiff,
@@ -33,6 +34,7 @@ import {
   VersionPanel,
   withCommitTableSummaries,
 } from "./version-panel"
+import type { VersionDiffNavigationLocation } from "./navigation-history"
 import { VersionTextDiffContent } from "./version-text-diff"
 
 const customersTable: SpaceVersionTableDiff = {
@@ -95,6 +97,77 @@ const unversionedSpace: SpaceSnapshot = {
   },
   invalidatedSessionIds: [],
 }
+
+describe("stable version diff routes", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("rehydrates a working table inspection from a route", async () => {
+    const getVersionPathDiff = vi.fn().mockResolvedValue(versionDiff)
+    vi.stubGlobal("eidosLite", {
+      getVersionPathDiff,
+    } as unknown as EidosLiteApi)
+    const route: VersionDiffNavigationLocation = {
+      type: "version-diff",
+      mode: "changes",
+      path: "data/crm.eidos",
+      tableName: "Customers",
+    }
+
+    const inspection = await loadVersionInspectionRoute(route)
+
+    expect(inspection).toMatchObject({
+      type: "table",
+      mode: "changes",
+      change: { path: "data/crm.eidos" },
+      table: { name: "Customers" },
+      commit: null,
+    })
+    expect(getVersionPathDiff).toHaveBeenCalledWith(
+      "data/crm.eidos",
+      null,
+      null,
+      "Customers"
+    )
+  })
+
+  it("rehydrates the exact comparison parent for a historical route", async () => {
+    const getVersionPathDiff = vi.fn().mockResolvedValue({
+      ...versionDiff,
+      from: "b".repeat(64),
+      to: "c".repeat(64),
+    })
+    vi.stubGlobal("eidosLite", {
+      getVersionPathDiff,
+    } as unknown as EidosLiteApi)
+    const route: VersionDiffNavigationLocation = {
+      type: "version-diff",
+      mode: "history",
+      path: "data/crm.eidos",
+      commitId: "c".repeat(64),
+      commitParent: "a".repeat(64),
+      comparisonParent: "b".repeat(64),
+      commitParents: ["a".repeat(64), "b".repeat(64)],
+    }
+
+    const inspection = await loadVersionInspectionRoute(route)
+
+    expect(inspection).toMatchObject({
+      type: "file",
+      mode: "history",
+      commit: {
+        id: "c".repeat(64),
+        parent: "a".repeat(64),
+        parents: ["a".repeat(64), "b".repeat(64)],
+      },
+    })
+    expect(getVersionPathDiff).toHaveBeenCalledWith(
+      "data/crm.eidos",
+      "c".repeat(64),
+      "b".repeat(64),
+      undefined
+    )
+  })
+})
 
 function changeTreePath(path = ""): string {
   return `${VERSION_CHANGES_ROOT_PATH}${path}`
@@ -654,6 +727,83 @@ describe("VersionPanel table diff", () => {
       await Promise.resolve()
     })
     expect(getVersionHistory).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("keeps an expanded Eidos change selected when the inspection callback changes", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-1",
+      },
+    }
+    const firstInspectionChange = vi.fn()
+    const nextInspectionChange = vi.fn()
+    const renderPanel = (onInspectionChange: typeof firstInspectionChange) =>
+      root.render(
+        createElement(VersionPanel, {
+          space: dirtySpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange,
+        })
+      )
+
+    await act(async () => {
+      renderPanel(firstInspectionChange)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const eidosItem = changeTreeItem(host, "data/crm.eidos/")
+    expect(eidosItem).not.toBeNull()
+
+    await act(async () => {
+      eidosItem?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+      changeTreeItem(host, "data/crm.eidos/")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+    })
+    expect(
+      changeTreeItem(host, "data/crm.eidos/")?.getAttribute("aria-expanded")
+    ).toBe("true")
+    expect(firstInspectionChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "file",
+        change: expect.objectContaining({ path: "data/crm.eidos" }),
+      })
+    )
+
+    await act(async () => {
+      renderPanel(nextInspectionChange)
+      await Promise.resolve()
+    })
+
+    expect(nextInspectionChange).not.toHaveBeenCalledWith(null)
+    expect(
+      changeTreeItem(host, "data/crm.eidos/")?.getAttribute("aria-expanded")
+    ).toBe("true")
 
     await act(async () => root.unmount())
     host.remove()
@@ -2196,11 +2346,13 @@ describe("VersionPanel table diff", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       expect.objectContaining({ type: "file", change: inspection.change })
     )
+    expect(
+      host.querySelector('[aria-label="Back to Changes overview"]')
+    ).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
     await act(async () => {
       host
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Back to Changes overview"]'
-        )
+        .querySelector<HTMLButtonElement>('[aria-label="Close change details"]')
         ?.click()
     })
     expect(onClose).toHaveBeenCalledOnce()
@@ -2460,6 +2612,14 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("version-rename-summary")
     expect(markup).toContain("Text changes")
     expect(markup).toContain("Split")
+    expect(markup).toContain('role="switch"')
+    expect(markup).toContain('aria-label="Wrap lines"')
+    expect(markup).toContain('aria-checked="false"')
+    expect(markup).toContain("version-diff-wrap-switch")
+    expect(markup).toContain("Wrap")
+    expect(markup.indexOf('aria-label="Wrap lines"')).toBeLessThan(
+      markup.indexOf('aria-label="Diff layout"')
+    )
   })
 
   it("groups all Changes above folders and discards them through one operation", async () => {

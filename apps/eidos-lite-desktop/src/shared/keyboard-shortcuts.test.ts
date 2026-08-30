@@ -46,6 +46,20 @@ describe("Eidos Lite keyboard shortcuts", () => {
     ).toBe("new-file")
     expect(
       eidosLiteShortcutCommandForKeyboardEvent(
+        event({ key: "1", metaKey: true }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        true
+      )
+    ).toBe("focus-file-content")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
+        event({ ctrlKey: true, key: "1" }),
+        DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        false
+      )
+    ).toBe("focus-file-content")
+    expect(
+      eidosLiteShortcutCommandForKeyboardEvent(
         event({ key: "Enter", metaKey: true }),
         DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
         true
@@ -102,6 +116,19 @@ describe("Eidos Lite keyboard shortcuts", () => {
     expect(normalized["open-cell-actions"]).toBe("Shift+F10")
     expect(normalized["toggle-terminal"]).toBe("Ctrl+Backquote")
     expect(normalized["toggle-terminal-position"]).toBe("Ctrl+Shift+Backquote")
+    expect(normalized["focus-file-content"]).toBe("Mod+1")
+  })
+
+  it("does not let the new file-content focus default steal an existing custom binding", () => {
+    const { "focus-file-content": _focusFileContent, ...previousShortcuts } =
+      DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS
+    const normalized = normalizeEidosLiteKeyboardShortcuts({
+      ...previousShortcuts,
+      "toggle-sidebar": "Mod+1",
+    })
+
+    expect(normalized["toggle-sidebar"]).toBe("Mod+1")
+    expect(normalized["focus-file-content"]).toBeNull()
   })
 
   it("does not let a new default steal an existing custom binding", () => {

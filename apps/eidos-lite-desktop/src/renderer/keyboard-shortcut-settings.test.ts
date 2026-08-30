@@ -7,6 +7,12 @@ import {
 } from "./keyboard-shortcut-settings"
 
 describe("Keyboard shortcut row actions", () => {
+  it("shows file-content focus with the workspace commands", () => {
+    expect(
+      SHORTCUT_GROUPS.find((group) => group.label === "Workspace")?.commands
+    ).toContain("focus-file-content")
+  })
+
   it("shows the terminal toggle with the workspace commands", () => {
     expect(
       SHORTCUT_GROUPS.find((group) => group.label === "Workspace")?.commands

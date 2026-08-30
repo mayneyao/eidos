@@ -48,6 +48,7 @@ export interface EidosFileDataGridProps {
   showRowMarkers?: boolean
   disabled?: boolean
   reloadToken?: number
+  focusRequestToken?: number
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
   onDeleteRows?: (
@@ -167,6 +168,7 @@ export function EidosFileDataGrid({
   showRowMarkers = true,
   disabled = false,
   reloadToken = 0,
+  focusRequestToken = 0,
   propertyField,
   onMutation,
   onDeleteRows,
@@ -382,6 +384,7 @@ export function EidosFileDataGrid({
         view={view}
         disabled={disabled}
         reloadToken={reloadToken}
+        focusRequestToken={focusRequestToken}
         historyScopeKey={JSON.stringify(query)}
         searchResultIndex={searchResultIndex}
         showRowMarkers={showRowMarkers}
