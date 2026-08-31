@@ -182,7 +182,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   await startDate.press("Enter")
   await expect(startDate).toHaveValue("2028-02-29")
   await expect(await fieldRow(inspector, "Next review")).toContainText(
-    "2028-03-14"
+    "3/14/2028"
   )
 
   const reviewAt = inspector.getByRole("textbox", { name: "Review at" })
