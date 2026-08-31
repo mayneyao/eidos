@@ -194,6 +194,26 @@ function inferType(values: string[]): EidosFileCsvFieldType {
     return "checkbox"
   }
   if (
+    populated.every((value) =>
+      /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(value)
+    ) &&
+    populated.some((value) => {
+      const integer = BigInt(value)
+      return (
+        integer < BigInt(Number.MIN_SAFE_INTEGER) ||
+        integer > BigInt(Number.MAX_SAFE_INTEGER)
+      )
+    })
+  ) {
+    return "integer"
+  }
+  if (
+    populated.every((value) => /^[+-]?[0-9]+$/.test(value)) &&
+    !populated.every((value) => /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(value))
+  ) {
+    return "text"
+  }
+  if (
     populated.every((value) => value !== "" && Number.isFinite(Number(value)))
   ) {
     return "number"
@@ -409,6 +429,15 @@ function convertValue(
       )
     }
     return number
+  }
+  if (type === "integer") {
+    if (!/^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(trimmed)) {
+      throw new EidosFileError(
+        "invalid-csv",
+        `CSV row ${rowNumber}, field “${fieldName}” is not a canonical integer`
+      )
+    }
+    return BigInt(trimmed)
   }
   if (type === "checkbox") {
     if (!/^(?:true|false)$/i.test(trimmed)) {

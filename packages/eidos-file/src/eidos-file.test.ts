@@ -10,8 +10,10 @@ import {
   EIDOS_FILE_FORMAT_VERSION,
   EIDOS_FILE_META_TABLE,
   EIDOS_FILE_SCHEMA_VERSION,
+  EIDOS_FILE_TABLES_TABLE,
 } from "./constants"
 import { EidosFileError } from "./errors"
+import { canonicalizeEidosFileJson } from "./canonical-json"
 
 describe("Eidos File 1.0 native Runtime", () => {
   const roots: string[] = []
@@ -108,6 +110,69 @@ describe("Eidos File 1.0 native Runtime", () => {
           .every((row) => row.type === "text")
       ).toBe(true)
       expect(runtime.validate({ level: "full" })).toMatchObject({ valid: true })
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("keeps an optional Markdown Content Field constrained to ordinary Text Fields", () => {
+    const target = filePath()
+    let runtime = createEidosFile(target, {
+      defaultTable: {
+        name: "Notes",
+        fields: [
+          { name: "Title", type: "text", isRecordLabel: true },
+          { name: "Body", type: "text" },
+          { name: "Estimate", type: "number" },
+        ],
+      },
+    })
+    try {
+      const table = runtime.listTables()[0]!
+      const fields = runtime.listFields(table.id)
+      const title = fields.find((field) => field.name === "Title")!
+      const body = fields.find((field) => field.name === "Body")!
+      const estimate = fields.find((field) => field.name === "Estimate")!
+
+      runtime.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET settings_json = ? WHERE id = ?`,
+        [canonicalizeEidosFileJson({ vendorSetting: "kept" }), table.id]
+      )
+      runtime.close()
+      runtime = openEidosFile(target)
+      expect(
+        runtime.updateTable(table.id, {
+          icon: "document",
+          recordLabelFieldId: title.id,
+          contentFieldId: body.id,
+        })
+      ).toMatchObject({ contentFieldId: body.id, icon: "document" })
+      expect(
+        runtime.connection.get<{ settings_json: string }>(
+          `SELECT settings_json FROM ${EIDOS_FILE_TABLES_TABLE} WHERE id = ?`,
+          [table.id]
+        )?.settings_json
+      ).toContain('"vendorSetting":"kept"')
+      expect(() =>
+        runtime.updateTable(table.id, { contentFieldId: estimate.id })
+      ).toThrow(/ordinary Text Field/)
+
+      runtime.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET settings_json = ? WHERE id = ?`,
+        [canonicalizeEidosFileJson({ contentFieldId: estimate.id }), table.id]
+      )
+      expect(runtime.validate({ level: "semantic" })).toMatchObject({
+        valid: false,
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining("Content Field"),
+          }),
+        ],
+      })
+
+      runtime.updateTable(table.id, { contentFieldId: body.id })
+      expect(runtime.deleteField(table.id, body.id)).toBe(true)
+      expect(runtime.getTable(table.id).contentFieldId).toBeNull()
     } finally {
       runtime.close()
     }

@@ -216,6 +216,7 @@ export async function runSelfTest(): Promise<string> {
     const overflowFieldId = created("overflow")
     const substringFieldId = created("substring")
     const mixedFieldId = created("mixed")
+    const fileFieldId = created("files")
     checks.push("schema-create-table-with-formulas")
 
     const formulaPreview = await runtime.previewFormula(
@@ -279,6 +280,7 @@ export async function runSelfTest(): Promise<string> {
       values: {
         [groupFieldId]: index < 501 ? "A" : "B",
         [amountFieldId]: index < 501 ? "1" : "2",
+        ...(index === 0 ? { [fileFieldId]: [remoteFileEntry] } : {}),
       },
     }))
     let revision = schema.revision
@@ -300,6 +302,25 @@ export async function runSelfTest(): Promise<string> {
       }
     }
     checks.push("mutate-rows-1002")
+
+    const fileSearch = await runtime.queryRows(
+      {
+        tableId,
+        query: {
+          search: { text: "REMOTE.PNG", fields: [fileFieldId] },
+        },
+        projection: {
+          fields: [groupFieldId, fileFieldId],
+          resolveRelations: [],
+        },
+        limit: 25,
+        direction: "forward",
+      },
+      context("file-name-search")
+    )
+    expect(fileSearch.rows).toHaveLength(1)
+    expect(fileSearch.rows[0]!.values).toEqual(["A", [remoteFileEntry]])
+    checks.push("file-name-search")
 
     const request = {
       tableId,

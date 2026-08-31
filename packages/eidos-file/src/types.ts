@@ -25,6 +25,8 @@ export interface EidosFileTableInfo {
   position: number | null
   icon: string | null
   description: string | null
+  /** Optional ordinary Text Field rendered as the record's primary Markdown content. */
+  contentFieldId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -84,6 +86,8 @@ export interface EidosFileFieldInfo {
   /** Canonical system role, independent of the persisted Field type. */
   systemRole?: "row-id" | "created-time" | "updated-time" | null
   nullable?: boolean
+  /** Runtime-authoritative cell writability. Older editor sources may omit it. */
+  writable?: boolean
   isRecordLabel?: boolean
   position?: number
   settings?: Record<string, unknown>
@@ -145,6 +149,7 @@ export interface CreateEidosFileTableInput {
 export type EidosFileCsvFieldType =
   | "text"
   | "number"
+  | "integer"
   | "checkbox"
   | "date"
   | "datetime"
@@ -210,6 +215,8 @@ export interface UpdateEidosFileTableInput {
   name?: string
   icon?: string | null
   description?: string | null
+  recordLabelFieldId?: string
+  contentFieldId?: string | null
 }
 
 export interface CreateEidosFileSourceFieldInput {

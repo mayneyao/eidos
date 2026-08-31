@@ -21,6 +21,11 @@ import {
 } from "./identifiers"
 import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import {
+  eidosFileFieldQueryCapabilities,
+  eidosFileFieldValueType as fieldValueType,
+  eidosFileTypeRefQueryCapabilities,
+} from "./field-query-capabilities"
+import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
   eidosFileLookupValueType,
@@ -2059,6 +2064,9 @@ export class EidosRuntimeService implements RuntimeClient {
           ...(table.description === null
             ? {}
             : { description: table.description }),
+          ...(table.contentFieldId === null
+            ? {}
+            : { contentFieldId: table.contentFieldId }),
         }),
       }
     })
@@ -2160,17 +2168,29 @@ export class EidosRuntimeService implements RuntimeClient {
           const targetFields = this.core.listFields(definition.targetTableId)
           const labelField = targetFields.find((entry) => entry.isRecordLabel)
           if (!labelField?.id) return []
-          const items = row.resolved?.[fieldId] ?? []
+          const resolved = new Map(
+            (row.resolved?.[fieldId] ?? []).map((item) => [item.id, item])
+          )
+          const ids = Array.isArray(row.fields[fieldId])
+            ? row.fields[fieldId].filter(
+                (value): value is string => typeof value === "string"
+              )
+            : []
           return [
             {
               column,
-              items: items.map((item) => ({
-                id: item.id,
-                state: "resolved" as const,
-                labelFieldId: labelField.id!,
-                labelType: fieldValueType(labelField),
-                label: item.label as LogicalValue,
-              })),
+              items: ids.map((id) => {
+                const item = resolved.get(id)
+                return item
+                  ? {
+                      id,
+                      state: "resolved" as const,
+                      labelFieldId: labelField.id!,
+                      labelType: fieldValueType(labelField),
+                      label: item.label as LogicalValue,
+                    }
+                  : { id, state: "unresolved" as const }
+              }),
             },
           ]
         }
@@ -2346,7 +2366,11 @@ export class EidosRuntimeService implements RuntimeClient {
     const groupTypes: TypeRef[] = request.groupBy.map((fieldId) => {
       const field = fieldsById.get(fieldId)
       const type = field ? fieldValueType(field) : undefined
-      if (!field || typeof type !== "string" || !isSortableType(type)) {
+      if (
+        !field ||
+        !type ||
+        !eidosFileTypeRefQueryCapabilities(type).groupable
+      ) {
         throw runtimeError("invalid-query", "Group Field is not groupable", {
           fieldId,
         })
@@ -2812,6 +2836,11 @@ export class EidosRuntimeService implements RuntimeClient {
     const tableNames = new Map(
       this.core.listTables().map((table) => [table.id, table.name])
     )
+    const proposedContentFields = new Map(
+      this.core
+        .listTables()
+        .map((table) => [table.id, table.contentFieldId ?? null] as const)
+    )
     let syntheticField = 0
     let rewrittenFormulaSources = 0
     for (const leaf of leaves) {
@@ -2837,6 +2866,7 @@ export class EidosRuntimeService implements RuntimeClient {
             if (field.tableId === leaf.tableId) proposedFields.delete(id)
           }
           tableNames.delete(leaf.tableId)
+          proposedContentFields.delete(leaf.tableId)
           break
         case "create-field": {
           const candidate = simulatedNewField(
@@ -3103,12 +3133,34 @@ export class EidosRuntimeService implements RuntimeClient {
           break
         }
         case "rename-table":
-        case "set-table-settings":
         case "set-table-position":
           if (!tableIds.has(leaf.tableId)) {
             forbid("dependency-blocked", "Table does not exist", {
               tableId: leaf.tableId,
             })
+          }
+          break
+        case "set-table-settings":
+          if (!tableIds.has(leaf.tableId)) {
+            forbid("dependency-blocked", "Table does not exist", {
+              tableId: leaf.tableId,
+            })
+          } else {
+            const contentFieldId = leaf.settings.contentFieldId
+            proposedContentFields.set(
+              leaf.tableId,
+              contentFieldId === undefined ? null : String(contentFieldId)
+            )
+            if (
+              contentFieldId !== undefined &&
+              typeof contentFieldId !== "string"
+            ) {
+              forbid(
+                "dependency-blocked",
+                "Content Field ID must be a string",
+                { tableId: leaf.tableId }
+              )
+            }
           }
           break
         case "create-field":
@@ -3454,6 +3506,24 @@ export class EidosRuntimeService implements RuntimeClient {
           )
           break
         }
+      }
+    }
+    for (const [tableId, contentFieldId] of proposedContentFields) {
+      if (contentFieldId === null) continue
+      const field = proposedFields.get(contentFieldId)
+      if (
+        !field ||
+        field.tableId !== tableId ||
+        field.type !== "text" ||
+        field.valueKind !== "source" ||
+        field.systemRole != null ||
+        !field.physicalName
+      ) {
+        forbid(
+          "dependency-blocked",
+          "The Content Field must be an ordinary Text Field in the same Table",
+          { tableId, fieldId: contentFieldId }
+        )
       }
     }
     const orderedDependencies = Array.from(dependencies.values()).sort(
@@ -4173,61 +4243,19 @@ function fieldDescriptor(
   }
 }
 
-function fieldValueType(
-  field: ReturnType<EidosFileRuntime["listFields"]>[number]
-): TypeRef {
-  if (field.systemRole === "row-id" || field.type === "row-id") return "row-id"
-  if (
-    field.systemRole === "created-time" ||
-    field.systemRole === "updated-time" ||
-    field.type === "created-time" ||
-    field.type === "last-edited-time"
-  ) {
-    return "datetime"
-  }
-  if (field.type === "formula") {
-    return String(field.property?.displayType ?? "text") as TypeRef
-  }
-  if (field.type === "lookup") {
-    const generated = field.property?.valueType
-    const generatedObject =
-      generated && typeof generated === "object"
-        ? (generated as Record<string, unknown>)
-        : undefined
-    if (
-      typeof generated === "string" ||
-      (generatedObject?.kind === "list" &&
-        typeof generatedObject.element === "string")
-    ) {
-      return generated as TypeRef
-    }
-    const display = String(field.property?.displayType ?? "text")
-    if (field.property?.aggregate === "values") {
-      const element =
-        display === "file"
-          ? "file-entry"
-          : display === "relation"
-            ? "row-id"
-            : display === "multi-select"
-              ? "select"
-              : display
-      return {
-        kind: "list",
-        element: element as AtomicType,
-      }
-    }
-    return display as TypeRef
-  }
-  return field.type as TypeRef
-}
-
 function csvImportFieldType(
   field: ReturnType<EidosFileRuntime["listFields"]>[number]
 ): EidosFileCsvImportColumn["type"] | null {
   if (field.isRecordLabel) return "record-label"
-  return ["text", "number", "checkbox", "date", "datetime", "url"].includes(
-    field.type
-  )
+  return [
+    "text",
+    "number",
+    "integer",
+    "checkbox",
+    "date",
+    "datetime",
+    "url",
+  ].includes(field.type)
     ? (field.type as EidosFileCsvImportColumn["type"])
     : null
 }
@@ -4412,12 +4440,7 @@ function assertRuntimeRowQuery(
     }
     for (const fieldId of query.search.fields) {
       const field = byId.get(fieldId)
-      const type = field ? fieldValueType(field) : undefined
-      if (
-        !field ||
-        typeof type !== "string" ||
-        !["text", "url", "select", "row-id"].includes(type)
-      ) {
+      if (!field || !eidosFileFieldQueryCapabilities(field).searchable) {
         throw runtimeError("invalid-query", "Search Field is not searchable", {
           fieldId,
         })
@@ -4435,23 +4458,14 @@ function assertRuntimeRowQuery(
     query.sort.forEach((sort, index) => {
       const field = byId.get(sort.fieldId)
       const type = field ? fieldValueType(field) : undefined
+      const capabilities = type ? eidosFileTypeRefQueryCapabilities(type) : null
       if (
         !field ||
-        typeof type !== "string" ||
-        ![
-          "text",
-          "number",
-          "integer",
-          "checkbox",
-          "date",
-          "datetime",
-          "url",
-          "select",
-          "row-id",
-        ].includes(type) ||
+        !capabilities?.sortable ||
         !["asc", "desc"].includes(sort.direction) ||
         (sort.nulls !== undefined && !["first", "last"].includes(sort.nulls)) ||
-        (type === "row-id" && index !== query.sort!.length - 1)
+        (capabilities.sortPosition === "last" &&
+          index !== query.sort!.length - 1)
       ) {
         throw runtimeError("invalid-query", "Sort Field is invalid", {
           fieldId: sort.fieldId,
@@ -4563,8 +4577,7 @@ function assertRuntimeRowQuery(
     }
     if (node.op === "between") {
       if (
-        typeof type !== "string" ||
-        !isSortableType(type) ||
+        !eidosFileTypeRefQueryCapabilities(type).ordered ||
         node.lower === null ||
         node.upper === null ||
         !filterValueMatchesType(node.lower, type) ||
@@ -4579,7 +4592,7 @@ function assertRuntimeRowQuery(
       node.value === null ||
       !filterValueMatchesType(node.value, type) ||
       (["lt", "lte", "gt", "gte"].includes(node.op) &&
-        (typeof type !== "string" || !isSortableType(type)))
+        !eidosFileTypeRefQueryCapabilities(type).ordered)
     ) {
       throw runtimeError("invalid-query", "Filter operand type is invalid")
     }
@@ -4590,20 +4603,6 @@ function assertRuntimeRowQuery(
 function filterValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
   if (type === "row-id") return typeof value === "string"
   return logicalValueMatchesType(value, type)
-}
-
-function isSortableType(type: string): boolean {
-  return [
-    "text",
-    "number",
-    "integer",
-    "checkbox",
-    "date",
-    "datetime",
-    "url",
-    "select",
-    "row-id",
-  ].includes(type)
 }
 
 function logicalValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
@@ -5847,7 +5846,7 @@ function aggregateItemResult(
       truncated: ordered.length > item.limit,
     }
   }
-  const sortable = typeof valueType === "string" && isSortableType(valueType)
+  const sortable = eidosFileTypeRefQueryCapabilities(valueType).sortable
   const numeric = valueType === "integer" || valueType === "number"
   if ((item.op === "sum" || item.op === "average") && !numeric) {
     throw runtimeError(

@@ -1,6 +1,10 @@
 import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EidosFileError } from "./errors"
+import {
+  eidosFileFieldQueryCapabilities,
+  eidosFileFieldValueType,
+} from "./field-query-capabilities"
 import { quoteIdentifier } from "./identifiers"
 import {
   currentEidosFileInstant,
@@ -325,6 +329,89 @@ function caseInsensitiveLike(
          LIKE ? COLLATE NOCASE ESCAPE '\\'`
 }
 
+function searchExpression(
+  field: EidosFileFieldInfo,
+  pattern: string,
+  searchText: string,
+  params: EidosFileSqlPrimitive[]
+): string {
+  const column = quoteIdentifier(field.tableColumnName)
+  const type = eidosFileFieldValueType(field)
+  if (field.isRecordLabel && typeof type === "string") {
+    const expression =
+      type === "checkbox"
+        ? `CASE ${column} WHEN 1 THEN 'true' WHEN 0 THEN 'false' ELSE NULL END`
+        : type === "number"
+          ? `eidos_canonical_number(${column})`
+          : column
+    return caseInsensitiveLike(expression, pattern, searchText, params)
+  }
+  const contextualRowIdLookup =
+    field.type === "lookup" &&
+    typeof type === "object" &&
+    type.element === "row-id" &&
+    typeof field.property?.relationField === "string"
+  if (type === "relation" || contextualRowIdLookup) {
+    const fragments = quoteIdentifier(`${field.tableColumnName}__search`)
+    return `EXISTS (
+      SELECT 1
+        FROM json_each(
+          CASE
+            WHEN json_valid(${fragments}) AND json_type(${fragments}) = 'array'
+              THEN ${fragments}
+            ELSE '[]'
+          END
+        ) item
+       WHERE ${caseInsensitiveLike("item.value", pattern, searchText, params)}
+    )`
+  }
+  const listElement =
+    typeof type === "object"
+      ? type.element
+      : type === "multi-select"
+        ? "select"
+        : type === "file"
+          ? "file-entry"
+          : null
+  const fileEntryPredicate = (entry: string): string => {
+    const name = `json_extract(${entry}, '$.name')`
+    const mediaType = `json_extract(${entry}, '$.mediaType')`
+    const uri = `json_extract(${entry}, '$.uri')`
+    return `(
+      ${caseInsensitiveLike(name, pattern, searchText, params)}
+      OR ${caseInsensitiveLike(mediaType, pattern, searchText, params)}
+      OR (
+        lower(COALESCE(CAST(${uri} AS TEXT), '')) NOT LIKE 'data:%'
+        AND ${caseInsensitiveLike(uri, pattern, searchText, params)}
+      )
+    )`
+  }
+  if (type === "file-entry") {
+    const entry = `CASE WHEN json_valid(${column}) THEN ${column} ELSE '{}' END`
+    return fileEntryPredicate(entry)
+  }
+  if (listElement === null) {
+    return caseInsensitiveLike(column, pattern, searchText, params)
+  }
+  return `EXISTS (
+    SELECT 1
+      FROM json_each(
+        CASE
+          WHEN json_valid(${column}) AND json_type(${column}) = 'array'
+            THEN ${column}
+          ELSE '[]'
+        END
+      ) item
+     WHERE ${
+       listElement === "file-entry"
+         ? fileEntryPredicate(
+             "CASE WHEN item.type = 'object' THEN item.value ELSE '{}' END"
+           )
+         : caseInsensitiveLike("item.value", pattern, searchText, params)
+     }
+  )`
+}
+
 function searchableFields(
   fields: EidosFileFieldInfo[],
   selected?: readonly string[]
@@ -333,12 +420,25 @@ function searchableFields(
   return fields.filter(
     (field) =>
       (!selection || (!!field.id && selection.has(field.id))) &&
-      !field.isHidden &&
+      (!field.isHidden || selection !== null) &&
+      eidosFileFieldQueryCapabilities(field).searchable &&
       (field.isRecordLabel ||
         field.valueKind === "source" ||
         field.valueKind === "materialized" ||
-        field.valueKind === "derived")
+        field.valueKind === "derived" ||
+        field.valueKind === "relation" ||
+        (selection !== null && field.valueKind === "system"))
   )
+}
+
+export function eidosFileRowQuerySearchFields(
+  fields: EidosFileFieldInfo[],
+  query: EidosFileRowQuery
+): EidosFileFieldInfo[] {
+  const normalized = normalizeEidosFileRowQuery(query)
+  return normalized.search === undefined || normalized.search === ""
+    ? []
+    : searchableFields(fields, normalized.searchFields)
 }
 
 function collectFilterFields(
@@ -820,12 +920,13 @@ function compileGroup(
 }
 
 export function eidosFileSortExpression(field: EidosFileFieldInfo): string {
-  const column = quoteIdentifier(field.tableColumnName)
-  return field.storageCodec === "json_array" ||
-    field.storageCodec === "relation"
-    ? `(SELECT item.value FROM json_each(${column}) item
-         WHERE item.value IS NOT NULL ORDER BY CAST(item.key AS INTEGER) LIMIT 1)`
-    : column
+  if (!eidosFileFieldQueryCapabilities(field).sortable) {
+    throw new EidosFileError(
+      "invalid-query",
+      `${field.name} does not support sorting`
+    )
+  }
+  return quoteIdentifier(field.tableColumnName)
 }
 
 function compileSorts(
@@ -834,10 +935,23 @@ function compileSorts(
 ): string {
   const seen = new Set<string>()
   const clauses: string[] = []
-  for (const sort of sorts ?? []) {
-    if (seen.has(sort.field)) continue
-    const field = requireField(fields, sort.field)
+  const uniqueSorts = (sorts ?? []).filter((sort) => {
+    if (seen.has(sort.field)) return false
     seen.add(sort.field)
+    return true
+  })
+  for (const [index, sort] of uniqueSorts.entries()) {
+    const field = requireField(fields, sort.field)
+    const capabilities = eidosFileFieldQueryCapabilities(field)
+    if (
+      !capabilities.sortable ||
+      (capabilities.sortPosition === "last" && index < uniqueSorts.length - 1)
+    ) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} does not support this sort position`
+      )
+    }
     const expression = eidosFileSortExpression(field)
     clauses.push(
       `${expression} ${
@@ -863,14 +977,8 @@ export function compileEidosFileRowQuery(
   const search = query.search
   if (search !== undefined && search !== "") {
     const pattern = `%${escapeLike(search)}%`
-    const searchClauses = searchableFields(fields, query.searchFields).map(
-      (field) =>
-        caseInsensitiveLike(
-          quoteIdentifier(field.tableColumnName),
-          pattern,
-          search,
-          params
-        )
+    const searchClauses = eidosFileRowQuerySearchFields(fields, query).map(
+      (field) => searchExpression(field, pattern, search, params)
     )
     if (searchClauses.length > 0) where.push(`(${searchClauses.join(" OR ")})`)
   }

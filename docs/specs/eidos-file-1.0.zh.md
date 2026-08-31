@@ -739,6 +739,18 @@ role。切换或删除当前 Record Label 必须在
 Field value 或 virtual definition 是 canonical；解析和格式化后的 label 是 generated
 state，具体求值与 placeholder 分别归 Runtime、UI。
 
+### 8.2.1 可选 Content Field
+
+Table 可以通过 `eidos__tables.settings_json` 的可选 `contentFieldId` member 指定一个
+主要 Content Field；member 不存在表示没有 Content Field。它必须引用本 Table 的普通、
+non-system、stored `text` Field。Formula、Lookup、Relation、virtual、materialized 与
+system Field 都不合法。该设置只改变 presentation；Text value 仍是唯一 canonical source
+value，其语法不属于 File Format。
+
+EF-Writer 删除当前 Content Field 或把它改为非合法 Text 类型时，必须在同一 transaction
+清除 `contentFieldId` 或把它重定向到另一个合法 Field。不实现 Content Field presentation
+的 Reader 可以忽略该 member，但在保留 Table settings 时必须原样保留它。
+
 ### 8.3 File values
 
 File value 是有序的 canonical JSON array：

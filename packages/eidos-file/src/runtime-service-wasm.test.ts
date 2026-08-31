@@ -424,6 +424,11 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
               clientKey: "one",
               values: { [targetLabelId]: "One", [targetValueId]: "1" },
             },
+            {
+              kind: "create",
+              clientKey: "removed",
+              values: { [targetLabelId]: "Removed", [targetValueId]: "2" },
+            },
           ],
         },
         context("target-rows")
@@ -433,6 +438,9 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
         (key) =>
           targetRows.created.find((entry) => entry.clientKey === key)!.rowId
       )
+      const unresolvedTargetId = targetRows.created.find(
+        (entry) => entry.clientKey === "removed"
+      )!.rowId
       const relationPlan = await runtime.preflightSchema(
         {
           expectedRevision: revision,
@@ -448,7 +456,7 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
                 direction: "forward",
                 targetTableId,
                 cardinality: "many",
-                onDelete: "detach",
+                onDelete: "preserve",
               },
             },
           },
@@ -535,12 +543,98 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
             {
               kind: "update",
               rowId: firstItemId,
-              values: { [relationFieldId]: targetRowIds },
+              values: {
+                [relationFieldId]: [...targetRowIds, unresolvedTargetId],
+              },
             },
           ],
         },
         context("related-row")
       )
+      const removedTarget = await runtime.mutateRows(
+        {
+          tableId: targetTableId,
+          expectedRevision: related.revision,
+          changes: [{ kind: "delete", rowId: unresolvedTargetId }],
+        },
+        context("remove-related-target")
+      )
+      const relationFiltered = await runtime.queryRows(
+        {
+          tableId,
+          query: {
+            filter: {
+              op: "relation-has",
+              fieldId: relationFieldId,
+              rowId: targetRowIds[0]!,
+            },
+          },
+          projection: {
+            fields: [relationFieldId],
+            resolveRelations: [],
+          },
+          limit: 25,
+          direction: "forward",
+        },
+        context("relation-filter-query")
+      )
+      expect(relationFiltered.rows.map((row) => row.id)).toEqual([firstItemId])
+
+      const relationSearched = await runtime.queryRows(
+        {
+          tableId,
+          query: {
+            search: { text: "maximum", fields: [relationFieldId] },
+          },
+          projection: {
+            fields: [relationFieldId],
+            resolveRelations: [],
+          },
+          limit: 25,
+          direction: "forward",
+        },
+        context("relation-search-query")
+      )
+      expect(relationSearched.rows.map((row) => row.id)).toEqual([firstItemId])
+
+      const unresolvedRelationSearched = await runtime.queryRows(
+        {
+          tableId,
+          query: {
+            search: { text: unresolvedTargetId, fields: [relationFieldId] },
+          },
+          projection: {
+            fields: [relationFieldId],
+            resolveRelations: [relationFieldId],
+          },
+          limit: 25,
+          direction: "forward",
+        },
+        context("unresolved-relation-search-query")
+      )
+      expect(unresolvedRelationSearched.rows).toHaveLength(1)
+      expect(
+        unresolvedRelationSearched.rows[0]?.resolvedRelations?.[0]?.items.at(-1)
+      ).toEqual({ id: unresolvedTargetId, state: "unresolved" })
+
+      await expect(
+        runtime.queryRows(
+          {
+            tableId,
+            query: {
+              sort: [{ fieldId: relationFieldId, direction: "asc" }],
+            },
+            projection: {
+              fields: [relationFieldId],
+              resolveRelations: [],
+            },
+            limit: 25,
+            direction: "forward",
+          },
+          context("invalid-relation-sort")
+        )
+      ).rejects.toMatchObject({ code: "invalid-query" })
+
       const lookupPage = await runtime.queryRows(
         {
           tableId,
@@ -567,7 +661,7 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
 
       const createdView = await runtime.mutateView(
         {
-          expectedRevision: related.revision,
+          expectedRevision: removedTarget.revision,
           changes: [
             {
               kind: "create-view",

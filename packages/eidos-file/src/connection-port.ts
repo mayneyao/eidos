@@ -407,7 +407,7 @@ function nativeParameterToSqlValue(value: EidosFileSqlPrimitive): SqlValue {
         "SQL number must be finite"
       )
     }
-    return Number.isInteger(value)
+    return Number.isSafeInteger(value)
       ? { tag: "integer", value: String(value) }
       : { tag: "real", value }
   }

@@ -97,6 +97,60 @@ describe("Eidos File CSV import", () => {
     ).toThrow(/RFC 3339 timestamp/)
   })
 
+  it("infers and imports int64 values without JavaScript number rounding", () => {
+    const plan = planEidosFileCsvImport({
+      name: "external-ids.csv",
+      content:
+        "Name,External ID\nAda,9007199254740993\nGrace,-9007199254740993",
+    })
+
+    expect(plan.columns[1]).toMatchObject({
+      name: "External ID",
+      type: "integer",
+    })
+    expect(
+      parseEidosFileCsvRows(
+        {
+          name: "external-ids.csv",
+          content:
+            "Name,External ID\nAda,9007199254740993\nGrace,-9007199254740993",
+        },
+        plan
+      )
+    ).toEqual([
+      expect.objectContaining({
+        "External ID": 9007199254740993n,
+      }),
+      expect.objectContaining({
+        "External ID": -9007199254740993n,
+      }),
+    ])
+  })
+
+  it("preserves padded numeric identifiers as Text", () => {
+    const plan = planEidosFileCsvImport({
+      name: "postal-codes.csv",
+      content: "Name,Postal Code\nNorth,00123\nSouth,00456",
+    })
+
+    expect(plan.columns[1]).toMatchObject({
+      name: "Postal Code",
+      type: "text",
+    })
+    expect(
+      parseEidosFileCsvRows(
+        {
+          name: "postal-codes.csv",
+          content: "Name,Postal Code\nNorth,00123\nSouth,00456",
+        },
+        plan
+      )
+    ).toEqual([
+      expect.objectContaining({ "Postal Code": "00123" }),
+      expect.objectContaining({ "Postal Code": "00456" }),
+    ])
+  })
+
   it("marks HTTPS image URL columns for lazy image presentation", () => {
     const plan = planEidosFileCsvImport({
       name: "people.csv",
@@ -171,6 +225,26 @@ describe("Eidos File CSV import", () => {
       expect.objectContaining({
         code: "invalid-csv",
         message: "CSV row 2, field “Points” is not a number",
+      })
+    )
+  })
+
+  it("validates explicitly mapped Integer values canonically", () => {
+    expect(
+      planEidosFileCsvImport(
+        { name: "ids.csv", content: "Name,ID\nAda,42" },
+        { columns: [{ sourceIndex: 1, name: "ID", type: "integer" }] }
+      ).columns[1]
+    ).toMatchObject({ type: "integer" })
+    expect(() =>
+      planEidosFileCsvImport(
+        { name: "ids.csv", content: "Name,ID\nAda,1.5" },
+        { columns: [{ sourceIndex: 1, name: "ID", type: "integer" }] }
+      )
+    ).toThrowError(
+      expect.objectContaining({
+        code: "invalid-csv",
+        message: "CSV row 2, field “ID” is not a canonical integer",
       })
     )
   })

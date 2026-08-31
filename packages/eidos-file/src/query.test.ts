@@ -96,11 +96,29 @@ describe("Eidos File row query", () => {
       "%100\\%\\_ready%",
       "%100\\%\\_ready%",
       "%100\\%\\_ready%",
-      "%100\\%\\_ready%",
       2,
       "doing",
       "urgent",
     ])
+  })
+
+  it("searches list, safe File fragments, and generated Relation labels", () => {
+    const compiled = compileEidosFileRowQuery(
+      [
+        field("labels", "multi-select", "json_array"),
+        field("attachments", "file", "json_array"),
+        field("owners", "relation", "relation"),
+      ],
+      { search: "Roadmap" }
+    )
+
+    expect(compiled.whereSql.match(/json_each/g)).toHaveLength(3)
+    expect(compiled.whereSql).toContain("'$.name'")
+    expect(compiled.whereSql).toContain("'$.mediaType'")
+    expect(compiled.whereSql).toContain("NOT LIKE 'data:%'")
+    expect(compiled.whereSql).toContain('"owners__search"')
+    expect(compiled.whereSql).not.toContain('json_each("owners")')
+    expect(compiled.params).toEqual(Array(5).fill("%Roadmap%"))
   })
 
   it("keeps Unicode case folding only when the search text needs it", () => {
@@ -395,17 +413,15 @@ describe("Eidos File row query", () => {
     expect(compiled.whereSql).toContain("= 0")
   })
 
-  it("sorts array-backed fields by their first JSON value", () => {
-    const compiled = compileEidosFileRowQuery(
-      [field("labels", "multi-select", "json_array")],
-      {
-        sorts: [{ field: "labels", direction: "asc" }],
-      }
-    )
-
-    expect(compiled.orderSql.replace(/\s+/gu, " ")).toBe(
-      `ORDER BY (SELECT item.value FROM json_each("labels") item WHERE item.value IS NOT NULL ORDER BY CAST(item.key AS INTEGER) LIMIT 1) ASC NULLS LAST, "__base_rowid" ASC`
-    )
+  it("rejects array-backed sorts instead of inventing first-element ordering", () => {
+    expect(() =>
+      compileEidosFileRowQuery(
+        [field("labels", "multi-select", "json_array")],
+        {
+          sorts: [{ field: "labels", direction: "asc" }],
+        }
+      )
+    ).toThrowError(/does not support this sort position/)
   })
 
   it("matches relation IDs as exact JSON array members", () => {
@@ -487,7 +503,7 @@ describe("Eidos File row query", () => {
       eidosFileRowQueryPredicateColumns([...fields, hidden], {
         search: "release",
       })
-    ).toEqual(new Set(["title", "priority", "status", "labels"]))
+    ).toEqual(new Set(["title", "status", "labels"]))
   })
 
   it("follows transitive derived-field dependencies when invalidating a query", () => {

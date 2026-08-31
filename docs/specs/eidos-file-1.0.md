@@ -841,6 +841,21 @@ Changing or deleting the current Record Label Field MUST select a valid
 replacement in the same transaction. The source value or virtual-field
 definition is canonical; any resolved or formatted label is generated state.
 
+### 8.2.1 Optional Content Field
+
+A Table MAY declare one primary Content Field by storing its Field ID in the
+optional `contentFieldId` member of `eidos__tables.settings_json`. Absence of
+that member means the Table has no Content Field. The referenced Field MUST
+belong to that Table and MUST be an ordinary non-system stored `text` Field.
+Formula, Lookup, Relation, virtual, materialized, and system Fields are not
+eligible. This setting changes presentation only; the Text value remains the
+sole canonical source value and its syntax is not part of File Format.
+
+An EF-Writer that deletes the current Content Field or changes it away from an
+eligible Text Field MUST clear or validly retarget `contentFieldId` in the same
+transaction. Readers that do not implement Content Field presentation MAY
+ignore the member but MUST preserve it when preserving Table settings.
+
 ### 8.3 File values
 
 A File value is an ordered canonical JSON array:

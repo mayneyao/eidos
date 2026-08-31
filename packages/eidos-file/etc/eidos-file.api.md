@@ -1434,6 +1434,21 @@ export interface EidosFileFieldPlacement {
 }
 
 // @public (undocumented)
+export interface EidosFileFieldQueryCapabilities {
+    filterOperators: readonly EidosFileFilterOperator[];
+    groupable: boolean;
+    membership: boolean;
+    ordered: boolean;
+    searchable: boolean;
+    sortable: boolean;
+    sortPosition: EidosFileSortPosition;
+    stringMatch: boolean;
+}
+
+// @public (undocumented)
+export function eidosFileFieldQueryCapabilities(field: Pick<EidosFileFieldInfo, "type" | "systemRole" | "property" | "storageCodec" | "isRecordLabel">): EidosFileFieldQueryCapabilities;
+
+// @public (undocumented)
 export function eidosFileFieldStoresJsonArray(field: Pick<EidosFileFieldInfo, "storageCodec">): boolean;
 
 // @public (undocumented)
@@ -1446,6 +1461,9 @@ export interface EidosFileFieldValueRow {
     // (undocumented)
     value: EidosFileSqlPrimitive;
 }
+
+// @public
+export function eidosFileFieldValueType(field: Pick<EidosFileFieldInfo, "type" | "systemRole" | "property" | "storageCodec">): TypeRef;
 
 // @public (undocumented)
 export interface EidosFileFileValue {
@@ -1932,6 +1950,9 @@ export function eidosFileRowQueryAffectedByFieldChanges(fields: EidosFileFieldIn
 export function eidosFileRowQueryPredicateColumns(fields: EidosFileFieldInfo[], query: EidosFileRowQuery): Set<string>;
 
 // @public (undocumented)
+export function eidosFileRowQuerySearchFields(fields: EidosFileFieldInfo[], query: EidosFileRowQuery): EidosFileFieldInfo[];
+
+// @public (undocumented)
 export interface EidosFileRowRange {
     // (undocumented)
     endIndex: number;
@@ -2389,6 +2410,9 @@ export type EidosFileSortDirection = "asc" | "desc";
 export function eidosFileSortExpression(field: EidosFileFieldInfo): string;
 
 // @public (undocumented)
+export type EidosFileSortPosition = "any" | "last" | null;
+
+// @public (undocumented)
 export type EidosFileSourceFieldType = Exclude<EidosFileFieldType, "row-id" | "formula" | "relation" | "lookup" | "created-time" | "last-edited-time">;
 
 // @public (undocumented)
@@ -2402,6 +2426,7 @@ export type EidosFileStorageCodec = "scalar" | "json_array" | "relation" | "mate
 
 // @public (undocumented)
 export interface EidosFileTableInfo {
+    contentFieldId?: string | null;
     // (undocumented)
     createdAt: string;
     // (undocumented)
@@ -2449,6 +2474,12 @@ export interface EidosFileTypeHandler {
 
 // @public (undocumented)
 export const eidosFileTypeHandler: EidosFileTypeHandler;
+
+// @public
+export function eidosFileTypeRefQueryCapabilities(type: TypeRef, context?: {
+    isRecordLabel?: boolean;
+    contextualRowId?: boolean;
+}): EidosFileFieldQueryCapabilities;
 
 // @public (undocumented)
 export type EidosFileUriClass = "relative" | "https" | "data";
@@ -4447,11 +4478,15 @@ export interface UpdateEidosFileFieldInput {
 // @public (undocumented)
 export interface UpdateEidosFileTableInput {
     // (undocumented)
+    contentFieldId?: string | null;
+    // (undocumented)
     description?: string | null;
     // (undocumented)
     icon?: string | null;
     // (undocumented)
     name?: string;
+    // (undocumented)
+    recordLabelFieldId?: string;
 }
 
 // @public (undocumented)

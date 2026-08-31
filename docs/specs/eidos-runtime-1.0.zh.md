@@ -879,6 +879,12 @@ type 的 Formula。core 1.0 中 Lookup 绝不是 Record Label，因为其 inferr
 scalar/list TypeRef 不由 File Format 持久化。Runtime 把任何 violation 视为
 semantic invalidity，而不是根据 current row 猜测。
 
+`TableDescriptor.settings.contentFieldId` 存在时就是 File Format 的可选 Content
+Field。Runtime 只有在它引用同一 Table 的普通 stored、non-system Text Field 时才能
+原样暴露。`set-table-settings` 必须拒绝 dangling、cross-Table、非 string 或不合法的
+值。删除或转换被引用 Field 的 schema batch 必须同时清除该 member 或合法重定向；
+editor-facing compatibility API 可以自动把清除操作组合进同一 atomic batch。
+
 如果 `minimumRevision` 大于 current revision，Runtime 会等待该 revision、
 cancellation、deadline 或 close。若 events 不可用，它 MAY 在 deadline 内轮询
 Adapter `dataVersion`。较小或相等的值会立即返回。

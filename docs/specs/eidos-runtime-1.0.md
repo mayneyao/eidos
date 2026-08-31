@@ -924,6 +924,14 @@ eligible persisted result type. A Lookup is never the Record Label in core
 Runtime treats any violation as semantic invalidity rather than guessing from
 current rows.
 
+`TableDescriptor.settings.contentFieldId`, when present, is the File Format
+optional Content Field. Runtime MUST expose it unchanged only when it names an
+ordinary stored non-system Text Field in the same Table. `set-table-settings`
+MUST reject a dangling, cross-Table, non-string, or ineligible value. A schema
+batch that deletes or converts the referenced Field MUST also clear or validly
+retarget the member; an editor-facing compatibility API MAY compose that clear
+into the same atomic batch automatically.
+
 If `minimumRevision` is greater than the current revision, Runtime waits until
 that revision, cancellation, deadline, or close. If events are unavailable it
 MAY poll Adapter `dataVersion` within the deadline. A smaller/equal value

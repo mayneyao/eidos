@@ -1600,6 +1600,7 @@ export type EidosFileStorageCodec = "scalar" | "json_array" | "relation" | "mate
 
 // @public (undocumented)
 export interface EidosFileTableInfo {
+    contentFieldId?: string | null;
     // (undocumented)
     createdAt: string;
     // (undocumented)
@@ -3238,11 +3239,15 @@ export interface UpdateEidosFileFieldInput {
 // @public (undocumented)
 export interface UpdateEidosFileTableInput {
     // (undocumented)
+    contentFieldId?: string | null;
+    // (undocumented)
     description?: string | null;
     // (undocumented)
     icon?: string | null;
     // (undocumented)
     name?: string;
+    // (undocumented)
+    recordLabelFieldId?: string;
 }
 
 // @public (undocumented)

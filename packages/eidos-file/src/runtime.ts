@@ -11,6 +11,7 @@ import {
   EIDOS_FILE_VIEWS_TABLE,
 } from "./constants"
 import { EidosFileError } from "./errors"
+import { eidosFileFieldValueType } from "./field-query-capabilities"
 import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import { registerEidosFormulaFunctions } from "./formula-functions"
 import {
@@ -37,6 +38,7 @@ import { registerEidosLookupFunctions } from "./lookup-functions"
 import {
   assertEidosFileRowQuery,
   compileEidosFileRowQuery,
+  eidosFileRowQuerySearchFields,
   eidosFileSortExpression,
   isEidosFileFilterOperator,
   normalizeEidosFileFilter,
@@ -1248,6 +1250,17 @@ export class EidosFileRuntime {
     connection.registerFunction("eidos_casefold", (value) =>
       value === null ? null : String(value).toUpperCase().toLowerCase()
     )
+    connection.registerFunction(
+      "eidos_canonical_number",
+      (value) => {
+        if (value === null) return null
+        const number = Number(value)
+        return Number.isFinite(number)
+          ? canonicalizeEidosFileJson(Object.is(number, -0) ? 0 : number)
+          : null
+      },
+      1
+    )
     registerEidosFormulaFunctions(connection)
     assertEidosFileFormulaProfile(connection)
     registerEidosLookupFunctions(connection)
@@ -1493,6 +1506,10 @@ export class EidosFileRuntime {
               typeof settings.description === "string"
                 ? settings.description
                 : null,
+            contentFieldId:
+              typeof settings.contentFieldId === "string"
+                ? settings.contentFieldId
+                : null,
           }
         })(),
         id: uuid(row.id),
@@ -1517,6 +1534,10 @@ export class EidosFileRuntime {
       icon: typeof settings.icon === "string" ? settings.icon : null,
       description:
         typeof settings.description === "string" ? settings.description : null,
+      contentFieldId:
+        typeof settings.contentFieldId === "string"
+          ? settings.contentFieldId
+          : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -1832,6 +1853,7 @@ export class EidosFileRuntime {
         position,
         icon: input.icon ?? null,
         description: input.description ?? null,
+        contentFieldId: null,
         createdAt: now,
         updatedAt: now,
       }
@@ -2032,6 +2054,7 @@ export class EidosFileRuntime {
     changes: UpdateEidosFileTableInput
   ): EidosFileTableInfo {
     const table = this.getTable(tableId)
+    const persistedSettings = jsonObject(this.tableRow(tableId).settings_json)
     return this.mutateSchemaState(() => {
       let name = table.name
       let physicalName = table.physicalName ?? table.rawTableName
@@ -2094,27 +2117,51 @@ export class EidosFileRuntime {
         }
       }
       const now = this.operationInstant()
-      const settings = canonicalizeEidosFileJson({
-        ...(changes.icon === undefined
-          ? table.icon === null
-            ? {}
-            : { icon: table.icon }
-          : changes.icon === null
-            ? {}
-            : { icon: changes.icon }),
-        ...(changes.description === undefined
-          ? table.description === null
-            ? {}
-            : { description: table.description }
-          : changes.description === null
-            ? {}
-            : { description: changes.description }),
-      })
+      const nextSettings = { ...persistedSettings }
+      if (changes.icon !== undefined) {
+        if (changes.icon === null) delete nextSettings.icon
+        else nextSettings.icon = changes.icon
+      }
+      if (changes.description !== undefined) {
+        if (changes.description === null) delete nextSettings.description
+        else nextSettings.description = changes.description
+      }
+      if (changes.contentFieldId !== undefined) {
+        if (changes.contentFieldId === null) {
+          delete nextSettings.contentFieldId
+        } else {
+          const contentField = this.fieldByKey(tableId, changes.contentFieldId)
+          if (
+            contentField.type !== "text" ||
+            contentField.valueKind !== "source" ||
+            contentField.systemRole != null ||
+            !contentField.physicalName
+          ) {
+            throw new EidosFileError(
+              "invalid-schema",
+              "The Content Field must be an ordinary Text Field in the same Table"
+            )
+          }
+          nextSettings.contentFieldId = contentField.id
+        }
+      }
+      let recordLabelFieldId = this.tableRow(tableId).label_field_id
+      if (changes.recordLabelFieldId !== undefined) {
+        const labelField = this.fieldByKey(tableId, changes.recordLabelFieldId)
+        if (labelField.type === "lookup" || !LABEL_TYPES.has(labelField.type)) {
+          throw new EidosFileError(
+            "invalid-schema",
+            "The Record Label Field must be a scalar Field in the same Table"
+          )
+        }
+        recordLabelFieldId = labelField.id
+      }
+      const settings = canonicalizeEidosFileJson(nextSettings)
       this.connection.run(
         `UPDATE ${EIDOS_FILE_TABLES_TABLE}
-            SET name = ?, physical_name = ?, settings_json = ?, updated_at = ?
+            SET name = ?, physical_name = ?, label_field_id = ?, settings_json = ?, updated_at = ?
           WHERE id = ?`,
-        [name, physicalName, settings, now, tableId]
+        [name, physicalName, recordLabelFieldId, settings, now, tableId]
       )
       return this.getTable(tableId)
     })
@@ -3012,6 +3059,19 @@ export class EidosFileRuntime {
       )
     }
     return this.mutateSchemaState(() => {
+      if (table.contentFieldId === field.id) {
+        const settings = jsonObject(this.tableRow(tableId).settings_json)
+        delete settings.contentFieldId
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_TABLES_TABLE}
+              SET settings_json = ?, updated_at = ? WHERE id = ?`,
+          [
+            canonicalizeEidosFileJson(settings),
+            this.operationInstant(),
+            tableId,
+          ]
+        )
+      }
       if (field.isRecordLabel && replacement?.id) {
         this.connection.run(
           `UPDATE ${EIDOS_FILE_TABLES_TABLE}
@@ -3591,6 +3651,90 @@ export class EidosFileRuntime {
     ), '[]')`
   }
 
+  private rowIdSearchTargetTableId(
+    field: EidosFileFieldInfo,
+    schema: RuntimeSchema,
+    visiting = new Set<string>()
+  ): string | null {
+    if (!field.id || visiting.has(field.id)) return null
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(field.id)
+    if (field.type === "row-id") return field.tableId ?? null
+    const relation = schema.relations.get(field.id)
+    if (relation) return uuid(relation.target_table_id)
+    const lookup = schema.lookups.get(field.id)
+    if (!lookup) return null
+    const target = schema.fields.get(uuid(lookup.target_field_id))
+    return target
+      ? this.rowIdSearchTargetTableId(target, schema, nextVisiting)
+      : null
+  }
+
+  private recordLabelSearchExpression(
+    field: EidosFileFieldInfo,
+    rowAlias: string,
+    schema: RuntimeSchema
+  ): string {
+    const expression = this.fieldExpression(field, rowAlias, schema)
+    const type = eidosFileFieldValueType(field)
+    if (typeof type !== "string") return "NULL"
+    if (type === "checkbox") {
+      return `CASE ${expression} WHEN 1 THEN 'true' WHEN 0 THEN 'false' ELSE NULL END`
+    }
+    if (type === "number") return `eidos_canonical_number(${expression})`
+    return `CAST(${expression} AS TEXT)`
+  }
+
+  private rowIdSearchFragmentsExpression(
+    field: EidosFileFieldInfo,
+    rowAlias: string,
+    schema: RuntimeSchema
+  ): string | null {
+    const targetTableId = this.rowIdSearchTargetTableId(field, schema)
+    if (!targetTableId) return null
+    const targetTable = schema.tables.get(targetTableId)
+    const label = (schema.fieldsByTable.get(targetTableId) ?? []).find(
+      (candidate) => candidate.isRecordLabel
+    )
+    if (!targetTable || !label) return null
+    const ids = this.fieldExpression(field, rowAlias, schema)
+    const labelSearch = this.recordLabelSearchExpression(
+      label,
+      "search_target",
+      schema
+    )
+    return `coalesce((
+      SELECT json_group_array(fragment) FROM (
+        SELECT CASE
+                 WHEN search_target."_id" IS NULL THEN CAST(item.value AS TEXT)
+                 ELSE ${labelSearch}
+               END AS fragment
+        FROM json_each(${ids}) item
+        LEFT JOIN ${quoteIdentifier(targetTable.physical_name)} search_target
+          ON item.value = search_target."_id"
+        ORDER BY CAST(item.key AS INTEGER)
+      )
+    ), '[]')`
+  }
+
+  private querySearchFragmentFieldIds(
+    fields: EidosFileFieldInfo[],
+    query: EidosFileRowQuery
+  ): Set<string> {
+    return new Set(
+      eidosFileRowQuerySearchFields(fields, query).flatMap((field) => {
+        const type = eidosFileFieldValueType(field)
+        return field.id &&
+          (type === "relation" ||
+            (field.type === "lookup" &&
+              typeof type === "object" &&
+              type.element === "row-id"))
+          ? [field.id]
+          : []
+      })
+    )
+  }
+
   private requiredQueryFieldKeys(
     fields: EidosFileFieldInfo[],
     query: EidosFileRowQuery
@@ -3607,18 +3751,8 @@ export class EidosFileRuntime {
     }
     collectFilter(query.filter)
     for (const sort of query.sorts ?? []) required.add(sort.field)
-    if (query.search?.trim()) {
-      for (const field of fields) {
-        if (
-          !field.isHidden &&
-          (field.isRecordLabel ||
-            field.valueKind === "source" ||
-            field.valueKind === "relation" ||
-            field.valueKind === "derived")
-        ) {
-          required.add(field.id)
-        }
-      }
+    for (const field of eidosFileRowQuerySearchFields(fields, query)) {
+      if (field.id) required.add(field.id)
     }
     return required
   }
@@ -3627,7 +3761,8 @@ export class EidosFileRuntime {
     tableId: string,
     requestedKeys?: Iterable<string>,
     includeRecordLabel = true,
-    includeRelationDisplays = true
+    includeRelationDisplays = true,
+    searchFragmentFieldIds: ReadonlySet<string> = new Set()
   ): {
     sql: string
     fields: EidosFileFieldInfo[]
@@ -3667,6 +3802,18 @@ export class EidosFileRuntime {
           result.push(
             `${this.relationDisplayExpression(field, "base", schema)} AS ${quoteIdentifier(`${field.tableColumnName}__display`)}`
           )
+        }
+        if (searchFragmentFieldIds.has(field.id!)) {
+          const fragments = this.rowIdSearchFragmentsExpression(
+            field,
+            "base",
+            schema
+          )
+          if (fragments) {
+            result.push(
+              `${fragments} AS ${quoteIdentifier(`${field.tableColumnName}__search`)}`
+            )
+          }
         }
         return result
       })
@@ -3778,7 +3925,8 @@ export class EidosFileRuntime {
       tableId,
       requested,
       projection?.includeRecordLabel !== false,
-      projection?.includeRelationDisplays !== false
+      projection?.includeRelationDisplays !== false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const querySignature = canonicalizeEidosFileJson(compatibleQuery)
     const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
@@ -3926,7 +4074,8 @@ export class EidosFileRuntime {
       tableId,
       this.requiredQueryFieldKeys(fields, compatibleQuery),
       false,
-      false
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
       referenceInstant: this.nowInstant(),
@@ -4148,7 +4297,14 @@ export class EidosFileRuntime {
     query: EidosFileRowQuery
   ): EidosFileLogicalRow[] {
     const compatibleQuery = this.compatibilityQuery(tableId, query)
-    const source = this.logicalSource(tableId, fieldIds, false, false)
+    const fields = this.listFields(tableId)
+    const source = this.logicalSource(
+      tableId,
+      [...fieldIds, ...this.requiredQueryFieldKeys(fields, compatibleQuery)],
+      false,
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
+    )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
       referenceInstant: this.nowInstant(),
     })
@@ -4321,7 +4477,8 @@ export class EidosFileRuntime {
       tableId,
       this.requiredQueryFieldKeys(fields, compatibleQuery),
       false,
-      false
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
       referenceInstant,
@@ -4346,7 +4503,8 @@ export class EidosFileRuntime {
       tableId,
       [field.id!, ...this.requiredQueryFieldKeys(fields, compatibleQuery)],
       false,
-      false
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
       referenceInstant: this.nowInstant(),
@@ -4395,7 +4553,8 @@ export class EidosFileRuntime {
         ...this.requiredQueryFieldKeys(fields, compatibleQuery),
       ],
       false,
-      false
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
       referenceInstant: this.nowInstant(),

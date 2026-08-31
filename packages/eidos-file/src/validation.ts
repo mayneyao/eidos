@@ -675,6 +675,7 @@ export function validateEidosFile(
     : []
   const tables: EidosFileTableInfo[] = []
   const tableRowsById = new Map<string, TableRow>()
+  const tableSettingsById = new Map<string, Record<string, unknown>>()
   const tableNames = new Set<string>()
   for (const row of tableRows) {
     try {
@@ -689,6 +690,18 @@ export function validateEidosFile(
         typeof tableSettings === "object"
           ? tableSettings
           : {}
+      tableSettingsById.set(id, settings)
+      if (
+        settings.contentFieldId !== undefined &&
+        typeof settings.contentFieldId !== "string"
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `Table ${row.name} contentFieldId must be a Field ID string`,
+          row.physical_name
+        )
+      }
       tables.push({
         id,
         name: row.name,
@@ -699,6 +712,10 @@ export function validateEidosFile(
         description:
           typeof settings.description === "string"
             ? settings.description
+            : null,
+        contentFieldId:
+          typeof settings.contentFieldId === "string"
+            ? settings.contentFieldId
             : null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -1288,6 +1305,23 @@ export function validateEidosFile(
     }
     for (const [tableId, fields] of fieldsByTable) {
       const table = tableRowsById.get(tableId)!
+      const contentFieldId = tableSettingsById.get(tableId)?.contentFieldId
+      if (typeof contentFieldId === "string") {
+        const contentField = fields.find((field) => field.id === contentFieldId)
+        if (
+          !contentField ||
+          contentField.type !== "text" ||
+          contentField.valueKind !== "source" ||
+          contentField.systemRole != null ||
+          !contentField.physicalName
+        ) {
+          add(
+            errors,
+            "invalid-schema",
+            `Table ${table.name} Content Field must reference an ordinary Text Field in the same Table`
+          )
+        }
+      }
       const labels = fields.filter((field) => field.isRecordLabel)
       if (labels.length !== 1) {
         add(
