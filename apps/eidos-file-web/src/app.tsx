@@ -2262,6 +2262,7 @@ export function App() {
               filter={activeView?.filter ?? null}
               sorts={activeView?.sorts ?? []}
               search={search}
+              source={editorSource}
               focusSearchToken={focusSearchToken}
               disabled={
                 saveState.phase === "saving" ||
@@ -2340,14 +2341,10 @@ export function App() {
             }}
             onReorder={reorderTables}
             onRename={(table, name) => renameTable(table.id, name)}
-            onSetRecordLabel={async (table, field) => {
+            onUpdateTableSettings={async (table, changes) => {
               const client = clientRef.current
               if (!client) throw new Error("No active Eidos File")
-              const next = await client.updateField(
-                table.table.id,
-                field.id ?? field.tableColumnName,
-                { isRecordLabel: true }
-              )
+              const next = await client.updateTable(table.table.id, changes)
               onStructureSnapshot(next)
               setViewReloadToken((current) => current + 1)
             }}

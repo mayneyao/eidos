@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/primitives"
-import { Switch, Textarea } from "./ui/primitives"
+import { Textarea } from "./ui/primitives"
 import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
@@ -45,12 +45,14 @@ export function EidosFileRecordFieldEditor({
   field,
   row,
   placeholder,
+  appearance = "field",
   disabled,
   onChange,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
   placeholder?: string
+  appearance?: "field" | "record-title"
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
 }) {
@@ -64,9 +66,11 @@ export function EidosFileRecordFieldEditor({
         : String(value)
   )
   const [datetimeError, setDatetimeError] = useState<string | null>(null)
+  const [numberError, setNumberError] = useState<string | null>(null)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
     text: draft,
-    maxLines: field.isRecordLabel ? 3 : 12,
+    maxLines: appearance === "record-title" ? 4 : field.isRecordLabel ? 3 : 12,
+    whiteSpace: appearance === "record-title" ? "normal" : undefined,
   })
 
   useEffect(() => {
@@ -78,13 +82,18 @@ export function EidosFileRecordFieldEditor({
           : String(value)
     )
     setDatetimeError(null)
+    setNumberError(null)
   }, [field.type, timeZone, value])
 
   const commitDraft = () => {
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
     if (field.type === "number" || field.type === "rating") {
       const number = Number(draft)
-      next = draft.trim().length > 0 && Number.isFinite(number) ? number : null
+      if (draft.trim().length > 0 && !Number.isFinite(number)) {
+        setNumberError(t("Enter a finite number."))
+        return
+      }
+      next = draft.trim().length > 0 ? number : null
     } else if (field.type === "integer" && draft.trim().length > 0) {
       next = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(draft.trim())
         ? BigInt(draft.trim())
@@ -103,21 +112,36 @@ export function EidosFileRecordFieldEditor({
       next = date.toISOString()
     }
     setDatetimeError(null)
+    setNumberError(null)
     if (!Object.is(value, next)) void onChange(next)
   }
 
   if (field.type === "checkbox") {
-    const checked = value === true || value === 1 || value === "1"
+    const checkboxValue =
+      value === null || value === undefined
+        ? "empty"
+        : value === true || value === 1 || value === "1"
+          ? "checked"
+          : "unchecked"
     return (
-      <label className="flex items-center justify-between gap-3 text-xs">
-        <span>{checked ? t("Checked") : t("Unchecked")}</span>
-        <Switch
-          aria-label={field.name}
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={(next) => void onChange(next ? 1 : 0)}
-        />
-      </label>
+      <Select
+        value={checkboxValue}
+        disabled={disabled}
+        onValueChange={(next) =>
+          void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
+        }
+      >
+        <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {field.nullable !== false ? (
+            <SelectItem value="empty">{t("Empty")}</SelectItem>
+          ) : null}
+          <SelectItem value="checked">{t("Checked")}</SelectItem>
+          <SelectItem value="unchecked">{t("Unchecked")}</SelectItem>
+        </SelectContent>
+      </Select>
     )
   }
 
@@ -228,7 +252,11 @@ export function EidosFileRecordFieldEditor({
         aria-label={field.name}
         placeholder={placeholder}
         disabled={disabled}
-        className="min-h-8 resize-none text-xs leading-5"
+        className={
+          appearance === "record-title"
+            ? "min-h-[2.75rem] resize-none rounded-none border-0 px-0 py-0 text-[2rem] font-semibold leading-[1.2] tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-[2.25rem]"
+            : "min-h-8 resize-none text-xs leading-5"
+        }
         style={measuredText.style}
         data-eidos-file-text-overflow={
           measuredText.overflowing ? "scroll" : undefined
@@ -257,7 +285,7 @@ export function EidosFileRecordFieldEditor({
       <Input
         type={
           field.type === "number" || field.type === "rating"
-            ? "number"
+            ? "text"
             : field.type === "integer"
               ? "text"
               : field.type === "date"
@@ -269,13 +297,26 @@ export function EidosFileRecordFieldEditor({
         value={draft}
         aria-label={field.name}
         placeholder={placeholder}
-        aria-invalid={field.type === "datetime" && Boolean(datetimeError)}
+        aria-invalid={
+          (field.type === "datetime" && Boolean(datetimeError)) ||
+          ((field.type === "number" || field.type === "rating") &&
+            Boolean(numberError))
+        }
         disabled={disabled}
-        inputMode={field.type === "integer" ? "numeric" : undefined}
+        inputMode={
+          field.type === "integer"
+            ? "numeric"
+            : field.type === "number" || field.type === "rating"
+              ? "decimal"
+              : undefined
+        }
         className="h-8 text-xs"
         onChange={(event) => {
           setDraft(event.target.value)
           if (field.type === "datetime") setDatetimeError(null)
+          if (field.type === "number" || field.type === "rating") {
+            setNumberError(null)
+          }
         }}
         onBlur={commitDraft}
         onKeyDown={(event) => {
@@ -289,6 +330,7 @@ export function EidosFileRecordFieldEditor({
                   : String(value)
             )
             setDatetimeError(null)
+            setNumberError(null)
             event.currentTarget.blur()
           }
         }}
@@ -310,6 +352,18 @@ export function EidosFileRecordFieldEditor({
                 timeZone: eidosFileResolvedTimeZone(timeZone),
               })}
           </p>
+        </div>
+      )
+    }
+    if (field.type === "number" || field.type === "rating") {
+      return (
+        <div>
+          {input}
+          {numberError ? (
+            <p className="mt-1 text-[10px] leading-4 text-destructive">
+              {numberError}
+            </p>
+          ) : null}
         </div>
       )
     }

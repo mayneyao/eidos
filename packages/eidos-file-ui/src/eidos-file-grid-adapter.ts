@@ -131,7 +131,7 @@ export function eidosFileValueToGridCell(
       .join(", ")
     return {
       kind: GridCellKind.Text,
-      allowOverlay: true,
+      allowOverlay: false,
       allowWrapping,
       readonly: true,
       data: typeof value === "string" ? value : "[]",
@@ -148,7 +148,7 @@ export function eidosFileValueToGridCell(
       "datetime",
       "url",
     ])
-    return eidosFileValueToGridCell(
+    const cell = eidosFileValueToGridCell(
       {
         ...field,
         type:
@@ -163,6 +163,7 @@ export function eidosFileValueToGridCell(
       allowWrapping,
       timeZone
     )
+    return { ...cell, allowOverlay: false }
   }
   if (field.type === "relation") {
     const ids = decodeEidosFileRelationIds(value)
@@ -237,11 +238,15 @@ export function eidosFileValueToGridCell(
     }
   }
   if (field.type === "checkbox") {
+    const empty = value === null || value === undefined
     return {
       kind: GridCellKind.Boolean,
       allowOverlay: false,
       readonly,
-      data: value === true || value === 1 || value === "1",
+      data:
+        empty && field.nullable !== false
+          ? null
+          : value === true || value === 1 || value === "1",
     }
   }
   if (field.type === "rating") {
@@ -426,6 +431,9 @@ export function gridCellToEidosFileValue(
     return null
   }
   if (cell.kind === GridCellKind.Boolean) {
+    if (cell.data === null || cell.data === undefined) {
+      return field.nullable === false ? 0 : null
+    }
     return cell.data === true ? 1 : 0
   }
   if (cell.kind === GridCellKind.Number) {

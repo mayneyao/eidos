@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 import { type AssetLease, type FileEntry } from "@eidos.space/eidos-file"
 import {
   Archive,
@@ -21,6 +29,11 @@ import {
   eidosFileAssetResolutionAllowed,
   releaseEidosFileAssetLease,
 } from "./eidos-file-asset-lease"
+import {
+  sharedEidosFileAttachmentSourceCache,
+  type EidosFileAttachmentSourceSnapshot,
+} from "./eidos-file-attachment-source-cache"
+import { eidosFileCanvasImageSourceDimensions } from "./eidos-file-url-image-source-cache"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import {
@@ -312,7 +325,133 @@ export interface EidosFileEntrySurfaceProps {
   showActions?: boolean
 }
 
-export function EidosFileEntryCoverSurface({
+const UNAVAILABLE_ATTACHMENT_SOURCE: EidosFileAttachmentSourceSnapshot = {
+  state: "unavailable",
+}
+
+function drawEntryCover(
+  canvas: HTMLCanvasElement,
+  source: CanvasImageSource,
+  fitContent: boolean
+): void {
+  const dimensions = eidosFileCanvasImageSourceDimensions(source)
+  const bounds = canvas.getBoundingClientRect()
+  if (!dimensions || bounds.width <= 0 || bounds.height <= 0) return
+  const scale = Math.max(1, Math.min(2, globalThis.devicePixelRatio || 1))
+  const targetWidth = Math.max(1, Math.round(bounds.width * scale))
+  const targetHeight = Math.max(1, Math.round(bounds.height * scale))
+  if (canvas.width !== targetWidth) canvas.width = targetWidth
+  if (canvas.height !== targetHeight) canvas.height = targetHeight
+  const context = canvas.getContext("2d")
+  if (!context) return
+  context.setTransform(scale, 0, 0, scale, 0, 0)
+  context.clearRect(0, 0, bounds.width, bounds.height)
+  const imageScale = fitContent
+    ? Math.min(
+        bounds.width / dimensions.width,
+        bounds.height / dimensions.height
+      )
+    : Math.max(
+        bounds.width / dimensions.width,
+        bounds.height / dimensions.height
+      )
+  const width = dimensions.width * imageScale
+  const height = dimensions.height * imageScale
+  context.drawImage(
+    source,
+    (bounds.width - width) / 2,
+    (bounds.height - height) / 2,
+    width,
+    height
+  )
+}
+
+function EidosFileEntryCoverFallback({ entry }: { entry: FileEntry }) {
+  return (
+    <span
+      className="flex min-w-0 max-w-full flex-col items-center gap-1.5 px-3 text-center"
+      role="img"
+      aria-label={entry.name}
+      title={entry.name}
+    >
+      <EidosFileMediaIcon mediaType={entry.mediaType} className="h-5 w-5" />
+      <span className="w-full truncate text-[11px]">{entry.name}</span>
+    </span>
+  )
+}
+
+function EidosFileDecodedEntryCoverSurface({
+  entry,
+  fitContent = false,
+  className,
+}: {
+  entry: FileEntry
+  fitContent?: boolean
+  className?: string
+}) {
+  const { assetPresenter, assetSession } = useEidosFileUI()
+  const stableEntry = useMemo(
+    () => entry,
+    [entry.id, entry.mediaType, entry.name, entry.size, entry.uri]
+  )
+  const cache = sharedEidosFileAttachmentSourceCache(
+    assetSession,
+    assetPresenter
+  )
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      cache?.subscribe(stableEntry, listener) ?? (() => undefined),
+    [cache, stableEntry]
+  )
+  const getSnapshot = useCallback(
+    () => cache?.snapshot(stableEntry) ?? UNAVAILABLE_ATTACHMENT_SOURCE,
+    [cache, stableEntry]
+  )
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const source = snapshot.source
+    if (!canvas || !source) return
+    const draw = () => drawEntryCover(canvas, source, fitContent)
+    draw()
+    if (typeof ResizeObserver === "undefined") {
+      globalThis.addEventListener("resize", draw)
+      return () => globalThis.removeEventListener("resize", draw)
+    }
+    const observer = new ResizeObserver(draw)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [fitContent, snapshot.source])
+
+  return (
+    <div
+      className={cn(
+        "flex h-full w-full items-center justify-center overflow-hidden bg-muted text-muted-foreground",
+        className
+      )}
+    >
+      {snapshot.source ? (
+        <canvas
+          ref={canvasRef}
+          className="h-full w-full"
+          role="img"
+          aria-label={entry.name}
+        />
+      ) : snapshot.state === "loading" ? (
+        <LoaderCircle
+          aria-label={entry.name}
+          className="h-5 w-5 animate-spin"
+        />
+      ) : (
+        <EidosFileEntryCoverFallback entry={entry} />
+      )}
+    </div>
+  )
+}
+
+function EidosFileLeasedEntryCoverSurface({
   entry,
   fitContent = false,
   className,
@@ -352,20 +491,34 @@ export function EidosFileEntryCoverSurface({
             className="h-5 w-5 animate-spin"
           />
         ) : (
-          <span
-            className="flex min-w-0 max-w-full flex-col items-center gap-1.5 px-3 text-center"
-            role="img"
-            aria-label={entry.name}
-            title={entry.name}
-          >
-            <EidosFileMediaIcon
-              mediaType={entry.mediaType}
-              className="h-5 w-5"
-            />
-            <span className="w-full truncate text-[11px]">{entry.name}</span>
-          </span>
+          <EidosFileEntryCoverFallback entry={entry} />
         ))}
     </div>
+  )
+}
+
+export function EidosFileEntryCoverSurface({
+  entry,
+  fitContent = false,
+  className,
+}: {
+  entry: FileEntry
+  fitContent?: boolean
+  className?: string
+}) {
+  const { assetPresenter } = useEidosFileUI()
+  return assetPresenter?.loadImage ? (
+    <EidosFileDecodedEntryCoverSurface
+      entry={entry}
+      fitContent={fitContent}
+      className={className}
+    />
+  ) : (
+    <EidosFileLeasedEntryCoverSurface
+      entry={entry}
+      fitContent={fitContent}
+      className={className}
+    />
   )
 }
 

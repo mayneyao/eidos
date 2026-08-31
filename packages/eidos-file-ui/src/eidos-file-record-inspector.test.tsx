@@ -11,6 +11,10 @@ import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+  configurable: true,
+  value: vi.fn(),
+})
 
 const fields: EidosFileFieldInfo[] = [
   {
@@ -132,7 +136,14 @@ describe("EidosFileRecordInspector", () => {
     expect(container.textContent).toContain("Ship Eidos File")
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('[role="switch"]')?.click()
+      container.querySelector<HTMLButtonElement>('[aria-label="Done"]')?.click()
+      await Promise.resolve()
+    })
+    const checked = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Checked")
+    await act(async () => {
+      checked?.click()
       await Promise.resolve()
     })
     expect(onCellEdit).toHaveBeenLastCalledWith(
@@ -331,15 +342,36 @@ describe("EidosFileRecordInspector", () => {
   })
 
   it("uses a wider responsive field layout for a full record page", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      name: "Body",
+      physicalName: "body",
+      tableColumnName: "body",
+      isRecordLabel: false,
+    }
+    const onCellEdit = vi.fn(async (current, field, value) => ({
+      tableId: "tasks",
+      row: { ...current, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
     await act(async () => {
       root.render(
         <EidosFileRecordInspector
           variant="page"
-          row={{ _id: "row_1", title: "Write RFC", done: 0, formula: 2 }}
-          fields={fields}
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            done: 0,
+            formula: 2,
+            body: "## Design\n\n**Local first.** <script>alert(1)</script>",
+          }}
+          fields={[...fields, contentField]}
+          contentField={contentField}
           onClose={vi.fn()}
           onOpenInTab={vi.fn()}
           onCopyRecordId={vi.fn()}
+          onCellEdit={onCellEdit}
         />
       )
     })
@@ -347,15 +379,89 @@ describe("EidosFileRecordInspector", () => {
     const page = container.querySelector<HTMLElement>(
       '[data-eidos-file-record-layout="page"]'
     )
-    expect(page?.className).toContain("max-w-[760px]")
+    expect(page?.className).toContain("absolute")
     expect(
       container.querySelector('[aria-label="Open record in tab"]')
     ).toBeNull()
     expect(
       container.querySelector('[aria-label="Close record details"]')
-    ).toBeNull()
-    expect(page?.querySelector<HTMLElement>(".grid")?.className).toContain(
-      "sm:grid-cols-"
+    ).not.toBeNull()
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-eidos-file-record-page-scroll=""]'
+      )?.className
+    ).toContain("overflow-y-auto")
+    expect(
+      container.querySelector<HTMLElement>(
+        '[aria-label="Close record details"]'
+      )?.className
+    ).not.toContain("fixed")
+    const properties = container.querySelector<HTMLElement>(
+      '[data-eidos-file-record-properties=""]'
+    )
+    expect(
+      properties?.querySelector<HTMLElement>(".eidos-file-record-field")
+        ?.className
+    ).toContain("sm:grid-cols-")
+    expect(properties?.textContent).not.toContain("Title")
+    expect(properties?.textContent).not.toContain("Body")
+    const pageTitle = container.querySelector<HTMLTextAreaElement>(
+      '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
+    )
+    expect(pageTitle?.className).toContain("border-0")
+    expect(container.textContent).toContain("Design")
+    expect(container.textContent).toContain("Local first.")
+    expect(container.querySelector("script")).toBeNull()
+    expect(container.textContent).toContain("<script>alert(1)</script>")
+    expect(container.textContent).toContain("Body")
+
+    await act(async () => {
+      if (!pageTitle) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setter?.call(pageTitle, "Updated RFC")
+      pageTitle.dispatchEvent(new Event("input", { bubbles: true }))
+      pageTitle.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Write RFC" }),
+      fields[0],
+      "Updated RFC"
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("Edit content"))
+        ?.click()
+    })
+    const editor = container.querySelector<HTMLTextAreaElement>(
+      '[data-eidos-file-markdown-editor="source"] textarea'
+    )
+    expect(editor?.className).toContain("overflow-hidden")
+    expect(editor?.className).toContain("resize-none")
+    expect(editor?.style.height).not.toBe("")
+    await act(async () => {
+      if (!editor) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setter?.call(editor, "# Updated")
+      editor.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Save")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("Design") }),
+      contentField,
+      "# Updated"
     )
   })
 
@@ -443,5 +549,52 @@ describe("EidosFileRecordInspector", () => {
       ownersField,
       JSON.stringify([graceId])
     )
+  })
+
+  it("does not expose an editor for a Runtime-readonly inverse Relation", async () => {
+    const inverseRelation: EidosFileFieldInfo = {
+      id: "0198c72d-82b5-7000-8000-000000000005",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
+      name: "Referenced by",
+      type: "relation",
+      tableName: "tb_tasks",
+      tableColumnName: "referenced_by",
+      property: {
+        direction: "inverse",
+        targetTableId: "notes",
+        sourceFieldId: "note-task",
+        multiple: true,
+      },
+      storageCodec: "relation",
+      valueKind: "relation",
+      writable: false,
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const onSearchRelation = vi.fn().mockResolvedValue([])
+    await act(async () => {
+      root.render(
+        <EidosFileRecordInspector
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            referenced_by: null,
+          }}
+          fields={[fields[0]!, inverseRelation]}
+          onClose={vi.fn()}
+          onCopyRecordId={vi.fn()}
+          onCellEdit={vi.fn()}
+          onSearchRelation={onSearchRelation}
+        />
+      )
+    })
+
+    expect(
+      container.querySelector('button[aria-label="Referenced by"]')
+    ).toBeNull()
+    expect(container.textContent).toContain("Empty")
+    expect(onSearchRelation).not.toHaveBeenCalled()
   })
 })

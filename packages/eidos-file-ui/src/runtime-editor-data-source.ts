@@ -4,6 +4,7 @@ import {
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationIds,
   eidosFileConversionTargetNullable,
+  eidosFileTypeRefQueryCapabilities,
   parseEidosFileJson,
   parseEidosFileSelectOptions,
   planEidosFileCsvImport,
@@ -945,6 +946,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         await this.assertRatingValues(tableId, field)
       }
       const target = changes.type === "rating" ? "integer" : changes.type
+      const table = this.tables.get(tableId)
+      if (table?.settings.contentFieldId === fieldId && target !== "text") {
+        const settings = { ...table.settings }
+        delete settings.contentFieldId
+        leaves.push({ kind: "set-table-settings", tableId, settings })
+      }
       convertedSettings =
         changes.property === undefined
           ? await this.conversionFieldSettings(tableId, field, changes.type)
@@ -1111,14 +1118,31 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
               candidate.kind === "text"
           )?.id
         : undefined
-    await this.commitSchema(
-      {
-        kind: "delete-field",
-        fieldId,
-        ...(replacement ? { replacementLabelFieldId: replacement } : {}),
-      },
-      true
-    )
+    const deleteChange: SchemaLeafChange = {
+      kind: "delete-field",
+      fieldId,
+      ...(replacement ? { replacementLabelFieldId: replacement } : {}),
+    }
+    const table = this.tables.get(tableId)
+    const change: SchemaChange =
+      table?.settings.contentFieldId === fieldId
+        ? {
+            kind: "batch",
+            changes: [
+              {
+                kind: "set-table-settings",
+                tableId,
+                settings: Object.fromEntries(
+                  Object.entries(table.settings).filter(
+                    ([key]) => key !== "contentFieldId"
+                  )
+                ),
+              },
+              deleteChange,
+            ],
+          }
+        : deleteChange
+    await this.commitSchema(change, true)
     return this.getSnapshot()
   }
 
@@ -1171,17 +1195,47 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const leaves: SchemaLeafChange[] = []
     if (changes.name !== undefined)
       leaves.push({ kind: "rename-table", tableId, name: changes.name })
-    if (changes.icon !== undefined || changes.description !== undefined) {
+    if (changes.recordLabelFieldId !== undefined) {
+      const field = this.assertField(changes.recordLabelFieldId, tableId)
+      if (field.kind === "lookup") {
+        throw new Error(
+          "Lookup fields cannot be used as the Record Label Field"
+        )
+      }
+      leaves.push({ kind: "set-record-label", tableId, fieldId: field.id })
+    }
+    if (
+      changes.icon !== undefined ||
+      changes.description !== undefined ||
+      changes.contentFieldId !== undefined
+    ) {
+      if (
+        changes.contentFieldId !== undefined &&
+        changes.contentFieldId !== null
+      ) {
+        const field = this.assertField(changes.contentFieldId, tableId)
+        if (field.kind !== "text" || !field.writable) {
+          throw new Error(
+            "The Content Field must be an ordinary Text Field in the same Table"
+          )
+        }
+      }
+      const settings = {
+        ...table.settings,
+        ...(changes.icon !== undefined ? { icon: changes.icon } : {}),
+        ...(changes.description !== undefined
+          ? { description: changes.description }
+          : {}),
+        ...(changes.contentFieldId !== undefined &&
+        changes.contentFieldId !== null
+          ? { contentFieldId: changes.contentFieldId }
+          : {}),
+      }
+      if (changes.contentFieldId === null) delete settings.contentFieldId
       leaves.push({
         kind: "set-table-settings",
         tableId,
-        settings: {
-          ...table.settings,
-          ...(changes.icon !== undefined ? { icon: changes.icon } : {}),
-          ...(changes.description !== undefined
-            ? { description: changes.description }
-            : {}),
-        },
+        settings,
       })
     }
     if (leaves.length > 0) {
@@ -1610,6 +1664,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         typeof table.settings.description === "string"
           ? table.settings.description
           : null,
+      contentFieldId:
+        typeof table.settings.contentFieldId === "string"
+          ? table.settings.contentFieldId
+          : null,
       createdAt: "",
       updatedAt: "",
     }
@@ -1631,6 +1689,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       physicalName: null,
       systemRole: field.systemRole,
       nullable: field.nullable,
+      writable: field.writable,
       isRecordLabel: table.labelFieldId === field.id,
       position: Number(field.position),
       settings: field.settings,
@@ -1696,6 +1755,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         aggregate: definition.aggregate,
         distinct: definition.distinctValues,
         displayType: this.displayType(field.valueType),
+        valueType: field.valueType,
       }
     }
     if (field.kind === "relation") {
@@ -1894,18 +1954,29 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const searchable = fields
       .filter(
         (field) =>
-          typeof field.valueType === "string" &&
-          ["text", "url", "select", "row-id"].includes(field.valueType)
+          eidosFileTypeRefQueryCapabilities(field.valueType, {
+            isRecordLabel: field.id === this.tables.get(tableId)?.labelFieldId,
+            contextualRowId:
+              field.kind === "lookup" &&
+              typeof field.valueType === "object" &&
+              field.valueType.element === "row-id",
+          }).searchable
       )
       .map((field) => field.id)
+    const defaultSearchable = fields
+      .filter(
+        (field) => field.systemRole === null && searchable.includes(field.id)
+      )
+      .map((field) => field.id)
+    const searchFields =
+      query.searchFields?.filter((id) => searchable.includes(id)) ??
+      defaultSearchable
     return {
-      ...(query.search
+      ...(query.search && searchFields.length > 0
         ? {
             search: {
               text: query.search,
-              fields:
-                query.searchFields?.filter((id) => searchable.includes(id)) ??
-                searchable,
+              fields: searchFields,
             },
           }
         : {}),

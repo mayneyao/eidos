@@ -39,3 +39,31 @@ export async function searchEidosFileRelationRecords(
     return [{ id: String(id), title: String(display ?? id) }]
   })
 }
+
+export async function resolveEidosFileRelationRecords(
+  source: EidosFileEditorDataSource,
+  field: EidosFileFieldInfo,
+  rowIds: string[]
+): Promise<EidosFileRelationValue[]> {
+  const uniqueRowIds = [...new Set(rowIds.filter(Boolean))]
+  if (uniqueRowIds.length === 0) return []
+  const targetTableId = field.property?.targetTableId
+  if (typeof targetTableId !== "string" || !targetTableId || !source.getRow) {
+    return uniqueRowIds.map((id) => ({ id, title: id }))
+  }
+  const snapshot = await source.getSnapshot()
+  const targetTable = snapshot.tables.find(
+    (candidate) => candidate.table.id === targetTableId
+  )
+  const labelField = targetTable?.fields.find(isEidosFileRecordLabelField)
+  if (!labelField) {
+    return uniqueRowIds.map((id) => ({ id, title: id }))
+  }
+  const rows = await Promise.all(
+    uniqueRowIds.map((id) => source.getRow!(targetTableId, id))
+  )
+  return uniqueRowIds.map((id, index) => {
+    const display = rows[index]?.[labelField.tableColumnName] ?? id
+    return { id, title: String(display ?? id) }
+  })
+}

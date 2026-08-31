@@ -10,6 +10,7 @@ import type {
   EidosFileRelativeDateUnit,
   EidosFileSort,
 } from "@eidos.space/eidos-file"
+import { eidosFileFieldQueryCapabilities } from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
   Check,
@@ -47,7 +48,9 @@ import {
   SelectValue,
 } from "./ui/primitives"
 
+import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
+import { EidosFileQueryRelationFilter } from "./eidos-file-query-relation-filter"
 
 import {
   eidosFileFieldDisplayName,
@@ -83,6 +86,12 @@ const emptyOperators = new Set<EidosFileFilterOperator>([
   "is-not-empty",
 ])
 
+const multipleValueOperators = new Set<EidosFileFilterOperator>([
+  "is-any-of",
+  "is-all-of",
+  "is-none-of",
+])
+
 const relativeDirectionLabels: Record<EidosFileRelativeDateDirection, string> =
   {
     past: "Past",
@@ -97,15 +106,28 @@ const relativeUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
   year: "year",
 }
 
-function filterableFields(fields: EidosFileFieldInfo[]) {
+function queryCandidateFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
     (field) =>
       isOptionalEidosFileSystemField(field) ||
       (!field.isHidden &&
         (isEidosFileRecordLabelField(field) ||
           field.valueKind === "source" ||
+          field.valueKind === "relation" ||
           field.valueKind === "materialized" ||
           field.valueKind === "derived"))
+  )
+}
+
+function filterableFields(fields: EidosFileFieldInfo[]) {
+  return queryCandidateFields(fields).filter(
+    (field) => eidosFileFieldQueryCapabilities(field).filterOperators.length > 0
+  )
+}
+
+function sortableFields(fields: EidosFileFieldInfo[]) {
+  return queryCandidateFields(fields).filter(
+    (field) => eidosFileFieldQueryCapabilities(field).sortPosition === "any"
   )
 }
 
@@ -128,61 +150,7 @@ function fieldDisplayType(field: EidosFileFieldInfo) {
 function operatorsForField(
   field: EidosFileFieldInfo
 ): EidosFileFilterOperator[] {
-  const displayType = fieldDisplayType(field)
-  if (field.type === "multi-select") {
-    return [
-      "contains",
-      "not-contains",
-      "is-any-of",
-      "is-none-of",
-      "is-empty",
-      "is-not-empty",
-    ]
-  }
-  if (
-    field.storageCodec === "json_array" ||
-    field.storageCodec === "relation"
-  ) {
-    return ["contains", "not-contains", "is-empty", "is-not-empty"]
-  }
-  if (displayType === "checkbox") {
-    return ["equals", "not-equals", "is-empty", "is-not-empty"]
-  }
-  if (displayType === "number" || displayType === "rating") {
-    return [
-      "equals",
-      "not-equals",
-      "greater-than",
-      "greater-than-or-equal",
-      "less-than",
-      "less-than-or-equal",
-      "is-empty",
-      "is-not-empty",
-    ]
-  }
-  if (displayType === "date" || displayType === "datetime") {
-    return [
-      "equals",
-      "less-than",
-      "greater-than",
-      "less-than-or-equal",
-      "greater-than-or-equal",
-      "is-between",
-      "is-relative-to-today",
-      "is-empty",
-      "is-not-empty",
-    ]
-  }
-  return [
-    "equals",
-    "not-equals",
-    "contains",
-    "not-contains",
-    "starts-with",
-    "ends-with",
-    "is-empty",
-    "is-not-empty",
-  ]
+  return [...eidosFileFieldQueryCapabilities(field).filterOperators]
 }
 
 function operatorLabel(
@@ -236,10 +204,12 @@ function filterInstantFromDatetimeLocal(
 function FilterValueEditor({
   field,
   rule,
+  source,
   onChange,
 }: {
   field: EidosFileFieldInfo
   rule: EidosFileFilterRule
+  source?: EidosFileEditorDataSource
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
   const { timeZone, translate: t } = useEidosFileUI()
@@ -248,6 +218,17 @@ function FilterValueEditor({
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
+  if (field.type === "relation" && source) {
+    return (
+      <EidosFileQueryRelationFilter
+        field={field}
+        source={source}
+        value={rule.value}
+        multiple={multipleValueOperators.has(rule.operator)}
+        onChange={onChange}
+      />
+    )
+  }
   if (rule.operator === "is-relative-to-today") {
     const candidate =
       rule.value && typeof rule.value === "object" && !Array.isArray(rule.value)
@@ -316,7 +297,7 @@ function FilterValueEditor({
   }
   if (
     field.type === "multi-select" &&
-    (rule.operator === "is-any-of" || rule.operator === "is-none-of")
+    multipleValueOperators.has(rule.operator)
   ) {
     const selected = new Set(Array.isArray(rule.value) ? rule.value : [])
     return (
@@ -579,11 +560,13 @@ function countFilterRules(group: EidosFileFilterGroup): number {
 function EidosFileFilterRuleEditor({
   fields,
   rule,
+  source,
   onChange,
   onRemove,
 }: {
   fields: EidosFileFieldInfo[]
   rule: EidosFileFilterRule
+  source?: EidosFileEditorDataSource
   onChange: (rule: EidosFileFilterRule) => void
   onRemove: () => void
 }) {
@@ -622,25 +605,36 @@ function EidosFileFilterRuleEditor({
         onValueChange={(operator: EidosFileFilterOperator) => {
           const relative = operator === "is-relative-to-today"
           const between = operator === "is-between"
+          const membership = eidosFileFieldQueryCapabilities(field).membership
+          const multiple = membership && multipleValueOperators.has(operator)
           const currentIsStructured =
             rule.value !== null &&
             typeof rule.value === "object" &&
             !Array.isArray(rule.value)
+          const nextValue: EidosFileFilterRuleValue | undefined =
+            emptyOperators.has(operator)
+              ? undefined
+              : relative
+                ? { direction: "this", unit: "week" }
+                : between
+                  ? ["", ""]
+                  : multiple
+                    ? Array.isArray(rule.value)
+                      ? rule.value
+                      : typeof rule.value === "string" && rule.value
+                        ? [rule.value]
+                        : []
+                    : membership && Array.isArray(rule.value)
+                      ? (rule.value[0] ?? "")
+                      : rule.value === undefined || currentIsStructured
+                        ? fieldDisplayType(field) === "checkbox"
+                          ? true
+                          : ""
+                        : rule.value
           onChange({
             ...rule,
             operator,
-            ...(emptyOperators.has(operator)
-              ? { value: undefined }
-              : relative
-                ? { value: { direction: "this", unit: "week" } }
-                : between
-                  ? { value: ["", ""] }
-                  : rule.value === undefined || currentIsStructured
-                    ? {
-                        value:
-                          fieldDisplayType(field) === "checkbox" ? true : "",
-                      }
-                    : {}),
+            value: nextValue,
           })
         }}
       >
@@ -658,6 +652,7 @@ function EidosFileFilterRuleEditor({
       <FilterValueEditor
         field={field}
         rule={rule}
+        source={source}
         onChange={(value) => onChange({ ...rule, value })}
       />
       <Button
@@ -730,11 +725,13 @@ function EidosFileFilterGroupEditor({
   fields,
   group,
   depth,
+  source,
   onChange,
 }: {
   fields: EidosFileFieldInfo[]
   group: EidosFileFilterGroup
   depth: number
+  source?: EidosFileEditorDataSource
   onChange: (group: EidosFileFilterGroup) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -794,6 +791,7 @@ function EidosFileFilterGroupEditor({
               key={`rule-${index}-${child.field}`}
               fields={fields}
               rule={child}
+              source={source}
               onChange={(next) => updateChild(index, next)}
               onRemove={() => removeChild(index)}
             />
@@ -806,6 +804,7 @@ function EidosFileFilterGroupEditor({
                 fields={fields}
                 group={child}
                 depth={depth + 1}
+                source={source}
                 onChange={(next) => updateChild(index, next)}
               />
               <Button
@@ -854,11 +853,13 @@ function EidosFileFilterPopover({
   fields,
   value,
   disabled,
+  source,
   onChange,
 }: {
   fields: EidosFileFieldInfo[]
   value: EidosFileFilterGroup | null
   disabled?: boolean
+  source?: EidosFileEditorDataSource
   onChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -941,6 +942,7 @@ function EidosFileFilterPopover({
             fields={availableFields}
             group={draft}
             depth={0}
+            source={source}
             onChange={setDraft}
           />
           {error ? (
@@ -1000,7 +1002,7 @@ function EidosFileSortPopover({
   onChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
-  const availableFields = useMemo(() => filterableFields(fields), [fields])
+  const availableFields = useMemo(() => sortableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
   const [pendingAction, setPendingAction] = useState<"apply" | "clear" | null>(
@@ -1230,6 +1232,7 @@ export function EidosFileQueryToolbar({
   filter,
   sorts,
   search,
+  source,
   disabled,
   mutationsDisabled,
   focusSearchToken = 0,
@@ -1244,6 +1247,7 @@ export function EidosFileQueryToolbar({
   filter: EidosFileFilterGroup | null
   sorts: EidosFileSort[]
   search: string
+  source?: EidosFileEditorDataSource
   disabled?: boolean
   mutationsDisabled?: boolean
   focusSearchToken?: number
@@ -1255,6 +1259,13 @@ export function EidosFileQueryToolbar({
   onSortsChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
+  const hasSearchableFields = useMemo(
+    () =>
+      queryCandidateFields(fields).some(
+        (field) => eidosFileFieldQueryCapabilities(field).searchable
+      ),
+    [fields]
+  )
   const searchNavigation = useEidosFileSearchNavigation()
   const resolvedSearchResultCount =
     searchResultCount === undefined
@@ -1376,7 +1387,7 @@ export function EidosFileQueryToolbar({
           className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs"
           aria-label={t("Search Eidos File rows")}
           title={t("Search")}
-          disabled={disabled}
+          disabled={disabled || !hasSearchableFields}
           onClick={() => setShowSearch(true)}
         >
           <Search className="h-3.5 w-3.5" />
@@ -1386,6 +1397,7 @@ export function EidosFileQueryToolbar({
       <EidosFileFilterPopover
         fields={fields}
         value={filter}
+        source={source}
         disabled={disabled || mutationsDisabled}
         onChange={onFilterChange}
       />

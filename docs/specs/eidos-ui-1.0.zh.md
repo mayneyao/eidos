@@ -1144,6 +1144,17 @@ Table 当前 Record Label Field 在所有场合提供 row title，包括 Relatio
 Label value/role 改变后 Relation presentation 必须动态更新；resolved label 绝不能写回
 Relation cell。
 
+Table settings surface 可以暴露可选 Content Field。Selector 只能提供普通 stored、
+non-system Text Field 和明确的未设置选项。未配置 Content Field 时，打开记录保留标准
+detail panel。配置后，在标准 Grid、Gallery、Kanban 或 Calendar surface 打开记录时，
+应展示居中的 record page：Record Label 提供 page title，其他 Field 保持紧凑、可编辑的
+metadata；Content Field 从通用列表移出，使用专用 Markdown preview/source editor。
+
+Markdown presentation 是 generated、non-canonical state。Raw HTML 与不安全 URL
+scheme 必须保持 inert；remote image 不能触发 ambient network fetch。External link 只能
+通过 Host 的 explicit URL activation boundary 激活。编辑底层 Text value 时遵循普通
+atomic row mutation 与 optimistic-state 规则。
+
 每个面向用户的 Field 类型选择器，包括创建、转换、CSV mapping 以及 Formula
 结果/展示类型控件，必须在关闭状态的 trigger 和每个菜单行中，用同一个 canonical
 Field type icon 配合本地化类型名称。图标只是辅助信息：可见文字和 accessible name

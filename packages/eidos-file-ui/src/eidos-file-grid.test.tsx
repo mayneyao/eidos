@@ -20,6 +20,7 @@ import {
   GridCellKind,
   type DataEditorProps,
   type EditableGridCell,
+  type GridSelection,
   type UriCell,
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -308,7 +309,7 @@ describe("EidosFileGrid", () => {
     )
   })
 
-  it("opens a Formula cell editor with the activated record as preview", async () => {
+  it("opens a Formula cell editor without activating Glide's generic overlay", async () => {
     const formulaField: EidosFileFieldInfo = {
       ...table.fields[1],
       id: "0198c72d-82b5-7000-8000-000000000003",
@@ -343,12 +344,114 @@ describe("EidosFileGrid", () => {
       mocks.props?.onCellActivated?.([1, 0])
     })
 
+    expect(mocks.props?.getCellContent?.([1, 0])).toMatchObject({
+      allowOverlay: false,
+      readonly: true,
+    })
     expect(onEditFormula).toHaveBeenCalledWith(formulaField, "row_0", {
       left: 100,
       top: 32,
       width: 100,
       height: 32,
     })
+  })
+
+  it("keeps Runtime-readonly inverse Relations inert", async () => {
+    const inverseRelation: EidosFileFieldInfo = {
+      ...table.fields[1],
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      name: "Referenced by",
+      type: "relation",
+      tableColumnName: "referenced_by",
+      property: {
+        direction: "inverse",
+        targetTableId: "notes",
+        sourceFieldId: "note-task",
+        multiple: true,
+      },
+      storageCodec: "relation",
+      valueKind: "relation",
+      writable: false,
+    }
+    const inverseTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [table.fields[0]!, inverseRelation],
+      rowCount: 1,
+    }
+    const onCellEdit = createCellEdit(inverseTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={inverseTable}
+          loadPage={createLoadPage(inverseTable)}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const relationCell = mocks.props?.getCellContent?.([1, 0])
+    expect(relationCell).toMatchObject({ readonly: true })
+    if (relationCell?.kind !== GridCellKind.Custom) {
+      throw new Error("Expected an inverse Relation cell")
+    }
+    await act(async () => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [1, 0],
+          value: {
+            ...relationCell,
+            data: { ...relationCell.data, values: [] },
+          } as EditableGridCell,
+        },
+      ])
+      await Promise.resolve()
+    })
+    expect(onCellEdit).not.toHaveBeenCalled()
+  })
+
+  it("clears a nullable Checkbox selection back to NULL", async () => {
+    const nullableTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [
+        table.fields[0]!,
+        { ...table.fields[1]!, nullable: true, writable: true },
+      ],
+      rowCount: 1,
+    }
+    const onCellEdit = createCellEdit(nullableTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={nullableTable}
+          loadPage={createLoadPage(nullableTable)}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    let handled: boolean | GridSelection | undefined
+    await act(async () => {
+      handled = mocks.props?.onDelete?.({
+        current: {
+          cell: [1, 0],
+          range: { x: 1, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+      })
+      await Promise.resolve()
+    })
+    expect(handled).toBe(false)
+    expect(onCellEdit).toHaveBeenCalledWith(
+      rowAt(0),
+      nullableTable.fields[1],
+      null
+    )
   })
 
   it("activates only the link text while leaving the rest of a URL cell editable", async () => {

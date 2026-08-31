@@ -145,7 +145,27 @@ const snapshot: EidosFileSnapshot = {
         createdAt: now,
         updatedAt: now,
       },
-      fields: [],
+      fields: [
+        {
+          id: "title",
+          tableId: "tasks",
+          name: "Title",
+          type: "text",
+          tableName: "tasks",
+          tableColumnName: "Title",
+          physicalName: "Title",
+          isRecordLabel: true,
+          position: 0,
+          settings: {},
+          property: null,
+          storageCodec: "scalar",
+          valueKind: "source",
+          isHidden: false,
+          isDerived: false,
+          sourceTableColumnName: "Title",
+          dependsOn: null,
+        },
+      ],
       views: [
         {
           id: "grid",

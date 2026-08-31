@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode } from "react"
+import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   AssetLease,
@@ -12,6 +12,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider, type AssetPresenter } from "./context"
+import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
 import {
   EidosFileEntryCoverSurface,
   EidosFileEntrySurface,
@@ -192,6 +193,84 @@ describe("EidosFileEntrySurface", () => {
     expect(container.textContent).toBe("")
     expect(container.querySelector("details")).toBeNull()
     expect(container.querySelector("code")).toBeNull()
+  })
+
+  it("loads Gallery covers within the lease budget and leaves Grid previews usable", async () => {
+    const files = Array.from({ length: 6 }, (_, index) =>
+      entry(
+        `cover-${index + 1}`,
+        `assets/cover-${index + 1}.png`,
+        `cover-${index + 1}.png`
+      )
+    )
+    const state = hostState()
+    state.limits.concurrentAssetLeasesMax = 2
+    let activeLeases = 0
+    let maximumActiveLeases = 0
+    const resolveAsset = vi.fn(
+      async (request: { entryId: string; purpose: AssetLease["purpose"] }) => {
+        if (activeLeases >= state.limits.concurrentAssetLeasesMax) {
+          throw new Error("Asset lease limit reached")
+        }
+        activeLeases += 1
+        maximumActiveLeases = Math.max(maximumActiveLeases, activeLeases)
+        const file = files.find(
+          (candidate) => candidate.id === request.entryId
+        )!
+        return leaseFor(file, request.purpose)
+      }
+    )
+    const releaseAsset = vi.fn(async () => {
+      activeLeases -= 1
+    })
+    const services = { resolveAsset, releaseAsset } as unknown as HostServices
+    const source = { height: 80, width: 120 } as unknown as CanvasImageSource
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: vi.fn(() => null),
+      loadImage: vi.fn(async () => source),
+      activate: vi.fn(async () => undefined),
+    }
+
+    await act(async () => {
+      root.render(
+        <StrictMode>
+          <EidosFileUIProvider
+            assetSession={{ services, serviceCapabilities, state }}
+            assetPresenter={presenter}
+          >
+            {files.map((file) => (
+              <EidosFileEntryCoverSurface key={file.id} entry={file} />
+            ))}
+          </EidosFileUIProvider>
+        </StrictMode>
+      )
+    })
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(container.querySelectorAll("canvas")).toHaveLength(files.length)
+      )
+    })
+
+    expect(resolveAsset.mock.calls.length).toBeGreaterThanOrEqual(files.length)
+    expect(releaseAsset).toHaveBeenCalledTimes(resolveAsset.mock.calls.length)
+    expect(activeLeases).toBe(0)
+    expect(maximumActiveLeases).toBeLessThanOrEqual(
+      state.limits.concurrentAssetLeasesMax
+    )
+
+    await act(async () => root.render(<div />))
+    const onCellsReady = vi.fn()
+    const gridThumbnails = new EidosFileAttachmentThumbnailManager(
+      { services, serviceCapabilities, state },
+      presenter,
+      onCellsReady
+    )
+    gridThumbnails.prepare([files[0]!], 0, 0)
+    await vi.waitFor(() => expect(onCellsReady).toHaveBeenCalledOnce())
+    expect(gridThumbnails.prepare([files[0]!], 0, 0)).toHaveLength(1)
+    expect(activeLeases).toBe(0)
+    expect(releaseAsset).toHaveBeenCalledTimes(resolveAsset.mock.calls.length)
+    gridThumbnails.clear()
   })
 
   it("falls back to trusted metadata and the lossless URI when policy denies a scheme", async () => {

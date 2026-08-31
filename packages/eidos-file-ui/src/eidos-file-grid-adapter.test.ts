@@ -201,6 +201,34 @@ describe("Eidos File Grid adapter", () => {
     ).toBeNull()
   })
 
+  it("preserves nullable Checkbox NULL separately from false", () => {
+    const nullableCheckbox = { ...field("checkbox"), nullable: true }
+    expect(eidosFileValueToGridCell(nullableCheckbox, null)).toMatchObject({
+      kind: GridCellKind.Boolean,
+      data: null,
+    })
+    expect(
+      gridCellToEidosFileValue(nullableCheckbox, {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: null,
+      })
+    ).toBeNull()
+
+    const requiredCheckbox = { ...field("checkbox"), nullable: false }
+    expect(eidosFileValueToGridCell(requiredCheckbox, null)).toMatchObject({
+      kind: GridCellKind.Boolean,
+      data: false,
+    })
+    expect(
+      gridCellToEidosFileValue(requiredCheckbox, {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: null,
+      })
+    ).toBe(0)
+  })
+
   it("reuses the rich date and rating cells from the existing table", () => {
     expect(eidosFileValueToGridCell(field("rating"), 4)).toMatchObject({
       kind: GridCellKind.Custom,
@@ -397,6 +425,7 @@ describe("Eidos File Grid adapter", () => {
     }
     expect(eidosFileValueToGridCell(formula, 120)).toMatchObject({
       kind: GridCellKind.Number,
+      allowOverlay: false,
       data: 120,
       readonly: true,
     })
@@ -417,6 +446,7 @@ describe("Eidos File Grid adapter", () => {
     }
     expect(eidosFileValueToGridCell(lookup, 2)).toMatchObject({
       kind: GridCellKind.Number,
+      allowOverlay: false,
       data: 2,
       readonly: true,
     })

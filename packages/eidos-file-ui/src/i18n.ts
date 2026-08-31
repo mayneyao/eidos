@@ -56,6 +56,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Search options…": "搜索选项…",
   Checked: "已勾选",
   Unchecked: "未勾选",
+  "Enter a finite number.": "请输入有限数值。",
   Value: "值",
   is: "是",
   "is not": "不是",
@@ -337,6 +338,13 @@ const zh: EidosFileUIMessageOverrides = {
     "此字段中保存的所有值都会从 Eidos File 中永久删除，且无法在当前视图中撤销。",
   "Table settings": "数据表设置",
   "Record label field": "记录标题字段",
+  "Content field": "内容字段",
+  "Markdown content": "Markdown 内容",
+  "Edit content": "编辑内容",
+  "Write content with Markdown…": "使用 Markdown 编写内容…",
+  "Press {shortcut} to save.": "按 {shortcut} 保存。",
+  "Opens records as pages and renders this Text field as Markdown.":
+    "以页面方式打开记录，并将这个文本字段渲染为 Markdown。",
   "Used to identify records in relations and cards.":
     "用于在关联记录和卡片中标识记录。",
   "Unable to update table settings": "无法更新数据表设置",

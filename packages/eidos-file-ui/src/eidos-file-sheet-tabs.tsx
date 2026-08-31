@@ -48,6 +48,7 @@ import {
 import { useEidosFileUI } from "./context"
 import {
   eidosFileFieldKey,
+  isEidosFileRecordLabelEligible,
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
 import {
@@ -92,6 +93,13 @@ export interface EidosFileSheetTabsProps {
   onSetRecordLabel?: (
     table: EidosFileTableSnapshot,
     field: EidosFileFieldInfo
+  ) => Promise<void> | void
+  onUpdateTableSettings?: (
+    table: EidosFileTableSnapshot,
+    changes: {
+      recordLabelFieldId: string
+      contentFieldId: string | null
+    }
   ) => Promise<void> | void
   onExportError?: (error: unknown) => void
   renderTab?: EidosFileSheetTabRenderer
@@ -189,6 +197,7 @@ export function EidosFileSheetTabs({
   onDelete,
   onExportCsv,
   onSetRecordLabel,
+  onUpdateTableSettings,
   onExportError,
   renderTab,
 }: EidosFileSheetTabsProps) {
@@ -202,6 +211,7 @@ export function EidosFileSheetTabs({
   const [settingsTarget, setSettingsTarget] =
     useState<EidosFileTableSnapshot | null>(null)
   const [recordLabelFieldId, setRecordLabelFieldId] = useState("")
+  const [contentFieldId, setContentFieldId] = useState("__none__")
   const [name, setName] = useState("")
   const [busy, setBusy] = useState<"rename" | "delete" | "settings" | null>(
     null
@@ -221,21 +231,31 @@ export function EidosFileSheetTabs({
     if (!settingsTarget) return
     const label = settingsTarget.fields.find(isEidosFileRecordLabelField)
     setRecordLabelFieldId(label ? eidosFileFieldKey(label) : "")
+    setContentFieldId(settingsTarget.table.contentFieldId ?? "__none__")
     setBusy(null)
     setError(null)
   }, [settingsTarget])
 
   const recordLabelFields = useMemo(
-    () =>
-      settingsTarget?.fields.filter(
-        (field) => field.valueKind !== "system" && field.type !== "lookup"
-      ) ?? [],
+    () => settingsTarget?.fields.filter(isEidosFileRecordLabelEligible) ?? [],
     [settingsTarget]
   )
   const currentRecordLabelFieldId = useMemo(() => {
     const field = settingsTarget?.fields.find(isEidosFileRecordLabelField)
     return field ? eidosFileFieldKey(field) : ""
   }, [settingsTarget])
+  const contentFields = useMemo(
+    () =>
+      settingsTarget?.fields.filter(
+        (field) =>
+          field.type === "text" &&
+          field.valueKind === "source" &&
+          field.systemRole == null
+      ) ?? [],
+    [settingsTarget]
+  )
+  const currentContentFieldId =
+    settingsTarget?.table.contentFieldId ?? "__none__"
 
   const renameAnchorStyle = useMemo<CSSProperties | undefined>(() => {
     if (!renameRequest) return undefined
@@ -316,11 +336,24 @@ export function EidosFileSheetTabs({
     const field = recordLabelFields.find(
       (candidate) => eidosFileFieldKey(candidate) === recordLabelFieldId
     )
-    if (!target || !field || !onSetRecordLabel || busy) return
+    if (
+      !target ||
+      !field ||
+      (!onUpdateTableSettings && !onSetRecordLabel) ||
+      busy
+    )
+      return
     setBusy("settings")
     setError(null)
     try {
-      await onSetRecordLabel(target, field)
+      if (onUpdateTableSettings) {
+        await onUpdateTableSettings(target, {
+          recordLabelFieldId,
+          contentFieldId: contentFieldId === "__none__" ? null : contentFieldId,
+        })
+      } else {
+        await onSetRecordLabel?.(target, field)
+      }
       setSettingsTarget(null)
     } catch (settingsError) {
       setError(
@@ -375,7 +408,7 @@ export function EidosFileSheetTabs({
               exportingCsv: exportingTableId === table.id,
               rename: () => requestRename(table),
               settings:
-                tableSnapshots && onSetRecordLabel
+                tableSnapshots && (onUpdateTableSettings || onSetRecordLabel)
                   ? () => {
                       const target = tableSnapshots.find(
                         (candidate) => candidate.table.id === table.id
@@ -521,6 +554,34 @@ export function EidosFileSheetTabs({
               {t("Used to identify records in relations and cards.")}
             </span>
           </label>
+          <label className="grid gap-1.5 text-xs">
+            <span className="font-medium">{t("Content field")}</span>
+            <Select
+              value={contentFieldId}
+              disabled={busy === "settings" || !onUpdateTableSettings}
+              onValueChange={setContentFieldId}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[10020]">
+                <SelectItem value="__none__">{t("None")}</SelectItem>
+                {contentFields.map((field) => (
+                  <SelectItem
+                    key={eidosFileFieldKey(field)}
+                    value={eidosFileFieldKey(field)}
+                  >
+                    {field.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[11px] leading-4 text-muted-foreground">
+              {t(
+                "Opens records as pages and renders this Text field as Markdown."
+              )}
+            </span>
+          </label>
           {error ? (
             <p className="break-words text-xs text-destructive" role="alert">
               {error}
@@ -540,7 +601,8 @@ export function EidosFileSheetTabs({
               disabled={
                 busy === "settings" ||
                 !recordLabelFieldId ||
-                recordLabelFieldId === currentRecordLabelFieldId
+                (recordLabelFieldId === currentRecordLabelFieldId &&
+                  contentFieldId === currentContentFieldId)
               }
               onClick={() => void saveTableSettings()}
             >

@@ -35,6 +35,7 @@ import {
 } from "./eidos-file-date-time"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import {
+  eidosFileContentField,
   eidosFileFieldKey,
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
@@ -867,7 +868,7 @@ export function EidosFileCalendarView({
   }
 
   return (
-    <div className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden">
+    <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-10 shrink-0 items-center gap-3 border-b px-3">
           <h2 className="min-w-0 truncate text-sm font-semibold tabular-nums">
@@ -1048,6 +1049,8 @@ export function EidosFileCalendarView({
           <EidosFileRecordInspector
             row={inspectedRow}
             fields={fields}
+            variant={eidosFileContentField(table) ? "page" : "panel"}
+            contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}

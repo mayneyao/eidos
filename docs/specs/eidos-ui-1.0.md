@@ -1241,6 +1241,21 @@ Changing the Record Label role is a schema operation. Relation presentation
 MUST update dynamically after the label value or role changes; a resolved
 label MUST never be written back into a Relation cell.
 
+A Table settings surface MAY expose the optional Content Field. Its selector
+MUST offer only ordinary stored non-system Text Fields and an explicit unset
+choice. When no Content Field is configured, opening a record retains the
+standard detail-panel behavior. When one is configured, opening a record in a
+standard Grid, Gallery, Kanban, or Calendar surface SHOULD present a centered
+record page: the Record Label supplies the page title, other Fields remain
+compact editable metadata, and the Content Field is removed from that generic
+list and receives a dedicated Markdown preview/source editor.
+
+Markdown presentation is generated and non-canonical. Raw HTML and unsafe URL
+schemes MUST remain inert; remote images MUST NOT trigger ambient network
+fetches. External links activate only through the Host's explicit URL
+activation boundary. Editing commits the underlying Text value through the
+normal atomic row-mutation and optimistic-state rules.
+
 Every user-facing Field-type selector, including create, conversion, CSV
 mapping, and Formula result/display controls, MUST pair the localized type label
 with the same canonical Field-type icon in both its closed trigger and every

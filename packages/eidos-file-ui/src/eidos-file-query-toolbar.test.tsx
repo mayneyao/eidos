@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
 
 import { EidosFileUIProvider } from "./context"
+import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 
 ;(
@@ -317,6 +318,290 @@ describe("shared EidosFileQueryToolbar", () => {
         (option) => option.textContent?.trim() === "Total"
       )
     ).toBe(true)
+  })
+
+  it("uses Runtime field capabilities for Relation filters and sort choices", async () => {
+    const relation: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000006",
+      name: "Owner",
+      type: "relation",
+      tableColumnName: "owner",
+      property: {
+        direction: "forward",
+        targetTableId: "0198c72d-82b5-7000-8000-000000000020",
+        cardinality: "one",
+      },
+      storageCodec: "relation",
+      valueKind: "relation",
+      isRecordLabel: false,
+    }
+    const signals: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000007",
+      name: "Signals",
+      type: "multi-select",
+      tableColumnName: "signals",
+      property: { options: [] },
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    const files: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000008",
+      name: "Files",
+      type: "file",
+      tableColumnName: "files",
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    const owners: EidosFileFieldInfo = {
+      ...fields[2],
+      id: "0198c72d-82b5-7000-8000-000000000009",
+      name: "Owners",
+      type: "lookup",
+      tableColumnName: "owners",
+      property: {
+        aggregate: "values",
+        displayType: "row-id",
+        valueType: { kind: "list", element: "row-id" },
+      },
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    const capabilityFields = [...fields, relation, signals, files, owners]
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={capabilityFields}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const filterField =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+    await act(async () => filterField?.click())
+    const filterOptions = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).map((option) => option.textContent?.trim())
+    expect(filterOptions).toEqual(
+      expect.arrayContaining(["Owner", "Signals", "Files", "Owners"])
+    )
+    const owner = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Owner")
+    await act(async () => owner?.click())
+    const operator =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+    await act(async () => operator?.click())
+    expect(
+      Array.from(document.body.querySelectorAll('[role="option"]')).map(
+        (option) => option.textContent?.trim()
+      )
+    ).toEqual(expect.arrayContaining(["has any of", "has all of"]))
+
+    await act(async () => button("Cancel")?.click())
+    await act(async () => button("Sort")?.click())
+    await act(async () => button("Add sort")?.click())
+    const sortField = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')
+    ).at(-2)
+    await act(async () => sortField?.click())
+    const sortOptions = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).map((option) => option.textContent?.trim())
+    expect(sortOptions).toEqual(expect.arrayContaining(["Title", "Total"]))
+    expect(sortOptions).not.toEqual(
+      expect.arrayContaining(["Owner", "Signals", "Files", "Owners"])
+    )
+  })
+
+  it("selects Relation filter values by target record instead of Row ID", async () => {
+    const targetTableId = "0198c72d-82b5-7000-8000-000000000020"
+    const adaId = "0198c72d-82b5-7000-8000-000000000021"
+    const graceId = "0198c72d-82b5-7000-8000-000000000022"
+    const relation: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000006",
+      name: "Owner",
+      type: "relation",
+      tableColumnName: "owner",
+      property: {
+        direction: "forward",
+        targetTableId,
+        cardinality: "one",
+      },
+      storageCodec: "relation",
+      valueKind: "relation",
+      isRecordLabel: false,
+    }
+    const targetLabel: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000023",
+      tableId: targetTableId,
+      name: "Name",
+      tableName: "tb_people",
+      tableColumnName: "name",
+    }
+    const getPage = vi.fn(async () => ({
+      rows: [
+        { _id: adaId, name: "Ada Lovelace" },
+        { _id: graceId, name: "Grace Hopper" },
+      ],
+    }))
+    const source = {
+      getSnapshot: vi.fn(async () => ({
+        tables: [
+          {
+            table: { id: targetTableId, name: "People" },
+            fields: [targetLabel],
+          },
+        ],
+      })),
+      getPage,
+      getRow: vi.fn(async (_tableId: string, rowId: string) =>
+        rowId === adaId
+          ? { _id: adaId, name: "Ada Lovelace" }
+          : { _id: graceId, name: "Grace Hopper" }
+      ),
+    } as unknown as EidosFileEditorDataSource
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[relation]}
+          filter={null}
+          sorts={[]}
+          search=""
+          source={source}
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const operator =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+    await act(async () => operator?.click())
+    const anyOf = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "has any of")
+    await act(async () => anyOf?.click())
+
+    const recordPicker = document.body.querySelector<HTMLButtonElement>(
+      '[aria-label="Choose records for Owner"]'
+    )
+    await act(async () => {
+      recordPicker?.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const recordOption = (name: string) =>
+      Array.from(
+        document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')
+      ).find((option) => option.textContent?.trim() === name)
+    expect(recordOption("Ada Lovelace")).toBeTruthy()
+    expect(recordOption("Grace Hopper")).toBeTruthy()
+    await act(async () => recordOption("Ada Lovelace")?.click())
+    await act(async () => recordOption("Grace Hopper")?.click())
+    await act(async () => button("Apply")?.click())
+
+    expect(onFilterChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: relation.id,
+          operator: "is-any-of",
+          value: [adaId, graceId],
+        },
+      ],
+    })
+    expect(getPage).toHaveBeenCalledWith(
+      targetTableId,
+      0,
+      50,
+      {},
+      undefined,
+      undefined,
+      expect.objectContaining({ preservedColumns: ["_id"] })
+    )
+  })
+
+  it("disables search when the table has no searchable logical fields", () => {
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[fields[1]]}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    expect(button("Search")?.disabled).toBe(true)
+  })
+
+  it("enables search when an otherwise non-searchable scalar is the Record Label", () => {
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[{ ...fields[1], isRecordLabel: true }]}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    expect(button("Search")?.disabled).toBe(false)
+  })
+
+  it("enables search for tables whose only searchable field is a list", () => {
+    const signals: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000024",
+      name: "Signals",
+      type: "multi-select",
+      tableColumnName: "signals",
+      property: { options: [] },
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[signals]}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    expect(button("Search")?.disabled).toBe(false)
   })
 
   it("keeps Select option colors visible in filter value controls", async () => {

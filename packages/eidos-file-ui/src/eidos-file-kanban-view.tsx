@@ -36,7 +36,10 @@ import {
 } from "./ui/kanban"
 
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
-import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import {
+  eidosFileContentField,
+  eidosFileFieldKey,
+} from "./eidos-file-field-visibility"
 import {
   eidosFileOptionColor,
   eidosFileSelectOptions,
@@ -1779,7 +1782,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   }
 
   return (
-    <div className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden">
+    <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <span
         className="sr-only"
         role="status"
@@ -1911,6 +1914,8 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
           <EidosFileRecordInspector
             row={inspectedRow}
             fields={fields}
+            variant={eidosFileContentField(table) ? "page" : "panel"}
+            contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
             onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}

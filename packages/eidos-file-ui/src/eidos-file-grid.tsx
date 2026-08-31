@@ -1,3 +1,5 @@
+/// <reference path="./glide-data-grid-css.d.ts" />
+
 import {
   memo,
   useCallback,
@@ -97,7 +99,11 @@ import {
   type EidosFileFieldMenuState,
 } from "./eidos-file-grid-menus"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
-import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import {
+  eidosFileContentField,
+  eidosFileFieldKey,
+  isEidosFileFieldWritable,
+} from "./eidos-file-field-visibility"
 import { eidosFileRecordFieldText } from "./eidos-file-record-format"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { eidosFileGridScrollbarConfig } from "./eidos-file-grid-scrollbar"
@@ -1174,7 +1180,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const cell = eidosFileValueToGridCell(
         field,
         row[field.tableColumnName],
-        gridWriteLocked,
+        gridWriteLocked || !isEidosFileFieldWritable(field),
         row,
         t("Unavailable record"),
         view?.properties?.textWrapping === true,
@@ -1659,7 +1665,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         const [columnIndex, rowIndex] = target
         const field = fields[columnIndex]
         const row = rowsRef.current.get(rowIndex)
-        if (!field || !row || field.valueKind === "system") continue
+        if (!field || !row || !isEidosFileFieldWritable(field)) continue
         const nextValue = gridCellToEidosFileValue(field, newValue)
         const group = grouped.get(rowIndex) ?? {
           rowIndex,
@@ -2342,6 +2348,47 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [history.onCellsEdited, retargetEditedCellLocation]
   )
 
+  const onDeleteSelection = useCallback<
+    NonNullable<DataEditorProps["onDelete"]>
+  >(
+    (selection) => {
+      const current = selection.current
+      if (!current) return true
+      const edits: Array<{ location: Item; value: EditableGridCell }> = []
+      for (const range of [current.range, ...current.rangeStack]) {
+        for (
+          let column = range.x;
+          column < range.x + range.width;
+          column += 1
+        ) {
+          const field = fields[column]
+          if (
+            !field ||
+            field.type !== "checkbox" ||
+            field.nullable === false ||
+            !isEidosFileFieldWritable(field)
+          ) {
+            return true
+          }
+          for (let row = range.y; row < range.y + range.height; row += 1) {
+            const cell = getCellContent([column, row])
+            if (cell.kind !== GridCellKind.Boolean || cell.readonly === true) {
+              return true
+            }
+            edits.push({
+              location: [column, row],
+              value: { ...cell, data: null },
+            })
+          }
+        }
+      }
+      if (edits.length === 0) return true
+      onCellsEdited(edits)
+      return false
+    },
+    [fields, getCellContent, onCellsEdited]
+  )
+
   const onColumnResize = useCallback(
     (_column: GridColumn, _newSize: number, index: number, newSize: number) => {
       const field = fields[index]
@@ -2610,7 +2657,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   return (
     <div
       ref={containerRef}
-      className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden"
+      className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden"
     >
       <div
         className={`relative min-w-0 flex-1 overflow-hidden ${showRowMarkers ? "" : "pl-2"}`}
@@ -2642,6 +2689,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           gridSelection={history.gridSelection ?? undefined}
           onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
           onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
+          onDelete={gridWriteLocked ? undefined : onDeleteSelection}
           onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
           onCellActivated={onEditFormula ? onCellActivated : undefined}
           onHeaderClicked={onHeaderClicked}
@@ -2849,6 +2897,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         <EidosFileRecordInspector
           row={inspectedRow}
           fields={fields}
+          variant={eidosFileContentField(table) ? "page" : "panel"}
+          contentField={eidosFileContentField(table)}
           onClose={() => setInspectedRowIndex(null)}
           onOpenInTab={onOpenRecordInTab}
           onCopyRecordId={copyText}

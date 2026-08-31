@@ -1,5 +1,6 @@
 import type {
   EidosFileFieldInfo,
+  EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 
@@ -13,6 +14,63 @@ export function isEidosFileRecordLabelField(
   field: EidosFileFieldInfo
 ): boolean {
   return field.isRecordLabel === true
+}
+
+/**
+ * Use the Runtime capability whenever it is available. The fallback keeps
+ * older custom editor data sources safe while they migrate to `writable`.
+ */
+export function isEidosFileFieldWritable(field: EidosFileFieldInfo): boolean {
+  if (typeof field.writable === "boolean") return field.writable
+  if (field.systemRole != null || field.isDerived) return false
+  if (field.valueKind === "source") return true
+  return (
+    field.valueKind === "relation" && field.property?.direction !== "inverse"
+  )
+}
+
+const EIDOS_FILE_RECORD_LABEL_SCALAR_TYPES = new Set([
+  "row-id",
+  "created-time",
+  "last-edited-time",
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "rating",
+  "select",
+])
+
+/** Exact core Record Label eligibility used by every settings surface. */
+export function isEidosFileRecordLabelEligible(
+  field: EidosFileFieldInfo
+): boolean {
+  if (field.type === "lookup") return false
+  if (field.type === "formula") {
+    return EIDOS_FILE_RECORD_LABEL_SCALAR_TYPES.has(
+      String(field.property?.displayType)
+    )
+  }
+  return EIDOS_FILE_RECORD_LABEL_SCALAR_TYPES.has(field.type)
+}
+
+export function eidosFileContentField(
+  table: EidosFileTableSnapshot
+): EidosFileFieldInfo | null {
+  const fieldId = table.table.contentFieldId
+  if (!fieldId) return null
+  return (
+    table.fields.find(
+      (field) =>
+        field.id === fieldId &&
+        field.type === "text" &&
+        field.valueKind === "source" &&
+        field.systemRole == null
+    ) ?? null
+  )
 }
 
 export function isOptionalEidosFileSystemField(

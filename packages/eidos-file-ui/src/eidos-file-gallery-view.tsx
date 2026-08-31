@@ -32,6 +32,7 @@ import {
 } from "./eidos-file-record-card-layout"
 import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { eidosFileContentField } from "./eidos-file-field-visibility"
 import {
   mergeRowWindowPage,
   requestForPrefetchedRowWindow,
@@ -628,7 +629,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   }
 
   return (
-    <div className="eidos-file-detail-layout flex h-full min-h-0 w-full overflow-hidden">
+    <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div
         ref={scrollContainerRef}
         data-eidos-file-gallery-scroll
@@ -763,6 +764,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           <EidosFileRecordInspector
             row={inspectedRow}
             fields={fields}
+            variant={eidosFileContentField(table) ? "page" : "panel"}
+            contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
             onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}

@@ -311,6 +311,60 @@ describe("EidosFileSheetTabs", () => {
     )
   })
 
+  it("saves an optional Text content field with the record label atomically", async () => {
+    const onUpdateTableSettings = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileSheetTabs
+          tables={tables}
+          tableSnapshots={tableSnapshots}
+          activeTableId="tasks"
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onUpdateTableSettings={onUpdateTableSettings}
+        />
+      )
+    })
+
+    await openTableMenu(container, "tasks")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Table settings"))
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).toContain("Content field")
+    const contentSelect = document.body.querySelectorAll<HTMLElement>(
+      'button[role="combobox"]'
+    )[1]
+    expect(contentSelect?.textContent).toContain("None")
+    await act(async () => {
+      contentSelect?.click()
+      await Promise.resolve()
+    })
+    const statusOption = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Status")
+    await act(async () => {
+      statusOption?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Save")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onUpdateTableSettings).toHaveBeenCalledWith(tableSnapshots[0], {
+      recordLabelFieldId: "title",
+      contentFieldId: "status",
+    })
+  })
+
   it("protects the only table from deletion", async () => {
     await act(async () => {
       root.render(

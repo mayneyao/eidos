@@ -10,7 +10,10 @@ import type {
 
 import type { EidosFileRelationRecordTarget } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
-import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import {
+  eidosFileContentField,
+  eidosFileFieldKey,
+} from "./eidos-file-field-visibility"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
@@ -102,6 +105,8 @@ export function EidosFileRelatedRecordPanel({
     <EidosFileRecordInspector
       row={inspectedRow}
       fields={table.fields}
+      variant={eidosFileContentField(table) ? "page" : "panel"}
+      contentField={eidosFileContentField(table)}
       disabled={disabled}
       loading={inspectorLoading}
       loadError={inspectorLoadError}

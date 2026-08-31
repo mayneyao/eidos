@@ -84,6 +84,78 @@ async function openGalleryRecord(page: Page, title: string): Promise<void> {
   await open.click()
 }
 
+test("gates Feature Lab query controls by logical field capability", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the SQLite WASM query-control path"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await page.getByRole("tab", { name: "Quality signals", exact: true }).click()
+
+  await page.getByRole("button", { name: "Search Eidos File rows" }).click()
+  const search = page.getByPlaceholder("Search rows")
+  await search.fill("Accessibility")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Feature"
+  )
+  await search.fill("feature-lab-2.png")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Feature"
+  )
+  await page.getByRole("button", { name: "Close search" }).click()
+
+  await page.getByRole("button", { name: "Filter Eidos File rows" }).click()
+  const filter = page.locator("[data-eidos-file-filter-popover]")
+  await filter.getByRole("button", { name: "Add filter" }).click()
+  await page.getByRole("button", { name: "Add condition" }).click()
+  await filter.getByRole("combobox").nth(1).click()
+  const ownerField = page.getByRole("option", {
+    name: "Owner",
+    exact: true,
+  })
+  await expect(ownerField).toBeVisible()
+  await expect(
+    page.getByRole("option", { name: "Signals", exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("option", { name: "Assets", exact: true })
+  ).toBeVisible()
+  await ownerField.click()
+  await filter.getByRole("combobox").nth(2).click()
+  await page.getByRole("option", { name: "has any of", exact: true }).click()
+  await filter
+    .getByRole("combobox", { name: "Choose records for Owner" })
+    .click()
+  const mina = page.getByRole("option", { name: "Mina Park", exact: true })
+  await expect(mina).toBeVisible()
+  await mina.click()
+  await page.keyboard.press("Escape")
+  await filter.getByRole("button", { name: "Apply", exact: true }).click()
+  await expect(filter).toBeHidden()
+
+  await page.getByRole("button", { name: "Sort Eidos File rows" }).click()
+  const sort = page.locator("[data-eidos-file-sort-popover]")
+  await sort.getByRole("button", { name: "Add sort" }).click()
+  await sort.getByRole("combobox", { name: "Sort field 1" }).click()
+  await expect(
+    page.getByRole("option", { name: "Weighted budget", exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("option", { name: "Owner", exact: true })
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("option", { name: "Signals", exact: true })
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("option", { name: "Assets", exact: true })
+  ).toHaveCount(0)
+})
+
 test("edits every writable Feature Lab field through the Chromium editor", async ({
   page,
   browserName,

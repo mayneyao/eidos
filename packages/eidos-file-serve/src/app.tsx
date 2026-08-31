@@ -1170,6 +1170,7 @@ export function ServeApp() {
               filter={activeView?.filter ?? null}
               sorts={activeView?.sorts ?? []}
               search={search}
+              source={client}
               disabled={saving}
               mutationsDisabled={readOnly}
               onSearchChange={setSearch}
@@ -1252,16 +1253,15 @@ export function ServeApp() {
                   ? undefined
                   : (table, name) => renameTable(table.id, name)
               }
-              onSetRecordLabel={
+              onUpdateTableSettings={
                 readOnly
                   ? undefined
-                  : async (table, field) => {
+                  : async (table, changes) => {
                       const current = clientRef.current
                       if (!current) throw new Error("No active Eidos File")
-                      const next = await current.updateField(
+                      const next = await current.updateTable(
                         table.table.id,
-                        field.id ?? field.tableColumnName,
-                        { isRecordLabel: true }
+                        changes
                       )
                       onStructureSnapshot(next)
                       setViewReloadToken((token) => token + 1)

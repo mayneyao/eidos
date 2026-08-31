@@ -16,6 +16,7 @@ import type {
   RowPage,
   ViewDescriptor,
 } from "@eidos.space/eidos-file"
+import { eidosFileTypeRefQueryCapabilities } from "@eidos.space/eidos-file"
 
 import {
   eidosUIPresentValue,
@@ -166,8 +167,8 @@ export function EidosStandardView({
   const [groups, setGroups] = useState<GroupPage | null>(null)
   const [error, setError] = useState<unknown>(null)
   const query = useMemo(
-    () => runtimeQuery(view, search, visibleFields),
-    [search, view, visibleFields]
+    () => runtimeQuery(view, search, visibleFields, table?.labelFieldId),
+    [search, table?.labelFieldId, view, visibleFields]
   )
   const projection = useMemo(
     () => ({
@@ -574,22 +575,27 @@ function Pagination({
 function runtimeQuery(
   view: ViewDescriptor | undefined,
   search: string,
-  fields: FieldDescriptor[]
+  fields: FieldDescriptor[],
+  labelFieldId?: string
 ) {
+  const searchableFields = fields.filter(
+    (field) =>
+      eidosFileTypeRefQueryCapabilities(field.valueType, {
+        isRecordLabel: field.id === labelFieldId,
+        contextualRowId:
+          field.kind === "lookup" &&
+          typeof field.valueType === "object" &&
+          field.valueType.element === "row-id",
+      }).searchable
+  )
   return {
     ...(view?.query ?? {}),
-    ...(search === ""
+    ...(search === "" || searchableFields.length === 0
       ? {}
       : {
           search: {
             text: search,
-            fields: fields
-              .filter(
-                (field) =>
-                  typeof field.valueType === "string" &&
-                  ["text", "url", "select", "row-id"].includes(field.valueType)
-              )
-              .map((field) => field.id),
+            fields: searchableFields.map((field) => field.id),
           },
         }),
   }

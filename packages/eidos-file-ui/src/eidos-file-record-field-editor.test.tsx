@@ -45,6 +45,29 @@ function datetimeField(): EidosFileFieldInfo {
   }
 }
 
+function checkboxField(nullable: boolean): EidosFileFieldInfo {
+  return {
+    ...optionField("select"),
+    id: "field-done",
+    name: "Done",
+    type: "checkbox",
+    tableColumnName: "done",
+    property: null,
+    nullable,
+  }
+}
+
+function numberField(): EidosFileFieldInfo {
+  return {
+    ...optionField("select"),
+    id: "field-score",
+    name: "Score",
+    type: "number",
+    tableColumnName: "score",
+    property: null,
+  }
+}
+
 function enterInputValue(element: HTMLInputElement, value: string): void {
   Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
@@ -120,6 +143,91 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     expect(
       trigger?.querySelector('[data-eidos-file-option-color="green"]')
     ).toBeTruthy()
+  })
+
+  it("edits nullable Checkbox values without collapsing NULL into false", async () => {
+    const onChange = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={checkboxField(true)}
+          row={{ id: "row-1", done: null }}
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Done"]'
+    )
+    expect(trigger?.textContent).toContain("Empty")
+    await act(async () => trigger?.click())
+    const checked = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Checked")
+    await act(async () => checked?.click())
+    expect(onChange).toHaveBeenCalledWith(1)
+  })
+
+  it("does not offer NULL for a non-nullable Checkbox", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={checkboxField(false)}
+          row={{ id: "row-1", done: 0 }}
+          disabled={false}
+          onChange={() => Promise.resolve()}
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Done"]'
+    )
+    await act(async () => trigger?.click())
+    expect(
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="option"]')
+      ).some((option) => option.textContent?.trim() === "Empty")
+    ).toBe(false)
+  })
+
+  it("preserves an invalid Number draft instead of clearing the Field", async () => {
+    const onChange = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={numberField()}
+          row={{ id: "row-1", score: 12 }}
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Score"]'
+    )!
+    expect(input.type).toBe("text")
+    await act(async () => {
+      input.focus()
+      enterInputValue(input, "not-a-number")
+      input.blur()
+      await Promise.resolve()
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input.value).toBe("not-a-number")
+    expect(input.getAttribute("aria-invalid")).toBe("true")
+    expect(container.textContent).toContain("Enter a finite number.")
+
+    await act(async () => {
+      input.focus()
+      enterInputValue(input, "12.5")
+      input.blur()
+      await Promise.resolve()
+    })
+    expect(onChange).toHaveBeenCalledWith(12.5)
   })
 
   it("edits date-time values in the Host-selected time zone", async () => {

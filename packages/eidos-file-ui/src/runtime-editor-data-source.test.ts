@@ -21,6 +21,7 @@ const MISSING_TEAM_ROW = "018f0000-0000-7000-8000-000000000009"
 const SIGNALS = "018f0000-0000-7000-8000-000000000010"
 const DONE = "018f0000-0000-7000-8000-000000000011"
 const ROW_ID = "018f0000-0000-7000-8000-000000000012"
+const BODY = "018f0000-0000-7000-8000-000000000013"
 
 function conversionRuntime(
   classification: "lossless-rewrite" | "explicit-lossy"
@@ -209,6 +210,72 @@ function conversionRuntime(
 }
 
 describe("EidosRuntimeEditorDataSource", () => {
+  it("preserves Runtime-authoritative Field writability in editor snapshots", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    const snapshot = await source.initialize()
+    const fields = snapshot.tables[0]?.fields ?? []
+
+    expect(fields.find((field) => field.id === ROW_ID)?.writable).toBe(false)
+    expect(fields.find((field) => field.id === TITLE)?.writable).toBe(true)
+  })
+
+  it("commits Record Label and optional Content Field settings atomically", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const getSchemaPage = fixture.runtime.getSchemaPage.bind(fixture.runtime)
+    Object.assign(fixture.runtime, {
+      getSchemaPage: async (
+        ...args: Parameters<RuntimeClient["getSchemaPage"]>
+      ) => {
+        const page = await getSchemaPage(...args)
+        return {
+          ...page,
+          objects: [
+            ...page.objects,
+            {
+              object: "field" as const,
+              id: BODY,
+              tableId: PROJECTS,
+              name: "Body",
+              kind: "text" as const,
+              valueType: "text" as const,
+              systemRole: null,
+              nullable: true,
+              position: "2",
+              settings: {},
+              writable: true,
+            },
+          ],
+        }
+      },
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateTable(PROJECTS, {
+      recordLabelFieldId: BODY,
+      contentFieldId: TITLE,
+    })
+
+    expect(fixture.plannedChange()).toEqual({
+      kind: "batch",
+      changes: [
+        { kind: "set-record-label", tableId: PROJECTS, fieldId: BODY },
+        {
+          kind: "set-table-settings",
+          tableId: PROJECTS,
+          settings: { contentFieldId: TITLE },
+        },
+      ],
+    })
+  })
+
   it("forwards selected Formula preview Row IDs to Runtime", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const previewFormula = vi.fn(async () => ({
@@ -322,7 +389,7 @@ describe("EidosRuntimeEditorDataSource", () => {
     expect(aggregate.mock.calls[1]?.[0]).toMatchObject({
       tableId: PROJECTS,
       query: {
-        search: { text: "roadmap", fields: [ROW_ID, TITLE] },
+        search: { text: "roadmap", fields: [TITLE, SIGNALS] },
         filter: { op: "or" },
       },
     })
@@ -755,6 +822,39 @@ describe("EidosRuntimeEditorDataSource", () => {
     )
     expect(page.rows[0]?.[`${TEAM}__display`]).toBe(
       JSON.stringify([{ id: TEAM_ROW, title: "Runtime Core" }])
+    )
+
+    queryRows.mockClear()
+    await source.getPage(
+      PROJECTS,
+      0,
+      1,
+      {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: TEAM,
+              operator: "is-any-of",
+              value: [TEAM_ROW],
+            },
+          ],
+        },
+      },
+      1
+    )
+    expect(queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: {
+          filter: {
+            op: "and",
+            args: [{ op: "has-any", fieldId: TEAM, values: [TEAM_ROW] }],
+          },
+        },
+      }),
+      expect.any(Object)
     )
 
     queryRows.mockClear()

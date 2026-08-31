@@ -77,6 +77,7 @@ interface CsvColumnDraft {
 const FIELD_TYPES: Array<{ value: EidosFileCsvFieldType; label: string }> = [
   { value: "text", label: "Text" },
   { value: "number", label: "Number" },
+  { value: "integer", label: "Integer" },
   { value: "checkbox", label: "Checkbox" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date & time" },

@@ -533,6 +533,7 @@ export function EidosFileWorkbench({
               filter={activeView?.filter ?? null}
               sorts={activeView?.sorts ?? []}
               search={search}
+              source={source}
               focusSearchToken={focusSearchToken}
               disabled={disabled || activeView?.queryStatus === "unsupported"}
               onSearchChange={setSearch}
@@ -615,12 +616,8 @@ export function EidosFileWorkbench({
             onRename={async (table, name) => {
               await source.updateTable(table.id, { name })
             }}
-            onSetRecordLabel={async (table, field) => {
-              const next = await source.updateField(
-                table.table.id,
-                field.id ?? field.tableColumnName,
-                { isRecordLabel: true }
-              )
+            onUpdateTableSettings={async (table, changes) => {
+              const next = await source.updateTable(table.table.id, changes)
               onSnapshot(next)
               setReloadToken((current) => current + 1)
             }}
