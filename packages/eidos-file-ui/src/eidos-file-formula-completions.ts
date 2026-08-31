@@ -8,7 +8,7 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete"
 
-export type EidosFileFormulaCompletionKind = "field" | "function"
+export type EidosFileFormulaCompletionKind = "field" | "function" | "syntax"
 
 export interface EidosFileFormulaCompletion extends Completion {
   id: string
@@ -39,73 +39,129 @@ const FUNCTION_DETAILS: Partial<
     { info: string; example: string }
   >
 > = {
-  if: {
-    info: "Returns the second value for true, otherwise the third value.",
-    example: "IF(\"Done\", 'Done', 'Open')",
-  },
   abs: {
-    info: "Returns the exact Integer or Number absolute value.",
+    info: "SQLite absolute value for an Integer or Number.",
     example: 'ABS("Balance")',
   },
-  coalesce: {
-    info: "Returns the first value that is not null.",
-    example: 'COALESCE("Nickname", "Name")',
-  },
-  is_null: {
-    info: "Tests whether one value is null.",
-    example: 'IS_NULL("Estimate")',
-  },
-  floor: {
-    info: "Rounds a Number down to an Integer, or null outside int64.",
-    example: 'FLOOR("Estimate")',
-  },
   ceil: {
-    info: "Rounds a Number up to an Integer, or null outside int64.",
+    info: "SQLite ceiling of an Integer or Number.",
     example: 'CEIL("Estimate")',
   },
+  ceiling: {
+    info: "Alias of SQLite CEIL.",
+    example: 'CEILING("Estimate")',
+  },
+  char: {
+    info: "Builds text from one or more Unicode code points.",
+    example: "CHAR(65, 66)",
+  },
+  coalesce: {
+    info: "Returns the first non-null value.",
+    example: 'COALESCE("Nickname", "Name")',
+  },
   concat: {
-    info: "Concatenates 2–16 text values; null propagates.",
-    example: 'CONCAT("First name", \' \', "Last name")',
+    info: "Converts values to text, skips nulls, and concatenates them.",
+    example: "CONCAT(\"Count\", ' items')",
+  },
+  concat_ws: {
+    info: "Concatenates non-null values with a separator.",
+    example: 'CONCAT_WS(\' · \', "Project", "Owner")',
+  },
+  date: {
+    info: "Returns a SQLite calendar date using literal safe modifiers.",
+    example: "DATE(\"Due\", '+7 days')",
+  },
+  datetime: {
+    info: "Returns a SQLite UTC date-time using literal safe modifiers.",
+    example: "DATETIME(\"Starts\", '+1 hour')",
+  },
+  floor: {
+    info: "SQLite floor of an Integer or Number.",
+    example: 'FLOOR("Estimate")',
+  },
+  format: {
+    info: "Formats values with SQLite printf formatting rules.",
+    example: "FORMAT('%d hours', \"Hours\")",
+  },
+  ifnull: {
+    info: "Returns the first value unless it is null.",
+    example: 'IFNULL("Nickname", "Name")',
+  },
+  iif: {
+    info: "Returns one of two same-typed values based on a condition.",
+    example: "IIF(\"Done\", 'Done', 'Open')",
+  },
+  instr: {
+    info: "Returns the one-based position of text inside text.",
+    example: "INSTR(\"Name\", 'Smith')",
   },
   length: {
-    info: "Returns the number of Unicode scalar values in text.",
+    info: "Returns SQLite text length in Unicode code points.",
     example: 'LENGTH("Name")',
   },
+  lower: {
+    info: "Lowercases ASCII letters using SQLite built-in behavior.",
+    example: 'LOWER("Code")',
+  },
   max: {
-    info: "Returns the typed maximum of 2–16 sortable values.",
+    info: "Returns the SQLite scalar maximum; null propagates.",
     example: 'MAX("Score", 0)',
   },
   min: {
-    info: "Returns the typed minimum of 2–16 sortable values.",
+    info: "Returns the SQLite scalar minimum; null propagates.",
     example: 'MIN("Progress", 100)',
   },
+  nullif: {
+    info: "Returns null when two comparable values are equal.",
+    example: "NULLIF(\"Status\", 'Unknown')",
+  },
+  printf: {
+    info: "Alias of SQLite FORMAT.",
+    example: "PRINTF('%.2f', \"Amount\")",
+  },
+  replace: {
+    info: "Replaces every matching text occurrence.",
+    example: "REPLACE(\"Name\", '-', ' ')",
+  },
+  round: {
+    info: "Rounds a numeric value with optional decimal precision.",
+    example: 'ROUND("Amount", 2)',
+  },
+  sign: {
+    info: "Returns -1, 0, or 1 for a numeric value.",
+    example: 'SIGN("Balance")',
+  },
+  strftime: {
+    info: "Formats a date-time with a literal SQLite format.",
+    example: "STRFTIME('%Y-%m', \"Created\")",
+  },
   substr: {
-    info: "Returns a zero-based Unicode-scalar slice.",
-    example: 'SUBSTR("Name", 0, 8)',
+    info: "Returns a one-based SQLite substring; negative values are supported.",
+    example: 'SUBSTR("Name", 1, 8)',
   },
-  lower_ascii: {
-    info: "Lowercases ASCII letters and leaves other scalars unchanged.",
-    example: 'LOWER_ASCII("Code")',
+  substring: {
+    info: "Alias of SQLite SUBSTR.",
+    example: 'SUBSTRING("Name", 1, 8)',
   },
-  upper_ascii: {
-    info: "Uppercases ASCII letters and leaves other scalars unchanged.",
-    example: 'UPPER_ASCII("Code")',
+  trim: {
+    info: "Trims spaces or a supplied character set from both ends.",
+    example: 'TRIM("Name")',
   },
-  date_add_days: {
-    info: "Adds whole days in the proleptic Gregorian calendar.",
-    example: 'DATE_ADD_DAYS("Due", 7)',
+  typeof: {
+    info: "Returns the SQLite storage class name for a value.",
+    example: 'TYPEOF("Amount")',
   },
-  date_diff_days: {
-    info: "Returns the exact whole-day difference between two dates.",
-    example: 'DATE_DIFF_DAYS("Due", "Start")',
+  unicode: {
+    info: "Returns the Unicode code point of the first character.",
+    example: 'UNICODE("Name")',
   },
-  datetime_add_milliseconds: {
-    info: "Adds exact milliseconds to a canonical UTC datetime.",
-    example: 'DATETIME_ADD_MILLISECONDS("Updated", 1000)',
+  unixepoch: {
+    info: "Returns Unix seconds for a date or date-time.",
+    example: 'UNIXEPOCH("Created")',
   },
-  datetime_diff_milliseconds: {
-    info: "Returns the exact millisecond difference between UTC datetimes.",
-    example: 'DATETIME_DIFF_MILLISECONDS("Updated", "Created")',
+  upper: {
+    info: "Uppercases ASCII letters using SQLite built-in behavior.",
+    example: 'UPPER("Code")',
   },
 }
 
@@ -132,12 +188,56 @@ export function eidosFileFormulaCompletions(
       boost: 100,
     }))
   const fieldFunctionCompletions: EidosFileFormulaCompletion[] = []
+  const syntaxCompletions: EidosFileFormulaCompletion[] = [
+    {
+      id: "syntax:cast",
+      kind: "syntax",
+      label: "CAST",
+      type: "keyword",
+      detail: "SQLite expression",
+      info: "Converts a scalar to TEXT, INTEGER, or REAL.",
+      example: 'CAST("Count" AS TEXT)',
+      insert: "CAST( AS TEXT)",
+      cursorOffset: -9,
+    },
+    {
+      id: "syntax:case",
+      kind: "syntax",
+      label: "CASE",
+      type: "keyword",
+      detail: "SQLite expression",
+      info: "Selects a same-typed result with searched CASE WHEN branches.",
+      example: "CASE WHEN \"Done\" THEN 'Done' ELSE 'Open' END",
+      insert: "CASE WHEN  THEN  ELSE  END",
+      cursorOffset: -16,
+    },
+    {
+      id: "syntax:is-null",
+      kind: "syntax",
+      label: "IS NULL",
+      type: "keyword",
+      detail: "SQLite expression",
+      info: "Tests whether a scalar value is null.",
+      example: '"Estimate" IS NULL',
+      insert: "IS NULL",
+    },
+    {
+      id: "syntax:is-not-null",
+      kind: "syntax",
+      label: "IS NOT NULL",
+      type: "keyword",
+      detail: "SQLite expression",
+      info: "Tests whether a scalar value is not null.",
+      example: '"Estimate" IS NOT NULL',
+      insert: "IS NOT NULL",
+    },
+  ]
   const coreFunctionCompletions =
     EIDOS_FILE_FORMULA_FUNCTION_NAMES.map<EidosFileFormulaCompletion>(
       (name) => {
         const label = name.toUpperCase()
         const detail = FUNCTION_DETAILS[name] ?? {
-          info: `Eidos File ${name} function.`,
+          info: `SQLite ${label} scalar function in the Eidos Formula profile.`,
           example: `${label}()`,
         }
         return {
@@ -156,6 +256,7 @@ export function eidosFileFormulaCompletions(
   return [
     ...fieldCompletions,
     ...fieldFunctionCompletions,
+    ...syntaxCompletions,
     ...coreFunctionCompletions,
   ]
 }

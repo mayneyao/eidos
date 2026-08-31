@@ -683,7 +683,7 @@ describe("Eidos File 1.0 native Runtime", () => {
             name: "One hour later",
             type: "formula",
             property: {
-              formula: `DATETIME_ADD_MILLISECONDS("Starts", 3600000)`,
+              formula: `DATETIME("Starts", '+1 hour')`,
               displayType: "datetime",
             },
           },
@@ -799,6 +799,45 @@ describe("Eidos File 1.0 native Runtime", () => {
           title: "Selected order",
           value: 14,
         },
+      ])
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("formats reading duration with the SQLite Formula profile", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Books",
+        fields: [
+          { name: "Title", type: "text", isRecordLabel: true },
+          { name: "Reading seconds", type: "integer" },
+        ],
+      },
+    })
+    try {
+      const schema = runtime.schema()[0]!
+      const title = schema.fields.find((field) => field.name === "Title")!
+      const seconds = schema.fields.find(
+        (field) => field.name === "Reading seconds"
+      )!
+      runtime.insertRow(schema.table.id, {
+        [title.tableColumnName]: "Example",
+        [seconds.tableColumnName]: 309_299,
+      })
+
+      expect(
+        runtime.previewFormula(schema.table.id, {
+          name: "Reading duration",
+          columnName: "reading_duration",
+          formula: `IIF("Reading seconds" IS NULL, NULL, FORMAT('%d小时%d分钟', FLOOR("Reading seconds" / 3600), ROUND(("Reading seconds" % 3600) / 60)))`,
+          displayType: "text",
+        }).samples
+      ).toEqual([
+        expect.objectContaining({
+          title: "Example",
+          value: "85小时55分钟",
+        }),
       ])
     } finally {
       runtime.close()

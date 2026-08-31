@@ -1721,6 +1721,15 @@ file-wide derived graph MUST acyclic。Formula Field 本身就是 graph node，�
 evaluation 可以 short-circuit 该 reference 亦然。conditional reachability 从不
 豁免 cycle。
 
+Formula 1.0 是 **Eidos SQLite 3.45 scalar-expression profile**。白名单函数与
+源自 SQLite 的 expression construct，对于允许的 argument type 使用 SQLite
+3.45 文档规定的语义；Formula 的 statically typed arithmetic 与 comparison
+仍按第 9.3 节执行。该 profile 独立于 Host 使用的 SQLite library 版本：升级
+Host 不会自动增加 Formula syntax 或 function。Runtime 解析下述固定 grammar
+并生成 SQL，绝不把 Formula source 直接作为 SQL 执行。aggregate、window、
+table-valued、connection-state、environment-dependent、non-deterministic、
+extension 与 application-defined function 均不属于该 profile。
+
 ### 9.2 Lexical grammar
 
 以下 EBNF 是 normative。quote 中的 literal text 必须精确；`{x}` 表示零次或多次，
@@ -1732,17 +1741,24 @@ or-expression  = and-expression, { "OR", and-expression } ;
 and-expression = not-expression, { "AND", not-expression } ;
 not-expression = [ "NOT" ], comparison ;
 comparison     = concatenation,
-                 [ ( "=" | "!=" | "<" | "<=" | ">" | ">=" ),
-                   concatenation ] ;
-concatenation  = additive, { "&", additive } ;
+                 [ ( ( "=" | "==" | "!=" | "<>" | "<" | "<="
+                       | ">" | ">=" ), concatenation )
+                   | ( "IS", [ "NOT" ], "NULL" ) ] ;
+concatenation  = additive, { "||", additive } ;
 additive       = multiplicative, { ( "+" | "-" ), multiplicative } ;
 multiplicative = unary, { ( "*" | "/" | "%" ), unary } ;
 unary          = [ "+" | "-" ], primary ;
 primary        = "NULL" | "TRUE" | "FALSE" | number | string
                | field-reference | function-call
+               | cast-expression | case-expression
                | "(", expression, ")" ;
 function-call  = function-name, "(", [ expression,
                  { ",", expression } ], ")" ;
+cast-expression = "CAST", "(", expression, "AS",
+                  ( "TEXT" | "INTEGER" | "REAL" ), ")" ;
+case-expression = "CASE", when-clause, { when-clause },
+                  [ "ELSE", expression ], "END" ;
+when-clause    = "WHEN", expression, "THEN", expression ;
 function-name  = ASCII-letter, { ASCII-letter | ASCII-digit | "_" } ;
 field-reference = '"', { identifier-char | '""' }, '"' ;
 string         = "'", { string-char | "''" }, "'" ;
@@ -1769,8 +1785,10 @@ binary64 overflow 的 literal 均为 `invalid-formula`；unary minus 产生的�
 Number negative zero 都规范化为 positive zero。
 
 该 grammar 不存在 comment、assignment、property/index access、array/object
-literal、subquery、SQL fragment、semicolon、user-defined function 或 implicit
-Field reference。
+literal、subquery、SQL fragment、semicolon、collation clause、user-defined
+function 或 implicit Field reference。`CAST` target name 仅限上述三个 keyword，
+不能使用任意 SQLite type name。`CASE` 仅支持 searched form；不支持
+`CASE value WHEN ...` 这种 simple form。
 
 ### 9.3 Static type 与 operator
 
@@ -1782,30 +1800,40 @@ Formula 要求 inferred non-null result type 与 `resultType` 精确相等。
 进入该 universe：`select` 与 `row-id` 变为 `text`；上述七种同名 type 保持自身。
 这同等适用于 stored/system Field 与 scalar Formula/Lookup result。
 `multi-select`、`file`、`relation`、`file-entry` 与 list TypeRef 不能作为 Formula
-operand，即使对 `IS_NULL` 也不行；引用其中任一项都是 `invalid-formula`。Formula
+operand，即使对 `IS NULL` 也不行；引用其中任一项都是 `invalid-formula`。Formula
 不能制造 `select`、`row-id`、File entry 或 list value。
 
 Type checking 从 declared result type 进行 bidirectional 推导。`NULL` literal 是
 bottom value：它接受 surrounding required type，但绝不自行选择 type。在
-operator、`IF`、`COALESCE`、`MIN` 或 `MAX` 中，non-null peer 决定其 type；
+operator、`IIF`、`COALESCE`、`MIN` 或 `MAX` 中，non-null peer 决定其 type；
 declared root type 可以流经 type-preserving construct，因此 `NULL`、
-`IF(TRUE,NULL,NULL)` 与 `COALESCE(NULL,NULL)` 对任意 declared Formula result
+`IIF(TRUE,NULL,NULL)` 与 `COALESCE(NULL,NULL)` 对任意 declared Formula result
 type 都有效。没有 expected/peer operand type 的 construct（例如
-`NULL = NULL`）是 `invalid-formula`。`IS_NULL(NULL)` 有效，因为其 argument 接受
+`NULL = NULL`）是 `invalid-formula`。`NULL IS NULL` 有效，因为其 operand 接受
 任意 type。完成该 contextual step 后，应用下述全部普通 exact-type rule。
 
-| Construct      | Accepted operands                          | Result           |
-| -------------- | ------------------------------------------ | ---------------- |
-| unary `+`, `-` | Integer or Number                          | same type        |
-| `+`, `-`, `*`  | numeric; Integer+Number promotes to Number | promoted numeric |
-| `/`            | numeric                                    | Number           |
-| `%`            | Integer, Integer                           | Integer          |
-| `&`            | text, text                                 | text             |
-| `< <= > >=`    | same sortable scalar, or mixed numeric     | checkbox         |
-| `= !=`         | same Formula type, or mixed numeric        | checkbox         |
-| `AND OR NOT`   | checkbox                                   | checkbox         |
+| Construct                | Accepted operands                          | Result           |
+| ------------------------ | ------------------------------------------ | ---------------- |
+| unary `+`, `-`           | Integer or Number                          | same type        |
+| `+`, `-`, `*`            | numeric; Integer+Number promotes to Number | promoted numeric |
+| `/`                      | numeric                                    | Number           |
+| `%`                      | Integer, Integer                           | Integer          |
+| concatenation            | any two scalar values                      | text             |
+| `< <= > >=`              | same sortable scalar, or mixed numeric     | checkbox         |
+| `= == != <>`             | same Formula type, or mixed numeric        | checkbox         |
+| `IS NULL`, `IS NOT NULL` | any scalar                                 | checkbox         |
+| `AND OR NOT`             | checkbox                                   | checkbox         |
+| `CAST(X AS TEXT)`        | any scalar                                 | text             |
+| `CAST(X AS INTEGER)`     | any scalar                                 | integer          |
+| `CAST(X AS REAL)`        | any scalar                                 | number           |
+| searched `CASE`          | checkbox condition 与同一 exact branch T   | T                |
 
-除 `IS_NULL`、`COALESCE` 与 `IF` 外，null operand 产生 null。与 Filter node 不同，
+`||`、`CAST`、`CASE`、`IS NULL` 与 `IS NOT NULL` 使用 SQLite 3.45 的 null
+与 conversion behavior。具体而言，`||` 将 non-null scalar operand 转为 text 并
+传播 null；`IS NULL` 与 `IS NOT NULL` 永不返回 null；省略 `CASE ELSE` 时结果为
+null。`CASE`、`IIF`、`COALESCE`、`IFNULL`、`AND` 与 `OR` 使用 SQLite
+short-circuit evaluation。除这些 construct 与下述 function-specific rule 外，
+null operand 产生 null。与 Filter node 不同，
 Formula Boolean operator 使用 three-valued logic：`NOT T=F`、`NOT F=T`、
 `NOT null=null`；`T AND null=null`、`F AND null=F`、`T OR null=T` 且
 `F OR null=null`。result type 为 Integer 的 Integer arithmetic 使用精确 signed
@@ -1823,42 +1851,85 @@ ties-to-even；NaN、infinity 或 negative-zero result 分别变为 null、null 
 positive zero。normalize 前 equality 把 positive zero 与 negative zero 视为
 相等；JSON equality 比较 canonical JCS text。Formula sortable type 恰好是
 text、number、integer、checkbox、date、datetime 与 URL，并使用第 5.1 节的
-order。不存在 text/numeric 或 date/datetime coercion。
+order。在 `CAST`、`||` 与有文档定义的 SQLite function signature 之外，不存在
+text/numeric 或 date/datetime coercion。
 
 ### 9.4 Function whitelist
 
-Formula 1.0 仅存在以下 ASCII-case-insensitive function：
+Formula 1.0 仅存在下列 ASCII-case-insensitive SQLite 3.45 scalar function。
+`T` 表示一个 exact Formula type，`numeric` 表示 Integer 或 Number，`scalar`
+表示任意 Formula scalar operand。下述 static signature 会限制 Formula 接受的
+SQLite call；call 一旦通过，value、null handling、conversion、indexing、
+formatting 与 error behavior 均按 SQLite 3.45 执行。
 
-| Function                      | Arguments                                    | Result and exact rule                                              |
-| ----------------------------- | -------------------------------------------- | ------------------------------------------------------------------ |
-| `IF`                          | checkbox, T, T                               | condition 为 TRUE 时取第一个 value；FALSE 或 null 时取第二个       |
-| `COALESCE`                    | 2..16 values of one T                        | 第一个 non-null，否则为 null                                       |
-| `IS_NULL`                     | any one value                                | non-null checkbox                                                  |
-| `ABS`                         | Integer or Number                            | same type；int64-min overflow/null                                 |
-| `MIN` / `MAX`                 | 2..16 of same sortable T, or mixed numeric   | typed min/max；任一 null 均传播                                    |
-| `FLOOR` / `CEIL`              | Number                                       | 可表示为 int64 时为 Integer，否则为 null                           |
-| `CONCAT`                      | 2..16 text                                   | concatenation；任一 null 均传播                                    |
-| `LENGTH`                      | text                                         | Unicode scalar value 数量的 Integer count                          |
-| `SUBSTR`                      | text, Integer start, optional Integer length | 下文定义的 Unicode-scalar slice                                    |
-| `LOWER_ASCII` / `UPPER_ASCII` | text                                         | 仅 fold ASCII letter；其他 scalar 不变                             |
-| `DATE_ADD_DAYS`               | date, Integer                                | proleptic-Gregorian date；超出 year 0001..9999 时为 null           |
-| `DATE_DIFF_DAYS`              | date, date                                   | 第一个减第二个的整 calendar day 数                                 |
-| `DATETIME_ADD_MILLISECONDS`   | datetime, Integer                            | canonical UTC instant；超出范围时为 null                           |
-| `DATETIME_DIFF_MILLISECONDS`  | datetime, datetime                           | 第一个减第二个的精确 Integer millisecond；int64 overflow 时为 null |
+| Category          | Functions                  | Formula 接受的 argument                                   | Formula result    |
+| ----------------- | -------------------------- | --------------------------------------------------------- | ----------------- |
+| null and choice   | `COALESCE`                 | 2..16 个同一 T                                            | T                 |
+| null and choice   | `IFNULL`                   | T, T                                                      | T                 |
+| null and choice   | `IIF`                      | checkbox, T, T                                            | T                 |
+| null and choice   | `NULLIF`                   | T, comparable T                                           | T                 |
+| numeric           | `ABS`                      | numeric                                                   | 同一 numeric type |
+| numeric           | `CEIL`, `CEILING`, `FLOOR` | numeric                                                   | 同一 numeric type |
+| numeric           | `ROUND`                    | numeric；可选 Integer precision                           | Number            |
+| numeric           | `SIGN`                     | numeric                                                   | Integer           |
+| scalar comparison | `MAX`, `MIN`               | 2..16 个同一 sortable T                                   | T                 |
+| text              | `CHAR`                     | 1..16 个 Integer                                          | text              |
+| text              | `CONCAT`                   | 1..16 个 scalar value                                     | text              |
+| text              | `CONCAT_WS`                | text separator，随后 1..15 个 scalar value                | text              |
+| text              | `FORMAT`, `PRINTF`         | text format，随后 0..15 个 scalar value                   | text              |
+| text              | `INSTR`                    | text, text                                                | Integer           |
+| text              | `LENGTH`, `OCTET_LENGTH`   | text                                                      | Integer           |
+| text              | `LOWER`, `UPPER`           | text                                                      | text              |
+| text              | `LTRIM`, `RTRIM`, `TRIM`   | text；可选 text character set                             | text              |
+| text              | `REPLACE`                  | text, text, text                                          | text              |
+| text              | `SUBSTR`, `SUBSTRING`      | text, Integer start；可选 Integer length                  | text              |
+| text              | `UNICODE`                  | text                                                      | Integer           |
+| pattern           | `GLOB`                     | text pattern, text value                                  | checkbox          |
+| pattern           | `LIKE`                     | text pattern, text value；可选 text escape                | checkbox          |
+| inspection        | `HEX`, `QUOTE`, `TYPEOF`   | scalar                                                    | text              |
+| date/time         | `DATE`                     | time value，随后 0..8 个 literal modifier                 | date              |
+| date/time         | `DATETIME`                 | time value，随后 0..8 个 literal modifier                 | datetime          |
+| date/time         | `TIME`                     | time value，随后 0..8 个 literal modifier                 | text              |
+| date/time         | `JULIANDAY`                | time value，随后 0..8 个 literal modifier                 | Number            |
+| date/time         | `UNIXEPOCH`                | time value，随后 0..8 个 literal modifier                 | Integer           |
+| date/time         | `STRFTIME`                 | literal format, time value，随后 0..7 个 literal modifier | text              |
+| date/time         | `TIMEDIFF`                 | time value, time value                                    | text              |
 
-`SUBSTR` 使用 zero-based scalar index。negative start 从 length 向后计数并 clamp
-到零；start 超过 length 返回 empty text。省略 length 会取余下全部。如果 length
-AST 恰好由直接应用于 positive in-range Integer literal 的 unary `-` 构成，则为
-`invalid-formula`；Runtime 不为该 rule 执行任何其他 definition-time constant
-folding。其他 expression 若求值为 negative length，则该 row 得到 null。因此
-`SUBSTR('a', 0, -1)` 无效，而 `SUBSTR('a', 0, 0 - 1)` 是有效 source，其 value
-为 null。
+SQLite indexing 原样适用：`SUBSTR`/`SUBSTRING` position 从一开始；零使用
+SQLite 文档规定的特殊行为；negative position 从末尾计数；negative length
+选择 position 之前的字符。`CONCAT` 将 non-null value 转成 text 并跳过 null，
+所有 value 均为 null 时也返回 empty text。`CONCAT_WS` 在 separator 为 null 时
+返回 null，否则跳过 null value。默认 SQLite `LOWER` 与 `UPPER` 仅 fold ASCII
+character。`FORMAT` 与 `PRINTF` 是 alias，使用 SQLite 内建 `printf()`
+formatting rule，不使用 Host locale。
 
-Date function 使用 proleptic Gregorian calendar、RFC 3339 leap-year rule，且
-没有 local timezone。whitelist 有意排除 `NOW`、`TODAY`、randomness、locale
-formatting、network/file access、regular expression、collation 与 Host UDF。
-因此 Formula evaluation 是 row、referenced canonical state 与 definition 的
-pure function。
+对于 date/time 行，time value 必须是 date 或 datetime operand、采用其中一种
+type 的 null，或 string literal。literal `now` 按 ASCII-case-insensitive 比较后
+判定为 `invalid-formula`。每个 modifier 与 `STRFTIME` format 都必须是 string
+literal。modifier `localtime`、`utc` 与 `auto` 按
+ASCII-case-insensitive 比较后均为 `invalid-formula`。`UNIXEPOCH` 还会拒绝
+`subsec` 与 `subsecond`，以保持 static result 为 Integer。不得省略 time value。这些
+限制移除了 clock、timezone 与 runtime-version dependency，同时保留 SQLite
+calendar semantics。
+
+旧 Eidos spelling 不产生任何 alias：`IF`、`IS_NULL`、`LOWER_ASCII`、
+`UPPER_ASCII`、`DATE_ADD_DAYS`、`DATE_DIFF_DAYS`、
+`DATETIME_ADD_MILLISECONDS` 与 `DATETIME_DIFF_MILLISECONDS` 均不受支持。
+`MAX` 或 `MIN` 的 aggregate/window 用法、所有 table-valued function、
+`random`、`randomblob`、`changes`、`last_insert_rowid`、`total_changes`、
+`sqlite_version`、`sqlite_source_id`、`sqlite_compileoption_get`、
+`sqlite_compileoption_used`、`sqlite_offset`、`load_extension`、`likely`、
+`likelihood`、`unlikely`、`soundex`、`unhex`、`zeroblob`、JSON function 与
+所有 Host UDF 均不属于 Formula 1.0。newer SQLite library 新增的所有 function
+也不自动进入。Formula evaluation 仍然是 row、referenced canonical state 与
+definition 的 pure function。所有 generated text 均受普通 Runtime response 与
+logical-value byte limit 约束。
+
+Runtime 构造时，Host 必须证明每个 whitelist function 都可调用。如果 SQLite build
+省略了 compile-time optional function，Host 可以在同一个官方 SQLite name 下安装
+deterministic、direct-only scalar compatibility function，但其 accepted value 与
+SQLite storage-class result 必须匹配 SQLite 3.45。完整 profile 不可用时，Runtime
+构造以 `unsupported-feature` 失败。
 
 ### 9.5 Dependency plan、evaluation 与 serializer
 
@@ -1871,7 +1942,8 @@ SQL 都是 generated state。
 
 Runtime MUST 以 set-wise 方式对 page 与 aggregate 求值。它可以编译 safe SQL
 或使用 vector batch，但不能把 user source 当作 SQL/JavaScript 执行，也不能每行
-执行一条 query。short-circuit `IF`、`AND` 与 `OR` 可避免未选择 branch 的 row
+执行一条 query。short-circuit `IIF`、`CASE`、`COALESCE`、`IFNULL`、`AND` 与
+`OR` 可避免未选择 branch 的 row
 error，但不改变 static type/dependency check。
 
 standard serializer 输出 uppercase keyword/function、canonical Integer
@@ -3424,9 +3496,9 @@ ER-Writer 还覆盖：
 
 ```json
 {
-  "formula": "IF(\"Done\", \"Amount\" + 1, 0)",
+  "formula": "IIF(\"Done\", \"Amount\" + 1, 0)",
   "renamedField": { "from": "Amount", "to": "总额" },
-  "rewritten": "IF(\"Done\", \"总额\" + 1, 0)"
+  "rewritten": "IIF(\"Done\", \"总额\" + 1, 0)"
 }
 ```
 

@@ -143,6 +143,10 @@ Use the canonical Runtime for derived Fields. Preview Formula source text
 before committing it; the result includes the inferred type, dependencies,
 diagnostics, and optional sample values:
 
+Formula uses a fixed SQLite 3.45 scalar-expression subset. See
+[Formula expressions](/user-guide/formula/) for the exact function whitelist
+and syntax; do not send arbitrary SQL or invent function aliases.
+
 ```bash
 eidos --json formula preview tracker.eidos \
   --table Tasks --name Total \

@@ -1,5 +1,6 @@
 import { EidosFileError } from "./errors"
 import { quoteIdentifier } from "./identifiers"
+import type { EidosFileConnection } from "./connection"
 import type { EidosFileFieldInfo } from "./types"
 
 export interface EidosFileFormulaReference {
@@ -21,31 +22,102 @@ export interface CompiledEidosFileFormula {
 /** Eidos File 1.0 has no prop()/props() reference syntax. */
 export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES = [] as const
 
+export const EIDOS_FILE_FORMULA_PROFILE = "sqlite-3.45" as const
+
 export const EIDOS_FILE_FORMULA_FUNCTION_NAMES = [
   "abs",
-  "coalesce",
-  "if",
-  "is_null",
-  "floor",
   "ceil",
+  "ceiling",
+  "char",
+  "coalesce",
   "concat",
+  "concat_ws",
+  "date",
+  "datetime",
+  "floor",
+  "format",
+  "glob",
+  "hex",
+  "ifnull",
+  "iif",
+  "instr",
+  "julianday",
   "length",
+  "like",
+  "lower",
+  "ltrim",
   "max",
   "min",
+  "nullif",
+  "octet_length",
+  "printf",
+  "quote",
+  "replace",
+  "round",
+  "rtrim",
+  "sign",
+  "strftime",
   "substr",
-  "lower_ascii",
-  "upper_ascii",
-  "date_add_days",
-  "date_diff_days",
-  "datetime_add_milliseconds",
-  "datetime_diff_milliseconds",
+  "substring",
+  "time",
+  "timediff",
+  "trim",
+  "typeof",
+  "unicode",
+  "unixepoch",
+  "upper",
 ] as const
 
 const ALLOWED_FUNCTIONS = new Set<string>(EIDOS_FILE_FORMULA_FUNCTION_NAMES)
-const ALLOWED_KEYWORDS = new Set(["and", "false", "not", "null", "or", "true"])
+const ALLOWED_KEYWORDS = new Set([
+  "and",
+  "as",
+  "case",
+  "cast",
+  "else",
+  "end",
+  "false",
+  "integer",
+  "is",
+  "not",
+  "null",
+  "or",
+  "real",
+  "text",
+  "then",
+  "true",
+  "when",
+])
 const MAX_FORMULA_BYTES = 4_096
 const MAX_FORMULA_NODES = 10_000
 const MAX_FORMULA_DEPTH = 256
+
+/** Fails fast when a Host SQLite build cannot execute the fixed 1.0 profile. */
+export function assertEidosFileFormulaProfile(
+  connection: EidosFileConnection
+): void {
+  try {
+    connection.get(`SELECT
+      abs(-1), ceil(1.5), ceiling(1.5), char(65), coalesce(NULL, 1),
+      concat(1, NULL, 'x'), concat_ws('-', 1, NULL, 2),
+      date('2026-01-01'), datetime('2026-01-01'), floor(1.5),
+      format('%d', 1), glob('a*', 'abc'), hex('A'), ifnull(NULL, 1),
+      iif(1, 1, 0), instr('abc', 'b'), julianday('2026-01-01'),
+      length('abc'), like('a%', 'abc'), lower('A'), ltrim(' x'),
+      max(1, 2), min(1, 2), nullif(1, 2), octet_length('😀'),
+      printf('%d', 1), quote('x'), replace('abc', 'b', 'x'), round(1.5),
+      rtrim('x '), sign(-1), strftime('%Y', '2026-01-01'),
+      substr('abc', 1, 2), substring('abc', 1, 2),
+      time('2026-01-01T12:00:00Z'),
+      timediff('2026-01-02', '2026-01-01'), trim(' x '), typeof(1),
+      unicode('A'), unixepoch('2026-01-01'), upper('a')`)
+  } catch (error) {
+    throw new EidosFileError(
+      "unsupported-feature",
+      `SQLite build does not satisfy the Eidos Formula 1.0 function profile: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
 
 function nextNonWhitespace(source: string, index: number): string | undefined {
   while (index < source.length && /\s/u.test(source[index]!)) index += 1
@@ -133,7 +205,7 @@ export function eidosFileFormulaReferences(
         index += 1
       }
       const token = source.slice(start, index).toLowerCase()
-      if (nextNonWhitespace(source, index) === "(") {
+      if (nextNonWhitespace(source, index) === "(" && token !== "cast") {
         if (!ALLOWED_FUNCTIONS.has(token)) {
           throw new EidosFileError(
             "invalid-schema",
@@ -162,7 +234,7 @@ export function eidosFileFormulaReferences(
       }
       continue
     }
-    if ("()+-*/%<>=!&,".includes(character)) {
+    if ("()+-*/%<>=!|,".includes(character)) {
       index += 1
       continue
     }
@@ -364,12 +436,12 @@ function parseExactFormula(source: string): ParsedExactFormula {
       continue
     }
     const pair = source.slice(index, index + 2)
-    if (["!=", "<=", ">="].includes(pair)) {
+    if (["!=", "<=", ">=", "==", "<>", "||"].includes(pair)) {
       tokens.push({ kind: "operator", text: pair })
       index += 2
       continue
     }
-    if ("+-*/%<>=&".includes(character)) {
+    if ("+-*/%<>=|".includes(character)) {
       tokens.push({ kind: "operator", text: character })
       index += 1
       continue
@@ -413,6 +485,64 @@ function parseExactFormula(source: string): ParsedExactFormula {
       if (canonical === "NULL") return { type: "null" }
       if (canonical === "TRUE" || canonical === "FALSE")
         return { type: "boolean", value: canonical === "TRUE" }
+      if (canonical === "CAST") {
+        if (take().kind !== "left")
+          throw new EidosFileError(
+            "invalid-formula",
+            "CAST requires an opening parenthesis"
+          )
+        const operand = expression()
+        if (!word("AS"))
+          throw new EidosFileError("invalid-formula", "CAST requires AS")
+        take()
+        const target = take()
+        const targetName = target.text.toUpperCase()
+        if (
+          target.kind !== "word" ||
+          !["TEXT", "INTEGER", "REAL"].includes(targetName)
+        ) {
+          throw new EidosFileError(
+            "invalid-formula",
+            "CAST target must be TEXT, INTEGER, or REAL"
+          )
+        }
+        if (take().kind !== "right")
+          throw new EidosFileError("invalid-formula", "CAST is missing “)”")
+        return {
+          type: "cast",
+          name: targetName.toLowerCase(),
+          operand,
+        }
+      }
+      if (canonical === "CASE") {
+        const args: ExactFormulaNode[] = []
+        while (word("WHEN")) {
+          take()
+          args.push(expression())
+          if (!word("THEN"))
+            throw new EidosFileError(
+              "invalid-formula",
+              "CASE WHEN requires THEN"
+            )
+          take()
+          args.push(expression())
+        }
+        if (args.length === 0)
+          throw new EidosFileError(
+            "invalid-formula",
+            "CASE requires at least one WHEN"
+          )
+        let hasElse = false
+        if (word("ELSE")) {
+          take()
+          args.push(expression())
+          hasElse = true
+        }
+        if (!word("END"))
+          throw new EidosFileError("invalid-formula", "CASE requires END")
+        take()
+        return { type: "case", value: hasElse, args }
+      }
       if (peek().kind !== "left") {
         throw new EidosFileError(
           "invalid-formula",
@@ -462,10 +592,26 @@ function parseExactFormula(source: string): ParsedExactFormula {
   }
   const multiplicative = () => binary(unary, ["*", "/", "%"])
   const additive = () => binary(multiplicative, ["+", "-"])
-  const concatenation = () => binary(additive, ["&"])
+  const concatenation = () => binary(additive, ["||"])
   const comparison = (): ExactFormulaNode => {
     const left = concatenation()
-    if (!operator("=", "!=", "<", "<=", ">", ">=")) return left
+    if (word("IS")) {
+      take()
+      const negate = word("NOT")
+      if (negate) take()
+      if (!word("NULL"))
+        throw new EidosFileError(
+          "invalid-formula",
+          "Formula IS only supports IS NULL and IS NOT NULL"
+        )
+      take()
+      return {
+        type: "is-null",
+        op: negate ? "IS NOT NULL" : "IS NULL",
+        operand: left,
+      }
+    }
+    if (!operator("=", "==", "!=", "<>", "<", "<=", ">", ">=")) return left
     const op = take().text
     return { type: "binary", op, left, right: concatenation() }
   }
@@ -592,6 +738,39 @@ function exactFormulaType(
     node.literal = literal
     return setFormulaType(node, literal.type)
   }
+  if (node.type === "cast") {
+    if (!node.operand)
+      throw new EidosFileError("invalid-schema", "CAST requires an operand")
+    infer(node.operand, "any")
+    const result = {
+      text: "text",
+      integer: "integer",
+      real: "number",
+    }[String(node.name)] as FormulaStaticType | undefined
+    if (!result)
+      throw new EidosFileError("invalid-schema", "Invalid CAST target")
+    return setFormulaType(node, result)
+  }
+  if (node.type === "is-null") {
+    if (!node.operand)
+      throw new EidosFileError("invalid-schema", "IS NULL requires an operand")
+    infer(node.operand, "any")
+    return setFormulaType(node, "checkbox")
+  }
+  if (node.type === "case") {
+    const args = node.args ?? []
+    const hasElse = node.value === true
+    const branchNodes: ExactFormulaNode[] = []
+    const pairLength = hasElse ? args.length - 1 : args.length
+    for (let index = 0; index < pairLength; index += 2) {
+      requireFormulaType(infer(args[index]!, "checkbox"), "checkbox", "CASE")
+      branchNodes.push(args[index + 1]!)
+    }
+    if (hasElse) branchNodes.push(args[args.length - 1]!)
+    else branchNodes.push({ type: "null" })
+    const result = inferFormulaSequence(branchNodes, fields, numbers, expected)
+    return setFormulaType(node, result)
+  }
   if (node.type === "unary") {
     if (!node.operand || !["+", "-", "NOT"].includes(String(node.op))) {
       throw new EidosFileError(
@@ -631,9 +810,9 @@ function exactFormulaType(
       requireFormulaType(infer(node.right, "checkbox"), "checkbox", op)
       return setFormulaType(node, "checkbox")
     }
-    if (op === "&") {
-      requireFormulaType(infer(node.left, "text"), "text", "&")
-      requireFormulaType(infer(node.right, "text"), "text", "&")
+    if (op === "||") {
+      infer(node.left, "any")
+      infer(node.right, "any")
       return setFormulaType(node, "text")
     }
     if (["+", "-", "*", "/", "%"].includes(op)) {
@@ -666,12 +845,16 @@ function exactFormulaType(
           : "integer"
       return setFormulaType(node, result)
     }
-    if (["=", "!=", "<", "<=", ">", ">="].includes(op)) {
+    if (["=", "==", "!=", "<>", "<", "<=", ">", ">="].includes(op)) {
       const pair = inferFormulaPair(node.left, node.right, fields, numbers)
       if (
         !pair.left ||
         !pair.right ||
-        !formulaTypesComparable(pair.left, pair.right, op)
+        !formulaTypesComparable(
+          pair.left,
+          pair.right,
+          op === "==" ? "=" : op === "<>" ? "!=" : op
+        )
       ) {
         throw new EidosFileError(
           "invalid-schema",
@@ -696,9 +879,9 @@ function exactFormulaType(
         )
       }
     }
-    if (name === "if") {
+    if (name === "iif") {
       arity(3)
-      requireFormulaType(infer(args[0]!, "checkbox"), "checkbox", "IF")
+      requireFormulaType(infer(args[0]!, "checkbox"), "checkbox", "IIF")
       const pair = inferFormulaPair(
         args[1]!,
         args[2]!,
@@ -709,31 +892,73 @@ function exactFormulaType(
       if (!pair.left || !pair.right || pair.left !== pair.right) {
         throw new EidosFileError(
           "invalid-schema",
-          "IF branches require one exact type"
+          "IIF branches require one exact type"
         )
       }
       return setFormulaType(node, pair.left)
     }
-    if (name === "coalesce") {
-      arity(2, 16)
+    if (name === "coalesce" || name === "ifnull") {
+      if (name === "ifnull") arity(2)
+      else arity(2, 16)
       const type = inferFormulaSequence(args, fields, numbers, expected)
       return setFormulaType(node, type)
     }
-    if (name === "is_null") {
-      arity(1)
-      infer(args[0]!, "any")
-      return setFormulaType(node, "checkbox")
+    if (name === "nullif") {
+      arity(2)
+      const pair = inferFormulaPair(
+        args[0]!,
+        args[1]!,
+        fields,
+        numbers,
+        expected
+      )
+      if (
+        !pair.left ||
+        !pair.right ||
+        !formulaTypesComparable(pair.left, pair.right, "=")
+      ) {
+        throw new EidosFileError(
+          "invalid-schema",
+          "NULLIF arguments have incompatible types"
+        )
+      }
+      return setFormulaType(node, pair.left)
     }
-    if (name === "abs") {
+    if (["abs", "ceil", "ceiling", "floor"].includes(name)) {
       arity(1)
       const type = infer(args[0]!, expected)
       if (!isNumericFormulaType(type))
-        throw new EidosFileError("invalid-schema", "ABS requires numeric input")
+        throw new EidosFileError(
+          "invalid-schema",
+          `${name.toUpperCase()} requires numeric input`
+        )
       return setFormulaType(node, type)
+    }
+    if (name === "round") {
+      arity(1, 2)
+      const type = infer(args[0]!, "number")
+      if (!isNumericFormulaType(type))
+        throw new EidosFileError(
+          "invalid-schema",
+          "ROUND requires numeric input"
+        )
+      if (args[1])
+        requireFormulaType(infer(args[1], "integer"), "integer", "ROUND")
+      return setFormulaType(node, "number")
+    }
+    if (name === "sign") {
+      arity(1)
+      const type = infer(args[0]!, "integer")
+      if (!isNumericFormulaType(type))
+        throw new EidosFileError(
+          "invalid-schema",
+          "SIGN requires numeric input"
+        )
+      return setFormulaType(node, "integer")
     }
     if (name === "min" || name === "max") {
       arity(2, 16)
-      const type = inferFormulaSequence(args, fields, numbers, expected, true)
+      const type = inferFormulaSequence(args, fields, numbers, expected)
       if (type === "json")
         throw new EidosFileError(
           "invalid-formula",
@@ -741,7 +966,30 @@ function exactFormulaType(
         )
       return setFormulaType(node, type)
     }
-    const signatures: Record<
+    if (name === "concat") {
+      arity(1, 16)
+      for (const argument of args) infer(argument, "any")
+      return setFormulaType(node, "text")
+    }
+    if (name === "concat_ws") {
+      arity(2, 16)
+      requireFormulaType(infer(args[0]!, "text"), "text", "CONCAT_WS")
+      for (const argument of args.slice(1)) infer(argument, "any")
+      return setFormulaType(node, "text")
+    }
+    if (name === "format" || name === "printf") {
+      arity(1, 16)
+      requireFormulaType(infer(args[0]!, "text"), "text", name)
+      for (const argument of args.slice(1)) infer(argument, "any")
+      return setFormulaType(node, "text")
+    }
+    if (name === "char") {
+      arity(1, 16)
+      for (const argument of args)
+        requireFormulaType(infer(argument, "integer"), "integer", "CHAR")
+      return setFormulaType(node, "text")
+    }
+    const fixedSignatures: Record<
       string,
       {
         args: FormulaStaticType[]
@@ -749,68 +997,130 @@ function exactFormulaType(
         optionalLast?: boolean
       }
     > = {
-      floor: { args: ["number"], result: "integer" },
-      ceil: { args: ["number"], result: "integer" },
+      glob: { args: ["text", "text"], result: "checkbox" },
+      instr: { args: ["text", "text"], result: "integer" },
       length: { args: ["text"], result: "integer" },
+      like: {
+        args: ["text", "text", "text"],
+        result: "checkbox",
+        optionalLast: true,
+      },
+      lower: { args: ["text"], result: "text" },
+      ltrim: { args: ["text", "text"], result: "text", optionalLast: true },
+      octet_length: { args: ["text"], result: "integer" },
+      replace: { args: ["text", "text", "text"], result: "text" },
+      rtrim: { args: ["text", "text"], result: "text", optionalLast: true },
       substr: {
         args: ["text", "integer", "integer"],
         result: "text",
         optionalLast: true,
       },
-      lower_ascii: { args: ["text"], result: "text" },
-      upper_ascii: { args: ["text"], result: "text" },
-      date_add_days: { args: ["date", "integer"], result: "date" },
-      date_diff_days: { args: ["date", "date"], result: "integer" },
-      datetime_add_milliseconds: {
-        args: ["datetime", "integer"],
-        result: "datetime",
+      substring: {
+        args: ["text", "integer", "integer"],
+        result: "text",
+        optionalLast: true,
       },
-      datetime_diff_milliseconds: {
-        args: ["datetime", "datetime"],
-        result: "integer",
-      },
+      trim: { args: ["text", "text"], result: "text", optionalLast: true },
+      unicode: { args: ["text"], result: "integer" },
+      upper: { args: ["text"], result: "text" },
     }
-    if (name === "concat") {
-      arity(2, 16)
-      for (const argument of args)
-        requireFormulaType(infer(argument, "text"), "text", "CONCAT")
+    const fixedSignature = fixedSignatures[name]
+    if (fixedSignature) {
+      arity(
+        fixedSignature.optionalLast
+          ? fixedSignature.args.length - 1
+          : fixedSignature.args.length,
+        fixedSignature.args.length
+      )
+      args.forEach((argument, index) =>
+        requireFormulaType(
+          infer(argument, fixedSignature.args[index]!),
+          fixedSignature.args[index]!,
+          name
+        )
+      )
+      return setFormulaType(node, fixedSignature.result)
+    }
+    if (["hex", "quote", "typeof"].includes(name)) {
+      arity(1)
+      infer(args[0]!, "any")
       return setFormulaType(node, "text")
     }
-    const signature = signatures[name]
-    if (!signature)
-      throw new EidosFileError(
-        "invalid-schema",
-        `Unsupported Formula function: ${name}`
-      )
-    arity(
-      signature.optionalLast
-        ? signature.args.length - 1
-        : signature.args.length,
-      signature.args.length
-    )
     if (
-      name === "substr" &&
-      args.length === 3 &&
-      args[2]?.type === "unary" &&
-      args[2].op === "-" &&
-      args[2].operand?.literal
+      [
+        "date",
+        "datetime",
+        "julianday",
+        "strftime",
+        "time",
+        "timediff",
+        "unixepoch",
+      ].includes(name)
     ) {
-      const literal = args[2].operand.literal
-      if (literal.type === "integer" && BigInt(literal.raw) > 0n) {
+      const timeValue = (argument: ExactFormulaNode): void => {
+        if (argument.type === "string") {
+          if (String(argument.value).toLowerCase() === "now")
+            throw new EidosFileError(
+              "invalid-formula",
+              `${name.toUpperCase()} does not allow the current-time literal`
+            )
+          return
+        }
+        const type = infer(argument, "date")
+        if (type !== "date" && type !== "datetime")
+          throw new EidosFileError(
+            "invalid-schema",
+            `${name.toUpperCase()} requires a date or datetime time value`
+          )
+      }
+      const modifier = (argument: ExactFormulaNode): void => {
+        if (argument.type !== "string")
+          throw new EidosFileError(
+            "invalid-formula",
+            `${name.toUpperCase()} modifiers must be string literals`
+          )
+        const value = String(argument.value).toLowerCase()
+        if (
+          ["localtime", "utc", "auto"].includes(value) ||
+          (name === "unixepoch" && ["subsec", "subsecond"].includes(value))
+        )
+          throw new EidosFileError(
+            "invalid-formula",
+            `${name.toUpperCase()} modifier is not deterministic`
+          )
+      }
+      if (name === "timediff") {
+        arity(2)
+        timeValue(args[0]!)
+        timeValue(args[1]!)
+        return setFormulaType(node, "text")
+      }
+      const firstTimeValue = name === "strftime" ? 1 : 0
+      arity(name === "strftime" ? 2 : 1, 9)
+      if (name === "strftime" && args[0]?.type !== "string")
         throw new EidosFileError(
           "invalid-formula",
-          "SUBSTR literal length cannot be negative"
+          "STRFTIME format must be a string literal"
         )
-      }
-    }
-    args.forEach((argument, index) =>
-      requireFormulaType(
-        infer(argument, signature.args[index]!),
-        signature.args[index]!,
-        name
+      timeValue(args[firstTimeValue]!)
+      for (const argument of args.slice(firstTimeValue + 1)) modifier(argument)
+      return setFormulaType(
+        node,
+        name === "date"
+          ? "date"
+          : name === "datetime"
+            ? "datetime"
+            : name === "julianday"
+              ? "number"
+              : name === "unixepoch"
+                ? "integer"
+                : "text"
       )
+    }
+    throw new EidosFileError(
+      "invalid-schema",
+      `Unsupported Formula function: ${name}`
     )
-    return setFormulaType(node, signature.result)
   }
   throw new EidosFileError(
     "invalid-schema",
@@ -939,6 +1249,23 @@ function compileExactFormulaNode(
       )
     return `(${resolve(field)})`
   }
+  if (node.type === "cast")
+    return `CAST((${compile(node.operand!)}) AS ${String(node.name).toUpperCase()})`
+  if (node.type === "is-null")
+    return `((${compile(node.operand!)}) ${String(node.op).toUpperCase()})`
+  if (node.type === "case") {
+    const args = node.args ?? []
+    const hasElse = node.value === true
+    const pairLength = hasElse ? args.length - 1 : args.length
+    const clauses: string[] = []
+    for (let index = 0; index < pairLength; index += 2) {
+      clauses.push(
+        `WHEN (${compile(args[index]!)}) THEN (${compile(args[index + 1]!)})`
+      )
+    }
+    if (hasElse) clauses.push(`ELSE (${compile(args[args.length - 1]!)})`)
+    return `(CASE ${clauses.join(" ")} END)`
+  }
   if (node.type === "unary") {
     const operand = compile(node.operand!)
     if (node.op === "NOT") return `(NOT (${operand}))`
@@ -952,13 +1279,14 @@ function compileExactFormulaNode(
     const right = compile(node.right!)
     const op = String(node.op).toUpperCase()
     if (op === "AND" || op === "OR") return `((${left}) ${op} (${right}))`
-    if (op === "&") return `((${left}) || (${right}))`
+    if (op === "||") return `((${left}) || (${right}))`
     if (["+", "-", "*"].includes(op)) {
       const suffix = op === "+" ? "add" : op === "-" ? "sub" : "mul"
       return `eidos_formula_${node.inferred === "integer" ? "int" : "num"}_${suffix}(${left}, ${right})`
     }
     if (op === "/") return `eidos_formula_num_div(${left}, ${right})`
     if (op === "%") return `eidos_formula_int_mod(${left}, ${right})`
+    const normalizedOp = op === "==" ? "=" : op === "<>" ? "!=" : op
     const leftType = node.left!.inferred!
     const rightType = node.right!.inferred!
     if (
@@ -973,38 +1301,15 @@ function compileExactFormulaNode(
         "<=": "lte",
         ">": "gt",
         ">=": "gte",
-      }[op]
+      }[normalizedOp]
       return `eidos_formula_numeric_${suffix}(${left}, ${right})`
     }
-    return `((${left}) COLLATE BINARY ${op} (${right}) COLLATE BINARY)`
+    return `((${left}) COLLATE BINARY ${normalizedOp} (${right}) COLLATE BINARY)`
   }
   if (node.type === "call") {
     const name = String(node.function?.name).toLowerCase()
     const args = (node.args ?? []).map(compile)
-    if (name === "if")
-      return `(CASE WHEN (${args[0]}) THEN (${args[1]}) ELSE (${args[2]}) END)`
-    if (name === "coalesce") return `coalesce(${args.join(", ")})`
-    if (name === "is_null") return `((${args[0]}) IS NULL)`
-    if (name === "abs")
-      return `eidos_formula_${node.inferred === "integer" ? "int" : "num"}_abs(${args[0]})`
-    if (name === "floor" || name === "ceil")
-      return `eidos_formula_${name}(${args[0]})`
-    if (name === "min" || name === "max") {
-      const mixed =
-        (node.args ?? []).some((arg) => arg.inferred === "number") &&
-        (node.args ?? []).some((arg) => arg.inferred === "integer")
-      return mixed
-        ? `eidos_formula_numeric_${name}(${args.join(", ")})`
-        : `${name}(${args.join(", ")})`
-    }
-    if (name === "concat")
-      return `(${args.map((arg) => `(${arg})`).join(" || ")})`
-    if (name === "length") return `eidos_formula_length(${args[0]})`
-    if (name === "substr")
-      return `eidos_formula_substr${args.length}(${args.join(", ")})`
-    if (name === "lower_ascii") return `eidos_formula_lower_ascii(${args[0]})`
-    if (name === "upper_ascii") return `eidos_formula_upper_ascii(${args[0]})`
-    return `eidos_formula_${name}(${args.join(", ")})`
+    return `${name}(${args.join(", ")})`
   }
   throw new EidosFileError(
     "invalid-schema",
@@ -1030,11 +1335,12 @@ function exactFormulaPrecedence(node: ExactFormulaNode): number {
     const op = String(node.op).toUpperCase()
     if (op === "OR") return 1
     if (op === "AND") return 2
-    if (["=", "!=", "<", "<=", ">", ">="].includes(op)) return 4
-    if (op === "&") return 5
+    if (["=", "==", "!=", "<>", "<", "<=", ">", ">="].includes(op)) return 4
+    if (op === "||") return 5
     if (op === "+" || op === "-") return 6
     return 7
   }
+  if (node.type === "is-null") return 4
   if (node.type === "unary") return node.op === "NOT" ? 3 : 8
   return 9
 }
@@ -1050,6 +1356,30 @@ function serializeExactFormulaNode(
   if (node.type === "string")
     return `'${String(node.value).replace(/'/g, "''")}'`
   if (node.type === "ref") return quoteIdentifier(String(node.name))
+  if (node.type === "cast")
+    return `CAST(${serializeExactFormulaNode(node.operand!, numbers)} AS ${String(node.name).toUpperCase()})`
+  if (node.type === "is-null") {
+    const operand = node.operand!
+    let serialized = serializeExactFormulaNode(operand, numbers)
+    if (exactFormulaPrecedence(operand) < 5) serialized = `(${serialized})`
+    return `${serialized} ${String(node.op).toUpperCase()}`
+  }
+  if (node.type === "case") {
+    const args = node.args ?? []
+    const hasElse = node.value === true
+    const pairLength = hasElse ? args.length - 1 : args.length
+    const clauses: string[] = []
+    for (let index = 0; index < pairLength; index += 2) {
+      clauses.push(
+        `WHEN ${serializeExactFormulaNode(args[index]!, numbers)} THEN ${serializeExactFormulaNode(args[index + 1]!, numbers)}`
+      )
+    }
+    if (hasElse)
+      clauses.push(
+        `ELSE ${serializeExactFormulaNode(args[args.length - 1]!, numbers)}`
+      )
+    return `CASE ${clauses.join(" ")} END`
+  }
   if (node.type === "unary") {
     const operand = node.operand!
     const specialMinimum =
@@ -1066,8 +1396,11 @@ function serializeExactFormulaNode(
   }
   if (node.type === "binary") {
     const op = String(node.op).toUpperCase()
+    const serializedOp = op === "==" ? "=" : op === "<>" ? "!=" : op
     const precedence = exactFormulaPrecedence(node)
-    const comparison = ["=", "!=", "<", "<=", ">", ">="].includes(op)
+    const comparison = ["=", "==", "!=", "<>", "<", "<=", ">", ">="].includes(
+      op
+    )
     const child = (value: ExactFormulaNode, right: boolean): string => {
       let serialized = serializeExactFormulaNode(value, numbers)
       const childPrecedence = exactFormulaPrecedence(value)
@@ -1079,7 +1412,7 @@ function serializeExactFormulaNode(
         serialized = `(${serialized})`
       return serialized
     }
-    return `${child(node.left!, false)} ${op} ${child(node.right!, true)}`
+    return `${child(node.left!, false)} ${serializedOp} ${child(node.right!, true)}`
   }
   if (node.type === "call") {
     const name = String(node.function?.name).toUpperCase()

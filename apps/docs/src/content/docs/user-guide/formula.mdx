@@ -1,0 +1,92 @@
+---
+title: Formula expressions
+description: SQLite-compatible expression syntax and the fixed Formula function whitelist.
+sidebar:
+  order: 4
+---
+
+Formula is a small, statically typed expression language, not arbitrary SQL.
+It uses quoted Field names and a fixed subset of SQLite 3.45 scalar functions.
+Runtime parses every expression and generates SQL; Formula source is never run
+as a SQL statement.
+
+## Expression syntax
+
+- Reference a Field with its exact display name: `"Reading seconds"`.
+- Use SQLite `||` for text concatenation.
+- Test null with `IS NULL` or `IS NOT NULL`.
+- Convert values with `CAST(value AS TEXT|INTEGER|REAL)`.
+- Use `IIF(condition, trueValue, falseValue)` or searched
+  `CASE WHEN condition THEN value ELSE value END`.
+- Arithmetic uses `+`, `-`, `*`, `/`, and `%`; comparisons use `=`, `==`,
+  `!=`, `<>`, `<`, `<=`, `>`, and `>=`.
+
+The declared result type must still be exactly `text`, `number`, `integer`,
+`checkbox`, `date`, `datetime`, or `url`.
+
+## Supported SQLite functions
+
+| Category        | Functions                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Null and choice | `COALESCE`, `IFNULL`, `IIF`, `NULLIF`                                                                                                                                         |
+| Numeric         | `ABS`, `CEIL`, `CEILING`, `FLOOR`, `ROUND`, `SIGN`, scalar `MAX`, scalar `MIN`                                                                                                |
+| Text            | `CHAR`, `CONCAT`, `CONCAT_WS`, `FORMAT`, `PRINTF`, `INSTR`, `LENGTH`, `OCTET_LENGTH`, `LOWER`, `UPPER`, `LTRIM`, `RTRIM`, `TRIM`, `REPLACE`, `SUBSTR`, `SUBSTRING`, `UNICODE` |
+| Pattern         | `GLOB`, `LIKE`                                                                                                                                                                |
+| Inspection      | `HEX`, `QUOTE`, `TYPEOF`                                                                                                                                                      |
+| Date and time   | `DATE`, `DATETIME`, `TIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, `TIMEDIFF`                                                                                                  |
+
+Function names are ASCII case-insensitive. Their accepted calls use SQLite
+3.45 value, null, conversion, indexing, and formatting behavior. Notable
+details:
+
+- `CONCAT` converts non-null values to text and skips nulls.
+- `SUBSTR` and `SUBSTRING` are one-based, like SQLite; negative positions and
+  lengths retain SQLite behavior.
+- Built-in `LOWER` and `UPPER` fold ASCII characters only.
+- `FORMAT` and `PRINTF` use SQLite formatting, not the device locale.
+- Date/time functions require a time value. Formats and modifiers must be
+  string literals; `now`, `localtime`, `utc`, and `auto` are rejected so
+  results do not depend on the clock, timezone, or Host SQLite version.
+  `UNIXEPOCH` also rejects `subsec` and `subsecond` so its result remains an
+  Integer.
+
+## Reading-duration example
+
+This expression formats `309299` seconds as `85小时55分钟`, rounding the
+remaining seconds to the nearest minute:
+
+```sql
+IIF(
+  "Reading seconds" IS NULL,
+  NULL,
+  FORMAT(
+    '%d小时%d分钟',
+    FLOOR("Reading seconds" / 3600),
+    ROUND(("Reading seconds" % 3600) / 60)
+  )
+)
+```
+
+Use `FLOOR` instead of `ROUND` for the minute component when you want to
+discard remaining seconds; for `309299`, that result is `85小时54分钟`.
+
+## Deliberately unsupported
+
+Formula excludes SQL statements, subqueries, aggregate/window functions,
+table-valued functions, randomness, connection-state functions, extension
+loading, JSON functions, Host-defined functions, and functions added only by a
+newer SQLite version. Former Eidos-only names such as `IF`, `IS_NULL`,
+`LOWER_ASCII`, and `DATE_ADD_DAYS` are not aliases; use the SQLite spelling
+above.
+
+When updating an older draft File, migrate expressions explicitly:
+
+| Former spelling                      | SQLite profile spelling                                     |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `IF(C, A, B)`                        | `IIF(C, A, B)`                                              |
+| `IS_NULL(X)`                         | `X IS NULL`                                                 |
+| `LOWER_ASCII(X)` / `UPPER_ASCII(X)`  | `LOWER(X)` / `UPPER(X)`                                     |
+| `DATE_ADD_DAYS(D, 7)`                | `DATE(D, '+7 days')`                                        |
+| `DATE_DIFF_DAYS(A, B)`               | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)`              |
+| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')`                        |
+| `DATETIME_DIFF_MILLISECONDS(A, B)`   | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |

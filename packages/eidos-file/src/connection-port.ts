@@ -370,7 +370,7 @@ export class ConnectionPortEidosFileConnection implements EidosFileConnection {
     this.port.registerScalar(
       { name, arity, deterministic: true, directOnly: true },
       (...values) =>
-        nativeParameterToSqlValue(operation(...values.map(sqlValueToLegacy)))
+        nativeToSqlValue(operation(...values.map(sqlValueToLegacy)))
     )
   }
 

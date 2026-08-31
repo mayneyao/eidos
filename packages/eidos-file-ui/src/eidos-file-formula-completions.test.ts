@@ -65,5 +65,10 @@ describe("Eidos File formula completions", () => {
     expect(
       eidosFileFormulaCompletions([]).find((item) => item.label === "SUBSTR")
     ).toMatchObject({ insert: "SUBSTR()", cursorOffset: -1 })
+    expect(
+      eidosFileFormulaCompletions([])
+        .filter((item) => item.kind === "syntax")
+        .map((item) => item.label)
+    ).toEqual(["CAST", "CASE", "IS NULL", "IS NOT NULL"])
   })
 })

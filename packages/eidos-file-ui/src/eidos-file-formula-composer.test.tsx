@@ -139,7 +139,7 @@ describe("EidosFileFormulaComposer", () => {
       '"Unit price"SUBSTR()'
     )
     expect(container.textContent).toContain(
-      "Returns a zero-based Unicode-scalar slice."
+      "Returns a one-based SQLite substring; negative values are supported."
     )
   })
 

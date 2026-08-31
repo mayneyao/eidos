@@ -14,6 +14,7 @@ import { EidosFileError } from "./errors"
 import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import { registerEidosFormulaFunctions } from "./formula-functions"
 import {
+  assertEidosFileFormulaProfile,
   compileEidosFileFormula,
   compileEidosFileFormulaSource,
   rewriteEidosFileFormulaFieldReferences,
@@ -1248,6 +1249,7 @@ export class EidosFileRuntime {
       value === null ? null : String(value).toUpperCase().toLowerCase()
     )
     registerEidosFormulaFunctions(connection)
+    assertEidosFileFormulaProfile(connection)
     registerEidosLookupFunctions(connection)
   }
 

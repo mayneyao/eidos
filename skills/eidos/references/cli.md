@@ -341,6 +341,20 @@ Formula result types are `text`, `number`, `integer`, `checkbox`, `date`,
 dependencies, diagnostics, and expiry; a non-dry-run command binds the commit
 to that plan and the expected revision.
 
+Formula accepts SQLite-spelled expressions (`||`, `IS NULL`, restricted
+`CAST`, `IIF`, and searched `CASE`) and this fixed SQLite 3.45 scalar function
+whitelist:
+
+```text
+ABS CEIL CEILING CHAR COALESCE CONCAT CONCAT_WS DATE DATETIME FLOOR FORMAT GLOB HEX
+IFNULL IIF INSTR JULIANDAY LENGTH LIKE LOWER LTRIM MAX MIN NULLIF OCTET_LENGTH
+PRINTF QUOTE REPLACE ROUND RTRIM SIGN STRFTIME SUBSTR SUBSTRING TIME TIMEDIFF
+TRIM TYPEOF UNICODE UNIXEPOCH UPPER
+```
+
+It does not accept arbitrary SQL, aggregate/window functions, Host UDFs, or
+former Eidos-only aliases such as `IF`, `IS_NULL`, and `DATE_ADD_DAYS`.
+
 Create, update, or delete a Lookup after the source Relation and target Field
 have stable IDs. Names are resolved by the CLI:
 

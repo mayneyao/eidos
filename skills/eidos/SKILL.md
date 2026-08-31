@@ -165,6 +165,25 @@ eidos --json formula preview data.eidos \
   --row-ids 019...
 ```
 
+Formula is a fixed SQLite 3.45 scalar-expression subset, not arbitrary SQL.
+Use `||`, `IS NULL`, `CAST(... AS TEXT|INTEGER|REAL)`, `IIF`, and searched
+`CASE`. The function whitelist is:
+
+```text
+ABS CEIL CEILING CHAR COALESCE CONCAT CONCAT_WS DATE DATETIME FLOOR FORMAT GLOB HEX
+IFNULL IIF INSTR JULIANDAY LENGTH LIKE LOWER LTRIM MAX MIN NULLIF OCTET_LENGTH
+PRINTF QUOTE REPLACE ROUND RTRIM SIGN STRFTIME SUBSTR SUBSTRING TIME TIMEDIFF
+TRIM TYPEOF UNICODE UNIXEPOCH UPPER
+```
+
+Do not invent aliases or use former Eidos-only names such as `IF`, `IS_NULL`,
+`LOWER_ASCII`, or `DATE_ADD_DAYS`. Date/time formats and modifiers must be
+string literals; clock/timezone-dependent forms are rejected. For example:
+
+```text
+FORMAT('%d小时%d分钟', FLOOR("Seconds" / 3600), ROUND(("Seconds" % 3600) / 60))
+```
+
 Create or update a Formula with Runtime type checking, dependency analysis,
 cycle detection, and revision-checked preflight/commit:
 

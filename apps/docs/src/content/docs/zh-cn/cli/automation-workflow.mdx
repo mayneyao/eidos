@@ -130,6 +130,10 @@ eidos --json rows mutate tracker.eidos \
 派生字段应使用 canonical Runtime。提交 Formula 前先预览表达式；返回结果包含推导出的类型、
 依赖字段、诊断信息以及可选的样例值：
 
+Formula 使用固定的 SQLite 3.45 scalar-expression 子集。精确 function whitelist 与
+syntax 见 [Formula 表达式](/zh-cn/user-guide/formula/)；不要提交任意 SQL，也不要自行
+创造 function alias。
+
 ```bash
 eidos --json formula preview tracker.eidos \
   --table Tasks --name Total \

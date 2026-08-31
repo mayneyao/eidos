@@ -320,6 +320,9 @@ export function assertEidosFileColumnName(columnName: string): string;
 // @public (undocumented)
 export function assertEidosFileDisplayName(name: string, label: string): string;
 
+// @public
+export function assertEidosFileFormulaProfile(connection: EidosFileConnection): void;
+
 // @public (undocumented)
 export function assertEidosFileMultiSelectHasNoDefaultOption(property: Record<string, unknown> | null | undefined): void;
 
@@ -1019,7 +1022,10 @@ export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES: readonly [];
 export const EIDOS_FILE_FORMULA_FIELDS_TABLE: "eidos__formula_fields";
 
 // @public (undocumented)
-export const EIDOS_FILE_FORMULA_FUNCTION_NAMES: readonly ["abs", "coalesce", "if", "is_null", "floor", "ceil", "concat", "length", "max", "min", "substr", "lower_ascii", "upper_ascii", "date_add_days", "date_diff_days", "datetime_add_milliseconds", "datetime_diff_milliseconds"];
+export const EIDOS_FILE_FORMULA_FUNCTION_NAMES: readonly ["abs", "ceil", "ceiling", "char", "coalesce", "concat", "concat_ws", "date", "datetime", "floor", "format", "glob", "hex", "ifnull", "iif", "instr", "julianday", "length", "like", "lower", "ltrim", "max", "min", "nullif", "octet_length", "printf", "quote", "replace", "round", "rtrim", "sign", "strftime", "substr", "substring", "time", "timediff", "trim", "typeof", "unicode", "unixepoch", "upper"];
+
+// @public (undocumented)
+export const EIDOS_FILE_FORMULA_PROFILE: "sqlite-3.45";
 
 // @public (undocumented)
 export const EIDOS_FILE_LOOKUP_FIELDS_TABLE: "eidos__lookup_fields";

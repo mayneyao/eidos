@@ -70,6 +70,7 @@ export default defineConfig({
                   items: [
                     "user-guide/eidos-file-basics",
                     "user-guide/tables-and-fields",
+                    "user-guide/formula",
                     "user-guide/records-and-editing",
                     "user-guide/views-and-querying",
                     "user-guide/import-and-export",

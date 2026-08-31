@@ -1808,6 +1808,17 @@ Table. The resulting file-wide derived graph MUST be acyclic. The Formula
 Field itself is a graph node even if evaluation could short-circuit the
 reference. Conditional reachability never excuses a cycle.
 
+Formula 1.0 is the **Eidos SQLite 3.45 scalar-expression profile**. Its
+whitelisted functions and SQLite-derived expression constructs use the
+documented SQLite 3.45 meaning for the accepted argument types. Formula's
+statically typed arithmetic and comparison rules remain those in Section 9.3.
+This profile is versioned independently of the SQLite library used by a Host:
+upgrading a Host does not add Formula syntax or functions. Runtime parses the
+fixed grammar below and generates SQL; it never executes Formula source as
+SQL. Aggregate, window, table-valued, connection-state,
+environment-dependent, non-deterministic, extension, and application-defined
+functions are outside this profile.
+
 ### 9.2 Lexical grammar
 
 This EBNF is normative. Literal text in quotes is exact; `{x}` means zero or
@@ -1819,17 +1830,24 @@ or-expression  = and-expression, { "OR", and-expression } ;
 and-expression = not-expression, { "AND", not-expression } ;
 not-expression = [ "NOT" ], comparison ;
 comparison     = concatenation,
-                 [ ( "=" | "!=" | "<" | "<=" | ">" | ">=" ),
-                   concatenation ] ;
-concatenation  = additive, { "&", additive } ;
+                 [ ( ( "=" | "==" | "!=" | "<>" | "<" | "<="
+                       | ">" | ">=" ), concatenation )
+                   | ( "IS", [ "NOT" ], "NULL" ) ] ;
+concatenation  = additive, { "||", additive } ;
 additive       = multiplicative, { ( "+" | "-" ), multiplicative } ;
 multiplicative = unary, { ( "*" | "/" | "%" ), unary } ;
 unary          = [ "+" | "-" ], primary ;
 primary        = "NULL" | "TRUE" | "FALSE" | number | string
                | field-reference | function-call
+               | cast-expression | case-expression
                | "(", expression, ")" ;
 function-call  = function-name, "(", [ expression,
                  { ",", expression } ], ")" ;
+cast-expression = "CAST", "(", expression, "AS",
+                  ( "TEXT" | "INTEGER" | "REAL" ), ")" ;
+case-expression = "CASE", when-clause, { when-clause },
+                  [ "ELSE", expression ], "END" ;
+when-clause    = "WHEN", expression, "THEN", expression ;
 function-name  = ASCII-letter, { ASCII-letter | ASCII-digit | "_" } ;
 field-reference = '"', { identifier-char | '""' }, '"' ;
 string         = "'", { string-char | "''" }, "'" ;
@@ -1856,8 +1874,10 @@ All other binary64-overflow literals are `invalid-formula`; any Number
 negative zero produced by unary minus is normalized to positive zero.
 
 No comments, assignment, property/index access, array/object literal,
-subquery, SQL fragment, semicolon, user-defined function, or implicit Field
-reference exists in this grammar.
+subquery, SQL fragment, semicolon, collation clause, user-defined function, or
+implicit Field reference exists in this grammar. `CAST` target names are the
+three keywords above, not arbitrary SQLite type names. A `CASE` is the searched
+form only; the simple `CASE value WHEN ...` form is not in the profile.
 
 ### 9.3 Static types and operators
 
@@ -1871,31 +1891,41 @@ Field enters that universe by this mapping: `select` and `row-id` become
 `text`; those seven same-named types remain themselves. This applies equally
 to stored/system Fields and scalar Formula/Lookup results. `multi-select`,
 `file`, `relation`, `file-entry`, and list TypeRefs cannot be Formula operands,
-even to `IS_NULL`; referencing one is `invalid-formula`. Formula cannot
+even to `IS NULL`; referencing one is `invalid-formula`. Formula cannot
 manufacture a `select`, `row-id`, File entry, or list value.
 
 Type checking is bidirectional from the declared result type. A `NULL` literal
 is the bottom value: it adopts a required surrounding type but never chooses a
-type by itself. A non-null peer determines it in an operator, `IF`,
+type by itself. A non-null peer determines it in an operator, `IIF`,
 `COALESCE`, `MIN`, or `MAX`; the declared root type may flow through a
-type-preserving construct, so `NULL`, `IF(TRUE,NULL,NULL)`, and
+type-preserving construct, so `NULL`, `IIF(TRUE,NULL,NULL)`, and
 `COALESCE(NULL,NULL)` are valid with any declared Formula result type. A
 construct with no expected/peer operand type, such as `NULL = NULL`, is
-`invalid-formula`. `IS_NULL(NULL)` is valid because its argument accepts any
+`invalid-formula`. `NULL IS NULL` is valid because its operand accepts any
 type. After this contextual step, all ordinary exact-type rules below apply.
 
-| Construct      | Accepted operands                          | Result           |
-| -------------- | ------------------------------------------ | ---------------- |
-| unary `+`, `-` | Integer or Number                          | same type        |
-| `+`, `-`, `*`  | numeric; Integer+Number promotes to Number | promoted numeric |
-| `/`            | numeric                                    | Number           |
-| `%`            | Integer, Integer                           | Integer          |
-| `&`            | text, text                                 | text             |
-| `< <= > >=`    | same sortable scalar, or mixed numeric     | checkbox         |
-| `= !=`         | same Formula type, or mixed numeric        | checkbox         |
-| `AND OR NOT`   | checkbox                                   | checkbox         |
+| Construct                | Accepted operands                          | Result           |
+| ------------------------ | ------------------------------------------ | ---------------- |
+| unary `+`, `-`           | Integer or Number                          | same type        |
+| `+`, `-`, `*`            | numeric; Integer+Number promotes to Number | promoted numeric |
+| `/`                      | numeric                                    | Number           |
+| `%`                      | Integer, Integer                           | Integer          |
+| concatenation            | any two scalar values                      | text             |
+| `< <= > >=`              | same sortable scalar, or mixed numeric     | checkbox         |
+| `= == != <>`             | same Formula type, or mixed numeric        | checkbox         |
+| `IS NULL`, `IS NOT NULL` | any scalar                                 | checkbox         |
+| `AND OR NOT`             | checkbox                                   | checkbox         |
+| `CAST(X AS TEXT)`        | any scalar                                 | text             |
+| `CAST(X AS INTEGER)`     | any scalar                                 | integer          |
+| `CAST(X AS REAL)`        | any scalar                                 | number           |
+| searched `CASE`          | checkbox conditions and one exact branch T | T                |
 
-Except for `IS_NULL`, `COALESCE`, and `IF`, a null operand produces null.
+`||`, `CAST`, `CASE`, `IS NULL`, and `IS NOT NULL` have SQLite 3.45 null and
+conversion behavior. In particular, `||` converts non-null scalar operands to
+text and propagates null; `IS NULL` and `IS NOT NULL` never return null; and an
+omitted `CASE ELSE` is null. `CASE`, `IIF`, `COALESCE`, `IFNULL`, `AND`, and
+`OR` use SQLite short-circuit evaluation. Other than these constructs and the
+function-specific rules below, a null operand produces null.
 Formula Boolean operators—unlike Filter nodes—use three-valued logic:
 `NOT T=F`, `NOT F=T`, `NOT null=null`; `T AND null=null`,
 `F AND null=F`, `T OR null=T`, and `F OR null=null`. Integer arithmetic whose
@@ -1915,44 +1945,89 @@ round-to-nearest, ties-to-even; a NaN, infinity, or negative-zero result is
 respectively null, null, or positive zero. Equality treats positive and
 negative zero as equal before normalization; JSON equality compares canonical
 JCS text. Formula sortable types are exactly text, number, integer, checkbox,
-date, datetime, and URL using Section 5.1 order. There is no text/numeric or
+date, datetime, and URL using Section 5.1 order. Outside `CAST`, `||`, and the
+documented SQLite function signatures, there is no text/numeric or
 date/datetime coercion.
 
 ### 9.4 Function whitelist
 
-Only these ASCII-case-insensitive functions exist in Formula 1.0:
+Only the following ASCII-case-insensitive SQLite 3.45 scalar functions exist
+in Formula 1.0. `T` means one exact Formula type, `numeric` means Integer or
+Number, and `scalar` means any Formula scalar operand. The static signatures
+below restrict which otherwise-valid SQLite calls Formula accepts; after a
+call is accepted, its value, null handling, conversion, indexing, formatting,
+and error behavior are SQLite 3.45 behavior.
 
-| Function                      | Arguments                                    | Result and exact rule                                                   |
-| ----------------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
-| `IF`                          | checkbox, T, T                               | first value when condition is TRUE; second when FALSE or null           |
-| `COALESCE`                    | 2..16 values of one T                        | first non-null, else null                                               |
-| `IS_NULL`                     | any one value                                | non-null checkbox                                                       |
-| `ABS`                         | Integer or Number                            | same type; int64-min overflow/null                                      |
-| `MIN` / `MAX`                 | 2..16 of same sortable T, or mixed numeric   | typed min/max; any null propagates                                      |
-| `FLOOR` / `CEIL`              | Number                                       | Integer when int64-representable, else null                             |
-| `CONCAT`                      | 2..16 text                                   | concatenation; any null propagates                                      |
-| `LENGTH`                      | text                                         | Integer count of Unicode scalar values                                  |
-| `SUBSTR`                      | text, Integer start, optional Integer length | Unicode-scalar slice defined below                                      |
-| `LOWER_ASCII` / `UPPER_ASCII` | text                                         | fold only ASCII letters; other scalars unchanged                        |
-| `DATE_ADD_DAYS`               | date, Integer                                | proleptic-Gregorian date or null outside year 0001..9999                |
-| `DATE_DIFF_DAYS`              | date, date                                   | first minus second in whole calendar days                               |
-| `DATETIME_ADD_MILLISECONDS`   | datetime, Integer                            | canonical UTC instant or null outside range                             |
-| `DATETIME_DIFF_MILLISECONDS`  | datetime, datetime                           | first minus second exact Integer milliseconds or null on int64 overflow |
+| Category          | Functions                  | Accepted Formula arguments                              | Formula result    |
+| ----------------- | -------------------------- | ------------------------------------------------------- | ----------------- |
+| null and choice   | `COALESCE`                 | 2..16 values of one T                                   | T                 |
+| null and choice   | `IFNULL`                   | T, T                                                    | T                 |
+| null and choice   | `IIF`                      | checkbox, T, T                                          | T                 |
+| null and choice   | `NULLIF`                   | T, comparable T                                         | T                 |
+| numeric           | `ABS`                      | numeric                                                 | same numeric type |
+| numeric           | `CEIL`, `CEILING`, `FLOOR` | numeric                                                 | same numeric type |
+| numeric           | `ROUND`                    | numeric; optional Integer precision                     | Number            |
+| numeric           | `SIGN`                     | numeric                                                 | Integer           |
+| scalar comparison | `MAX`, `MIN`               | 2..16 values of one sortable T                          | T                 |
+| text              | `CHAR`                     | 1..16 Integers                                          | text              |
+| text              | `CONCAT`                   | 1..16 scalar values                                     | text              |
+| text              | `CONCAT_WS`                | text separator, then 1..15 scalar values                | text              |
+| text              | `FORMAT`, `PRINTF`         | text format, then 0..15 scalar values                   | text              |
+| text              | `INSTR`                    | text, text                                              | Integer           |
+| text              | `LENGTH`, `OCTET_LENGTH`   | text                                                    | Integer           |
+| text              | `LOWER`, `UPPER`           | text                                                    | text              |
+| text              | `LTRIM`, `RTRIM`, `TRIM`   | text; optional text character set                       | text              |
+| text              | `REPLACE`                  | text, text, text                                        | text              |
+| text              | `SUBSTR`, `SUBSTRING`      | text, Integer start; optional Integer length            | text              |
+| text              | `UNICODE`                  | text                                                    | Integer           |
+| pattern           | `GLOB`                     | text pattern, text value                                | checkbox          |
+| pattern           | `LIKE`                     | text pattern, text value; optional text escape          | checkbox          |
+| inspection        | `HEX`, `QUOTE`, `TYPEOF`   | scalar                                                  | text              |
+| date/time         | `DATE`                     | time value, then 0..8 literal modifiers                 | date              |
+| date/time         | `DATETIME`                 | time value, then 0..8 literal modifiers                 | datetime          |
+| date/time         | `TIME`                     | time value, then 0..8 literal modifiers                 | text              |
+| date/time         | `JULIANDAY`                | time value, then 0..8 literal modifiers                 | Number            |
+| date/time         | `UNIXEPOCH`                | time value, then 0..8 literal modifiers                 | Integer           |
+| date/time         | `STRFTIME`                 | literal format, time value, then 0..7 literal modifiers | text              |
+| date/time         | `TIMEDIFF`                 | time value, time value                                  | text              |
 
-`SUBSTR` uses a zero-based scalar index. A negative start counts backward from
-length and clamps to zero; a start beyond length returns empty text. Omitted
-length consumes the remainder. A length AST consisting exactly of unary `-`
-directly applied to a positive in-range Integer literal is
-`invalid-formula`; Runtime performs no other definition-time constant folding
-for this rule. Any other expression that evaluates to a negative length yields
-null for that row. Thus `SUBSTR('a', 0, -1)` is invalid while
-`SUBSTR('a', 0, 0 - 1)` is valid source whose value is null.
+SQLite indexing applies unchanged: `SUBSTR`/`SUBSTRING` positions are
+one-based, zero has SQLite's documented special behavior, negative positions
+count from the end, and negative lengths select preceding characters.
+`CONCAT` converts non-null values to text and skips null values, including
+returning empty text when every value is null. `CONCAT_WS` returns null for a
+null separator and otherwise skips null values. Default SQLite `LOWER` and
+`UPPER` case-fold ASCII characters only. `FORMAT` and `PRINTF` are aliases and
+use SQLite's built-in `printf()` formatting rules, not a Host locale.
 
-Date functions use the proleptic Gregorian calendar with the RFC 3339 leap-year
-rules and no local timezone. The whitelist deliberately excludes `NOW`,
-`TODAY`, randomness, locale formatting, network/file access, regular
-expressions, collations, and Host UDFs. Formula evaluation is therefore a pure
-function of the row, referenced canonical state, and definition.
+For the date/time rows, a time value MUST be a date or datetime operand, a
+null adopting one of those types, or a string literal. The literal `now` is
+`invalid-formula`, ASCII-case-insensitively. Every modifier and the `STRFTIME`
+format MUST be a string literal. The modifiers `localtime`, `utc`, and `auto`
+are `invalid-formula`, ASCII-case-insensitively. `UNIXEPOCH` also rejects
+`subsec` and `subsecond` so its static result remains Integer.
+Omitting the time value is invalid. These restrictions remove clock, timezone,
+and runtime-version dependencies while retaining SQLite calendar semantics.
+
+No alias is implied by earlier Eidos spellings: `IF`, `IS_NULL`,
+`LOWER_ASCII`, `UPPER_ASCII`, `DATE_ADD_DAYS`, `DATE_DIFF_DAYS`,
+`DATETIME_ADD_MILLISECONDS`, and `DATETIME_DIFF_MILLISECONDS` are unsupported.
+Aggregate/window use of `MAX` or `MIN`, every table-valued function, `random`,
+`randomblob`, `changes`, `last_insert_rowid`, `total_changes`, `sqlite_version`,
+`sqlite_source_id`, `sqlite_compileoption_get`, `sqlite_compileoption_used`,
+`sqlite_offset`, `load_extension`, `likely`, `likelihood`, `unlikely`,
+`soundex`, `unhex`, `zeroblob`, JSON functions, and all Host UDFs are outside
+Formula 1.0. So are every function added by a newer SQLite library. Formula
+evaluation remains a pure function of the row, referenced canonical state,
+and definition. Normal Runtime response and logical-value byte limits apply to
+all generated text.
+
+At Runtime construction, the Host MUST prove that every whitelisted function
+is callable. A SQLite build that omits a compile-time optional function MAY
+install a deterministic, direct-only scalar compatibility function under the
+same official SQLite name, but its accepted values and SQLite storage-class
+result MUST match SQLite 3.45. Runtime construction fails with
+`unsupported-feature` when the complete profile is unavailable.
 
 ### 9.5 Dependency plan, evaluation, and serializer
 
@@ -1966,7 +2041,8 @@ edges, plans, and compiled SQL are generated state.
 
 Runtime MUST evaluate pages and aggregates set-wise. It may compile safe SQL
 or use vector batches, but it cannot execute user source as SQL/JavaScript and
-cannot issue one query per row. Short-circuiting `IF`, `AND`, and `OR` avoids
+cannot issue one query per row. Short-circuiting `IIF`, `CASE`, `COALESCE`,
+`IFNULL`, `AND`, and `OR` avoids
 unselected branch row errors but does not change static type/dependency checks.
 
 The standard serializer emits uppercase keywords/functions, canonical Integer
@@ -3630,9 +3706,9 @@ ER-Writer additionally covers:
 
 ```json
 {
-  "formula": "IF(\"Done\", \"Amount\" + 1, 0)",
+  "formula": "IIF(\"Done\", \"Amount\" + 1, 0)",
   "renamedField": { "from": "Amount", "to": "总额" },
-  "rewritten": "IF(\"Done\", \"总额\" + 1, 0)"
+  "rewritten": "IIF(\"Done\", \"总额\" + 1, 0)"
 }
 ```
 

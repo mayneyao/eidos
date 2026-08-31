@@ -99,19 +99,28 @@ export async function runSelfTest(): Promise<string> {
     const formulaSemantics = port.get(`SELECT
       eidos_formula_int_add(9223372036854775807, 1) AS overflow,
       eidos_formula_numeric_gt(9007199254740993, 9007199254740992.0) AS mixed,
-      eidos_formula_substr3('😀ab', 1, 2) AS substring,
-      eidos_formula_length('a' || char(0) || '😀') AS scalarLength,
-      eidos_formula_date_add_days('2024-02-28', 1) AS leapDay,
-      eidos_formula_datetime_add_milliseconds(
-        '2026-12-31T23:59:59.999Z', 1
-      ) AS instant`)
+      substr('😀ab', 2, 2) AS substring,
+      length('a' || char(0) || '😀') AS scalarLength,
+      date('2024-02-28', '+1 day') AS leapDay,
+      strftime('%Y-%m-%dT%H:%M:%fZ',
+        datetime('2026-12-31T23:00:00.000Z', '+1 hour')
+      ) AS instant,
+      format('%d小时%d分钟',
+        floor(eidos_formula_num_div(309299, 3600)),
+        round(eidos_formula_num_div(eidos_formula_int_mod(309299, 3600), 60))
+      ) AS formatted,
+      concat(85, '小时', 55, '分钟') AS concatenated,
+      floor(1.5) AS rounded`)
     expect(formulaSemantics.row).toEqual([
       { tag: "null" },
       { tag: "integer", value: "1" },
       { tag: "text", value: "ab" },
-      { tag: "integer", value: "3" },
+      { tag: "integer", value: "1" },
       { tag: "text", value: "2024-02-29" },
       { tag: "text", value: "2027-01-01T00:00:00.000Z" },
+      { tag: "text", value: "85小时55分钟" },
+      { tag: "text", value: "85小时55分钟" },
+      { tag: "real", value: 1 },
     ])
     expect(formulaSemantics.columns).toEqual([
       { name: "overflow" },
@@ -120,6 +129,9 @@ export async function runSelfTest(): Promise<string> {
       { name: "scalarLength" },
       { name: "leapDay" },
       { name: "instant" },
+      { name: "formatted" },
+      { name: "concatenated" },
+      { name: "rounded" },
     ])
     checks.push("formula-scalar-semantics")
 
@@ -160,7 +172,7 @@ export async function runSelfTest(): Promise<string> {
               kind: "formula",
               position: "3",
               definition: {
-                sourceText: "SUBSTR('😀ab', 1, 2)",
+                sourceText: "SUBSTR('😀ab', 2, 2)",
                 resultType: "text",
               },
             },
@@ -229,7 +241,7 @@ export async function runSelfTest(): Promise<string> {
           kind: "set-formula",
           fieldId: substringFieldId,
           definition: {
-            sourceText: "SUBSTR('a', 0, -1)",
+            sourceText: "SUBSTR('a', 1.5)",
             resultType: "text",
           },
         },

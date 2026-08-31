@@ -2143,7 +2143,7 @@ function buildFeatureLab(runtime) {
     name: "Next review",
     type: "formula",
     property: {
-      formula: 'DATE_ADD_DAYS("Start date", 14)',
+      formula: "DATE(\"Start date\", '+14 days')",
       displayType: "date",
     },
   })
@@ -2151,7 +2151,7 @@ function buildFeatureLab(runtime) {
     name: "Follow-up at",
     type: "formula",
     property: {
-      formula: 'DATETIME_ADD_MILLISECONDS("Review at", 3600000)',
+      formula: "DATETIME(\"Review at\", '+1 hour')",
       displayType: "datetime",
     },
   })
