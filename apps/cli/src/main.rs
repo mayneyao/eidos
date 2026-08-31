@@ -1,4 +1,5 @@
 mod app;
+mod attachment;
 mod cli;
 mod collect;
 mod error;
@@ -84,8 +85,8 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
     use crate::cli::{
-        Command, FieldCommand, FormulaCommand, LookupCommand, RelationCommand, RowCommand,
-        SkillsCommand, TableCommand, ViewCommand,
+        AttachmentCommand, Command, FieldCommand, FormulaCommand, LookupCommand, RelationCommand,
+        RowCommand, SkillsCommand, TableCommand, ViewCommand,
     };
     use clap::CommandFactory;
 
@@ -155,6 +156,28 @@ mod tests {
         assert!(matches!(
             upsert.command,
             Command::Rows(ref args) if matches!(args.command, RowCommand::Upsert(_))
+        ));
+
+        let attachment = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "attachment",
+            "import",
+            "--table",
+            "Tasks",
+            "--row",
+            "01900000-0000-7000-8000-000000000000",
+            "--field",
+            "Files",
+            "--source",
+            "/tmp/report.pdf",
+            "--expected-revision",
+            "1",
+        ]);
+        assert!(matches!(
+            attachment.command,
+            Command::Attachment(ref args)
+                if matches!(args.command, AttachmentCommand::Import(_))
         ));
 
         let context = parse_ok(&[

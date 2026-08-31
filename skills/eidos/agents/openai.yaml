@@ -1,4 +1,4 @@
 interface:
   display_name: "Eidos File"
-  short_description: "Safely read, modify, and manage .eidos files, schema, and Views"
-  default_prompt: "Use $eidos to inspect and safely update this .eidos file, its schema, or saved Views."
+  short_description: "Safely manage .eidos data, attachments, schema, and Views"
+  default_prompt: "Use $eidos to inspect and safely update this .eidos file, including its attachments, schema, or saved Views."

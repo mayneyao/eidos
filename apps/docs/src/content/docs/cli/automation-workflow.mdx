@@ -137,6 +137,38 @@ revision. The lower-level `rows add/update/delete`, `schema-apply`, and
 `view-apply` commands remain available when an Agent already owns the exact
 stable-ID mutation document.
 
+## Attachment automation
+
+Do not copy a local file and hand-build the File-field JSON. The
+`attachment import` command stages the bytes in the managed `assets/` folder, derives canonical
+metadata, updates the exact cell with a revision check, and cleans staged or
+visible files when the mutation fails:
+
+```bash
+eidos --json attachment import tracker.eidos \
+  --table Tasks --row 019... --field Files \
+  --source /absolute/path/report.pdf \
+  --expected-revision 5
+```
+
+Repeat `--source` for one atomic multi-file import. Use `--replace` only when
+the whole cell should be replaced. If a file already exists below the
+directory containing the `.eidos` file, use `attachment attach` with
+`--uri assets/name.ext` to reference it without copying.
+
+Remove exact entry IDs with `attachment detach --entry 019...`, or explicitly
+use `--all`. Detach and replace retain physical files because other records may
+still reference them. Check local paths, byte counts, media types, symlinks,
+and unreferenced managed files with:
+
+```bash
+eidos --json attachment verify tracker.eidos --diagnostics-limit 100
+```
+
+Broken references make the command exit nonzero. Orphaned assets are warnings
+and are never deleted automatically. After `stale-revision`, reload the target
+row and re-plan instead of replaying the attachment mutation.
+
 ## Runtime Formula and Lookup
 
 Use the canonical Runtime for derived Fields. Preview Formula source text

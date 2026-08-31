@@ -72,6 +72,7 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Query(args) => query(args),
         Command::Apply(args) => apply(args),
         Command::Rows(args) => rows(args),
+        Command::Attachment(args) => crate::attachment::run(args),
         Command::Validate(args) => validate_file(args),
         Command::SchemaApply(args) => schema_apply(args),
         Command::ViewApply(args) => view_apply(args),
@@ -280,7 +281,7 @@ fn ensure_eidos_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn open_file(path: &Path, writable: bool) -> Result<Connection> {
+pub(crate) fn open_file(path: &Path, writable: bool) -> Result<Connection> {
     ensure_eidos_path(path)?;
     if !path.is_file() {
         return Err(EidosError::NotFound(format!("file {}", path.display())).into());
@@ -385,6 +386,7 @@ fn inspect(FileArgs { file }: FileArgs) -> Result<CommandOutput> {
         "capabilities": {
             "query": true,
             "mutateRows": true,
+            "attachments": true,
             "mutateView": true,
             "mutateSchema": true,
             "validate": true,

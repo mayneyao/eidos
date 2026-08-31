@@ -48,6 +48,8 @@ pub enum Command {
     Apply(ApplyArgs),
     /// Add, update, or delete rows atomically.
     Rows(RowsArgs),
+    /// Import, attach, detach, or verify File-field attachments.
+    Attachment(AttachmentArgs),
     /// Validate file identity, structure, and content.
     Validate(ValidateArgs),
     /// Apply one revision-checked schema operation.
@@ -467,6 +469,98 @@ pub struct RowUpsertArgs {
     /// Validate and plan inside a transaction, then roll it back.
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentArgs {
+    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: AttachmentCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AttachmentCommand {
+    /// Copy ordinary files into the managed assets folder and update one File field.
+    Import(AttachmentImportArgs),
+    /// Attach existing relative files without copying them.
+    Attach(AttachmentAttachArgs),
+    /// Remove File entries from one cell without deleting physical files.
+    Detach(AttachmentDetachArgs),
+    /// Verify every File entry and report missing, changed, or orphaned local assets.
+    Verify(AttachmentVerifyArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentImportArgs {
+    /// Source Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Stable Row ID that receives the attachments.
+    #[arg(long)]
+    pub row: String,
+    /// File Field name or stable ID.
+    #[arg(long)]
+    pub field: String,
+    /// Ordinary source file. Repeat --source to import multiple files atomically.
+    #[arg(long = "source", required = true, num_args = 1)]
+    pub sources: Vec<PathBuf>,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: String,
+    /// Replace the cell's existing entries instead of appending.
+    #[arg(long)]
+    pub replace: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentAttachArgs {
+    /// Source Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Stable Row ID that receives the attachments.
+    #[arg(long)]
+    pub row: String,
+    /// File Field name or stable ID.
+    #[arg(long)]
+    pub field: String,
+    /// Relative URI resolved from the directory containing the .eidos file. Repeat as needed.
+    #[arg(long = "uri", required = true, num_args = 1)]
+    pub uris: Vec<String>,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: String,
+    /// Replace the cell's existing entries instead of appending.
+    #[arg(long)]
+    pub replace: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentDetachArgs {
+    /// Source Table name or stable ID.
+    #[arg(long)]
+    pub table: String,
+    /// Stable Row ID whose File entries are removed.
+    #[arg(long)]
+    pub row: String,
+    /// File Field name or stable ID.
+    #[arg(long)]
+    pub field: String,
+    /// File-entry UUIDv7 to remove. Repeat --entry to remove multiple entries atomically.
+    #[arg(long = "entry", num_args = 1, conflicts_with = "all")]
+    pub entry_ids: Vec<String>,
+    /// Remove every entry from the selected cell.
+    #[arg(long, conflicts_with = "entry_ids")]
+    pub all: bool,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: String,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentVerifyArgs {
+    /// Maximum number of diagnostics returned. Counts always cover the full scan.
+    #[arg(long, default_value_t = 100)]
+    pub diagnostics_limit: usize,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -1110,6 +1204,7 @@ const COMMANDS: &[&str] = &[
     "query",
     "apply",
     "rows",
+    "attachment",
     "validate",
     "schema-apply",
     "view-apply",
@@ -1170,6 +1265,10 @@ fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
         (
             "rows",
             ["add", "update", "delete", "mutate", "upsert"].as_slice(),
+        ),
+        (
+            "attachment",
+            ["import", "attach", "detach", "verify"].as_slice(),
         ),
         ("table", ["create", "rename", "delete"].as_slice()),
         ("field", ["add", "rename", "delete"].as_slice()),

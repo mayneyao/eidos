@@ -18,6 +18,7 @@ const files = {
   publishDockerfile: "apps/eidos-publish/container/Dockerfile",
   skillsModule: "apps/cli/src/skills.rs",
   skill: "skills/eidos/SKILL.md",
+  skillAttachmentsReference: "skills/eidos/references/attachments.md",
   skillCliReference: "skills/eidos/references/cli.md",
   skillOperationsReference: "skills/eidos/references/operations.md",
   cliReadme: "apps/cli/README.md",
@@ -173,6 +174,7 @@ test("public Eidos Skill stays complete and is bundled with every CLI build", as
     latest,
     readme,
     skill,
+    attachmentsReference,
     cliReference,
     operationsReference,
     skillsModule,
@@ -182,6 +184,7 @@ test("public Eidos Skill stays complete and is bundled with every CLI build", as
     read(files.latest),
     read(files.cliReadme),
     read(files.skill),
+    read(files.skillAttachmentsReference),
     read(files.skillCliReference),
     read(files.skillOperationsReference),
     read(files.skillsModule),
@@ -193,7 +196,9 @@ test("public Eidos Skill stays complete and is bundled with every CLI build", as
   assert.match(skill, /^---\nname: eidos\ndescription: .+\n---/u)
   assert.match(skill, /eidos --version/u)
   assert.match(skill, /references\/cli\.md/u)
+  assert.match(skill, /references\/attachments\.md/u)
   assert.match(skill, /references\/operations\.md/u)
+  assert.ok(attachmentsReference.trim().length > 0)
   assert.ok(cliReference.trim().length > 0)
   assert.ok(operationsReference.trim().length > 0)
   assert.match(readme, /eidos skills init --global/u)
@@ -203,6 +208,7 @@ test("public Eidos Skill stays complete and is bundled with every CLI build", as
     /include_str!\("\.\.\/\.\.\/\.\.\/skills\/eidos\/SKILL\.md"\)/u
   )
   assert.match(skillsModule, /references\/cli\.md/u)
+  assert.match(skillsModule, /references\/attachments\.md/u)
   assert.match(skillsModule, /references\/operations\.md/u)
   assert.match(
     publishDockerfile,

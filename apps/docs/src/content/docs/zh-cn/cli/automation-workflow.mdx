@@ -125,6 +125,34 @@ eidos --json rows mutate tracker.eidos \
 需要查看计划时添加 `--dry-run`。当智能体已经掌握完整的 stable ID mutation document
 时，仍可使用低层的 `rows add/update/delete`、`schema-apply` 和 `view-apply`。
 
+## 附件自动化
+
+不要先复制本地文件、再手工拼 File 字段 JSON。`attachment import` 会把字节暂存到受管的
+`assets/` 目录，生成规范的 ID、媒体类型、文件大小和 URI，在 revision 检查下更新精确单元格；
+如果修改失败，还会清理暂存文件和已经暴露的目标文件：
+
+```bash
+eidos --json attachment import tracker.eidos \
+  --table Tasks --row 019... --field Files \
+  --source /absolute/path/report.pdf \
+  --expected-revision 5
+```
+
+重复 `--source` 可以在一次 revision 中导入多个文件。只有需要替换整个单元格时才添加
+`--replace`。如果文件已经位于 `.eidos` 文件所在目录之下，可使用 `attachment attach` 并传入
+`--uri assets/name.ext` 原地关联，不再复制。
+
+使用 `attachment detach --entry 019...` 删除精确 entry ID，或显式使用 `--all`。detach 与
+replace 都会保留物理文件，因为其他记录可能仍引用它。下面的命令可检查本地路径、字节数、
+媒体类型、软链接以及未引用的受管文件：
+
+```bash
+eidos --json attachment verify tracker.eidos --diagnostics-limit 100
+```
+
+引用损坏时命令返回非零状态。孤儿文件只作为 warning 报告，CLI 不会自动删除。遇到
+`stale-revision` 时，应重新读取目标记录并重新规划，不能直接重放旧的附件修改。
+
 ## Runtime Formula 与 Lookup
 
 派生字段应使用 canonical Runtime。提交 Formula 前先预览表达式；返回结果包含推导出的类型、

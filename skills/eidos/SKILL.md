@@ -1,11 +1,11 @@
 ---
 name: eidos
-description: Safely inspect, query, validate, and modify open `.eidos` structured-data files and saved Views with the agent-first Rust `eidos` CLI. Use for any request that reads or changes an Eidos File, including tables, rows, fields, filters, relations, Views, task trackers, and revision conflicts. Never use raw SQLite writes.
+description: Safely inspect, query, validate, and modify open `.eidos` structured-data files, attachments, and saved Views with the agent-first Rust `eidos` CLI. Use for any request that reads or changes an Eidos File, including tables, rows, File fields, filters, relations, Views, task trackers, and revision conflicts. Never use raw SQLite writes.
 ---
 
 # Eidos File
 
-Use `eidos` as the typed transaction boundary for `.eidos` files. Use ordinary filesystem tools for Markdown and attachments, and Graft for history or sync when an enclosing directory has `.graft`.
+Use `eidos` as the typed transaction boundary for `.eidos` files and their File-field attachments. Use ordinary filesystem tools for standalone Markdown, and Graft for history or sync when an enclosing directory has `.graft`.
 
 Before the first operation, run `eidos --version`. If the command is unavailable, stop and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request.
 
@@ -86,6 +86,32 @@ eidos --json rows mutate data.eidos \
 Both commands support `--dry-run`; planned create IDs are ephemeral. Use
 `rows add/update/delete` when the request already owns exact Row IDs or needs
 the existing per-operation interface.
+
+## Manage attachments through the CLI
+
+Never copy a local attachment and then hand-build its File entry. Use
+`attachment import` so the CLI owns the portable name, `assets/` destination,
+UUIDv7, media type, byte count, rollback, and revision-checked cell update:
+
+```bash
+eidos --json attachment import data.eidos \
+  --table Tasks --row 019... --field Files \
+  --source /absolute/path/report.pdf \
+  --expected-revision 4
+```
+
+Repeat `--source` to import several files in one revision. Add `--replace` only
+when the user intends to replace every existing entry in that cell; detached
+physical files are retained. Use `attachment attach --uri assets/name.ext`
+only for a file that already exists under the directory containing the
+`.eidos` file. Use `attachment detach --entry <entry-id>` to remove references,
+and `attachment verify` to detect missing, changed, unsafe, conflicting, or
+orphaned local assets.
+
+Do not delete a physical asset merely because one entry was detached; another
+row may still reference it. Read [references/attachments.md](references/attachments.md)
+whenever the request adds, replaces, removes, moves, verifies, or repairs File
+Field attachments.
 
 ## Create and manage Views by intent
 

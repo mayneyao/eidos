@@ -11,6 +11,7 @@
 - [Atomic matched update](#atomic-matched-update)
 - [Row mutations](#row-mutations)
 - [Agent-facing row commands](#agent-facing-row-commands)
+- [Attachment commands](#attachment-commands)
 - [Agent-facing schema commands](#agent-facing-schema-commands)
 - [Runtime Formula and Lookup commands](#runtime-formula-and-lookup-commands)
 - [Schema mutations](#schema-mutations)
@@ -274,6 +275,40 @@ The changes use the Runtime `RowChange` shape and commit atomically. Add
 `--dry-run` to inspect the result while rolling back the transaction. Use the
 existing `rows add/update/delete` commands when separate operations or exact
 Row IDs are already part of the caller's plan.
+
+## Attachment commands
+
+Use the attachment commands for local File-field resources instead of writing
+entry JSON through `rows update`:
+
+```bash
+eidos --json attachment import file.eidos \
+  --table Tasks --row 019... --field Files \
+  --source /absolute/path/report.pdf \
+  --expected-revision 8
+
+eidos --json attachment attach file.eidos \
+  --table Tasks --row 019... --field Files \
+  --uri assets/existing.pdf \
+  --expected-revision 9
+
+eidos --json attachment detach file.eidos \
+  --table Tasks --row 019... --field Files \
+  --entry 019... \
+  --expected-revision 10
+
+eidos --json attachment verify file.eidos --diagnostics-limit 100
+```
+
+`import` and `attach` append by default and accept repeated `--source` or
+`--uri` flags. `--replace` replaces the entire selected cell but retains the
+old physical files. `detach` accepts repeated `--entry` values or `--all` and
+also retains physical files. `verify` scans all File Fields plus the managed
+`assets/` tree; it exits nonzero for broken references and reports unreferenced
+managed files as warnings.
+
+See [attachments.md](attachments.md) for the storage model, rollback behavior,
+path restrictions, limits, and recovery rules.
 
 ## Agent-facing schema commands
 
@@ -588,4 +623,8 @@ Errors use this shape:
 { "error": { "code": "stale-revision", "message": "..." } }
 ```
 
-Important codes include `invalid-request`, `invalid-value`, `invalid-query`, `not-found`, `conflict`, `stale-revision`, and `validation-failed`. Treat all as terminal for the attempted mutation. Re-inspect and re-plan after `stale-revision`; do not replay the old write automatically.
+Important codes include `invalid-request`, `invalid-value`, `invalid-query`,
+`not-found`, `conflict`, `stale-revision`, `attachment-error`, and
+`validation-failed`. Treat all as terminal for the attempted mutation.
+Re-inspect and re-plan after `stale-revision`; do not replay the old write
+automatically.

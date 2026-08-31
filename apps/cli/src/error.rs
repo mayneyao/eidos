@@ -41,6 +41,14 @@ impl AppError {
         }
     }
 
+    pub fn attachment(message: impl Into<String>) -> Self {
+        Self {
+            code: "attachment-error",
+            message: message.into(),
+            current_revision: None,
+        }
+    }
+
     pub fn runtime(
         code: &str,
         message: impl Into<String>,

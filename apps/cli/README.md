@@ -11,6 +11,7 @@ default, and does not require a running Eidos application.
 - Query rows through the Eidos query model rather than raw SQL.
 - Apply atomic row, saved View, and schema mutations with optimistic revision checks.
 - Upsert rows by stored business keys and apply mixed row batches atomically.
+- Import, attach, detach, and verify File-field attachments without hand-building metadata.
 - Create and update standard Views from user-facing Table and Field names.
 - Create, rename, and delete Tables and Fields, and create forward Relations from user-facing intent.
 - Preview and manage Formula and Lookup Fields through the canonical Runtime.
@@ -22,8 +23,8 @@ default, and does not require a running Eidos application.
 - Initialize the bundled Agent Skill for a Space/project or the current user.
 
 The CLI does not manage Space lifecycle, ordinary documents, application RPC,
-version history, or Sync. Use ordinary file tools for text and attachments,
-and Graft for history or Sync.
+version history, or Sync. Use ordinary file tools for standalone text,
+`eidos attachment` for Eidos File attachments, and Graft for history or Sync.
 
 ## Install
 
@@ -155,6 +156,22 @@ target/debug/eidos tracker.eidos rows add Tasks \
 
 target/debug/eidos tracker.eidos validate --level full
 ```
+
+Use the attachment intent commands for File Fields. They own file staging,
+portable collision names, metadata, revision checks, and rollback:
+
+```bash
+target/debug/eidos --json attachment import tracker.eidos \
+  --table Tasks --row 019... --field Files \
+  --source /absolute/path/report.pdf \
+  --expected-revision 2
+
+target/debug/eidos --json attachment verify tracker.eidos
+```
+
+`attachment attach` references a verified file that is already below the
+`.eidos` file's directory. `attachment detach` removes exact File-entry IDs
+but deliberately retains physical files.
 
 Create standard Views directly from user-facing names. The command resolves
 stable IDs, applies type-specific defaults, and can show the exact plan with
@@ -418,6 +435,7 @@ in [Publish a file](../docs/src/content/docs/cli/publish.mdx).
 - `apply` validates the proposed final state before committing matched updates.
 - `rows upsert` resolves stored business keys and plans create/update actions in one transaction.
 - `rows mutate` applies mixed RowChange batches atomically, with `--dry-run` rollback support.
+- `attachment import/attach/detach` performs revision-checked File-field changes; `attachment verify` checks external local assets.
 - `schema-apply --dry-run` executes and rolls back the exact schema transaction.
 - Runtime-backed lossy Formula/Lookup deletes require `--confirm-lossy` on the real commit.
 - `view create/update/delete --dry-run` resolves intent and rolls back the exact View transaction.

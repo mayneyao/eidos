@@ -140,6 +140,341 @@ fn agent_can_create_query_mutate_and_validate_a_file() {
 }
 
 #[test]
+fn agent_can_import_attach_detach_and_verify_attachments() {
+    let dir = tempfile::tempdir().unwrap();
+    let file_path = dir.path().join("library.eidos");
+    let file = path_string(&file_path);
+    let source = dir.path().join("report.pdf");
+    fs::write(&source, b"%PDF-1.7\nfixture").unwrap();
+
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Items",
+        "--label-field",
+        "Title",
+        "--fields",
+        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Files","type":"file"}]"#,
+    ]);
+    let added = success(&[
+        &file,
+        "rows",
+        "add",
+        "Items",
+        "--expected-revision",
+        "1",
+        "--values",
+        r#"{"Title":"Spec"}"#,
+    ]);
+    let row_id = added["created"][0]["rowId"].as_str().unwrap();
+
+    let imported = success(&[
+        &file,
+        "attachment",
+        "import",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--source",
+        &path_string(&source),
+        "--expected-revision",
+        "2",
+    ]);
+    assert_eq!(imported["revision"], "3");
+    assert_eq!(imported["entries"][0]["mediaType"], "application/pdf");
+    assert_eq!(imported["entries"][0]["uri"], "assets/report.pdf");
+    assert_eq!(imported["assets"][0]["copied"], true);
+    assert_eq!(
+        fs::read(dir.path().join("assets/report.pdf")).unwrap(),
+        b"%PDF-1.7\nfixture"
+    );
+    let imported_id = imported["entries"][0]["id"].as_str().unwrap();
+
+    fs::write(dir.path().join("assets/existing.txt"), b"notes").unwrap();
+    let attached = success(&[
+        "attachment",
+        "attach",
+        &file,
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--uri",
+        "assets/existing.txt",
+        "--expected-revision",
+        "3",
+    ]);
+    assert_eq!(attached["revision"], "4");
+    assert_eq!(attached["entries"][0]["mediaType"], "text/plain");
+    assert_eq!(attached["assets"][0]["copied"], false);
+
+    let verified = success(&[&file, "attachment", "verify"]);
+    assert_eq!(verified["valid"], true);
+    assert_eq!(verified["summary"]["local"], 2);
+    assert_eq!(verified["summary"]["orphaned"], 0);
+
+    let detached = success(&[
+        &file,
+        "attachment",
+        "detach",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--entry",
+        imported_id,
+        "--expected-revision",
+        "4",
+    ]);
+    assert_eq!(detached["revision"], "5");
+    assert_eq!(detached["physicalFilesRetained"], true);
+    assert!(dir.path().join("assets/report.pdf").is_file());
+
+    let verified = success(&[&file, "attachment", "verify"]);
+    assert_eq!(verified["valid"], true);
+    assert_eq!(verified["summary"]["orphaned"], 1);
+    assert_eq!(verified["summary"]["warnings"], 1);
+    assert_eq!(verified["diagnostics"][0]["code"], "orphaned-asset");
+
+    let queried = success(&[&file, "query", "Items"]);
+    assert_eq!(queried["rows"][0]["Files"].as_array().unwrap().len(), 1);
+    assert_eq!(queried["rows"][0]["Files"][0]["uri"], "assets/existing.txt");
+
+    let replaced = success(&[
+        &file,
+        "attachment",
+        "import",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--source",
+        &path_string(&source),
+        "--expected-revision",
+        "5",
+        "--replace",
+    ]);
+    assert_eq!(replaced["revision"], "6");
+    assert_eq!(replaced["mode"], "replace");
+    assert_eq!(replaced["detached"][0]["uri"], "assets/existing.txt");
+    assert_eq!(replaced["detachedPhysicalFilesRetained"], true);
+    assert_eq!(replaced["entries"][0]["uri"], "assets/report%20(2).pdf");
+    assert!(dir.path().join("assets/existing.txt").is_file());
+}
+
+#[test]
+fn attachment_import_cleans_stages_and_visible_assets_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let file_path = dir.path().join("rollback.eidos");
+    let file = path_string(&file_path);
+    let source = dir.path().join("source.txt");
+    fs::write(&source, b"source").unwrap();
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Items",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Files","type":"file"}]"#,
+    ]);
+    let added = success(&[
+        &file,
+        "rows",
+        "add",
+        "Items",
+        "--expected-revision",
+        "1",
+        "--values",
+        r#"{"Title":"One"}"#,
+    ]);
+    let row_id = added["created"][0]["rowId"].as_str().unwrap();
+
+    let stale = run_json(&[
+        &file,
+        "attachment",
+        "import",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--source",
+        &path_string(&source),
+        "--expected-revision",
+        "1",
+    ]);
+    assert_eq!(stale.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&stale.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "stale-revision");
+    assert!(!dir.path().join("assets").exists());
+
+    let unsafe_uri = run_json(&[
+        &file,
+        "attachment",
+        "attach",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--uri",
+        "../source.txt",
+        "--expected-revision",
+        "2",
+    ]);
+    assert_eq!(unsafe_uri.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&unsafe_uri.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "invalid-request");
+    assert_eq!(success(&[&file, "inspect"])["revision"], "2");
+}
+
+#[test]
+fn attachment_verify_reports_local_metadata_drift() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("drift.eidos"));
+    let source = dir.path().join("cover.png");
+    fs::write(&source, [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]).unwrap();
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Items",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Cover","type":"file"}]"#,
+    ]);
+    let added = success(&[
+        &file,
+        "rows",
+        "add",
+        "Items",
+        "--expected-revision",
+        "1",
+        "--values",
+        r#"{"Title":"One"}"#,
+    ]);
+    let row_id = added["created"][0]["rowId"].as_str().unwrap();
+    success(&[
+        &file,
+        "attachment",
+        "import",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Cover",
+        "--source",
+        &path_string(&source),
+        "--expected-revision",
+        "2",
+    ]);
+
+    fs::write(dir.path().join("assets/cover.png"), b"%PDF-1.7\nchanged").unwrap();
+    let verify = run_json(&[&file, "attachment", "verify"]);
+    assert_eq!(verify.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&verify.stdout).unwrap();
+    assert_eq!(report["valid"], false);
+    let codes = report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|diagnostic| diagnostic["code"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(codes.contains(&"size-mismatch"));
+    assert!(codes.contains(&"media-type-mismatch"));
+
+    fs::remove_file(dir.path().join("assets/cover.png")).unwrap();
+    let verify = run_json(&[&file, "attachment", "verify"]);
+    assert_eq!(verify.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&verify.stdout).unwrap();
+    assert_eq!(report["diagnostics"][0]["code"], "unavailable-local-asset");
+}
+
+#[cfg(unix)]
+#[test]
+fn attachment_commands_reject_symlink_sources_and_targets() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("symlink.eidos"));
+    let source = dir.path().join("source.txt");
+    let linked_source = dir.path().join("linked-source.txt");
+    fs::write(&source, b"source").unwrap();
+    symlink(&source, &linked_source).unwrap();
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Items",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Files","type":"file"}]"#,
+    ]);
+    let added = success(&[
+        &file,
+        "rows",
+        "add",
+        "Items",
+        "--expected-revision",
+        "1",
+        "--values",
+        r#"{"Title":"One"}"#,
+    ]);
+    let row_id = added["created"][0]["rowId"].as_str().unwrap();
+
+    let imported = run_json(&[
+        &file,
+        "attachment",
+        "import",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--source",
+        &path_string(&linked_source),
+        "--expected-revision",
+        "2",
+    ]);
+    assert_eq!(imported.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&imported.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "attachment-error");
+
+    symlink(&source, dir.path().join("assets/linked.txt")).unwrap();
+    let attached = run_json(&[
+        &file,
+        "attachment",
+        "attach",
+        "--table",
+        "Items",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--uri",
+        "assets/linked.txt",
+        "--expected-revision",
+        "2",
+    ]);
+    assert_eq!(attached.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&attached.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "attachment-error");
+    assert_eq!(success(&[&file, "inspect"])["revision"], "2");
+}
+
+#[test]
 fn agent_can_create_a_calendar_view_from_stable_schema_ids() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("calendar.eidos"));
@@ -1070,6 +1405,7 @@ fn agent_skill_can_be_initialized_in_a_space_without_npx() {
     for relative in [
         "SKILL.md",
         "agents/openai.yaml",
+        "references/attachments.md",
         "references/cli.md",
         "references/operations.md",
     ] {
