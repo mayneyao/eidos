@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-file",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "Independent SQLite-backed runtime for the open Eidos File format",
   "type": "module",
   "main": "./dist/index.mjs",
