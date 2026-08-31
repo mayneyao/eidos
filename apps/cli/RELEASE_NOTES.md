@@ -1,11 +1,18 @@
 ## What's new
 
-### Keep attachments visible after restarting Serve
+### Use standard SQLite functions in Formula fields
 
-When `eidos serve` restarts on the same address, an already-open browser now
-detects the new Serve process, reopens its Runtime session, and reloads asset
-capabilities automatically. Attachments render again without manually
-refreshing the page, including after restarting Serve with `--assets-dir`.
+Formula fields now use a fixed SQLite 3.45 profile of 41 deterministic scalar
+functions. The Runtime and the editor opened by `eidos serve` share the same
+allowlist, validation, type inference, and autocomplete, so Formula expressions
+remain portable across supported SQLite hosts.
+
+This release removes the earlier Eidos-only function names. Before upgrading a
+file that uses them, replace `IF` with `IIF`, `IS_NULL(value)` with
+`value IS NULL`, and `LOWER_ASCII` / `UPPER_ASCII` with `LOWER` / `UPPER`.
+Rewrite the old date and datetime helper functions with SQLite `DATE`,
+`DATETIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, or `TIMEDIFF` expressions;
+date/time modifiers must be string literals.
 
 ## Use with an Agent
 
@@ -31,5 +38,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.39.1 and verify the downloaded archive against the
+The installers select v1.0.0 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.

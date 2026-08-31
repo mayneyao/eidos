@@ -1,29 +1,15 @@
 ## What's new
 
-### Rename Select options with an impact review
+### Use standard SQLite functions in Formula fields
 
-Select and Multi-select options can now be renamed without leaving existing
-records or Saved Views behind. Before applying a rename, Eidos Lite shows how
-many rows and dependencies will change and asks for confirmation when values
-must be rewritten or merged.
+Formula fields now use a fixed SQLite 3.45 profile of 41 deterministic scalar
+functions. The Formula editor and Runtime share the same allowlist, validation,
+type inference, and autocomplete, keeping expressions portable across Eidos
+Lite, Eidos File Web, and the standalone Runtime.
 
-### Arrange the workspace around your task
-
-The main workspace now keeps navigation, the active file, Version History, and
-Terminal panels in a more stable layout. Terminal placement remains
-configurable, diff navigation no longer shifts as panels change, and externally
-updated Eidos Files refresh without reopening the Space.
-
-### Return keyboard focus where you expect
-
-Leaving a menu with Escape restores the last active Grid cell. The configurable
-file-content focus command now places an editable caret in Source documents and
-preserves an existing selection when focus returns.
-
-### Keep open files stable during version operations
-
-Restoring History and creating automatic checkpoints now coordinate open-file
-reads with Runtime restarts. Busy workspaces can keep several Eidos Files open
-without intermittent closed-Runtime errors while version operations finish.
-
-No migration is required.
+This release removes the earlier Eidos-only function names. Before upgrading a
+file that uses them, replace `IF` with `IIF`, `IS_NULL(value)` with
+`value IS NULL`, and `LOWER_ASCII` / `UPPER_ASCII` with `LOWER` / `UPPER`.
+Rewrite the old date and datetime helper functions with SQLite `DATE`,
+`DATETIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, or `TIMEDIFF` expressions;
+date/time modifiers must be string literals.
