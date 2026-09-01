@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { EidosFileRelationValue } from "@eidos.space/eidos-file"
-import { encodeEidosFileRelationIds } from "@eidos.space/eidos-file"
+import {
+  decodeEidosFileRelationIds,
+  encodeEidosFileRelationIds,
+} from "@eidos.space/eidos-file"
 import {
   GridCellKind,
   type CustomCell,
@@ -272,7 +275,21 @@ export const EidosFileRelationCellRenderer: CustomRenderer<EidosFileRelationCell
       ),
     draw: (args) => drawDrilldownCell(args, args.cell.data.values),
     provideEditor: () => eidosFileGridPopupEditor(EidosFileRelationCellEditor),
-    onPaste: () => undefined,
+    onPaste: (value, data) => {
+      try {
+        const ids = decodeEidosFileRelationIds(value)
+        if (!data.multiple && ids.length > 1) return undefined
+        const titleById = new Map(
+          data.values.map((entry) => [entry.id, entry.title])
+        )
+        return {
+          ...data,
+          values: ids.map((id) => ({ id, title: titleById.get(id) ?? id })),
+        }
+      } catch {
+        return undefined
+      }
+    },
     onDelete: (cell) => ({
       ...cell,
       copyData: "",

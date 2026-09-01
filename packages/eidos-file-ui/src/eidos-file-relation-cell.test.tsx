@@ -52,6 +52,40 @@ describe("Eidos File relation cell", () => {
     })
   })
 
+  it("pastes canonical relation IDs into the custom cell", () => {
+    const data: EidosFileRelationCell["data"] = {
+      kind: "eidos-file-relation-cell",
+      values: [{ id: ADA_ID, title: "Ada Lovelace" }],
+      multiple: true,
+    }
+
+    expect(
+      EidosFileRelationCellRenderer.onPaste?.(
+        JSON.stringify([ADA_ID, GRACE_ID]),
+        data
+      )
+    ).toEqual({
+      ...data,
+      values: [
+        { id: ADA_ID, title: "Ada Lovelace" },
+        { id: GRACE_ID, title: GRACE_ID },
+      ],
+    })
+
+    expect(EidosFileRelationCellRenderer.onPaste?.("Ada Lovelace", data)).toBe(
+      undefined
+    )
+    expect(
+      EidosFileRelationCellRenderer.onPaste?.(
+        JSON.stringify([ADA_ID, GRACE_ID]),
+        { ...data, multiple: false }
+      )
+    ).toBe(undefined)
+    expect(
+      EidosFileRelationCellRenderer.onPaste?.(JSON.stringify([]), data)
+    ).toEqual({ ...data, values: [] })
+  })
+
   it("searches and selects records inside the Grid overlay", async () => {
     const onChange = vi.fn()
     const onFinishedEditing = vi.fn()

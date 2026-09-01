@@ -27,6 +27,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider } from "./context"
 import { EidosFileGrid, type EidosFileGridRowEdit } from "./eidos-file-grid"
+import {
+  EidosFileRelationCellRenderer,
+  type EidosFileRelationCell,
+} from "./eidos-file-relation-cell"
 
 const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
 const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
@@ -3883,5 +3887,106 @@ describe("EidosFileGrid", () => {
       await cell.data.onSearch("Grace")
     }
     expect(onSearchRelation).toHaveBeenCalledWith(relationField, "Grace")
+  })
+
+  it("persists a Relation value pasted within its Grid column", async () => {
+    const relationField = {
+      ...table.fields[1],
+      name: "Owners",
+      type: "relation" as const,
+      tableColumnName: "owners",
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
+    }
+    const relationTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [table.fields[0], relationField],
+      rowCount: 2,
+    }
+    const sourceRow = {
+      ...rowAt(0),
+      owners: JSON.stringify([ADA_ID]),
+      owners__display: JSON.stringify([{ id: ADA_ID, title: "Ada Lovelace" }]),
+    }
+    const targetRow = { ...rowAt(1), owners: JSON.stringify([]) }
+    const onCellEdit = createCellEdit(relationTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={relationTable}
+          loadPage={vi.fn().mockResolvedValue({
+            tableId: "tasks",
+            offset: 0,
+            limit: 100,
+            total: 2,
+            rows: [sourceRow, targetRow],
+          })}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const sourceCell = mocks.props?.getCellContent([1, 0])
+    const targetCell = mocks.props?.getCellContent([1, 1])
+    if (
+      sourceCell?.kind !== GridCellKind.Custom ||
+      targetCell?.kind !== GridCellKind.Custom
+    ) {
+      throw new Error("Expected Relation custom cells")
+    }
+    const pastedData = EidosFileRelationCellRenderer.onPaste?.(
+      sourceCell.copyData,
+      targetCell.data as EidosFileRelationCell["data"]
+    )
+    if (!pastedData) throw new Error("Expected Relation paste data")
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [1, 1],
+          range: { x: 1, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    await act(async () => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [1, 1],
+          value: { ...targetCell, data: pastedData },
+        },
+      ])
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledWith(
+      targetRow,
+      relationField,
+      JSON.stringify([ADA_ID])
+    )
+
+    onCellEdit.mockClear()
+    container.querySelector<HTMLElement>('[data-testid="glide-grid"]')?.focus()
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(
+      { ...targetRow, owners: JSON.stringify([ADA_ID]) },
+      relationField,
+      JSON.stringify([])
+    )
   })
 })
