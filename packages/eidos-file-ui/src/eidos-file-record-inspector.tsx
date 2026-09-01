@@ -194,16 +194,21 @@ function MarkdownContentEditor({
   onSaveAndPreview: () => Promise<void>
   onError?: (error: unknown) => void
 }) {
-  const { activateUrl, translate: t } = useEidosFileUI()
+  const { activateUrl, markdownEditingMode, translate: t } = useEidosFileUI()
   const html = useMemo(() => renderSafeEidosFileMarkdown(value), [value])
 
   if (mode === "edit") {
     return (
       <div
-        className="flex min-h-0 w-full flex-1 flex-col"
-        data-eidos-file-markdown-editor="source"
+        className={cn(
+          "w-full",
+          markdownEditingMode === "wysiwyg"
+            ? ""
+            : "flex min-h-0 flex-1 flex-col"
+        )}
+        data-eidos-file-markdown-editor={markdownEditingMode ?? "source"}
         onKeyDownCapture={(event) => {
-          if (event.key === "Escape") {
+          if (event.key === "Escape" && markdownEditingMode !== "wysiwyg") {
             event.preventDefault()
             onCancelEdit()
           } else if (
@@ -333,7 +338,7 @@ export function EidosFileRecordInspector({
   onImportDroppedFiles,
   onSearchRelation,
 }: EidosFileRecordInspectorProps) {
-  const { translate: t } = useEidosFileUI()
+  const { markdownEditingMode = "source", translate: t } = useEidosFileUI()
   const [currentRow, setCurrentRow] = useState(row)
   const [savingField, setSavingField] = useState<string | null>(null)
   const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
@@ -466,6 +471,11 @@ export function EidosFileRecordInspector({
     : ""
   const [contentMode, setContentMode] = useState<"preview" | "edit">("preview")
   const [contentDraft, setContentDraft] = useState(contentValue)
+  const directWysiwygContent =
+    markdownEditingMode === "wysiwyg" && editable && Boolean(contentField)
+  const contentDisplayMode = directWysiwygContent ? "edit" : contentMode
+  const contentEditorOwnsScroll =
+    contentDisplayMode === "edit" && !directWysiwygContent
   const contentIdentity = `${currentRowId}:${contentField?.id ?? ""}`
   const contentIdentityRef = useRef(contentIdentity)
 
@@ -503,7 +513,7 @@ export function EidosFileRecordInspector({
 
   const closeRecord = async () => {
     if (!onClose) return
-    if (contentMode === "edit" && contentDraft !== contentValue) {
+    if (contentDisplayMode === "edit" && contentDraft !== contentValue) {
       const saved = await saveContentAndPreview()
       if (!saved) return
     }
@@ -514,7 +524,7 @@ export function EidosFileRecordInspector({
     navigate: (() => void | Promise<void>) | undefined
   ) => {
     if (!navigate) return
-    if (contentMode === "edit") {
+    if (contentDisplayMode === "edit") {
       const saved = await saveContentAndPreview()
       if (!saved) return
     }
@@ -810,14 +820,14 @@ export function EidosFileRecordInspector({
         <div
           className={cn(
             "min-h-0 flex-1 overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable_both-edges] [scrollbar-width:thin]",
-            contentMode === "edit" ? "overflow-hidden" : "overflow-y-auto"
+            contentEditorOwnsScroll ? "overflow-hidden" : "overflow-y-auto"
           )}
           data-eidos-file-record-page-scroll=""
         >
           <article
             className={cn(
               "mx-auto w-full max-w-[960px] px-5 pt-2 sm:px-8 lg:px-12",
-              contentMode === "edit"
+              contentEditorOwnsScroll
                 ? "flex h-full min-h-0 flex-col pb-3"
                 : "pb-20"
             )}
@@ -834,14 +844,14 @@ export function EidosFileRecordInspector({
               <div
                 className={cn(
                   "mx-auto mt-3 w-full max-w-[760px] pt-3",
-                  contentMode === "edit" && "flex min-h-0 flex-1 flex-col"
+                  contentEditorOwnsScroll && "flex min-h-0 flex-1 flex-col"
                 )}
                 data-eidos-file-record-content=""
               >
                 <MarkdownContentEditor
                   key={`${currentRowId}:${contentField.id}`}
                   value={contentValue}
-                  mode={contentMode}
+                  mode={contentDisplayMode}
                   editable={editable}
                   disabled={editorDisabled}
                   cacheKey={`${currentRowId}:${contentField.id}`}

@@ -42,6 +42,7 @@ import type {
   EidosFileIssue,
   EidosLiteAppearance,
   EidosLiteAppInfo,
+  EidosLiteMarkdownEditingMode,
   EidosLitePreferences,
   EidosLiteTerminalLayout,
   EidosLiteUpdateStatus,
@@ -853,6 +854,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [timeZone, setTimeZone] = useState(
     DEFAULT_RENDERER_PREFERENCES.timeZone
   )
+  const [markdownEditingMode, setMarkdownEditingMode] =
+    useState<EidosLiteMarkdownEditingMode>(
+      DEFAULT_RENDERER_PREFERENCES.markdownEditingMode
+    )
   const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
     () =>
       storedLegacyTerminalLayout() ??
@@ -1147,6 +1152,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
+      setMarkdownEditingMode(preferences.markdownEditingMode)
       setTerminalLayout(resolvedTerminalLayout)
       setBuiltInPlugins(preferences.builtInPlugins)
       if (!preferences.builtInPlugins.terminal) {
@@ -1335,7 +1341,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           const preview = await window.eidosLite.previewTextFile(
             textPreview.relativePath
           )
-          await prepareTextFilePreview(preview)
+          await prepareTextFilePreview(preview, markdownEditingMode)
           setTextPreview(preview)
         } catch {
           // Discarding a newly added or renamed file can intentionally remove
@@ -1345,7 +1351,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         }
       }
     },
-    [refreshCachedEidosFiles, textPreview]
+    [markdownEditingMode, refreshCachedEidosFiles, textPreview]
   )
 
   const refreshExternallyChangedEidosFiles = useCallback(
@@ -1915,7 +1921,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           const preview = await window.eidosLite.previewTextFile(
             entry.relativePath
           )
-          await prepareTextFilePreview(preview)
+          await prepareTextFilePreview(preview, markdownEditingMode)
           setActiveSession(null)
           setTextPreview(preview)
           rememberOpenedEntry(entry)
@@ -2038,7 +2044,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setBusyFile(null)
       }
     },
-    [cachedFiles, recordNavigationLocation, rememberOpenedEntry]
+    [
+      cachedFiles,
+      markdownEditingMode,
+      recordNavigationLocation,
+      rememberOpenedEntry,
+    ]
   )
 
   const openRecentFile = useCallback(
@@ -3174,6 +3185,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
+                    markdownEditingMode={markdownEditingMode}
                     platform={platform}
                     nativePreviewSuppressed={
                       quickOpenVisible ||
@@ -3233,6 +3245,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
+                      markdownEditingMode={markdownEditingMode}
                       macos={macos}
                       onTableSelect={(tableId) =>
                         setCachedFiles((current) =>

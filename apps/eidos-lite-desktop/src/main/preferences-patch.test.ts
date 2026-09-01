@@ -6,6 +6,7 @@ describe("Eidos Lite preference IPC patch", () => {
     const patch = {
       appearance: "dark" as const,
       language: "zh" as const,
+      markdownEditingMode: "wysiwyg" as const,
       terminalLayout: "side" as const,
       timeZone: "Europe/London",
       weekStartsOnMonday: false,
@@ -40,6 +41,17 @@ describe("Eidos Lite preference IPC patch", () => {
         "Invalid terminal layout preference"
       )
     }
+  })
+
+  it("accepts only supported Markdown editing modes", () => {
+    for (const markdownEditingMode of ["source", "wysiwyg"] as const) {
+      expect(eidosLitePreferencesPatch({ markdownEditingMode })).toEqual({
+        markdownEditingMode,
+      })
+    }
+    expect(() =>
+      eidosLitePreferencesPatch({ markdownEditingMode: "html" })
+    ).toThrow("Invalid Markdown editing mode preference")
   })
 
   it("accepts only the complete built-in plugin preference shape", () => {

@@ -34,6 +34,15 @@ export function eidosLitePreferencesPatch(
     }
     patch.language = candidate.language
   }
+  if ("markdownEditingMode" in candidate) {
+    if (
+      candidate.markdownEditingMode !== "source" &&
+      candidate.markdownEditingMode !== "wysiwyg"
+    ) {
+      throw new Error("Invalid Markdown editing mode preference")
+    }
+    patch.markdownEditingMode = candidate.markdownEditingMode
+  }
   if ("terminalLayout" in candidate) {
     if (
       candidate.terminalLayout !== "bottom" &&

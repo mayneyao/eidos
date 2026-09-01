@@ -158,7 +158,7 @@ describe("TextFilePreview", () => {
     expect(markup).not.toContain("<iframe")
     expect(markup).not.toContain('src="eidos-space-document:')
     expect(markup).toContain("Sandboxed")
-    expect(markup).toContain("Source")
+    expect(markup).toContain("Edit")
     expect(editorModuleLoaded).not.toHaveBeenCalled()
     expect(editorSurfaceRendered).not.toHaveBeenCalled()
   })
@@ -199,5 +199,39 @@ describe("TextFilePreview", () => {
     expect(markup).not.toContain("<iframe")
     expect(markup).toContain("Markdown preview of README.md")
     expect(editorModuleLoaded).not.toHaveBeenCalled()
+  })
+
+  it("opens Markdown directly in the editor when WYSIWYG is selected", async () => {
+    const preview = {
+      type: "text",
+      relativePath: "README.md",
+      content: "# Read me",
+      encoding: "utf-8",
+      bom: false,
+      revision: "b".repeat(64),
+      browserPreview: { kind: "markdown" },
+      size: 9,
+      modifiedAtMs: 0,
+      truncated: false,
+    } as const
+
+    await prepareTextFilePreview(preview, "wysiwyg")
+    const markup = renderToStaticMarkup(
+      createElement(TextFilePreview, {
+        preview,
+        markdownEditingMode: "wysiwyg",
+        theme: "dark",
+        platform: "darwin",
+        onReveal: () => undefined,
+        onSaved: () => undefined,
+        onReload: () => undefined,
+        onDraftChange: () => undefined,
+      })
+    )
+
+    expect(markup).toContain('data-text-file-editor="README.md"')
+    expect(markup).not.toContain("Document view mode")
+    expect(markup).not.toContain(">Preview<")
+    expect(markup).not.toContain(">Edit<")
   })
 })

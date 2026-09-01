@@ -23,6 +23,10 @@ const zh: Record<string, string> = {
   Language: "语言",
   "Use the system language or choose one for Eidos Lite.":
     "跟随系统语言，或为 Eidos Lite 指定语言。",
+  "Markdown editor": "Markdown 编辑器",
+  "Choose the default editor for Markdown files and Content fields.":
+    "选择 Markdown 文件和 Content 字段默认使用的编辑器。",
+  "Rich text": "富文本",
   "Terminal layout": "终端布局",
   "Choose how Terminal and file content share the middle work area.":
     "选择终端与文件内容如何共享中间工作区。",

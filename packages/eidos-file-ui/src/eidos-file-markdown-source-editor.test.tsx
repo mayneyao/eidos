@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   EidosFileUIProvider,
-  type EidosFileMarkdownSourceEditorRequest,
+  type EidosFileMarkdownEditorRequest,
 } from "./context"
 import { EidosFileMarkdownSourceEditor } from "./eidos-file-markdown-source-editor"
 
@@ -31,12 +31,12 @@ describe("EidosFileMarkdownSourceEditor", () => {
 
   it("uses the host Markdown editor when one is available", async () => {
     const onChange = vi.fn()
-    let request: EidosFileMarkdownSourceEditorRequest | undefined
+    let request: EidosFileMarkdownEditorRequest | undefined
 
     await act(async () => {
       root.render(
         <EidosFileUIProvider
-          renderMarkdownSourceEditor={(nextRequest) => {
+          renderMarkdownEditor={(nextRequest) => {
             request = nextRequest
             return <div data-testid="host-editor" />
           }}

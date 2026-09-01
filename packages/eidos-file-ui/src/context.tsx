@@ -65,13 +65,17 @@ export interface EidosFileRelationRecordTarget {
   title: string
 }
 
-/** Host-native Markdown source editor rendered inside a record content page. */
-export interface EidosFileMarkdownSourceEditorRequest {
+/** Host-native Markdown editor rendered inside a record content page. */
+export interface EidosFileMarkdownEditorRequest {
   cacheKey: string
   content: string
   disabled: boolean
   onChange(content: string): void
 }
+
+/** @deprecated Use EidosFileMarkdownEditorRequest. */
+export type EidosFileMarkdownSourceEditorRequest =
+  EidosFileMarkdownEditorRequest
 
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
@@ -90,7 +94,12 @@ export interface EidosFileUIHost {
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
   keyboardShortcuts?: EidosFileUIKeyboardShortcuts
+  /** Host preference used to identify the active Content editing surface. */
+  markdownEditingMode?: "source" | "wysiwyg"
+  /** Optional host-native Markdown editor. Shared UI falls back to source. */
+  renderMarkdownEditor?: (request: EidosFileMarkdownEditorRequest) => ReactNode
   /** Optional richer source editor. Shared UI falls back to a plain textarea. */
+  /** @deprecated Use renderMarkdownEditor. */
   renderMarkdownSourceEditor?: (
     request: EidosFileMarkdownSourceEditorRequest
   ) => ReactNode
@@ -119,6 +128,8 @@ export function EidosFileUIProvider({
   assetSession,
   assetPresenter,
   keyboardShortcuts,
+  markdownEditingMode,
+  renderMarkdownEditor,
   renderMarkdownSourceEditor,
 }: Partial<EidosFileUIHost> & {
   children: ReactNode
@@ -137,6 +148,10 @@ export function EidosFileUIProvider({
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
   const resolvedKeyboardShortcuts =
     keyboardShortcuts ?? parent.keyboardShortcuts
+  const resolvedMarkdownEditingMode =
+    markdownEditingMode ?? parent.markdownEditingMode ?? "source"
+  const resolvedRenderMarkdownEditor =
+    renderMarkdownEditor ?? parent.renderMarkdownEditor
   const resolvedRenderMarkdownSourceEditor =
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
@@ -162,6 +177,10 @@ export function EidosFileUIProvider({
       ...(resolvedKeyboardShortcuts
         ? { keyboardShortcuts: resolvedKeyboardShortcuts }
         : {}),
+      markdownEditingMode: resolvedMarkdownEditingMode,
+      ...(resolvedRenderMarkdownEditor
+        ? { renderMarkdownEditor: resolvedRenderMarkdownEditor }
+        : {}),
       ...(resolvedRenderMarkdownSourceEditor
         ? { renderMarkdownSourceEditor: resolvedRenderMarkdownSourceEditor }
         : {}),
@@ -175,6 +194,8 @@ export function EidosFileUIProvider({
       resolvedAssetPresenter,
       resolvedAssetSession,
       resolvedKeyboardShortcuts,
+      resolvedMarkdownEditingMode,
+      resolvedRenderMarkdownEditor,
       resolvedRenderMarkdownSourceEditor,
       resolvedLocale,
       resolvedThemeName,

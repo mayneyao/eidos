@@ -19,6 +19,7 @@ import type {
   EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLiteLanguage,
+  EidosLiteMarkdownEditingMode,
   EidosLitePreferences,
   EidosLiteSettingsDestination,
   EidosLiteTerminalLayout,
@@ -43,6 +44,14 @@ const APPEARANCE_OPTIONS: Array<{
 const LANGUAGE_OPTIONS: Array<{
   value: EidosLiteLanguage
 }> = [{ value: "system" }, { value: "en" }, { value: "zh" }]
+
+const MARKDOWN_EDITOR_OPTIONS: Array<{
+  label: string
+  value: EidosLiteMarkdownEditingMode
+}> = [
+  { label: "Source", value: "source" },
+  { label: "Rich text", value: "wysiwyg" },
+]
 
 const TERMINAL_LAYOUT_OPTIONS: Array<{
   label: string
@@ -423,6 +432,44 @@ export function SettingsPage() {
                               ? "English"
                               : "Chinese"
                         )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className="settings-row settings-row-stacked"
+                  data-markdown-editing-mode
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t("Markdown editor")}</strong>
+                    <small>
+                      {t(
+                        "Choose the default editor for Markdown files and Content fields."
+                      )}
+                    </small>
+                  </div>
+                  <div
+                    className="settings-segmented-control"
+                    data-segment-count={MARKDOWN_EDITOR_OPTIONS.length}
+                    role="radiogroup"
+                    aria-label={t("Markdown editor")}
+                  >
+                    {MARKDOWN_EDITOR_OPTIONS.map((option) => (
+                      <button
+                        type="button"
+                        role="radio"
+                        data-markdown-editing-mode={option.value}
+                        aria-checked={
+                          preferences.markdownEditingMode === option.value
+                        }
+                        key={option.value}
+                        onClick={() =>
+                          void updatePreferences({
+                            markdownEditingMode: option.value,
+                          })
+                        }
+                      >
+                        {t(option.label)}
                       </button>
                     ))}
                   </div>

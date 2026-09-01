@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -40,7 +32,7 @@ import {
   exportEidosFileViewCsv,
   type EidosFileFormulaEditorAnchor,
   type EidosFileFormEditorMode,
-  type EidosFileMarkdownSourceEditorRequest,
+  type EidosFileMarkdownEditorRequest,
   type EidosFilePluginContext,
   type EidosFilePlugin,
   type EidosFileRelationRecordTarget,
@@ -59,6 +51,7 @@ import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
 } from "../shared/keyboard-shortcuts"
+import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
 import {
   createEidosLiteAssetSession,
   eidosLiteAssetPresenter,
@@ -67,6 +60,7 @@ import { eidosFileKeyboardShortcuts } from "./eidos-file-keyboard-shortcuts"
 import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
+import { MarkdownEditorSurface } from "./markdown-editor-surface"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
@@ -75,10 +69,6 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileFormPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
-const LazyPierreTextEditorSurface = lazy(
-  () => import("./pierre-text-editor-surface")
-)
-
 interface FormulaEditorTarget {
   field: EidosFileFieldInfo
   previewRowId?: string
@@ -97,6 +87,7 @@ export interface EidosFileWorkbenchProps {
   weekStartsOnMonday?: boolean
   timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  markdownEditingMode?: EidosLiteMarkdownEditingMode
   macos?: boolean
   onTableSelect(tableId: string): void
   onSnapshot(snapshot: EidosFileSnapshot): void
@@ -115,6 +106,7 @@ export function EidosFileWorkbench({
   weekStartsOnMonday = true,
   timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  markdownEditingMode = "source",
   macos = false,
   onTableSelect,
   onSnapshot,
@@ -174,26 +166,30 @@ export function EidosFileWorkbench({
       ),
     [source.sessionId]
   )
-  const renderMarkdownSourceEditor = useCallback(
-    ({ cacheKey, content, onChange }: EidosFileMarkdownSourceEditorRequest) => (
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Loading editor…
-          </div>
-        }
-      >
-        <LazyPierreTextEditorSurface
-          relativePath={`eidos-content-${cacheKey}.md`}
+  const renderMarkdownEditor = useCallback(
+    ({
+      cacheKey,
+      content,
+      disabled,
+      onChange,
+    }: EidosFileMarkdownEditorRequest) => {
+      const relativePath = `eidos-content-${cacheKey}.md`
+      return (
+        <MarkdownEditorSurface
+          documentKey={`${source.sessionId}:${cacheKey}`}
+          relativePath={relativePath}
           content={content}
+          editingMode={markdownEditingMode}
           theme={theme}
-          persistEditorState={false}
-          autoFocus
+          layout="embedded"
+          disabled={disabled}
+          persistSourceEditorState={false}
+          autoFocus={markdownEditingMode === "source"}
           onChange={onChange}
         />
-      </Suspense>
-    ),
-    [theme]
+      )
+    },
+    [markdownEditingMode, source.sessionId, theme]
   )
 
   useEffect(() => {
@@ -504,7 +500,8 @@ export function EidosFileWorkbench({
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
-      renderMarkdownSourceEditor={renderMarkdownSourceEditor}
+      markdownEditingMode={markdownEditingMode}
+      renderMarkdownEditor={renderMarkdownEditor}
     >
       <EidosFileEditorShell
         ref={editorRef}

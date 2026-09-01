@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -8,22 +6,22 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentProps,
   type MouseEvent as ReactMouseEvent,
 } from "react"
 import {
   CircleAlert,
-  Code2,
   Eye,
   FileText,
   FileWarning,
   FolderOpen,
   LoaderCircle,
+  PencilLine,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react"
 
 import type {
+  EidosLiteMarkdownEditingMode,
   HtmlPreviewBounds,
   TextFilePreviewResult,
 } from "../shared/contracts"
@@ -31,38 +29,14 @@ import { fileManagerMessage } from "../shared/platform-copy"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useFileContentFocusRequest } from "./file-content-focus"
 import { useEidosLiteI18n } from "./i18n"
+import {
+  MarkdownEditorSurface,
+  prepareMarkdownEditorSurface,
+} from "./markdown-editor-surface"
 import { renderSafeMarkdown } from "./markdown-preview"
-import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
 
 const useRendererLayoutEffect =
   typeof document === "undefined" ? useEffect : useLayoutEffect
-
-let pierreTextEditorModule:
-  | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
-  | undefined
-let LoadedPierreTextEditorSurface:
-  | typeof PierreTextEditorSurfaceImplementation
-  | undefined
-
-async function loadPierreTextEditorSurface() {
-  pierreTextEditorModule ??= import("./pierre-text-editor-surface")
-  const module = await pierreTextEditorModule
-  LoadedPierreTextEditorSurface = module.default
-  return module
-}
-
-const LazyPierreTextEditorSurface = lazy(loadPierreTextEditorSurface)
-
-function PierreTextEditorSurface(
-  props: ComponentProps<typeof LazyPierreTextEditorSurface>
-) {
-  const Loaded = LoadedPierreTextEditorSurface
-  return Loaded ? (
-    <Loaded {...props} />
-  ) : (
-    <LazyPierreTextEditorSurface {...props} />
-  )
-}
 
 type TextPreview = Extract<TextFilePreviewResult, { type: "text" }>
 type TextSurfacePreview = Exclude<TextFilePreviewResult, { type: "media" }>
@@ -74,15 +48,13 @@ export interface TextFileDraft {
 }
 
 export async function prepareTextFilePreview(
-  preview: TextFilePreviewResult
+  preview: TextFilePreviewResult,
+  markdownEditingMode: EidosLiteMarkdownEditingMode = "source"
 ): Promise<void> {
-  if (
-    preview.type === "text" &&
-    !preview.truncated &&
-    !preview.browserPreview
-  ) {
-    await loadPierreTextEditorSurface()
-  }
+  if (preview.type !== "text" || preview.truncated) return
+  const editingMode =
+    preview.browserPreview?.kind === "markdown" ? markdownEditingMode : "source"
+  await prepareMarkdownEditorSurface(editingMode)
 }
 
 function formatBytes(bytes: number): string {
@@ -120,6 +92,7 @@ function EditableTextFile({
   theme,
   autoFocus = false,
   focusRequestToken = 0,
+  editingMode = "source",
   onSaved,
   onReload,
   onDraftChange,
@@ -129,6 +102,7 @@ function EditableTextFile({
   theme: ResolvedAppearance
   autoFocus?: boolean
   focusRequestToken?: number
+  editingMode?: EidosLiteMarkdownEditingMode
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -213,6 +187,7 @@ function EditableTextFile({
     (content: string) => {
       if (content === draftRef.current) return
       draftRef.current = content
+      setEditorContent(content)
       setError(null)
       const changed = content !== savedRef.current
       onDraftChange(
@@ -286,24 +261,18 @@ function EditableTextFile({
           ) : null}
         </div>
       ) : null}
-      <Suspense
-        fallback={
-          <div className="text-preview-loading" role="status">
-            <LoaderCircle className="spin" aria-hidden="true" />
-            {t("Loading text editor…")}
-          </div>
-        }
-      >
-        <PierreTextEditorSurface
-          key={`${preview.relativePath}:${editorGeneration}`}
-          relativePath={preview.relativePath}
-          content={editorContent}
-          theme={theme}
-          autoFocus={autoFocus}
-          focusRequestToken={focusRequestToken}
-          onChange={handleChange}
-        />
-      </Suspense>
+      <MarkdownEditorSurface
+        key={`${preview.relativePath}:${editorGeneration}`}
+        documentKey={`${preview.relativePath}:${editorGeneration}`}
+        relativePath={preview.relativePath}
+        content={editorContent}
+        editingMode={editingMode}
+        theme={theme}
+        persistSourceEditorState
+        autoFocus={autoFocus}
+        focusRequestToken={focusRequestToken}
+        onChange={handleChange}
+      />
     </section>
   )
 }
@@ -479,6 +448,7 @@ function DocumentFilePreview({
   preview,
   draft,
   theme,
+  markdownEditingMode,
   platform,
   nativePreviewSuppressed,
   focusRequestToken,
@@ -490,6 +460,7 @@ function DocumentFilePreview({
   preview: BrowserTextPreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  markdownEditingMode: EidosLiteMarkdownEditingMode
   platform: string
   nativePreviewSuppressed: boolean
   focusRequestToken: number
@@ -499,7 +470,7 @@ function DocumentFilePreview({
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
 }) {
   const { t } = useEidosLiteI18n()
-  const [mode, setMode] = useState<"preview" | "source">("preview")
+  const [mode, setMode] = useState<"preview" | "edit">("preview")
   const reactId = useId()
   const previewId = useMemo(
     () => `html-preview-${reactId.replace(/[^\w:-]/gu, "")}`,
@@ -513,6 +484,25 @@ function DocumentFilePreview({
   })
   const htmlPreview =
     preview.browserPreview.kind === "html" ? preview.browserPreview : null
+
+  if (
+    preview.browserPreview.kind === "markdown" &&
+    markdownEditingMode === "wysiwyg"
+  ) {
+    return (
+      <EditableTextFile
+        key={preview.relativePath}
+        preview={preview}
+        draft={draft}
+        theme={theme}
+        editingMode="wysiwyg"
+        focusRequestToken={focusRequestToken}
+        onSaved={onSaved}
+        onReload={onReload}
+        onDraftChange={onDraftChange}
+      />
+    )
+  }
 
   return (
     <section
@@ -541,12 +531,12 @@ function DocumentFilePreview({
           <button
             type="button"
             role="tab"
-            data-document-preview-mode="source"
-            aria-selected={mode === "source"}
+            data-document-preview-mode="edit"
+            aria-selected={mode === "edit"}
             className="document-preview-mode-button"
-            onClick={() => setMode("source")}
+            onClick={() => setMode("edit")}
           >
-            <Code2 aria-hidden="true" /> {t("Source")}
+            <PencilLine aria-hidden="true" /> {t("Edit")}
           </button>
         </div>
         <span className="document-preview-security">
@@ -599,6 +589,11 @@ function DocumentFilePreview({
             preview={preview}
             draft={draft}
             theme={theme}
+            editingMode={
+              preview.browserPreview.kind === "markdown"
+                ? markdownEditingMode
+                : "source"
+            }
             autoFocus
             focusRequestToken={focusRequestToken}
             onSaved={onSaved}
@@ -615,6 +610,7 @@ export function TextFilePreview({
   preview,
   draft,
   theme,
+  markdownEditingMode = "source",
   platform,
   nativePreviewSuppressed = false,
   focusRequestToken = 0,
@@ -626,6 +622,7 @@ export function TextFilePreview({
   preview: TextSurfacePreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  markdownEditingMode?: EidosLiteMarkdownEditingMode
   platform: string
   nativePreviewSuppressed?: boolean
   focusRequestToken?: number
@@ -671,6 +668,7 @@ export function TextFilePreview({
           preview={preview as BrowserTextPreview}
           draft={draft}
           theme={theme}
+          markdownEditingMode={markdownEditingMode}
           platform={platform}
           nativePreviewSuppressed={nativePreviewSuppressed}
           focusRequestToken={focusRequestToken}

@@ -4929,13 +4929,16 @@ body {
   display: grid;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .text-file-preview {
   display: grid;
+  height: 100%;
   grid-template-rows: 2rem minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--canvas);
 }
 
@@ -5099,6 +5102,7 @@ body {
 .document-preview-body > .text-file-preview,
 .document-preview-body > .html-preview-native-host,
 .document-preview-body > .markdown-preview-scroll {
+  height: 100%;
   min-width: 0;
   min-height: 0;
 }
@@ -5365,6 +5369,60 @@ body {
 .text-file-editor {
   position: relative;
   grid-template-rows: minmax(0, 1fr);
+}
+
+.markdown-editor-surface {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-hover);
+  --border: var(--line);
+  --ring: var(--focus);
+  --primary: var(--accent);
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
+  background: var(--canvas);
+}
+
+.markdown-editor-surface > .eme-editor,
+.markdown-editor-surface > .text-file-editor-virtualizer {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.markdown-editor-surface:has(> .eme-editor[data-layout="embedded"]) {
+  height: auto;
+  overflow: visible;
+  flex: none;
+}
+
+.markdown-editor-surface:has(> .eme-editor[data-layout="embedded"])
+  > .eme-editor {
+  height: auto;
+  overflow: visible;
+  flex: none;
+}
+
+.markdown-editor-surface > .text-file-editor-virtualizer {
+  overflow: auto;
+}
+
+.markdown-editor-surface-loading {
+  display: flex;
+  min-height: 8rem;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
 }
 
 .text-editor-save-issue {

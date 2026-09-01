@@ -14,12 +14,16 @@ export function EidosFileMarkdownSourceEditor({
   disabled: boolean
   onChange: (content: string) => void
 }) {
-  const { renderMarkdownSourceEditor, translate: t } = useEidosFileUI()
+  const {
+    renderMarkdownEditor,
+    renderMarkdownSourceEditor,
+    translate: t,
+  } = useEidosFileUI()
   const [draft, setDraft] = useState(content)
 
   useEffect(() => setDraft(content), [content])
 
-  const hostEditor = renderMarkdownSourceEditor?.({
+  const hostEditor = (renderMarkdownEditor ?? renderMarkdownSourceEditor)?.({
     cacheKey,
     content: draft,
     disabled,

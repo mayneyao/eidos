@@ -52,6 +52,18 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
     await Promise.resolve()
   })
 
+  const wysiwygEditor = host.querySelector<HTMLButtonElement>(
+    'button[data-markdown-editing-mode="wysiwyg"]'
+  )
+  expect(wysiwygEditor?.getAttribute("aria-checked")).toBe("false")
+  await act(async () => {
+    wysiwygEditor?.click()
+    await Promise.resolve()
+  })
+  expect(updatePreferences).toHaveBeenCalledWith({
+    markdownEditingMode: "wysiwyg",
+  })
+
   const pluginsPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
   ].find((button) => button.textContent === "Built-in Plugins")

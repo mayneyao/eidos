@@ -624,6 +624,59 @@ describe("EidosFileRecordInspector", () => {
     expect(onNextRecord).toHaveBeenCalledOnce()
   })
 
+  it("keeps writable Content directly editable in WYSIWYG mode", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      name: "Body",
+      tableColumnName: "body",
+      isRecordLabel: false,
+    }
+    const onCellEdit = vi.fn(async (current, field, value) => ({
+      tableId: "tasks",
+      row: { ...current, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider markdownEditingMode="wysiwyg">
+          <EidosFileRecordInspector
+            variant="page"
+            row={{ _id: "row_2", title: "Direct edit", body: "# Content" }}
+            fields={[fields[0], contentField]}
+            contentField={contentField}
+            onCellEdit={onCellEdit}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    expect(
+      container.querySelector('[data-eidos-file-markdown-editor="wysiwyg"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[data-eidos-file-markdown-editor="preview"]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-eidos-file-record-page-scroll=""]')
+        ?.className
+    ).toContain("overflow-y-auto")
+    expect(
+      container.querySelector('[data-eidos-file-record-content=""]')?.className
+    ).not.toContain("flex-1")
+    expect(
+      container.querySelector('[data-eidos-file-record-content=""]')?.className
+    ).toContain("max-w-[760px]")
+    expect(
+      container.querySelector('[data-eidos-file-record-content=""]')?.className
+    ).not.toContain("max-w-none")
+    expect(
+      container.querySelector('[data-eidos-file-record-page-header-row=""]')
+        ?.className
+    ).toContain("max-w-[760px]")
+  })
+
   it("exposes relation search as a keyboard-navigable combobox", async () => {
     const adaId = "0198c72d-82b5-7968-b163-98be4b7477df"
     const graceId = "0198c72d-82b5-7969-8163-98be4b7477df"

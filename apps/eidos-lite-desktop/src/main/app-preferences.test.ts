@@ -35,6 +35,7 @@ describe("Eidos Lite preferences", () => {
       store.update({
         appearance: "dark",
         language: "zh",
+        markdownEditingMode: "wysiwyg",
         terminalLayout: "side",
         timeZone: "America/New_York",
         weekStartsOnMonday: false,
@@ -51,6 +52,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      markdownEditingMode: "wysiwyg",
       terminalLayout: "side",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
@@ -70,6 +72,7 @@ describe("Eidos Lite preferences", () => {
     ).resolves.toEqual({
       appearance: "dark",
       language: "zh",
+      markdownEditingMode: "wysiwyg",
       terminalLayout: "side",
       timeZone: "America/New_York",
       weekStartsOnMonday: false,

@@ -9,11 +9,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const editorSurfaceRendered = vi.hoisted(() =>
-  vi.fn<(props: { autoFocus?: boolean }) => void>()
+  vi.fn<(props: { editingMode?: string }) => void>()
 )
 
-vi.mock("./pierre-text-editor-surface", () => ({
-  default: (props: { autoFocus?: boolean }) => {
+vi.mock("./markdown-editor-surface", () => ({
+  prepareMarkdownEditorSurface: vi.fn(async () => undefined),
+  MarkdownEditorSurface: (props: { editingMode?: string }) => {
     editorSurfaceRendered(props)
     return null
   },
@@ -21,7 +22,7 @@ vi.mock("./pierre-text-editor-surface", () => ({
 
 import { prepareTextFilePreview, TextFilePreview } from "./text-file-preview"
 
-describe("Markdown source editability regression", () => {
+describe("Markdown editability regression", () => {
   beforeEach(() => {
     editorSurfaceRendered.mockClear()
     ;(window as unknown as { eidosLite: unknown }).eidosLite = {
@@ -29,7 +30,7 @@ describe("Markdown source editability regression", () => {
     }
   })
 
-  it("focuses the editor after switching a new Markdown file to source", async () => {
+  it("opens a new Markdown file directly in WYSIWYG edit mode", async () => {
     await prepareTextFilePreview({
       type: "text",
       relativePath: "editor-loader.txt",
@@ -59,6 +60,7 @@ describe("Markdown source editability regression", () => {
             modifiedAtMs: 0,
             truncated: false,
           },
+          markdownEditingMode: "wysiwyg",
           theme: "light",
           platform: "darwin",
           onReveal: () => undefined,
@@ -69,15 +71,10 @@ describe("Markdown source editability regression", () => {
       )
     })
 
-    const source = host.querySelector<HTMLButtonElement>(
-      '[data-document-preview-mode="source"]'
-    )
-    expect(source).not.toBeNull()
-    await act(async () => source?.click())
-
     expect(editorSurfaceRendered).toHaveBeenCalledWith(
-      expect.objectContaining({ autoFocus: true })
+      expect.objectContaining({ editingMode: "wysiwyg" })
     )
+    expect(host.querySelector('[data-document-preview-mode="edit"]')).toBeNull()
 
     await act(async () => root.unmount())
   })

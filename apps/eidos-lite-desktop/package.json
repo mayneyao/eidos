@@ -33,6 +33,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
+    "@eidos.space/markdown-editor": "workspace:*",
     "@eidos.space/graft": "0.3.25",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.3.2",
