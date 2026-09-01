@@ -24,7 +24,7 @@ it("routes file-content focus without changing the active view or route", async 
     /<EidosFileEditorView[\s\S]*?focusRequestToken=/
   )
   expect(textPreviewSource).toMatch(
-    /<PierreTextEditorSurface[\s\S]*?focusRequestToken=/
+    /<MarkdownEditorSurface[\s\S]*?focusRequestToken=/
   )
   expect(versionPanelSource).toContain("useFileContentFocusRequest(")
 
