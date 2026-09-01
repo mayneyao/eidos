@@ -427,11 +427,13 @@ describe("EidosFileRecordInspector", () => {
     expect(pageHeaderRow?.className).toContain("py-2")
     expect(pageHeaderRow?.className).toContain("max-w-[760px]")
     expect(pageHeaderRow?.parentElement?.className).not.toContain("border-b")
-    expect(
-      container.querySelector<HTMLElement>(
-        '[data-eidos-file-record-page-scroll=""]'
-      )?.className
-    ).toContain("overflow-y-auto")
+    const pageScroll = container.querySelector<HTMLElement>(
+      '[data-eidos-file-record-page-scroll=""]'
+    )
+    expect(pageScroll?.className).toContain("overflow-y-auto")
+    expect(pageScroll?.className).toContain(
+      "[scrollbar-gutter:stable_both-edges]"
+    )
     expect(
       container.querySelector<HTMLElement>(
         '[aria-label="Close record details"]'

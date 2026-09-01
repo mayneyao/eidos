@@ -813,7 +813,7 @@ export function EidosFileRecordInspector({
       ) : variant === "page" ? (
         <div
           className={cn(
-            "min-h-0 flex-1 overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]",
+            "min-h-0 flex-1 overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable_both-edges] [scrollbar-width:thin]",
             contentMode === "edit" ? "overflow-hidden" : "overflow-y-auto"
           )}
           data-eidos-file-record-page-scroll=""
