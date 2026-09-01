@@ -1681,14 +1681,6 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     [disabled, groupField, onAddRow]
   )
 
-  const copyRecordId = (id: string) => {
-    if (!navigator.clipboard) {
-      onError?.(new Error("Clipboard access is unavailable"))
-      return
-    }
-    void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
-  }
-
   const editInspectedRecord = async (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -1939,7 +1931,6 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                 : undefined
             }
             onOpenInTab={onOpenRecordInTab}
-            onCopyRecordId={copyRecordId}
             onCellEdit={editInspectedRecord}
             disabled={disabled}
             loading={inspectorLoading}

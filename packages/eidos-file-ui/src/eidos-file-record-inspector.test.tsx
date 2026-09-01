@@ -118,7 +118,6 @@ describe("EidosFileRecordInspector", () => {
           row={row}
           fields={fields}
           onClose={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={onCellEdit}
         />
       )
@@ -194,7 +193,6 @@ describe("EidosFileRecordInspector", () => {
             fields={[urlField]}
             disabled
             onClose={vi.fn()}
-            onCopyRecordId={vi.fn()}
             onCellEdit={vi.fn()}
           />
         </EidosFileUIProvider>
@@ -237,7 +235,6 @@ describe("EidosFileRecordInspector", () => {
           row={nextRow}
           fields={fields}
           onClose={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={onCellEdit}
           onError={onError}
         />
@@ -307,7 +304,6 @@ describe("EidosFileRecordInspector", () => {
           loadError={loadError}
           onRetryLoad={onRetryLoad}
           onClose={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={vi.fn()}
         />
       )
@@ -337,9 +333,11 @@ describe("EidosFileRecordInspector", () => {
     expect(onRetryLoad).toHaveBeenCalledOnce()
   })
 
-  it("promotes the current record from the side panel into a tab", async () => {
+  it("keeps side-panel record actions focused on navigation", async () => {
     const row = { _id: "row_1", title: "Write RFC", done: 0, formula: 2 }
     const onOpenInTab = vi.fn()
+    const onPreviousRecord = vi.fn()
+    const onNextRecord = vi.fn()
     await act(async () => {
       root.render(
         <EidosFileRecordInspector
@@ -347,18 +345,44 @@ describe("EidosFileRecordInspector", () => {
           fields={fields}
           onClose={vi.fn()}
           onOpenInTab={onOpenInTab}
-          onCopyRecordId={vi.fn()}
+          onPreviousRecord={onPreviousRecord}
+          onNextRecord={onNextRecord}
         />
       )
     })
+
+    const panelHeader = container.querySelector<HTMLElement>(
+      '[data-eidos-file-record-panel-header=""]'
+    )
+    expect(
+      panelHeader?.querySelector('[data-eidos-file-record-id=""]')
+    ).toBeNull()
+    expect(
+      Array.from(panelHeader?.querySelectorAll("button") ?? []).map((button) =>
+        button.getAttribute("aria-label")
+      )
+    ).toEqual([
+      "Open record in tab",
+      "Previous record",
+      "Next record",
+      "Close record details",
+    ])
 
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>('[aria-label="Open record in tab"]')
         ?.click()
+      panelHeader
+        ?.querySelector<HTMLButtonElement>('[aria-label="Previous record"]')
+        ?.click()
+      panelHeader
+        ?.querySelector<HTMLButtonElement>('[aria-label="Next record"]')
+        ?.click()
     })
 
     expect(onOpenInTab).toHaveBeenCalledWith(row)
+    expect(onPreviousRecord).toHaveBeenCalledOnce()
+    expect(onNextRecord).toHaveBeenCalledOnce()
   })
 
   it("uses a wider responsive field layout for a full record page", async () => {
@@ -394,7 +418,6 @@ describe("EidosFileRecordInspector", () => {
           onPreviousRecord={onPreviousRecord}
           onNextRecord={onNextRecord}
           onOpenInTab={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={onCellEdit}
         />
       )
@@ -580,7 +603,6 @@ describe("EidosFileRecordInspector", () => {
           onClose={vi.fn()}
           onPreviousRecord={onPreviousRecord}
           onNextRecord={onNextRecord}
-          onCopyRecordId={vi.fn()}
         />
       )
     })
@@ -641,7 +663,6 @@ describe("EidosFileRecordInspector", () => {
           row={row}
           fields={[fields[0], ownersField]}
           onClose={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={onCellEdit}
           onSearchRelation={onSearchRelation}
         />
@@ -721,7 +742,6 @@ describe("EidosFileRecordInspector", () => {
           }}
           fields={[fields[0]!, inverseRelation]}
           onClose={vi.fn()}
-          onCopyRecordId={vi.fn()}
           onCellEdit={vi.fn()}
           onSearchRelation={onSearchRelation}
         />

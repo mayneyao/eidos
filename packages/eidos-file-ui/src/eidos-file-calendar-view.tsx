@@ -1073,7 +1073,6 @@ export function EidosFileCalendarView({
                 ? () => openInspectorRow(nextInspectorRow)
                 : undefined
             }
-            onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             disabled={disabled}
             loading={inspectorLoading}

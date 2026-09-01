@@ -593,14 +593,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     total,
   ])
 
-  const copyRecordId = (id: string) => {
-    if (!navigator.clipboard) {
-      onError?.(new Error("Clipboard access is unavailable"))
-      return
-    }
-    void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
-  }
-
   const editRecord = async (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -785,7 +777,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                 : undefined
             }
             onOpenInTab={onOpenRecordInTab}
-            onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             disabled={disabled}
             loading={inspectorLoading}

@@ -20,7 +20,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Copy,
   ExternalLink,
   LoaderCircle,
   Minus,
@@ -292,7 +291,8 @@ export interface EidosFileRecordInspectorProps {
   onPreviousRecord?: () => void | Promise<void>
   onNextRecord?: () => void | Promise<void>
   onOpenInTab?: (row: EidosFileRow) => void
-  onCopyRecordId: (id: string) => void
+  /** @deprecated Record IDs are no longer shown in record inspectors. */
+  onCopyRecordId?: (id: string) => void
   onCellEdit?: (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -323,7 +323,6 @@ export function EidosFileRecordInspector({
   onPreviousRecord,
   onNextRecord,
   onOpenInTab,
-  onCopyRecordId,
   onCellEdit,
   disabled = false,
   loading = false,
@@ -546,16 +545,33 @@ export function EidosFileRecordInspector({
     </span>
   ) : null
 
-  const recordIdButton = (
-    <button
-      type="button"
-      className="mt-1 flex max-w-full items-center gap-1 rounded-sm text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      data-eidos-file-record-id=""
-      onClick={() => onCopyRecordId(currentRowId)}
-    >
-      <span className="truncate">{currentRowId}</span>
-      <Copy className="h-3 w-3 shrink-0" />
-    </button>
+  const recordNavigationButtons = (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0"
+        aria-label={t("Previous record")}
+        title={t("Previous record")}
+        disabled={!onPreviousRecord || recordNavigationDisabled}
+        onClick={() => void navigateRecord(onPreviousRecord)}
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0"
+        aria-label={t("Next record")}
+        title={t("Next record")}
+        disabled={!onNextRecord || recordNavigationDisabled}
+        onClick={() => void navigateRecord(onNextRecord)}
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </Button>
+    </>
   )
 
   const metadataRows = metadataFields.map((field) => {
@@ -665,30 +681,7 @@ export function EidosFileRecordInspector({
               </div>
               <div className="flex shrink-0 items-center gap-0.5">
                 {saveStatus}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  aria-label={t("Previous record")}
-                  title={t("Previous record")}
-                  disabled={!onPreviousRecord || recordNavigationDisabled}
-                  onClick={() => void navigateRecord(onPreviousRecord)}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  aria-label={t("Next record")}
-                  title={t("Next record")}
-                  disabled={!onNextRecord || recordNavigationDisabled}
-                  onClick={() => void navigateRecord(onNextRecord)}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+                {recordNavigationButtons}
                 {onClose ? (
                   <Button
                     type="button"
@@ -707,7 +700,10 @@ export function EidosFileRecordInspector({
           </div>
         </header>
       ) : (
-        <header className="flex min-h-14 items-start gap-2 border-b px-4 py-3">
+        <header
+          className="flex min-h-14 items-start gap-2 border-b px-4 py-3"
+          data-eidos-file-record-panel-header=""
+        >
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
               <h2
@@ -721,35 +717,37 @@ export function EidosFileRecordInspector({
               </h2>
               {saveStatus}
             </div>
-            {recordIdButton}
           </div>
-          {onOpenInTab ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              aria-label={t("Open record in tab")}
-              title={t("Open in tab")}
-              disabled={savingField !== null}
-              onClick={() => onOpenInTab(currentRow)}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
-          {onClose ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              aria-label={t("Close record details")}
-              disabled={savingField !== null}
-              onClick={onClose}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-0.5">
+            {onOpenInTab ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("Open record in tab")}
+                title={t("Open in tab")}
+                disabled={savingField !== null}
+                onClick={() => onOpenInTab(currentRow)}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+            {recordNavigationButtons}
+            {onClose ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("Close record details")}
+                disabled={savingField !== null}
+                onClick={() => void closeRecord()}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </div>
         </header>
       )}
       {failedEdit ? (

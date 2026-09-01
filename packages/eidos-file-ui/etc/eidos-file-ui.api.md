@@ -431,8 +431,11 @@ interface EidosFileRecordInspectorProps {
   variant?: "panel" | "page";
   contentField?: EidosFileFieldInfo | null;
   onClose?: () => void;
+  onPreviousRecord?: () => void | Promise<void>;
+  onNextRecord?: () => void | Promise<void>;
   onOpenInTab?: (row: EidosFileRow) => void;
-  onCopyRecordId: (id: string) => void;
+  /** @deprecated Record IDs are no longer shown in record inspectors. */
+  onCopyRecordId?: (id: string) => void;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   disabled?: boolean;
   loading?: boolean;
@@ -449,8 +452,9 @@ declare function EidosFileRecordInspector({
   variant,
   contentField,
   onClose,
+  onPreviousRecord,
+  onNextRecord,
   onOpenInTab,
-  onCopyRecordId,
   onCellEdit,
   disabled,
   loading,

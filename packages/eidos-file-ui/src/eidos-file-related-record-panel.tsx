@@ -88,17 +88,6 @@ export function EidosFileRelatedRecordPanel({
     [onMutation, replaceInspectorRow, source, table.table.id, target.rowId]
   )
 
-  const copyRecordId = useCallback(
-    (id: string) => {
-      if (!navigator.clipboard) {
-        onError?.(new Error("Clipboard access is unavailable"))
-        return
-      }
-      void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
-    },
-    [onError]
-  )
-
   if (!inspectedRow) return null
 
   return (
@@ -115,7 +104,6 @@ export function EidosFileRelatedRecordPanel({
         closeInspectorRow()
         onClose()
       }}
-      onCopyRecordId={copyRecordId}
       onCellEdit={editRecord}
       onSearchRelation={(field, query) =>
         searchEidosFileRelationRecords(source, field, query)

@@ -2930,7 +2930,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
               : undefined
           }
           onOpenInTab={onOpenRecordInTab}
-          onCopyRecordId={copyText}
           onCellEdit={editInspectedRecord}
           disabled={gridWriteLocked}
           onError={onError}
