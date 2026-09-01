@@ -1109,8 +1109,17 @@ describe("SpaceSession Graft-backed snapshots", () => {
         .mockReturnValue([])
       vi.spyOn(session.runtimePool, "open").mockImplementation(async () => {
         openRelativePaths.mockReturnValue([relativePath])
-        return {} as never
+        return {
+          sessionId: "runtime-session",
+          relativePath,
+          snapshot: { metadata: { revision: 1 } } as never,
+          readOnly: false,
+        }
       })
+      vi.spyOn(session.runtimePool, "call").mockResolvedValue({
+        connectionId: "runtime-connection",
+        dataVersion: "1",
+      } as never)
       await expect(session.refresh()).resolves.toMatchObject({
         graft: { clean: true },
       })
@@ -1188,12 +1197,26 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
     try {
       session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "openRelativePaths").mockReturnValue([
+        relativePath,
+      ])
       vi.spyOn(session.runtimePool, "open").mockResolvedValue({
         sessionId: "runtime-session",
         relativePath,
-        snapshot: {} as never,
+        snapshot: { metadata: { revision: 1 } } as never,
         readOnly: false,
       })
+      let probeCount = 0
+      vi.spyOn(session.runtimePool, "call").mockImplementation(
+        async (_sessionId, method) => {
+          if (method !== "getExternalChangeProbe") return {} as never
+          probeCount += 1
+          return {
+            connectionId: "runtime-connection",
+            dataVersion: probeCount === 1 ? "1" : "2",
+          } as never
+        }
+      )
       await session.openEidosFile(relativePath)
       const changed = new Promise<SpaceSnapshot>((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -1273,15 +1296,39 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
     try {
       session = await SpaceSession.create(root, userData, { graft })
-      vi.spyOn(session.runtimePool, "call").mockImplementation(async () => {
-        const runtime = openEidosFile(filePath)
-        try {
-          runtime.updateRow(tableId, String(row._id), { Name: "Grace" })
-        } finally {
-          runtime.close()
-        }
-        return {} as never
+      vi.spyOn(session.runtimePool, "openRelativePaths").mockReturnValue([
+        relativePath,
+      ])
+      vi.spyOn(session.runtimePool, "open").mockResolvedValue({
+        sessionId: "runtime-session",
+        relativePath,
+        snapshot: { metadata: { revision: 1 } } as never,
+        readOnly: false,
       })
+      let failNextProbe = false
+      vi.spyOn(session.runtimePool, "call").mockImplementation(
+        async (_sessionId, method) => {
+          if (method === "getExternalChangeProbe") {
+            if (failNextProbe) {
+              failNextProbe = false
+              throw new Error("probe unavailable")
+            }
+            return {
+              connectionId: "runtime-connection",
+              dataVersion: "1",
+            } as never
+          }
+          if (method !== "updateRow") return {} as never
+          const runtime = openEidosFile(filePath)
+          try {
+            runtime.updateRow(tableId, String(row._id), { Name: "Grace" })
+          } finally {
+            runtime.close()
+          }
+          return {} as never
+        }
+      )
+      await session.openEidosFile(relativePath)
       const changes: SpaceSnapshot[] = []
       const unsubscribe = session.onChanged((snapshot) => {
         changes.push(snapshot)
@@ -1301,6 +1348,79 @@ describe("SpaceSession Graft-backed snapshots", () => {
           snapshot.externalChangePaths?.includes(relativePath)
         )
       ).toBe(false)
+
+      failNextProbe = true
+      await expect(
+        session.callRuntime("runtime-session", "updateRow", [
+          tableId,
+          String(row._id),
+          { Name: "Katherine" },
+        ])
+      ).resolves.toEqual({})
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
+  it("keeps transient Eidos SQLite sidecars out of Explorer snapshots", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-sidecar-explorer-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-sidecar-explorer-state-")
+    )
+    const filePath = path.join(root, "records.eidos")
+    const file = createEidosFile(filePath, {
+      title: "Records",
+      defaultTable: {
+        name: "Records",
+        fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+      },
+    })
+    file.close()
+    await Promise.all([
+      fs.writeFile(`${filePath}-wal`, "transient wal"),
+      fs.writeFile(`${filePath}-shm`, "transient shm"),
+      fs.writeFile(`${filePath}-journal`, "transient journal"),
+    ])
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.22",
+      close: async () => undefined,
+      inspectSpace: async (): Promise<GraftSpaceStatus> => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.22",
+        expectedVersion: "0.3.22",
+        initialized: false,
+      }),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: false,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      const snapshot = await session.refreshExplorer()
+      const paths = flattenSpaceTree(snapshot.entries).map(
+        (entry) => entry.relativePath
+      )
+
+      expect(paths).toContain("records.eidos")
+      expect(paths).not.toContain("records.eidos-wal")
+      expect(paths).not.toContain("records.eidos-shm")
+      expect(paths).not.toContain("records.eidos-journal")
     } finally {
       await session?.close().catch(() => undefined)
       await Promise.all([
@@ -1476,13 +1596,24 @@ describe("SpaceSession Graft-backed snapshots", () => {
       session = await SpaceSession.create(root, userData, { graft })
       vi.spyOn(session.runtimePool, "open").mockImplementation(async () => {
         expect(backgroundAborted).toBe(true)
-        return {} as never
+        return {
+          sessionId: "runtime-session",
+          relativePath,
+          snapshot: { metadata: { revision: 1 } } as never,
+          readOnly: false,
+        }
       })
+      vi.spyOn(session.runtimePool, "call").mockResolvedValue({
+        connectionId: "runtime-connection",
+        dataVersion: "1",
+      } as never)
 
       await session.snapshot()
       await statusStarted.promise
       const opened = session.openEidosFile(relativePath)
-      await expect(opened).resolves.toEqual({})
+      await expect(opened).resolves.toMatchObject({
+        sessionId: "runtime-session",
+      })
       expect(backgroundAborted).toBe(true)
       finishColdStatus.resolve()
     } finally {

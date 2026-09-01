@@ -714,6 +714,7 @@ export interface EidosLiteFileRuntime {
     operationId: string
   ): EidosLiteCsvOperationProgress | null
   cancelCsvOperation(operationId: string): boolean
+  externalDataVersion(): string
   close(): Promise<void>
 }
 
@@ -747,6 +748,11 @@ async function bindRuntime(
         csv.import(csvSource, options, operationId),
       getCsvOperationProgress: (operationId) => csv.progress(operationId),
       cancelCsvOperation: (operationId) => csv.cancel(operationId),
+      externalDataVersion: () => {
+        const version = connection.dataVersion()
+        const separator = version.indexOf(":")
+        return separator < 0 ? version : version.slice(separator + 1)
+      },
       async close() {
         if (closed) return
         closed = true

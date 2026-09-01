@@ -9,6 +9,7 @@ import type {
 
 import type {
   EidosFileIssue,
+  EidosLiteExternalChangeProbe,
   EidosSyncMergeApplyRequest,
   EidosSyncMergeChoice,
   EidosSyncMergeConflictPage,
@@ -113,6 +114,53 @@ const csvOperationControlMethods = new Set<RuntimeMethod>([
   "getCsvOperationProgress",
   "cancelCsvOperation",
 ])
+const EIDOS_DATABASE_SIDECAR_SUFFIXES = ["-wal", "-shm", "-journal"] as const
+
+function normalizedWatcherPath(value: string): string {
+  return value.split("\\").join("/").replace(/\/+$/u, "")
+}
+
+function eidosDatabasePath(value: string): string | null {
+  const normalized = normalizedWatcherPath(value)
+  const sidecar = EIDOS_DATABASE_SIDECAR_SUFFIXES.find((suffix) =>
+    normalized.toLowerCase().endsWith(`.eidos${suffix}`)
+  )
+  const databasePath = sidecar
+    ? normalized.slice(0, -sidecar.length)
+    : normalized
+  return databasePath.toLowerCase().endsWith(".eidos") ? databasePath : null
+}
+
+function isEidosDatabaseSidecar(value: string): boolean {
+  const normalized = normalizedWatcherPath(value).toLowerCase()
+  return EIDOS_DATABASE_SIDECAR_SUFFIXES.some((suffix) =>
+    normalized.endsWith(`.eidos${suffix}`)
+  )
+}
+
+function runtimeResultRevision(value: unknown): number | bigint | null {
+  if (!value || typeof value !== "object") return null
+  const result = value as Record<string, unknown>
+  if (
+    typeof result.revision === "number" ||
+    typeof result.revision === "bigint"
+  ) {
+    return result.revision
+  }
+  const metadata = result.metadata
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    ["number", "bigint"].includes(
+      typeof (metadata as Record<string, unknown>).revision
+    )
+  ) {
+    return (metadata as Record<string, number | bigint>).revision
+  }
+  const snapshot = result.snapshot
+  if (!snapshot || typeof snapshot !== "object") return null
+  return runtimeResultRevision(snapshot)
+}
 const versionReadKeys = [
   "version-changes",
   "version-history",
@@ -252,6 +300,10 @@ interface CompletedCheckpoint {
   previousStatus: GraftSpaceStatus
 }
 
+interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
+  revision: number | bigint | null
+}
+
 export class SpaceSession {
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
@@ -281,6 +333,12 @@ export class SpaceSession {
     string,
     Map<string, FileEntry>
   >()
+  private readonly runtimeExternalChangeState = new Map<
+    string,
+    RuntimeExternalChangeState
+  >()
+  private readonly runtimeSessionByPath = new Map<string, string>()
+  private watcherRefreshTail: Promise<void> = Promise.resolve()
   private graftStatusCache: GraftSpaceStatus | null = null
   private lastKnownGraftStatus: GraftSpaceStatus | null = null
   private syncHistoryState: SpaceSyncState | null = null
@@ -331,14 +389,9 @@ export class SpaceSession {
     this.watcher = new SpaceWatcher(
       canonical.root,
       (relativePaths) => {
-        void this.pathIndex.applyChanges(relativePaths).catch(() => undefined)
-        const directoriesToRefresh =
-          this.invalidateDirectoryCaches(relativePaths)
-        this.invalidateGraftStatusCache()
-        if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
-          this.checkpointScheduler.notifyStableChange()
-        }
-        void this.refreshAndEmit(true, directoriesToRefresh, relativePaths)
+        this.watcherRefreshTail = this.watcherRefreshTail
+          .then(() => this.handleStableWatcherChange(relativePaths))
+          .catch(() => undefined)
       },
       150,
       async (relativePaths) => {
@@ -349,8 +402,7 @@ export class SpaceSession {
             .filter(([, inspection]) => this.shouldPruneIgnored(inspection))
             .map(([relativePath]) => relativePath)
         )
-      },
-      () => this.gate.hasActiveMutations()
+      }
     )
     this.gate.subscribe(() => {
       this.emitCachedOperationSnapshot()
@@ -478,6 +530,13 @@ export class SpaceSession {
     try {
       await this.ensureAncestorDirectoriesLoaded(relativePath)
       const opened = await this.runtimePool.open(relativePath)
+      this.runtimeSessionByPath.set(relativePath, opened.sessionId)
+      await this.rememberRuntimeExternalChangeState(
+        opened.sessionId,
+        opened.snapshot.metadata.revision
+      ).catch(() => {
+        this.runtimeExternalChangeState.delete(opened.sessionId)
+      })
       this.fileIssuesByPath.delete(relativePath)
       this.invalidateGraftStatusCache()
       this.scheduleGraftStatusRefresh()
@@ -834,9 +893,21 @@ export class SpaceSession {
     let result: RuntimeCalls[M]["result"]
     try {
       result = isMutation
-        ? await this.gate.withMutation(() =>
-            this.runtimePool.call(sessionId, method, args)
-          )
+        ? await this.gate.withMutation(async () => {
+            const mutationResult = await this.runtimePool.call(
+              sessionId,
+              method,
+              args
+            )
+            await this.rememberRuntimeExternalChangeState(
+              sessionId,
+              runtimeResultRevision(mutationResult),
+              true
+            ).catch(() => {
+              this.runtimeExternalChangeState.delete(sessionId)
+            })
+            return mutationResult
+          })
         : isCsvOperationControl
           ? await this.runtimePool.call(sessionId, method, args)
           : await this.gate.withRuntimeRead(() =>
@@ -2621,6 +2692,7 @@ export class SpaceSession {
 
   private async closeInternal(): Promise<void> {
     this.watcher.close()
+    await this.watcherRefreshTail.catch(() => undefined)
     this.cancelVersionReads()
     for (const timer of this.ignoreReconciliationTimers.values()) {
       clearTimeout(timer)
@@ -2644,6 +2716,8 @@ export class SpaceSession {
     this.changeListeners.clear()
     this.automaticCheckpointListeners.clear()
     this.pendingEidosFileAssets.clear()
+    this.runtimeExternalChangeState.clear()
+    this.runtimeSessionByPath.clear()
     this.fileIssuesByPath.clear()
     this.ignoreInspectionCache.clear()
     this.directoryEntriesCache.clear()
@@ -2916,24 +2990,26 @@ export class SpaceSession {
   ): Promise<void> {
     const key = relativePath === "." ? "" : relativePath
     if (this.directoryEntriesCache.has(key)) return
-    const entries = await listSpaceDirectory(
-      this.canonical.root,
-      key || null,
-      respectIgnores
-        ? {
-            ignoredPaths: async (relativePaths) => {
-              const ignored = await this.inspectIgnores(relativePaths)
-              return new Set(
-                [...ignored.entries()]
-                  .filter(([, inspection]) =>
-                    this.shouldPruneIgnored(inspection)
-                  )
-                  .map(([ignoredPath]) => ignoredPath)
-              )
-            },
-          }
-        : {}
-    )
+    const entries = (
+      await listSpaceDirectory(
+        this.canonical.root,
+        key || null,
+        respectIgnores
+          ? {
+              ignoredPaths: async (relativePaths) => {
+                const ignored = await this.inspectIgnores(relativePaths)
+                return new Set(
+                  [...ignored.entries()]
+                    .filter(([, inspection]) =>
+                      this.shouldPruneIgnored(inspection)
+                    )
+                    .map(([ignoredPath]) => ignoredPath)
+                )
+              },
+            }
+          : {}
+      )
+    ).filter((entry) => !isEidosDatabaseSidecar(entry.relativePath))
     this.directoryEntriesCache.set(key, entries)
     if (!respectIgnores)
       this.reconcileDirectoryIgnoresInBackground(key, entries)
@@ -3204,6 +3280,185 @@ export class SpaceSession {
         pending.push(path.join(current, child))
       }
     }
+  }
+
+  private async handleStableWatcherChange(
+    relativePaths: readonly string[]
+  ): Promise<void> {
+    if (this.closed) return
+    const normalizedPaths = [
+      ...new Set(relativePaths.map(normalizedWatcherPath)),
+    ]
+    const databasePaths = [
+      ...new Set(
+        normalizedPaths.flatMap((relativePath) => {
+          const databasePath = eidosDatabasePath(relativePath)
+          return databasePath ? [databasePath] : []
+        })
+      ),
+    ]
+    const explorerPaths =
+      await this.explorerPathsForWatcherChange(normalizedPaths)
+    if (normalizedPaths.length === 0 || explorerPaths.length > 0) {
+      void this.pathIndex.applyChanges(explorerPaths).catch(() => undefined)
+    }
+    const directoriesToRefresh = this.invalidateDirectoryCaches(explorerPaths)
+    this.invalidateGraftStatusCache()
+    if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
+      this.checkpointScheduler.notifyStableChange()
+    }
+
+    const externalChangePaths =
+      await this.detectExternalEidosFileChanges(databasePaths)
+    const openPaths = new Set(this.runtimePool.openRelativePaths())
+    const isKnownRuntimeOnlyChange =
+      normalizedPaths.length > 0 &&
+      explorerPaths.length === 0 &&
+      databasePaths.length > 0 &&
+      databasePaths.every((relativePath) => openPaths.has(relativePath))
+
+    if (isKnownRuntimeOnlyChange && externalChangePaths.length === 0) {
+      // Runtime mutations already emit their authoritative snapshot. The file
+      // watcher is only reporting SQLite persistence for the same change, so a
+      // second shell/tree/grid refresh would erase UI-local history and caches.
+      this.scheduleGraftStatusRefresh()
+      return
+    }
+    await this.refreshAndEmit(
+      true,
+      directoriesToRefresh,
+      externalChangePaths.length > 0 ? externalChangePaths : undefined
+    )
+  }
+
+  private async explorerPathsForWatcherChange(
+    relativePaths: readonly string[]
+  ): Promise<string[]> {
+    if (relativePaths.length === 0) return []
+    const explorerPaths: string[] = []
+    for (const relativePath of relativePaths) {
+      const databasePath = eidosDatabasePath(relativePath)
+      if (!databasePath) {
+        explorerPaths.push(relativePath)
+        continue
+      }
+      if (isEidosDatabaseSidecar(relativePath)) continue
+      if (await this.eidosPathChangedExplorerStructure(databasePath)) {
+        explorerPaths.push(databasePath)
+      }
+    }
+    return [...new Set(explorerPaths)]
+  }
+
+  private async eidosPathChangedExplorerStructure(
+    relativePath: string
+  ): Promise<boolean> {
+    const parent = path.posix.dirname(relativePath)
+    const parentKey = parent === "." ? "" : parent
+    const cachedEntries = this.directoryEntriesCache.get(parentKey)
+    if (!cachedEntries) return false
+    const cached = cachedEntries.find(
+      (entry) => entry.relativePath === relativePath
+    )
+    try {
+      const stats = await fs.lstat(
+        resolveSpacePath(this.canonical.root, relativePath)
+      )
+      return !cached || !stats.isFile() || stats.isSymbolicLink()
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        String(error.code) === "ENOENT"
+      ) {
+        return cached !== undefined
+      }
+      return true
+    }
+  }
+
+  private async rememberRuntimeExternalChangeState(
+    sessionId: string,
+    revision: number | bigint | null,
+    preservePendingExternalChange = false
+  ): Promise<void> {
+    const probe = await this.runtimePool.call(
+      sessionId,
+      "getExternalChangeProbe",
+      []
+    )
+    const previous = this.runtimeExternalChangeState.get(sessionId)
+    if (
+      preservePendingExternalChange &&
+      previous?.connectionId === probe.connectionId &&
+      previous.dataVersion !== probe.dataVersion
+    ) {
+      return
+    }
+    this.runtimeExternalChangeState.set(sessionId, {
+      ...probe,
+      revision: revision ?? previous?.revision ?? null,
+    })
+  }
+
+  private async detectExternalEidosFileChanges(
+    relativePaths: readonly string[]
+  ): Promise<string[]> {
+    if (relativePaths.length === 0) return []
+    const openPaths = new Set(this.runtimePool.openRelativePaths())
+    const changed: string[] = []
+    for (const relativePath of relativePaths) {
+      if (!openPaths.has(relativePath)) continue
+      let sessionId: string | undefined
+      try {
+        sessionId = this.runtimeSessionByPath.get(relativePath)
+        let openedRevision: number | bigint | null = null
+        if (!sessionId) {
+          const opened = await this.runtimePool.open(relativePath)
+          sessionId = opened.sessionId
+          openedRevision = opened.snapshot.metadata.revision
+          this.runtimeSessionByPath.set(relativePath, sessionId)
+        }
+        const probe = await this.runtimePool.call(
+          sessionId,
+          "getExternalChangeProbe",
+          []
+        )
+        const previous = this.runtimeExternalChangeState.get(sessionId)
+        let revision = openedRevision ?? previous?.revision ?? null
+        if (previous && previous.connectionId !== probe.connectionId) {
+          const snapshot = await this.runtimePool.call(
+            sessionId,
+            "getSnapshot",
+            []
+          )
+          revision = snapshot.metadata.revision
+        }
+        this.runtimeExternalChangeState.set(sessionId, {
+          ...probe,
+          revision,
+        })
+        if (!previous) continue
+        if (previous.connectionId === probe.connectionId) {
+          if (previous.dataVersion !== probe.dataVersion) {
+            changed.push(relativePath)
+          }
+          continue
+        }
+        // PRAGMA data_version is comparable only on the same connection. After
+        // LRU residency changes, the Eidos revision is the safe fallback.
+        if (previous.revision !== null && previous.revision !== revision) {
+          changed.push(relativePath)
+        }
+      } catch (error) {
+        if (sessionId) this.runtimeExternalChangeState.delete(sessionId)
+        this.runtimeSessionByPath.delete(relativePath)
+        if (error instanceof EidosFileRuntimeError) {
+          this.fileIssuesByPath.set(relativePath, error.issue)
+        }
+      }
+    }
+    return changed
   }
 
   private async refreshAndEmit(

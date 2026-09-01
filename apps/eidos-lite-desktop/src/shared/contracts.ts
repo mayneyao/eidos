@@ -1346,6 +1346,10 @@ export interface EidosLiteUrlImageResolution {
 }
 
 interface RuntimeCustomCalls {
+  getExternalChangeProbe: {
+    args: []
+    result: EidosLiteExternalChangeProbe
+  }
   allocateFileEntry: {
     args: [
       request: {
@@ -1415,6 +1419,7 @@ interface RuntimeCustomCalls {
 
 export const RUNTIME_READ_METHODS = [
   "getSnapshot",
+  "getExternalChangeProbe",
   "allocateFileEntry",
   "findFileEntry",
   "getPage",
@@ -1478,6 +1483,13 @@ type RuntimeCall<M extends RuntimeMethod> = M extends keyof RuntimeCustomCalls
 
 export type RuntimeCalls = {
   [M in RuntimeMethod]: RuntimeCall<M>
+}
+
+export interface EidosLiteExternalChangeProbe {
+  /** Changes whenever the utility process opens a new SQLite connection. */
+  connectionId: string
+  /** SQLite PRAGMA data_version observed by that exact connection. */
+  dataVersion: string
 }
 
 export type EidosLiteSchemaImpact = Pick<

@@ -1,4 +1,5 @@
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 import type {
   EidosFileCsvImportOptions,
   EidosFileColumnStatConfig,
@@ -39,6 +40,7 @@ if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
 let openedRuntime: EidosLiteFileRuntime | null = null
 let source: EidosRuntimeEditorDataSource | null = null
+const connectionId = randomUUID()
 
 function requireSource(): EidosRuntimeEditorDataSource {
   if (!source) throw new Error("Eidos File runtime is not open")
@@ -127,6 +129,11 @@ async function runtimeCall(
   switch (method) {
     case "getSnapshot":
       return dataSource.getSnapshot()
+    case "getExternalChangeProbe":
+      return {
+        connectionId,
+        dataVersion: requireRuntime().externalDataVersion(),
+      }
     case "allocateFileEntry":
       return requireRuntime().allocateFileEntry(
         objectValue(args[0], "File entry allocation") as {
