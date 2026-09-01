@@ -349,7 +349,8 @@ export class SpaceSession {
             .filter(([, inspection]) => this.shouldPruneIgnored(inspection))
             .map(([relativePath]) => relativePath)
         )
-      }
+      },
+      () => this.gate.hasActiveMutations()
     )
     this.gate.subscribe(() => {
       this.emitCachedOperationSnapshot()

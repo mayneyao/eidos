@@ -1229,6 +1229,87 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   }, 15_000)
 
+  it("does not label a runtime mutation as an external Eidos File change", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-local-eidos-refresh-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-local-eidos-refresh-state-")
+    )
+    const relativePath = "records.eidos"
+    const filePath = path.join(root, relativePath)
+    const file = createEidosFile(filePath, {
+      title: "Records",
+      defaultTable: {
+        name: "Records",
+        fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+      },
+    })
+    const tableId = file.schema()[0]!.table.id
+    const row = file.insertRow(tableId, { Name: "Ada" })
+    file.close()
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.22",
+      close: async () => undefined,
+      inspectSpace: async (): Promise<GraftSpaceStatus> => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.22",
+        expectedVersion: "0.3.22",
+        initialized: false,
+      }),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: false,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "call").mockImplementation(async () => {
+        const runtime = openEidosFile(filePath)
+        try {
+          runtime.updateRow(tableId, String(row._id), { Name: "Grace" })
+        } finally {
+          runtime.close()
+        }
+        return {} as never
+      })
+      const changes: SpaceSnapshot[] = []
+      const unsubscribe = session.onChanged((snapshot) => {
+        changes.push(snapshot)
+      })
+
+      await session.callRuntime("runtime-session", "updateRow", [
+        tableId,
+        String(row._id),
+        { Name: "Grace" },
+      ])
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      unsubscribe()
+
+      expect(changes.length).toBeGreaterThan(0)
+      expect(
+        changes.some((snapshot) =>
+          snapshot.externalChangePaths?.includes(relativePath)
+        )
+      ).toBe(false)
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
   it("signals affected Eidos Files to refresh after collecting published Form responses", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-publish-collect-refresh-")

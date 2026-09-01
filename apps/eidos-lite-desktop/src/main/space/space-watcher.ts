@@ -14,7 +14,9 @@ export class SpaceWatcher {
     private readonly debounceMs = 150,
     private readonly ignoredPaths: (
       relativePaths: readonly string[]
-    ) => Promise<ReadonlySet<string>> = async () => new Set()
+    ) => Promise<ReadonlySet<string>> = async () => new Set(),
+    private readonly ignoreEvent: (relativePath: string) => boolean = () =>
+      false
   ) {}
 
   start(): void {
@@ -37,7 +39,9 @@ export class SpaceWatcher {
         ) {
           return
         }
-        this.pendingPaths.add(relativePath.split("\\").join("/"))
+        const normalizedPath = relativePath.split("\\").join("/")
+        if (this.ignoreEvent(normalizedPath)) return
+        this.pendingPaths.add(normalizedPath)
         if (this.timer) clearTimeout(this.timer)
         this.timer = setTimeout(() => {
           this.timer = null
