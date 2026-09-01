@@ -638,7 +638,7 @@ export function EidosFileRecordInspector({
         <header className="shrink-0 bg-background">
           <div className="mx-auto w-full max-w-[960px] px-5 sm:px-8 lg:px-12">
             <div
-              className="flex min-h-11 w-full max-w-[760px] items-center gap-4 py-2"
+              className="mx-auto flex min-h-11 w-full max-w-[760px] items-center gap-4 py-2"
               data-eidos-file-record-page-header-row=""
             >
               <div className="min-w-0 flex-1">
@@ -826,7 +826,7 @@ export function EidosFileRecordInspector({
           >
             {metadataRows.length > 0 ? (
               <div
-                className="grid max-w-[760px] gap-0 py-2"
+                className="mx-auto grid w-full max-w-[760px] gap-0 py-2"
                 data-eidos-file-record-properties=""
               >
                 {metadataRows}
@@ -835,7 +835,7 @@ export function EidosFileRecordInspector({
             {contentField ? (
               <div
                 className={cn(
-                  "mt-3 w-full max-w-[760px] pt-3",
+                  "mx-auto mt-3 w-full max-w-[760px] pt-3",
                   contentMode === "edit" && "flex min-h-0 flex-1 flex-col"
                 )}
                 data-eidos-file-record-content=""
