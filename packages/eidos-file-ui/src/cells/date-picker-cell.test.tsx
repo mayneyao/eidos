@@ -66,6 +66,46 @@ describe("date picker cell renderer", () => {
     })
   })
 
+  it("distributes every calendar week across the editor width", async () => {
+    const onFinishedEditing = vi.fn()
+
+    function Harness() {
+      const [cell, setCell] = useState(dateCell(false))
+      return (
+        <EidosFileDatePickerCellEditor
+          value={cell}
+          onChange={setCell}
+          onFinishedEditing={onFinishedEditing}
+          isHighlighted={false}
+          target={{ x: 0, y: 0, width: 240, height: 36 }}
+          forceEditMode={false}
+          theme={{ name: "light" } as never}
+        />
+      )
+    }
+
+    await act(async () => {
+      root.render(<Harness />)
+      await Promise.resolve()
+    })
+
+    const calendar = document.body.querySelector(
+      "[data-eidos-file-grid-editor-surface] table"
+    )
+    const weekdayRow = calendar?.querySelector("thead tr")
+    const weekRows = Array.from(calendar?.querySelectorAll("tbody tr") ?? [])
+
+    expect(weekdayRow?.children).toHaveLength(7)
+    expect(weekdayRow?.classList.contains("justify-between")).toBe(true)
+    expect(weekRows.length).toBeGreaterThan(0)
+    expect(
+      weekRows.every(
+        (row) =>
+          row.children.length === 7 && row.classList.contains("justify-between")
+      )
+    ).toBe(true)
+  })
+
   it("does not clear readonly cells through the renderer delete path", () => {
     expect(renderer.onDelete?.(dateCell(true))).toBeUndefined()
   })

@@ -239,7 +239,8 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               className="mx-auto rounded-md border-none p-1 outline-hidden"
               classNames={{
                 month: "space-y-2",
-                row: "mt-1 flex w-full",
+                head_row: "flex w-full justify-between",
+                row: "mt-1 flex w-full justify-between",
               }}
               navButtonClassName="shadow-none"
             />
