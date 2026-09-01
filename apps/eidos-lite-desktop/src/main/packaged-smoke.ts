@@ -1514,14 +1514,14 @@ const rendererProbe = `
     "README text surface"
   )
   if (readmeSurface.hasAttribute("data-document-file-preview")) {
-    const sourceMode = await waitFor(
+    const editMode = await waitFor(
       () =>
         document.querySelector(
-          '[data-document-file-preview="README.md"] [data-document-preview-mode="source"]'
+          '[data-document-file-preview="README.md"] [data-document-preview-mode="edit"]'
         ),
-      "README source action"
+      "README edit action"
     )
-    sourceMode.click()
+    editMode.click()
   }
   const textEditorSurface = await waitFor(
     () => document.querySelector('[data-text-file-editor="README.md"]'),
@@ -1542,14 +1542,14 @@ const rendererProbe = `
     () => document.querySelector('[data-document-file-preview="Empty.md"]'),
     "empty Markdown preview"
   )
-  const emptySourceMode = await waitFor(
+  const emptyEditMode = await waitFor(
     () =>
       emptyDocument.querySelector(
-        '[data-document-preview-mode="source"]'
+        '[data-document-preview-mode="edit"]'
       ),
-    "empty Markdown source action"
+    "empty Markdown edit action"
   )
-  emptySourceMode.click()
+  emptyEditMode.click()
   const emptyEditorSurface = await waitFor(
     () => document.querySelector('[data-text-file-editor="Empty.md"]'),
     "empty Markdown editor"
