@@ -254,7 +254,7 @@ export function EidosFileRecordFieldEditor({
         disabled={disabled}
         className={
           appearance === "record-title"
-            ? "min-h-[2.75rem] resize-none rounded-none border-0 px-0 py-0 text-[2rem] font-semibold leading-[1.2] tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-[2.25rem]"
+            ? "min-h-8 resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl"
             : "min-h-8 resize-none text-xs leading-5"
         }
         style={measuredText.style}

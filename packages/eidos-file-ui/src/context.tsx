@@ -65,6 +65,14 @@ export interface EidosFileRelationRecordTarget {
   title: string
 }
 
+/** Host-native Markdown source editor rendered inside a record content page. */
+export interface EidosFileMarkdownSourceEditorRequest {
+  cacheKey: string
+  content: string
+  disabled: boolean
+  onChange(content: string): void
+}
+
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
@@ -82,6 +90,10 @@ export interface EidosFileUIHost {
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
   keyboardShortcuts?: EidosFileUIKeyboardShortcuts
+  /** Optional richer source editor. Shared UI falls back to a plain textarea. */
+  renderMarkdownSourceEditor?: (
+    request: EidosFileMarkdownSourceEditorRequest
+  ) => ReactNode
 }
 
 const defaultHost: EidosFileUIHost = {
@@ -107,6 +119,7 @@ export function EidosFileUIProvider({
   assetSession,
   assetPresenter,
   keyboardShortcuts,
+  renderMarkdownSourceEditor,
 }: Partial<EidosFileUIHost> & {
   children: ReactNode
   messages?: Partial<EidosFileUIMessageOverrides>
@@ -124,6 +137,8 @@ export function EidosFileUIProvider({
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
   const resolvedKeyboardShortcuts =
     keyboardShortcuts ?? parent.keyboardShortcuts
+  const resolvedRenderMarkdownSourceEditor =
+    renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
       themeName: resolvedThemeName,
@@ -147,6 +162,9 @@ export function EidosFileUIProvider({
       ...(resolvedKeyboardShortcuts
         ? { keyboardShortcuts: resolvedKeyboardShortcuts }
         : {}),
+      ...(resolvedRenderMarkdownSourceEditor
+        ? { renderMarkdownSourceEditor: resolvedRenderMarkdownSourceEditor }
+        : {}),
     }),
     [
       locale,
@@ -157,6 +175,7 @@ export function EidosFileUIProvider({
       resolvedAssetPresenter,
       resolvedAssetSession,
       resolvedKeyboardShortcuts,
+      resolvedRenderMarkdownSourceEditor,
       resolvedLocale,
       resolvedThemeName,
       resolvedTimeZone,

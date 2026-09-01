@@ -1,7 +1,8 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,6 +19,7 @@ import { decodeEidosFileValues } from "@eidos.space/eidos-file"
 import {
   Check,
   Copy,
+  Eye,
   ExternalLink,
   LoaderCircle,
   Minus,
@@ -46,7 +48,11 @@ import {
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 import { renderSafeEidosFileMarkdown } from "./eidos-file-markdown"
-import { Textarea } from "./ui/primitives"
+
+const LazyEidosFileMarkdownSourceEditor = lazy(async () => {
+  const module = await import("./eidos-file-markdown-source-editor")
+  return { default: module.EidosFileMarkdownSourceEditor }
+})
 
 interface FailedRecordEdit {
   field: EidosFileFieldInfo
@@ -168,117 +174,81 @@ function FieldValue({
 function MarkdownContentEditor({
   value,
   label,
+  mode,
   editable,
   disabled,
-  onSave,
+  cacheKey,
+  onDraftChange,
+  onEdit,
+  onCancelEdit,
+  onSaveAndPreview,
   onError,
 }: {
   value: string
   label: string
+  mode: "preview" | "edit"
   editable: boolean
   disabled: boolean
-  onSave: (value: string) => Promise<void>
+  cacheKey: string
+  onDraftChange: (value: string) => void
+  onEdit: () => void
+  onCancelEdit: () => void
+  onSaveAndPreview: () => Promise<void>
   onError?: (error: unknown) => void
 }) {
   const { activateUrl, translate: t } = useEidosFileUI()
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [saving, setSaving] = useState(false)
-  const editorRef = useRef<HTMLTextAreaElement>(null)
   const html = useMemo(() => renderSafeEidosFileMarkdown(value), [value])
 
-  useEffect(() => {
-    if (!editing) setDraft(value)
-  }, [editing, value])
-
-  useLayoutEffect(() => {
-    if (!editing || !editorRef.current) return
-    const editor = editorRef.current
-    editor.style.height = "0px"
-    editor.style.height = `${Math.max(editor.scrollHeight, window.innerHeight * 0.5)}px`
-  }, [draft, editing])
-
-  const save = async () => {
-    if (saving || disabled) return
-    if (draft === value) {
-      setEditing(false)
-      return
-    }
-    setSaving(true)
-    try {
-      await onSave(draft)
-      setEditing(false)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (editing) {
+  if (mode === "edit") {
     return (
-      <div className="pb-20" data-eidos-file-markdown-editor="source">
-        <div className="sticky top-0 z-10 -mx-2 mb-2 flex min-h-11 items-center justify-between gap-3 border-b bg-background/95 px-2 py-1.5 backdrop-blur-sm">
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        data-eidos-file-markdown-editor="source"
+        onKeyDownCapture={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            onCancelEdit()
+          } else if (
+            event.key.toLowerCase() === "s" &&
+            (event.metaKey || event.ctrlKey) &&
+            !event.altKey
+          ) {
+            event.preventDefault()
+            void onSaveAndPreview()
+          }
+        }}
+      >
+        <div className="mb-2 flex items-baseline justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-xs font-medium">{label}</p>
             <p className="text-[10px] text-muted-foreground">Markdown</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={saving}
-              onClick={() => {
-                setDraft(value)
-                setEditing(false)
-              }}
-            >
-              {t("Cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving || disabled}
-              onClick={() => void save()}
-            >
-              {saving ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              {saving ? t("Saving…") : t("Save")}
-            </Button>
-          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {t("Press {shortcut} to save.", {
+              shortcut: globalThis.navigator?.platform.includes("Mac")
+                ? "⌘S"
+                : "Ctrl+S",
+            })}
+          </p>
         </div>
-        <Textarea
-          ref={editorRef}
-          autoFocus
-          rows={1}
-          value={draft}
-          disabled={saving || disabled}
-          aria-label={t("Markdown content")}
-          className="min-h-[50vh] resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-5 font-mono text-[15px] leading-7 shadow-none focus-visible:ring-0"
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault()
-              setDraft(value)
-              setEditing(false)
-            } else if (
-              event.key === "Enter" &&
-              (event.metaKey || event.ctrlKey)
-            ) {
-              event.preventDefault()
-              void save()
-            }
-          }}
-        />
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          {t("Press {shortcut} to save.", {
-            shortcut: globalThis.navigator?.platform.includes("Mac")
-              ? "⌘↵"
-              : "Ctrl+Enter",
-          })}
-        </p>
+        <Suspense
+          fallback={
+            <div
+              className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"
+              role="status"
+            >
+              <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              {t("Loading…")}
+            </div>
+          }
+        >
+          <LazyEidosFileMarkdownSourceEditor
+            cacheKey={cacheKey}
+            content={value}
+            disabled={disabled}
+            onChange={onDraftChange}
+          />
+        </Suspense>
       </div>
     )
   }
@@ -288,31 +258,18 @@ function MarkdownContentEditor({
       className="group relative pb-20"
       data-eidos-file-markdown-editor="preview"
     >
-      <div className="mb-5 flex min-h-9 items-center justify-between gap-3 border-b pb-2">
+      <div className="mb-4">
         <div className="min-w-0">
           <p className="truncate text-xs font-medium">{label}</p>
           <p className="text-[10px] text-muted-foreground">Markdown</p>
         </div>
-        {editable ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground opacity-70 transition-opacity hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
-            disabled={disabled}
-            onClick={() => setEditing(true)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {t("Edit content")}
-          </Button>
-        ) : null}
       </div>
       {value.trim() ? (
         <div
           className="max-w-none break-words text-[15px] leading-7 text-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-6 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h1]:mb-4 [&_h1]:mt-10 [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:leading-tight [&_h1]:tracking-tight [&_h2]:mb-3 [&_h2]:mt-9 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:tracking-tight [&_h3]:mb-2 [&_h3]:mt-7 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:leading-snug [&_hr]:my-9 [&_hr]:border-border [&_img]:my-6 [&_img]:max-w-full [&_img]:rounded-sm [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:text-sm [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_table]:my-6 [&_table]:w-full [&_td]:border-b [&_td]:px-2 [&_td]:py-2 [&_th]:border-b [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-6 [&>*:first-child]:mt-0"
           dangerouslySetInnerHTML={{ __html: html }}
           onDoubleClick={() => {
-            if (editable && !disabled) setEditing(true)
+            if (editable && !disabled) onEdit()
           }}
           onClick={(event) => {
             const target = event.target as Element
@@ -334,7 +291,7 @@ function MarkdownContentEditor({
           type="button"
           className="w-full py-10 text-left text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           disabled={disabled}
-          onClick={() => setEditing(true)}
+          onClick={onEdit}
         >
           {t("Write content with Markdown…")}
         </button>
@@ -521,6 +478,51 @@ export function EidosFileRecordInspector({
       ? (currentRow[contentField.tableColumnName] as string)
       : String(currentRow[contentField.tableColumnName] ?? "")
     : ""
+  const [contentMode, setContentMode] = useState<"preview" | "edit">("preview")
+  const [contentDraft, setContentDraft] = useState(contentValue)
+  const contentIdentity = `${currentRowId}:${contentField?.id ?? ""}`
+  const contentIdentityRef = useRef(contentIdentity)
+
+  useEffect(() => {
+    if (contentIdentityRef.current === contentIdentity) return
+    contentIdentityRef.current = contentIdentity
+    setContentMode("preview")
+    setContentDraft(contentValue)
+  }, [contentIdentity, contentValue])
+
+  useEffect(() => {
+    if (contentMode === "preview") setContentDraft(contentValue)
+  }, [contentMode, contentValue])
+
+  const startContentEdit = () => {
+    if (!contentField || editorDisabled) return
+    setContentDraft(contentValue)
+    setContentMode("edit")
+  }
+
+  const cancelContentEdit = () => {
+    setContentDraft(contentValue)
+    setContentMode("preview")
+  }
+
+  const saveContentAndPreview = async () => {
+    if (!contentField || editorDisabled) return false
+    if (contentDraft !== contentValue) {
+      await editField(contentField, contentDraft)
+      if (failedEditRef.current) return false
+    }
+    setContentMode("preview")
+    return true
+  }
+
+  const closeRecord = async () => {
+    if (!onClose) return
+    if (contentMode === "edit" && contentDraft !== contentValue) {
+      const saved = await saveContentAndPreview()
+      if (!saved) return
+    }
+    onClose()
+  }
 
   const saveStatus = loading ? (
     <span
@@ -546,6 +548,7 @@ export function EidosFileRecordInspector({
     <button
       type="button"
       className="mt-1 flex max-w-full items-center gap-1 rounded-sm text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      data-eidos-file-record-id=""
       onClick={() => onCopyRecordId(currentRowId)}
     >
       <span className="truncate">{currentRowId}</span>
@@ -561,7 +564,7 @@ export function EidosFileRecordInspector({
         className={cn(
           "eidos-file-record-field grid",
           variant === "page"
-            ? "gap-x-8 gap-y-1.5 py-2 sm:grid-cols-[minmax(140px,180px)_minmax(0,1fr)] sm:items-start"
+            ? "gap-x-5 gap-y-1 py-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-start"
             : "gap-1.5 px-4 py-3"
         )}
       >
@@ -622,24 +625,89 @@ export function EidosFileRecordInspector({
       aria-busy={loading || savingField !== null ? "true" : undefined}
     >
       {variant === "page" ? (
-        <div className="h-11 shrink-0 border-b bg-background/95">
-          <div className="mx-auto flex h-full w-full max-w-[1040px] items-center justify-end gap-2 px-5 sm:px-8">
-            {saveStatus}
-            {onClose ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                aria-label={t("Close record details")}
-                disabled={savingField !== null}
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            ) : null}
+        <header className="shrink-0 bg-background">
+          <div className="mx-auto w-full max-w-[960px] px-5 sm:px-8 lg:px-12">
+            <div
+              className="flex min-h-11 w-full max-w-[760px] items-center gap-4 py-2"
+              data-eidos-file-record-page-header-row=""
+            >
+              <div className="min-w-0 flex-1">
+                {pageTitleField && pageTitleWritable ? (
+                  <div data-eidos-file-record-title="">
+                    <EidosFileRecordFieldEditor
+                      field={pageTitleField}
+                      row={currentRow}
+                      placeholder={eidosFileFieldDisplayName(pageTitleField)}
+                      appearance="record-title"
+                      disabled={editorDisabled}
+                      onChange={(value) => editField(pageTitleField, value)}
+                    />
+                  </div>
+                ) : (
+                  <h2
+                    ref={measuredTitle.ref}
+                    className="min-w-0 break-words text-xl font-semibold leading-tight tracking-tight sm:text-2xl"
+                    data-eidos-file-record-title=""
+                  >
+                    {title}
+                  </h2>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {saveStatus}
+                {contentField ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-7 gap-1 px-2 text-xs font-normal",
+                        contentMode === "preview" && "bg-accent text-foreground"
+                      )}
+                      aria-pressed={contentMode === "preview"}
+                      disabled={editorDisabled}
+                      onClick={() => void saveContentAndPreview()}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      {t("Preview")}
+                    </Button>
+                    {editable ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-7 gap-1 px-2 text-xs font-normal",
+                          contentMode === "edit" && "bg-accent text-foreground"
+                        )}
+                        aria-pressed={contentMode === "edit"}
+                        disabled={editorDisabled}
+                        onClick={startContentEdit}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t("Edit")}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
+                {onClose ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    aria-label={t("Close record details")}
+                    disabled={savingField !== null}
+                    onClick={() => void closeRecord()}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
+        </header>
       ) : (
         <header className="flex min-h-14 items-start gap-2 border-b px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -744,50 +812,50 @@ export function EidosFileRecordInspector({
         </div>
       ) : variant === "page" ? (
         <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]"
+          className={cn(
+            "min-h-0 flex-1 overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]",
+            contentMode === "edit" ? "overflow-hidden" : "overflow-y-auto"
+          )}
           data-eidos-file-record-page-scroll=""
         >
-          <article className="mx-auto w-full max-w-[960px] px-5 pb-20 sm:px-8 lg:px-12">
-            <header className="pb-9 pt-10 sm:pt-12">
-              {pageTitleField && pageTitleWritable ? (
-                <div data-eidos-file-record-title="">
-                  <EidosFileRecordFieldEditor
-                    field={pageTitleField}
-                    row={currentRow}
-                    placeholder={eidosFileFieldDisplayName(pageTitleField)}
-                    appearance="record-title"
-                    disabled={editorDisabled}
-                    onChange={(value) => editField(pageTitleField, value)}
-                  />
-                </div>
-              ) : (
-                <h2
-                  ref={measuredTitle.ref}
-                  className="min-w-0 break-words text-[2rem] font-semibold leading-[1.2] tracking-tight sm:text-[2.25rem]"
-                  data-eidos-file-record-title=""
-                >
-                  {title}
-                </h2>
-              )}
-              {recordIdButton}
-            </header>
+          <article
+            className={cn(
+              "mx-auto w-full max-w-[960px] px-5 pt-2 sm:px-8 lg:px-12",
+              contentMode === "edit"
+                ? "flex h-full min-h-0 flex-col pb-3"
+                : "pb-20"
+            )}
+          >
             {metadataRows.length > 0 ? (
               <div
-                className="grid gap-0.5 border-t border-border/70 pt-5"
+                className="grid max-w-[760px] gap-0 py-2"
                 data-eidos-file-record-properties=""
               >
                 {metadataRows}
               </div>
             ) : null}
             {contentField ? (
-              <div className="mt-9 max-w-[760px] border-t border-border/70 pt-6">
+              <div
+                className={cn(
+                  "mt-3 w-full max-w-[760px] pt-3",
+                  contentMode === "edit" && "flex min-h-0 flex-1 flex-col"
+                )}
+                data-eidos-file-record-content=""
+              >
                 <MarkdownContentEditor
                   key={`${currentRowId}:${contentField.id}`}
                   value={contentValue}
                   label={eidosFileFieldDisplayName(contentField)}
+                  mode={contentMode}
                   editable={editable}
                   disabled={editorDisabled}
-                  onSave={(value) => editField(contentField, value)}
+                  cacheKey={`${currentRowId}:${contentField.id}`}
+                  onDraftChange={setContentDraft}
+                  onEdit={startContentEdit}
+                  onCancelEdit={cancelContentEdit}
+                  onSaveAndPreview={async () => {
+                    await saveContentAndPreview()
+                  }}
                   onError={onError}
                 />
               </div>

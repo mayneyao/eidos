@@ -625,6 +625,7 @@ const zh: EidosFileUIMessageOverrides = {
   "{field} type": "{field}类型",
   "Field {index}": "字段 {index}",
   Preview: "预览",
+  Edit: "编辑",
   "Ready to import": "可以导入",
   "Cancel operation": "取消操作",
   "Retry check": "重新校验",

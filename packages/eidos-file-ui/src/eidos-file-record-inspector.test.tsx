@@ -8,6 +8,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { EidosFileUIProvider } from "./context"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 
+vi.mock("./eidos-file-markdown-source-editor", () => ({
+  EidosFileMarkdownSourceEditor: ({
+    content,
+    disabled,
+    onChange,
+  }: {
+    content: string
+    disabled: boolean
+    onChange: (content: string) => void
+  }) => (
+    <textarea
+      aria-label="Markdown content"
+      data-eidos-file-markdown-source-editor="host"
+      value={content}
+      disabled={disabled}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  ),
+}))
+
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -386,6 +406,27 @@ describe("EidosFileRecordInspector", () => {
     expect(
       container.querySelector('[aria-label="Close record details"]')
     ).not.toBeNull()
+    const pageHeaderRow = container.querySelector<HTMLElement>(
+      '[data-eidos-file-record-page-header-row=""]'
+    )
+    expect(
+      pageHeaderRow?.querySelector('[data-eidos-file-record-title=""]')
+    ).not.toBeNull()
+    expect(
+      pageHeaderRow?.querySelector('[aria-label="Close record details"]')
+    ).not.toBeNull()
+    expect(
+      Array.from(pageHeaderRow?.querySelectorAll("button") ?? []).map(
+        (button) =>
+          button.textContent?.trim() || button.getAttribute("aria-label")
+      )
+    ).toEqual(["Preview", "Edit", "Close record details"])
+    expect(
+      pageHeaderRow?.querySelector('[data-eidos-file-record-id=""]')
+    ).toBeNull()
+    expect(pageHeaderRow?.className).toContain("py-2")
+    expect(pageHeaderRow?.className).toContain("max-w-[760px]")
+    expect(pageHeaderRow?.parentElement?.className).not.toContain("border-b")
     expect(
       container.querySelector<HTMLElement>(
         '[data-eidos-file-record-page-scroll=""]'
@@ -399,16 +440,27 @@ describe("EidosFileRecordInspector", () => {
     const properties = container.querySelector<HTMLElement>(
       '[data-eidos-file-record-properties=""]'
     )
+    expect(properties?.className).toContain("max-w-[760px]")
     expect(
       properties?.querySelector<HTMLElement>(".eidos-file-record-field")
         ?.className
     ).toContain("sm:grid-cols-")
+    expect(
+      properties?.querySelector<HTMLElement>(".eidos-file-record-field")
+        ?.className
+    ).toContain("py-1")
     expect(properties?.textContent).not.toContain("Title")
     expect(properties?.textContent).not.toContain("Body")
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-eidos-file-record-content=""]'
+      )?.className
+    ).not.toContain("border")
     const pageTitle = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
     )
     expect(pageTitle?.className).toContain("border-0")
+    expect(pageTitle?.className).toContain("text-xl")
     expect(container.textContent).toContain("Design")
     expect(container.textContent).toContain("Local first.")
     expect(container.querySelector("script")).toBeNull()
@@ -434,15 +486,18 @@ describe("EidosFileRecordInspector", () => {
 
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.includes("Edit content"))
+        .find((button) => button.textContent?.trim() === "Edit")
         ?.click()
     })
     const editor = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-markdown-editor="source"] textarea'
     )
-    expect(editor?.className).toContain("overflow-hidden")
-    expect(editor?.className).toContain("resize-none")
-    expect(editor?.style.height).not.toBe("")
+    expect(editor?.dataset.eidosFileMarkdownSourceEditor).toBe("host")
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-eidos-file-record-page-scroll=""]'
+      )?.className
+    ).toContain("overflow-hidden")
     await act(async () => {
       if (!editor) return
       const setter = Object.getOwnPropertyDescriptor(
@@ -454,7 +509,7 @@ describe("EidosFileRecordInspector", () => {
     })
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "Save")
+        .find((button) => button.textContent?.trim() === "Preview")
         ?.click()
       await Promise.resolve()
     })
