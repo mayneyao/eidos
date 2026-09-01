@@ -114,6 +114,45 @@ Use Lookup for data across a Relation.
   Review the preflight impact instead of trusting a small sample.
 - **Delete** permanently removes stored values and may affect dependencies.
 
+### Conversion overview
+
+Read each row as the current type and each column as the destination type:
+
+- `✓` is available when every stored value passes Runtime validation.
+- `⚠` is available but can lose or round information, so Eidos previews the
+  impact and requires confirmation.
+- `•` is already the same type.
+- `—` is not available in the general Type control.
+
+| From → To    | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
+| ------------ | :--: | :----: | :-----: | :------: | :----: | :----------: | :----: | :--: | :---------: | :-: |
+| Text         |  •   |   ✓    |    ✓    |    ✓     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Number       |  ✓   |   •    |    ⚠    |    ⚠     |   ✓    |      —       |   ⚠    |  —   |      —      |  —  |
+| Integer      |  ✓   |   ⚠    |    •    |    ⚠     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Checkbox     |  ✓   |   ✓    |    ✓    |    •     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Select       |  ✓   |   ✓    |    ✓    |    ✓     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Multi-select |  ✓   |   —    |    —    |    —     |   ⚠    |      •       |   —    |  —   |      —      |  —  |
+| Rating       |  ✓   |   ✓    |    ✓    |    ⚠     |   ✓    |      —       |   •    |  —   |      —      |  —  |
+| Date         |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  •   |      ✓      |  ✓  |
+| Date & time  |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ⚠   |      •      |  ✓  |
+| URL          |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ✓   |      ✓      |  •  |
+
+These fields deliberately use dedicated controls instead of the general Type
+conversion menu:
+
+| Field                                | General conversion | How to change it                                    |
+| ------------------------------------ | :----------------: | --------------------------------------------------- |
+| File                                 |         —          | Create a File field and move attachments explicitly |
+| Relation                             |         —          | Use the Relation definition flow                    |
+| Formula                              |         —          | Use the Formula editor and declare its result type  |
+| Lookup / rollup                      |         —          | Use the Lookup editor and aggregate settings        |
+| Row ID / Created time / Updated time |         —          | System-managed fields are immutable                 |
+
+Rating is an Integer presentation and accepts only whole values from 0 through 5. Text and Select conversions also require canonical values for the
+destination type; for example, Text to Checkbox accepts only lowercase `true`
+or `false`. For the low-level conversion classes and algorithms, see the
+[Runtime 1.0 specification](/specifications/runtime-1-0/).
+
 Schema changes use revision checks. If another edit changed the file after the
 plan was prepared, Eidos refreshes the plan instead of applying it to stale
 state.

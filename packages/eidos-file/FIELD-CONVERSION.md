@@ -6,22 +6,44 @@ entire conversion or leaves the Field, rows, and File revision unchanged.
 
 ## Editor conversion matrix
 
-A check means the route is supported when every stored value satisfies the
-target type. A dash means the editor must not offer or attempt that route.
-`File`, `Relation`, `Formula`, and `Lookup` have dedicated creation/editing
-flows and are not general conversion targets.
+The matrix is source row to destination column:
 
-| From → To    | Text | Number | Checkbox | Date | Date & time | Multi-select | Rating | Select | URL |
-| ------------ | ---: | -----: | -------: | ---: | ----------: | -----------: | -----: | -----: | --: |
-| Text         |    ✓ |      ✓ |        ✓ |    ✓ |           ✓ |            ✓ |      ✓ |      ✓ |   ✓ |
-| Number       |    ✓ |      ✓ |        ✓ |    — |           — |            — |      ✓ |      ✓ |   — |
-| Checkbox     |    ✓ |      ✓ |        ✓ |    — |           — |            — |      ✓ |      ✓ |   — |
-| Date         |    ✓ |      — |        — |    ✓ |           ✓ |            — |      — |      ✓ |   ✓ |
-| Date & time  |    ✓ |      — |        — |    ✓ |           ✓ |            — |      — |      ✓ |   ✓ |
-| Multi-select |    ✓ |      — |        — |    — |           — |            ✓ |      — |      ✓ |   — |
-| Rating       |    ✓ |      ✓ |        ✓ |    — |           — |            — |      ✓ |      ✓ |   — |
-| Select       |    ✓ |      ✓ |        ✓ |    ✓ |           ✓ |            ✓ |      ✓ |      ✓ |   ✓ |
-| URL          |    ✓ |      — |        — |    ✓ |           ✓ |            — |      — |      ✓ |   ✓ |
+- `✓` means the editor offers the route. Runtime still scans the complete value
+  domain and rejects invalid values, nullability conflicts, or blocked
+  dependencies.
+- `⚠` means the route is offered and may be explicitly lossy. It succeeds only
+  after preflight reports the exact impact and the user confirms it.
+- `•` is already the same type, so no conversion is needed.
+- `—` means the editor does not offer the route.
+
+| From → To    | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
+| ------------ | :--: | :----: | :-----: | :------: | :----: | :----------: | :----: | :--: | :---------: | :-: |
+| Text         |  •   |   ✓    |    ✓    |    ✓     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Number       |  ✓   |   •    |    ⚠    |    ⚠     |   ✓    |      —       |   ⚠    |  —   |      —      |  —  |
+| Integer      |  ✓   |   ⚠    |    •    |    ⚠     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Checkbox     |  ✓   |   ✓    |    ✓    |    •     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Select       |  ✓   |   ✓    |    ✓    |    ✓     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Multi-select |  ✓   |   —    |    —    |    —     |   ⚠    |      •       |   —    |  —   |      —      |  —  |
+| Rating       |  ✓   |   ✓    |    ✓    |    ⚠     |   ✓    |      —       |   •    |  —   |      —      |  —  |
+| Date         |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  •   |      ✓      |  ✓  |
+| Date & time  |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ⚠   |      •      |  ✓  |
+| URL          |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ✓   |      ✓      |  •  |
+
+The following fields intentionally stay outside the general Type conversion
+control:
+
+| Field                                | General source | General destination | Change it through                                   |
+| ------------------------------------ | :------------: | :-----------------: | --------------------------------------------------- |
+| File                                 |       —        |          —          | Create a File field and move attachments explicitly |
+| Relation                             |       —        |          —          | The dedicated Relation definition flow              |
+| Formula                              |       —        |          —          | The Formula editor and its declared result type     |
+| Lookup / rollup                      |       —        |          —          | The Lookup editor and aggregate settings            |
+| Row ID / Created time / Updated time |       —        |          —          | System-managed fields are immutable                 |
+
+`Rating` is an Integer presentation in the Eidos File format. The editor keeps
+it in the matrix because users select it as a field presentation; conversion
+to Rating additionally requires every resulting value to be a whole number
+from 0 through 5.
 
 ## Classification and safety
 
@@ -41,7 +63,7 @@ Default lossy policies are explicit and shared by Runtime adapters:
 
 - Number to Rating/Integer uses round-to-nearest, ties-to-even.
 - Integer/Rating to Number may round values outside exact binary64 range.
-- Number/Rating to Checkbox maps zero to false and nonzero to true.
+- Number/Integer/Rating to Checkbox maps zero to false and nonzero to true.
 - Date & time to Date keeps the UTC calendar date and discards time.
 - Multi-select to Select keeps the first option; an empty list becomes `NULL`.
 - JSON literal `null` can become SQL `NULL`; scalar-to-list conversion maps SQL
