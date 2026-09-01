@@ -431,6 +431,7 @@ describe("EidosFileRecordInspector", () => {
     expect(pageHeaderRow?.className).toContain("py-2")
     expect(pageHeaderRow?.className).toContain("max-w-[760px]")
     expect(pageHeaderRow?.className).toContain("mx-auto")
+    expect(pageHeaderRow?.parentElement?.className).toContain("pt-4")
     expect(pageHeaderRow?.parentElement?.className).not.toContain("border-b")
     const pageScroll = container.querySelector<HTMLElement>(
       '[data-eidos-file-record-page-scroll=""]'

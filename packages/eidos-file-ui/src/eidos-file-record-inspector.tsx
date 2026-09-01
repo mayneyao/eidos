@@ -636,7 +636,7 @@ export function EidosFileRecordInspector({
     >
       {variant === "page" ? (
         <header className="shrink-0 bg-background">
-          <div className="mx-auto w-full max-w-[960px] px-5 sm:px-8 lg:px-12">
+          <div className="mx-auto w-full max-w-[960px] px-5 pt-4 sm:px-8 lg:px-12">
             <div
               className="mx-auto flex min-h-11 w-full max-w-[760px] items-center gap-4 py-2"
               data-eidos-file-record-page-header-row=""
