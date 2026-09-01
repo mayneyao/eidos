@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -32,6 +40,7 @@ import {
   exportEidosFileViewCsv,
   type EidosFileFormulaEditorAnchor,
   type EidosFileFormEditorMode,
+  type EidosFileMarkdownSourceEditorRequest,
   type EidosFilePluginContext,
   type EidosFilePlugin,
   type EidosFileRelationRecordTarget,
@@ -66,6 +75,9 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileFormPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
+const LazyPierreTextEditorSurface = lazy(
+  () => import("./pierre-text-editor-surface")
+)
 
 interface FormulaEditorTarget {
   field: EidosFileFieldInfo
@@ -161,6 +173,27 @@ export function EidosFileWorkbench({
         importSource
       ),
     [source.sessionId]
+  )
+  const renderMarkdownSourceEditor = useCallback(
+    ({ cacheKey, content, onChange }: EidosFileMarkdownSourceEditorRequest) => (
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Loading editor…
+          </div>
+        }
+      >
+        <LazyPierreTextEditorSurface
+          relativePath={`eidos-content-${cacheKey}.md`}
+          content={content}
+          theme={theme}
+          persistEditorState={false}
+          autoFocus
+          onChange={onChange}
+        />
+      </Suspense>
+    ),
+    [theme]
   )
 
   useEffect(() => {
@@ -471,6 +504,7 @@ export function EidosFileWorkbench({
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
+      renderMarkdownSourceEditor={renderMarkdownSourceEditor}
     >
       <EidosFileEditorShell
         ref={editorRef}
