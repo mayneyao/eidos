@@ -201,7 +201,7 @@ function MarkdownContentEditor({
   if (mode === "edit") {
     return (
       <div
-        className="flex min-h-0 flex-1 flex-col"
+        className="flex min-h-0 w-full flex-1 flex-col"
         data-eidos-file-markdown-editor="source"
         onKeyDownCapture={(event) => {
           if (event.key === "Escape") {
@@ -217,13 +217,6 @@ function MarkdownContentEditor({
           }
         }}
       >
-        <p className="mb-2 text-right text-[10px] text-muted-foreground">
-          {t("Press {shortcut} to save.", {
-            shortcut: globalThis.navigator?.platform.includes("Mac")
-              ? "⌘S"
-              : "Ctrl+S",
-          })}
-        </p>
         <Suspense
           fallback={
             <div
@@ -248,7 +241,7 @@ function MarkdownContentEditor({
 
   return (
     <div
-      className="group relative pb-20"
+      className="group relative min-h-0 w-full pb-20"
       data-eidos-file-markdown-editor="preview"
     >
       {value.trim() ? (

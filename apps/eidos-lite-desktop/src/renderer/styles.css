@@ -5420,6 +5420,10 @@ body {
   padding-inline-start: 0.5rem;
 }
 
+[data-eidos-file-record-content] .text-file-editor-virtualizer-content {
+  padding-inline-start: 0;
+}
+
 .text-file-editor-virtualizer-content,
 .text-file-editor-virtualizer-content > diffs-container {
   display: block;

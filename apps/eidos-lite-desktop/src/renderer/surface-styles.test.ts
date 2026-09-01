@@ -197,6 +197,14 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
+  it("keeps record Markdown preview and edit content on the same inline origin", () => {
+    expect(
+      rule(
+        "[data-eidos-file-record-content] .text-file-editor-virtualizer-content"
+      )
+    ).toContain("padding-inline-start: 0")
+  })
+
   it("lets Markdown preview text be selected and copied", () => {
     expect(rule(".markdown-document")).toContain("cursor: text")
     expect(rule(".markdown-document")).toContain("user-select: text")

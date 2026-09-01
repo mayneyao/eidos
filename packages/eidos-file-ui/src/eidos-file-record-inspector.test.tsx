@@ -508,14 +508,24 @@ describe("EidosFileRecordInspector", () => {
       "Updated RFC"
     )
 
+    const previewSurface = container.querySelector<HTMLElement>(
+      '[data-eidos-file-markdown-editor="preview"]'
+    )
+    expect(previewSurface?.className).toContain("w-full")
     await act(async () => {
-      container
-        .querySelector<HTMLElement>('[data-eidos-file-markdown-preview=""]')
+      previewSurface
+        ?.querySelector<HTMLElement>('[data-eidos-file-markdown-preview=""]')
         ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
     })
+    const sourceSurface = container.querySelector<HTMLElement>(
+      '[data-eidos-file-markdown-editor="source"]'
+    )
     const editor = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-markdown-editor="source"] textarea'
     )
+    expect(sourceSurface?.className).toContain("w-full")
+    expect(sourceSurface?.firstElementChild).toBe(editor)
+    expect(sourceSurface?.textContent).not.toContain("Press ")
     expect(editor?.dataset.eidosFileMarkdownSourceEditor).toBe("host")
     expect(
       container.querySelector<HTMLElement>(

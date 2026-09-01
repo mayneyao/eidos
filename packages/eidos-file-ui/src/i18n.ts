@@ -342,7 +342,6 @@ const zh: EidosFileUIMessageOverrides = {
   "Markdown content": "Markdown 内容",
   "Edit content": "编辑内容",
   "Write content with Markdown…": "使用 Markdown 编写内容…",
-  "Press {shortcut} to save.": "按 {shortcut} 保存。",
   "Opens records as pages and renders this Text field as Markdown.":
     "以页面方式打开记录，并将这个文本字段渲染为 Markdown。",
   "Used to identify records in relations and cards.":
