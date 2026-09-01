@@ -8,17 +8,17 @@ import type {
 export const EIDOS_FILE_FORM_VIEW_TYPE = "form"
 
 export const EIDOS_FILE_FORM_INPUT_FIELD_TYPES = [
-  "integer",
   "text",
   "number",
+  "integer",
   "checkbox",
-  "date",
-  "datetime",
-  "file",
+  "select",
   "multi-select",
   "rating",
-  "select",
+  "date",
+  "datetime",
   "url",
+  "file",
 ] as const
 
 export type EidosFileFormInputFieldType =

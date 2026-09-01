@@ -760,6 +760,65 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
   })
 
+  it("uses the canonical type order and offers Integer conversion", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("select")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('button[role="combobox"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+      await Promise.resolve()
+    })
+
+    const options = Array.from(
+      document.body.querySelectorAll<HTMLElement>(
+        "[data-eidos-file-field-type]"
+      )
+    )
+    expect(options.map((option) => option.dataset.eidosFileFieldType)).toEqual([
+      "text",
+      "number",
+      "integer",
+      "checkbox",
+      "select",
+      "multi-select",
+      "rating",
+      "date",
+      "datetime",
+      "url",
+    ])
+
+    await act(async () => {
+      options
+        .find((option) => option.dataset.eidosFileFieldType === "integer")
+        ?.click()
+      await Promise.resolve()
+    })
+    const apply = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Apply type"
+    )
+    await act(async () => {
+      apply?.click()
+      await Promise.resolve()
+    })
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      type: "integer",
+    })
+  })
+
   it("requires explicit confirmation before a conversion can shorten values", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {

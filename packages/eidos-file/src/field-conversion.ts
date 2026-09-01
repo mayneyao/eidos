@@ -20,14 +20,15 @@ import type {
 export const MUTABLE_BASE_FIELD_TYPES = [
   "text",
   "number",
+  "integer",
   "checkbox",
-  "date",
-  "datetime",
-  "file",
+  "select",
   "multi-select",
   "rating",
-  "select",
+  "date",
+  "datetime",
   "url",
+  "file",
 ] as const satisfies readonly EidosFileFieldType[]
 
 export type MutableEidosFileFieldType =
@@ -76,6 +77,8 @@ export function eidosFileFieldConversionMayRequireLossyConfirmation(
   return (
     (from === "multi-select" && to === "select") ||
     (from === "datetime" && to === "date") ||
+    (from === "number" && to === "integer") ||
+    (from === "integer" && to === "number") ||
     ((from === "number" || from === "rating") &&
       (to === "checkbox" || to === "rating" || to === "number"))
   )
@@ -173,6 +176,39 @@ function numericValue(values: string[]): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+const INT64_MIN = -9_223_372_036_854_775_808n
+const INT64_MAX = 9_223_372_036_854_775_807n
+const INTEGER_TEXT = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/u
+
+function integerValue(
+  sourceValue: EidosFileSqlPrimitive,
+  values: string[]
+): bigint | null {
+  let integer: bigint
+  if (typeof sourceValue === "bigint") {
+    integer = sourceValue
+  } else if (typeof sourceValue === "number") {
+    if (!Number.isFinite(sourceValue)) return null
+    const floor = Math.floor(sourceValue)
+    const fraction = sourceValue - floor
+    const rounded =
+      fraction < 0.5
+        ? floor
+        : fraction > 0.5
+          ? floor + 1
+          : floor % 2 === 0
+            ? floor
+            : floor + 1
+    if (!Number.isSafeInteger(rounded)) return null
+    integer = BigInt(rounded)
+  } else {
+    const text = values[0]?.trim()
+    if (!text || !INTEGER_TEXT.test(text)) return null
+    integer = BigInt(text)
+  }
+  return integer >= INT64_MIN && integer <= INT64_MAX ? integer : null
+}
+
 function checkboxValue(
   sourceValue: EidosFileSqlPrimitive,
   values: string[]
@@ -194,6 +230,7 @@ function convertedValue(
 ): EidosFileSqlPrimitive {
   if (sourceValue === null) return null
   if (type === "number") return numericValue(values)
+  if (type === "integer") return integerValue(sourceValue, values)
   if (type === "checkbox") return checkboxValue(sourceValue, values)
   if (type === "rating") {
     const value = numericValue(values)

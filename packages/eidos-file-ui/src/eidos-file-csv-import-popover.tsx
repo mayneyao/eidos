@@ -19,7 +19,10 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
-import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import {
+  eidosFileFieldTypeOptions,
+  EidosFileFieldTypeIcon,
+} from "./eidos-file-field-type-picker"
 import { cn } from "./lib/cn"
 import {
   Button,
@@ -74,15 +77,17 @@ interface CsvColumnDraft {
   type: "record-label" | EidosFileCsvFieldType
 }
 
-const FIELD_TYPES: Array<{ value: EidosFileCsvFieldType; label: string }> = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "integer", label: "Integer" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & time" },
-  { value: "url", label: "URL" },
-]
+const CSV_FIELD_TYPES = [
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+] as const satisfies readonly EidosFileCsvFieldType[]
+
+const FIELD_TYPES = eidosFileFieldTypeOptions(CSV_FIELD_TYPES)
 
 function newOperationId(): string {
   return (

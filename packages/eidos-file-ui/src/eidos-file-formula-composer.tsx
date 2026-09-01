@@ -17,7 +17,10 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
-import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import {
+  eidosFileFieldTypeOptions,
+  EidosFileFieldTypeIcon,
+} from "./eidos-file-field-type-picker"
 import {
   eidosFileFormulaCompletions,
   type EidosFileFormulaCompletion,
@@ -37,18 +40,17 @@ import {
 
 export type { EidosFileFormulaInputRef }
 
-const DISPLAY_TYPES: Array<{
-  value: EidosFileFormulaResultType
-  label: string
-}> = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "integer", label: "Integer" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & time" },
-  { value: "url", label: "URL" },
-]
+const FORMULA_DISPLAY_TYPES = [
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+] as const satisfies readonly EidosFileFormulaResultType[]
+
+const DISPLAY_TYPES = eidosFileFieldTypeOptions(FORMULA_DISPLAY_TYPES)
 
 type FormulaStatus = "idle" | "checking" | "valid" | "error"
 

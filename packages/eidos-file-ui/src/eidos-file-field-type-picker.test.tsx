@@ -3,7 +3,11 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
-import { EidosFileFieldTypePicker } from "./eidos-file-field-type-picker"
+import {
+  eidosFileFieldTypeOptions,
+  EIDOS_FILE_FIELD_TYPE_OPTIONS,
+  EidosFileFieldTypePicker,
+} from "./eidos-file-field-type-picker"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -35,6 +39,32 @@ describe("EidosFileFieldTypePicker", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("keeps one canonical order when a surface filters supported types", () => {
+    expect(EIDOS_FILE_FIELD_TYPE_OPTIONS.map((option) => option.value)).toEqual(
+      [
+        "text",
+        "number",
+        "integer",
+        "checkbox",
+        "select",
+        "multi-select",
+        "rating",
+        "date",
+        "datetime",
+        "url",
+        "file",
+        "formula",
+        "relation",
+        "lookup",
+      ]
+    )
+    expect(
+      eidosFileFieldTypeOptions(["url", "integer", "text"]).map(
+        (option) => option.value
+      )
+    ).toEqual(["text", "integer", "url"])
   })
 
   it("filters by search and commits the highlighted option with Enter", async () => {

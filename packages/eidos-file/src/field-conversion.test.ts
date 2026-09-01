@@ -38,7 +38,9 @@ describe("Eidos File field conversion", () => {
         ["multi-select", "select"],
         ["datetime", "date"],
         ["number", "checkbox"],
+        ["number", "integer"],
         ["number", "rating"],
+        ["integer", "number"],
         ["rating", "checkbox"],
         ["rating", "number"],
       ].every(([from, to]) =>
@@ -83,6 +85,35 @@ describe("Eidos File field conversion", () => {
         "rating"
       ).values
     ).toEqual([{ id: "a", value: 5 }])
+  })
+
+  it("converts Integer values without depending on display order metadata", () => {
+    expect(
+      planEidosFileFieldConversion(
+        field("text"),
+        [
+          { id: "a", value: "12" },
+          { id: "b", value: "12.5" },
+        ],
+        "integer"
+      ).values
+    ).toEqual([
+      { id: "a", value: 12n },
+      { id: "b", value: null },
+    ])
+    expect(
+      planEidosFileFieldConversion(
+        field("number"),
+        [
+          { id: "a", value: 2.5 },
+          { id: "b", value: 3.5 },
+        ],
+        "integer"
+      ).values
+    ).toEqual([
+      { id: "a", value: 2n },
+      { id: "b", value: 4n },
+    ])
   })
 
   it("derives stable select options from existing display values", () => {

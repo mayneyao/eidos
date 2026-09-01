@@ -30,7 +30,10 @@ import {
 } from "./ui/primitives"
 
 import { useEidosFileUI } from "./context"
-import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import {
+  eidosFileFieldTypeOptions,
+  EidosFileFieldTypeIcon,
+} from "./eidos-file-field-type-picker"
 import {
   eidosFileFieldDisplaysUrl,
   eidosFileNumberProperty,
@@ -43,19 +46,6 @@ import {
   EidosFileSchemaImpactRequiredError,
   type EidosFileSchemaImpact,
 } from "./schema-impact-confirmation"
-
-const TYPE_LABELS: Record<MutableEidosFileFieldType, string> = {
-  text: "Text",
-  number: "Number",
-  checkbox: "Checkbox",
-  date: "Date",
-  datetime: "Date & time",
-  file: "File",
-  "multi-select": "Multi-select",
-  rating: "Rating",
-  select: "Select",
-  url: "URL",
-}
 
 const LOOKUP_AGGREGATE_LABELS: Record<string, string> = {
   first: "First value",
@@ -119,6 +109,7 @@ export function EidosFileFieldPropertyPanel({
   const mutableTypes = MUTABLE_BASE_FIELD_TYPES.filter(
     (type) => type !== "file"
   )
+  const mutableTypeOptions = eidosFileFieldTypeOptions(mutableTypes)
   const conversionMayChangeValues =
     pendingType !== null &&
     eidosFileFieldConversionMayRequireLossyConfirmation(field.type, pendingType)
@@ -381,14 +372,18 @@ export function EidosFileFieldPropertyPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {mutableTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
+                  {mutableTypeOptions.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      data-eidos-file-field-type={option.value}
+                    >
                       <span className="flex items-center gap-2">
                         <EidosFileFieldTypeIcon
-                          type={type}
+                          type={option.value}
                           className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                         />
-                        <span>{t(TYPE_LABELS[type])}</span>
+                        <span>{t(option.label)}</span>
                       </span>
                     </SelectItem>
                   ))}

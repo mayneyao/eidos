@@ -84,7 +84,7 @@ export function EidosFileFieldTypeIcon({
   )
 }
 
-interface EidosFileFieldTypeOption {
+export interface EidosFileFieldTypeOption {
   value: EidosFileCreatableFieldType
   label: string
   description: string
@@ -123,6 +123,13 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         icon: EIDOS_FILE_FIELD_TYPE_ICONS.integer,
       },
       {
+        value: "checkbox",
+        label: "Checkbox",
+        description: "A true or false value",
+        keywords: ["boolean", "done"],
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.checkbox,
+      },
+      {
         value: "select",
         label: "Select",
         description: "Choose one predefined option",
@@ -137,25 +144,11 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         icon: EIDOS_FILE_FIELD_TYPE_ICONS["multi-select"],
       },
       {
-        value: "checkbox",
-        label: "Checkbox",
-        description: "A true or false value",
-        keywords: ["boolean", "done"],
-        icon: EIDOS_FILE_FIELD_TYPE_ICONS.checkbox,
-      },
-      {
         value: "rating",
         label: "Rating",
         description: "A five-star score",
         keywords: ["stars", "score"],
         icon: EIDOS_FILE_FIELD_TYPE_ICONS.rating,
-      },
-      {
-        value: "url",
-        label: "URL",
-        description: "A clickable web address",
-        keywords: ["website", "link"],
-        icon: EIDOS_FILE_FIELD_TYPE_ICONS.url,
       },
       {
         value: "date",
@@ -170,6 +163,13 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         description: "A calendar date with time",
         keywords: ["timestamp", "calendar"],
         icon: EIDOS_FILE_FIELD_TYPE_ICONS.datetime,
+      },
+      {
+        value: "url",
+        label: "URL",
+        description: "A clickable web address",
+        keywords: ["website", "link"],
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.url,
       },
       {
         value: "file",
@@ -207,6 +207,24 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
     ],
   },
 ]
+
+/**
+ * Canonical presentation order for Field types. Surfaces should filter this
+ * registry by capability instead of maintaining their own display order.
+ */
+export const EIDOS_FILE_FIELD_TYPE_OPTIONS =
+  EIDOS_FILE_FIELD_TYPE_GROUPS.flatMap((group) => group.options)
+
+export function eidosFileFieldTypeOptions<
+  Type extends EidosFileCreatableFieldType,
+>(
+  allowedTypes: readonly Type[]
+): Array<EidosFileFieldTypeOption & { value: Type }> {
+  const allowed = new Set<EidosFileCreatableFieldType>(allowedTypes)
+  return EIDOS_FILE_FIELD_TYPE_OPTIONS.filter((option) =>
+    allowed.has(option.value)
+  ) as Array<EidosFileFieldTypeOption & { value: Type }>
+}
 
 export function EidosFileFieldTypePicker({
   value,
