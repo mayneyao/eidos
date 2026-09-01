@@ -2,7 +2,7 @@
 
 Status: living product and verification contract  
 Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.25
-Last reviewed: 2026-08-28
+Last reviewed: 2026-09-01
 
 ## Purpose and ownership
 
@@ -295,8 +295,8 @@ followed by Eidos Runtime validation.
 | `SC-EIDOS-024` | Select options or Field settings change                              | Metadata-only                                   | Row conflict for same Field; validate canonical JSON                        | `G/-/E`  |
 | `SC-EIDOS-025` | Product View filter/sort/layout changes                              | `eidos__views` rows, not SQLite View schema     | Row conflict for same stable View ID; validate references                   | `G/-/E`  |
 | `SC-EIDOS-026` | Table/Field/View reorder                                             | Metadata-only                                   | Merge independent identities; conflict on same position row if incompatible | `G/-/E`  |
-| `SC-EIDOS-027` | Add a Field index                                                    | Usually `AUTO` explicit-index addition          | Validate exact Eidos index shape and combined data                          | `-/-/X`  |
-| `SC-EIDOS-028` | Delete a Field index                                                 | Physical `CONFLICT` unless both delete          | Validate whether index is required                                          | `-/-/X`  |
+| `SC-EIDOS-027` | Add a Field index                                                    | Usually `AUTO` explicit-index addition          | Validate exact Eidos index shape and combined data                          | `-/-/-`  |
+| `SC-EIDOS-028` | Delete a Field index                                                 | Physical `CONFLICT` unless both delete          | Validate whether index is required                                          | `-/-/-`  |
 | `SC-EIDOS-029` | Two physical schemas merge but metadata-to-column mapping disagrees  | Physical result may be `AUTO`                   | `DOMAIN`: `file-physical-schema-invalid`; block continue                    | `G/-/E`  |
 
 ## Cross-object and candidate-validation scenarios
@@ -405,14 +405,16 @@ Draft Runtime profile does not yet merge are reported conservatively as
 as successful automatic merges. The generic Graft layer still does not infer
 Eidos identity or uniqueness semantics.
 
-### `EIDOS-SCHEMA-GAP-002`: Runtime rejects a spec-permitted Field index
+### Closed: `EIDOS-SCHEMA-GAP-002` spec-permitted Field indexes
 
 Eidos File 1.0 permits the exact non-unique scalar index name
-`eidos__index__<field-id-hex>`, but the current Runtime validator rejects that
-object first as an undeclared reserved SQLite object. Therefore
-`SC-EIDOS-027/028` cannot enter a valid merge fixture. The validator's reserved
-object allowlist and its later optional-index shape validation need to agree
-before Lite can claim Field-index merge coverage.
+`eidos__index__<field-id-hex>`. Runtime now recognizes that reserved name and
+validates its Field identity, owning Table, scalar physical column, declared
+collation, uniqueness, partial predicate, expression, and key-column shape.
+Malformed or stale reserved indexes remain schema errors. A local integration
+fixture proves that adding or removing a valid optional index leaves the File
+valid. `SC-EIDOS-027/028` still require exact dual-client Graft coverage before
+Lite claims the complete merge scenarios.
 
 ### Closed: `GRAFT-SCHEMA-GAP-003` malformed tracked SQLite diagnostics
 

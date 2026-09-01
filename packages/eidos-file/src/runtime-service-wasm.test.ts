@@ -214,6 +214,16 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
       const fileFieldId = schema.createdObjects.find(
         (entry) => "clientKey" in entry && entry.clientKey === "files"
       )!.id
+      const fieldIndexName = `eidos__index__${groupFieldId.replace(/-/g, "")}`
+      connection.execSchema(
+        `CREATE INDEX "${fieldIndexName}" ON "Items"("Group" COLLATE BINARY)`
+      )
+      await expect(
+        runtime.validate(
+          { level: "structural", diagnosticsLimit: 100 },
+          context("validate-field-index")
+        )
+      ).resolves.toMatchObject({ valid: true, diagnostics: [] })
       const formulaPreview = await runtime.previewFormula(
         {
           tableId,

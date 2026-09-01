@@ -206,6 +206,7 @@ const REQUIRED_TRIGGERS = new Set([
 
 const DYNAMIC_TRIGGER_NAME =
   /^eidos__(?:row_id_immutable|relation_(?:validate_(?:insert|update)|restrict|detach))__[0-9a-f]{32}$/
+const DYNAMIC_FIELD_INDEX_NAME = /^eidos__index__([0-9a-f]{32})$/
 
 const FIELD_TYPES = new Set<EidosFileFieldType>([
   "text",
@@ -245,6 +246,16 @@ const FORMULA_RESULT_TYPES = new Set([
 ])
 
 const NUMERIC_LOOKUP_TYPES = new Set(["number", "integer"])
+const INDEXABLE_FIELD_TYPES = new Set([
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "select",
+])
 const FILTER_OPERATORS = new Set([
   "equals",
   "not-equals",
@@ -377,6 +388,159 @@ function declaresBinaryText(sql: string | null, column: string): boolean {
   ).test(sql)
 }
 
+function readSqliteIdentifier(
+  source: string,
+  offset = 0
+): { value: string; end: number } | null {
+  let start = offset
+  while (/\s/.test(source[start] ?? "")) start += 1
+  const opener = source[start]
+  const closer = opener === "[" ? "]" : opener
+  if (opener === '"' || opener === "`" || opener === "[") {
+    let value = ""
+    for (let index = start + 1; index < source.length; index += 1) {
+      const character = source[index]!
+      if (character !== closer) {
+        value += character
+        continue
+      }
+      if (closer !== "]" && source[index + 1] === closer) {
+        value += closer
+        index += 1
+        continue
+      }
+      return { value, end: index + 1 }
+    }
+    return null
+  }
+  let end = start
+  while (end < source.length && !/[\s(),]/.test(source[end]!)) end += 1
+  return end === start ? null : { value: source.slice(start, end), end }
+}
+
+function sqliteTableDefinitions(sql: string): string[] {
+  let quote: '"' | "'" | "`" | "]" | null = null
+  let open = -1
+  for (let index = 0; index < sql.length; index += 1) {
+    const character = sql[index]!
+    if (quote) {
+      if (character !== quote) continue
+      if (quote !== "]" && sql[index + 1] === quote) {
+        index += 1
+      } else {
+        quote = null
+      }
+      continue
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character
+      continue
+    }
+    if (character === "[") {
+      quote = "]"
+      continue
+    }
+    if (character === "(") {
+      open = index
+      break
+    }
+  }
+  if (open === -1) return []
+
+  const definitions: string[] = []
+  let depth = 1
+  let start = open + 1
+  quote = null
+  for (let index = start; index < sql.length; index += 1) {
+    const character = sql[index]!
+    if (quote) {
+      if (character !== quote) continue
+      if (quote !== "]" && sql[index + 1] === quote) {
+        index += 1
+      } else {
+        quote = null
+      }
+      continue
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character
+      continue
+    }
+    if (character === "[") {
+      quote = "]"
+      continue
+    }
+    if (character === "(") {
+      depth += 1
+      continue
+    }
+    if (character === ")") {
+      depth -= 1
+      if (depth === 0) {
+        definitions.push(sql.slice(start, index).trim())
+        break
+      }
+      continue
+    }
+    if (character === "," && depth === 1) {
+      definitions.push(sql.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  return definitions
+}
+
+function declaredColumnCollation(
+  tableSql: string | null,
+  column: string
+): string | null {
+  if (!tableSql) return null
+  const definition = sqliteTableDefinitions(tableSql).find(
+    (candidate) => readSqliteIdentifier(candidate)?.value === column
+  )
+  if (!definition) return null
+  const leading = readSqliteIdentifier(definition)!
+  let depth = 0
+  let quote: "'" | '"' | "`" | "]" | null = null
+  for (let index = leading.end; index < definition.length; index += 1) {
+    const character = definition[index]!
+    if (quote) {
+      if (character !== quote) continue
+      if (quote !== "]" && definition[index + 1] === quote) {
+        index += 1
+      } else {
+        quote = null
+      }
+      continue
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character
+      continue
+    }
+    if (character === "[") {
+      quote = "]"
+      continue
+    }
+    if (character === "(") {
+      depth += 1
+      continue
+    }
+    if (character === ")") {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0 || !/[A-Za-z_]/.test(character)) continue
+    let end = index + 1
+    while (/[A-Za-z0-9_$]/.test(definition[end] ?? "")) end += 1
+    if (definition.slice(index, end).toLowerCase() !== "collate") {
+      index = end - 1
+      continue
+    }
+    return readSqliteIdentifier(definition, end)?.value ?? null
+  }
+  return "BINARY"
+}
+
 export function validateEidosFile(
   connection: EidosFileConnection,
   options: { level?: EidosFileValidationLevel } = {}
@@ -442,7 +606,8 @@ export function validateEidosFile(
         .replace(/[A-Z]/g, (character) => character.toLowerCase())
         .startsWith("eidos__") &&
       !allowedStaticObjects.has(object.name) &&
-      !DYNAMIC_TRIGGER_NAME.test(object.name)
+      !DYNAMIC_TRIGGER_NAME.test(object.name) &&
+      !(object.type === "index" && DYNAMIC_FIELD_INDEX_NAME.test(object.name))
     ) {
       add(
         errors,
@@ -816,6 +981,7 @@ export function validateEidosFile(
       )
     : []
   const fieldRowsById = new Map<string, FieldRow>()
+  const fieldRowsByHexId = new Map<string, FieldRow>()
   const fieldsByTable = new Map<string, EidosFileFieldInfo[]>()
   for (const row of fieldRows) {
     try {
@@ -823,6 +989,7 @@ export function validateEidosFile(
       const tableId = uuid(row.table_id, "Field Table ID")
       const table = tableRowsById.get(tableId)
       fieldRowsById.set(id, row)
+      fieldRowsByHexId.set(id.replace(/-/g, ""), row)
       if (!table) {
         add(errors, "invalid-schema", `Field ${id} references an unknown Table`)
         continue
@@ -1004,6 +1171,84 @@ export function validateEidosFile(
         errors,
         "invalid-schema",
         error instanceof Error ? error.message : "Invalid Field metadata"
+      )
+    }
+  }
+
+  for (const indexObject of sqliteObjects.filter(
+    (object) =>
+      object.type === "index" && DYNAMIC_FIELD_INDEX_NAME.test(object.name)
+  )) {
+    const fieldHex = DYNAMIC_FIELD_INDEX_NAME.exec(indexObject.name)![1]!
+    const field = fieldRowsByHexId.get(fieldHex)
+    if (!field) {
+      add(
+        errors,
+        "invalid-schema",
+        `Reserved Field index ${indexObject.name} references an unknown Field`,
+        indexObject.name
+      )
+      continue
+    }
+    if (!field.physical_name || !INDEXABLE_FIELD_TYPES.has(field.type)) {
+      add(
+        errors,
+        "invalid-schema",
+        `Reserved Field index ${indexObject.name} must reference a stored scalar Field`,
+        indexObject.name
+      )
+      continue
+    }
+    const table = tableRowsById.get(field.table_id)
+    if (!table || indexObject.tbl_name !== table.physical_name) {
+      add(
+        errors,
+        "invalid-schema",
+        `Reserved Field index ${indexObject.name} is attached to the wrong Table`,
+        indexObject.name
+      )
+      continue
+    }
+    const indexList = connection.query<{
+      name: string
+      unique: number
+      origin: string
+      partial: number
+    }>(`PRAGMA index_list(${quoteIdentifier(table.physical_name)})`)
+    const listedIndex = indexList.find(
+      (index) => index.name === indexObject.name
+    )
+    const keyColumns = connection
+      .query<{
+        cid: number
+        name: string | null
+        coll: string | null
+        key: number
+      }>(`PRAGMA index_xinfo(${quoteIdentifier(indexObject.name)})`)
+      .filter((column) => column.key === 1)
+    const keyColumn = keyColumns[0]
+    const declaredCollation = declaredColumnCollation(
+      sqliteTables.get(table.physical_name)?.sql ?? null,
+      field.physical_name
+    )
+    if (
+      !listedIndex ||
+      listedIndex.unique !== 0 ||
+      listedIndex.partial !== 0 ||
+      listedIndex.origin !== "c" ||
+      indexObject.sql === null ||
+      keyColumns.length !== 1 ||
+      !keyColumn ||
+      keyColumn.cid < 0 ||
+      keyColumn.name !== field.physical_name ||
+      !declaredCollation ||
+      keyColumn.coll?.toLowerCase() !== declaredCollation.toLowerCase()
+    ) {
+      add(
+        errors,
+        "invalid-schema",
+        `Reserved Field index ${indexObject.name} has an invalid definition`,
+        indexObject.name
       )
     }
   }

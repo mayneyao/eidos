@@ -1196,7 +1196,7 @@ function setDomainFieldIndex(filePath: string, enabled: boolean): string {
     const indexName = `eidos__index__${field.id.replaceAll("-", "")}`
     runtime.connection.exec(
       enabled
-        ? `CREATE INDEX "${indexName}" ON "${table.physicalName}"("${field.physicalName}" COLLATE NOCASE)`
+        ? `CREATE INDEX "${indexName}" ON "${table.physicalName}"("${field.physicalName}" COLLATE BINARY)`
         : `DROP INDEX "${indexName}"`
     )
     return indexName
@@ -3286,7 +3286,7 @@ integrationDescribe("Eidos Lite Graft schema merge matrix", () => {
     120_000
   )
 
-  it("SC-EIDOS-027/028 records the Runtime validator gap for spec-permitted optional Field indexes", async () => {
+  it("SC-EIDOS-027/028 accepts adding and removing a spec-permitted optional Field index", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-domain-index-validator-")
     )
@@ -3294,9 +3294,21 @@ integrationDescribe("Eidos Lite Graft schema merge matrix", () => {
     try {
       createDomainFixture(filePath)
       const indexName = setDomainFieldIndex(filePath, true)
-      expect(() => openEidosFile(filePath, { readonly: true })).toThrow(
-        `Undeclared reserved SQLite object: index ${indexName}`
-      )
+      const runtime = openEidosFile(filePath, { readonly: true })
+      try {
+        expect(runtime.validate({ level: "full" })).toMatchObject({
+          valid: true,
+          errors: [],
+        })
+        expect(
+          runtime.connection.get<{ name: string }>(
+            "SELECT name FROM sqlite_schema WHERE type = 'index' AND name = ?",
+            [indexName]
+          )?.name
+        ).toBe(indexName)
+      } finally {
+        runtime.close()
+      }
       const database = new DatabaseSync(filePath)
       try {
         database.exec(`DROP INDEX "${indexName}"`)

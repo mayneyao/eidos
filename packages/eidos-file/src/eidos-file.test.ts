@@ -14,6 +14,7 @@ import {
 } from "./constants"
 import { EidosFileError } from "./errors"
 import { canonicalizeEidosFileJson } from "./canonical-json"
+import { quoteIdentifier } from "./identifiers"
 
 describe("Eidos File 1.0 native Runtime", () => {
   const roots: string[] = []
@@ -948,6 +949,153 @@ describe("Eidos File 1.0 native Runtime", () => {
       )
       expect(plan.some((row) => row.detail.includes(indexName))).toBe(true)
       expect(runtime.validate({ level: "full" }).valid).toBe(true)
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("accepts a spec-permitted reserved scalar Field index", () => {
+    const target = filePath()
+    const indexedFieldName = '状态, "原始" (值)'
+    let runtime = createEidosFile(target, {
+      defaultTable: {
+        name: "Tasks",
+        fields: [
+          { name: "Title", type: "text" },
+          { name: indexedFieldName, type: "select" },
+        ],
+      },
+    })
+    try {
+      const table = runtime.schema()[0]!
+      const status = table.fields.find(
+        (field) => field.name === indexedFieldName
+      )!
+      const indexName = `eidos__index__${status.id!.replace(/-/g, "")}`
+      runtime.connection.exec(
+        `CREATE INDEX ${quoteIdentifier(indexName)} ON ${quoteIdentifier(table.table.physicalName ?? table.table.rawTableName)}(${quoteIdentifier(status.physicalName!)} COLLATE BINARY)`
+      )
+
+      expect(runtime.validate({ level: "structural" })).toMatchObject({
+        valid: true,
+        errors: [],
+      })
+      runtime.close()
+      runtime = openEidosFile(target)
+      expect(runtime.validate({ level: "full" })).toMatchObject({
+        valid: true,
+        errors: [],
+      })
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("rejects malformed reserved Field indexes", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Tasks",
+        fields: [
+          { name: "Title", type: "text" },
+          { name: "Status", type: "select" },
+          { name: "Attachments", type: "file" },
+        ],
+      },
+    })
+    try {
+      const tasks = runtime.schema()[0]!
+      const title = tasks.fields.find((field) => field.name === "Title")!
+      const status = tasks.fields.find((field) => field.name === "Status")!
+      const attachments = tasks.fields.find(
+        (field) => field.name === "Attachments"
+      )!
+      const projects = runtime.createTable({
+        name: "Projects",
+        fields: [{ name: "Name", type: "text" }],
+      })
+      const projectName = runtime
+        .listFields(projects.id)
+        .find((field) => field.name === "Name")!
+      const statusIndex = `eidos__index__${status.id!.replace(/-/g, "")}`
+      const attachmentIndex = `eidos__index__${attachments.id!.replace(/-/g, "")}`
+      const unknownIndex = "eidos__index__0198c72d82b57968b16398be4b7477df"
+      const malformedIndex = "eidos__index__not_a_field_id"
+      const rejectIndex = (
+        name: string,
+        definition: string,
+        expectedMessage: string
+      ) => {
+        runtime.connection.exec(definition)
+        try {
+          const result = runtime.validate({ level: "structural" })
+          expect(result.valid).toBe(false)
+          expect(result.errors).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                message: expect.stringContaining(expectedMessage),
+              }),
+            ])
+          )
+        } finally {
+          runtime.connection.exec(`DROP INDEX "${name}"`)
+        }
+      }
+
+      rejectIndex(
+        statusIndex,
+        `CREATE UNIQUE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE BINARY)`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE BINARY) WHERE "${status.physicalName}" IS NOT NULL`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"(lower("${status.physicalName}"))`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE BINARY, "${title.physicalName}" COLLATE BINARY)`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"("${title.physicalName}" COLLATE BINARY)`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE NOCASE)`,
+        "has an invalid definition"
+      )
+      rejectIndex(
+        statusIndex,
+        `CREATE INDEX "${statusIndex}" ON "${projects.physicalName}"("${projectName.physicalName}" COLLATE BINARY)`,
+        "is attached to the wrong Table"
+      )
+      rejectIndex(
+        attachmentIndex,
+        `CREATE INDEX "${attachmentIndex}" ON "${tasks.table.physicalName}"("${attachments.physicalName}" COLLATE BINARY)`,
+        "must reference a stored scalar Field"
+      )
+      rejectIndex(
+        unknownIndex,
+        `CREATE INDEX "${unknownIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE BINARY)`,
+        "references an unknown Field"
+      )
+      rejectIndex(
+        malformedIndex,
+        `CREATE INDEX "${malformedIndex}" ON "${tasks.table.physicalName}"("${status.physicalName}" COLLATE BINARY)`,
+        "Undeclared reserved SQLite object"
+      )
+
+      expect(runtime.validate({ level: "full" })).toMatchObject({
+        valid: true,
+        errors: [],
+      })
     } finally {
       runtime.close()
     }
