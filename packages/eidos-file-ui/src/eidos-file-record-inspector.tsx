@@ -48,6 +48,7 @@ import {
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 import { renderSafeEidosFileMarkdown } from "./eidos-file-markdown"
+import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 
 const LazyEidosFileMarkdownSourceEditor = lazy(async () => {
   const module = await import("./eidos-file-markdown-source-editor")
@@ -174,6 +175,7 @@ function FieldValue({
 function MarkdownContentEditor({
   value,
   label,
+  fieldType,
   mode,
   editable,
   disabled,
@@ -186,6 +188,7 @@ function MarkdownContentEditor({
 }: {
   value: string
   label: string
+  fieldType: string
   mode: "preview" | "edit"
   editable: boolean
   disabled: boolean
@@ -198,6 +201,29 @@ function MarkdownContentEditor({
 }) {
   const { activateUrl, translate: t } = useEidosFileUI()
   const html = useMemo(() => renderSafeEidosFileMarkdown(value), [value])
+  const ContentTypeIcon = eidosFileFieldTypeIcon(fieldType)
+  const fieldHeading = (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
+        {ContentTypeIcon ? (
+          <ContentTypeIcon
+            aria-hidden="true"
+            data-eidos-file-field-type-icon={fieldType}
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          />
+        ) : null}
+        <p className="truncate text-xs font-medium">{label}</p>
+      </div>
+      <p
+        className={cn(
+          "text-[10px] text-muted-foreground",
+          ContentTypeIcon && "pl-5"
+        )}
+      >
+        Markdown
+      </p>
+    </div>
+  )
 
   if (mode === "edit") {
     return (
@@ -219,10 +245,7 @@ function MarkdownContentEditor({
         }}
       >
         <div className="mb-2 flex items-baseline justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium">{label}</p>
-            <p className="text-[10px] text-muted-foreground">Markdown</p>
-          </div>
+          {fieldHeading}
           <p className="text-[10px] text-muted-foreground">
             {t("Press {shortcut} to save.", {
               shortcut: globalThis.navigator?.platform.includes("Mac")
@@ -258,12 +281,7 @@ function MarkdownContentEditor({
       className="group relative pb-20"
       data-eidos-file-markdown-editor="preview"
     >
-      <div className="mb-4">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{label}</p>
-          <p className="text-[10px] text-muted-foreground">Markdown</p>
-        </div>
-      </div>
+      <div className="mb-4">{fieldHeading}</div>
       {value.trim() ? (
         <div
           className="max-w-none break-words text-[15px] leading-7 text-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-6 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h1]:mb-4 [&_h1]:mt-10 [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:leading-tight [&_h1]:tracking-tight [&_h2]:mb-3 [&_h2]:mt-9 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:tracking-tight [&_h3]:mb-2 [&_h3]:mt-7 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:leading-snug [&_hr]:my-9 [&_hr]:border-border [&_img]:my-6 [&_img]:max-w-full [&_img]:rounded-sm [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:text-sm [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_table]:my-6 [&_table]:w-full [&_td]:border-b [&_td]:px-2 [&_td]:py-2 [&_th]:border-b [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-6 [&>*:first-child]:mt-0"
@@ -558,6 +576,7 @@ export function EidosFileRecordInspector({
 
   const metadataRows = metadataFields.map((field) => {
     const fieldWritable = editable && isEidosFileFieldWritable(field)
+    const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
     return (
       <div
         key={field.tableColumnName}
@@ -570,11 +589,18 @@ export function EidosFileRecordInspector({
       >
         <p
           className={cn(
-            "eidos-file-record-field-label font-medium text-muted-foreground",
+            "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground",
             variant === "page" ? "pt-1 text-xs" : "text-[11px]"
           )}
         >
-          {eidosFileFieldDisplayName(field)}
+          {FieldTypeIcon ? (
+            <FieldTypeIcon
+              aria-hidden="true"
+              data-eidos-file-field-type-icon={field.type}
+              className="h-3.5 w-3.5 shrink-0"
+            />
+          ) : null}
+          <span className="truncate">{eidosFileFieldDisplayName(field)}</span>
         </p>
         {fieldWritable && field.type === "file" ? (
           <EidosFileRecordAttachmentEditor
@@ -846,6 +872,7 @@ export function EidosFileRecordInspector({
                   key={`${currentRowId}:${contentField.id}`}
                   value={contentValue}
                   label={eidosFileFieldDisplayName(contentField)}
+                  fieldType={contentField.type}
                   mode={contentMode}
                   editable={editable}
                   disabled={editorDisabled}

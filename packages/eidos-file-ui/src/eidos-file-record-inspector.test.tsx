@@ -451,6 +451,12 @@ describe("EidosFileRecordInspector", () => {
       properties?.querySelector<HTMLElement>(".eidos-file-record-field")
         ?.className
     ).toContain("py-1")
+    expect(
+      properties?.querySelector('[data-eidos-file-field-type-icon="checkbox"]')
+    ).not.toBeNull()
+    expect(
+      properties?.querySelector('[data-eidos-file-field-type-icon="formula"]')
+    ).not.toBeNull()
     expect(properties?.textContent).not.toContain("Title")
     expect(properties?.textContent).not.toContain("Body")
     expect(
@@ -458,6 +464,11 @@ describe("EidosFileRecordInspector", () => {
         '[data-eidos-file-record-content=""]'
       )?.className
     ).not.toContain("border")
+    expect(
+      container.querySelector(
+        '[data-eidos-file-record-content=""] [data-eidos-file-field-type-icon="text"]'
+      )
+    ).not.toBeNull()
     const pageTitle = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
     )
