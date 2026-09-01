@@ -514,6 +514,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Open linked record {title}": "打开关联记录 {title}",
   "Open in tab": "在标签页中打开",
   "Close record details": "关闭记录详情",
+  "Previous record": "上一条记录",
+  "Next record": "下一条记录",
   "Loading record details…": "正在加载记录详情…",
   "Remove {path}": "移除{path}",
   "No files": "没有文件",

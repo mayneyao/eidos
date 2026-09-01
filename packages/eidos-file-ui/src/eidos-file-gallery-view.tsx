@@ -32,6 +32,7 @@ import {
 } from "./eidos-file-record-card-layout"
 import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { eidosFileRecordNeighbors } from "./eidos-file-record-navigation"
 import { eidosFileContentField } from "./eidos-file-field-visibility"
 import {
   mergeRowWindowPage,
@@ -294,6 +295,12 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     [table.fields, view]
   )
   const { rows, total } = rowWindow
+  const inspectorNeighbors = useMemo(
+    () => eidosFileRecordNeighbors(rows, inspectedRow),
+    [inspectedRow, rows]
+  )
+  const previousInspectorRow = inspectorNeighbors.previous
+  const nextInspectorRow = inspectorNeighbors.next
 
   const requestPage = useCallback(
     async (
@@ -767,6 +774,16 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             variant={eidosFileContentField(table) ? "page" : "panel"}
             contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
+            onPreviousRecord={
+              previousInspectorRow
+                ? () => openInspectorRow(previousInspectorRow)
+                : undefined
+            }
+            onNextRecord={
+              nextInspectorRow
+                ? () => openInspectorRow(nextInspectorRow)
+                : undefined
+            }
             onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}

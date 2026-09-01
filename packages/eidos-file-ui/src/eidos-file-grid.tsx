@@ -695,6 +695,25 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     inspectedRowIndex === null
       ? undefined
       : rowsRef.current.get(inspectedRowIndex)
+  const navigateInspectedRow = useCallback(async (offset: -1 | 1) => {
+    const currentIndex = inspectedRowIndexRef.current
+    if (currentIndex === null) return
+    const targetIndex = currentIndex + offset
+    if (targetIndex < 0 || targetIndex >= rowCountRef.current) return
+    if (!rowsRef.current.has(targetIndex)) {
+      const loaded = await loadPageIndexRef.current(
+        Math.floor(targetIndex / PAGE_SIZE)
+      )
+      if (
+        !loaded ||
+        inspectedRowIndexRef.current !== currentIndex ||
+        !rowsRef.current.has(targetIndex)
+      ) {
+        return
+      }
+    }
+    setInspectedRowIndex(targetIndex)
+  }, [])
 
   const touchPage = useCallback((pageIndex: number) => {
     pageAccessClockRef.current += 1
@@ -2900,6 +2919,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           variant={eidosFileContentField(table) ? "page" : "panel"}
           contentField={eidosFileContentField(table)}
           onClose={() => setInspectedRowIndex(null)}
+          onPreviousRecord={
+            inspectedRowIndex !== null && inspectedRowIndex > 0
+              ? () => navigateInspectedRow(-1)
+              : undefined
+          }
+          onNextRecord={
+            inspectedRowIndex !== null && inspectedRowIndex < rowCount - 1
+              ? () => navigateInspectedRow(1)
+              : undefined
+          }
           onOpenInTab={onOpenRecordInTab}
           onCopyRecordId={copyText}
           onCellEdit={editInspectedRecord}

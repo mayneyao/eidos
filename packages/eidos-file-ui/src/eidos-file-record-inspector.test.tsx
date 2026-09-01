@@ -375,6 +375,8 @@ describe("EidosFileRecordInspector", () => {
       row: { ...current, [field.tableColumnName]: value },
       rowCount: 1,
     }))
+    const onPreviousRecord = vi.fn()
+    const onNextRecord = vi.fn()
     await act(async () => {
       root.render(
         <EidosFileRecordInspector
@@ -389,6 +391,8 @@ describe("EidosFileRecordInspector", () => {
           fields={[...fields, contentField]}
           contentField={contentField}
           onClose={vi.fn()}
+          onPreviousRecord={onPreviousRecord}
+          onNextRecord={onNextRecord}
           onOpenInTab={vi.fn()}
           onCopyRecordId={vi.fn()}
           onCellEdit={onCellEdit}
@@ -420,7 +424,7 @@ describe("EidosFileRecordInspector", () => {
         (button) =>
           button.textContent?.trim() || button.getAttribute("aria-label")
       )
-    ).toEqual(["Preview", "Edit", "Close record details"])
+    ).toEqual(["Previous record", "Next record", "Close record details"])
     expect(
       pageHeaderRow?.querySelector('[data-eidos-file-record-id=""]')
     ).toBeNull()
@@ -468,7 +472,7 @@ describe("EidosFileRecordInspector", () => {
       container.querySelector(
         '[data-eidos-file-record-content=""] [data-eidos-file-field-type-icon="text"]'
       )
-    ).not.toBeNull()
+    ).toBeNull()
     const pageTitle = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
     )
@@ -478,7 +482,14 @@ describe("EidosFileRecordInspector", () => {
     expect(container.textContent).toContain("Local first.")
     expect(container.querySelector("script")).toBeNull()
     expect(container.textContent).toContain("<script>alert(1)</script>")
-    expect(container.textContent).toContain("Body")
+    expect(container.textContent).not.toContain("Body")
+
+    await act(async () => {
+      pageHeaderRow
+        ?.querySelector<HTMLButtonElement>('[aria-label="Previous record"]')
+        ?.click()
+    })
+    expect(onPreviousRecord).toHaveBeenCalledOnce()
 
     await act(async () => {
       if (!pageTitle) return
@@ -498,9 +509,9 @@ describe("EidosFileRecordInspector", () => {
     )
 
     await act(async () => {
-      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "Edit")
-        ?.click()
+      container
+        .querySelector<HTMLElement>('[data-eidos-file-markdown-preview=""]')
+        ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
     })
     const editor = container.querySelector<HTMLTextAreaElement>(
       '[data-eidos-file-markdown-editor="source"] textarea'
@@ -521,8 +532,8 @@ describe("EidosFileRecordInspector", () => {
       editor.dispatchEvent(new Event("input", { bubbles: true }))
     })
     await act(async () => {
-      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "Preview")
+      pageHeaderRow
+        ?.querySelector<HTMLButtonElement>('[aria-label="Next record"]')
         ?.click()
       await Promise.resolve()
     })
@@ -531,6 +542,51 @@ describe("EidosFileRecordInspector", () => {
       contentField,
       "# Updated"
     )
+    expect(onNextRecord).toHaveBeenCalledOnce()
+  })
+
+  it("keeps record navigation available on a readonly full page", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      name: "Body",
+      tableColumnName: "body",
+      isRecordLabel: false,
+    }
+    const onPreviousRecord = vi.fn()
+    const onNextRecord = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <EidosFileRecordInspector
+          variant="page"
+          row={{ _id: "row_2", title: "Read RFC", body: "Content" }}
+          fields={[fields[0], contentField]}
+          contentField={contentField}
+          disabled
+          onClose={vi.fn()}
+          onPreviousRecord={onPreviousRecord}
+          onNextRecord={onNextRecord}
+          onCopyRecordId={vi.fn()}
+        />
+      )
+    })
+
+    const previous = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Previous record"]'
+    )
+    const next = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Next record"]'
+    )
+    expect(previous?.disabled).toBe(false)
+    expect(next?.disabled).toBe(false)
+
+    await act(async () => {
+      previous?.click()
+      next?.click()
+    })
+    expect(onPreviousRecord).toHaveBeenCalledOnce()
+    expect(onNextRecord).toHaveBeenCalledOnce()
   })
 
   it("exposes relation search as a keyboard-navigable combobox", async () => {

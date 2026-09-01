@@ -53,6 +53,7 @@ import {
 import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { eidosFileRecordNeighbors } from "./eidos-file-record-navigation"
 import {
   mergeRowWindowPage,
   requestForPrefetchedRowWindow,
@@ -1005,6 +1006,16 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     replaceInspectorRow,
     retryInspectorRow,
   } = useEidosFileRecordInspectorRow(loadRow)
+  const inspectorRows = useMemo(
+    () => boardGroups.flatMap((group) => group.rows),
+    [boardGroups]
+  )
+  const inspectorNeighbors = useMemo(
+    () => eidosFileRecordNeighbors(inspectorRows, inspectedRow),
+    [inspectedRow, inspectorRows]
+  )
+  const previousInspectorRow = inspectorNeighbors.previous
+  const nextInspectorRow = inspectorNeighbors.next
   const fields = useMemo(
     () => orderedEidosFileFields(table.fields, view),
     [table.fields, view]
@@ -1917,6 +1928,16 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
             variant={eidosFileContentField(table) ? "page" : "panel"}
             contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
+            onPreviousRecord={
+              previousInspectorRow
+                ? () => openInspectorRow(previousInspectorRow)
+                : undefined
+            }
+            onNextRecord={
+              nextInspectorRow
+                ? () => openInspectorRow(nextInspectorRow)
+                : undefined
+            }
             onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}
             onCellEdit={editInspectedRecord}

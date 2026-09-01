@@ -41,6 +41,7 @@ import {
 } from "./eidos-file-field-visibility"
 import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { eidosFileRecordNeighbors } from "./eidos-file-record-navigation"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { cn } from "./lib/cn"
@@ -394,6 +395,16 @@ export function EidosFileCalendarView({
     replaceInspectorRow,
     retryInspectorRow,
   } = useEidosFileRecordInspectorRow(loadRow)
+  const inspectorRows = useMemo(
+    () => days.flatMap((day) => dayPages.get(localDateKey(day))?.rows ?? []),
+    [dayPages, days]
+  )
+  const inspectorNeighbors = useMemo(
+    () => eidosFileRecordNeighbors(inspectorRows, inspectedRow),
+    [inspectedRow, inspectorRows]
+  )
+  const previousInspectorRow = inspectorNeighbors.previous
+  const nextInspectorRow = inspectorNeighbors.next
 
   const requestRows = useCallback(async () => {
     if (!dateField) return
@@ -1052,6 +1063,16 @@ export function EidosFileCalendarView({
             variant={eidosFileContentField(table) ? "page" : "panel"}
             contentField={eidosFileContentField(table)}
             onClose={closeInspectorRow}
+            onPreviousRecord={
+              previousInspectorRow
+                ? () => openInspectorRow(previousInspectorRow)
+                : undefined
+            }
+            onNextRecord={
+              nextInspectorRow
+                ? () => openInspectorRow(nextInspectorRow)
+                : undefined
+            }
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             disabled={disabled}
