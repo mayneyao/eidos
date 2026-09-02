@@ -182,6 +182,7 @@ export default defineConfig({
                   items: [
                     "specifications/system-metadata-merge-1-0",
                     "specifications/standard-views-1-0",
+                    "specifications/eidos-flavored-markdown-1-0",
                   ],
                 },
               ],

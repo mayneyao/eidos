@@ -1,12 +1,57 @@
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { MarkdownEditor } from "@eidos.space/markdown-editor"
 
 import { PLAYGROUND_MARKDOWN } from "./sample-markdown"
+import { PlaygroundOpfsImageStore } from "./opfs-image-store"
+
+type TestablePlaygroundWindow = Window & {
+  __EIDOS_MARKDOWN_TEST_DOCUMENT__?: string
+  __EIDOS_MARKDOWN_TEST_VALUE__?: string
+}
+
+function initialMarkdown(): string {
+  const testWindow = window as TestablePlaygroundWindow
+  const isLocalTestHost =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost"
+  const value =
+    isLocalTestHost &&
+    typeof testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__ === "string"
+      ? testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__
+      : PLAYGROUND_MARKDOWN
+
+  if (isLocalTestHost) testWindow.__EIDOS_MARKDOWN_TEST_VALUE__ = value
+  return value
+}
 
 export function App() {
-  const [markdown, setMarkdown] = useState(PLAYGROUND_MARKDOWN)
-  const [view, setView] = useState<"editor" | "source">("editor")
+  const [markdown, setMarkdown] = useState(initialMarkdown)
   const [readOnly, setReadOnly] = useState(false)
+  const imageStore = useMemo(() => new PlaygroundOpfsImageStore(), [])
+
+  useEffect(() => () => imageStore.dispose(), [imageStore])
+
+  const persistPastedImage = useCallback(
+    (request: Parameters<PlaygroundOpfsImageStore["persistImage"]>[0]) =>
+      imageStore.persistImage(request),
+    [imageStore]
+  )
+  const resolveImageUrl = useCallback(
+    (request: Parameters<PlaygroundOpfsImageStore["resolveImageUrl"]>[0]) =>
+      imageStore.resolveImageUrl(request),
+    [imageStore]
+  )
+
+  function handleMarkdownChange(value: string) {
+    setMarkdown(value)
+    if (
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "localhost"
+    ) {
+      ;(window as TestablePlaygroundWindow).__EIDOS_MARKDOWN_TEST_VALUE__ =
+        value
+    }
+  }
 
   return (
     <main className="playground-shell">
@@ -23,37 +68,22 @@ export function App() {
             />
             <span className="playground-switch-track" aria-hidden="true" />
           </label>
-          <button
-            type="button"
-            aria-pressed={view === "source"}
-            onClick={() => setView(view === "editor" ? "source" : "editor")}
-          >
-            {view === "editor" ? "View source" : "View editor"}
-          </button>
         </div>
       </header>
       <div className="playground-content">
-        {view === "editor" ? (
-          <MarkdownEditor
-            documentKey="playground"
-            markdown={markdown}
-            ariaLabel="Markdown playground editor"
-            readOnly={readOnly}
-            onMarkdownChange={setMarkdown}
-            onOpenExternalUrl={(url) => {
-              window.open(url, "_blank", "noopener,noreferrer")
-            }}
-          />
-        ) : (
-          <textarea
-            className="playground-source"
-            aria-label="Markdown source"
-            spellCheck={false}
-            readOnly={readOnly}
-            value={markdown}
-            onChange={(event) => setMarkdown(event.target.value)}
-          />
-        )}
+        <MarkdownEditor
+          documentKey="playground"
+          markdown={markdown}
+          baseUri={window.location.href}
+          ariaLabel="Markdown playground editor"
+          readOnly={readOnly}
+          onMarkdownChange={handleMarkdownChange}
+          onPasteImage={persistPastedImage}
+          resolveImageUrl={resolveImageUrl}
+          onOpenExternalUrl={(url) => {
+            window.open(url, "_blank", "noopener,noreferrer")
+          }}
+        />
       </div>
     </main>
   )

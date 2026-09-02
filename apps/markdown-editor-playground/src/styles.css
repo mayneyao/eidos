@@ -108,31 +108,6 @@ body,
   outline-offset: 2px;
 }
 
-.playground-header button {
-  min-height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-}
-
-.playground-header button:hover {
-  background: var(--accent);
-}
-
-.playground-header button[aria-pressed="true"] {
-  background: var(--accent);
-}
-
-.playground-header button:focus-visible,
-.playground-source:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
 .playground-content {
   display: flex;
   min-height: 0;
@@ -141,27 +116,6 @@ body,
 
 .playground-content > .eme-editor {
   flex: 1;
-}
-
-.playground-source {
-  box-sizing: border-box;
-  width: min(100%, 52rem);
-  height: 100%;
-  margin: 0 auto;
-  resize: none;
-  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1.25rem, 5vw, 4rem) 5rem;
-  border: 0;
-  overflow: auto;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.65;
-  tab-size: 2;
-}
-
-.playground-source:read-only {
-  color: var(--muted-foreground);
 }
 
 @media (max-width: 620px) {

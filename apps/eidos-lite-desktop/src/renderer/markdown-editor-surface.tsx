@@ -51,6 +51,7 @@ export function MarkdownEditorSurface({
   editingMode,
   theme,
   layout = "document",
+  inputProfile = "document",
   disabled = false,
   persistSourceEditorState = false,
   autoFocus = false,
@@ -63,6 +64,7 @@ export function MarkdownEditorSurface({
   editingMode: EidosLiteMarkdownEditingMode
   theme: ResolvedAppearance
   layout?: "document" | "embedded"
+  inputProfile?: "document" | "fragment"
   disabled?: boolean
   persistSourceEditorState?: boolean
   autoFocus?: boolean
@@ -114,12 +116,11 @@ export function MarkdownEditorSurface({
             markdown={content}
             theme={theme}
             layout={layout}
+            inputProfile={inputProfile}
             readOnly={disabled}
             autoFocus={autoFocus}
             ariaLabel={`Markdown content for ${relativePath}`}
             onMarkdownChange={onChange}
-            onRequestSourceMode={() => setSessionMode("source")}
-            onUnsupportedMarkdown={() => setSessionMode("source")}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
           />
         )}

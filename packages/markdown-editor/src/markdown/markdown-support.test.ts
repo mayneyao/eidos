@@ -20,7 +20,7 @@ const ready = true
     ).toBe(true)
   })
 
-  it("reports syntax that would not survive the current transformers", () => {
+  it("accepts valid EFM syntax through source-preserving nodes", () => {
     const features = findUnsupportedMarkdownFeatures(`---
 title: Demo
 ---
@@ -32,11 +32,24 @@ title: Demo
 ![Preview](./preview.png)
 `)
 
+    expect(features).toEqual([])
+  })
+
+  it("reports malformed EFM for block-local source fallback", () => {
+    const features = findUnsupportedMarkdownFeatures(`---
+title: First
+title: Duplicate
+---
+
+$$
+x + y
+`)
+
     expect(features.map((feature) => feature.kind)).toEqual([
       "frontmatter",
-      "image",
+      "math",
     ])
-    expect(features.map((feature) => feature.line)).toEqual([1, 9])
+    expect(features.map((feature) => feature.line)).toEqual([3, 6])
   })
 
   it("accepts GFM tables", () => {

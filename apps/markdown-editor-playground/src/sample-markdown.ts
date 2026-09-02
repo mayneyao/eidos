@@ -1,6 +1,11 @@
-export const PLAYGROUND_MARKDOWN = `# A calm place to think
+export const PLAYGROUND_MARKDOWN = `---
+title: A calm place to think
+profile: EFM-1.0
+---
 
-This editor keeps documents as **portable Markdown** while Lexical provides the editing surface. This playground covers _emphasis_, ~~strikethrough~~, \`inline code\`, and [portable links](https://eidos.space).
+# A calm place to think
+
+This editor keeps documents as **portable Markdown** while Lexical provides the editing surface. This playground covers _emphasis_, ~~strikethrough~~, ==highlight==, \`inline code\`, and [portable links](https://eidos.space).
 
 ## Document structure
 
@@ -31,6 +36,18 @@ This editor keeps documents as **portable Markdown** while Lexical provides the 
 | Lexical | Editing view | 0.49.0 |
 | Playground | Browser verification | Active |
 
+## EFM extensions
+
+Euler's identity is $e^{i\\pi} + 1 = 0$.[^euler]
+
+$$
+\\int_0^1 x^2\\,dx = \\frac{1}{3}
+$$
+
+![Eidos File icon](https://editor.eidos.space/eidos-file-icon-192.png "Eidos File")
+
+[^euler]: Mathematics, footnotes, images, and frontmatter render visually while Markdown remains portable.
+
 ## Code block
 
 \`\`\`ts
@@ -47,5 +64,5 @@ const document: MarkdownDocument = {
 
 ## Final note
 
-Soft line breaks are reflowed into readable paragraphs without changing the canonical document.
+Click into a block and use the + control, or type / on an empty line, to insert formulas, images, footnotes, document properties, and standard Markdown blocks without leaving the editor.
 `

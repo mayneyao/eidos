@@ -8,16 +8,19 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from "lexical"
 
-import type { MarkdownEditorLabels } from "./types"
+import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import type { MarkdownEditorLabels } from "../types"
 
 function ToolbarButton({
   active = false,
+  ariaKeyShortcuts,
   label,
   shortcut,
   children,
   onClick,
 }: {
   active?: boolean
+  ariaKeyShortcuts?: string
   label: string
   shortcut?: string
   children: string
@@ -28,6 +31,7 @@ function ToolbarButton({
       type="button"
       className="eme-toolbar-button"
       aria-label={label}
+      aria-keyshortcuts={ariaKeyShortcuts}
       aria-pressed={active || undefined}
       title={shortcut ? `${label} (${shortcut})` : label}
       onMouseDown={(event) => event.preventDefault()}
@@ -44,6 +48,7 @@ export function FloatingToolbarPlugin({
   labels: MarkdownEditorLabels
 }) {
   const [editor] = useLexicalComposerContext()
+  const { ariaKeys, label: shortcutLabel } = useMarkdownShortcuts()
   const toolbarRef = useRef<HTMLDivElement>(null)
   const animationFrameRef = useRef(0)
   const updateFrameRef = useRef(0)
@@ -51,6 +56,7 @@ export function FloatingToolbarPlugin({
   const [bold, setBold] = useState(false)
   const [italic, setItalic] = useState(false)
   const [strikethrough, setStrikethrough] = useState(false)
+  const [highlight, setHighlight] = useState(false)
   const [inlineCode, setInlineCode] = useState(false)
 
   const updateToolbar = useCallback(() => {
@@ -76,6 +82,7 @@ export function FloatingToolbarPlugin({
     setBold(selection.hasFormat("bold"))
     setItalic(selection.hasFormat("italic"))
     setStrikethrough(selection.hasFormat("strikethrough"))
+    setHighlight(selection.hasFormat("highlight"))
     setInlineCode(selection.hasFormat("code"))
     setVisible(true)
 
@@ -150,16 +157,18 @@ export function FloatingToolbarPlugin({
     >
       <ToolbarButton
         active={bold}
+        ariaKeyShortcuts={ariaKeys("format.bold")}
         label={labels.bold}
-        shortcut="⌘B"
+        shortcut={shortcutLabel("format.bold")}
         onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
       >
         B
       </ToolbarButton>
       <ToolbarButton
         active={italic}
+        ariaKeyShortcuts={ariaKeys("format.italic")}
         label={labels.italic}
-        shortcut="⌘I"
+        shortcut={shortcutLabel("format.italic")}
         onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
       >
         I
@@ -172,6 +181,13 @@ export function FloatingToolbarPlugin({
         }
       >
         S
+      </ToolbarButton>
+      <ToolbarButton
+        active={highlight}
+        label={labels.highlight}
+        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "highlight")}
+      >
+        ==
       </ToolbarButton>
       <ToolbarButton
         active={inlineCode}

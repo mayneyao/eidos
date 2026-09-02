@@ -182,6 +182,7 @@ export function EidosFileWorkbench({
           editingMode={markdownEditingMode}
           theme={theme}
           layout="embedded"
+          inputProfile="fragment"
           disabled={disabled}
           persistSourceEditorState={false}
           autoFocus={markdownEditingMode === "source"}

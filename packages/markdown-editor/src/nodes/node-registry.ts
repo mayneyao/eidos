@@ -6,6 +6,9 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 import type { Klass, LexicalNode } from "lexical"
 
+import { EfmSourceBlockNode } from "./efm-source-block-node"
+import { EfmBlockNode, EfmInlineNode } from "./efm-semantic-node"
+
 export const MARKDOWN_EDITOR_NODES: readonly Klass<LexicalNode>[] = [
   HeadingNode,
   QuoteNode,
@@ -17,4 +20,7 @@ export const MARKDOWN_EDITOR_NODES: readonly Klass<LexicalNode>[] = [
   TableNode,
   TableRowNode,
   TableCellNode,
+  EfmInlineNode,
+  EfmBlockNode,
+  EfmSourceBlockNode,
 ]

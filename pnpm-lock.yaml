@@ -769,10 +769,34 @@ importers:
       '@lexical/utils':
         specifier: 0.49.0
         version: 0.49.0(typescript@5.8.3)
+      katex:
+        specifier: 0.18.5
+        version: 0.18.5
       lexical:
         specifier: 0.49.0
         version: 0.49.0(typescript@5.8.3)
+      mdast-util-from-markdown:
+        specifier: 2.0.3
+        version: 2.0.3(supports-color@10.2.2)
+      mdast-util-gfm:
+        specifier: 3.1.0
+        version: 3.1.0(supports-color@10.2.2)
+      micromark:
+        specifier: 4.0.2
+        version: 4.0.2(supports-color@10.2.2)
+      micromark-extension-gfm:
+        specifier: 3.0.0
+        version: 3.0.0
+      supports-color:
+        specifier: 10.2.2
+        version: 10.2.2
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
+      '@types/mdast':
+        specifier: 4.0.4
+        version: 4.0.4
       '@types/react':
         specifier: ^18.2.14
         version: 18.3.23
@@ -5510,6 +5534,10 @@ packages:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
     engines: {node: '>=20'}
 
+  commander@15.0.0:
+    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
+    engines: {node: '>=22.12.0'}
+
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
@@ -6638,6 +6666,10 @@ packages:
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
     engines: {node: '>=0.10.0'}
+
+  katex@0.18.5:
+    resolution: {integrity: sha512-1FU5H3RjGJVj6GT9fMjf2uMIXmPQp232aXS3UEeQzf0dxefHg/CKMvNB3DuOC46LFG/E5PNxrE8dOwB782FDGg==}
+    hasBin: true
 
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
@@ -14048,6 +14080,8 @@ snapshots:
 
   commander@14.0.3: {}
 
+  commander@15.0.0: {}
+
   commander@2.20.3: {}
 
   commander@5.1.0: {}
@@ -15399,6 +15433,10 @@ snapshots:
 
   jsonpointer@5.0.1: {}
 
+  katex@0.18.5:
+    dependencies:
+      commander: 15.0.0
+
   kleur@4.1.5: {}
 
   klona@2.0.6: {}
@@ -15624,7 +15662,7 @@ snapshots:
       mdast-util-find-and-replace: 3.0.2
       micromark-util-character: 2.1.1
 
-  mdast-util-gfm-footnote@2.1.0:
+  mdast-util-gfm-footnote@2.1.0(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
@@ -15634,7 +15672,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-strikethrough@2.0.0:
+  mdast-util-gfm-strikethrough@2.0.0(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-from-markdown: 2.0.3(supports-color@10.2.2)
@@ -15642,7 +15680,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-table@2.0.0:
+  mdast-util-gfm-table@2.0.0(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
@@ -15652,7 +15690,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-task-list-item@2.0.0:
+  mdast-util-gfm-task-list-item@2.0.0(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
@@ -15661,14 +15699,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm@3.1.0:
+  mdast-util-gfm@3.1.0(supports-color@10.2.2):
     dependencies:
       mdast-util-from-markdown: 2.0.3(supports-color@10.2.2)
       mdast-util-gfm-autolink-literal: 2.0.1
-      mdast-util-gfm-footnote: 2.1.0
-      mdast-util-gfm-strikethrough: 2.0.0
-      mdast-util-gfm-table: 2.0.0
-      mdast-util-gfm-task-list-item: 2.0.0
+      mdast-util-gfm-footnote: 2.1.0(supports-color@10.2.2)
+      mdast-util-gfm-strikethrough: 2.0.0(supports-color@10.2.2)
+      mdast-util-gfm-table: 2.0.0(supports-color@10.2.2)
+      mdast-util-gfm-task-list-item: 2.0.0(supports-color@10.2.2)
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
@@ -16793,7 +16831,7 @@ snapshots:
   remark-gfm@4.0.1:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-gfm: 3.1.0
+      mdast-util-gfm: 3.1.0(supports-color@10.2.2)
       micromark-extension-gfm: 3.0.0
       remark-parse: 11.0.0
       remark-stringify: 11.0.0

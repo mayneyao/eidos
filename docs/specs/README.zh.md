@@ -8,6 +8,10 @@
 conformance。实现源码、package API report、产品现状、旧 RFC 或中文译本都不能覆盖
 这里的英文 normative specification。
 
+Eidos Flavored Markdown 是实现中立的可移植内容语法 companion，不构成第五个产品
+layer：Eidos 产品采用 EFM 时，File Format 与 Runtime 仍拥有 canonical
+container/value meaning，Adapter 拥有资源 authority，UI 拥有交互。
+
 ## 开发者入口
 
 希望使用 SDK 打开、查询或修改 `.eidos`，并理解一次操作如何经过 Runtime、SQLite
@@ -55,6 +59,7 @@ File Format → Runtime → Adapter → UI
 | Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
 | UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
 | UI 标准视图           | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
+| 可移植内容语法        | [Eidos Flavored Markdown 1.0](./eidos-flavored-markdown-1.0.md)         | [中文](./eidos-flavored-markdown-1.0.zh.md)     |
 
 ## 文档组织规则
 
@@ -95,6 +100,7 @@ Adapter 规范的 in-memory/reference `ConnectionPort` harness 实现和测试�
 | logical type、derived evaluation、query result、operation/revision concurrency、error                             | Runtime     |
 | SQLite driver、file lifecycle、locking、persistence、Worker/process profile                                       | Adapter     |
 | RuntimeClient/HostServices 消费、interaction state、editing affordance、accessibility                             | UI          |
+| Markdown 源码模型、语法、解析优先级、语义渲染、序列化与 conformance                                               | EFM         |
 
 上层可以摘要下层规则，但必须链接 owner，不能重新定义。出现冲突时以上表 owner 为准。
 
@@ -115,6 +121,9 @@ EA-Desktop-1.0
 EU-Viewer-1.0
 EU-Editor-1.0
 EU-Schema-1.0
+EFM-Parser-1.0
+EFM-Renderer-1.0
+EFM-Serializer-1.0
 ```
 
 较高 label 不隐含无关 layer。`ER-System-Merge-1.0` 是可选的 draft Runtime profile，
@@ -145,3 +154,6 @@ operation 变化升级 Runtime；port/profile 变化升级 Adapter；required in
 变化升级 UI。
 
 Design 与 implementation record 只作历史证据，不能修改本规范套件。
+
+Eidos Flavored Markdown 语法、解析优先级或 canonical document meaning 的变化独立升级
+EFM version，不要求同步升级四个产品 layer 的版本。

@@ -30,6 +30,7 @@ export const MARKDOWN_EDITOR_THEME: EditorThemeClasses = {
   text: {
     bold: "eme-text-bold",
     code: "eme-inline-code",
+    highlight: "eme-text-highlight",
     italic: "eme-text-italic",
     strikethrough: "eme-text-strikethrough",
   },

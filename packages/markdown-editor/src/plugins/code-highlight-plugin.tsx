@@ -9,7 +9,7 @@ import {
   type CodeHighlightToken,
   type CodeHighlightTokenizer,
   tokenizeCodeLightweight,
-} from "./code-highlight-tokenizer"
+} from "../highlighting/code-highlight-tokenizer"
 
 interface HighlightRuntime {
   createHighlight: (...ranges: AbstractRange[]) => Highlight

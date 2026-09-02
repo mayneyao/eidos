@@ -10,6 +10,11 @@ implements only the layers it needs and declares conformance to each one. No
 implementation source, package API report, product behavior, RFC, or Chinese
 translation overrides the canonical English specifications here.
 
+Eidos Flavored Markdown is an implementation-neutral portable content-syntax
+companion. It does not introduce a fifth product layer: File Format and Runtime
+still own canonical container/value meaning, Adapter owns resource authority,
+and UI owns interaction when an Eidos product adopts EFM.
+
 ## Boundary map
 
 ```text
@@ -46,14 +51,15 @@ Semantic ownership is one-way. In particular:
 
 ## Documents
 
-| Layer                 | Canonical specification                                                 | Informative Chinese reference                   |
-| --------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
-| File Format           | [Eidos File Format 1.0](./eidos-file-1.0.md)                            | [中文](./eidos-file-1.0.zh.md)                  |
-| Runtime               | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)                             | [中文](./eidos-runtime-1.0.zh.md)               |
-| Runtime merge profile | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
-| Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
-| UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
-| UI standard Views     | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
+| Layer                   | Canonical specification                                                 | Informative Chinese reference                   |
+| ----------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
+| File Format             | [Eidos File Format 1.0](./eidos-file-1.0.md)                            | [中文](./eidos-file-1.0.zh.md)                  |
+| Runtime                 | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)                             | [中文](./eidos-runtime-1.0.zh.md)               |
+| Runtime merge profile   | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
+| Adapter                 | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
+| UI                      | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
+| UI standard Views       | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
+| Portable content syntax | [Eidos Flavored Markdown 1.0](./eidos-flavored-markdown-1.0.md)         | [中文](./eidos-flavored-markdown-1.0.zh.md)     |
 
 ## Document organization
 
@@ -102,6 +108,7 @@ Every observable rule has exactly one owning specification:
 | Logical types, derived evaluation, query results, operation/revision concurrency and errors                            | Runtime     |
 | SQLite driver behavior, file lifecycle, locking, persistence, Worker/process profiles                                  | Adapter     |
 | RuntimeClient/HostServices consumption, interaction state, editing affordances, accessibility                          | UI          |
+| Markdown source model, syntax, parsing precedence, semantic rendering, serialization, and conformance                  | EFM         |
 
 An upper-layer document may summarize a lower-layer rule but MUST link to its
 owner and MUST NOT redefine it. When two texts appear to conflict, the owner in
@@ -124,6 +131,9 @@ EA-Desktop-1.0
 EU-Viewer-1.0
 EU-Editor-1.0
 EU-Schema-1.0
+EFM-Parser-1.0
+EFM-Renderer-1.0
+EFM-Serializer-1.0
 ```
 
 Higher labels do not imply unrelated layers. `ER-System-Merge-1.0` is an
@@ -161,3 +171,7 @@ required interaction behavior bumps UI.
 
 Design and implementation records are historical evidence only. They do not
 amend this suite.
+
+Changes to Eidos Flavored Markdown syntax, parsing precedence, or canonical
+document meaning bump the EFM version independently of the four product-layer
+versions.

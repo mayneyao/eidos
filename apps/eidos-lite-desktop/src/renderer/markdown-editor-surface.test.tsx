@@ -83,6 +83,7 @@ describe("MarkdownEditorSurface", () => {
           editingMode: "wysiwyg",
           theme: "dark",
           layout: "embedded",
+          inputProfile: "fragment",
           onChange: vi.fn(),
         })
       )
@@ -98,7 +99,14 @@ describe("MarkdownEditorSurface", () => {
         markdown: "# WYSIWYG",
         theme: "dark",
         layout: "embedded",
+        inputProfile: "fragment",
       })
+    )
+    expect(wysiwygEditor.mock.calls[0][0]).not.toHaveProperty(
+      "onRequestSourceMode"
+    )
+    expect(wysiwygEditor.mock.calls[0][0]).not.toHaveProperty(
+      "onUnsupportedMarkdown"
     )
     expect(sourceEditor).not.toHaveBeenCalled()
   })

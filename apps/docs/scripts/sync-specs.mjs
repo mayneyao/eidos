@@ -22,6 +22,11 @@ const specifications = [
     slug: "standard-views-1-0",
     order: 45,
   },
+  {
+    source: "eidos-flavored-markdown-1.0.md",
+    slug: "eidos-flavored-markdown-1-0",
+    order: 50,
+  },
 ]
 
 const retiredGeneratedSlugs = [
@@ -32,6 +37,7 @@ const retiredGeneratedSlugs = [
   "ui-1-0",
   "form-view-1-0",
   "standard-views-1-0",
+  "eidos-flavored-markdown-1-0",
 ]
 
 function escapeFrontmatter(value) {
