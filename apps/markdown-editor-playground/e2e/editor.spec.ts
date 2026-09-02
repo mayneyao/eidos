@@ -27,9 +27,7 @@ async function setExternalMarkdown(page: Page, markdown: string) {
   }, markdown)
 }
 
-test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
-  page,
-}) => {
+test("CAN-001 opens in the focused WYSIWYG editor", async ({ page }) => {
   await page.goto("/")
 
   const shell = page.locator(".playground-shell")
@@ -55,7 +53,7 @@ test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
   await expect(editor).toBeVisible()
   await expect(editor).toContainText("A calm place to think")
   await expect(floatingToolbar).toHaveAttribute("aria-hidden", "true")
-  await expect(page.getByRole("button", { name: "View source" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "View source" })).toBeVisible()
   await expect(page.getByLabel("Markdown source")).toHaveCount(0)
 
   await canvas.focus()
@@ -68,6 +66,37 @@ test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
 
   await canvas.locator(".eme-paragraph").first().selectText()
   await expect(floatingToolbar).toHaveAttribute("aria-hidden", "false")
+})
+
+test("switches between visual and editable source views", async ({ page }) => {
+  await openMarkdown(page, "# Original title\n\nOriginal body.")
+
+  const sourceToggle = page.getByRole("button", { name: "View source" })
+  await sourceToggle.click()
+
+  const source = page.getByLabel("Markdown source")
+  await expect(source).toBeVisible()
+  await expect(source).toBeFocused()
+  await expect(
+    page.getByRole("button", { name: "View editor" })
+  ).toHaveAttribute("aria-pressed", "true")
+
+  await source.fill("# Edited in source\n\nBack in the block editor.")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("# Edited in source\n\nBack in the block editor.")
+
+  await page.getByRole("button", { name: "View editor" }).click()
+  const editor = page.getByLabel("Markdown playground editor")
+  await expect(editor).toBeVisible()
+  await expect(editor.getByRole("heading", { level: 1 })).toHaveText(
+    "Edited in source"
+  )
+  await expect(editor).toContainText("Back in the block editor.")
+
+  await page.getByRole("switch", { name: "Read only" }).click()
+  await page.getByRole("button", { name: "View source" }).click()
+  await expect(source).toHaveAttribute("readonly", "")
 })
 
 test("shows every default shortcut in an accessible reference dialog", async ({

@@ -57,7 +57,8 @@ body,
   gap: 8px;
 }
 
-.playground-shortcuts-trigger {
+.playground-shortcuts-trigger,
+.playground-mode-trigger {
   height: 28px;
   padding: 0 9px;
   border: 1px solid transparent;
@@ -70,12 +71,15 @@ body,
   cursor: pointer;
 }
 
-.playground-shortcuts-trigger:hover {
+.playground-shortcuts-trigger:hover,
+.playground-mode-trigger:hover,
+.playground-mode-trigger[aria-pressed="true"] {
   color: var(--foreground);
   background: var(--accent);
 }
 
 .playground-shortcuts-trigger:focus-visible,
+.playground-mode-trigger:focus-visible,
 .playground-shortcuts-close:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -295,6 +299,40 @@ body,
 
 .playground-content > .eme-editor {
   flex: 1;
+}
+
+.playground-source {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: 24px;
+}
+
+.playground-source textarea {
+  width: min(100%, 960px);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  color: var(--foreground);
+  background: transparent;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  tab-size: 2;
+  caret-color: var(--primary);
+}
+
+.playground-source textarea::selection {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.playground-source textarea:read-only {
+  color: var(--muted-foreground);
 }
 
 @media (max-width: 620px) {

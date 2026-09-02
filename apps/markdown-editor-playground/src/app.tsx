@@ -47,6 +47,7 @@ function initialMarkdown(): string {
 export function App() {
   const [markdown, setMarkdown] = useState(initialMarkdown)
   const [readOnly, setReadOnly] = useState(false)
+  const [viewMode, setViewMode] = useState<"visual" | "source">("visual")
   const imageStore = useMemo(() => new PlaygroundOpfsImageStore(), [])
 
   useEffect(() => {
@@ -105,6 +106,18 @@ export function App() {
         <h1>Markdown Editor Playground</h1>
         <div className="playground-actions">
           <ShortcutReference />
+          <button
+            type="button"
+            className="playground-mode-trigger"
+            aria-pressed={viewMode === "source"}
+            onClick={() =>
+              setViewMode((current) =>
+                current === "visual" ? "source" : "visual"
+              )
+            }
+          >
+            {viewMode === "visual" ? "View source" : "View editor"}
+          </button>
           <label className="playground-switch">
             <span>Read only</span>
             <input
@@ -118,19 +131,32 @@ export function App() {
         </div>
       </header>
       <div className="playground-content">
-        <MarkdownEditor
-          documentKey="playground"
-          markdown={markdown}
-          baseUri={window.location.href}
-          ariaLabel="Markdown playground editor"
-          readOnly={readOnly}
-          onMarkdownChange={handleMarkdownChange}
-          onPasteImage={persistPastedImage}
-          resolveImageUrl={resolveImageUrl}
-          onOpenExternalUrl={(url) => {
-            window.open(url, "_blank", "noopener,noreferrer")
-          }}
-        />
+        {viewMode === "visual" ? (
+          <MarkdownEditor
+            documentKey="playground"
+            markdown={markdown}
+            baseUri={window.location.href}
+            ariaLabel="Markdown playground editor"
+            readOnly={readOnly}
+            onMarkdownChange={handleMarkdownChange}
+            onPasteImage={persistPastedImage}
+            resolveImageUrl={resolveImageUrl}
+            onOpenExternalUrl={(url) => {
+              window.open(url, "_blank", "noopener,noreferrer")
+            }}
+          />
+        ) : (
+          <section className="playground-source" aria-label="Source editor">
+            <textarea
+              autoFocus
+              aria-label="Markdown source"
+              value={markdown}
+              readOnly={readOnly}
+              spellCheck={false}
+              onChange={(event) => handleMarkdownChange(event.target.value)}
+            />
+          </section>
+        )}
       </div>
     </main>
   )
