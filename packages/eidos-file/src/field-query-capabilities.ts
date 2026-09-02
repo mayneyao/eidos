@@ -70,11 +70,6 @@ const CHECKBOX_OPERATORS = [
   ...EMPTY_OPERATORS,
 ] as const satisfies readonly EidosFileFilterOperator[]
 
-const JSON_OPERATORS = [
-  ...EQUALITY_OPERATORS,
-  ...EMPTY_OPERATORS,
-] as const satisfies readonly EidosFileFilterOperator[]
-
 const FILE_OPERATORS = [
   ...EMPTY_OPERATORS,
 ] as const satisfies readonly EidosFileFilterOperator[]
@@ -87,7 +82,6 @@ const TYPE_REF_ATOMS = new Set<string>([
   "date",
   "datetime",
   "url",
-  "json",
   "select",
   "multi-select",
   "file",
@@ -151,10 +145,12 @@ export function eidosFileFieldValueType(
   if (field.type === "formula" || field.type === "lookup") {
     const generated = configuredTypeRef(field.property?.valueType)
     if (generated) return generated
+    const legacyFileEntry =
+      field.type === "lookup" && field.property?.displayType === "json"
     const display = configuredTypeRef(field.property?.displayType) ?? "text"
     if (field.type === "lookup" && field.property?.aggregate === "values") {
       const element =
-        display === "file" || display === "json"
+        display === "file" || legacyFileEntry
           ? "file-entry"
           : display === "relation"
             ? "row-id"
@@ -165,7 +161,7 @@ export function eidosFileFieldValueType(
                 : display
       return { kind: "list", element: element as AtomicType }
     }
-    if (field.type === "lookup" && display === "json") return "file-entry"
+    if (legacyFileEntry) return "file-entry"
     return display
   }
   if (field.type === "relation") return "relation"
@@ -256,7 +252,6 @@ export function eidosFileTypeRefQueryCapabilities(
   } else if (type === "number" || type === "integer") {
     filterOperators = ORDERED_OPERATORS
   } else if (stringMatch) filterOperators = STRING_OPERATORS
-  else if (type === "json") filterOperators = JSON_OPERATORS
   else filterOperators = EMPTY_OPERATORS
 
   return {

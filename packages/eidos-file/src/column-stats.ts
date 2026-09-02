@@ -74,7 +74,9 @@ export function eidosFileColumnStatTypesForField(
   field: EidosFileFieldInfo
 ): readonly EidosFileColumnStatType[] {
   const type = displayType(field)
-  if (type === "number" || type === "rating") return NUMERIC_STATS
+  if (type === "number" || type === "integer" || type === "rating") {
+    return NUMERIC_STATS
+  }
   if (
     type === "date" ||
     type === "datetime" ||
@@ -150,6 +152,7 @@ export function compileEidosFileColumnStatExpression(
   field: EidosFileFieldInfo,
   type: EidosFileColumnStatType
 ): string {
+  const fieldDisplayType = displayType(field)
   const column = quoteIdentifier(field.tableColumnName)
   const isArrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
@@ -172,7 +175,9 @@ export function compileEidosFileColumnStatExpression(
     case "percent-unchecked":
       return `CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND(100.0 * COUNT(CASE WHEN ${column} = 1 THEN NULL ELSE 1 END) / COUNT(*), 2) END`
     case "sum":
-      return `SUM(CASE WHEN ${present} THEN CAST(${column} AS REAL) END)`
+      return fieldDisplayType === "integer" || fieldDisplayType === "rating"
+        ? `SUM(CASE WHEN ${present} THEN ${column} END)`
+        : `SUM(CASE WHEN ${present} THEN CAST(${column} AS REAL) END)`
     case "average":
       return `AVG(CASE WHEN ${present} THEN CAST(${column} AS REAL) END)`
     case "min":

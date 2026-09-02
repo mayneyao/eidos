@@ -76,7 +76,7 @@ CREATE TABLE eidos__fields(
        AND instr(physical_name,char(0))=0
        AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
-    'text','number','integer','checkbox','date','datetime','url','json',
+    'text','number','integer','checkbox','date','datetime','url',
     'select','multi-select','file','relation','formula','lookup'
   )),
   system_role TEXT CHECK(system_role IN ('row-id','created-time','updated-time')),
@@ -186,7 +186,7 @@ CREATE TABLE eidos__formula_fields(
   source_text TEXT NOT NULL
     CHECK(length(CAST(source_text AS BLOB)) BETWEEN 1 AND 4096),
   result_type TEXT NOT NULL
-    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url','json'))
+    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url'))
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE eidos__lookup_fields(

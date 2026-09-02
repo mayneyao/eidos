@@ -153,10 +153,10 @@ const renderer: CustomRenderer<RatingCell> = {
     }
   },
   onPaste: (val, d) => {
-    const num = Number.parseInt(val)
+    const num = Number(val.trim())
     return {
       ...d,
-      rating: Number.isNaN(num) ? 0 : num,
+      rating: Number.isInteger(num) && num >= 0 && num <= 5 ? num : d.rating,
     }
   },
   onDelete: (d) => ({

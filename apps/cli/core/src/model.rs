@@ -20,7 +20,6 @@ pub enum FieldType {
     Date,
     Datetime,
     Url,
-    Json,
     Select,
     MultiSelect,
     File,
@@ -40,7 +39,6 @@ impl FieldType {
             FieldType::Date => "date",
             FieldType::Datetime => "datetime",
             FieldType::Url => "url",
-            FieldType::Json => "json",
             FieldType::Select => "select",
             FieldType::MultiSelect => "multi-select",
             FieldType::File => "file",
@@ -60,7 +58,6 @@ impl FieldType {
             "date" => FieldType::Date,
             "datetime" => FieldType::Datetime,
             "url" => FieldType::Url,
-            "json" => FieldType::Json,
             "select" => FieldType::Select,
             "multi-select" => FieldType::MultiSelect,
             "file" => FieldType::File,
@@ -209,7 +206,6 @@ pub enum FormulaResultType {
     Date,
     Datetime,
     Url,
-    Json,
 }
 
 impl FormulaResultType {
@@ -222,7 +218,6 @@ impl FormulaResultType {
             FormulaResultType::Date => "date",
             FormulaResultType::Datetime => "datetime",
             FormulaResultType::Url => "url",
-            FormulaResultType::Json => "json",
         }
     }
 
@@ -235,7 +230,6 @@ impl FormulaResultType {
             "date" => FormulaResultType::Date,
             "datetime" => FormulaResultType::Datetime,
             "url" => FormulaResultType::Url,
-            "json" => FormulaResultType::Json,
             other => {
                 return Err(EidosError::InvalidSchema(format!(
                     "unknown formula result_type {other:?}"
@@ -600,6 +594,8 @@ mod tests {
             "\"created-time\""
         );
         assert!(FieldType::from_spec_str("rating").is_err());
+        assert!(FieldType::from_spec_str("json").is_err());
+        assert!(FormulaResultType::from_spec_str("json").is_err());
         assert!(SystemRole::from_spec_str("owner").is_err());
     }
 

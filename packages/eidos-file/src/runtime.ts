@@ -1,4 +1,5 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import { isEidosFileUriReference } from "./canonical-conversion"
 import { normalizeEidosFileColumnStatConfigs } from "./column-stats"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import {
@@ -4400,7 +4401,6 @@ export class EidosFileRuntime {
             if (storage === "text") {
               const logicalType = fieldValueTypeForScan(field)
               if (
-                logicalType === "json" ||
                 logicalType === "file" ||
                 logicalType === "multi-select" ||
                 logicalType === "relation" ||
@@ -4600,13 +4600,20 @@ export class EidosFileRuntime {
           `Unsupported statistic: ${config.type}`
         )
       }
-      const value =
-        this.connection.get<{ value: number | string | null }>(
+      const rawValue =
+        this.connection.get<{ value: EidosFileSqlPrimitive }>(
           `WITH logical AS (${source.sql}), filtered AS (
            SELECT * FROM logical ${compiled.whereSql}
          ) SELECT ${expression} AS value FROM filtered`,
           compiled.params
         )?.value ?? null
+      const value = typeof rawValue === "bigint" ? String(rawValue) : rawValue
+      if (value instanceof Uint8Array) {
+        throw new EidosFileError(
+          "invalid-query",
+          `Statistic ${config.type} returned an invalid binary value`
+        )
+      }
       return { ...config, value }
     })
   }
@@ -4707,6 +4714,12 @@ export class EidosFileRuntime {
         throw new EidosFileError(
           "invalid-value",
           `${field.name} must be text or NULL`
+        )
+      }
+      if (field.type === "url" && !isEidosFileUriReference(value)) {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} contains an invalid URI-reference`
         )
       }
       return value

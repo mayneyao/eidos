@@ -260,12 +260,8 @@ export type EidosFileFormulaDisplayType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
 
-export type EidosFileFormulaResultType = Exclude<
-  EidosFileFormulaDisplayType,
-  "json"
->
+export type EidosFileFormulaResultType = EidosFileFormulaDisplayType
 
 export interface EidosFileFormulaProperty extends Record<string, unknown> {
   formula: string

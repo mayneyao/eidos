@@ -878,7 +878,7 @@ export interface EidosFileCsvExportResult {
 }
 
 // @public (undocumented)
-export type EidosFileCsvFieldType = "text" | "number" | "checkbox" | "date" | "datetime" | "url";
+export type EidosFileCsvFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url";
 
 // @public (undocumented)
 export interface EidosFileCsvImportColumn {
@@ -1057,6 +1057,7 @@ export interface EidosFileFieldInfo {
     type: EidosFileFieldType;
     // (undocumented)
     valueKind: EidosFileValueKind;
+    writable?: boolean;
 }
 
 // @public (undocumented)
@@ -1117,7 +1118,7 @@ export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterVal
 export type EidosFileFilterValue = string | number | boolean | null;
 
 // @public (undocumented)
-export type EidosFileFormulaDisplayType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json";
+export type EidosFileFormulaDisplayType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url";
 
 // @public (undocumented)
 export interface EidosFileFormulaPreview {
@@ -1171,7 +1172,7 @@ export interface EidosFileFormulaProperty extends Record<string, unknown> {
 }
 
 // @public (undocumented)
-export type EidosFileFormulaResultType = Exclude<EidosFileFormulaDisplayType, "json">;
+export type EidosFileFormulaResultType = EidosFileFormulaDisplayType;
 
 // @public (undocumented)
 export interface EidosFileHandle {
@@ -2887,7 +2888,7 @@ export interface ScalarDefinition {
 export type ScalarStoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select";
 
 // @public (undocumented)
-export type ScalarType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "multi-select" | "file" | "relation";
+export type ScalarType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select" | "multi-select" | "file" | "relation";
 
 // @public (undocumented)
 export type SchemaChange = SchemaLeafChange | {

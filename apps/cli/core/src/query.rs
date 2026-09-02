@@ -189,8 +189,8 @@ pub struct ReadRowsOptions {
 pub struct RowPage {
     /// Rows keyed by Field display name; the Row-ID field (`_id`) is always
     /// present. Integers are canonical decimal strings, numbers JSON
-    /// numbers, checkboxes booleans, list fields parsed arrays, JSON fields
-    /// their JSON text string, SQL NULL JSON null.
+    /// numbers, checkboxes booleans, list fields parsed arrays, and SQL NULL
+    /// as JSON null.
     pub rows: Vec<serde_json::Map<String, JsonValue>>,
     /// Exact count of rows matching the filter/search, ignoring
     /// limit/offset (named `estimate` for forward compatibility).
@@ -826,15 +826,16 @@ fn logical_json(field: &FieldMeta, raw: SqlValue) -> Result<JsonValue> {
         ))
     };
     match field.field_type {
-        FieldType::Text
-        | FieldType::Url
-        | FieldType::Select
-        | FieldType::Date
-        | FieldType::Datetime
-        // A JSON field crosses the wire as its JSON text string, never as
-        // a parsed untyped value.
-        | FieldType::Json => match raw {
+        FieldType::Text | FieldType::Select | FieldType::Date | FieldType::Datetime => match raw {
             SqlValue::Text(text) => Ok(JsonValue::String(text)),
+            _ => Err(storage_error()),
+        },
+        FieldType::Url => match raw {
+            SqlValue::Text(text) => {
+                let value = JsonValue::String(text);
+                coerce_value(field, &value)?;
+                Ok(value)
+            }
             _ => Err(storage_error()),
         },
         FieldType::Number => match raw {

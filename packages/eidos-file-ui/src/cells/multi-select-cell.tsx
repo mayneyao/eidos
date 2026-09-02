@@ -406,11 +406,17 @@ const renderer: CustomRenderer<MultiSelectCell> = {
   onPaste: (v, d) => {
     // trim " and '
     v = v.replace(/^["'](.*)["']$/, "$1")
-    const ids = v.split(",").map((s) => s.trim())
-    const allowedValuesSet = new Set(d.allowedValues.map((v) => v.id))
+    const ids = Array.from(
+      new Set(
+        v
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      )
+    )
     return {
       ...d,
-      values: ids.filter((id) => allowedValuesSet.has(id)),
+      values: ids,
     }
   },
   onDelete(cell) {

@@ -3,8 +3,8 @@
 //!
 //! The transport model is Eidos Runtime 1.0's logical-value boundary:
 //! integers arrive as canonical signed int64 decimal strings (never JSON
-//! numbers), JSON Fields arrive as strings containing JSON, and SQL NULL is
-//! JSON `null`. For CLI ergonomics an integral JSON number is also accepted
+//! numbers), and SQL NULL is JSON `null`. For CLI ergonomics an integral JSON
+//! number is also accepted
 //! for `integer`.
 //!
 //! Cardinality (`one`/`many`) of a Relation is NOT enforced here; the caller
@@ -65,10 +65,22 @@ pub fn coerce_value(field: &FieldMeta, value: &JsonValue) -> Result<SqlValue> {
         ));
     }
     match field.field_type {
-        FieldType::Text | FieldType::Url | FieldType::Select => {
+        FieldType::Text | FieldType::Select => {
             let text = value
                 .as_str()
                 .ok_or_else(|| invalid(field, "value must be a string"))?;
+            Ok(SqlValue::Text(text.to_string()))
+        }
+        FieldType::Url => {
+            let text = value
+                .as_str()
+                .filter(|text| is_uri_reference_ascii(text))
+                .ok_or_else(|| {
+                    invalid(
+                        field,
+                        "value must be an RFC 3986 URI-reference using canonical ASCII escapes",
+                    )
+                })?;
             Ok(SqlValue::Text(text.to_string()))
         }
         FieldType::Number => {
@@ -104,22 +116,6 @@ pub fn coerce_value(field: &FieldMeta, value: &JsonValue) -> Result<SqlValue> {
                     )
                 })?;
             Ok(SqlValue::Text(text.to_string()))
-        }
-        FieldType::Json => {
-            let text = value.as_str().ok_or_else(|| {
-                invalid(field, "JSON Field values arrive as strings containing JSON")
-            })?;
-            let parsed: JsonValue = serde_json::from_str(text)
-                .map_err(|_| invalid(field, "value is not valid JSON"))?;
-            let canonical =
-                jcs::to_jcs(&parsed).map_err(|_| invalid(field, "value is not valid I-JSON"))?;
-            if canonical.len() > MAX_JSON_CELL_OCTETS {
-                return Err(resource_limit(
-                    field,
-                    "value exceeds the 16 MiB canonical JSON cell limit",
-                ));
-            }
-            Ok(SqlValue::Text(canonical))
         }
         FieldType::MultiSelect => {
             let items = string_array(field, value, "multi-select")?;
@@ -658,8 +654,8 @@ mod tests {
     }
 
     #[test]
-    fn text_url_select_take_strings() {
-        for ty in [FieldType::Text, FieldType::Url, FieldType::Select] {
+    fn text_and_select_take_strings() {
+        for ty in [FieldType::Text, FieldType::Select] {
             let f = field("c", ty, true);
             assert_eq!(
                 coerce_value(&f, &json!("hello")).unwrap(),
@@ -670,6 +666,34 @@ mod tests {
             let required = field("c", ty, false);
             assert!(coerce_value(&required, &json!(null)).is_err());
         }
+    }
+
+    #[test]
+    fn url_requires_a_canonical_ascii_uri_reference() {
+        let f = field("url", FieldType::Url, true);
+        for valid in [
+            "https://example.com/a?b=1#section",
+            "/relative/path",
+            "../relative/path",
+            "mailto:person@example.com",
+            "",
+        ] {
+            assert_eq!(
+                coerce_value(&f, &json!(valid)).unwrap(),
+                SqlValue::Text(valid.into())
+            );
+        }
+        for invalid in [
+            "https://example.com/bad path",
+            "https://example.com/%",
+            "https://example.com/%0",
+            "https://example.com/%GG",
+            "https://例子.测试/",
+        ] {
+            assert!(coerce_value(&f, &json!(invalid)).is_err(), "{invalid}");
+        }
+        assert!(coerce_value(&f, &json!(1)).is_err());
+        assert_eq!(coerce_value(&f, &json!(null)).unwrap(), SqlValue::Null);
     }
 
     #[test]
@@ -733,24 +757,6 @@ mod tests {
             SqlValue::Text("2025-07-01T12:00:00.000Z".into())
         );
         assert!(coerce_value(&dt, &json!("2025-07-01T12:00:00Z")).is_err());
-    }
-
-    #[test]
-    fn json_field_canonicalizes_string_payload() {
-        let f = field("j", FieldType::Json, true);
-        assert_eq!(
-            coerce_value(&f, &json!("{ \"b\": 1, \"a\": [2, null] }")).unwrap(),
-            SqlValue::Text(r#"{"a":[2,null],"b":1}"#.into())
-        );
-        // JSON literal null arrives as the string "null" and stays text.
-        assert_eq!(
-            coerce_value(&f, &json!("null")).unwrap(),
-            SqlValue::Text("null".into())
-        );
-        // SQL NULL is transport null.
-        assert_eq!(coerce_value(&f, &json!(null)).unwrap(), SqlValue::Null);
-        assert!(coerce_value(&f, &json!("[1,")).is_err());
-        assert!(coerce_value(&f, &json!({"a": 1})).is_err());
     }
 
     #[test]

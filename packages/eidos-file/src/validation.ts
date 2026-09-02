@@ -1,4 +1,5 @@
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
+import { isEidosFileUriReference } from "./canonical-conversion"
 import {
   EIDOS_FILE_APPLICATION_ID,
   EIDOS_FILE_FEATURES_TABLE,
@@ -1113,7 +1114,7 @@ export function validateEidosFile(
                 "Lookup Target Field ID"
               ),
               aggregate: lookup.aggregate,
-              displayType: lookup.aggregate === "values" ? "json" : "text",
+              displayType: "text",
             }
           : relation
             ? {
@@ -1544,7 +1545,7 @@ export function validateEidosFile(
           atom === "row-id" || atom === "select"
             ? "text"
             : atom === "file-entry"
-              ? "json"
+              ? "text"
               : atom
       }
     }
@@ -2320,6 +2321,13 @@ export function validateEidosFile(
               errors,
               "invalid-value",
               `${table.name}.${field.name} must be canonical YYYY-MM-DD text`
+            )
+          }
+          if (field.type === "url" && !isEidosFileUriReference(value)) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be a valid URI-reference`
             )
           }
           if (

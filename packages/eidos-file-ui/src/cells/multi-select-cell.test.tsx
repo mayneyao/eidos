@@ -8,7 +8,10 @@ import {
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { Editor, type MultiSelectCell } from "./multi-select-cell"
+import multiSelectRenderer, {
+  Editor,
+  type MultiSelectCell,
+} from "./multi-select-cell"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -57,6 +60,15 @@ describe("MultiSelectCell editor", () => {
     act(() => root.unmount())
     container.remove()
     vi.unstubAllGlobals()
+  })
+
+  it("preserves uncatalogued pasted values and removes only empty duplicates", () => {
+    expect(
+      multiSelectRenderer.onPaste?.(
+        "Quality, Blocked, Quality, ",
+        initialCell.data
+      )
+    ).toMatchObject({ values: ["Quality", "Blocked"] })
   })
 
   it("commits the selected values when the popover closes", async () => {

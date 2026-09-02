@@ -110,6 +110,14 @@ describe("Eidos File 1.0 native Runtime", () => {
           )
           .every((row) => row.type === "text")
       ).toBe(true)
+      const fieldsDdl = runtime.connection.get<{ sql: string }>(
+        "SELECT sql FROM sqlite_schema WHERE type='table' AND name='eidos__fields'"
+      )?.sql
+      const formulasDdl = runtime.connection.get<{ sql: string }>(
+        "SELECT sql FROM sqlite_schema WHERE type='table' AND name='eidos__formula_fields'"
+      )?.sql
+      expect(fieldsDdl).not.toContain("'json'")
+      expect(formulasDdl).not.toContain("'json'")
       expect(runtime.validate({ level: "full" })).toMatchObject({ valid: true })
     } finally {
       runtime.close()
@@ -237,6 +245,33 @@ describe("Eidos File 1.0 native Runtime", () => {
           delete: [result.rows[0]!.id],
         })
       ).toThrow(/Expected revision/)
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("rejects invalid URL values on ordinary row writes", () => {
+    const runtime = createEidosFile(filePath(), {
+      defaultTable: {
+        name: "Links",
+        fields: [
+          { name: "Name", type: "text" },
+          { name: "Website", type: "url" },
+        ],
+      },
+    })
+    try {
+      const schema = runtime.schema()[0]!
+      const website = schema.fields.find((field) => field.name === "Website")!
+      expect(() =>
+        runtime.mutateRows({
+          tableId: schema.table.id,
+          insert: [
+            { fields: { [website.id]: "https://example.com/bad path" } },
+          ],
+        })
+      ).toThrow(/invalid URI-reference/)
+      expect(runtime.countRows(schema.table.id)).toBe(0)
     } finally {
       runtime.close()
     }

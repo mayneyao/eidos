@@ -97,14 +97,5 @@ describe("Eidos File field capabilities", () => {
         })
       )
     ).toBe(true)
-    expect(
-      isEidosFileRecordLabelEligible(
-        field("formula", {
-          valueKind: "derived",
-          isDerived: true,
-          property: { displayType: "json" },
-        })
-      )
-    ).toBe(false)
   })
 })

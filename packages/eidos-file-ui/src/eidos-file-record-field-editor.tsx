@@ -87,10 +87,24 @@ export function EidosFileRecordFieldEditor({
 
   const commitDraft = () => {
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
-    if (field.type === "number" || field.type === "rating") {
+    if (field.type === "number") {
       const number = Number(draft)
       if (draft.trim().length > 0 && !Number.isFinite(number)) {
         setNumberError(t("Enter a finite number."))
+        return
+      }
+      next = draft.trim().length > 0 ? number : null
+    } else if (field.type === "rating") {
+      const number = Number(draft)
+      const maximum =
+        typeof field.settings?.max === "number" ? field.settings.max : 5
+      if (
+        draft.trim().length > 0 &&
+        (!Number.isInteger(number) || number < 0 || number > maximum)
+      ) {
+        setNumberError(
+          t("Enter a whole number from 0 to {maximum}.", { maximum })
+        )
         return
       }
       next = draft.trim().length > 0 ? number : null
@@ -304,9 +318,9 @@ export function EidosFileRecordFieldEditor({
         }
         disabled={disabled}
         inputMode={
-          field.type === "integer"
+          field.type === "integer" || field.type === "rating"
             ? "numeric"
-            : field.type === "number" || field.type === "rating"
+            : field.type === "number"
               ? "decimal"
               : undefined
         }

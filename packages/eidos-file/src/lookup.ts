@@ -55,12 +55,16 @@ export function eidosFileLookupTargetValueType(
     generated && typeof generated === "object"
       ? (generated as Record<string, unknown>)
       : undefined
-  if (
-    typeof generated === "string" ||
-    (generatedObject?.kind === "list" &&
-      typeof generatedObject.element === "string")
-  )
+  if (typeof generated === "string") {
+    if (generated === "json") return type === "lookup" ? "file-entry" : "text"
     return generated as TypeRef
+  }
+  if (
+    generatedObject?.kind === "list" &&
+    typeof generatedObject.element === "string"
+  ) {
+    return generated as TypeRef
+  }
   if (type === "row-id") return "row-id"
   if (type === "created-time" || type === "last-edited-time") return "datetime"
   if (type === "multi-select") return "multi-select"
@@ -68,8 +72,17 @@ export function eidosFileLookupTargetValueType(
   if (type === "relation") return "relation"
   if (type === "select") return "select"
   if (type === "rating") return "number"
-  if (type === "formula" || type === "lookup")
-    return eidosFileLookupTargetDisplayType(target)
+  if (type === "formula" || type === "lookup") {
+    if (
+      type === "lookup" &&
+      typeof target !== "string" &&
+      target.property?.displayType === "json"
+    ) {
+      return "file-entry"
+    }
+    const displayType = eidosFileLookupTargetDisplayType(target)
+    return displayType
+  }
   return type as AtomicType
 }
 
@@ -110,8 +123,7 @@ export function eidosFileLookupTargetDisplayType(
       configuredDisplayType === "checkbox" ||
       configuredDisplayType === "date" ||
       configuredDisplayType === "datetime" ||
-      configuredDisplayType === "url" ||
-      configuredDisplayType === "json")
+      configuredDisplayType === "url")
   ) {
     return configuredDisplayType
   }
@@ -121,7 +133,7 @@ export function eidosFileLookupTargetDisplayType(
   if (type === "date") return "date"
   if (type === "datetime") return "datetime"
   if (type === "url") return "url"
-  if (type === "file") return "json"
+  if (type === "file") return "text"
   return "text"
 }
 
@@ -132,7 +144,7 @@ export function eidosFileLookupDisplayType(
   const valueType = eidosFileLookupValueType(aggregate, target)
   const atom = typeof valueType === "object" ? valueType.element : valueType
   if (atom === "row-id" || atom === "select") return "text"
-  if (atom === "file-entry") return "json"
+  if (atom === "file-entry") return "text"
   return atom as EidosFileFormulaDisplayType
 }
 

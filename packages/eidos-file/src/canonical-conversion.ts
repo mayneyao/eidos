@@ -421,7 +421,7 @@ function validateDestination(
         throw new Error("Invalid Datetime value")
       return
     case "url":
-      if (!isUriReference(asText(value)))
+      if (!isEidosFileUriReference(asText(value)))
         throw new Error("Invalid URI-reference")
       return
     case "multi-select":
@@ -523,10 +523,11 @@ function roundTiesEven(value: number): number {
   return floor % 2 === 0 ? floor : floor + 1
 }
 
-function isUriReference(value: string): boolean {
+/** RFC 3986 URI-reference lexical validation shared by writes and conversions. */
+export function isEidosFileUriReference(value: unknown): value is string {
   return (
-    !/[\u0000-\u0020<>"{}|\\^`]/u.test(value) &&
-    !/%(?![0-9A-Fa-f]{2})/u.test(value)
+    typeof value === "string" &&
+    /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?#\[\]]|%[0-9A-Fa-f]{2})*$/u.test(value)
   )
 }
 

@@ -68,6 +68,17 @@ function numberField(): EidosFileFieldInfo {
   }
 }
 
+function ratingField(): EidosFileFieldInfo {
+  return {
+    ...numberField(),
+    id: "field-rating",
+    name: "Rating",
+    type: "rating",
+    tableColumnName: "rating",
+    settings: { max: 5 },
+  }
+}
+
 function enterInputValue(element: HTMLInputElement, value: string): void {
   Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
@@ -228,6 +239,41 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
       await Promise.resolve()
     })
     expect(onChange).toHaveBeenCalledWith(12.5)
+  })
+
+  it("keeps record Rating edits within the same whole-number range as Grid", async () => {
+    const onChange = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={ratingField()}
+          row={{ id: "row-1", rating: 3 }}
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Rating"]'
+    )!
+    expect(input.inputMode).toBe("numeric")
+    await act(async () => {
+      input.focus()
+      enterInputValue(input, "3.5")
+      input.blur()
+      await Promise.resolve()
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("whole number from 0 to 5")
+
+    await act(async () => {
+      input.focus()
+      enterInputValue(input, "5")
+      input.blur()
+      await Promise.resolve()
+    })
+    expect(onChange).toHaveBeenCalledWith(5)
   })
 
   it("edits date-time values in the Host-selected time zone", async () => {

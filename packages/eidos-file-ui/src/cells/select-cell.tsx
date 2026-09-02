@@ -358,11 +358,7 @@ const renderer: CustomRenderer<SelectCell> = {
   onPaste: (v, d) => {
     return {
       ...d,
-      value: (d as any as SelectCell).data.allowedValues
-        .map((i) => i.name)
-        .includes(v)
-        ? v
-        : d.value,
+      value: v.trim() || null,
     }
   },
   onDelete: (d) => ({

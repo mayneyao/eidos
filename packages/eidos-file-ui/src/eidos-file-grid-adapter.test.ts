@@ -14,6 +14,7 @@ import {
   visibleEidosFileFields,
 } from "./eidos-file-grid-adapter"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { eidosFileRecordFieldText } from "./eidos-file-record-format"
 
 const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
 const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
@@ -449,6 +450,157 @@ describe("Eidos File Grid adapter", () => {
       allowOverlay: false,
       data: 2,
       readonly: true,
+    })
+  })
+
+  it("renders typed Lookup lists without stringifying structured values", () => {
+    const files = {
+      ...field("lookup", {
+        relationField: "projects",
+        targetField: "attachments",
+        aggregate: "values",
+        displayType: "text",
+        valueType: { kind: "list", element: "file-entry" },
+      }),
+      tableColumnName: "project_files",
+      storageCodec: "json_array" as const,
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    const fileValue = encodeEidosFileAttachmentPaths([
+      "assets/spec.pdf",
+      "assets/diagram.png",
+    ])
+    expect(eidosFileValueToGridCell(files, fileValue)).toMatchObject({
+      kind: GridCellKind.Custom,
+      allowOverlay: false,
+      readonly: true,
+      data: {
+        kind: "eidos-file-file-cell",
+        entries: [{ name: "spec.pdf" }, { name: "diagram.png" }],
+      },
+    })
+    expect(
+      eidosFileRecordFieldText(
+        { _id: "row_1", project_files: fileValue },
+        files
+      )
+    ).toBe("spec.pdf, diagram.png")
+
+    const owners = {
+      ...field("lookup", {
+        relationField: "projects",
+        targetField: "owners",
+        aggregate: "values",
+        displayType: "text",
+        valueType: { kind: "list", element: "row-id" },
+      }),
+      tableColumnName: "project_owners",
+      storageCodec: "json_array" as const,
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    const ownerRow = {
+      _id: "row_1",
+      project_owners: JSON.stringify([ADA_ID, GRACE_ID]),
+      project_owners__display: JSON.stringify([
+        { id: ADA_ID, title: "Ada Lovelace" },
+        { id: GRACE_ID, title: "Grace Hopper" },
+      ]),
+    }
+    expect(
+      eidosFileValueToGridCell(owners, ownerRow.project_owners, false, ownerRow)
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      allowOverlay: false,
+      readonly: true,
+      data: {
+        kind: "eidos-file-relation-cell",
+        values: [
+          { id: ADA_ID, title: "Ada Lovelace" },
+          { id: GRACE_ID, title: "Grace Hopper" },
+        ],
+      },
+    })
+    expect(eidosFileRecordFieldText(ownerRow, owners)).toBe(
+      "Ada Lovelace, Grace Hopper"
+    )
+
+    const statuses = {
+      ...field("lookup", {
+        relationField: "projects",
+        targetField: "status",
+        aggregate: "values",
+        displayType: "text",
+        valueType: { kind: "list", element: "select" },
+      }),
+      tableColumnName: "project_statuses",
+      storageCodec: "json_array" as const,
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    expect(
+      eidosFileValueToGridCell(statuses, JSON.stringify(["Todo", "Done"]))
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      allowOverlay: false,
+      readonly: true,
+      data: {
+        kind: "multi-select-cell",
+        values: ["Todo", "Done"],
+      },
+    })
+  })
+
+  it("keeps row-id Lookup rendering safe while refreshed values are loading", () => {
+    const owners = {
+      ...field("lookup", {
+        relationField: "projects",
+        targetField: "owners",
+        aggregate: "values",
+        displayType: "text",
+        valueType: { kind: "list", element: "row-id" },
+      }),
+      tableColumnName: "project_owners",
+      storageCodec: "json_array" as const,
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+
+    expect(eidosFileValueToGridCell(owners, 2)).toMatchObject({
+      kind: GridCellKind.Custom,
+      allowOverlay: false,
+      readonly: true,
+      data: {
+        kind: "eidos-file-relation-cell",
+        values: [],
+      },
+    })
+    expect(
+      eidosFileValueToGridCell(owners, JSON.stringify(["stale text value"]))
+    ).toMatchObject({
+      data: { values: [] },
+    })
+    expect(
+      eidosFileValueToGridCell(
+        owners,
+        JSON.stringify([ADA_ID, ADA_ID]),
+        false,
+        {
+          project_owners: JSON.stringify([ADA_ID, ADA_ID]),
+          project_owners__display: JSON.stringify([
+            { id: ADA_ID, title: "Ada Lovelace" },
+          ]),
+        }
+      )
+    ).toMatchObject({
+      copyData: JSON.stringify([ADA_ID, ADA_ID]),
+      data: {
+        values: [
+          { id: ADA_ID, title: "Ada Lovelace" },
+          { id: ADA_ID, title: "Ada Lovelace" },
+        ],
+      },
     })
   })
 

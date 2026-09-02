@@ -1360,9 +1360,9 @@ fn read_rows_logical_binding_and_projection() {
     let fx = set_fixture();
     add_virtual_field(&fx.conn, &fx.table, "computed", FieldType::Formula);
     {
-        // Add a json + number + integer column row to exercise bindings.
+        // Add number + integer columns to exercise exact logical bindings.
         let now = time::now_instant();
-        for (name, ty) in [("data", "json"), ("ratio", "number"), ("count", "integer")] {
+        for (name, ty) in [("ratio", "number"), ("count", "integer")] {
             fx.conn
                 .execute(
                     "INSERT INTO eidos__fields \
@@ -1372,13 +1372,7 @@ fn read_rows_logical_binding_and_projection() {
                     rusqlite::params![id::generate_uuidv7(), fx.table.id, name, name, ty, now, now],
                 )
                 .unwrap();
-            let sql_type = if ty == "number" {
-                "REAL"
-            } else if ty == "integer" {
-                "INTEGER"
-            } else {
-                "TEXT"
-            };
+            let sql_type = if ty == "number" { "REAL" } else { "INTEGER" };
             fx.conn
                 .execute_batch(&format!(
                     "ALTER TABLE \"tasks\" ADD COLUMN \"{name}\" {sql_type}"
@@ -1388,7 +1382,7 @@ fn read_rows_logical_binding_and_projection() {
     }
     fx.conn
         .execute(
-            "UPDATE \"tasks\" SET \"data\" = '{\"a\":1}', \"ratio\" = 2.5, \"count\" = 10 \
+            "UPDATE \"tasks\" SET \"ratio\" = 2.5, \"count\" = 10 \
              WHERE \"_id\" = ?",
             [RID[0]],
         )
@@ -1427,11 +1421,6 @@ fn read_rows_logical_binding_and_projection() {
         json!([RID[4]]),
         "relation parses to an array"
     );
-    assert_eq!(
-        row0["data"],
-        json!("{\"a\":1}"),
-        "json fields bind as JSON text strings"
-    );
     assert_eq!(row0["attachments"][0]["name"], json!("spec.txt"));
     // NULL binds as JSON null.
     let row2 = page
@@ -1439,7 +1428,6 @@ fn read_rows_logical_binding_and_projection() {
         .iter()
         .find(|row| row["_id"] == json!(RID[2]))
         .unwrap();
-    assert_eq!(row2["data"], JsonValue::Null);
     assert_eq!(row2["count"], JsonValue::Null);
     // System fields are present in the default projection.
     assert!(row0["_created_at"].is_string());

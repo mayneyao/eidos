@@ -30,7 +30,6 @@ export type ScalarType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"

@@ -881,7 +881,7 @@ fn form_field_type(field: &FieldMeta) -> Option<&'static str> {
         FieldType::MultiSelect => Some("multi-select"),
         FieldType::Select => Some("select"),
         FieldType::Url => Some("url"),
-        FieldType::Json | FieldType::Relation | FieldType::Formula | FieldType::Lookup => None,
+        FieldType::Relation | FieldType::Formula | FieldType::Lookup => None,
     }
 }
 

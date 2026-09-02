@@ -265,7 +265,6 @@ type FormulaStaticType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
 
 interface ExactFormulaNode {
   type: string
@@ -689,7 +688,6 @@ function formulaOperandType(field: EidosFileFieldInfo): FormulaStaticType {
       "date",
       "datetime",
       "url",
-      "json",
     ].includes(String(type))
   ) {
     throw new EidosFileError(
@@ -850,11 +848,7 @@ function exactFormulaType(
       if (
         !pair.left ||
         !pair.right ||
-        !formulaTypesComparable(
-          pair.left,
-          pair.right,
-          op === "==" ? "=" : op === "<>" ? "!=" : op
-        )
+        !formulaTypesComparable(pair.left, pair.right)
       ) {
         throw new EidosFileError(
           "invalid-schema",
@@ -915,7 +909,7 @@ function exactFormulaType(
       if (
         !pair.left ||
         !pair.right ||
-        !formulaTypesComparable(pair.left, pair.right, "=")
+        !formulaTypesComparable(pair.left, pair.right)
       ) {
         throw new EidosFileError(
           "invalid-schema",
@@ -959,11 +953,6 @@ function exactFormulaType(
     if (name === "min" || name === "max") {
       arity(2, 16)
       const type = inferFormulaSequence(args, fields, numbers, expected)
-      if (type === "json")
-        throw new EidosFileError(
-          "invalid-formula",
-          `${name} requires sortable arguments`
-        )
       return setFormulaType(node, type)
     }
     if (name === "concat") {
@@ -1215,12 +1204,11 @@ function isNumericFormulaType(
 
 function formulaTypesComparable(
   left: FormulaStaticType,
-  right: FormulaStaticType,
-  operator: string
+  right: FormulaStaticType
 ): boolean {
   if (isNumericFormulaType(left) && isNumericFormulaType(right)) return true
   if (left !== right) return false
-  return operator === "=" || operator === "!=" || left !== "json"
+  return true
 }
 
 function compileExactFormulaNode(

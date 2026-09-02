@@ -22,6 +22,12 @@ const SIGNALS = "018f0000-0000-7000-8000-000000000010"
 const DONE = "018f0000-0000-7000-8000-000000000011"
 const ROW_ID = "018f0000-0000-7000-8000-000000000012"
 const BODY = "018f0000-0000-7000-8000-000000000013"
+const TEAM_ROW_ID = "018f0000-0000-7000-8000-000000000014"
+const TEAM_LOOKUP = "018f0000-0000-7000-8000-000000000015"
+const ESTIMATE = "018f0000-0000-7000-8000-000000000016"
+const IMPORTED = "018f0000-0000-7000-8000-000000000017"
+const IMPORTED_NAME = "018f0000-0000-7000-8000-000000000018"
+const IMPORTED_COVER = "018f0000-0000-7000-8000-000000000019"
 
 function conversionRuntime(
   classification: "lossless-rewrite" | "explicit-lossy"
@@ -221,6 +227,197 @@ describe("EidosRuntimeEditorDataSource", () => {
 
     expect(fields.find((field) => field.id === ROW_ID)?.writable).toBe(false)
     expect(fields.find((field) => field.id === TITLE)?.writable).toBe(true)
+  })
+
+  it("does not expose nullability through shared UI field creation", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.createTable({
+      name: "Flexible",
+      createDefaultView: false,
+      fields: [
+        {
+          name: "Name",
+          type: "text",
+          isRecordLabel: true,
+          nullable: false,
+        },
+      ],
+    })
+
+    expect(fixture.plannedChange()).toMatchObject({
+      kind: "create-table",
+      fields: [expect.not.objectContaining({ nullable: expect.anything() })],
+    })
+  })
+
+  it("preserves exact Integer aggregates while normalizing counts", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const getSchemaPage = fixture.runtime.getSchemaPage.bind(fixture.runtime)
+    Object.assign(fixture.runtime, {
+      getSchemaPage: async (
+        ...args: Parameters<RuntimeClient["getSchemaPage"]>
+      ) => {
+        const page = await getSchemaPage(...args)
+        return {
+          ...page,
+          objects: [
+            ...page.objects,
+            {
+              object: "field" as const,
+              id: ESTIMATE,
+              tableId: PROJECTS,
+              name: "Estimate",
+              kind: "integer" as const,
+              valueType: "integer" as const,
+              systemRole: null,
+              nullable: true,
+              position: "2",
+              settings: {},
+              writable: true,
+            },
+          ],
+        }
+      },
+      aggregate: async (request: AggregateRequest) => ({
+        fileId: FILE,
+        revision: "1",
+        results: request.items.map((item) => ({
+          key: item.key,
+          value:
+            item.op === "count-all"
+              ? "2"
+              : item.op === "average"
+                ? 4.5
+                : "9007199254740993",
+        })),
+      }),
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await expect(
+      source.calculateColumnStats(
+        PROJECTS,
+        [
+          { fieldId: ESTIMATE, type: "sum" },
+          { fieldId: ESTIMATE, type: "min" },
+          { fieldId: ESTIMATE, type: "average" },
+          { fieldId: ESTIMATE, type: "count-all" },
+        ],
+        {}
+      )
+    ).resolves.toEqual([
+      { fieldId: ESTIMATE, type: "sum", value: "9007199254740993" },
+      { fieldId: ESTIMATE, type: "min", value: "9007199254740993" },
+      { fieldId: ESTIMATE, type: "average", value: 4.5 },
+      { fieldId: ESTIMATE, type: "count-all", value: 2 },
+    ])
+  })
+
+  it("keeps inferred image display settings when importing CSV", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const importCsv = vi.fn(async () => ({
+      fileId: FILE,
+      tableId: IMPORTED,
+      revision: "2",
+      changed: true,
+      createdRows: [{ recordIndex: 1, rowId: PROJECT_ROW }],
+    }))
+    Object.assign(fixture.runtime, {
+      negotiate: async () => ({
+        version: "1.0" as const,
+        capabilities: { csvImport: true },
+        limits: {},
+      }),
+      importCsv,
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    const current = await source.initialize()
+    const sourceTable = current.tables[0]!
+    const title = sourceTable.fields.find((field) => field.id === TITLE)!
+    const importedSnapshot = {
+      ...current,
+      tables: [
+        ...current.tables,
+        {
+          ...sourceTable,
+          table: {
+            ...sourceTable.table,
+            id: IMPORTED,
+            name: "covers",
+            rawTableName: "covers",
+          },
+          fields: [
+            {
+              ...title,
+              id: IMPORTED_NAME,
+              tableId: IMPORTED,
+              tableName: "covers",
+              name: "Name",
+              tableColumnName: "Name",
+              physicalName: "Name",
+              isRecordLabel: true,
+            },
+            {
+              ...title,
+              id: IMPORTED_COVER,
+              tableId: IMPORTED,
+              tableName: "covers",
+              name: "Cover Image",
+              type: "url" as const,
+              tableColumnName: "Cover Image",
+              physicalName: "Cover Image",
+              isRecordLabel: false,
+              property: { display: { kind: "image" } },
+            },
+          ],
+          views: [],
+        },
+      ],
+    }
+    const createTable = vi
+      .spyOn(source, "createTable")
+      .mockResolvedValue(importedSnapshot)
+    vi.spyOn(source, "getSnapshot").mockResolvedValue(importedSnapshot)
+
+    await source.importCsv(
+      "covers.csv",
+      new TextEncoder().encode(
+        "Name,Cover Image\nBook,https://example.com/cover.png\n"
+      ).buffer
+    )
+
+    expect(createTable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: expect.arrayContaining([
+          expect.objectContaining({
+            name: "Cover Image",
+            type: "url",
+            property: { display: { kind: "image" } },
+          }),
+        ]),
+      })
+    )
+    expect(importCsv).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: expect.arrayContaining([
+          { csvIndex: 1, fieldId: IMPORTED_COVER },
+        ]),
+      }),
+      expect.any(Object)
+    )
   })
 
   it("commits Record Label and optional Content Field settings atomically", async () => {
@@ -960,6 +1157,170 @@ describe("EidosRuntimeEditorDataSource", () => {
         ],
       }),
       expect.any(Object)
+    )
+  })
+
+  it("resolves row-id Lookup lists to target Record Labels in one batch", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const baseGetSchemaPage = fixture.runtime.getSchemaPage.bind(
+      fixture.runtime
+    )
+    const queryRows = vi.fn(async (request: QueryRowsRequest) => ({
+      fileId: FILE,
+      tableId: PROJECTS,
+      revision: "1",
+      projectionHash: "lookup-page",
+      columns: request.projection.fields.map((fieldId) => ({
+        fieldId,
+        name: fieldId === TITLE ? "Title" : "Team names",
+        valueType:
+          fieldId === TITLE
+            ? ("text" as const)
+            : { kind: "list" as const, element: "row-id" as const },
+        source: fieldId === TITLE ? ("stored" as const) : ("lookup" as const),
+        writable: fieldId === TITLE,
+      })),
+      rows: [
+        {
+          id: PROJECT_ROW,
+          values: request.projection.fields.map((fieldId) =>
+            fieldId === TITLE ? "Demo" : [TEAM_ROW, MISSING_TEAM_ROW]
+          ),
+        },
+      ],
+      nextCursor: null,
+      previousCursor: null,
+    }))
+    const getRowsById = vi.fn(async () => ({
+      fileId: FILE,
+      tableId: TEAMS,
+      revision: "1",
+      projectionHash: "lookup-labels",
+      columns: [
+        {
+          fieldId: TEAM_NAME,
+          name: "Name",
+          valueType: "text" as const,
+          source: "stored" as const,
+          writable: true,
+        },
+      ],
+      rows: [{ id: TEAM_ROW, values: ["Runtime Core"] }],
+      missingRowIds: [MISSING_TEAM_ROW],
+    }))
+    Object.assign(fixture.runtime, {
+      queryRows,
+      getRowsById,
+      getSchemaPage: async (
+        ...args: Parameters<RuntimeClient["getSchemaPage"]>
+      ) => {
+        const page = await baseGetSchemaPage(...args)
+        return {
+          ...page,
+          objects: [
+            ...page.objects,
+            {
+              object: "table" as const,
+              id: TEAMS,
+              name: "Teams",
+              labelFieldId: TEAM_NAME,
+              position: "1",
+              settings: {},
+            },
+            {
+              object: "field" as const,
+              id: TEAM,
+              tableId: PROJECTS,
+              name: "Team",
+              kind: "relation" as const,
+              valueType: "relation" as const,
+              systemRole: null,
+              nullable: false,
+              position: "2",
+              settings: {},
+              writable: true,
+              definition: {
+                direction: "forward" as const,
+                targetTableId: TEAMS,
+                cardinality: "many" as const,
+                onDelete: "detach" as const,
+              },
+            },
+            {
+              object: "field" as const,
+              id: TEAM_ROW_ID,
+              tableId: TEAMS,
+              name: "Row ID",
+              kind: "text" as const,
+              valueType: "row-id" as const,
+              systemRole: "row-id" as const,
+              nullable: false,
+              position: "-1",
+              settings: {},
+              writable: false,
+            },
+            {
+              object: "field" as const,
+              id: TEAM_NAME,
+              tableId: TEAMS,
+              name: "Name",
+              kind: "text" as const,
+              valueType: "text" as const,
+              systemRole: null,
+              nullable: false,
+              position: "0",
+              settings: {},
+              writable: true,
+            },
+            {
+              object: "field" as const,
+              id: TEAM_LOOKUP,
+              tableId: PROJECTS,
+              name: "Team IDs",
+              kind: "lookup" as const,
+              valueType: {
+                kind: "list" as const,
+                element: "row-id" as const,
+              },
+              systemRole: null,
+              nullable: true,
+              position: "3",
+              settings: {},
+              writable: false,
+              definition: {
+                relationFieldId: TEAM,
+                targetFieldId: TEAM_ROW_ID,
+                aggregate: "values" as const,
+                distinctValues: false,
+              },
+            },
+          ],
+        }
+      },
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    const page = await source.getPage(PROJECTS, 0, 1, {}, 1, undefined, {
+      columns: [TEAM_LOOKUP],
+      fieldLimit: 1,
+      includeRecordLabel: true,
+    })
+
+    expect(getRowsById).toHaveBeenCalledTimes(1)
+    expect(getRowsById).toHaveBeenCalledWith(
+      {
+        tableId: TEAMS,
+        rowIds: [TEAM_ROW, MISSING_TEAM_ROW],
+        projection: { fields: [TEAM_NAME], resolveRelations: [] },
+      },
+      expect.any(Object)
+    )
+    expect(page.rows[0]?.[`${TEAM_LOOKUP}__display`]).toBe(
+      JSON.stringify([{ id: TEAM_ROW, title: "Runtime Core" }])
     )
   })
 

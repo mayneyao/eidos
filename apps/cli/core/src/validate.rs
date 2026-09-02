@@ -853,6 +853,30 @@ mod tests {
     }
 
     #[test]
+    fn invalid_stored_url_fails_content_validation() {
+        let (_dir, conn, _table_id, field_id) = file_with_view();
+        conn.execute("UPDATE eidos__fields SET type='url' WHERE id=?", [field_id])
+            .unwrap();
+        let row_id = generate_uuidv7();
+        conn.execute(
+            "INSERT INTO \"Tasks\"(_id,_created_at,_updated_at,\"Title\") VALUES(?,?,?,?)",
+            rusqlite::params![
+                row_id,
+                "2026-09-01T00:00:00.000Z",
+                "2026-09-01T00:00:00.000Z",
+                "https://example.com/bad path",
+            ],
+        )
+        .unwrap();
+
+        let report = validate(&conn, ValidationLevel::Content, 100).unwrap();
+        assert!(!report.valid);
+        assert!(report.diagnostics.iter().any(|item| {
+            item.code == "file-cell-invalid" && item.message.contains("URI-reference")
+        }));
+    }
+
+    #[test]
     fn canonical_saved_view_field_references_pass_full_validation() {
         let (_dir, conn, _table_id, field_id) = file_with_view();
         let view = load_views(&conn).unwrap().remove(0);

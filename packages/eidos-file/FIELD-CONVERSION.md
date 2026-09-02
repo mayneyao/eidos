@@ -66,8 +66,7 @@ Default lossy policies are explicit and shared by Runtime adapters:
 - Number/Integer/Rating to Checkbox maps zero to false and nonzero to true.
 - Date & time to Date keeps the UTC calendar date and discards time.
 - Multi-select to Select keeps the first option; an empty list becomes `NULL`.
-- JSON literal `null` can become SQL `NULL`; scalar-to-list conversion maps SQL
-  `NULL` to an empty list.
+- Scalar-to-list conversion maps SQL `NULL` to an empty list.
 
 Text-to-Number accepts only canonical inverse binary64 spellings: whitespace,
 noncanonical leading zeroes, infinities, and partially numeric strings fail.

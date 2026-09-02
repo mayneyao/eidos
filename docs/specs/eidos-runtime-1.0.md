@@ -661,7 +661,6 @@ type ScalarType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"
@@ -709,20 +708,20 @@ cannot shadow a required key and is preserved through JCS.
 
 The exact descriptor mapping is:
 
-| Field/role                                                        | `valueType`                                   |
-| ----------------------------------------------------------------- | --------------------------------------------- |
-| Row-ID system Field                                               | `row-id`                                      |
-| created/updated-time system Field                                 | `datetime`                                    |
-| stored text/number/integer/checkbox/date/datetime/url/json/select | the same type token                           |
-| stored Multi-select                                               | `multi-select`                                |
-| stored File                                                       | `file`                                        |
-| forward or inverse Relation                                       | `relation`                                    |
-| Formula                                                           | its declared `FormulaResultType`              |
-| Lookup `values`                                                   | `{kind:"list",element:E}`                     |
-| Lookup `first`/`min`/`max`                                        | element type `E`                              |
-| Lookup `count`                                                    | `integer`                                     |
-| Lookup `sum`                                                      | `integer` for Integer `E`, otherwise `number` |
-| Lookup `average`                                                  | `number`                                      |
+| Field/role                                                   | `valueType`                                   |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| Row-ID system Field                                          | `row-id`                                      |
+| created/updated-time system Field                            | `datetime`                                    |
+| stored text/number/integer/checkbox/date/datetime/url/select | the same type token                           |
+| stored Multi-select                                          | `multi-select`                                |
+| stored File                                                  | `file`                                        |
+| forward or inverse Relation                                  | `relation`                                    |
+| Formula                                                      | its declared `FormulaResultType`              |
+| Lookup `values`                                              | `{kind:"list",element:E}`                     |
+| Lookup `first`/`min`/`max`                                   | element type `E`                              |
+| Lookup `count`                                               | `integer`                                     |
+| Lookup `sum`                                                 | `integer` for Integer `E`, otherwise `number` |
+| Lookup `average`                                             | `number`                                      |
 
 Lookup element type `E` is the scalar/Formula/Lookup atom after flattening;
 Multi-select contributes `select`, File contributes `file-entry`, and either
@@ -751,8 +750,8 @@ SQLite storage class:
 
 Thus a Lookup `first` over a Relation is sortable/groupable because its
 `valueType` is `row-id`; a Lookup `first` over File is not because its
-`valueType` is `file-entry`. `json`, `multi-select`, `file`, `relation`,
-`file-entry`, and every list TypeRef are equality/distinct-only for ordinary
+`valueType` is `file-entry`. `multi-select`, `file`, `relation`, `file-entry`,
+and every list TypeRef are equality/distinct-only for ordinary
 typed operators; Field-aware search and semantic summary use the explicit
 Sections 5.2, 7.1, and 7.3 rules instead. Null is never
 an ordered operand, but sort places it by the explicit null-rank and grouping
@@ -3050,20 +3049,19 @@ always uses the complete actual domain, never a sample.
 In this matrix `relation` means a forward stored Relation; virtual/inverse
 sources are excluded by Section 12.1.
 
-| from \\ to   | text | number | integer | checkbox | date | datetime | url  | json | select | multi-select | file    | relation |
-| ------------ | ---- | ------ | ------- | -------- | ---- | -------- | ---- | ---- | ------ | ------------ | ------- | -------- |
-| text         | M?   | L?     | L?      | L?       | M?   | M?       | M?   | L    | M?     | M?/L?/X      | M?/L?/X | M?/L?/X  |
-| number       | L    | M?     | L?/X    | L?/X     | F    | F        | F    | L    | L      | F            | F       | F        |
-| integer      | L    | L?/X   | M?      | M?/X     | F    | F        | F    | L?/X | L      | F            | F       | F        |
-| checkbox     | L    | L      | M?      | M?       | F    | F        | F    | L    | L      | F            | F       | F        |
-| date         | M?   | F      | F       | F        | M?   | L        | M?   | L    | M?     | F            | F       | F        |
-| datetime     | M?   | F      | F       | F        | L?/X | M?       | M?   | L    | M?     | F            | F       | F        |
-| url          | M?   | F      | F       | F        | M?   | M?       | M?   | L    | M?     | F            | F       | F        |
-| json         | M?   | L?/X   | L?/X    | L?/X     | L?/X | L?/X     | L?/X | M?   | L?/X   | M?/L?/X      | M?/L?/X | M?/L?/X  |
-| select       | M?   | L?     | L?      | L?       | M?   | M?       | M?   | L    | M?     | L?           | F       | F        |
-| multi-select | M    | F      | F       | F        | F    | F        | F    | M    | L?/X   | M            | F       | M?       |
-| file         | M    | F      | F       | F        | F    | F        | F    | M    | F      | F            | M       | F        |
-| relation     | M    | F      | F       | F        | F    | F        | F    | M    | F      | M            | F       | M?       |
+| from \\ to   | text | number | integer | checkbox | date | datetime | url | select | multi-select | file    | relation |
+| ------------ | ---- | ------ | ------- | -------- | ---- | -------- | --- | ------ | ------------ | ------- | -------- |
+| text         | M?   | L?     | L?      | L?       | M?   | M?       | M?  | M?     | M?/L?/X      | M?/L?/X | M?/L?/X  |
+| number       | L    | M?     | L?/X    | L?/X     | F    | F        | F   | L      | F            | F       | F        |
+| integer      | L    | L?/X   | M?      | M?/X     | F    | F        | F   | L      | F            | F       | F        |
+| checkbox     | L    | L      | M?      | M?       | F    | F        | F   | L      | F            | F       | F        |
+| date         | M?   | F      | F       | F        | M?   | L        | M?  | M?     | F            | F       | F        |
+| datetime     | M?   | F      | F       | F        | L?/X | M?       | M?  | M?     | F            | F       | F        |
+| url          | M?   | F      | F       | F        | M?   | M?       | M?  | M?     | F            | F       | F        |
+| select       | M?   | L?     | L?      | L?       | M?   | M?       | M?  | M?     | L?           | F       | F        |
+| multi-select | M    | F      | F       | F        | F    | F        | F   | L?/X   | M            | F       | M?       |
+| file         | M    | F      | F       | F        | F    | F        | F   | F      | F            | M       | F        |
+| relation     | M    | F      | F       | F        | F    | F        | F   | F      | M            | F       | M?       |
 
 Value-identity conversions are metadata-only only after the destination-
 nullability guard succeeds. The other cells use only these algorithms:

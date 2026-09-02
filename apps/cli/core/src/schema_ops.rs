@@ -216,9 +216,6 @@ fn column_sql(name: &str, kind: FieldType, nullable: bool) -> Result<String> {
             "{column} TEXT{nullability} CHECK({})",
             instant_check(&column)
         ),
-        FieldType::Json => {
-            format!("{column} TEXT{nullability} CHECK({column} IS NULL OR json_valid({column}))")
-        }
         FieldType::MultiSelect | FieldType::File | FieldType::Relation => format!(
             "{column} TEXT NOT NULL DEFAULT '[]' CHECK(json_valid({column}) AND json_type({column})='array')"
         ),

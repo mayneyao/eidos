@@ -7,13 +7,14 @@ import type {
 } from "@eidos.space/eidos-file"
 import {
   decodeEidosFileValues,
-  decodeEidosFileJsonArray,
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationDisplay,
   decodeEidosFileRelationIds,
+  decodeEidosFileStringArray,
   encodeEidosFileValues,
   encodeEidosFileMultiSelectValues,
   encodeEidosFileRelationIds,
+  isEidosFileUuid,
 } from "@eidos.space/eidos-file"
 import {
   GridCellKind,
@@ -37,6 +38,10 @@ import { formatEidosFileGridDate } from "./eidos-file-grid-date-format"
 import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
+import {
+  eidosFileLookupListElementType,
+  eidosFileLookupListText,
+} from "./eidos-file-record-format"
 
 export { visibleEidosFileFields } from "./eidos-file-field-visibility"
 
@@ -115,6 +120,38 @@ export function eidosFileGridSelectOptions(
   }))
 }
 
+function relationGridCell(
+  field: EidosFileFieldInfo,
+  ids: readonly string[],
+  readonly: boolean,
+  row: EidosFileRow | undefined,
+  unavailableRelationTitle: string,
+  allowOverlay = true
+): EidosFileRelationCell {
+  const display = decodeEidosFileRelationDisplay(
+    row?.[`${field.tableColumnName}__display`]
+  )
+  const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
+  return {
+    kind: GridCellKind.Custom,
+    allowOverlay,
+    readonly,
+    copyData: JSON.stringify(ids),
+    data: {
+      kind: "eidos-file-relation-cell",
+      values: ids.map((id) => ({
+        id,
+        title: titleById.get(id) ?? unavailableRelationTitle,
+      })),
+      multiple: field.property?.multiple !== false,
+      targetTableId:
+        typeof field.property?.targetTableId === "string"
+          ? field.property.targetTableId
+          : undefined,
+    },
+  }
+}
+
 export function eidosFileValueToGridCell(
   field: EidosFileFieldInfo,
   value: EidosFileRowValue | undefined,
@@ -125,17 +162,57 @@ export function eidosFileValueToGridCell(
   timeZone?: string
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
-    const values = decodeEidosFileJsonArray(value)
-    const displayData = values
-      .flatMap((entry) => (entry === null ? [] : [String(entry)]))
-      .join(", ")
+    const elementType = eidosFileLookupListElementType(field)
+    if (elementType === "file-entry") {
+      const cell = eidosFileValueToGridCell(
+        { ...field, type: "file" },
+        value,
+        true,
+        row,
+        unavailableRelationTitle,
+        allowWrapping,
+        timeZone
+      )
+      return { ...cell, allowOverlay: false }
+    }
+    if (elementType === "select") {
+      const cell = eidosFileValueToGridCell(
+        { ...field, type: "multi-select" },
+        value,
+        true,
+        row,
+        unavailableRelationTitle,
+        allowWrapping,
+        timeZone
+      )
+      return { ...cell, allowOverlay: false }
+    }
+    if (elementType === "row-id") {
+      const ids = decodeEidosFileStringArray(value).filter(isEidosFileUuid)
+      return relationGridCell(
+        {
+          ...field,
+          type: "relation",
+          property: { ...(field.property ?? {}), multiple: true },
+        },
+        ids,
+        true,
+        row,
+        unavailableRelationTitle,
+        false
+      )
+    }
+    const lookupRow: EidosFileRow = row ?? {
+      _id: "",
+      [field.tableColumnName]: value ?? null,
+    }
     return {
       kind: GridCellKind.Text,
       allowOverlay: false,
       allowWrapping,
       readonly: true,
       data: typeof value === "string" ? value : "[]",
-      displayData,
+      displayData: eidosFileLookupListText(lookupRow, field, timeZone),
     }
   }
   if (field.type === "formula" || field.type === "lookup") {
@@ -167,28 +244,7 @@ export function eidosFileValueToGridCell(
   }
   if (field.type === "relation") {
     const ids = decodeEidosFileRelationIds(value)
-    const display = decodeEidosFileRelationDisplay(
-      row?.[`${field.tableColumnName}__display`]
-    )
-    const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
-    return {
-      kind: GridCellKind.Custom,
-      allowOverlay: true,
-      readonly,
-      copyData: encodeEidosFileRelationIds(ids) ?? "",
-      data: {
-        kind: "eidos-file-relation-cell",
-        values: ids.map((id) => ({
-          id,
-          title: titleById.get(id) ?? unavailableRelationTitle,
-        })),
-        multiple: field.property?.multiple !== false,
-        targetTableId:
-          typeof field.property?.targetTableId === "string"
-            ? field.property.targetTableId
-            : undefined,
-      },
-    } satisfies EidosFileRelationCell
+    return relationGridCell(field, ids, readonly, row, unavailableRelationTitle)
   }
   if (field.type === "file") {
     const entries = decodeEidosFileValues(value)

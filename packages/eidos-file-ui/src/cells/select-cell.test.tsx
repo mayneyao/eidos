@@ -8,7 +8,10 @@ import {
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { EidosFileSelectCellEditor, type SelectCell } from "./select-cell"
+import selectRenderer, {
+  EidosFileSelectCellEditor,
+  type SelectCell,
+} from "./select-cell"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -43,6 +46,18 @@ describe("SelectCell editor", () => {
     act(() => root.unmount())
     container.remove()
     vi.unstubAllGlobals()
+  })
+
+  it("preserves pasted values that are not yet in the option catalog", () => {
+    const data: SelectCell["data"] = {
+      kind: "select-cell",
+      value: "Todo",
+      allowedValues: [{ id: "Todo", name: "Todo", color: "blue" }],
+      allowCreate: false,
+    }
+    expect(selectRenderer.onPaste?.("Blocked", data)).toMatchObject({
+      value: "Blocked",
+    })
   })
 
   it("persists a new option before committing its value", async () => {

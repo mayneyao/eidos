@@ -144,6 +144,49 @@ describe("Eidos Runtime P0 data safety regressions", () => {
     }
   })
 
+  it("rejects invalid URL values before a Runtime mutation commits", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "links", "Links", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "website", name: "Website", kind: "url" },
+      ])
+      await expect(
+        runtime.mutateRows(
+          {
+            tableId: table.tableId,
+            expectedRevision: table.revision,
+            changes: [
+              {
+                kind: "create",
+                clientKey: "invalid-link",
+                values: {
+                  [table.fieldIds.website!]: "https://example.com/bad path",
+                },
+              },
+            ],
+          },
+          context("invalid-url")
+        )
+      ).rejects.toMatchObject({ code: "invalid-value" })
+      const rows = await runtime.queryRows(
+        {
+          tableId: table.tableId,
+          query: {},
+          projection: {
+            fields: [table.fieldIds.title!],
+            resolveRelations: [],
+          },
+          limit: 10,
+        },
+        context("links-after-rejection")
+      )
+      expect(rows.rows).toEqual([])
+    } finally {
+      connection.close()
+    }
+  })
+
   it("classifies an option rename as lossless when the destination is unused", async () => {
     const { runtime, connection } = await createRuntime()
     try {

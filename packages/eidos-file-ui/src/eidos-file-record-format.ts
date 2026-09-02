@@ -1,4 +1,5 @@
 import type {
+  AtomicType,
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowValue,
@@ -35,6 +36,71 @@ function dateText(
     : parsed.toLocaleString(undefined, timeZone ? { timeZone } : undefined)
 }
 
+export function eidosFileLookupListElementType(
+  field: Pick<EidosFileFieldInfo, "type" | "property" | "storageCodec">
+): AtomicType | null {
+  if (field.type !== "lookup" || field.storageCodec !== "json_array") {
+    return null
+  }
+  const valueType = field.property?.valueType
+  const descriptor =
+    valueType && typeof valueType === "object" && !Array.isArray(valueType)
+      ? (valueType as Record<string, unknown>)
+      : null
+  if (
+    !descriptor ||
+    descriptor.kind !== "list" ||
+    typeof descriptor.element !== "string"
+  ) {
+    return null
+  }
+  return descriptor.element as AtomicType
+}
+
+export function eidosFileLookupListText(
+  row: EidosFileRow,
+  field: EidosFileFieldInfo,
+  timeZone?: string
+): string {
+  const value = row[field.tableColumnName]
+  const elementType = eidosFileLookupListElementType(field)
+  if (elementType === "file-entry") {
+    return decodeEidosFileValues(value)
+      .map((entry) => entry.name)
+      .join(", ")
+  }
+  const values = decodeEidosFileJsonArray(value).flatMap((entry) =>
+    entry === null ? [] : [entry]
+  )
+  if (elementType === "row-id") {
+    const display = decodeEidosFileRelationDisplay(
+      row[`${field.tableColumnName}__display`]
+    )
+    const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
+    return values
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((id) => titleById.get(id) ?? id)
+      .join(", ")
+  }
+  if (elementType === "checkbox") {
+    return values
+      .map((entry) => (entry === true || entry === 1 ? "Checked" : "Unchecked"))
+      .join(", ")
+  }
+  if (elementType === "date" || elementType === "datetime") {
+    return values
+      .map((entry) =>
+        dateText(
+          typeof entry === "string" ? entry : String(entry),
+          elementType === "date",
+          timeZone
+        )
+      )
+      .join(", ")
+  }
+  return values.map(String).join(", ")
+}
+
 export function eidosFileRecordFieldText(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
@@ -47,12 +113,7 @@ export function eidosFileRecordFieldText(
       ? field.property.displayType
       : field.type
   if (field.type === "lookup" && field.storageCodec === "json_array") {
-    const values = decodeEidosFileJsonArray(value)
-    return values.length > 0
-      ? values
-          .flatMap((entry) => (entry === null ? [] : [String(entry)]))
-          .join(", ")
-      : "Empty"
+    return eidosFileLookupListText(row, field, timeZone) || "Empty"
   }
   if (field.type === "checkbox") {
     return value === true || value === 1 || value === "1"

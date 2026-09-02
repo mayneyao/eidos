@@ -58,6 +58,7 @@ import {
   type RowQuery,
   type RuntimeClient,
   type RuntimeCapabilities,
+  type RuntimeLimits,
   type RuntimeSnapshot,
   type SavedViewQuery,
   type SchemaChange,
@@ -211,6 +212,7 @@ function conversionErrorMessage(error: unknown): string {
 export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private sequence = 0
   private runtimeCapabilities: RuntimeCapabilities | null = null
+  private runtimeLimits: RuntimeLimits | null = null
   private runtimeSnapshot: RuntimeSnapshot | null = null
   private schema: SchemaDescriptor[] = []
   private tables = new Map<string, TableDescriptor>()
@@ -229,6 +231,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       this.context("negotiate")
     )
     this.runtimeCapabilities = negotiation.capabilities
+    this.runtimeLimits = negotiation.limits
     return this.getSnapshot()
   }
 
@@ -302,12 +305,17 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     )
     if (page.nextCursor) cursors.set(offset + page.rows.length, page.nextCursor)
     const total = totalHint ?? (await this.countRows(tableId, runtimeQuery))
+    const rows = await this.editorRows(
+      page,
+      selected,
+      projection?.includeRelationDisplays !== false
+    )
     return {
       tableId,
       offset,
       limit,
       total,
-      rows: page.rows.map((row) => this.editorRow(row, page, selected)),
+      rows,
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
     }
   }
@@ -398,7 +406,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       { tableId, rowIds: [rowId], projection },
       this.context("row")
     )
-    return batch.rows[0] ? this.editorRow(batch.rows[0], batch, fields) : null
+    return (await this.editorRows(batch, fields))[0] ?? null
   }
 
   async getGroupCounts(
@@ -495,7 +503,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
               ? Number(values.get(`${index}:all`) ?? 0) -
                 Number(values.get(`${index}:present`) ?? 0)
               : (values.get(String(index)) ?? null)
-          return { ...config, value: this.statValue(value) }
+          return { ...config, value: this.statValue(config, value) }
         })
       )
     }
@@ -609,15 +617,17 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     )?.rowId
     const row = result.returnedRows?.rows[0]
     const loaded = !row && rowId ? await this.getRow(tableId, rowId) : null
-    return this.rowMutationResult(
-      tableId,
-      row
-        ? this.editorRow(
-            row,
-            result.returnedRows!,
+    const returned = result.returnedRows
+      ? (
+          await this.editorRows(
+            result.returnedRows,
             this.fieldsByTable.get(tableId) ?? []
           )
-        : (loaded ?? { _id: rowId ?? "" }),
+        )[0]
+      : null
+    return this.rowMutationResult(
+      tableId,
+      returned ?? loaded ?? { _id: rowId ?? "" },
       result.revision
     )
   }
@@ -645,12 +655,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     )
     this.acceptRevision(result.revision)
     const projected = result.returnedRows?.rows[0]
+    const returned = result.returnedRows
+      ? (
+          await this.editorRows(
+            result.returnedRows,
+            this.fieldsByTable.get(tableId) ?? []
+          )
+        )[0]
+      : null
     const row = projected
-      ? this.editorRow(
-          projected,
-          result.returnedRows!,
-          this.fieldsByTable.get(tableId) ?? []
-        )
+      ? (returned ?? { _id: rowId })
       : ((await this.getRow(tableId, rowId)) ?? { _id: rowId })
     return this.rowMutationResult(tableId, row, result.revision)
   }
@@ -1462,6 +1476,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         name: column.name,
         type: column.type === "record-label" ? "text" : column.type,
         isRecordLabel: column.type === "record-label",
+        ...(column.settings ? { property: column.settings } : {}),
       })),
     })
     const table = snapshot.tables.find(
@@ -1802,7 +1817,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private editorRow(
     row: ProjectedRow,
     page: Pick<RowPage, "columns">,
-    fields: FieldDescriptor[]
+    fields: FieldDescriptor[],
+    lookupLabels: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map()
   ) {
     const result: EidosFileRow = { _id: row.id }
     row.values.forEach((value, index) => {
@@ -1822,7 +1838,124 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         )
       )
     }
+    row.values.forEach((value, index) => {
+      const fieldId = page.columns[index]?.fieldId
+      const labels = fieldId ? lookupLabels.get(fieldId) : undefined
+      if (!fieldId || !labels || !Array.isArray(value)) return
+      result[`${fieldId}__display`] = JSON.stringify(
+        value.flatMap((entry) => {
+          if (typeof entry !== "string" || !labels.has(entry)) return []
+          return [{ id: entry, title: labels.get(entry)! }]
+        })
+      )
+    })
     return result
+  }
+
+  private async editorRows(
+    page: Pick<RowPage, "columns" | "rows" | "revision">,
+    fields: FieldDescriptor[],
+    resolveLookupLabels = true
+  ): Promise<EidosFileRow[]> {
+    const lookupLabels = resolveLookupLabels
+      ? await this.lookupRowIdLabels(page, fields)
+      : new Map<string, Map<string, string>>()
+    return page.rows.map((row) =>
+      this.editorRow(row, page, fields, lookupLabels)
+    )
+  }
+
+  private async lookupRowIdLabels(
+    page: Pick<RowPage, "columns" | "rows" | "revision">,
+    fields: FieldDescriptor[]
+  ): Promise<Map<string, Map<string, string>>> {
+    const lookups = page.columns.flatMap((column, columnIndex) => {
+      const field = fields.find((candidate) => candidate.id === column.fieldId)
+      if (
+        !field ||
+        field.kind !== "lookup" ||
+        typeof field.valueType !== "object" ||
+        field.valueType.element !== "row-id"
+      ) {
+        return []
+      }
+      const targetTableId = this.lookupRowIdTargetTable(field)
+      const targetTable = targetTableId
+        ? this.tables.get(targetTableId)
+        : undefined
+      if (!targetTable?.labelFieldId) return []
+      return [
+        {
+          fieldId: field.id,
+          columnIndex,
+          targetTableId: targetTable.id,
+          labelFieldId: targetTable.labelFieldId,
+        },
+      ]
+    })
+    if (lookups.length === 0) return new Map()
+
+    const idsByTable = new Map<string, Set<string>>()
+    for (const lookup of lookups) {
+      const ids = idsByTable.get(lookup.targetTableId) ?? new Set<string>()
+      for (const row of page.rows) {
+        const value = row.values[lookup.columnIndex]
+        if (!Array.isArray(value)) continue
+        for (const entry of value) {
+          if (typeof entry === "string") ids.add(entry)
+        }
+      }
+      idsByTable.set(lookup.targetTableId, ids)
+    }
+
+    const labelsByTable = new Map<string, Map<string, string>>()
+    const rowsByIdMax = Math.max(1, this.runtimeLimits?.rowsByIdMax ?? 1_000)
+    for (const [targetTableId, idSet] of idsByTable) {
+      const labelFieldId = lookups.find(
+        (lookup) => lookup.targetTableId === targetTableId
+      )?.labelFieldId
+      if (!labelFieldId) continue
+      const ids = [...idSet]
+      const labels = new Map<string, string>()
+      for (let offset = 0; offset < ids.length; offset += rowsByIdMax) {
+        const batch = await this.runtime.getRowsById(
+          {
+            tableId: targetTableId,
+            rowIds: ids.slice(offset, offset + rowsByIdMax),
+            projection: { fields: [labelFieldId], resolveRelations: [] },
+          },
+          this.context("lookup-labels")
+        )
+        if (batch.revision !== page.revision) continue
+        for (const row of batch.rows) {
+          labels.set(row.id, String(row.values[0] ?? ""))
+        }
+      }
+      labelsByTable.set(targetTableId, labels)
+    }
+
+    return new Map(
+      lookups.map((lookup) => [
+        lookup.fieldId,
+        labelsByTable.get(lookup.targetTableId) ?? new Map<string, string>(),
+      ])
+    )
+  }
+
+  private lookupRowIdTargetTable(
+    field: FieldDescriptor,
+    visited = new Set<string>()
+  ): string | null {
+    if (visited.has(field.id)) return null
+    visited.add(field.id)
+    if (field.systemRole === "row-id") return field.tableId
+    if (field.kind === "relation") {
+      return (field.definition as RelationDefinition).targetTableId
+    }
+    if (field.kind !== "lookup") return null
+    const definition = field.definition as LookupDefinition
+    const target = this.fields.get(definition.targetFieldId)
+    return target ? this.lookupRowIdTargetTable(target, visited) : null
   }
 
   private editorValue(
@@ -1900,9 +2033,6 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     if (field.valueType === "checkbox")
       return value === true || value === 1 || value === "1"
-    if (field.valueType === "json" && typeof value !== "string") {
-      return canonicalizeEidosFileJson(value)
-    }
     return value as LogicalValue
   }
 
@@ -2363,9 +2493,6 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       name: field.name,
       kind,
       position,
-      ...(!("nullable" in field) || field.nullable === undefined
-        ? {}
-        : { nullable: field.nullable }),
       settings,
       ...(kind === "formula"
         ? { definition: this.formulaDefinition(field.property) }
@@ -2532,12 +2659,33 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }))
   }
 
-  private statValue(value: LogicalValue): string | number | null {
+  private statValue(
+    config: EidosFileColumnStatConfig,
+    value: LogicalValue
+  ): string | number | null {
     if (value === null) return null
     if (typeof value === "number") return value
     if (typeof value === "string") {
-      const numeric = Number(value)
-      return Number.isFinite(numeric) ? numeric : value
+      if (
+        config.type === "count-all" ||
+        config.type === "count-non-null" ||
+        config.type === "count-distinct" ||
+        config.type === "count-empty"
+      ) {
+        const count = Number(value)
+        return Number.isSafeInteger(count) ? count : value
+      }
+      const field = this.fields.get(config.fieldId)
+      if (
+        field?.valueType === "number" ||
+        config.type === "average" ||
+        config.type === "percent-checked" ||
+        config.type === "percent-unchecked"
+      ) {
+        const numeric = Number(value)
+        return Number.isFinite(numeric) ? numeric : value
+      }
+      return value
     }
     return String(value)
   }

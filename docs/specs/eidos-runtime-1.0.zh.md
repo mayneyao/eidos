@@ -630,7 +630,6 @@ type ScalarType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"
@@ -676,20 +675,20 @@ FileEntry 的每个 required key 恰好出现一次；extension 不能 shadow re
 
 精确 descriptor mapping 为：
 
-| Field/role                                                        | `valueType`                                 |
-| ----------------------------------------------------------------- | ------------------------------------------- |
-| Row-ID system Field                                               | `row-id`                                    |
-| created/updated-time system Field                                 | `datetime`                                  |
-| stored text/number/integer/checkbox/date/datetime/url/json/select | 相同的 type token                           |
-| stored Multi-select                                               | `multi-select`                              |
-| stored File                                                       | `file`                                      |
-| forward 或 inverse Relation                                       | `relation`                                  |
-| Formula                                                           | 其声明的 `FormulaResultType`                |
-| Lookup `values`                                                   | `{kind:"list",element:E}`                   |
-| Lookup `first`/`min`/`max`                                        | element type `E`                            |
-| Lookup `count`                                                    | `integer`                                   |
-| Lookup `sum`                                                      | Integer `E` 时为 `integer`，否则为 `number` |
-| Lookup `average`                                                  | `number`                                    |
+| Field/role                                                   | `valueType`                                 |
+| ------------------------------------------------------------ | ------------------------------------------- |
+| Row-ID system Field                                          | `row-id`                                    |
+| created/updated-time system Field                            | `datetime`                                  |
+| stored text/number/integer/checkbox/date/datetime/url/select | 相同的 type token                           |
+| stored Multi-select                                          | `multi-select`                              |
+| stored File                                                  | `file`                                      |
+| forward 或 inverse Relation                                  | `relation`                                  |
+| Formula                                                      | 其声明的 `FormulaResultType`                |
+| Lookup `values`                                              | `{kind:"list",element:E}`                   |
+| Lookup `first`/`min`/`max`                                   | element type `E`                            |
+| Lookup `count`                                               | `integer`                                   |
+| Lookup `sum`                                                 | Integer `E` 时为 `integer`，否则为 `number` |
+| Lookup `average`                                             | `number`                                    |
 
 Lookup element type `E` 是 flatten 后的 scalar/Formula/Lookup atom；Multi-select
 贡献 `select`，File 贡献 `file-entry`，任一 Relation direction 贡献 `row-id`。
@@ -715,7 +714,7 @@ storage class：
 
 因此，对 Relation 执行 Lookup `first` 可 sort/group，因为其 `valueType` 是
 `row-id`；对 File 执行 Lookup `first` 则不可，因为其 `valueType` 是
-`file-entry`。`json`、`multi-select`、`file`、`relation`、`file-entry` 与每个
+`file-entry`。`multi-select`、`file`、`relation`、`file-entry` 与每个
 list TypeRef 对 ordinary typed operator 只能用于 equality/distinct；Field-aware
 search 与 semantic summary 改用第 5.2、7.1、7.3 节的明确规则。Null 永远不是 ordered operand，但 sort
 按 explicit null-rank 放置它，grouping 则形成一个 null group。
@@ -2888,20 +2887,19 @@ slash 分隔的 letter 是下述 algorithm 中唯一可能成功的 class，否�
 在此 matrix 中，`relation` 表示 forward stored Relation；第 12.1 节排除了 virtual/
 inverse source。
 
-| from \\ to   | text | number | integer | checkbox | date | datetime | url  | json | select | multi-select | file    | relation |
-| ------------ | ---- | ------ | ------- | -------- | ---- | -------- | ---- | ---- | ------ | ------------ | ------- | -------- |
-| text         | M?   | L?     | L?      | L?       | M?   | M?       | M?   | L    | M?     | M?/L?/X      | M?/L?/X | M?/L?/X  |
-| number       | L    | M?     | L?/X    | L?/X     | F    | F        | F    | L    | L      | F            | F       | F        |
-| integer      | L    | L?/X   | M?      | M?/X     | F    | F        | F    | L?/X | L      | F            | F       | F        |
-| checkbox     | L    | L      | M?      | M?       | F    | F        | F    | L    | L      | F            | F       | F        |
-| date         | M?   | F      | F       | F        | M?   | L        | M?   | L    | M?     | F            | F       | F        |
-| datetime     | M?   | F      | F       | F        | L?/X | M?       | M?   | L    | M?     | F            | F       | F        |
-| url          | M?   | F      | F       | F        | M?   | M?       | M?   | L    | M?     | F            | F       | F        |
-| json         | M?   | L?/X   | L?/X    | L?/X     | L?/X | L?/X     | L?/X | M?   | L?/X   | M?/L?/X      | M?/L?/X | M?/L?/X  |
-| select       | M?   | L?     | L?      | L?       | M?   | M?       | M?   | L    | M?     | L?           | F       | F        |
-| multi-select | M    | F      | F       | F        | F    | F        | F    | M    | L?/X   | M            | F       | M?       |
-| file         | M    | F      | F       | F        | F    | F        | F    | M    | F      | F            | M       | F        |
-| relation     | M    | F      | F       | F        | F    | F        | F    | M    | F      | M            | F       | M?       |
+| from \\ to   | text | number | integer | checkbox | date | datetime | url | select | multi-select | file    | relation |
+| ------------ | ---- | ------ | ------- | -------- | ---- | -------- | --- | ------ | ------------ | ------- | -------- |
+| text         | M?   | L?     | L?      | L?       | M?   | M?       | M?  | M?     | M?/L?/X      | M?/L?/X | M?/L?/X  |
+| number       | L    | M?     | L?/X    | L?/X     | F    | F        | F   | L      | F            | F       | F        |
+| integer      | L    | L?/X   | M?      | M?/X     | F    | F        | F   | L      | F            | F       | F        |
+| checkbox     | L    | L      | M?      | M?       | F    | F        | F   | L      | F            | F       | F        |
+| date         | M?   | F      | F       | F        | M?   | L        | M?  | M?     | F            | F       | F        |
+| datetime     | M?   | F      | F       | F        | L?/X | M?       | M?  | M?     | F            | F       | F        |
+| url          | M?   | F      | F       | F        | M?   | M?       | M?  | M?     | F            | F       | F        |
+| select       | M?   | L?     | L?      | L?       | M?   | M?       | M?  | M?     | L?           | F       | F        |
+| multi-select | M    | F      | F       | F        | F    | F        | F   | L?/X   | M            | F       | M?       |
+| file         | M    | F      | F       | F        | F    | F        | F   | F      | F            | M       | F        |
+| relation     | M    | F      | F       | F        | F    | F        | F   | F      | M            | F       | M?       |
 
 只有在 destination-nullability guard 成功后，value-identity conversion 才是
 metadata-only。其他 cell 只使用以下 algorithm：

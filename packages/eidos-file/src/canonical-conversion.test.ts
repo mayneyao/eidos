@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   eidosFileConversionCanReusePhysicalColumn,
   eidosFileConversionTargetNullable,
+  isEidosFileUriReference,
   planCanonicalFieldConversion,
   recommendedEidosFileConversionPolicies,
 } from "./canonical-conversion"
@@ -73,6 +74,25 @@ function compatibleValue(
 }
 
 describe("canonical Eidos File conversion standard", () => {
+  it("accepts only RFC 3986 ASCII URI-reference spellings", () => {
+    for (const value of [
+      "https://example.com/a?b=1#section",
+      "../relative/path",
+      "mailto:person@example.com",
+      "",
+    ]) {
+      expect(isEidosFileUriReference(value)).toBe(true)
+    }
+    for (const value of [
+      "https://example.com/bad path",
+      "https://example.com/%GG",
+      "https://例子.测试/",
+      1,
+    ]) {
+      expect(isEidosFileUriReference(value)).toBe(false)
+    }
+  })
+
   it("defines the complete editor conversion route matrix", () => {
     for (const fromEditor of EDITOR_TYPES) {
       for (const toEditor of EDITOR_TYPES) {

@@ -4,6 +4,7 @@ import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { parseEidosFileCsvRows } from "./csv"
 import {
   eidosFileConversionCanReusePhysicalColumn,
+  isEidosFileUriReference,
   planCanonicalFieldConversion,
   type CanonicalConversionPlan,
 } from "./canonical-conversion"
@@ -1289,6 +1290,11 @@ export class EidosRuntimeService implements RuntimeClient {
       }
       if (type === "datetime" && !isCanonicalEidosFileInstant(value)) {
         throw runtimeError("invalid-value", "Datetime is not canonical", {
+          fieldId,
+        })
+      }
+      if (type === "url" && !isEidosFileUriReference(value)) {
+        throw runtimeError("invalid-value", "Invalid URI-reference", {
           fieldId,
         })
       }
@@ -4660,13 +4666,6 @@ function logicalValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
       try {
         assertEidosFileValues([value])
         return true
-      } catch {
-        return false
-      }
-    case "json":
-      if (typeof value !== "string") return false
-      try {
-        return canonicalizeEidosFileJson(JSON.parse(value)) === value
       } catch {
         return false
       }
