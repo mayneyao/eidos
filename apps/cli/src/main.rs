@@ -95,6 +95,50 @@ mod tests {
     }
 
     #[test]
+    fn field_add_does_not_expose_nullability_flags() {
+        for flag in ["--nullable", "--not-null"] {
+            let parsed = Cli::try_parse_from(normalize_args(
+                [
+                    "eidos",
+                    "tasks.eidos",
+                    "field",
+                    "add",
+                    "--table",
+                    "Tasks",
+                    "--name",
+                    "Status",
+                    "--type",
+                    "text",
+                    flag,
+                ]
+                .into_iter()
+                .map(OsString::from)
+                .collect(),
+            ));
+            assert!(parsed.is_err(), "{flag} must stay outside the public CLI");
+        }
+        let conversion = Cli::try_parse_from(normalize_args(
+            [
+                "eidos",
+                "tasks.eidos",
+                "field",
+                "update",
+                "Estimate",
+                "--type",
+                "integer",
+                "--nullable",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+        ));
+        assert!(
+            conversion.is_err(),
+            "field update must not expose nullability"
+        );
+    }
+
+    #[test]
     fn accepts_command_first_and_file_first_forms() {
         let command_first = parse_ok(&["eidos", "inspect", "tasks.eidos"]);
         let file_first = parse_ok(&["eidos", "tasks.eidos", "--json", "inspect"]);
@@ -242,6 +286,21 @@ mod tests {
             table.command,
             Command::Table(ref args) if matches!(args.command, TableCommand::Create(_))
         ));
+        let table_update = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "table",
+            "update",
+            "Tasks",
+            "--record-label",
+            "Title",
+            "--content-field",
+            "Notes",
+        ]);
+        assert!(matches!(
+            table_update.command,
+            Command::Table(ref args) if matches!(args.command, TableCommand::Update(_))
+        ));
 
         let field = parse_ok(&[
             "eidos",
@@ -259,6 +318,22 @@ mod tests {
             field.command,
             Command::Field(ref args) if matches!(args.command, FieldCommand::Add(_))
         ));
+        let field_update = parse_ok(&[
+            "eidos",
+            "field",
+            "update",
+            "tasks.eidos",
+            "Estimate",
+            "--table",
+            "Tasks",
+            "--type",
+            "integer",
+            "--confirm-lossy",
+        ]);
+        assert!(matches!(
+            field_update.command,
+            Command::Field(ref args) if matches!(args.command, FieldCommand::Update(_))
+        ));
 
         let relation = parse_ok(&[
             "eidos",
@@ -275,6 +350,21 @@ mod tests {
         assert!(matches!(
             relation.command,
             Command::Relation(ref args) if matches!(args.command, RelationCommand::Add(_))
+        ));
+        let relation_update = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "relation",
+            "update",
+            "Owner",
+            "--table",
+            "Tasks",
+            "--cardinality",
+            "one",
+        ]);
+        assert!(matches!(
+            relation_update.command,
+            Command::Relation(ref args) if matches!(args.command, RelationCommand::Update(_))
         ));
 
         let formula = parse_ok(&[

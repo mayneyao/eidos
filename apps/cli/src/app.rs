@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 
 use eidos_file_core::ddl::{configure_connection, create_eidos_file};
 use eidos_file_core::model::{
-    FieldMeta, FileMeta, TableMeta, ViewMeta, load_fields, load_file_meta, load_formula_fields,
-    load_lookup_fields, load_relation_fields, load_tables, load_views,
+    FieldMeta, FieldType, FileMeta, OnDeletePolicy, RelationCardinality, RelationDirection,
+    TableMeta, ViewMeta, load_fields, load_file_meta, load_formula_fields, load_lookup_fields,
+    load_relation_fields, load_tables, load_views,
 };
 use eidos_file_core::query::{
     FilterNode, ReadRowsOptions, RowQuery, SearchSpec, SortTerm, read_rows,
@@ -29,15 +30,16 @@ use serde_json::{Map, Value, json};
 
 use crate::cli::{
     AccountArgs, ApplyArgs, CardSizeArg, CollectArgs, Command, ContextArgs, CreateArgs,
-    FieldAddArgs, FieldArgs, FieldCommand, FieldDeleteArgs, FieldRenameArgs, FileArgs,
-    FormulaAddArgs, FormulaArgs, FormulaCommand, FormulaDeleteArgs, FormulaPreviewArgs,
+    FieldAddArgs, FieldArgs, FieldCommand, FieldDeleteArgs, FieldRenameArgs, FieldUpdateArgs,
+    FileArgs, FormulaAddArgs, FormulaArgs, FormulaCommand, FormulaDeleteArgs, FormulaPreviewArgs,
     FormulaUpdateArgs, LookupAddArgs, LookupArgs, LookupCommand, LookupDeleteArgs,
     LookupUpdateArgs, PublishArgs, QueryArgs, RelationAddArgs, RelationArgs, RelationCommand,
-    RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs, RowUpdateArgs, RowUpsertArgs, RowsArgs,
-    SchemaApplyArgs, SchemaArgs, ServeArgs, SkillsArgs, SkillsCommand, StandardViewTypeArg,
-    TableArgs, TableCommand, TableCreateArgs, TableDeleteArgs, TableRenameArgs, UpgradeArgs,
-    ValidateArgs, ValidationLevelArg, ViewApplyArgs, ViewArgs, ViewCommand, ViewCreateArgs,
-    ViewDeleteArgs, ViewInspectArgs, ViewListArgs, ViewUpdateArgs,
+    RelationUpdateArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs, RowUpdateArgs,
+    RowUpsertArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs, SkillsArgs, SkillsCommand,
+    StandardViewTypeArg, TableArgs, TableCommand, TableCreateArgs, TableDeleteArgs,
+    TableRenameArgs, TableUpdateArgs, UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
+    ViewArgs, ViewCommand, ViewCreateArgs, ViewDeleteArgs, ViewInspectArgs, ViewListArgs,
+    ViewUpdateArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -317,6 +319,54 @@ fn parse_object(source: &str, label: &str) -> Result<Map<String, Value>> {
         .ok_or_else(|| AppError::invalid_request(format!("{label} must be a JSON object")))
 }
 
+fn parse_stored_object(source: &str, label: &str) -> Result<Map<String, Value>> {
+    serde_json::from_str::<Value>(source)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| AppError::invalid_request(format!("{label} must be a JSON object")))
+}
+
+fn schema_batch(mut leaves: Vec<Value>) -> Value {
+    if leaves.len() == 1 {
+        leaves.pop().expect("one schema change")
+    } else {
+        json!({ "kind": "batch", "changes": leaves })
+    }
+}
+
+fn public_schema_operation(mut value: Value) -> Value {
+    if let Some(object) = value.as_object_mut() {
+        match object.get("kind").and_then(Value::as_str) {
+            Some("batch") => {
+                if let Some(changes) = object.get_mut("changes").and_then(Value::as_array_mut) {
+                    for change in changes {
+                        *change = public_schema_operation(change.take());
+                    }
+                }
+            }
+            Some("create-table") => {
+                if let Some(fields) = object.get_mut("fields").and_then(Value::as_array_mut) {
+                    for field in fields {
+                        if let Some(field) = field.as_object_mut() {
+                            field.remove("nullable");
+                        }
+                    }
+                }
+            }
+            Some("create-field") => {
+                if let Some(field) = object.get_mut("field").and_then(Value::as_object_mut) {
+                    field.remove("nullable");
+                }
+            }
+            Some("convert-field") => {
+                object.remove("toNullable");
+            }
+            _ => {}
+        }
+    }
+    value
+}
+
 fn file_meta_json(path: &Path, meta: &FileMeta) -> Value {
     json!({
         "path": path,
@@ -416,7 +466,6 @@ fn field_json(field: &FieldMeta) -> Value {
         "name": field.name,
         "type": field.field_type,
         "systemRole": field.system_role,
-        "nullable": field.nullable,
         "position": field.position.to_string(),
         "settings": parse_stored_json(&field.settings_json),
         "stored": field.physical_name.is_some(),
@@ -701,7 +750,6 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
                 let mut value = json!({
                     "name": field.name,
                     "type": field.field_type,
-                    "nullable": field.nullable,
                 });
                 if let Some(options) = options {
                     value["options"] = json!(options);
@@ -2241,6 +2289,7 @@ fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
     }
     let mut conn = open_file(&args.file, true)?;
     let change = normalize_schema_change(&conn, operation)?;
+    let public_change = public_schema_operation(serde_json::to_value(&change)?);
     let result = if args.dry_run {
         preview_schema_change(&mut conn, &change, Some(&args.expected_revision))?
     } else {
@@ -2249,7 +2298,7 @@ fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
     Ok(CommandOutput::success(json!({
         "dryRun": args.dry_run,
         "createdIdsAreEphemeral": args.dry_run,
-        "operation": change,
+        "operation": public_change,
         "result": result,
     })))
 }
@@ -2258,6 +2307,7 @@ fn table(args: TableArgs) -> Result<CommandOutput> {
     let TableArgs { file, command } = args;
     match command {
         TableCommand::Create(args) => table_create(args, file),
+        TableCommand::Update(args) => table_update(args, file),
         TableCommand::Rename(args) => table_rename(args, file),
         TableCommand::Delete(args) => table_delete(args, file),
     }
@@ -2292,6 +2342,102 @@ fn table_create(args: TableCreateArgs, file: PathBuf) -> Result<CommandOutput> {
     execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
 }
 
+fn table_update(args: TableUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
+    let TableUpdateArgs {
+        reference,
+        name,
+        settings,
+        record_label,
+        content_field,
+        clear_content_field,
+        position,
+        make_default,
+        expected_revision,
+        dry_run,
+    } = args;
+    let conn = open_file(&file, false)?;
+    let tables = load_tables(&conn)?;
+    let table = resolve_table(&tables, &reference)?.clone();
+    let fields = load_fields(&conn)?;
+    let mut leaves = Vec::new();
+
+    if let Some(name) = name
+        && name != table.name
+    {
+        leaves.push(json!({
+            "kind": "rename-table",
+            "tableId": table.id,
+            "name": name,
+        }));
+    }
+
+    let mut replacement_settings = settings
+        .as_deref()
+        .map(|source| parse_object(source, "--settings"))
+        .transpose()?;
+    if content_field.is_some() || clear_content_field {
+        if replacement_settings.is_none() {
+            replacement_settings = Some(parse_stored_object(
+                &table.settings_json,
+                "stored Table settings",
+            )?);
+        }
+        let settings = replacement_settings
+            .as_mut()
+            .ok_or_else(|| AppError::internal("Table settings were not initialized"))?;
+        if let Some(reference) = content_field {
+            let field_id = resolve_field_in_table(&fields, &table.id, &reference)?;
+            let field = fields
+                .iter()
+                .find(|candidate| candidate.id == field_id)
+                .ok_or_else(|| AppError::internal("resolved content Field disappeared"))?;
+            if field.field_type != FieldType::Text || field.physical_name.is_none() {
+                return Err(AppError::invalid_request(
+                    "--content-field must reference an ordinary Text Field in this Table",
+                ));
+            }
+            settings.insert("contentFieldId".into(), json!(field.id));
+        } else {
+            settings.remove("contentFieldId");
+        }
+    }
+    if let Some(settings) = replacement_settings {
+        leaves.push(json!({
+            "kind": "set-table-settings",
+            "tableId": table.id,
+            "settings": settings,
+        }));
+    }
+
+    if let Some(reference) = record_label {
+        let field_id = resolve_field_in_table(&fields, &table.id, &reference)?;
+        leaves.push(json!({
+            "kind": "set-record-label",
+            "tableId": table.id,
+            "fieldId": field_id,
+        }));
+    }
+    if let Some(position) = position {
+        leaves.push(json!({
+            "kind": "set-table-position",
+            "tableId": table.id,
+            "position": position,
+        }));
+    }
+    if make_default && load_file_meta(&conn)?.default_table_id.as_deref() != Some(&table.id) {
+        leaves.push(json!({
+            "kind": "set-default-table",
+            "tableId": table.id,
+        }));
+    }
+    if leaves.is_empty() {
+        return Err(AppError::invalid_request(
+            "table update requires at least one changed option",
+        ));
+    }
+    runtime_schema_intent(file, schema_batch(leaves), expected_revision, dry_run)
+}
+
 fn table_rename(args: TableRenameArgs, file: PathBuf) -> Result<CommandOutput> {
     let operation = json!({
         "kind": "rename-table",
@@ -2313,6 +2459,7 @@ fn field(args: FieldArgs) -> Result<CommandOutput> {
     let FieldArgs { file, command } = args;
     match command {
         FieldCommand::Add(args) => field_add(args, file),
+        FieldCommand::Update(args) => field_update(args, file),
         FieldCommand::Rename(args) => field_rename(args, file),
         FieldCommand::Delete(args) => field_delete(args, file),
     }
@@ -2325,8 +2472,6 @@ fn field_add(args: FieldAddArgs, file: PathBuf) -> Result<CommandOutput> {
         field_type,
         settings,
         definition,
-        nullable,
-        not_nullable,
         expected_revision,
         dry_run,
     } = args;
@@ -2368,12 +2513,174 @@ fn field_add(args: FieldAddArgs, file: PathBuf) -> Result<CommandOutput> {
     if let Some(definition) = definition {
         operation["definition"] = read_json_source(&definition)?;
     }
-    if nullable {
-        operation["nullable"] = json!(true);
-    } else if not_nullable {
-        operation["nullable"] = json!(false);
-    }
     execute_schema_intent(file, operation, expected_revision, dry_run)
+}
+
+fn field_update(args: FieldUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
+    let FieldUpdateArgs {
+        reference,
+        table,
+        name,
+        field_type,
+        settings,
+        position,
+        record_label,
+        target_table,
+        cardinality,
+        on_delete,
+        policies,
+        rename_options,
+        confirm_lossy,
+        expected_revision,
+        dry_run,
+    } = args;
+    let (field, tables, _) = field_reference_info(&file, &reference, table.as_deref())?;
+    let mut leaves = Vec::new();
+
+    if let Some(name) = name
+        && name != field.name
+    {
+        leaves.push(json!({
+            "kind": "rename-field",
+            "fieldId": field.id,
+            "name": name,
+        }));
+    }
+
+    if let Some(target_type) = field_type.as_deref() {
+        let target_type = parse_conversion_field_type(target_type)?;
+        if matches!(field.field_type, FieldType::Formula | FieldType::Lookup) {
+            return Err(AppError::invalid_request(
+                "Formula and Lookup Fields cannot be converted; create a stored Field first",
+            ));
+        }
+        if field.field_type == FieldType::File || target_type == FieldType::File {
+            return Err(AppError::invalid_request(
+                "File Fields cannot be converted; create a new File Field and use attachment commands",
+            ));
+        }
+        if target_type == field.field_type {
+            if target_table.is_some() || cardinality.is_some() || on_delete.is_some() {
+                return Err(AppError::invalid_request(
+                    "use relation update to change an existing Relation definition",
+                ));
+            }
+            if !policies.is_empty() {
+                return Err(AppError::invalid_request(
+                    "--policy requires a conversion to a different Field type",
+                ));
+            }
+        } else {
+            if target_type != FieldType::Relation
+                && (target_table.is_some() || cardinality.is_some() || on_delete.is_some())
+            {
+                return Err(AppError::invalid_request(
+                    "--target-table, --cardinality, and --on-delete only apply when converting to relation",
+                ));
+            }
+            let conversion_policies = conversion_policies(
+                field.field_type,
+                target_type,
+                if policies.is_empty() {
+                    None
+                } else {
+                    Some(&policies)
+                },
+            )?;
+            let mut conversion = json!({
+                "kind": "convert-field",
+                "fieldId": field.id,
+                "to": target_type.as_str(),
+            });
+            if !conversion_policies.is_empty() {
+                conversion["policies"] = json!(conversion_policies);
+            }
+            if target_type == FieldType::Relation {
+                let target_reference = target_table.as_deref().ok_or_else(|| {
+                    AppError::invalid_request(
+                        "--target-table is required when converting to relation",
+                    )
+                })?;
+                let target_table_id = resolve_table(&tables, target_reference)?.id.clone();
+                conversion["definition"] = json!({
+                    "direction": "forward",
+                    "targetTableId": target_table_id,
+                    "cardinality": relation_cardinality(cardinality.as_deref().unwrap_or("many"))?,
+                    "onDelete": relation_on_delete(on_delete.as_deref().unwrap_or("restrict"))?,
+                });
+            } else if !matches!(target_type, FieldType::MultiSelect) {
+                conversion["toNullable"] = json!(
+                    field.nullable
+                        || (field.field_type == FieldType::MultiSelect
+                            && target_type == FieldType::Select)
+                );
+            }
+
+            let table = tables
+                .iter()
+                .find(|candidate| candidate.id == field.table_id)
+                .ok_or_else(|| AppError::internal("Field Table disappeared"))?;
+            let mut table_settings =
+                parse_stored_object(&table.settings_json, "stored Table settings")?;
+            if table_settings.get("contentFieldId").and_then(Value::as_str)
+                == Some(field.id.as_str())
+                && target_type != FieldType::Text
+            {
+                table_settings.remove("contentFieldId");
+                leaves.push(json!({
+                    "kind": "set-table-settings",
+                    "tableId": table.id,
+                    "settings": table_settings,
+                }));
+            }
+            leaves.push(conversion);
+        }
+    } else if target_table.is_some()
+        || cardinality.is_some()
+        || on_delete.is_some()
+        || !policies.is_empty()
+    {
+        return Err(AppError::invalid_request(
+            "Relation conversion options and --policy require --type",
+        ));
+    }
+
+    if let Some(settings) = settings {
+        leaves.push(json!({
+            "kind": "set-field-settings",
+            "fieldId": field.id,
+            "settings": parse_object(&settings, "--settings")?,
+        }));
+    }
+    if let Some(position) = position {
+        leaves.push(json!({
+            "kind": "set-field-position",
+            "fieldId": field.id,
+            "position": position,
+        }));
+    }
+    if let Some(source) = rename_options {
+        leaves.extend(option_rename_changes(&source, &field.id)?);
+    }
+    if record_label {
+        leaves.push(json!({
+            "kind": "set-record-label",
+            "tableId": field.table_id,
+            "fieldId": field.id,
+        }));
+    }
+    if leaves.is_empty() {
+        return Err(AppError::invalid_request(
+            "field update requires at least one changed option",
+        ));
+    }
+    runtime_schema_intent_with_options(
+        file,
+        schema_batch(leaves),
+        expected_revision,
+        dry_run,
+        confirm_lossy,
+    )
 }
 
 fn field_rename(args: FieldRenameArgs, file: PathBuf) -> Result<CommandOutput> {
@@ -2440,6 +2747,7 @@ fn relation(args: RelationArgs) -> Result<CommandOutput> {
     let RelationArgs { file, command } = args;
     match command {
         RelationCommand::Add(args) => relation_add(args, file),
+        RelationCommand::Update(args) => relation_update(args, file),
     }
 }
 
@@ -2457,6 +2765,84 @@ fn relation_add(args: RelationAddArgs, file: PathBuf) -> Result<CommandOutput> {
         },
     });
     execute_schema_intent(file, operation, args.expected_revision, args.dry_run)
+}
+
+fn relation_update(args: RelationUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
+    let RelationUpdateArgs {
+        reference,
+        table,
+        target_table,
+        cardinality,
+        on_delete,
+        confirm_lossy,
+        expected_revision,
+        dry_run,
+    } = args;
+    if target_table.is_none() && cardinality.is_none() && on_delete.is_none() {
+        return Err(AppError::invalid_request(
+            "relation update requires --target-table, --cardinality, or --on-delete",
+        ));
+    }
+    let (field, tables, _) = field_reference_info(&file, &reference, table.as_deref())?;
+    if field.field_type != FieldType::Relation {
+        return Err(AppError::invalid_request(format!(
+            "Field {:?} is not a Relation Field",
+            field.name
+        )));
+    }
+    let conn = open_file(&file, false)?;
+    let relation = load_relation_fields(&conn)?
+        .into_iter()
+        .find(|relation| relation.field_id == field.id)
+        .ok_or_else(|| AppError::invalid_request("Relation Field has no Relation definition"))?;
+    if relation.direction != RelationDirection::Forward {
+        return Err(AppError::invalid_request(
+            "inverse Relation definitions are managed by their forward Relation",
+        ));
+    }
+    let target_table_id = target_table
+        .as_deref()
+        .map(|reference| resolve_table(&tables, reference).map(|table| table.id.clone()))
+        .transpose()?
+        .unwrap_or_else(|| relation.target_table_id.clone());
+    let cardinality = cardinality
+        .as_deref()
+        .map(relation_cardinality)
+        .transpose()?
+        .unwrap_or_else(|| relation.cardinality.as_str());
+    let current_on_delete = relation
+        .on_delete
+        .map(OnDeletePolicy::as_str)
+        .unwrap_or("restrict");
+    let on_delete = on_delete
+        .as_deref()
+        .map(relation_on_delete)
+        .transpose()?
+        .unwrap_or(current_on_delete);
+    if target_table_id == relation.target_table_id
+        && cardinality == relation.cardinality.as_str()
+        && on_delete == current_on_delete
+    {
+        return Err(AppError::invalid_request(
+            "relation update does not change the Relation definition",
+        ));
+    }
+    runtime_schema_intent_with_options(
+        file,
+        json!({
+            "kind": "set-relation",
+            "fieldId": field.id,
+            "definition": {
+                "direction": "forward",
+                "targetTableId": target_table_id,
+                "cardinality": cardinality,
+                "onDelete": on_delete,
+            },
+        }),
+        expected_revision,
+        dry_run,
+        confirm_lossy,
+    )
 }
 
 fn formula(args: FormulaArgs) -> Result<CommandOutput> {
@@ -2496,6 +2882,115 @@ fn lookup_aggregate(value: &str) -> Result<String> {
             "Lookup aggregate {value:?} must be values, first, count, sum, average, min, or max"
         ))),
     }
+}
+
+fn parse_conversion_field_type(value: &str) -> Result<FieldType> {
+    let field_type = FieldType::from_spec_str(value)?;
+    if matches!(field_type, FieldType::Formula | FieldType::Lookup) {
+        return Err(AppError::invalid_request(format!(
+            "Field conversion target {value:?} must be a stored Field type"
+        )));
+    }
+    Ok(field_type)
+}
+
+fn relation_cardinality(value: &str) -> Result<&str> {
+    RelationCardinality::from_spec_str(value)?;
+    Ok(value)
+}
+
+fn relation_on_delete(value: &str) -> Result<&str> {
+    OnDeletePolicy::from_spec_str(value)?;
+    Ok(value)
+}
+
+fn conversion_policies(
+    from: FieldType,
+    to: FieldType,
+    explicit: Option<&[String]>,
+) -> Result<Vec<String>> {
+    const ALLOWED: &[&str] = &[
+        "round-binary64",
+        "truncate-toward-zero",
+        "round-ties-even",
+        "zero-false-nonzero-true",
+        "utc-date",
+        "first",
+        "null-to-empty-list",
+    ];
+    if let Some(explicit) = explicit {
+        for policy in explicit {
+            if !ALLOWED.contains(&policy.as_str()) {
+                return Err(AppError::invalid_request(format!(
+                    "unknown conversion policy {policy:?}"
+                )));
+            }
+        }
+        return Ok(explicit.to_vec());
+    }
+    let mut policies = Vec::new();
+    if from == FieldType::Integer && to == FieldType::Number {
+        policies.push("round-binary64".to_string());
+    }
+    if from == FieldType::Number && to == FieldType::Integer {
+        policies.push("round-ties-even".to_string());
+    }
+    if matches!(from, FieldType::Integer | FieldType::Number) && to == FieldType::Checkbox {
+        policies.push("zero-false-nonzero-true".to_string());
+    }
+    if from == FieldType::Datetime && to == FieldType::Date {
+        policies.push("utc-date".to_string());
+    }
+    if from == FieldType::MultiSelect && to == FieldType::Select {
+        policies.push("first".to_string());
+    }
+    if !matches!(
+        from,
+        FieldType::MultiSelect | FieldType::File | FieldType::Relation
+    ) && matches!(
+        to,
+        FieldType::MultiSelect | FieldType::File | FieldType::Relation
+    ) {
+        policies.push("null-to-empty-list".to_string());
+    }
+    Ok(policies)
+}
+
+fn option_rename_changes(source: &str, field_id: &str) -> Result<Vec<Value>> {
+    let value = read_json_source(source)?;
+    let renames = value.as_array().ok_or_else(|| {
+        AppError::invalid_request("--rename-options must be a JSON array of option renames")
+    })?;
+    renames
+        .iter()
+        .map(|value| {
+            let object = value.as_object().ok_or_else(|| {
+                AppError::invalid_request("each option rename must be a JSON object")
+            })?;
+            let from = object.get("from").and_then(Value::as_str).ok_or_else(|| {
+                AppError::invalid_request("each option rename requires string member from")
+            })?;
+            let to = object.get("to").and_then(Value::as_str).ok_or_else(|| {
+                AppError::invalid_request("each option rename requires string member to")
+            })?;
+            let collision = object
+                .get("collision")
+                .and_then(Value::as_str)
+                .unwrap_or("reject");
+            if !matches!(collision, "reject" | "merge") {
+                return Err(AppError::invalid_request(
+                    "option rename collision must be reject or merge",
+                ));
+            }
+            Ok(json!({
+                "kind": "rename-option",
+                "fieldId": field_id,
+                "from": from,
+                "to": to,
+                "collision": collision,
+            }))
+        })
+        .collect()
 }
 
 fn field_reference_info(
@@ -2553,6 +3048,7 @@ fn runtime_schema_intent_with_options(
     dry_run: bool,
     confirm_lossy: bool,
 ) -> Result<CommandOutput> {
+    let public_operation = public_schema_operation(operation.clone());
     with_runtime_session(&file, true, |session| {
         let snapshot = session.call("getSnapshot", &json!({}))?;
         let expected_revision = expected_revision
@@ -2575,7 +3071,7 @@ fn runtime_schema_intent_with_options(
                 "dryRun": true,
                 "createdIdsAreEphemeral": true,
                 "expectedRevision": expected_revision,
-                "operation": operation,
+                "operation": public_operation,
                 "result": preflight,
             })));
         }
@@ -2600,7 +3096,7 @@ fn runtime_schema_intent_with_options(
             "dryRun": false,
             "createdIdsAreEphemeral": false,
             "expectedRevision": expected_revision,
-            "operation": operation,
+            "operation": public_operation,
             "preflight": preflight,
             "result": result,
         })))
@@ -2615,6 +3111,30 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
         return Ok(None);
     };
     match kind {
+        "batch" => {
+            let changes = object
+                .get("changes")
+                .and_then(Value::as_array)
+                .ok_or_else(|| AppError::invalid_request("batch requires changes array"))?;
+            if changes.is_empty() {
+                return Err(AppError::invalid_request(
+                    "batch requires at least one schema change",
+                ));
+            }
+            let conn = open_file(file, false)?;
+            let mut normalized = Vec::with_capacity(changes.len());
+            for change in changes {
+                if let Some(runtime_change) = runtime_virtual_schema_operation(file, change)? {
+                    normalized.push(runtime_change);
+                } else {
+                    normalized.push(serde_json::to_value(normalize_schema_change(
+                        &conn,
+                        change.clone(),
+                    )?)?);
+                }
+            }
+            Ok(Some(json!({ "kind": "batch", "changes": normalized })))
+        }
         "create-table" => {
             let source_fields = object
                 .get("fields")
@@ -2855,6 +3375,239 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
             }
             Ok(Some(normalized))
         }
+        "set-table-settings" | "set-table-position" => {
+            let table_reference =
+                string_member(object, &["tableId", "table"]).ok_or_else(|| {
+                    AppError::invalid_request(format!("{kind} requires table/tableId"))
+                })?;
+            let conn = open_file(file, false)?;
+            let table_id = resolve_table_id(&conn, &table_reference)?;
+            let mut normalized = json!({
+                "kind": kind,
+                "tableId": table_id,
+            });
+            if kind == "set-table-settings" {
+                normalized["settings"] = Value::Object(
+                    object
+                        .get("settings")
+                        .and_then(Value::as_object)
+                        .cloned()
+                        .ok_or_else(|| {
+                            AppError::invalid_request("set-table-settings requires settings object")
+                        })?,
+                );
+            } else {
+                normalized["position"] = object.get("position").cloned().ok_or_else(|| {
+                    AppError::invalid_request("set-table-position requires position")
+                })?;
+            }
+            Ok(Some(normalized))
+        }
+        "set-field-settings" | "set-field-position" | "rename-option" => {
+            let field_reference =
+                string_member(object, &["fieldId", "field"]).ok_or_else(|| {
+                    AppError::invalid_request(format!("{kind} requires field/fieldId"))
+                })?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, _, _) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            let mut normalized = json!({
+                "kind": kind,
+                "fieldId": field.id,
+            });
+            match kind {
+                "set-field-settings" => {
+                    normalized["settings"] = Value::Object(
+                        object
+                            .get("settings")
+                            .and_then(Value::as_object)
+                            .cloned()
+                            .ok_or_else(|| {
+                                AppError::invalid_request(
+                                    "set-field-settings requires settings object",
+                                )
+                            })?,
+                    );
+                }
+                "set-field-position" => {
+                    normalized["position"] = object.get("position").cloned().ok_or_else(|| {
+                        AppError::invalid_request("set-field-position requires position")
+                    })?;
+                }
+                "rename-option" => {
+                    let from = object.get("from").and_then(Value::as_str).ok_or_else(|| {
+                        AppError::invalid_request("rename-option requires string from")
+                    })?;
+                    let to = object.get("to").and_then(Value::as_str).ok_or_else(|| {
+                        AppError::invalid_request("rename-option requires string to")
+                    })?;
+                    let collision = object
+                        .get("collision")
+                        .and_then(Value::as_str)
+                        .unwrap_or("reject");
+                    if !matches!(collision, "reject" | "merge") {
+                        return Err(AppError::invalid_request(
+                            "rename-option collision must be reject or merge",
+                        ));
+                    }
+                    normalized["from"] = json!(from);
+                    normalized["to"] = json!(to);
+                    normalized["collision"] = json!(collision);
+                }
+                _ => unreachable!(),
+            }
+            Ok(Some(normalized))
+        }
+        "set-record-label" => {
+            let table_reference =
+                string_member(object, &["tableId", "table"]).ok_or_else(|| {
+                    AppError::invalid_request("set-record-label requires table/tableId")
+                })?;
+            let conn = open_file(file, false)?;
+            let table_id = resolve_table_id(&conn, &table_reference)?;
+            let fields = load_fields(&conn)?;
+            let field_reference =
+                string_member(object, &["fieldId", "field"]).ok_or_else(|| {
+                    AppError::invalid_request("set-record-label requires field/fieldId")
+                })?;
+            let field_id = resolve_field_in_table(&fields, &table_id, &field_reference)?;
+            Ok(Some(json!({
+                "kind": "set-record-label",
+                "tableId": table_id,
+                "fieldId": field_id,
+            })))
+        }
+        "set-relation" => {
+            let field_reference = string_member(object, &["fieldId", "field"])
+                .ok_or_else(|| AppError::invalid_request("set-relation requires field/fieldId"))?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, tables, _) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            if field.field_type != FieldType::Relation {
+                return Err(AppError::invalid_request(
+                    "set-relation requires a Relation Field",
+                ));
+            }
+            let definition = object
+                .get("definition")
+                .and_then(Value::as_object)
+                .ok_or_else(|| AppError::invalid_request("set-relation requires definition"))?;
+            let target_reference = string_member(definition, &["targetTableId", "targetTable"])
+                .ok_or_else(|| {
+                    AppError::invalid_request("Relation definition requires targetTableId")
+                })?;
+            let target_table_id = resolve_table(&tables, &target_reference)?.id.clone();
+            let direction = definition
+                .get("direction")
+                .and_then(Value::as_str)
+                .unwrap_or("forward");
+            if direction != "forward" {
+                return Err(AppError::invalid_request(
+                    "only forward Relation definitions can be updated",
+                ));
+            }
+            Ok(Some(json!({
+                "kind": "set-relation",
+                "fieldId": field.id,
+                "definition": {
+                    "direction": "forward",
+                    "targetTableId": target_table_id,
+                    "cardinality": relation_cardinality(
+                        definition.get("cardinality").and_then(Value::as_str).unwrap_or("many")
+                    )?,
+                    "onDelete": relation_on_delete(
+                        definition.get("onDelete").and_then(Value::as_str).unwrap_or("restrict")
+                    )?,
+                },
+            })))
+        }
+        "convert-field" => {
+            if object.contains_key("toNullable") {
+                return Err(AppError::invalid_request(
+                    "Field nullability is not exposed by the CLI; omit toNullable",
+                ));
+            }
+            let field_reference = string_member(object, &["fieldId", "field"])
+                .ok_or_else(|| AppError::invalid_request("convert-field requires field/fieldId"))?;
+            let table_reference = string_member(object, &["tableId", "table"]);
+            let (field, tables, _) =
+                field_reference_info(file, &field_reference, table_reference.as_deref())?;
+            let target_type = object
+                .get("to")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::invalid_request("convert-field requires string to"))?;
+            let target_type = parse_conversion_field_type(target_type)?;
+            if matches!(field.field_type, FieldType::Formula | FieldType::Lookup) {
+                return Err(AppError::invalid_request(
+                    "Formula and Lookup Fields cannot be converted",
+                ));
+            }
+            if field.field_type == FieldType::File || target_type == FieldType::File {
+                return Err(AppError::invalid_request(
+                    "File Fields cannot be converted; use attachment commands",
+                ));
+            }
+            let explicit_policies = object
+                .get("policies")
+                .map(|value| {
+                    value
+                        .as_array()
+                        .ok_or_else(|| {
+                            AppError::invalid_request("convert-field policies must be an array")
+                        })?
+                        .iter()
+                        .map(|value| {
+                            value.as_str().map(ToOwned::to_owned).ok_or_else(|| {
+                                AppError::invalid_request(
+                                    "convert-field policies must contain strings",
+                                )
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()
+                })
+                .transpose()?;
+            let policies =
+                conversion_policies(field.field_type, target_type, explicit_policies.as_deref())?;
+            let mut normalized = json!({
+                "kind": "convert-field",
+                "fieldId": field.id,
+                "to": target_type.as_str(),
+            });
+            if !policies.is_empty() {
+                normalized["policies"] = json!(policies);
+            }
+            if target_type == FieldType::Relation {
+                let definition = object
+                    .get("definition")
+                    .and_then(Value::as_object)
+                    .ok_or_else(|| {
+                        AppError::invalid_request(
+                            "conversion to Relation requires definition object",
+                        )
+                    })?;
+                let target_reference = string_member(definition, &["targetTableId", "targetTable"])
+                    .ok_or_else(|| {
+                        AppError::invalid_request("Relation definition requires targetTableId")
+                    })?;
+                normalized["definition"] = json!({
+                    "direction": "forward",
+                    "targetTableId": resolve_table(&tables, &target_reference)?.id,
+                    "cardinality": relation_cardinality(
+                        definition.get("cardinality").and_then(Value::as_str).unwrap_or("many")
+                    )?,
+                    "onDelete": relation_on_delete(
+                        definition.get("onDelete").and_then(Value::as_str).unwrap_or("restrict")
+                    )?,
+                });
+            } else if target_type != FieldType::MultiSelect {
+                normalized["toNullable"] = json!(
+                    field.nullable
+                        || (field.field_type == FieldType::MultiSelect
+                            && target_type == FieldType::Select)
+                );
+            }
+            Ok(Some(normalized))
+        }
         "set-formula" | "set-lookup" => {
             let field_reference = string_member(object, &["fieldId", "field"])
                 .ok_or_else(|| AppError::invalid_request(format!("{kind} requires fieldId")))?;
@@ -2881,6 +3634,49 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                 .get("definition")
                 .cloned()
                 .ok_or_else(|| AppError::invalid_request(format!("{kind} requires definition")))?;
+            let definition = if kind == "set-lookup" {
+                let definition = definition.as_object().ok_or_else(|| {
+                    AppError::invalid_request("set-lookup requires definition object")
+                })?;
+                let conn = open_file(file, false)?;
+                let fields = load_fields(&conn)?;
+                let relation_reference =
+                    string_member(definition, &["relationFieldId", "relationField"]).ok_or_else(
+                        || AppError::invalid_request("Lookup definition requires relationFieldId"),
+                    )?;
+                let relation_field_id =
+                    resolve_field_in_table(&fields, &field.table_id, &relation_reference)?;
+                let relation = load_relation_fields(&conn)?
+                    .into_iter()
+                    .find(|relation| relation.field_id == relation_field_id)
+                    .ok_or_else(|| {
+                        AppError::invalid_request("Lookup relationField must be a Relation Field")
+                    })?;
+                let target_reference = string_member(definition, &["targetFieldId", "targetField"])
+                    .ok_or_else(|| {
+                        AppError::invalid_request("Lookup definition requires targetFieldId")
+                    })?;
+                json!({
+                    "relationFieldId": relation_field_id,
+                    "targetFieldId": resolve_field_in_table(
+                        &fields,
+                        &relation.target_table_id,
+                        &target_reference,
+                    )?,
+                    "aggregate": lookup_aggregate(
+                        definition.get("aggregate").and_then(Value::as_str).ok_or_else(|| {
+                            AppError::invalid_request("Lookup definition requires aggregate")
+                        })?
+                    )?,
+                    "distinctValues": definition
+                        .get("distinctValues")
+                        .or_else(|| definition.get("distinct"))
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                })
+            } else {
+                definition
+            };
             Ok(Some(json!({
                 "kind": kind,
                 "fieldId": field.id,
@@ -3100,6 +3896,7 @@ fn execute_schema_intent(
     let meta = load_file_meta(&conn)?;
     let expected_revision = expected_revision.unwrap_or_else(|| meta.revision.to_string());
     let change = normalize_schema_change(&conn, operation)?;
+    let public_change = public_schema_operation(serde_json::to_value(&change)?);
     let result = if dry_run {
         preview_schema_change(&mut conn, &change, Some(&expected_revision))?
     } else {
@@ -3109,7 +3906,7 @@ fn execute_schema_intent(
         "dryRun": dry_run,
         "createdIdsAreEphemeral": dry_run,
         "expectedRevision": expected_revision,
-        "operation": change,
+        "operation": public_change,
         "result": result,
     })))
 }
@@ -3171,6 +3968,11 @@ fn normalize_new_field(value: &mut Value, index: usize) -> Result<()> {
     let object = value
         .as_object_mut()
         .ok_or_else(|| AppError::invalid_request("field definition must be a JSON object"))?;
+    if object.contains_key("nullable") {
+        return Err(AppError::invalid_request(
+            "Field nullability is not exposed by the CLI; omit nullable",
+        ));
+    }
     if !object.contains_key("clientKey") {
         object.insert("clientKey".into(), json!(format!("field-{}", index + 1)));
     }
@@ -3360,7 +4162,8 @@ fn normalize_schema_change(conn: &Connection, mut value: Value) -> Result<Schema
 
 #[cfg(test)]
 mod tests {
-    use super::publish_attachment_root;
+    use super::{normalize_new_field, public_schema_operation, publish_attachment_root};
+    use serde_json::json;
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -3387,6 +4190,35 @@ mod tests {
                 Some(Path::new("/workspace/assets"))
             ),
             PathBuf::from("/workspace/assets")
+        );
+    }
+
+    #[test]
+    fn field_normalization_rejects_public_nullability_input() {
+        let mut field = json!({
+            "name": "Title",
+            "type": "text",
+            "nullable": false,
+        });
+        let error = normalize_new_field(&mut field, 0).unwrap_err();
+        assert!(error.message.contains("nullability is not exposed"));
+    }
+
+    #[test]
+    fn public_schema_output_hides_only_internal_nullability() {
+        let operation = public_schema_operation(json!({
+            "kind": "create-field",
+            "tableId": "table",
+            "field": {
+                "kind": "text",
+                "nullable": true,
+                "settings": { "nullable": "custom-display-value" }
+            }
+        }));
+        assert!(operation["field"].get("nullable").is_none());
+        assert_eq!(
+            operation["field"]["settings"]["nullable"],
+            "custom-display-value"
         );
     }
 }

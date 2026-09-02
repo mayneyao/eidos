@@ -808,6 +808,8 @@ pub struct TableArgs {
 pub enum TableCommand {
     /// Create a Table with stored Fields.
     Create(TableCreateArgs),
+    /// Update a Table's metadata and record presentation settings.
+    Update(TableUpdateArgs),
     /// Rename a Table by name or stable ID.
     Rename(TableRenameArgs),
     /// Delete a Table by name or stable ID.
@@ -828,6 +830,39 @@ pub struct TableCreateArgs {
     /// Table settings JSON object. Accepts inline JSON, @path, or - for stdin.
     #[arg(long)]
     pub settings: Option<String>,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TableUpdateArgs {
+    /// Table name or stable ID.
+    pub reference: String,
+    /// New Table name.
+    #[arg(long)]
+    pub name: Option<String>,
+    /// Replacement Table settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Record-label Field name or stable ID in this Table.
+    #[arg(long)]
+    pub record_label: Option<String>,
+    /// Text Field name or stable ID to use as the primary Markdown content.
+    #[arg(long, conflicts_with = "clear_content_field")]
+    pub content_field: Option<String>,
+    /// Remove the primary Markdown content Field setting.
+    #[arg(long)]
+    pub clear_content_field: bool,
+    /// Canonical signed 64-bit Table position.
+    #[arg(long)]
+    pub position: Option<String>,
+    /// Make this the File's default Table.
+    #[arg(long)]
+    pub make_default: bool,
     /// Expected current File revision. Defaults to the revision read by this command.
     #[arg(long)]
     pub expected_revision: Option<String>,
@@ -874,6 +909,8 @@ pub struct FieldArgs {
 pub enum FieldCommand {
     /// Add a stored Field to a Table.
     Add(FieldAddArgs),
+    /// Update, convert, reorder, or rename options in a Field.
+    Update(FieldUpdateArgs),
     /// Rename a Field by name or stable ID.
     Rename(FieldRenameArgs),
     /// Delete a Field by name or stable ID.
@@ -897,12 +934,54 @@ pub struct FieldAddArgs {
     /// Relation or other Field definition JSON object. Accepts inline JSON, @path, or - for stdin.
     #[arg(long)]
     pub definition: Option<String>,
-    /// Make the Field nullable (the default for supported types).
-    #[arg(long, conflicts_with = "not_nullable")]
-    pub nullable: bool,
-    /// Make the Field non-nullable.
-    #[arg(long = "not-null", conflicts_with = "nullable")]
-    pub not_nullable: bool,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FieldUpdateArgs {
+    /// Field name or stable ID.
+    pub reference: String,
+    /// Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// New Field name.
+    #[arg(long)]
+    pub name: Option<String>,
+    /// Convert to this stored Field type.
+    #[arg(long = "type")]
+    pub field_type: Option<String>,
+    /// Replacement Field settings JSON object. Accepts inline JSON, @path, or - for stdin.
+    #[arg(long)]
+    pub settings: Option<String>,
+    /// Canonical signed 64-bit Field position.
+    #[arg(long)]
+    pub position: Option<String>,
+    /// Make this Field the Table's record-label Field.
+    #[arg(long)]
+    pub record_label: bool,
+    /// Target Table for conversion to Relation.
+    #[arg(long)]
+    pub target_table: Option<String>,
+    /// Relation cardinality for conversion to Relation: one or many.
+    #[arg(long)]
+    pub cardinality: Option<String>,
+    /// Target deletion policy for conversion to Relation: restrict, detach, or preserve.
+    #[arg(long)]
+    pub on_delete: Option<String>,
+    /// Explicit conversion policy. Repeat to supply more than one; replaces recommended defaults.
+    #[arg(long = "policy")]
+    pub policies: Vec<String>,
+    /// JSON array of option renames with from, to, and optional collision (reject or merge).
+    #[arg(long)]
+    pub rename_options: Option<String>,
+    /// Confirm the mutation when Runtime preflight classifies it as explicitly lossy.
+    #[arg(long)]
+    pub confirm_lossy: bool,
     /// Expected current File revision. Defaults to the revision read by this command.
     #[arg(long)]
     pub expected_revision: Option<String>,
@@ -961,6 +1040,8 @@ pub struct RelationArgs {
 pub enum RelationCommand {
     /// Add a forward Relation Field.
     Add(RelationAddArgs),
+    /// Update a forward Relation Field definition.
+    Update(RelationUpdateArgs),
 }
 
 #[derive(Debug, Args)]
@@ -980,6 +1061,33 @@ pub struct RelationAddArgs {
     /// Target deletion policy: restrict, detach, or preserve.
     #[arg(long, default_value = "restrict")]
     pub on_delete: String,
+    /// Expected current File revision. Defaults to the revision read by this command.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct RelationUpdateArgs {
+    /// Relation Field name or stable ID.
+    pub reference: String,
+    /// Source Table name or stable ID when the Field name is not globally unique.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// New target Table name or stable ID.
+    #[arg(long)]
+    pub target_table: Option<String>,
+    /// New Relation cardinality: one or many.
+    #[arg(long)]
+    pub cardinality: Option<String>,
+    /// New target deletion policy: restrict, detach, or preserve.
+    #[arg(long)]
+    pub on_delete: Option<String>,
+    /// Confirm the mutation when Runtime preflight classifies it as explicitly lossy.
+    #[arg(long)]
+    pub confirm_lossy: bool,
     /// Expected current File revision. Defaults to the revision read by this command.
     #[arg(long)]
     pub expected_revision: Option<String>,
@@ -1270,9 +1378,9 @@ fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
             "attachment",
             ["import", "attach", "detach", "verify"].as_slice(),
         ),
-        ("table", ["create", "rename", "delete"].as_slice()),
-        ("field", ["add", "rename", "delete"].as_slice()),
-        ("relation", ["add"].as_slice()),
+        ("table", ["create", "update", "rename", "delete"].as_slice()),
+        ("field", ["add", "update", "rename", "delete"].as_slice()),
+        ("relation", ["add", "update"].as_slice()),
         ("formula", ["preview", "add", "update", "delete"].as_slice()),
         ("lookup", ["add", "update", "delete"].as_slice()),
     ] {

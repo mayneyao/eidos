@@ -48,7 +48,7 @@ fn agent_can_create_query_mutate_and_validate_a_file() {
         "--table",
         "Tasks",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"},{"name":"Estimate","type":"integer"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Status","type":"select"},{"name":"Estimate","type":"integer"}]"#,
     ]);
     assert_eq!(created["file"]["revision"], "1");
     let default_table_id = created["file"]["defaultTableId"]
@@ -155,7 +155,7 @@ fn agent_can_import_attach_detach_and_verify_attachments() {
         "--label-field",
         "Title",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Files","type":"file"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Files","type":"file"}]"#,
     ]);
     let added = success(&[
         &file,
@@ -486,7 +486,7 @@ fn agent_can_create_a_calendar_view_from_stable_schema_ids() {
         "--label-field",
         "Title",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Due","type":"date"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Due","type":"date"}]"#,
     ]);
     let schema = success(&[&file, "schema", "Tasks"]);
     let table_id = schema["tables"][0]["id"].as_str().unwrap();
@@ -548,7 +548,7 @@ fn agent_can_create_update_preview_and_delete_view_by_intent() {
         "--label-field",
         "Title",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select","settings":{"options":[{"name":"todo"},{"name":"doing"}]}},{"name":"Due","type":"date"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Status","type":"select","settings":{"options":[{"name":"todo"},{"name":"doing"}]}},{"name":"Due","type":"date"}]"#,
     ]);
 
     let created = success(&[
@@ -630,7 +630,7 @@ fn agent_can_mutate_schema_by_table_field_and_relation_intent() {
         "--table",
         "Tasks",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Due","type":"date"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Due","type":"date"}]"#,
     ]);
 
     let preview = success(&[
@@ -675,7 +675,7 @@ fn agent_can_mutate_schema_by_table_field_and_relation_intent() {
         "--label-field",
         "Name",
         "--fields",
-        r#"[{"name":"Name","type":"text","nullable":false}]"#,
+        r#"[{"name":"Name","type":"text"}]"#,
     ]);
     assert_eq!(people["result"]["revision"], "3");
 
@@ -755,6 +755,255 @@ fn agent_can_mutate_schema_by_table_field_and_relation_intent() {
 }
 
 #[test]
+fn agent_can_update_table_field_and_relation_metadata_atomically() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("schema-update-intent.eidos"));
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Tasks",
+        "--label-field",
+        "Title",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Notes","type":"text"},{"name":"Estimate","type":"number"},{"name":"Status","type":"select"}]"#,
+    ]);
+    success(&[
+        &file,
+        "table",
+        "create",
+        "--name",
+        "People",
+        "--label-field",
+        "Name",
+        "--fields",
+        r#"[{"name":"Name","type":"text"}]"#,
+    ]);
+    success(&[
+        &file,
+        "rows",
+        "add",
+        "Tasks",
+        "--expected-revision",
+        "2",
+        "--values",
+        r##"{"Title":"Ship","Notes":"# Plan","Estimate":2.6,"Status":"todo"}"##,
+    ]);
+
+    let table_update = success(&[
+        &file,
+        "table",
+        "update",
+        "Tasks",
+        "--name",
+        "Work",
+        "--settings",
+        r#"{"icon":"check"}"#,
+        "--record-label",
+        "Title",
+        "--content-field",
+        "Notes",
+        "--position",
+        "9",
+        "--expected-revision",
+        "3",
+    ]);
+    assert_eq!(table_update["result"]["revision"], "4");
+    assert_eq!(
+        table_update["operation"]["changes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let work_schema = success(&[&file, "schema", "Work"]);
+    let fields = work_schema["tables"][0]["fields"].as_array().unwrap();
+    let title_id = fields
+        .iter()
+        .find(|field| field["name"] == "Title")
+        .unwrap()["id"]
+        .clone();
+    let notes_id = fields
+        .iter()
+        .find(|field| field["name"] == "Notes")
+        .unwrap()["id"]
+        .clone();
+    assert_eq!(work_schema["tables"][0]["name"], "Work");
+    assert_eq!(work_schema["tables"][0]["labelFieldId"], title_id);
+    assert_eq!(work_schema["tables"][0]["settings"]["icon"], "check");
+    assert_eq!(
+        work_schema["tables"][0]["settings"]["contentFieldId"],
+        notes_id
+    );
+    assert_eq!(work_schema["tables"][0]["position"], "9");
+
+    let conversion_preview = success(&[
+        &file,
+        "field",
+        "update",
+        "Estimate",
+        "--table",
+        "Work",
+        "--type",
+        "integer",
+        "--expected-revision",
+        "4",
+        "--dry-run",
+    ]);
+    assert_eq!(
+        conversion_preview["result"]["classification"],
+        "explicit-lossy"
+    );
+    assert!(conversion_preview["operation"].get("toNullable").is_none());
+    assert_eq!(
+        conversion_preview["operation"]["policies"][0],
+        "round-ties-even"
+    );
+    assert_eq!(success(&[&file, "inspect"])["revision"], "4");
+
+    let rejected = run_json(&[
+        &file,
+        "field",
+        "update",
+        "Estimate",
+        "--table",
+        "Work",
+        "--type",
+        "integer",
+        "--expected-revision",
+        "4",
+    ]);
+    assert!(!rejected.status.success());
+    let rejected_error: Value = serde_json::from_slice(&rejected.stderr).unwrap();
+    assert_eq!(
+        rejected_error["error"]["code"],
+        "lossy-confirmation-required"
+    );
+
+    let converted = success(&[
+        &file,
+        "field",
+        "update",
+        "Estimate",
+        "--table",
+        "Work",
+        "--type",
+        "integer",
+        "--settings",
+        r#"{"display":{"kind":"number"}}"#,
+        "--position",
+        "8",
+        "--confirm-lossy",
+        "--expected-revision",
+        "4",
+    ]);
+    assert_eq!(converted["result"]["revision"], "5");
+    let renamed_option = success(&[
+        &file,
+        "field",
+        "update",
+        "Status",
+        "--table",
+        "Work",
+        "--rename-options",
+        r#"[{"from":"todo","to":"backlog","collision":"reject"}]"#,
+        "--expected-revision",
+        "5",
+    ]);
+    assert_eq!(renamed_option["result"]["revision"], "6");
+    let rows = success(&[&file, "query", "Work", "--fields", "Title,Estimate,Status"]);
+    assert_eq!(rows["rows"][0]["Estimate"], "3");
+    assert_eq!(rows["rows"][0]["Status"], "backlog");
+
+    success(&[
+        &file,
+        "relation",
+        "add",
+        "--table",
+        "Work",
+        "--name",
+        "Owner",
+        "--target-table",
+        "People",
+        "--cardinality",
+        "one",
+        "--expected-revision",
+        "6",
+    ]);
+    let relation_update = success(&[
+        &file,
+        "relation",
+        "update",
+        "Owner",
+        "--table",
+        "Work",
+        "--cardinality",
+        "many",
+        "--on-delete",
+        "detach",
+        "--expected-revision",
+        "7",
+    ]);
+    assert_eq!(relation_update["result"]["revision"], "8");
+    let work_schema = success(&[&file, "schema", "Work"]);
+    assert_eq!(work_schema["relations"][0]["cardinality"], "many");
+    assert_eq!(work_schema["relations"][0]["onDelete"], "detach");
+
+    let made_default = success(&[
+        &file,
+        "table",
+        "update",
+        "People",
+        "--make-default",
+        "--expected-revision",
+        "8",
+    ]);
+    assert_eq!(made_default["result"]["revision"], "9");
+    let people_id = success(&[&file, "schema", "People"])["tables"][0]["id"].clone();
+    assert_eq!(
+        success(&[&file, "inspect"])["file"]["defaultTableId"],
+        people_id
+    );
+
+    let batch = success(&[
+        &file,
+        "schema-apply",
+        "--expected-revision",
+        "9",
+        "--op",
+        r#"{"kind":"batch","changes":[{"kind":"set-table-position","table":"People","position":"2"},{"kind":"set-field-position","table":"Work","field":"Title","position":"1"}]}"#,
+    ]);
+    assert_eq!(batch["result"]["revision"], "10");
+
+    let converted_content = success(&[
+        &file,
+        "field",
+        "update",
+        "Notes",
+        "--table",
+        "Work",
+        "--type",
+        "select",
+        "--expected-revision",
+        "10",
+    ]);
+    assert_eq!(converted_content["result"]["revision"], "11");
+    assert_eq!(
+        converted_content["operation"]["changes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let work_schema = success(&[&file, "schema", "Work"]);
+    assert!(
+        work_schema["tables"][0]["settings"]
+            .get("contentFieldId")
+            .is_none()
+    );
+}
+
+#[test]
 fn agent_can_upsert_and_batch_mutate_rows_atomically() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("row-intent.eidos"));
@@ -766,7 +1015,7 @@ fn agent_can_upsert_and_batch_mutate_rows_atomically() {
         "--label-field",
         "Title",
         "--fields",
-        r#"[{"name":"External ID","type":"text","nullable":false},{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]"#,
+        r#"[{"name":"External ID","type":"text"},{"name":"Title","type":"text"},{"name":"Status","type":"select"}]"#,
     ]);
 
     let preview = success(&[
@@ -884,7 +1133,7 @@ fn compact_context_and_atomic_apply_cover_the_common_agent_loop() {
         "--table",
         "Tasks",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select","settings":{"options":[{"name":"todo"},{"name":"doing"},{"name":"done"}]}}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Status","type":"select","settings":{"options":[{"name":"todo"},{"name":"doing"},{"name":"done"}]}}]"#,
     ]);
     let added = success(&[
         &file,
@@ -973,7 +1222,7 @@ fn apply_rolls_back_when_the_proposed_file_fails_validation() {
         "--table",
         "Tasks",
         "--fields",
-        r#"[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]"#,
+        r#"[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]"#,
     ]);
     let added = success(&[
         &file,
