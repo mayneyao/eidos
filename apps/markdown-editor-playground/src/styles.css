@@ -1,0 +1,171 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-width: 320px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.playground-shell {
+  --background: oklch(0.985 0.004 255);
+  --foreground: oklch(0.25 0.018 255);
+  --muted: oklch(0.95 0.008 255);
+  --muted-foreground: oklch(0.52 0.018 255);
+  --accent: oklch(0.92 0.016 255);
+  --border: oklch(0.88 0.01 255);
+  --ring: oklch(0.56 0.1 255);
+  --primary: oklch(0.48 0.11 255);
+  display: grid;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: 48px minmax(0, 1fr);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.playground-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playground-header h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.playground-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.playground-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  user-select: none;
+}
+
+.playground-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.playground-switch-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--muted);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.playground-switch-track::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  content: "";
+  transition: transform 120ms ease;
+}
+
+.playground-switch input:checked + .playground-switch-track {
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+
+.playground-switch input:checked + .playground-switch-track::after {
+  background: var(--background);
+  transform: translateX(12px);
+}
+
+.playground-switch input:focus-visible + .playground-switch-track {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.playground-header button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+
+.playground-header button:hover {
+  background: var(--accent);
+}
+
+.playground-header button[aria-pressed="true"] {
+  background: var(--accent);
+}
+
+.playground-header button:focus-visible,
+.playground-source:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.playground-content {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.playground-content > .eme-editor {
+  flex: 1;
+}
+
+.playground-source {
+  box-sizing: border-box;
+  width: min(100%, 52rem);
+  height: 100%;
+  margin: 0 auto;
+  resize: none;
+  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1.25rem, 5vw, 4rem) 5rem;
+  border: 0;
+  overflow: auto;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.playground-source:read-only {
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 620px) {
+  .playground-header {
+    padding: 0 16px;
+  }
+}

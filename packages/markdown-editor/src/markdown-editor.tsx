@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
@@ -19,6 +19,7 @@ import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 
 import { MARKDOWN_EDITOR_NODES } from "./editor-nodes"
 import { MARKDOWN_EDITOR_THEME } from "./editor-theme"
+import { CodeHighlightPlugin } from "./code-highlight-plugin"
 import { findUnsupportedMarkdownFeatures } from "./markdown-support"
 import { MarkdownStatePlugin } from "./markdown-state-plugin"
 import { EIDOS_MARKDOWN_TRANSFORMERS } from "./markdown-transformers"
@@ -71,15 +72,19 @@ function MarkdownEditorImplementation({
   readOnly = false,
   autoFocus = false,
   showToolbar = true,
+  codeHighlightTokenizer,
 }: MarkdownEditorProps) {
   const resolvedLabels = useMemo(
     () => ({ ...DEFAULT_LABELS, ...labels }),
     [labels]
   )
-  const handleError = (error: Error) => {
-    if (onError) onError(error)
-    else console.error(error)
-  }
+  const handleError = useCallback(
+    (error: Error) => {
+      if (onError) onError(error)
+      else console.error(error)
+    },
+    [onError]
+  )
   const initialConfig = useMemo<InitialConfigType>(
     () => ({
       namespace: "EidosMarkdownEditor",
@@ -150,6 +155,12 @@ function MarkdownEditorImplementation({
           <TablePlugin hasCellMerge={false} hasCellBackgroundColor={false} />
           <LinkPlugin validateUrl={safeLink} />
           <HorizontalRulePlugin />
+          {codeHighlightTokenizer === false ? null : (
+            <CodeHighlightPlugin
+              onError={handleError}
+              tokenizer={codeHighlightTokenizer}
+            />
+          )}
           <TabIndentationPlugin />
           <MarkdownShortcutPlugin
             transformers={[...EIDOS_MARKDOWN_TRANSFORMERS]}

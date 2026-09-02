@@ -17,6 +17,19 @@
     --control-fill,
     color-mix(in srgb, var(--eme-foreground) 6%, var(--eme-background))
   );
+  --eme-code-comment: oklch(0.5 0.025 255);
+  --eme-code-keyword: oklch(0.49 0.16 285);
+  --eme-code-operator: oklch(0.43 0.035 255);
+  --eme-code-string: oklch(0.48 0.115 155);
+  --eme-code-number: oklch(0.52 0.14 55);
+  --eme-code-function: oklch(0.47 0.13 245);
+  --eme-code-type: oklch(0.49 0.12 210);
+  --eme-code-variable: oklch(0.46 0.08 25);
+  --eme-code-property: oklch(0.47 0.11 245);
+  --eme-code-tag: oklch(0.46 0.13 145);
+  --eme-code-selector: oklch(0.49 0.14 310);
+  --eme-code-inserted: oklch(0.48 0.12 145);
+  --eme-code-deleted: oklch(0.5 0.16 25);
   box-sizing: border-box;
   display: flex;
   height: 100%;
@@ -37,7 +50,72 @@
 }
 
 .eme-editor[data-theme="dark"] {
+  --eme-code-comment: oklch(0.7 0.025 255);
+  --eme-code-keyword: oklch(0.75 0.14 300);
+  --eme-code-operator: oklch(0.78 0.025 255);
+  --eme-code-string: oklch(0.76 0.105 155);
+  --eme-code-number: oklch(0.76 0.12 70);
+  --eme-code-function: oklch(0.78 0.11 245);
+  --eme-code-type: oklch(0.78 0.1 210);
+  --eme-code-variable: oklch(0.78 0.08 35);
+  --eme-code-property: oklch(0.78 0.11 245);
+  --eme-code-tag: oklch(0.77 0.11 145);
+  --eme-code-selector: oklch(0.78 0.12 315);
+  --eme-code-inserted: oklch(0.76 0.1 145);
+  --eme-code-deleted: oklch(0.74 0.14 25);
   color-scheme: dark;
+}
+
+::highlight(eme-code-comment) {
+  color: var(--eme-code-comment);
+}
+
+::highlight(eme-code-keyword) {
+  color: var(--eme-code-keyword);
+}
+
+::highlight(eme-code-operator) {
+  color: var(--eme-code-operator);
+}
+
+::highlight(eme-code-string) {
+  color: var(--eme-code-string);
+}
+
+::highlight(eme-code-number) {
+  color: var(--eme-code-number);
+}
+
+::highlight(eme-code-function) {
+  color: var(--eme-code-function);
+}
+
+::highlight(eme-code-type) {
+  color: var(--eme-code-type);
+}
+
+::highlight(eme-code-variable) {
+  color: var(--eme-code-variable);
+}
+
+::highlight(eme-code-property) {
+  color: var(--eme-code-property);
+}
+
+::highlight(eme-code-tag) {
+  color: var(--eme-code-tag);
+}
+
+::highlight(eme-code-selector) {
+  color: var(--eme-code-selector);
+}
+
+::highlight(eme-code-inserted) {
+  color: var(--eme-code-inserted);
+}
+
+::highlight(eme-code-deleted) {
+  color: var(--eme-code-deleted);
 }
 
 .eme-editor *,
@@ -305,10 +383,14 @@
   list-style: none;
 }
 
+.eme-nested-list-item > .eme-check-list {
+  padding-left: 1.5rem;
+}
+
 .eme-list-item-checked,
 .eme-list-item-unchecked {
   position: relative;
-  padding-left: 1.6em;
+  padding-left: 1.5rem;
   list-style: none;
 }
 
@@ -332,7 +414,12 @@
 }
 
 .eme-nested-list-item {
+  padding-left: 0;
   list-style: none;
+}
+
+.eme-nested-list-item::before {
+  display: none;
 }
 
 .eme-link {

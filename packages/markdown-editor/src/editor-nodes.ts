@@ -1,4 +1,4 @@
-import { CodeNode } from "@lexical/code"
+import { CodeNode } from "@lexical/code-core"
 import { LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"

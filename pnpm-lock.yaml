@@ -459,7 +459,7 @@ importers:
         specifier: 4.114.0
         version: 4.114.0(@cloudflare/workers-types@5.20260727.1)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
 
-  apps/markdown-editor-demo:
+  apps/markdown-editor-playground:
     dependencies:
       '@eidos.space/markdown-editor':
         specifier: workspace:*
@@ -495,6 +495,9 @@ importers:
       vitest:
         specifier: ^3.2.6
         version: 3.2.6(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(supports-color@10.2.2)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+      wrangler:
+        specifier: 4.124.0
+        version: 4.124.0(@cloudflare/workers-types@5.20260821.1)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
 
   apps/sqlite-web-viewer:
     dependencies:
@@ -739,7 +742,7 @@ importers:
 
   packages/markdown-editor:
     dependencies:
-      '@lexical/code':
+      '@lexical/code-core':
         specifier: 0.49.0
         version: 0.49.0(typescript@5.8.3)
       '@lexical/link':
@@ -2564,22 +2567,6 @@ packages:
 
   '@lexical/code-core@0.49.0':
     resolution: {integrity: sha512-29sXI4ydcN/OyBJNlZXkGKtQXzfiIWet+YN20+wT97zkqityOvRilK6qzTRz9Cd0ungEPlJENqXQhsy6BJeXpg==}
-    peerDependencies:
-      typescript: '>=5.2'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@lexical/code-prism@0.49.0':
-    resolution: {integrity: sha512-Lg3q9bk/jt8CzMzAhvNCQvBZayICSx6hi6coVj353j3uokK4ABxTBItGOgumGgQibj3gIuYljJxRkn5XvoXWMQ==}
-    peerDependencies:
-      typescript: '>=5.2'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@lexical/code@0.49.0':
-    resolution: {integrity: sha512-beNU4j/95nqjIW91HLvV63mIjXMf3qEKe6qppU9bDEfp2L8ovBZeAjicDbIaCVZoOJSmOMd55ijl5h1jdFty1w==}
     peerDependencies:
       typescript: '>=5.2'
     peerDependenciesMeta:
@@ -11083,24 +11070,6 @@ snapshots:
       '@lexical/html': 0.49.0(typescript@5.8.3)
       '@lexical/internal': 0.49.0(typescript@5.8.3)
       '@lexical/utils': 0.49.0(typescript@5.8.3)
-      lexical: 0.49.0(typescript@5.8.3)
-    optionalDependencies:
-      typescript: 5.8.3
-
-  '@lexical/code-prism@0.49.0(typescript@5.8.3)':
-    dependencies:
-      '@lexical/code-core': 0.49.0(typescript@5.8.3)
-      '@lexical/extension': 0.49.0(typescript@5.8.3)
-      lexical: 0.49.0(typescript@5.8.3)
-      prismjs: 1.30.0
-    optionalDependencies:
-      typescript: 5.8.3
-
-  '@lexical/code@0.49.0(typescript@5.8.3)':
-    dependencies:
-      '@lexical/code-core': 0.49.0(typescript@5.8.3)
-      '@lexical/code-prism': 0.49.0(typescript@5.8.3)
-      '@lexical/extension': 0.49.0(typescript@5.8.3)
       lexical: 0.49.0(typescript@5.8.3)
     optionalDependencies:
       typescript: 5.8.3

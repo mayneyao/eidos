@@ -1,3 +1,5 @@
+import type { CodeHighlightTokenizer } from "./code-highlight-tokenizer"
+
 export type MarkdownEditorTheme = "light" | "dark"
 export type MarkdownEditorLayout = "document" | "embedded"
 
@@ -58,4 +60,6 @@ export interface MarkdownEditorProps {
   readOnly?: boolean
   autoFocus?: boolean
   showToolbar?: boolean
+  /** Custom fenced-code tokenizer, or false to disable syntax highlighting. */
+  codeHighlightTokenizer?: CodeHighlightTokenizer | false
 }

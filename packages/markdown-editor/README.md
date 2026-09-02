@@ -15,6 +15,12 @@ source editor without rewriting the document.
 Formatting controls are shown as a contextual toolbar when text is selected;
 the editor does not reserve permanent document space for a toolbar.
 
+Fenced code is highlighted with a dependency-free semantic tokenizer and the
+CSS Custom Highlight API. Highlighting does not add token elements to Lexical's
+DOM or alter the canonical Markdown, and unsupported browsers keep a plain,
+fully editable code block. Consumers that need another grammar can pass a
+`codeHighlightTokenizer`; pass `false` to disable syntax highlighting.
+
 Use `layout="document"` (the default) for a standalone Markdown file with
 reading margins. Use `layout="embedded"` for a Content field whose host already
 owns the content width. Both layouts inherit the host's editorial font so the

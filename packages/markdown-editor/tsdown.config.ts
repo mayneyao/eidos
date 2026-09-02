@@ -12,7 +12,7 @@ export default defineConfig({
       "react-dom",
       "react/jsx-runtime",
       "lexical",
-      "@lexical/code",
+      "@lexical/code-core",
       "@lexical/link",
       "@lexical/list",
       "@lexical/markdown",

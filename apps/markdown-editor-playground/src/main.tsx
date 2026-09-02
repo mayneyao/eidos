@@ -6,7 +6,7 @@ import "./styles.css"
 import { App } from "./app"
 
 const root = document.getElementById("root")
-if (!root) throw new Error("Markdown editor demo root is missing")
+if (!root) throw new Error("Markdown editor playground root is missing")
 
 createRoot(root).render(
   <StrictMode>

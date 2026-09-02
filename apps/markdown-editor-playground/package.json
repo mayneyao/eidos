@@ -1,11 +1,13 @@
 {
-  "name": "@eidos.space/markdown-editor-demo",
+  "name": "@eidos.space/markdown-editor-playground",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "pnpm run build && wrangler deploy",
+    "dry-run": "pnpm run build && wrangler deploy --dry-run",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
@@ -24,6 +26,7 @@
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "vite": "^8.1.5",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "wrangler": "4.124.0"
   }
 }
