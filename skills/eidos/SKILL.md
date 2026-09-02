@@ -155,7 +155,7 @@ eidos --json field add data.eidos \
 eidos --json table create data.eidos \
   --name People \
   --label-field Name \
-  --fields '[{"name":"Name","type":"text","nullable":false}]'
+  --fields '[{"name":"Name","type":"text"}]'
 
 eidos --json relation add data.eidos \
   --table Tasks \
@@ -163,18 +163,48 @@ eidos --json relation add data.eidos \
   --target-table People \
   --cardinality many \
   --on-delete detach
+
+eidos --json table update data.eidos Tasks \
+  --record-label Title \
+  --content-field Notes \
+  --position 1 \
+  --dry-run
+
+eidos --json field update data.eidos Estimate \
+  --table Tasks \
+  --type integer \
+  --dry-run
+
+eidos --json relation update data.eidos Owners \
+  --table Tasks \
+  --cardinality one \
+  --dry-run
 ```
 
-Use `table rename/delete` and `field rename/delete` for lifecycle changes;
-dry-run deletions and supply `--replacement-label-field` when removing a
-Table's current record-label Field. `--expected-revision` is optional for a
+Use `table update` for name, settings, record label, Markdown content Field,
+position, and default-Table changes. Use `field update` for name, settings,
+position, record-label selection, stored-type conversion, and atomic option
+renames. Conversion uses the editor's recommended Runtime policies by default;
+review the dry-run classification and add `--confirm-lossy` only when the real
+commit is intentionally lossy. File Fields are never converted: use attachment
+commands instead. Use `relation update` for target, cardinality, or deletion
+policy changes.
+
+Use `table rename/delete` and `field rename/delete` for simple lifecycle
+changes; dry-run deletions and supply `--replacement-label-field` when removing
+a Table's current record-label Field. `--expected-revision` is optional for a
 single command and defaults to the revision read at command start; pass the
-revision from a prior `context`, `inspect`, or dry-run when the mutation is
-part of a multi-step plan. Use `schema-apply` only for schema operation kinds
-or payload details not exposed by these intent commands.
+revision from a prior `context`, `inspect`, or dry-run when the mutation is part
+of a multi-step plan. Use `schema-apply` only for an atomic batch or schema
+payload details not exposed by these intent commands. The CLI intentionally
+does not expose Field nullability.
 
 Do not automatically retry a schema mutation after `stale-revision`; reload
 schema/context and re-plan the requested change.
+
+CLI invocations do not share Runtime mutation tokens, so there is no durable
+cross-command `undo`. Recover a committed mistake from Eidos Lite/Graft history
+or a known-good File copy; do not describe a dry run as an undo mechanism.
 
 ## Use Runtime Formula and Lookup intent
 

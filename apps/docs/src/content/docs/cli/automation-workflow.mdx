@@ -95,7 +95,25 @@ eidos --json relation add tracker.eidos \
   --table Tasks --name Owners --target-table People \
   --cardinality many --on-delete detach \
   --expected-revision 2
+
+eidos --json table update tracker.eidos Tasks \
+  --record-label Title --content-field Notes --dry-run
+
+eidos --json field update tracker.eidos Estimate \
+  --table Tasks --type integer --dry-run
+
+eidos --json relation update tracker.eidos Owners \
+  --table Tasks --cardinality one --dry-run
 ```
+
+`table update` covers name, settings, record label, Markdown content Field,
+position, and default-Table changes. `field update` covers name, settings,
+position, record-label selection, stored-type conversion, and atomic option
+renames. Conversion uses the editor's recommended policies by default; review
+the dry-run classification and pass `--confirm-lossy` only for an intentional
+`explicit-lossy` commit. File Fields use attachment commands and cannot be
+converted. `relation update` changes a forward Relation's target, cardinality,
+or deletion policy. Field nullability is intentionally not exposed.
 
 Use `rows upsert` when a caller has a stable business key but not a Row ID.
 It accepts one object or an array, updates the single matching row, and
@@ -231,6 +249,12 @@ eidos --json schema-apply tracker.eidos \
   --op @schema-change.json \
   --dry-run
 ```
+
+`schema-apply` also accepts Runtime schema batches and resolves Table and Field
+names in settings, position, record-label, conversion, option-rename, Relation,
+Formula, and Lookup operations. CLI invocations do not share Runtime mutation
+tokens, so committed changes have no cross-command `undo`; use authorized
+Eidos Lite/Graft history or a known-good File copy for recovery.
 
 Create a Calendar View from the stable Table and date/datetime Field IDs in
 `schema` output:

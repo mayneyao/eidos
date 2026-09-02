@@ -89,7 +89,23 @@ eidos --json relation add tracker.eidos \
   --table Tasks --name Owners --target-table People \
   --cardinality many --on-delete detach \
   --expected-revision 2
+
+eidos --json table update tracker.eidos Tasks \
+  --record-label Title --content-field Notes --dry-run
+
+eidos --json field update tracker.eidos Estimate \
+  --table Tasks --type integer --dry-run
+
+eidos --json relation update tracker.eidos Owners \
+  --table Tasks --cardinality one --dry-run
 ```
+
+`table update` 覆盖名称、设置、记录标签、Markdown 内容字段、位置和默认表修改。
+`field update` 覆盖名称、设置、位置、记录标签选择、存储类型转换和原子化选项改名。
+字段转换默认使用编辑器相同的推荐策略；先检查 dry-run 分类，只有确定接受
+`explicit-lossy` 影响时才在正式提交中添加 `--confirm-lossy`。File 字段不能转换，
+应使用 attachment 命令。`relation update` 用于修改 forward Relation 的目标表、基数或
+删除策略。CLI 不暴露字段 Nullable 设置。
 
 当调用方拥有稳定的业务键、但还没有 Row ID 时，使用 `rows upsert`。它接受一个对象或
 对象数组：匹配到一条记录就更新，没有匹配就新增。业务键必须是存储字段、值不能为空，
@@ -209,6 +225,11 @@ eidos --json schema-apply tracker.eidos \
   --op @schema-change.json \
   --dry-run
 ```
+
+`schema-apply` 也支持 Runtime Schema batch，并会在设置、位置、记录标签、类型转换、
+选项改名、Relation、Formula 和 Lookup 操作中解析 Table/Field 名称。不同 CLI 进程不会
+共享 Runtime mutation token，因此已提交修改没有跨命令 `undo`；需要恢复时，应在获得
+用户授权后使用 Eidos Lite/Graft 历史或已知良好的文件副本。
 
 从 `schema` 输出中取得稳定的 Table ID 与 `date` / `datetime` Field ID，即可创建
 Calendar View：

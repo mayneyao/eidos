@@ -205,16 +205,35 @@ target/debug/eidos --json field add tracker.eidos \
 
 target/debug/eidos --json table create tracker.eidos \
   --name People --label-field Name \
-  --fields '[{"name":"Name","type":"text","nullable":false}]'
+  --fields '[{"name":"Name","type":"text"}]'
 
 target/debug/eidos --json relation add tracker.eidos \
   --table Tasks --name Owners --target-table People --on-delete detach
+
+target/debug/eidos --json table update tracker.eidos Tasks \
+  --record-label Title --content-field Notes --position 1 --dry-run
+
+target/debug/eidos --json field update tracker.eidos Estimate \
+  --table Tasks --type integer --dry-run
+
+target/debug/eidos --json relation update tracker.eidos Owners \
+  --table Tasks --cardinality one --dry-run
 ```
 
-Use `table rename/delete` and `field rename/delete` for lifecycle changes.
-`schema-apply` remains available for supported schema payloads that need
-lower-level control. Formula and Lookup Fields use the embedded TypeScript
-Runtime for preflight, dependency checks, cycle detection, and commit:
+`table update` covers settings, record label, Markdown content Field,
+position, name, and default-Table changes. `field update` covers settings,
+position, name, record-label selection, stored-type conversion, and atomic
+Select/Multi-select option renames. `relation update` changes forward Relation
+definitions. Conversion uses recommended policies by default and requires
+`--confirm-lossy` when Runtime preflight reports `explicit-lossy`; File Fields
+must use attachment commands instead. Field nullability is intentionally not
+exposed.
+
+Use `table rename/delete` and `field rename/delete` for simple lifecycle
+changes. `schema-apply` remains available for atomic batches and supported
+schema payloads that need lower-level control. Formula and Lookup Fields use
+the embedded TypeScript Runtime for preflight, dependency checks, cycle
+detection, and commit:
 
 ```bash
 target/debug/eidos --json formula preview tracker.eidos \

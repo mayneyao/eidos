@@ -32,7 +32,7 @@ eidos --json create tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[
-    {"name":"Title","type":"text","nullable":false},
+    {"name":"Title","type":"text"},
     {"name":"Status","type":"select","settings":{"options":[{"name":"todo"},{"name":"doing"},{"name":"done"}]}},
     {"name":"Estimate","type":"integer"},
     {"name":"Tags","type":"multi-select"}
@@ -104,14 +104,35 @@ For a new Table or a forward Relation, use `table create` and `relation add`:
 ```bash
 eidos --json table create tracker.eidos \
   --name People --label-field Name \
-  --fields '[{"name":"Name","type":"text","nullable":false}]' \
+  --fields '[{"name":"Name","type":"text"}]' \
   --expected-revision 12 --dry-run
 
 eidos --json relation add tracker.eidos \
   --table Tasks --name Owners --target-table People \
   --cardinality many --on-delete detach \
   --expected-revision 13
+
+eidos --json table update tracker.eidos Tasks \
+  --record-label Title --content-field Notes \
+  --expected-revision 14 --dry-run
+
+eidos --json field update tracker.eidos Estimate \
+  --table Tasks --type integer \
+  --expected-revision 14 --dry-run
+
+eidos --json relation update tracker.eidos Owners \
+  --table Tasks --cardinality one \
+  --expected-revision 14 --dry-run
 ```
+
+`field update --type` uses the editor's recommended conversion policies unless
+one or more explicit `--policy` flags are supplied. Review `classification`,
+`affectedRows`, and warnings from the dry run. Only repeat an
+`explicit-lossy` mutation with `--confirm-lossy` when the loss is intended.
+File Fields cannot be converted; move their values through `attachment`
+commands. Rename Select or Multi-select values atomically with
+`field update --rename-options` rather than editing settings and rows in
+separate revisions.
 
 Use the lower-level form only when the schema operation needs a payload not
 covered by the intent flags:
@@ -133,7 +154,7 @@ eidos --json validate tracker.eidos --level full
 
 Treat every `createdObjects[].id` returned by the dry run as ephemeral. The real apply allocates different stable IDs.
 
-Adding a non-null scalar field to a non-empty table is rejected because existing rows would have no valid value. Add it nullable, populate it, and only use a later supported migration to strengthen the constraint.
+The CLI intentionally does not expose Field nullability controls. Use a Form View's required setting when a workflow needs required input without constraining the underlying table.
 
 ## Runtime-derived Fields
 
@@ -217,7 +238,7 @@ Create the target table first, capture the new revision, then create the Relatio
 ```bash
 eidos --json schema-apply tracker.eidos \
   --expected-revision 12 \
-  --op '{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text","nullable":false}],"labelField":"Name"}'
+  --op '{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text"}],"labelField":"Name"}'
 
 eidos --json schema-apply tracker.eidos \
   --expected-revision 13 \
@@ -233,7 +254,7 @@ eidos --json rows tracker.eidos update Tasks 019-task... \
 ```
 
 Supported `onDelete` policies are `restrict`, `detach`, and `preserve`.
-Even one-cardinality Relations use `[]` for unassigned and a one-item array for assigned values. Relation fields report `nullable:false` because their stored array is never SQL `NULL`; an empty array is the logical unassigned state.
+Even one-cardinality Relations use `[]` for unassigned and a one-item array for assigned values. An empty array is the logical unassigned state.
 
 ## Delete data
 
@@ -269,6 +290,12 @@ The CLI blocks deletion of system fields, referenced Relation targets, defaults,
 On `invalid-value` or `invalid-query`, read schema and correct logical types or field references. Do not coerce values by editing physical storage.
 
 On validation failure, stop further writes. Preserve the file, report diagnostics, and use Graft restore if the user authorizes it.
+
+The Runtime mutation token returned during a CLI command is session-local and
+is not a durable undo handle for a later process. The CLI therefore has no
+cross-command `undo`. Recover a committed mistake from authorized Graft
+history or a known-good File copy; a dry run only proves the planned mutation
+and never reverses an earlier commit.
 
 ## Review with Graft
 

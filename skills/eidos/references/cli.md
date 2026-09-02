@@ -104,7 +104,7 @@ eidos --json create tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[
-    {"name":"Title","type":"text","nullable":false},
+    {"name":"Title","type":"text"},
     {"name":"Status","type":"select"},
     {"name":"Estimate","type":"integer"},
     {"name":"Tags","type":"multi-select"}
@@ -323,23 +323,49 @@ eidos --json field add file.eidos \
 eidos --json table create file.eidos \
   --name People \
   --label-field Name \
-  --fields '[{"name":"Name","type":"text","nullable":false}]'
+  --fields '[{"name":"Name","type":"text"}]'
 
 eidos --json relation add file.eidos \
   --table Tasks --name Owners --target-table People \
   --cardinality many --on-delete detach
+
+eidos --json table update file.eidos Tasks \
+  --record-label Title --content-field Notes --position 1 --dry-run
+
+eidos --json field update file.eidos Estimate \
+  --table Tasks --type integer --dry-run
+
+eidos --json field update file.eidos Status \
+  --table Tasks \
+  --rename-options '[{"from":"todo","to":"backlog","collision":"reject"}]'
+
+eidos --json relation update file.eidos Owners \
+  --table Tasks --cardinality one --on-delete restrict --dry-run
 ```
 
-The lifecycle commands are `table rename`, `table delete`, `field rename`,
-and `field delete`. `field delete` accepts `--table` to disambiguate a name
-and `--replacement-label-field` when deleting the current record-label Field.
-All schema intent commands accept `--expected-revision` and `--dry-run`.
+`table update` can replace settings, change the record-label or Markdown
+content Field, change position, and make a Table the File default. The content
+Field must be an ordinary Text Field in the same Table; use
+`--clear-content-field` to remove it. `field update` can rename, replace
+settings, change position, select the record label, convert stored types, and
+rename Select/Multi-select options atomically. Conversion rejects File,
+Formula, and Lookup Fields; use attachment or derived-Field commands instead.
+Repeated `--policy` flags replace the recommended conversion policy set. A
+dry-run reports the Runtime classification; an `explicit-lossy` commit needs
+`--confirm-lossy`. `relation update` changes the target Table, cardinality, or
+deletion policy of a forward Relation.
+
+The remaining lifecycle commands are `table rename`, `table delete`,
+`field rename`, and `field delete`. `field delete` accepts `--table` to disambiguate a
+name and `--replacement-label-field` when deleting the current record-label
+Field. All schema intent commands accept `--expected-revision` and `--dry-run`.
 When the expected revision is omitted, the CLI uses the revision read when the
 command starts. Formula and Lookup Fields use the canonical TypeScript Runtime
 for preflight, dependency checks, and commit; `field add --type formula|lookup`
 also accepts their Runtime definitions. `table create` can include Formula
 fields in its initial field array; Relation and Lookup fields are added after
-their referenced Tables/Fields exist.
+their referenced Tables/Fields exist. Field nullability is intentionally not a
+public CLI setting.
 
 ## Runtime Formula and Lookup commands
 
@@ -429,20 +455,36 @@ eidos --json schema-apply file.eidos \
   --op '{"kind":"create-field","table":"Tasks","name":"Owner","type":"text"}'
 ```
 
-Supported operations:
+Supported operations include the following. References may use a display name
+or stable ID. A `batch` runs all leaves in one Runtime transaction:
 
 ```json
-{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text","nullable":false}],"labelField":"Name"}
+{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text"}],"labelField":"Name"}
 {"kind":"create-field","table":"Tasks","name":"Due","type":"date"}
 {"kind":"create-field","table":"Tasks","field":{"name":"Due","type":"date"}}
 {"kind":"rename-table","table":"Tasks","name":"Work"}
+{"kind":"set-table-settings","table":"Tasks","settings":{"contentFieldId":"019..."}}
+{"kind":"set-table-position","table":"Tasks","position":"1"}
 {"kind":"rename-field","table":"Tasks","field":"Due","name":"Deadline"}
+{"kind":"set-field-settings","table":"Tasks","field":"Status","settings":{"options":[]}}
+{"kind":"set-field-position","table":"Tasks","field":"Status","position":"2"}
+{"kind":"set-record-label","table":"Tasks","field":"Title"}
+{"kind":"convert-field","table":"Tasks","field":"Estimate","to":"integer"}
+{"kind":"rename-option","table":"Tasks","field":"Status","from":"todo","to":"backlog","collision":"reject"}
+{"kind":"set-relation","table":"Tasks","field":"Owners","definition":{"direction":"forward","targetTable":"People","cardinality":"one","onDelete":"restrict"}}
 {"kind":"delete-field","table":"Tasks","field":"Deadline"}
 {"kind":"delete-table","table":"Archive"}
 {"kind":"set-file-title","title":"Work Tracker"}
 {"kind":"set-default-table","table":"Tasks"}
 {"kind":"set-default-table","table":null}
+{"kind":"batch","changes":[{"kind":"set-table-position","table":"Tasks","position":"1"},{"kind":"set-field-position","table":"Tasks","field":"Title","position":"1"}]}
 ```
+
+For scalar `convert-field` targets, omit `toNullable`; the CLI derives the
+internal value while keeping nullability outside the public workflow. For
+Relation conversion, provide a forward `definition`. Formula and Lookup
+definitions use `set-formula` and `set-lookup`, normally through their
+high-level commands.
 
 Forward Relation field:
 
@@ -602,15 +644,14 @@ bodies are limited to 4 MiB in the initial service.
 
 ## Logical values
 
-- `text`, `url`, `select`: JSON string or `null` when nullable.
+- `text`, `url`, `select`: JSON string or `null`.
 - `integer`: canonical decimal string is preferred; integral JSON numbers are accepted within the safe range.
 - `number`: finite JSON number.
 - `checkbox`: JSON boolean.
 - `date`: `YYYY-MM-DD`.
 - `datetime`: UTC instant such as `2026-07-25T12:00:00.000Z`.
 - `multi-select`: unique JSON string array.
-- `relation`: unique row-ID array. A one-cardinality Relation uses `[]` when unassigned and a one-item array when assigned; `nullable:false` means the stored array itself is never SQL `NULL`.
-- `json`: JSON value encoded according to the format runtime.
+- `relation`: unique row-ID array. A one-cardinality Relation uses `[]` when unassigned and a one-item array when assigned.
 - `file`: array of Eidos File entry objects.
 
 Do not send values for `_id`, `_created_at`, or `_updated_at` when creating rows. Read `_id` from results.
