@@ -7,7 +7,10 @@ import {
 } from "../markdown/efm-document"
 import { EIDOS_MARKDOWN_TRANSFORMERS } from "../markdown/markdown-transformers"
 import { MARKDOWN_EDITOR_NODES } from "../nodes/node-registry"
-import { $moveListItem } from "./list-item-shortcuts-plugin"
+import {
+  $moveListItem,
+  $toggleListItemChecked,
+} from "./list-item-shortcuts-plugin"
 
 const ORIGINAL = [
   "- Alpha",
@@ -146,5 +149,51 @@ describe("list item movement", () => {
     )
 
     expect(readMarkdown(editor)).toBe("- First\n- Second")
+  })
+})
+
+describe("checklist item toggle", () => {
+  it("toggles a task item without converting an ordinary list item", () => {
+    const taskEditor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    taskEditor.update(
+      () =>
+        $convertFromEfmMarkdownString(
+          "- [ ] Todo\n- [x] Done",
+          EIDOS_MARKDOWN_TRANSFORMERS
+        ),
+      { discrete: true }
+    )
+
+    taskEditor.update(
+      () => {
+        const list = $getRoot().getFirstChild()
+        expect($isListNode(list)).toBe(true)
+        if (!$isListNode(list)) return
+        expect($toggleListItemChecked(listItems(list)[0])).toBe(true)
+      },
+      { discrete: true }
+    )
+
+    expect(readMarkdown(taskEditor)).toBe("- [x] Todo\n- [x] Done")
+
+    const bulletEditor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    bulletEditor.update(
+      () =>
+        $convertFromEfmMarkdownString(
+          "- Ordinary",
+          EIDOS_MARKDOWN_TRANSFORMERS
+        ),
+      { discrete: true }
+    )
+    bulletEditor.update(
+      () => {
+        const list = $getRoot().getFirstChild()
+        expect($isListNode(list)).toBe(true)
+        if (!$isListNode(list)) return
+        expect($toggleListItemChecked(listItems(list)[0])).toBe(false)
+      },
+      { discrete: true }
+    )
+    expect(readMarkdown(bulletEditor)).toBe("- Ordinary")
   })
 })

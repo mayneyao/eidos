@@ -9,6 +9,7 @@ import {
 } from "lexical"
 
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import type { CompiledMarkdownPluginToolbarItem } from "../plugin-system/plugin-api"
 import type { MarkdownEditorLabels } from "../types"
 
 function ToolbarButton({
@@ -43,8 +44,10 @@ function ToolbarButton({
 }
 
 export function FloatingToolbarPlugin({
+  items,
   labels,
 }: {
+  items: readonly CompiledMarkdownPluginToolbarItem[]
   labels: MarkdownEditorLabels
 }) {
   const [editor] = useLexicalComposerContext()
@@ -53,11 +56,9 @@ export function FloatingToolbarPlugin({
   const animationFrameRef = useRef(0)
   const updateFrameRef = useRef(0)
   const [visible, setVisible] = useState(false)
-  const [bold, setBold] = useState(false)
-  const [italic, setItalic] = useState(false)
-  const [strikethrough, setStrikethrough] = useState(false)
-  const [highlight, setHighlight] = useState(false)
-  const [inlineCode, setInlineCode] = useState(false)
+  const [activeItems, setActiveItems] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
 
   const updateToolbar = useCallback(() => {
     const selection = $getSelection()
@@ -79,11 +80,19 @@ export function FloatingToolbarPlugin({
       return
     }
 
-    setBold(selection.hasFormat("bold"))
-    setItalic(selection.hasFormat("italic"))
-    setStrikethrough(selection.hasFormat("strikethrough"))
-    setHighlight(selection.hasFormat("highlight"))
-    setInlineCode(selection.hasFormat("code"))
+    setActiveItems(
+      new Set(
+        items
+          .filter((item) =>
+            item.isActive
+              ? item.isActive(selection)
+              : item.format
+                ? selection.hasFormat(item.format)
+                : false
+          )
+          .map((item) => item.id)
+      )
+    )
     setVisible(true)
 
     const range = domSelection.getRangeAt(0)
@@ -104,7 +113,7 @@ export function FloatingToolbarPlugin({
       )
       toolbar.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`
     })
-  }, [editor])
+  }, [editor, items])
 
   const updateFromEditorState = useCallback(() => {
     editor.getEditorState().read(updateToolbar)
@@ -155,47 +164,31 @@ export function FloatingToolbarPlugin({
       aria-label="Text formatting"
       aria-hidden={!visible}
     >
-      <ToolbarButton
-        active={bold}
-        ariaKeyShortcuts={ariaKeys("format.bold")}
-        label={labels.bold}
-        shortcut={shortcutLabel("format.bold")}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
-      >
-        B
-      </ToolbarButton>
-      <ToolbarButton
-        active={italic}
-        ariaKeyShortcuts={ariaKeys("format.italic")}
-        label={labels.italic}
-        shortcut={shortcutLabel("format.italic")}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
-      >
-        I
-      </ToolbarButton>
-      <ToolbarButton
-        active={strikethrough}
-        label={labels.strikethrough}
-        onClick={() =>
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough")
-        }
-      >
-        S
-      </ToolbarButton>
-      <ToolbarButton
-        active={highlight}
-        label={labels.highlight}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "highlight")}
-      >
-        ==
-      </ToolbarButton>
-      <ToolbarButton
-        active={inlineCode}
-        label={labels.inlineCode}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")}
-      >
-        &lt;/&gt;
-      </ToolbarButton>
+      {items.map((item) => {
+        const label = item.labelKey ? labels[item.labelKey] : item.label
+        if (!label) return null
+        return (
+          <ToolbarButton
+            key={`${item.pluginId}:${item.id}`}
+            active={activeItems.has(item.id)}
+            ariaKeyShortcuts={
+              item.shortcutId ? ariaKeys(item.shortcutId) : undefined
+            }
+            label={label}
+            shortcut={
+              item.shortcutId ? shortcutLabel(item.shortcutId) : undefined
+            }
+            onClick={() => {
+              if (item.execute) item.execute(editor)
+              else if (item.format) {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, item.format)
+              }
+            }}
+          >
+            {item.glyph}
+          </ToolbarButton>
+        )
+      })}
     </div>
   )
 }

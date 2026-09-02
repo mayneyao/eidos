@@ -14,7 +14,7 @@ vi.mock("./pierre-text-editor-surface", () => ({
   },
 }))
 
-vi.mock("@eidos.space/markdown-editor", () => ({
+vi.mock("@eidos.space/markdown", () => ({
   MarkdownEditor: (props: Record<string, unknown>) => {
     wysiwygEditor(props)
     return <div data-testid="wysiwyg-editor" />

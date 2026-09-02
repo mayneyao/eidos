@@ -6,13 +6,14 @@ import {
   matchesMarkdownShortcut,
   resolveMarkdownShortcuts,
   type KeyboardShortcutEvent,
+  type MarkdownShortcutDefinition,
   type MarkdownShortcutId,
   type MarkdownShortcutOverrides,
   type ResolvedMarkdownShortcuts,
   type ShortcutDisplayPlatform,
 } from "./shortcut-registry"
 
-interface MarkdownShortcutContextValue {
+export interface MarkdownShortcutContextValue {
   ariaKeys(
     ids: MarkdownShortcutId | readonly MarkdownShortcutId[]
   ): string | undefined
@@ -39,14 +40,16 @@ const MarkdownShortcutContext =
 
 export function MarkdownShortcutProvider({
   children,
+  definitions,
   overrides,
 }: {
   children: ReactNode
+  definitions?: Readonly<Record<string, MarkdownShortcutDefinition>>
   overrides?: MarkdownShortcutOverrides
 }) {
   const shortcuts = useMemo(
-    () => resolveMarkdownShortcuts(overrides),
-    [overrides]
+    () => resolveMarkdownShortcuts(overrides, definitions),
+    [definitions, overrides]
   )
   const value = useMemo<MarkdownShortcutContextValue>(() => {
     const platform = displayPlatform()

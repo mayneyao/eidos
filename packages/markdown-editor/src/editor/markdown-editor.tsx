@@ -16,7 +16,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 
-import { MARKDOWN_EDITOR_NODES } from "../nodes/node-registry"
+import { MARKDOWN_EDITOR_CORE_NODES } from "../nodes/node-registry"
 import { MARKDOWN_EDITOR_THEME } from "./editor-theme"
 import {
   $convertFromEfmMarkdownString,
@@ -24,12 +24,16 @@ import {
 } from "../markdown/efm-document"
 import { resolveEfmResourceUri } from "../markdown/efm-uri"
 import { unsupportedMarkdownFeaturesFromDiagnostics } from "../markdown/markdown-support"
-import { EIDOS_MARKDOWN_TRANSFORMERS } from "../markdown/markdown-transformers"
+import { compileMarkdownPlugins } from "../plugin-system/plugin-compiler"
+import { EIDOS_MARKDOWN_PLUGIN_REGISTRY } from "../plugin-system/builtins"
+import { MARKDOWN_FEATURES } from "../plugin-system/feature-ids"
+import type { CompiledMarkdownPlugins } from "../plugin-system/plugin-api"
 import { BlockMarqueeSelectionPlugin } from "../plugins/block-marquee-selection-plugin"
 import { ClipboardImagePlugin } from "../plugins/clipboard-image-plugin"
 import { CodeHighlightPlugin } from "../plugins/code-highlight-plugin"
 import { EditorShortcutsPlugin } from "../plugins/editor-shortcuts-plugin"
 import { InsertBlockPlugin } from "../plugins/insert-block-plugin"
+import { InternalNavigationPlugin } from "../plugins/internal-navigation-plugin"
 import { ListItemShortcutsPlugin } from "../plugins/list-item-shortcuts-plugin"
 import { MarkdownStatePlugin } from "../plugins/markdown-state-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
@@ -67,8 +71,8 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   insert: "Insert",
   basicBlocks: "Basic",
   extendedBlocks: "Rich content",
-  mathBlock: "Formula",
-  inlineMath: "Inline formula",
+  mathBlock: "Block equation",
+  inlineMath: "Inline equation",
   frontmatter: "Document properties",
   image: "Image",
   footnote: "Footnote",
@@ -97,6 +101,69 @@ function resolveActiveLink(url: string, baseUri?: string): string | null {
   return resolveEfmResourceUri(url, baseUri)
 }
 
+function MarkdownDiagnostics({
+  markdown,
+  inputProfile,
+  baseUri,
+  onEfmDiagnostics,
+  onUnsupportedMarkdown,
+  syntaxFeatures,
+}: Pick<
+  MarkdownEditorProps,
+  | "markdown"
+  | "inputProfile"
+  | "baseUri"
+  | "onEfmDiagnostics"
+  | "onUnsupportedMarkdown"
+> & { syntaxFeatures: ReadonlySet<string> }) {
+  useEffect(() => {
+    if (!onEfmDiagnostics && !onUnsupportedMarkdown) return
+
+    let cancelled = false
+    const analyze = () => {
+      if (cancelled) return
+      const analysis = analyzeEfmMarkdown(markdown, {
+        inputProfile,
+        baseUri,
+        syntaxFeatures,
+      })
+      if (cancelled) return
+      onEfmDiagnostics?.(analysis.diagnostics)
+      const unsupported = unsupportedMarkdownFeaturesFromDiagnostics(
+        analysis.diagnostics
+      )
+      if (unsupported.length > 0) onUnsupportedMarkdown?.(unsupported)
+    }
+    const idleWindow = window as Window & {
+      cancelIdleCallback?(handle: number): void
+      requestIdleCallback?(
+        callback: () => void,
+        options?: { timeout: number }
+      ): number
+    }
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(analyze, { timeout: 250 })
+      return () => {
+        cancelled = true
+        idleWindow.cancelIdleCallback?.(handle)
+      }
+    }
+    const handle = window.setTimeout(analyze, 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(handle)
+    }
+  }, [
+    baseUri,
+    inputProfile,
+    markdown,
+    onEfmDiagnostics,
+    onUnsupportedMarkdown,
+    syntaxFeatures,
+  ])
+  return null
+}
+
 function MarkdownEditorImplementation({
   documentKey,
   markdown,
@@ -115,7 +182,8 @@ function MarkdownEditorImplementation({
   codeHighlightTokenizer,
   inputProfile = "document",
   baseUri,
-}: MarkdownEditorProps) {
+  registry,
+}: MarkdownEditorProps & { registry: CompiledMarkdownPlugins }) {
   const { ariaKeys } = useMarkdownShortcuts()
   const resolvedLabels = useMemo(
     () => ({ ...DEFAULT_LABELS, ...labels }),
@@ -132,12 +200,13 @@ function MarkdownEditorImplementation({
     () => ({
       namespace: "EidosMarkdownEditor",
       editable: !readOnly,
-      nodes: [...MARKDOWN_EDITOR_NODES],
+      nodes: [...MARKDOWN_EDITOR_CORE_NODES, ...registry.nodes],
       theme: MARKDOWN_EDITOR_THEME,
       editorState: () => {
-        $convertFromEfmMarkdownString(markdown, EIDOS_MARKDOWN_TRANSFORMERS, {
+        $convertFromEfmMarkdownString(markdown, registry.transformers, {
           inputProfile,
           baseUri,
+          syntaxFeatures: registry.features,
         })
       },
       onError: handleError,
@@ -163,7 +232,10 @@ function MarkdownEditorImplementation({
       <LexicalComposer initialConfig={initialConfig}>
         <div className="eme-editor-shell">
           {!readOnly && showToolbar ? (
-            <FloatingToolbarPlugin labels={resolvedLabels} />
+            <FloatingToolbarPlugin
+              items={registry.toolbar}
+              labels={resolvedLabels}
+            />
           ) : null}
           <div
             className="eme-editor-stage"
@@ -207,6 +279,7 @@ function MarkdownEditorImplementation({
                     "selection.clear",
                     "list-item.move-up",
                     "list-item.move-down",
+                    "list-item.toggle-checked",
                   ])}
                 />
               }
@@ -218,37 +291,56 @@ function MarkdownEditorImplementation({
               ErrorBoundary={LexicalErrorBoundary}
             />
             <BlockMarqueeSelectionPlugin />
-            <ClipboardImagePlugin
-              baseUri={baseUri}
-              documentKey={documentKey}
-              onError={handleError}
-              onPasteImage={onPasteImage}
-              readOnly={readOnly}
-            />
+            <InternalNavigationPlugin />
+            {registry.features.has(MARKDOWN_FEATURES.image) ? (
+              <ClipboardImagePlugin
+                baseUri={baseUri}
+                documentKey={documentKey}
+                onError={handleError}
+                onPasteImage={onPasteImage}
+                readOnly={readOnly}
+              />
+            ) : null}
             <HistoryPlugin />
             <EditorShortcutsPlugin />
-            <ListPlugin />
-            <ListItemShortcutsPlugin />
-            <CheckListPlugin />
-            <TablePlugin hasCellMerge={false} hasCellBackgroundColor={false} />
-            <LinkPlugin
-              validateUrl={(url) => resolveActiveLink(url, baseUri) !== null}
-            />
-            <HorizontalRulePlugin />
-            {codeHighlightTokenizer === false ? null : (
+            {registry.features.has(MARKDOWN_FEATURES.list) ? (
+              <>
+                <ListPlugin />
+                <ListItemShortcutsPlugin />
+                <TabIndentationPlugin />
+              </>
+            ) : null}
+            {registry.features.has(MARKDOWN_FEATURES.gfmTaskList) ? (
+              <CheckListPlugin />
+            ) : null}
+            {registry.features.has(MARKDOWN_FEATURES.gfmTable) ? (
+              <TablePlugin
+                hasCellMerge={false}
+                hasCellBackgroundColor={false}
+              />
+            ) : null}
+            {registry.features.has(MARKDOWN_FEATURES.link) ? (
+              <LinkPlugin
+                validateUrl={(url) => resolveActiveLink(url, baseUri) !== null}
+              />
+            ) : null}
+            {registry.features.has(MARKDOWN_FEATURES.thematicBreak) ? (
+              <HorizontalRulePlugin />
+            ) : null}
+            {codeHighlightTokenizer === false ||
+            !registry.features.has(MARKDOWN_FEATURES.code) ? null : (
               <CodeHighlightPlugin
                 onError={handleError}
                 tokenizer={codeHighlightTokenizer}
               />
             )}
-            <TabIndentationPlugin />
-            <MarkdownShortcutPlugin
-              transformers={[...EIDOS_MARKDOWN_TRANSFORMERS]}
-            />
+            <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
             {!readOnly && showToolbar ? (
               <InsertBlockPlugin
                 inputProfile={inputProfile}
+                insertions={registry.insertions}
                 labels={resolvedLabels}
+                onError={handleError}
               />
             ) : null}
             <MarkdownStatePlugin
@@ -259,7 +351,20 @@ function MarkdownEditorImplementation({
               onError={handleError}
               inputProfile={inputProfile}
               baseUri={baseUri}
+              syntaxFeatures={registry.features}
+              transformers={registry.transformers}
             />
+            {registry.behaviors.map(({ component: Behavior, id, pluginId }) => (
+              <Behavior
+                key={`${pluginId}:${id}`}
+                baseUri={baseUri}
+                documentKey={documentKey}
+                inputProfile={inputProfile}
+                labels={resolvedLabels}
+                onError={handleError}
+                readOnly={readOnly}
+              />
+            ))}
             {autoFocus && !readOnly ? <AutoFocusPlugin /> : null}
           </div>
         </div>
@@ -269,26 +374,13 @@ function MarkdownEditorImplementation({
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {
-  const analysis = useMemo(
+  const registry = useMemo(
     () =>
-      analyzeEfmMarkdown(props.markdown, {
-        inputProfile: props.inputProfile,
-        baseUri: props.baseUri,
-      }),
-    [props.baseUri, props.inputProfile, props.markdown]
+      props.plugins
+        ? compileMarkdownPlugins(props.plugins)
+        : EIDOS_MARKDOWN_PLUGIN_REGISTRY,
+    [props.plugins]
   )
-  const unsupported = useMemo(
-    () => unsupportedMarkdownFeaturesFromDiagnostics(analysis.diagnostics),
-    [analysis.diagnostics]
-  )
-  useEffect(() => {
-    if (unsupported.length > 0) props.onUnsupportedMarkdown?.(unsupported)
-  }, [props.onUnsupportedMarkdown, unsupported])
-
-  useEffect(() => {
-    props.onEfmDiagnostics?.(analysis.diagnostics)
-  }, [analysis.diagnostics, props.onEfmDiagnostics])
-
   return (
     <section
       className={`eme-editor${props.className ? ` ${props.className}` : ""}`}
@@ -296,8 +388,16 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       data-theme={props.theme ?? "light"}
       data-layout={props.layout ?? "document"}
     >
-      <MarkdownShortcutProvider overrides={props.shortcuts}>
-        <MarkdownEditorImplementation key={props.documentKey} {...props} />
+      <MarkdownDiagnostics {...props} syntaxFeatures={registry.features} />
+      <MarkdownShortcutProvider
+        definitions={registry.shortcuts}
+        overrides={props.shortcuts}
+      >
+        <MarkdownEditorImplementation
+          key={`${props.documentKey}:${registry.signature}`}
+          {...props}
+          registry={registry}
+        />
       </MarkdownShortcutProvider>
     </section>
   )

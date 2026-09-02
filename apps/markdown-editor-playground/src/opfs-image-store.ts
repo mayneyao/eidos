@@ -2,11 +2,16 @@ import type {
   MarkdownEditorPasteImageRequest,
   MarkdownEditorPastedImage,
   MarkdownEditorResolveImageUrlRequest,
-} from "@eidos.space/markdown-editor"
+} from "@eidos.space/markdown"
 
 const STORAGE_DIRECTORY = "markdown-editor-playground"
 const IMAGE_DIRECTORY = "images"
 const IMAGE_URL_PREFIX = `opfs://${STORAGE_DIRECTORY}/${IMAGE_DIRECTORY}/`
+const DEFAULT_ORPHAN_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
+
+type IterableFileSystemDirectoryHandle = FileSystemDirectoryHandle & {
+  entries(): AsyncIterableIterator<[string, FileSystemHandle]>
+}
 
 const MIME_EXTENSIONS: Readonly<Record<string, string>> = {
   "image/avif": "avif",
@@ -40,6 +45,16 @@ function fileNameFromMarkdownUrl(markdownUrl: string): string | null {
   } catch {
     return null
   }
+}
+
+export function referencedOpfsImageFileNames(markdown: string): Set<string> {
+  const names = new Set<string>()
+  const pattern = new RegExp(
+    `${IMAGE_URL_PREFIX.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}([a-f0-9-]+\\.[a-z0-9]{1,10})`,
+    "giu"
+  )
+  for (const match of markdown.matchAll(pattern)) names.add(match[1])
+  return names
 }
 
 export class PlaygroundOpfsImageStore {
@@ -123,6 +138,29 @@ export class PlaygroundOpfsImageStore {
     const file = await handle.getFile()
     abortIfNeeded(signal)
     return this.#displayUrl(markdownUrl, file)
+  }
+
+  async sweepUnusedImages(
+    markdown: string,
+    options: { minimumAgeMs?: number; now?: number } = {}
+  ): Promise<void> {
+    const referenced = referencedOpfsImageFileNames(markdown)
+    const minimumAgeMs = options.minimumAgeMs ?? DEFAULT_ORPHAN_GRACE_PERIOD_MS
+    const now = options.now ?? Date.now()
+    const directory = await this.#directory()
+
+    for await (const [name, handle] of (
+      directory as IterableFileSystemDirectoryHandle
+    ).entries()) {
+      if (handle.kind !== "file" || referenced.has(name)) continue
+      const file = await (handle as FileSystemFileHandle).getFile()
+      if (now - file.lastModified < minimumAgeMs) continue
+      await directory.removeEntry(name)
+      const markdownUrl = `${IMAGE_URL_PREFIX}${name}`
+      const objectUrl = this.#objectUrls.get(markdownUrl)
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      this.#objectUrls.delete(markdownUrl)
+    }
   }
 
   dispose(): void {

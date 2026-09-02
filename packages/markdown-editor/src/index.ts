@@ -21,13 +21,35 @@ export {
 } from "./markdown/efm-document"
 export { EIDOS_MARKDOWN_TRANSFORMERS } from "./markdown/markdown-transformers"
 export {
+  compileMarkdownPlugins,
+  defineMarkdownPlugin,
+  defineMarkdownPlugins,
+  MARKDOWN_FEATURES,
+  MARKDOWN_PLUGIN_API_VERSION,
+} from "./plugin-system"
+export {
+  commonmarkPlugin,
+  EIDOS_MARKDOWN_PLUGIN_REGISTRY,
+  eidosMarkdownPlugins,
+  footnotePlugin,
+  frontmatterPlugin,
+  gfmPlugin,
+  highlightPlugin,
+  imagePlugin,
+  mathPlugin,
+  rawHtmlPlugin,
+  referencePlugin,
+} from "./plugin-system/builtins"
+export {
   DEFAULT_MARKDOWN_SHORTCUTS,
   markdownShortcutAriaKeys,
   markdownShortcutConflicts,
   markdownShortcutLabel,
+  markdownShortcutLabels,
   matchesMarkdownShortcut,
   resolveMarkdownShortcuts,
 } from "./shortcuts/shortcut-registry"
+export { useMarkdownShortcuts } from "./shortcuts/shortcut-context"
 
 // Public Lexical node definitions for advanced consumers
 export {
@@ -52,6 +74,7 @@ export type {
   CodeHighlightTokenizer,
 } from "./highlighting/code-highlight-tokenizer"
 export type {
+  BuiltInMarkdownShortcutId,
   KeyboardShortcutEvent,
   MarkdownShortcutBinding,
   MarkdownShortcutDefinition,
@@ -61,6 +84,25 @@ export type {
   ResolvedMarkdownShortcuts,
   ShortcutDisplayPlatform,
 } from "./shortcuts/shortcut-registry"
+export type { MarkdownShortcutContextValue } from "./shortcuts/shortcut-context"
+export type {
+  CompiledMarkdownPluginBehavior,
+  CompiledMarkdownPluginInsertion,
+  CompiledMarkdownPluginToolbarItem,
+  CompiledMarkdownPlugins,
+  MarkdownFeatureId,
+  MarkdownInsertionContext,
+  MarkdownInsertionPlacement,
+  MarkdownInsertionSection,
+  MarkdownPlugin,
+  MarkdownPluginApiVersion,
+  MarkdownPluginBehavior,
+  MarkdownPluginBehaviorProps,
+  MarkdownPluginInsertion,
+  MarkdownPluginInsertionExecutionContext,
+  MarkdownPluginToolbarItem,
+  MarkdownTransformerContribution,
+} from "./plugin-system"
 export type {
   EfmDiagnostic,
   EfmInputProfile,

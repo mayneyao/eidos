@@ -2,6 +2,7 @@ import {
   markdownShortcutAriaKeys,
   markdownShortcutConflicts,
   markdownShortcutLabel,
+  markdownShortcutLabels,
   matchesMarkdownShortcut,
   resolveMarkdownShortcuts,
 } from "./shortcut-registry"
@@ -56,6 +57,12 @@ describe("Markdown shortcut registry", () => {
         "list-item.move-up"
       )
     ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "Enter", metaKey: true }),
+        "list-item.toggle-checked"
+      )
+    ).toBe(true)
   })
 
   it("supports host overrides, disabling, labels, and aria keys", () => {
@@ -71,11 +78,42 @@ describe("Markdown shortcut registry", () => {
       )
     ).toBe(true)
     expect(markdownShortcutLabel("document.save", "mac", shortcuts)).toBe("⌥S")
+    expect(markdownShortcutLabels("history.redo", "mac", shortcuts)).toEqual([
+      "⌘⇧Z",
+      "⌘Y",
+    ])
     expect(markdownShortcutLabel("format.bold", "mac", shortcuts)).toBe(
       undefined
     )
     expect(markdownShortcutAriaKeys("list-item.move-down")).toBe(
       "Alt+ArrowDown"
+    )
+    expect(markdownShortcutAriaKeys("list-item.toggle-checked")).toBe(
+      "Meta+Enter Control+Enter"
+    )
+  })
+
+  it("merges namespaced plugin shortcuts before host overrides", () => {
+    const shortcuts = resolveMarkdownShortcuts(
+      { "acme.callout.toggle": [{ alt: true, key: "c" }] },
+      {
+        "acme.callout.toggle": {
+          bindings: [{ primary: true, key: "c" }],
+          description: "Toggle a callout",
+          scope: "selection",
+        },
+      }
+    )
+
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ altKey: true, key: "c" }),
+        "acme.callout.toggle",
+        shortcuts
+      )
+    ).toBe(true)
+    expect(markdownShortcutLabel("acme.callout.toggle", "mac", shortcuts)).toBe(
+      "⌥C"
     )
   })
 })

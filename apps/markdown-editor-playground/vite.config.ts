@@ -11,14 +11,28 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@eidos.space/markdown-editor/styles.css",
+        find: "@eidos.space/markdown/styles.css",
         replacement: path.resolve(
           directory,
           "../../packages/markdown-editor/src/styles.css"
         ),
       },
       {
-        find: "@eidos.space/markdown-editor",
+        find: "@eidos.space/markdown/plugin-api",
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown-editor/src/plugin-api.ts"
+        ),
+      },
+      {
+        find: "@eidos.space/markdown/plugins",
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown-editor/src/builtin-plugins.ts"
+        ),
+      },
+      {
+        find: /^@eidos\.space\/markdown$/u,
         replacement: path.resolve(
           directory,
           "../../packages/markdown-editor/src/index.ts"

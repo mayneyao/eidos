@@ -84,6 +84,14 @@ export function $moveListItem(
   return true
 }
 
+/** Toggles a task-list item without converting ordinary list items. */
+export function $toggleListItemChecked(item: ListItemNode): boolean {
+  const checked = item.getChecked()
+  if (checked === undefined) return false
+  item.setChecked(!checked)
+  return true
+}
+
 export function ListItemShortcutsPlugin() {
   const [editor] = useLexicalComposerContext()
   const { matches } = useMarkdownShortcuts()
@@ -94,15 +102,24 @@ export function ListItemShortcutsPlugin() {
         KEY_DOWN_COMMAND,
         (event) => {
           if (!editor.isEditable() || event.defaultPrevented) return false
+          const shouldToggle = matches(event, "list-item.toggle-checked")
           const direction = matches(event, "list-item.move-up")
             ? "up"
             : matches(event, "list-item.move-down")
               ? "down"
               : null
-          if (!direction) return false
+          if (!shouldToggle && !direction) return false
           const item = selectedListItem()
           if (!item) return false
 
+          if (shouldToggle) {
+            if (!$toggleListItemChecked(item)) return false
+            event.preventDefault()
+            $addUpdateTag(HISTORY_PUSH_TAG)
+            return true
+          }
+
+          if (!direction) return false
           event.preventDefault()
           if ($moveListItem(item, direction)) $addUpdateTag(HISTORY_PUSH_TAG)
           return true

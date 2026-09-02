@@ -204,7 +204,7 @@ function MarkdownContentEditor({
           "w-full",
           markdownEditingMode === "wysiwyg"
             ? ""
-            : "flex min-h-0 flex-1 flex-col"
+            : "mx-auto flex min-h-0 max-w-[760px] flex-1 flex-col"
         )}
         data-eidos-file-markdown-editor={markdownEditingMode ?? "source"}
         onKeyDownCapture={(event) => {
@@ -245,7 +245,7 @@ function MarkdownContentEditor({
 
   return (
     <div
-      className="group relative min-h-0 w-full pb-20"
+      className="group relative mx-auto min-h-0 w-full max-w-[760px] pb-20"
       data-eidos-file-markdown-editor="preview"
     >
       {value.trim() ? (
@@ -826,7 +826,7 @@ export function EidosFileRecordInspector({
         >
           <article
             className={cn(
-              "mx-auto w-full max-w-[960px] px-5 pt-2 sm:px-8 lg:px-12",
+              "w-full px-5 pt-2 sm:px-8 lg:px-12",
               contentEditorOwnsScroll
                 ? "flex h-full min-h-0 flex-col pb-3"
                 : "pb-20"
@@ -843,7 +843,7 @@ export function EidosFileRecordInspector({
             {contentField ? (
               <div
                 className={cn(
-                  "mx-auto mt-3 w-full max-w-[760px] pt-3",
+                  "mx-auto mt-3 w-full max-w-none pt-3",
                   contentEditorOwnsScroll && "flex min-h-0 flex-1 flex-col"
                 )}
                 data-eidos-file-record-content=""

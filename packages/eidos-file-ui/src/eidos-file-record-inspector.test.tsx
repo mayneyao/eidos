@@ -667,10 +667,15 @@ describe("EidosFileRecordInspector", () => {
     ).not.toContain("flex-1")
     expect(
       container.querySelector('[data-eidos-file-record-content=""]')?.className
-    ).toContain("max-w-[760px]")
+    ).not.toContain("max-w-[760px]")
     expect(
       container.querySelector('[data-eidos-file-record-content=""]')?.className
-    ).not.toContain("max-w-none")
+    ).toContain("max-w-none")
+    expect(
+      container
+        .querySelector('[data-eidos-file-record-content=""]')
+        ?.closest("article")?.className
+    ).not.toContain("max-w-[960px]")
     expect(
       container.querySelector('[data-eidos-file-record-page-header-row=""]')
         ?.className

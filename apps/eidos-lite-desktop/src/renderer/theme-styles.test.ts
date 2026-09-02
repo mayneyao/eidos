@@ -9,10 +9,20 @@ const styles = readFileSync(
   ),
   "utf8"
 )
+const liteStyles = readFileSync(
+  new URL("./styles.css", import.meta.url),
+  "utf8"
+)
 const rootStart = styles.indexOf(":root {")
 const rootEnd = styles.indexOf("}\n", rootStart)
 const rootTheme = styles.slice(rootStart, rootEnd + 1)
 const componentStyles = styles.slice(rootEnd + 1)
+const markdownSurfaceStart = liteStyles.indexOf(".markdown-editor-surface {")
+const markdownSurfaceEnd = liteStyles.indexOf("}\n", markdownSurfaceStart)
+const markdownSurfaceTheme = liteStyles.slice(
+  markdownSurfaceStart,
+  markdownSurfaceEnd + 1
+)
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number]
 
@@ -89,6 +99,18 @@ describe("shared Eidos File host theme", () => {
     expect(componentStyles).toContain("--accent: var(--surface-selected)")
     expect(componentStyles).toContain("--border: var(--line)")
     expect(componentStyles).toContain("--ring: var(--focus)")
+  })
+
+  it("maps the Markdown editor to defined host theme roles", () => {
+    expect(markdownSurfaceTheme).toContain("--background: var(--canvas)")
+    expect(markdownSurfaceTheme).toContain("--foreground: var(--ink)")
+    expect(markdownSurfaceTheme).toContain("--muted: var(--surface-hover)")
+    expect(markdownSurfaceTheme).toContain(
+      "--muted-foreground: var(--ink-muted)"
+    )
+    expect(markdownSurfaceTheme).toContain("--accent: var(--surface-selected)")
+    expect(markdownSurfaceTheme).toContain("--primary: var(--primary-action)")
+    expect(markdownSurfaceTheme).not.toContain("--surface-muted")
   })
 
   it("uses a white light canvas with restrained cyan interaction color", () => {

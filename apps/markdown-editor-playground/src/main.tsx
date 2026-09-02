@@ -1,7 +1,7 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
-import "@eidos.space/markdown-editor/styles.css"
+import "@eidos.space/markdown/styles.css"
 import "./styles.css"
 import { App } from "./app"
 

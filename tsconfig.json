@@ -25,10 +25,8 @@
       "@eidos.space/eidos-file/*": ["./packages/eidos-file/src/*"],
       "@eidos.space/eidos-file-ui": ["./packages/eidos-file-ui/src/index.ts"],
       "@eidos.space/eidos-file-ui/*": ["./packages/eidos-file-ui/src/*"],
-      "@eidos.space/markdown-editor": [
-        "./packages/markdown-editor/src/index.ts"
-      ],
-      "@eidos.space/markdown-editor/*": ["./packages/markdown-editor/src/*"],
+      "@eidos.space/markdown": ["./packages/markdown-editor/src/index.ts"],
+      "@eidos.space/markdown/*": ["./packages/markdown-editor/src/*"],
       "@/*": ["./*"]
     },
     "types": [

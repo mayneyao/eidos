@@ -17,6 +17,16 @@ async function currentMarkdown(page: Page): Promise<string> {
   )
 }
 
+async function setExternalMarkdown(page: Page, markdown: string) {
+  await page.evaluate((value) => {
+    ;(
+      window as Window & {
+        __EIDOS_MARKDOWN_TEST_SET_DOCUMENT__?(markdown: string): void
+      }
+    ).__EIDOS_MARKDOWN_TEST_SET_DOCUMENT__?.(value)
+  }, markdown)
+}
+
 test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
   page,
 }) => {
@@ -33,7 +43,11 @@ test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
   await expect(
     page.locator(".playground-header").getByRole("heading", { level: 1 })
   ).toHaveText("Markdown Editor Playground")
-  await expect(page.locator(".playground-header button")).toHaveCount(0)
+  await expect(
+    page.locator(".playground-header").getByRole("button", {
+      name: "Shortcuts",
+    })
+  ).toBeVisible()
   await expect(
     page.getByRole("switch", { name: "Read only" })
   ).not.toBeChecked()
@@ -44,8 +58,43 @@ test("CAN-001 keeps the page focused on only the WYSIWYG editor", async ({
   await expect(page.getByRole("button", { name: "View source" })).toHaveCount(0)
   await expect(page.getByLabel("Markdown source")).toHaveCount(0)
 
+  await canvas.focus()
+  await expect(canvas).toBeFocused()
+  await expect
+    .poll(() =>
+      canvas.evaluate((element) => getComputedStyle(element).outlineStyle)
+    )
+    .toBe("none")
+
   await canvas.locator(".eme-paragraph").first().selectText()
   await expect(floatingToolbar).toHaveAttribute("aria-hidden", "false")
+})
+
+test("shows every default shortcut in an accessible reference dialog", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  const trigger = page.getByRole("button", { name: "Shortcuts" })
+  await trigger.click()
+  const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator("[data-shortcut-id]")).toHaveCount(19)
+
+  const toggleRow = dialog.locator(
+    '[data-shortcut-id="list-item.toggle-checked"]'
+  )
+  await expect(toggleRow).toContainText("Toggle the current checklist item")
+  await expect(toggleRow.locator("kbd")).toHaveText([
+    process.platform === "darwin" ? "⌘↵" : "Ctrl+↵",
+  ])
+  await expect(
+    dialog.locator('[data-shortcut-id="history.redo"] kbd')
+  ).toHaveCount(2)
+
+  await page.keyboard.press("Escape")
+  await expect(dialog).not.toBeVisible()
+  await expect(trigger).toBeFocused()
 })
 
 test("HST-002 keeps read-only content selectable without mutation controls", async ({
@@ -195,6 +244,165 @@ test("FID-001 imports and exports the highlight delimiter", async ({
     .toBe("# Highlight\n\nBefore ==important== after.")
 })
 
+test("FID-003 preserves untouched source layout when editing another block", async ({
+  page,
+}) => {
+  await openMarkdown(page, "# Original title\n\n\nBody with  spacing.\n")
+
+  const heading = page.locator("h1").filter({ hasText: "Original title" })
+  await heading.selectText()
+  await page.keyboard.type("Changed title")
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("# Changed title\n\n\nBody with  spacing.\n")
+})
+
+test("renaming a definition updates its references in the same change", async ({
+  page,
+}) => {
+  await openMarkdown(page, "Body[^note].\n\n[^note]: Original.")
+
+  const definition = page.locator(".eme-efm-footnote-definition")
+  await definition.getByRole("button", { name: "Edit block" }).click()
+  await page
+    .getByLabel("Edit block: footnote-definition")
+    .fill("[^renamed]: Original.")
+  await page
+    .locator(".eme-efm-block-editor-actions")
+    .getByRole("button", { name: "Done" })
+    .click()
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("Body[^renamed].\n\n[^renamed]: Original.")
+  await expect(page.locator(".eme-efm-footnote-reference a")).toHaveAttribute(
+    "href",
+    "#efm-footnote-renamed"
+  )
+})
+
+test("NAV-001 keeps footnote jumps inside the editor without replacing the host hash", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    [
+      "Reference[^note].",
+      ...Array.from(
+        { length: 45 },
+        (_, index) => `Filler paragraph ${index + 1}.`
+      ),
+      "[^note]: Footnote body.",
+    ].join("\n\n")
+  )
+
+  const hostHash = "#/space/test/file/record"
+  await page.evaluate((hash) => {
+    window.history.replaceState(window.history.state, "", hash)
+  }, hostHash)
+
+  const reference = page.locator(".eme-efm-footnote-reference")
+  const definition = page.locator(".eme-efm-footnote-definition")
+  await reference.getByRole("link").click()
+
+  await expect
+    .poll(() => page.evaluate(() => window.location.hash))
+    .toBe(hostHash)
+  await expect
+    .poll(() =>
+      definition.evaluate((element) => document.activeElement === element)
+    )
+    .toBe(true)
+  await expect
+    .poll(() =>
+      definition.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return rect.bottom > 0 && rect.top < window.innerHeight
+      })
+    )
+    .toBe(true)
+
+  await definition
+    .getByRole("link", { name: "Return to footnote reference 1" })
+    .click()
+
+  await expect
+    .poll(() => page.evaluate(() => window.location.hash))
+    .toBe(hostHash)
+  await expect
+    .poll(() =>
+      reference.evaluate((element) => document.activeElement === element)
+    )
+    .toBe(true)
+})
+
+test("invalid frontmatter remains a local draft until it is repaired", async ({
+  page,
+}) => {
+  const original = "---\ntitle: Valid\n---\n\n# Body"
+  await openMarkdown(page, original)
+
+  await page
+    .locator(".eme-efm-frontmatter")
+    .getByRole("button", { name: "Edit block" })
+    .click()
+  const textarea = page.getByLabel("Edit block: frontmatter")
+  await textarea.fill("---\ntitle: [\n---")
+  await page
+    .locator(".eme-efm-block-editor-actions")
+    .getByRole("button", { name: "Done" })
+    .click()
+
+  await expect(page.getByRole("alert")).toBeVisible()
+  await expect(textarea).toBeVisible()
+  await expect.poll(() => currentMarkdown(page)).toBe(original)
+
+  await textarea.fill("---\ntitle: Repaired\n---")
+  await page
+    .locator(".eme-efm-block-editor-actions")
+    .getByRole("button", { name: "Done" })
+    .click()
+  await expect(page.locator(".eme-efm-frontmatter")).toContainText("Repaired")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("---\ntitle: Repaired\n---\n\n# Body")
+})
+
+test("external Markdown waits for an active block draft to resolve", async ({
+  page,
+}) => {
+  await openMarkdown(page, "$$\nx\n$$\n\nTail")
+
+  await page.getByRole("button", { name: "Edit block equation" }).click()
+  const formula = page.getByRole("textbox", { name: "Edit block equation" })
+  await formula.fill("local")
+  await setExternalMarkdown(page, "$$\nremote\n$$\n\nRemote tail")
+
+  await expect(formula).toHaveValue("local")
+  await expect(page.getByRole("alert")).toContainText(
+    "document changed outside"
+  )
+  await formula.press("Escape")
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("$$\nremote\n$$\n\nRemote tail")
+  await expect(page.locator(".eme-efm-math-display")).toContainText("remote")
+
+  await page.getByRole("button", { name: "Edit block equation" }).click()
+  const secondDraft = page.getByRole("textbox", {
+    name: "Edit block equation",
+  })
+  await secondDraft.fill("local-kept")
+  await setExternalMarkdown(page, "$$\nthird\n$$\n\nThird tail")
+  await page.getByRole("button", { name: /^Done/u }).click()
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("$$\nlocal-kept\n$$\n\nRemote tail")
+})
+
 test("stores a pasted image in OPFS and resolves it after reload", async ({
   page,
 }) => {
@@ -263,7 +471,42 @@ test("stores a pasted image in OPFS and resolves it after reload", async ({
   )
 })
 
-test("EDT-001 edits an EFM formula in a floating local composer", async ({
+test("an in-flight image paste cannot mutate an editor switched to read only", async ({
+  page,
+}) => {
+  const original = "# Clipboard\n\nPaste below."
+  await page.addInitScript(() => {
+    ;(
+      window as Window & { __EIDOS_MARKDOWN_TEST_PASTE_DELAY_MS__?: number }
+    ).__EIDOS_MARKDOWN_TEST_PASTE_DELAY_MS__ = 250
+  })
+  await openMarkdown(page, original)
+  const canvas = page.getByLabel("Markdown playground editor")
+  await canvas.locator(".eme-paragraph").click()
+
+  await canvas.evaluate((element) => {
+    const transfer = new DataTransfer()
+    transfer.items.add(
+      new File([new Uint8Array([137, 80, 78, 71])], "late.png", {
+        type: "image/png",
+      })
+    )
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: transfer,
+      })
+    )
+  })
+  await page.getByRole("switch", { name: "Read only" }).click()
+
+  await page.waitForTimeout(350)
+  await expect.poll(() => currentMarkdown(page)).toBe(original)
+  await expect(page.getByAltText("late.png")).toHaveCount(0)
+})
+
+test("EDT-001 edits an EFM equation in a floating local composer", async ({
   page,
 }) => {
   await page.goto("/")
@@ -286,11 +529,11 @@ test("EDT-001 edits an EFM formula in a floating local composer", async ({
     )
   })
   await mathBlock
-    .getByRole("button", { name: "Edit block formula", exact: true })
+    .getByRole("button", { name: "Edit block equation", exact: true })
     .click()
 
   const blockSource = mathBlock.locator(
-    'textarea[aria-label="Edit block formula"]'
+    'textarea[aria-label="Edit block equation"]'
   )
   await expect(blockSource).toBeVisible()
   await expect(mathBlock.locator("math")).toHaveCount(1)
@@ -360,6 +603,19 @@ x + y
   ).toHaveCount(1)
   await expect(editor.locator('[data-efm-source-kind="math"]')).toHaveCount(1)
 
+  const frontmatterFallback = editor.locator(
+    '[data-efm-source-kind="frontmatter"]'
+  )
+  await frontmatterFallback.getByRole("button", { name: "Edit block" }).click()
+  await page
+    .getByLabel("Edit block: YAML frontmatter")
+    .fill("---\ntitle: Repaired\n---")
+  await frontmatterFallback
+    .getByRole("button", { name: "Done", exact: true })
+    .click()
+  await expect(frontmatterFallback).toHaveCount(0)
+  await expect(editor.locator(".eme-efm-frontmatter")).toContainText("Repaired")
+
   const mathBlock = editor.locator('[data-efm-source-kind="math"]')
   await mathBlock.getByRole("button", { name: "Edit block" }).click()
   const blockSource = page.getByLabel("Edit block: Mathematics")
@@ -376,7 +632,7 @@ x + y
   )
 })
 
-test("EDT-001 edits inline formulas from an anchored local composer", async ({
+test("EDT-001 edits inline equations from an anchored local composer", async ({
   page,
 }) => {
   await openMarkdown(page, "Inline $e=m*c^2$ formula.")
@@ -384,7 +640,7 @@ test("EDT-001 edits inline formulas from an anchored local composer", async ({
   const inlineMath = page.locator(".eme-efm-inline-math")
   await inlineMath.locator(".eme-efm-math-preview-trigger").click()
   const composer = inlineMath.locator(".eme-efm-math-composer")
-  const input = page.getByLabel("Edit inline formula")
+  const input = page.getByLabel("Edit inline equation")
 
   await expect(composer).toBeVisible()
   await expect(input).toHaveValue("e=m*c^2")
@@ -656,6 +912,56 @@ test("SEL-004 keeps offscreen blocks selected while marquee auto-scrolls", async
   await expect(stage).toHaveJSProperty("scrollTop", stoppedAt)
 })
 
+test("SEL-004 embedded layout uses the full stage as its side selection surface", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "# Embedded marquee\n\nFirst block.\n\nSecond block.\n\nThird block."
+  )
+
+  const editorShell = page.locator('[data-markdown-editor="wysiwyg"]')
+  await editorShell.evaluate((element) => {
+    element.setAttribute("data-layout", "embedded")
+  })
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
+  const first = editor.locator(".eme-paragraph").nth(0)
+  const second = editor.locator(".eme-paragraph").nth(1)
+  const stageBox = await stage.boundingBox()
+  const rootBox = await editor.boundingBox()
+  const firstBox = await first.boundingBox()
+  const secondBox = await second.boundingBox()
+  if (!stageBox || !rootBox || !firstBox || !secondBox) {
+    throw new Error("Embedded marquee geometry is unavailable")
+  }
+
+  expect(rootBox.width).toBeCloseTo(760, 0)
+  expect(stageBox.width - rootBox.width).toBeGreaterThan(200)
+  expect(
+    Math.abs(rootBox.x + rootBox.width / 2 - (stageBox.x + stageBox.width / 2))
+  ).toBeLessThan(1)
+
+  const selectFromSide = async (side: "left" | "right") => {
+    const x = side === "left" ? stageBox.x + 8 : stageBox.x + stageBox.width - 8
+    await page.mouse.move(x, firstBox.y + 2)
+    await expect(stage).toHaveAttribute("data-block-marquee-zone", side)
+    await page.mouse.down()
+    await page.mouse.move(firstBox.x + 80, secondBox.y + secondBox.height + 2, {
+      steps: 18,
+    })
+    await expect(page.locator(".eme-block-marquee")).toBeVisible()
+    await expect(editor.locator("[data-block-selected='true']")).toHaveCount(2)
+    await page.mouse.up()
+  }
+
+  await selectFromSide("left")
+  await page.keyboard.press("Escape")
+  await expect(editor.locator("[data-block-selected='true']")).toHaveCount(0)
+  await selectFromSide("right")
+})
+
 test("CRT-001 keeps the gutter plus beside the block and inserts below", async ({
   page,
 }) => {
@@ -689,7 +995,7 @@ test("CRT-001 keeps the gutter plus beside the block and inserts below", async (
   expect(
     Math.abs(menuBox.x - (handleBox.x + handleBox.width))
   ).toBeLessThanOrEqual(1)
-  const search = page.getByRole("searchbox", { name: "Filter blocks" })
+  const search = page.getByRole("combobox", { name: "Filter blocks" })
   await search.fill("h2")
   await search.press("Enter")
   await page.keyboard.type("Added below")
@@ -758,6 +1064,111 @@ test("SEL-009 reorders top-level blocks from the gutter handle and undoes once",
     .toBe("# First block\n\n> Third block.\n\nSecond block.")
   await dragHandle.press(process.platform === "darwin" ? "Meta+z" : "Control+z")
   await expect.poll(() => currentMarkdown(page)).toBe(original)
+})
+
+test("SEL-009 drags the block under the handle instead of the caret block", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "# Cursor block\n\nDrag this paragraph.\n\n> Last block."
+  )
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const heading = editor.locator(".eme-heading-h1")
+  const paragraph = editor.locator(".eme-paragraph").first()
+  const last = editor.locator(".eme-quote")
+  await heading.click()
+  await page.keyboard.press("End")
+  await paragraph.hover()
+
+  const dragHandle = page.getByRole("button", { name: "Drag block" })
+  const handleBox = await dragHandle.boundingBox()
+  const paragraphBox = await paragraph.boundingBox()
+  const targetBox = await last.boundingBox()
+  if (!handleBox || !paragraphBox || !targetBox) {
+    throw new Error("Block drag target geometry is unavailable")
+  }
+  expect(Math.abs(handleBox.y - paragraphBox.y)).toBeLessThan(1)
+
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height - 2,
+    { steps: 18 }
+  )
+  await expect(paragraph).toHaveClass(/eme-block-dragging/u)
+  await expect(heading).not.toHaveClass(/eme-block-dragging/u)
+  await page.mouse.up()
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("# Cursor block\n\n> Last block.\n\nDrag this paragraph.")
+
+  await dragHandle.press(process.platform === "darwin" ? "Meta+z" : "Control+z")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("# Cursor block\n\nDrag this paragraph.\n\n> Last block.")
+
+  await heading.click()
+  await page.keyboard.press("End")
+  await paragraph.hover()
+  await dragHandle.focus()
+  await dragHandle.press("Alt+ArrowDown")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("# Cursor block\n\n> Last block.\n\nDrag this paragraph.")
+})
+
+test("SEL-009 keeps footnote definitions as a non-sortable document tail", async ({
+  page,
+}) => {
+  const original = "First[^n].\n\nTail paragraph.\n\n[^n]: Footnote body."
+  await openMarkdown(page, original)
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const footnote = editor.locator(".eme-efm-footnote-definition")
+  await footnote.hover({ position: { x: 12, y: 12 } })
+  await expect(
+    page.getByRole("button", { name: "Add block below" })
+  ).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Drag block" })).toHaveCount(0)
+
+  const tail = editor.locator(".eme-paragraph").nth(1)
+  await tail.hover()
+  const dragHandle = page.getByRole("button", { name: "Drag block" })
+  await dragHandle.focus()
+  await dragHandle.press("Alt+ArrowDown")
+  await expect.poll(() => currentMarkdown(page)).toBe(original)
+
+  const first = editor.locator(".eme-paragraph").first()
+  await first.hover()
+  const handleBox = await dragHandle.boundingBox()
+  const footnoteBox = await footnote.boundingBox()
+  if (!handleBox || !footnoteBox) {
+    throw new Error("Footnote tail drag geometry is unavailable")
+  }
+
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    footnoteBox.x + footnoteBox.width / 2,
+    footnoteBox.y + footnoteBox.height - 2,
+    { steps: 18 }
+  )
+  await expect(page.locator(".eme-block-drop-indicator")).toBeVisible()
+  await page.mouse.up()
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("Tail paragraph.\n\nFirst[^n].\n\n[^n]: Footnote body.")
 })
 
 test("KEY-001 KEY-002 reorders a list item with its subtree and undoes once", async ({
@@ -848,6 +1259,27 @@ test("KEY-001 reorders a nested list item only among its siblings", async ({
   await expect.poll(() => currentMarkdown(page)).toBe(original)
 })
 
+test("KEY-005 toggles the current checklist item with Mod+Enter", async ({
+  page,
+}) => {
+  const original = "- [ ] Todo\n- [x] Done"
+  await openMarkdown(page, original)
+
+  const todo = page.getByRole("checkbox", { name: "Todo" })
+  await todo.getByText("Todo", { exact: true }).click()
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
+
+  await expect(todo).toHaveAttribute("aria-checked", "true")
+  await expect.poll(() => currentMarkdown(page)).toBe("- [x] Todo\n- [x] Done")
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+z" : "Control+z"
+  )
+  await expect.poll(() => currentMarkdown(page)).toBe(original)
+})
+
 test("SEL-009 auto-scrolls long documents while dragging a block", async ({
   page,
 }) => {
@@ -900,7 +1332,7 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
 
   const insertBlock = page.getByRole("button", { name: "Add block below" })
   await insertBlock.click()
-  await page.getByRole("menuitem", { name: /Document properties/u }).click()
+  await page.getByRole("option", { name: /Document properties/u }).click()
   await page
     .getByLabel("Properties (YAML)")
     .fill("title: Created visually\nstatus: draft")
@@ -911,19 +1343,19 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
 
   await insertBlock.click()
   await expect(
-    page.getByRole("menuitem", { name: /Document properties/u })
+    page.getByRole("option", { name: /Document properties/u })
   ).toBeDisabled()
-  await page.getByRole("menuitem", { name: /Formula/u }).click()
+  await page.getByRole("option", { name: /Block equation/u }).click()
   const mathPlaceholder = editor.getByRole("button", {
     name: "Add a TeX equation",
   })
   await expect(mathPlaceholder).toBeVisible()
   await expect.poll(() => currentMarkdown(page)).toContain("$$\n\n$$")
-  await page.getByLabel("Edit block formula").press("Escape")
-  await expect(page.getByLabel("Edit block formula")).toHaveCount(0)
+  await page.getByLabel("Edit block equation").press("Escape")
+  await expect(page.getByLabel("Edit block equation")).toHaveCount(0)
   await expect(mathPlaceholder).toBeVisible()
   await mathPlaceholder.click()
-  await page.getByLabel("Edit block formula").fill("a^2 + b^2 = c^2")
+  await page.getByLabel("Edit block equation").fill("a^2 + b^2 = c^2")
   await page.getByRole("button", { name: "Done", exact: true }).click()
   await expect(editor.locator(".eme-efm-math-display")).toHaveAttribute(
     "data-efm-math-source",
@@ -932,7 +1364,7 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
 
   await editor.locator(".eme-paragraph").last().click()
   await insertBlock.click()
-  await page.getByRole("menuitem", { name: /Image/u }).click()
+  await page.getByRole("option", { name: /Image/u }).click()
   const imagePlaceholder = editor.getByRole("button", {
     name: "Add an image",
   })
@@ -951,7 +1383,7 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
 
   await editor.locator(".eme-paragraph").last().click()
   await insertBlock.click()
-  await page.getByRole("menuitem", { name: /Footnote/u }).click()
+  await page.getByRole("option", { name: /Footnote/u }).click()
   await page.getByLabel("Footnote text").fill("Created footnote body.")
   await page.getByRole("button", { name: "Insert", exact: true }).click()
   await expect(editor.locator(".eme-efm-footnote-reference")).toHaveText("1")
@@ -985,16 +1417,21 @@ test("CRT-003 filters the slash insert menu as a keyboard list", async ({
   await page.keyboard.type("/")
 
   const menu = page.getByRole("dialog", { name: "Insert block" })
-  const search = page.getByRole("searchbox", { name: "Filter blocks" })
+  const search = page.getByRole("combobox", { name: "Filter blocks" })
   await expect(menu).toBeVisible()
   await expect(search).toBeFocused()
   await expect(menu.locator('[data-layout="list"]')).toHaveAttribute(
     "role",
-    "menu"
+    "listbox"
+  )
+  await expect(search).toHaveAttribute("aria-activedescendant", /option-/u)
+  await expect(page.getByRole("option").first()).toHaveAttribute(
+    "aria-selected",
+    "true"
   )
 
   const [firstItemBox, secondItemBox] = await page
-    .getByRole("menuitem")
+    .getByRole("option")
     .evaluateAll((elements) =>
       elements.slice(0, 2).map((element) => {
         const rect = element.getBoundingClientRect()
@@ -1009,11 +1446,11 @@ test("CRT-003 filters the slash insert menu as a keyboard list", async ({
 
   await search.fill("missing block type")
   await expect(menu.getByRole("status")).toHaveText("No matching blocks")
-  await expect(page.getByRole("menuitem")).toHaveCount(0)
+  await expect(page.getByRole("option")).toHaveCount(0)
 
   await search.fill("h3")
-  await expect(page.getByRole("menuitem")).toHaveCount(1)
-  await expect(page.getByRole("menuitem", { name: /Heading 3/u })).toBeVisible()
+  await expect(page.getByRole("option")).toHaveCount(1)
+  await expect(page.getByRole("option", { name: /Heading 3/u })).toBeVisible()
   await search.press("Enter")
   await expect(menu).toBeHidden()
   await page.keyboard.type("Created with slash")
@@ -1022,7 +1459,290 @@ test("CRT-003 filters the slash insert menu as a keyboard list", async ({
   ).toBeVisible()
 })
 
-test("CRT-007 inserts an inline formula from a caret-anchored slash menu", async ({
+test("CRT-003 keeps keyboard navigation authoritative while the pointer rests over the menu", async ({
+  page,
+}) => {
+  await openMarkdown(page, "Start")
+
+  await page
+    .getByLabel("Markdown playground editor")
+    .locator(".eme-paragraph")
+    .first()
+    .click()
+  await page.getByRole("button", { name: "Add block below" }).click()
+
+  const options = page.getByRole("option")
+  const hoveredOption = page.getByRole("option", { name: /^Numbered list/u })
+  await hoveredOption.hover()
+  await expect(hoveredOption).toHaveAttribute("aria-selected", "true")
+
+  const optionCount = await options.count()
+  const hoveredIndex = await options.evaluateAll(
+    (elements, hoveredId) =>
+      elements.findIndex((element) => element.id === hoveredId),
+    await hoveredOption.getAttribute("id")
+  )
+  await page.keyboard.press("ArrowDown")
+  const keyboardOption = options.nth(hoveredIndex + 1)
+  await expect(keyboardOption).toHaveAttribute("aria-selected", "true")
+
+  await hoveredOption.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+  })
+  await expect(keyboardOption).toHaveAttribute("aria-selected", "true")
+  await expect(hoveredOption).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+
+  for (let index = hoveredIndex + 2; index < optionCount; index += 1) {
+    await page.keyboard.press("ArrowDown")
+  }
+
+  await expect(options.last()).toHaveAttribute("aria-selected", "true")
+
+  const pointerTarget = page.getByRole("option", { name: /^Block equation/u })
+  await pointerTarget.hover()
+  await expect(pointerTarget).toHaveAttribute("aria-selected", "true")
+})
+
+test("keeps insert menu surfaces readable when a dark host token is missing", async ({
+  page,
+}) => {
+  await openMarkdown(page, "# Dark menu\n\nBody")
+
+  const editorShell = page.locator('[data-markdown-editor="wysiwyg"]')
+  await editorShell.evaluate((element) => {
+    element.setAttribute("data-theme", "dark")
+    element.style.setProperty("--background", "oklch(0.21 0.014 255)")
+    element.style.setProperty("--foreground", "oklch(0.92 0.01 255)")
+    element.style.setProperty("--muted", "var(--missing-muted-token)")
+    element.style.setProperty("--muted-foreground", "oklch(0.69 0.02 255)")
+    element.style.setProperty("--accent", "oklch(0.31 0.025 255)")
+    element.style.setProperty("--border", "oklch(0.34 0.017 255)")
+    element.style.setProperty("--ring", "oklch(0.69 0.1 255)")
+  })
+
+  const heading = page.getByLabel("Markdown playground editor").locator("h1")
+  await heading.click()
+  await page.getByRole("button", { name: "Add block below" }).click()
+
+  const contrast = await page
+    .locator(".eme-insert-menu-section button[data-selected='true']")
+    .evaluate((button) => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 1
+      canvas.height = 1
+      const context = canvas.getContext("2d", { willReadFrequently: true })
+      if (!context) throw new Error("Canvas context is unavailable")
+      const luminance = (color: string) => {
+        context.clearRect(0, 0, 1, 1)
+        context.fillStyle = color
+        context.fillRect(0, 0, 1, 1)
+        const channels = Array.from(
+          context.getImageData(0, 0, 1, 1).data.slice(0, 3)
+        ).map((channel) => {
+          const value = channel / 255
+          return value <= 0.04045
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4
+        })
+        return (
+          0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
+        )
+      }
+      const style = getComputedStyle(button)
+      const foreground = luminance(style.color)
+      const background = luminance(style.backgroundColor)
+      return {
+        background,
+        ratio:
+          (Math.max(foreground, background) + 0.05) /
+          (Math.min(foreground, background) + 0.05),
+      }
+    })
+
+  expect(contrast.background).toBeLessThan(0.2)
+  expect(contrast.ratio).toBeGreaterThanOrEqual(4.5)
+})
+
+test("renders newly inserted embedded tables as a compact grid", async ({
+  page,
+}) => {
+  await openMarkdown(page, "Start")
+
+  const editor = page.locator('[data-markdown-editor="wysiwyg"]')
+  await editor.evaluate((element) => {
+    element.setAttribute("data-layout", "embedded")
+  })
+  await editor.locator(".eme-paragraph").first().click()
+  await page.getByRole("button", { name: "Add block below" }).click()
+  await page.getByRole("option", { name: /^Table/u }).click()
+
+  const table = editor.locator(".eme-table")
+  await expect(table).toBeVisible()
+  const geometry = await table.evaluate((element) => ({
+    cellBorders: Array.from(
+      element.querySelectorAll<HTMLElement>(".eme-table-cell")
+    ).map((cell) => ({
+      bottom: getComputedStyle(cell).borderBottomStyle,
+      bottomWidth: getComputedStyle(cell).borderBottomWidth,
+      left: getComputedStyle(cell).borderLeftStyle,
+      leftWidth: getComputedStyle(cell).borderLeftWidth,
+      right: getComputedStyle(cell).borderRightStyle,
+      rightWidth: getComputedStyle(cell).borderRightWidth,
+      top: getComputedStyle(cell).borderTopStyle,
+      topWidth: getComputedStyle(cell).borderTopWidth,
+    })),
+    height: element.getBoundingClientRect().height,
+    paragraphMargins: Array.from(
+      element.querySelectorAll<HTMLElement>(".eme-table-cell > .eme-paragraph")
+    ).map((paragraph) => ({
+      bottom: getComputedStyle(paragraph).marginBottom,
+      top: getComputedStyle(paragraph).marginTop,
+    })),
+    rowHeights: Array.from(element.querySelectorAll("tr")).map(
+      (row) => row.getBoundingClientRect().height
+    ),
+  }))
+
+  expect(geometry.rowHeights).toHaveLength(3)
+  expect(Math.max(...geometry.rowHeights)).toBeLessThan(56)
+  expect(geometry.height).toBeLessThan(168)
+  expect(geometry.cellBorders).toEqual(
+    Array.from({ length: 9 }, () => ({
+      bottom: "solid",
+      bottomWidth: "1px",
+      left: "solid",
+      leftWidth: "1px",
+      right: "solid",
+      rightWidth: "1px",
+      top: "solid",
+      topWidth: "1px",
+    }))
+  )
+  expect(geometry.paragraphMargins).toEqual(
+    Array.from({ length: 9 }, () => ({ bottom: "0px", top: "0px" }))
+  )
+})
+
+test("keeps embedded block typography aligned with document mode", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    `Intro
+
+## Heading
+
+Paragraph with **bold** and \`code\`.
+
+> Quote
+
+- List item
+
+\`\`\`ts
+const ready = true
+\`\`\`
+
+| A | B |
+| --- | --- |
+| 1 | 2 |`
+  )
+
+  const styles = await page
+    .locator('[data-markdown-editor="wysiwyg"]')
+    .evaluate((editor) => {
+      const selectors = [
+        ".eme-paragraph",
+        ".eme-heading-h2",
+        ".eme-text-bold",
+        ".eme-inline-code",
+        ".eme-quote",
+        ".eme-list",
+        ".eme-list-item",
+        ".eme-code-block",
+        ".eme-table",
+        ".eme-table-cell",
+        ".eme-table-cell-header",
+      ]
+      const snapshot = () =>
+        Object.fromEntries(
+          selectors.map((selector) => {
+            const element = editor.querySelector<HTMLElement>(selector)
+            if (!element) throw new Error(`Missing ${selector}`)
+            const style = getComputedStyle(element)
+            return [
+              selector,
+              {
+                backgroundColor: style.backgroundColor,
+                borderBottom: style.borderBottom,
+                borderLeft: style.borderLeft,
+                borderRadius: style.borderRadius,
+                borderRight: style.borderRight,
+                borderTop: style.borderTop,
+                color: style.color,
+                fontSize: style.fontSize,
+                fontWeight: style.fontWeight,
+                letterSpacing: style.letterSpacing,
+                lineHeight: style.lineHeight,
+                marginBottom: style.marginBottom,
+                marginLeft: style.marginLeft,
+                marginRight: style.marginRight,
+                marginTop: style.marginTop,
+                paddingBottom: style.paddingBottom,
+                paddingLeft: style.paddingLeft,
+                paddingRight: style.paddingRight,
+                paddingTop: style.paddingTop,
+              },
+            ]
+          })
+        )
+
+      editor.setAttribute("data-layout", "document")
+      const document = snapshot()
+      editor.setAttribute("data-layout", "embedded")
+      return { document, embedded: snapshot() }
+    })
+
+  expect(styles.embedded).toEqual(styles.document)
+})
+
+test("keeps the embedded empty placeholder aligned with the content column", async ({
+  page,
+}) => {
+  await openMarkdown(page, "")
+
+  const editorShell = page.locator('[data-markdown-editor="wysiwyg"]')
+  await editorShell.evaluate((element) => {
+    element.setAttribute("data-layout", "embedded")
+  })
+
+  const geometry = await page
+    .getByLabel("Markdown playground editor")
+    .evaluate((editor) => {
+      const placeholder =
+        editor.parentElement?.querySelector<HTMLElement>(".eme-placeholder")
+      if (!placeholder) throw new Error("Empty placeholder is missing")
+      const editorRect = editor.getBoundingClientRect()
+      const placeholderRect = placeholder.getBoundingClientRect()
+      return {
+        editor: {
+          left: editorRect.left,
+          top: editorRect.top,
+          width: editorRect.width,
+        },
+        placeholder: {
+          left: placeholderRect.left,
+          top: placeholderRect.top,
+          width: placeholderRect.width,
+        },
+      }
+    })
+
+  expect(geometry.placeholder.left).toBeCloseTo(geometry.editor.left, 0)
+  expect(geometry.placeholder.top).toBeCloseTo(geometry.editor.top, 0)
+  expect(geometry.placeholder.width).toBeCloseTo(geometry.editor.width, 0)
+})
+
+test("CRT-007 inserts inline commands from a caret-anchored slash menu", async ({
   page,
 }) => {
   await openMarkdown(page, "Before  after.")
@@ -1049,17 +1769,19 @@ test("CRT-007 inserts an inline formula from a caret-anchored slash menu", async
 
   await page.keyboard.type("/")
   const menu = page.getByRole("dialog", { name: "Insert inline" })
-  const search = page.getByRole("searchbox", {
+  const search = page.getByRole("combobox", {
     name: "Filter inline commands",
   })
   await expect(menu).toBeVisible()
   await expect(menu).toHaveAttribute("data-context", "inline")
   await expect(search).toBeFocused()
-  await expect(page.getByRole("menuitem")).toHaveCount(1)
+  await expect(page.getByRole("option")).toHaveCount(2)
   await expect(
-    page.getByRole("menuitem", { name: "Inline formula" })
+    page.getByRole("option", { name: "Inline equation" })
   ).toBeVisible()
-  await expect(page.getByRole("menuitem", { name: /Heading/u })).toHaveCount(0)
+  await expect(page.getByRole("option", { name: "Footnote" })).toBeVisible()
+  await expect(page.getByRole("option", { name: "Image" })).toHaveCount(0)
+  await expect(page.getByRole("option", { name: /Heading/u })).toHaveCount(0)
 
   const menuBox = await menu.boundingBox()
   if (!menuBox) throw new Error("Inline insertion menu is not visible")
@@ -1085,7 +1807,7 @@ test("CRT-007 inserts an inline formula from a caret-anchored slash menu", async
     document.dispatchEvent(new Event("selectionchange"))
   })
   await page.keyboard.type("/")
-  await page.getByRole("menuitem", { name: "Inline formula" }).click()
+  await page.getByRole("option", { name: "Inline equation" }).click()
   const formula = page.getByLabel("LaTeX")
   await expect(formula).toBeFocused()
   await formula.fill("e^{i\\pi} + 1 = 0")
@@ -1095,6 +1817,35 @@ test("CRT-007 inserts an inline formula from a caret-anchored slash menu", async
   await expect
     .poll(() => currentMarkdown(page))
     .toBe("Before $e^{i\\pi} + 1 = 0$ after.")
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+z" : "Control+z"
+  )
+  await expect.poll(() => currentMarkdown(page)).toBe("Before  after.")
+
+  await paragraph.evaluate((element) => {
+    const text = element.querySelector("[data-lexical-text='true']")?.firstChild
+    if (!(text instanceof Text)) throw new Error("Paragraph text is missing")
+    const offset = text.data.indexOf("  ") + 1
+    const editable = element.closest<HTMLElement>("[contenteditable='true']")
+    editable?.focus()
+    const range = document.createRange()
+    range.setStart(text, offset)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event("selectionchange"))
+  })
+  await page.keyboard.type("/")
+  await page.getByRole("option", { name: "Footnote" }).click()
+  await page.getByLabel("Footnote text").fill("Inserted at the caret")
+  await page.getByRole("button", { name: "Insert", exact: true }).click()
+
+  await expect(paragraph.locator(".eme-efm-footnote-reference")).toBeVisible()
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("Before [^note] after.\n\n[^note]: Inserted at the caret")
 
   await page.keyboard.press(
     process.platform === "darwin" ? "Meta+z" : "Control+z"
@@ -1255,6 +2006,20 @@ test("aligns unordered, checklist, and ordered list text", async ({ page }) => {
     1
   )
 
+  const checkboxMarkerAlignment = await uncheckedItem.evaluate((element) => {
+    const item = element.getBoundingClientRect()
+    const itemStyle = getComputedStyle(element)
+    const marker = getComputedStyle(element, "::before")
+    const markerCenter =
+      item.left +
+      Number.parseFloat(marker.left) +
+      Number.parseFloat(marker.width) / 2
+    const markerSlotCenter =
+      item.left + Number.parseFloat(itemStyle.paddingInlineStart) / 2
+    return Math.abs(markerCenter - markerSlotCenter)
+  })
+  expect(checkboxMarkerAlignment).toBeLessThanOrEqual(1)
+
   const checkbox = await uncheckedItem.evaluate((element) => {
     const item = element.getBoundingClientRect()
     const marker = getComputedStyle(element, "::before")
@@ -1267,11 +2032,12 @@ test("aligns unordered, checklist, and ordered list text", async ({ page }) => {
     }
   })
   await page.mouse.click(checkbox.x, checkbox.y)
-  await expect(
-    page.locator(".eme-list-item", {
-      hasText: "Keep expanding compatibility coverage",
-    })
-  ).toHaveClass(/eme-list-item-checked/u)
+  const toggledItem = page.locator(".eme-list-item", {
+    hasText: "Keep expanding compatibility coverage",
+  })
+  await expect(toggledItem).toBeFocused()
+  await expect(toggledItem).toHaveCSS("outline-style", "none")
+  await expect(toggledItem).toHaveClass(/eme-list-item-checked/u)
 
   await expect
     .poll(() => currentMarkdown(page))

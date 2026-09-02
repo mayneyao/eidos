@@ -64,5 +64,5 @@ const document: MarkdownDocument = {
 
 ## Final note
 
-Click into a block and use the + control, or type / on an empty line, to insert formulas, images, footnotes, document properties, and standard Markdown blocks without leaving the editor.
+Click into a block and use the + control, or type / on an empty line, to insert equations, images, footnotes, document properties, and standard Markdown blocks without leaving the editor.
 `

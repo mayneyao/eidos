@@ -1,7 +1,7 @@
 # Markdown Editor Component API
 
 This document describes the public React API of
-`@eidos.space/markdown-editor`. It applies to package version `0.1.0`.
+`@eidos.space/markdown`. It applies to package version `0.1.0`.
 
 For the interaction contract and supported syntax matrix, see
 [SPEC.md](./SPEC.md). Markdown is always the canonical document value; Lexical
@@ -13,8 +13,8 @@ The component requires React 18 or 19. Import the shared stylesheet once in the
 host entry point:
 
 ```tsx
-import { MarkdownEditor } from "@eidos.space/markdown-editor"
-import "@eidos.space/markdown-editor/styles.css"
+import { MarkdownEditor } from "@eidos.space/markdown"
+import "@eidos.space/markdown/styles.css"
 ```
 
 The package is controlled: the host owns the Markdown string and accepts every
@@ -22,8 +22,8 @@ change through `onMarkdownChange`.
 
 ```tsx
 import { useState } from "react"
-import { MarkdownEditor } from "@eidos.space/markdown-editor"
-import "@eidos.space/markdown-editor/styles.css"
+import { MarkdownEditor } from "@eidos.space/markdown"
+import "@eidos.space/markdown/styles.css"
 
 export function NoteEditor({
   id,
@@ -61,31 +61,32 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 
 ### Props
 
-| Prop                     | Type                                                        | Required | Default                  | Behavior                                                                                                                                                                                |
-| ------------------------ | ----------------------------------------------------------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `documentKey`            | `string`                                                    | Yes      | —                        | Stable identity for the open document. Changing it creates a fresh editor session, resets selection and history, and imports `markdown` again.                                          |
-| `markdown`               | `string`                                                    | Yes      | —                        | Canonical controlled Markdown value. Host updates with a different value are imported into the current session.                                                                         |
-| `onMarkdownChange`       | `(markdown: string) => void`                                | Yes      | —                        | Receives canonical Markdown after editor content changes. Selection-only and presentation-only changes do not call it.                                                                  |
-| `onSaveRequest`          | `(markdown: string) => void \| Promise<void>`               | No       | —                        | Called with the latest serialized Markdown for the `document.save` shortcut, `Mod+S` by default. The editor does not persist the result itself.                                         |
-| `onOpenExternalUrl`      | `(url: string) => void \| Promise<void>`                    | No       | —                        | Receives a resolved, allowed external destination. Editable content requires `Mod+Click`; read-only content uses a normal click. Same-document fragments retain native navigation.      |
-| `onPasteImage`           | `MarkdownEditorPasteImageHandler`                           | No       | —                        | Gives clipboard image files to the host for persistence. Successful results are inserted at the saved paste selection. See [Clipboard image integration](#clipboard-image-integration). |
-| `resolveImageUrl`        | `MarkdownEditorImageUrlResolver`                            | No       | —                        | Resolves a canonical image destination, such as `opfs:`, to a current browser presentation URL. May be synchronous or asynchronous.                                                     |
-| `onError`                | `(error: Error) => void`                                    | No       | `console.error`          | Receives Lexical, persistence, image resolution, save, external navigation, and code tokenizer failures surfaced by the component.                                                      |
-| `onEfmDiagnostics`       | `(diagnostics: readonly EfmDiagnostic[]) => void`           | No       | —                        | Receives the complete EFM diagnostic list, including an empty list, after analysis of the current `markdown` prop.                                                                      |
-| `onUnsupportedMarkdown`  | `(features: readonly MarkdownUnsupportedFeature[]) => void` | No       | —                        | Receives a non-empty compatibility summary when malformed source needs a source-preserving fallback block. It is not called with an empty list.                                         |
-| `labels`                 | `Partial<MarkdownEditorLabels>`                             | No       | English labels           | Overrides accessible names, menu text, composer text, and editor-owned microcopy.                                                                                                       |
-| `placeholder`            | `string`                                                    | No       | `"Write with Markdown…"` | Placeholder displayed when the editor has no visible content. It is never serialized.                                                                                                   |
-| `ariaLabel`              | `string`                                                    | No       | `"Markdown editor"`      | Accessible label applied to the editable document surface. Hosts should provide a document-specific value.                                                                              |
-| `className`              | `string`                                                    | No       | —                        | Appended to the root `.eme-editor` element.                                                                                                                                             |
-| `theme`                  | `"light" \| "dark"`                                         | No       | `"light"`                | Selects the package theme through the root `data-theme` attribute.                                                                                                                      |
-| `layout`                 | `"document" \| "embedded"`                                  | No       | `"document"`             | `document` provides standalone reading margins; `embedded` fills the content width owned by the host.                                                                                   |
-| `inputProfile`           | `"document" \| "fragment"`                                  | No       | `"document"`             | Enables offset-zero YAML frontmatter for a full document. In `fragment`, an initial `---` is ordinary Markdown.                                                                         |
-| `baseUri`                | `string`                                                    | No       | —                        | Base URL used to resolve relative links and images. Without it, relative resources remain inactive and generate diagnostics.                                                            |
-| `readOnly`               | `boolean`                                                   | No       | `false`                  | Disables mutations and editing controls while preserving text and block selection for copying.                                                                                          |
-| `autoFocus`              | `boolean`                                                   | No       | `false`                  | Focuses the editable surface when the editor session mounts.                                                                                                                            |
-| `showToolbar`            | `boolean`                                                   | No       | `true`                   | Controls the package-owned floating formatting toolbar and insertion UI, including the gutter `+` and searchable slash catalogs. Native Markdown shortcuts remain registered.           |
-| `codeHighlightTokenizer` | `CodeHighlightTokenizer \| false`                           | No       | Built-in tokenizer       | Replaces the fenced-code tokenizer. `false` disables syntax highlighting without changing code content.                                                                                 |
-| `shortcuts`              | `MarkdownShortcutOverrides`                                 | No       | Default registry         | Replaces or disables package-owned shortcut bindings by stable shortcut ID.                                                                                                             |
+| Prop                     | Type                                                        | Required | Default                  | Behavior                                                                                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------------------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `documentKey`            | `string`                                                    | Yes      | —                        | Stable identity for the open document. Changing it creates a fresh editor session, resets selection and history, and imports `markdown` again.                                                                                    |
+| `markdown`               | `string`                                                    | Yes      | —                        | Canonical controlled Markdown value. Host updates with a different value are imported unless a block-local draft is active; see [Controlled document lifecycle](#controlled-document-lifecycle).                                  |
+| `onMarkdownChange`       | `(markdown: string) => void`                                | Yes      | —                        | Receives canonical Markdown after editor content changes. Selection-only and presentation-only changes do not call it.                                                                                                            |
+| `onSaveRequest`          | `(markdown: string) => void \| Promise<void>`               | No       | —                        | Called with the latest serialized Markdown for the `document.save` shortcut, `Mod+S` by default. The editor does not persist the result itself.                                                                                   |
+| `onOpenExternalUrl`      | `(url: string) => void \| Promise<void>`                    | No       | —                        | Receives a resolved, allowed external destination. Editable content requires `Mod+Click`; read-only content uses a normal click. Same-document fragments are handled inside the editor without changing the host URL.             |
+| `onPasteImage`           | `MarkdownEditorPasteImageHandler`                           | No       | —                        | Gives clipboard image files to the host for persistence. Successful results are inserted at the saved paste selection. See [Clipboard image integration](#clipboard-image-integration).                                           |
+| `resolveImageUrl`        | `MarkdownEditorImageUrlResolver`                            | No       | —                        | Resolves a canonical image destination, such as `opfs:`, to a current browser presentation URL. May be synchronous or asynchronous.                                                                                               |
+| `onError`                | `(error: Error) => void`                                    | No       | `console.error`          | Receives Lexical, persistence, image resolution, save, external navigation, and code tokenizer failures surfaced by the component.                                                                                                |
+| `onEfmDiagnostics`       | `(diagnostics: readonly EfmDiagnostic[]) => void`           | No       | —                        | Receives the complete EFM diagnostic list, including an empty list, after deferred analysis of the current `markdown` prop.                                                                                                       |
+| `onUnsupportedMarkdown`  | `(features: readonly MarkdownUnsupportedFeature[]) => void` | No       | —                        | Receives a non-empty compatibility summary when malformed source needs a source-preserving fallback block. It is not called with an empty list.                                                                                   |
+| `labels`                 | `Partial<MarkdownEditorLabels>`                             | No       | English labels           | Overrides accessible names, menu text, composer text, and editor-owned microcopy.                                                                                                                                                 |
+| `placeholder`            | `string`                                                    | No       | `"Write with Markdown…"` | Placeholder displayed when the editor has no visible content. It is never serialized.                                                                                                                                             |
+| `ariaLabel`              | `string`                                                    | No       | `"Markdown editor"`      | Accessible label applied to the editable document surface. Hosts should provide a document-specific value.                                                                                                                        |
+| `className`              | `string`                                                    | No       | —                        | Appended to the root `.eme-editor` element.                                                                                                                                                                                       |
+| `theme`                  | `"light" \| "dark"`                                         | No       | `"light"`                | Selects the package theme through the root `data-theme` attribute.                                                                                                                                                                |
+| `layout`                 | `"document" \| "embedded"`                                  | No       | `"document"`             | `document` provides standalone reading margins; `embedded` keeps a centered 760px reading column while its stage fills the host width, so either side canvas can start block marquee selection without padding or moving content. |
+| `inputProfile`           | `"document" \| "fragment"`                                  | No       | `"document"`             | Enables offset-zero YAML frontmatter for a full document. In `fragment`, an initial `---` is ordinary Markdown.                                                                                                                   |
+| `baseUri`                | `string`                                                    | No       | —                        | Base URL used to resolve relative links and images. Without it, relative resources remain inactive and generate diagnostics.                                                                                                      |
+| `readOnly`               | `boolean`                                                   | No       | `false`                  | Disables mutations and editing controls while preserving text and block selection for copying.                                                                                                                                    |
+| `autoFocus`              | `boolean`                                                   | No       | `false`                  | Focuses the editable surface when the editor session mounts.                                                                                                                                                                      |
+| `showToolbar`            | `boolean`                                                   | No       | `true`                   | Controls the package-owned floating formatting toolbar and insertion UI, including the gutter `+` and searchable slash catalogs. Native Markdown shortcuts remain registered.                                                     |
+| `plugins`                | `readonly MarkdownPlugin[]`                                 | No       | `eidosMarkdownPlugins`   | Immutable syntax and behavior profile. Changing its compiled signature creates a fresh editor session because Lexical node registration is session-scoped.                                                                        |
+| `codeHighlightTokenizer` | `CodeHighlightTokenizer \| false`                           | No       | Built-in tokenizer       | Replaces the fenced-code tokenizer. `false` disables syntax highlighting without changing code content.                                                                                                                           |
+| `shortcuts`              | `MarkdownShortcutOverrides`                                 | No       | Default registry         | Replaces or disables package-owned shortcut bindings by stable shortcut ID.                                                                                                                                                       |
 
 ### Controlled document lifecycle
 
@@ -95,6 +96,17 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 2. A content edit is serialized and sent to `onMarkdownChange`.
 3. The host stores that value and passes it back as `markdown`.
 4. A genuinely different host value is imported into the open session.
+
+If step 4 happens while an equation, frontmatter, definition, fallback block, or
+insertion composer has an uncommitted draft, the editor keeps that draft open
+and reports the conflict through `onError`. **Done** keeps the local editor
+state and emits it through `onMarkdownChange`; **Cancel** or **Escape** discards
+the draft and imports the pending host value. The host should still provide its
+own persisted-document conflict policy around `onSaveRequest`.
+
+Edits are source-local where the Markdown mapping is unambiguous. Unchanged
+blocks keep their original whitespace and source spelling instead of being
+rewritten merely because another block changed.
 
 Change `documentKey` whenever the logical document changes, even if two
 documents currently contain identical Markdown. The new key resets history,
@@ -107,6 +119,112 @@ one `documentKey`; when either setting changes semantically, use a new
 Do not debounce by withholding the controlled `markdown` prop indefinitely.
 Debounce storage or network writes instead, while keeping the React state
 passed to the editor current.
+
+## Plugin API
+
+`MarkdownEditor` is assembled from an immutable plugin profile. The default
+`eidosMarkdownPlugins` profile provides the complete EFM experience. A host
+may remove built-ins or append its own plugin without forking the component:
+
+```tsx
+import { MarkdownEditor } from "@eidos.space/markdown"
+import {
+  commonmarkPlugin,
+  gfmPlugin,
+} from "@eidos.space/markdown/plugins"
+import {
+  defineMarkdownPlugin,
+  MARKDOWN_PLUGIN_API_VERSION,
+} from "@eidos.space/markdown/plugin-api"
+
+const calloutPlugin = defineMarkdownPlugin({
+  apiVersion: MARKDOWN_PLUGIN_API_VERSION,
+  id: "acme.callout",
+  version: "1.0.0",
+  nodes: [CalloutNode],
+  transformers: [{ order: 200, transformer: CALLOUT_TRANSFORMER }],
+  behaviors: [{ id: "acme.callout.shortcuts", component: CalloutBehavior }],
+  insertions: [
+    {
+      id: "acme.callout",
+      contexts: ["block"],
+      glyph: "!",
+      label: "Callout",
+      keywords: ["notice", "aside"],
+      section: "extended",
+      execute: ({ insertBlock, closeMenu, focusEditor }) => {
+        insertBlock(() => $createCalloutNode())
+        closeMenu()
+        focusEditor()
+      },
+    },
+  ],
+})
+
+const plugins = [commonmarkPlugin, gfmPlugin, calloutPlugin]
+
+<MarkdownEditor {...props} plugins={plugins} />
+```
+
+Each descriptor may contribute:
+
+- `nodes`: Lexical node definitions only;
+- `transformers`: Markdown import/export and typing transformers, with an
+  explicit numeric order;
+- `behaviors`: React/Lexical lifecycle plugins mounted once inside the shared
+  composer;
+- `insertions`: block or inline catalog entries. External entries must provide
+  `execute` and use the supplied insertion helpers so selection and history
+  remain editor-owned;
+- `toolbar`: ordered text-selection actions with a native Lexical format or
+  custom executor and optional active-state resolver;
+- `shortcuts`: namespaced shortcut definitions consumed through the shared
+  shortcut context; and
+- `features`: capability IDs used to enable shared UI and built-in semantic
+  codecs.
+
+The compiler validates API versions, namespaced plugin IDs, dependencies,
+conflicts, ordering cycles, duplicate node types, menu IDs, behavior IDs, and
+shortcut IDs before Lexical mounts. `requires`, `before`, and `after` order
+plugins deterministically. Plugin arrays are session configuration rather than
+mutable runtime state; memoize a custom array and replace it deliberately when
+the syntax profile changes. Treat `id` plus `version` as the session identity:
+increment the plugin version whenever its node classes, transformers, or
+behavior contract changes.
+
+Node classes stay in `nodes/`, editor-wide event lifecycles stay in behavior
+components, and a syntax plugin only composes those pieces. This prevents a
+node definition from silently installing global listeners and prevents an
+interaction plugin from becoming another persistence format.
+
+The package exports the compiler and contract from both the root and
+`@eidos.space/markdown/plugin-api`. Built-in descriptors are available from
+the root and `@eidos.space/markdown/plugins`.
+
+The default profile is composed, in order, from `commonmarkPlugin`,
+`gfmPlugin`, `highlightPlugin`, `mathPlugin`, `imagePlugin`, `footnotePlugin`,
+`frontmatterPlugin`, `rawHtmlPlugin`, and `referencePlugin`. `gfmPlugin`
+requires `commonmarkPlugin`; the remaining descriptors can be selected
+independently. The editor kernel always registers its source-preserving
+fallback node even when the profile is empty.
+
+## Built-in insertion catalogs
+
+The gutter `+` and `/` on an empty paragraph open the block catalog. Typing `/`
+at a supported rich-text command boundary opens the inline catalog at the saved
+caret. The built-in inline commands are:
+
+- **Inline equation**, which inserts a `$…$` semantic atom; and
+- **Footnote**, which inserts `[^id]` at the caret and appends the matching
+  definition at the document end.
+
+Images are intentionally block-only creation commands. Existing inline image
+Markdown still imports and renders inline, but neither catalog offers an inline
+image command. The public label keys remain `mathBlock` and `inlineMath` for API
+compatibility; their default visible values are **Block equation** and **Inline
+equation**. Footnote definitions form a reserved tail region: the gutter does
+not expose insertion or drag controls there, and block movement is clamped before
+the first definition.
 
 ## Host callbacks
 
@@ -126,7 +244,7 @@ rejections are forwarded to `onError`.
 />
 ```
 
-### External navigation
+### Link navigation
 
 The package validates and resolves destinations before calling
 `onOpenExternalUrl`:
@@ -134,7 +252,10 @@ The package validates and resolves destinations before calling
 - links allow `http:`, `https:`, `mailto:`, and same-document fragments;
 - relative links require `baseUri`;
 - `javascript:`, `vbscript:`, `data:`, and `file:` remain inactive;
-- fragment links are handled by the browser and are not sent to the callback.
+- fragment links are resolved within the current editor root, scrolled into
+  view, and focused without changing `window.location.hash`;
+- fragment links are not sent to the callback, so they cannot collide with a
+  host application's hash router.
 
 The host still owns the final navigation action:
 
@@ -228,8 +349,10 @@ invalid results call `onError`; no broken image node is inserted. Paste inside
 a block-local input or textarea remains ordinary literal input and does not call
 the attachment callback.
 
-`signal` is aborted if the editor unmounts before persistence completes. Hosts
-should stop work when practical and must not update UI state after abort.
+`signal` is aborted if the editor unmounts or becomes read-only before
+persistence completes. Hosts should stop work when practical and must not
+update UI state after abort. Even if a host operation ignores cancellation, its
+late result is not inserted into a read-only or unmounted editor.
 
 ### Canonical URL versus display URL
 
@@ -269,7 +392,7 @@ resolver may return only `blob:`, `http:`, or `https:` presentation URLs.
 ```
 
 The playground contains a complete OPFS adapter with object-URL caching and
-cleanup in
+age-gated orphan cleanup in
 [`apps/markdown-editor-playground/src/opfs-image-store.ts`](../../apps/markdown-editor-playground/src/opfs-image-store.ts).
 
 ## Diagnostics
@@ -428,26 +551,27 @@ type MarkdownShortcutOverrides = Partial<
 `primary` means Command on macOS and Control on other platforms. Matching uses
 exact modifiers and ignores composing IME keyboard events.
 
-| Shortcut ID            | Default binding        | Scope        |
-| ---------------------- | ---------------------- | ------------ |
-| `document.save`        | `Mod+S`                | document     |
-| `history.undo`         | `Mod+Z`                | editor       |
-| `history.redo`         | `Mod+Shift+Z`, `Mod+Y` | editor       |
-| `format.bold`          | `Mod+B`                | selection    |
-| `format.italic`        | `Mod+I`                | selection    |
-| `insert.open-menu`     | `/`                    | editor       |
-| `selection.clear`      | `Escape`               | selection    |
-| `overlay.dismiss`      | `Escape`               | overlay      |
-| `menu.previous`        | `ArrowUp`              | menu         |
-| `menu.next`            | `ArrowDown`            | menu         |
-| `menu.choose`          | `Enter`                | menu         |
-| `block.move-up`        | `Alt+ArrowUp`          | block handle |
-| `block.move-down`      | `Alt+ArrowDown`        | block handle |
-| `list-item.move-up`    | `Alt+ArrowUp`          | list item    |
-| `list-item.move-down`  | `Alt+ArrowDown`        | list item    |
-| `block-editor.commit`  | `Mod+Enter`            | composer     |
-| `composer.confirm`     | `Enter`                | composer     |
-| `inline-atom.activate` | `Enter`, `Space`       | editor       |
+| Shortcut ID                | Default binding        | Scope        |
+| -------------------------- | ---------------------- | ------------ |
+| `document.save`            | `Mod+S`                | document     |
+| `history.undo`             | `Mod+Z`                | editor       |
+| `history.redo`             | `Mod+Shift+Z`, `Mod+Y` | editor       |
+| `format.bold`              | `Mod+B`                | selection    |
+| `format.italic`            | `Mod+I`                | selection    |
+| `insert.open-menu`         | `/`                    | editor       |
+| `selection.clear`          | `Escape`               | selection    |
+| `overlay.dismiss`          | `Escape`               | overlay      |
+| `menu.previous`            | `ArrowUp`              | menu         |
+| `menu.next`                | `ArrowDown`            | menu         |
+| `menu.choose`              | `Enter`                | menu         |
+| `block.move-up`            | `Alt+ArrowUp`          | block handle |
+| `block.move-down`          | `Alt+ArrowDown`        | block handle |
+| `list-item.move-up`        | `Alt+ArrowUp`          | list item    |
+| `list-item.move-down`      | `Alt+ArrowDown`        | list item    |
+| `list-item.toggle-checked` | `Mod+Enter`            | list item    |
+| `block-editor.commit`      | `Mod+Enter`            | composer     |
+| `composer.confirm`         | `Enter`                | composer     |
+| `inline-atom.activate`     | `Enter`, `Space`       | editor       |
 
 The package also exports registry helpers for hosts that render their own hints
 or compose overrides:
@@ -456,6 +580,7 @@ or compose overrides:
 resolveMarkdownShortcuts(overrides?): ResolvedMarkdownShortcuts
 matchesMarkdownShortcut(event, id, shortcuts?): boolean
 markdownShortcutLabel(id, platform, shortcuts?): string | undefined
+markdownShortcutLabels(id, platform, shortcuts?): string[]
 markdownShortcutAriaKeys(ids, shortcuts?): string | undefined
 markdownShortcutConflicts(shortcuts?): [MarkdownShortcutId, MarkdownShortcutId][]
 ```
@@ -522,12 +647,14 @@ Lexical composer. `MarkdownEditor` already mounts this plugin automatically.
 - Import the package stylesheet once; hosts may override semantic CSS custom
   properties without forking editor structure.
 - `layout="document"` owns readable page width and margins.
-- `layout="embedded"` uses the width supplied by the parent surface.
+- `layout="embedded"` uses the width supplied by the parent surface and shares
+  all block and inline presentation rules with `document`; only container
+  sizing, overflow, and reading-width ownership differ.
 - `readOnly` removes mutation controls but does not disable selection or copy.
 - `ariaLabel` names the content-editable document; editor-owned buttons, menus,
   composers, and shortcuts derive accessible text from `labels` and the
   shortcut registry.
-- Syntax highlighting, image display URLs, selection overlays, and formula
+- Syntax highlighting, image display URLs, selection overlays, and equation
   rendering are presentation state and never modify canonical Markdown.
 
 ## Supporting public exports
@@ -541,6 +668,7 @@ exports lower-level APIs for conformance tests and advanced Lexical hosts.
 interface EfmAnalysisOptions {
   inputProfile?: "document" | "fragment"
   baseUri?: string
+  syntaxFeatures?: ReadonlySet<string>
 }
 
 interface EfmImportSegment {
@@ -622,5 +750,6 @@ interface MarkdownEditorProps {
   showToolbar?: boolean
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   shortcuts?: MarkdownShortcutOverrides
+  plugins?: readonly MarkdownPlugin[]
 }
 ```

@@ -41,16 +41,194 @@ body,
 }
 
 .playground-header h1 {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .playground-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.playground-shortcuts-trigger {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--muted-foreground);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.playground-shortcuts-trigger:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+.playground-shortcuts-trigger:focus-visible,
+.playground-shortcuts-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.playground-shortcuts-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow:
+    0 18px 48px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 2px 8px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.playground-shortcuts-dialog::backdrop {
+  background: color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+
+.playground-shortcuts-panel {
+  display: flex;
+  max-height: min(76dvh, 660px);
+  flex-direction: column;
+}
+
+.playground-shortcuts-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 18px 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playground-shortcuts-heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.playground-shortcuts-heading p {
+  margin: 3px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.playground-shortcuts-heading form {
+  margin: 0;
+}
+
+.playground-shortcuts-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  place-items: center;
+  color: var(--muted-foreground);
+  background: transparent;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.playground-shortcuts-close:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+.playground-shortcuts-list {
+  margin: 0;
+  padding: 6px 10px 10px;
+  overflow: auto;
+  list-style: none;
+  scrollbar-gutter: stable;
+}
+
+.playground-shortcut-row {
+  display: grid;
+  min-height: 48px;
+  padding: 7px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  align-items: center;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.playground-shortcut-row:last-child {
+  border-bottom: 0;
+}
+
+.playground-shortcut-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.playground-shortcut-description {
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.playground-shortcut-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.playground-shortcut-meta code {
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playground-shortcut-meta code::before {
+  margin-inline-end: 7px;
+  color: var(--border);
+  content: "·";
+}
+
+.playground-shortcut-bindings {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.playground-shortcut-bindings kbd {
+  min-width: 28px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-bottom-color: color-mix(in srgb, var(--border) 72%, var(--foreground));
+  border-radius: 5px;
+  color: var(--foreground);
+  background: var(--muted);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .playground-switch {
@@ -60,6 +238,7 @@ body,
   gap: 7px;
   font-size: 12px;
   user-select: none;
+  white-space: nowrap;
 }
 
 .playground-switch input {
@@ -121,5 +300,28 @@ body,
 @media (max-width: 620px) {
   .playground-header {
     padding: 0 16px;
+  }
+
+  .playground-shortcuts-dialog {
+    width: calc(100vw - 20px);
+  }
+
+  .playground-shortcut-row {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .playground-header {
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .playground-actions {
+    gap: 4px;
+  }
+
+  .playground-shortcuts-trigger {
+    padding-inline: 6px;
   }
 }

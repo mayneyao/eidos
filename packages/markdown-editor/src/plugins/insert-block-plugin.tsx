@@ -59,12 +59,22 @@ import {
 } from "../nodes/efm-semantic-node"
 import { $isEfmSourceBlockNode } from "../nodes/efm-source-block-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import {
+  frontmatterSourceFromBody,
+  validateFrontmatterSource,
+} from "../markdown/frontmatter-validation"
 import type { EfmInputProfile, MarkdownEditorLabels } from "../types"
+import type { CompiledMarkdownPluginInsertion } from "../plugin-system/plugin-api"
+import {
+  EXTERNAL_MARKDOWN_CONFLICT_MESSAGE,
+  useEfmSourceBlockContext,
+} from "../ui/efm-source-block-context"
 
 type ComposerKind = "footnote" | "frontmatter" | "html" | "inline-math"
 type PlaceholderKind = "image" | "math"
 type InsertPlacement = "after" | "replace-empty"
 type InsertMenuMode = "block" | "inline"
+type InsertMenuNavigationMode = "keyboard" | "pointer"
 type ImmediateKind =
   | "bullet-list"
   | "check-list"
@@ -115,9 +125,13 @@ interface DropIndicator {
 }
 
 interface InsertMenuItem {
+  contexts: readonly InsertMenuMode[]
+  execute?: CompiledMarkdownPluginInsertion["execute"]
   glyph: string
-  id: ComposerKind | ImmediateKind | PlaceholderKind
+  id: string
+  keywords?: readonly string[]
   label: string
+  pluginId: string
   section: "basic" | "extended"
   unavailable?: string
 }
@@ -130,6 +144,38 @@ const BLOCK_GUTTER_WIDTH = 50
 const BLOCK_GUTTER_CONTENT_GAP = 4
 const INSERT_MENU_WIDTH = 296
 const VIEWPORT_INSET = 8
+
+const COMPOSER_KINDS = new Set<string>([
+  "footnote",
+  "frontmatter",
+  "html",
+  "inline-math",
+])
+const PLACEHOLDER_KINDS = new Set<string>(["image", "math"])
+const IMMEDIATE_KINDS = new Set<string>([
+  "bullet-list",
+  "check-list",
+  "code",
+  "divider",
+  "heading-1",
+  "heading-2",
+  "heading-3",
+  "number-list",
+  "quote",
+  "table",
+])
+
+function isComposerKind(id: string): id is ComposerKind {
+  return COMPOSER_KINDS.has(id)
+}
+
+function isPlaceholderKind(id: string): id is PlaceholderKind {
+  return PLACEHOLDER_KINDS.has(id)
+}
+
+function isImmediateKind(id: string): id is ImmediateKind {
+  return IMMEDIATE_KINDS.has(id)
+}
 
 function blockDragScrollVelocity(pointerY: number, viewport: DOMRect): number {
   if (pointerY < viewport.top + BLOCK_DRAG_SCROLL_EDGE) {
@@ -254,6 +300,10 @@ function isFixedFrontmatter(node: LexicalNode): boolean {
   )
 }
 
+function isFootnoteDefinition(node: LexicalNode): boolean {
+  return $isEfmBlockNode(node) && node.getData().kind === "footnote-definition"
+}
+
 function selectMovedBlock(node: LexicalNode): void {
   if ($isElementNode(node)) {
     node.selectStart()
@@ -360,20 +410,28 @@ function composerTitle(
 
 export function InsertBlockPlugin({
   inputProfile,
+  insertions,
   labels,
+  onError,
 }: {
   inputProfile: EfmInputProfile
+  insertions: readonly CompiledMarkdownPluginInsertion[]
   labels: MarkdownEditorLabels
+  onError(error: Error): void
 }) {
   const [editor] = useLexicalComposerContext()
   const { ariaKeys, matches } = useMarkdownShortcuts()
+  const { externalMarkdownConflict, registerDraft } = useEfmSourceBlockContext()
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuMode, setMenuMode] = useState<InsertMenuMode>("block")
   const [composer, setComposer] = useState<ComposerKind | null>(null)
   const [primary, setPrimary] = useState("")
+  const [composerError, setComposerError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [menuNavigationMode, setMenuNavigationMode] =
+    useState<InsertMenuNavigationMode>("keyboard")
   const [hasFrontmatter, setHasFrontmatter] = useState(false)
   const [dragDisabled, setDragDisabled] = useState(false)
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
@@ -385,96 +443,38 @@ export function InsertBlockPlugin({
   const blockDragRef = useRef<BlockDragState | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const menuPointerPositionRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!composer) return
+    return registerDraft()
+  }, [composer, registerDraft])
 
   const items = useMemo<InsertMenuItem[]>(
-    () => [
-      {
-        id: "heading-1",
-        label: labels.heading1,
-        glyph: "H1",
-        section: "basic",
-      },
-      {
-        id: "heading-2",
-        label: labels.heading2,
-        glyph: "H2",
-        section: "basic",
-      },
-      {
-        id: "heading-3",
-        label: labels.heading3,
-        glyph: "H3",
-        section: "basic",
-      },
-      { id: "quote", label: labels.quote, glyph: "❯", section: "basic" },
-      {
-        id: "bullet-list",
-        label: labels.bulletList,
-        glyph: "•",
-        section: "basic",
-      },
-      {
-        id: "number-list",
-        label: labels.numberedList,
-        glyph: "1.",
-        section: "basic",
-      },
-      {
-        id: "check-list",
-        label: labels.checkList,
-        glyph: "☐",
-        section: "basic",
-      },
-      { id: "code", label: labels.codeBlock, glyph: "</>", section: "basic" },
-      { id: "table", label: labels.table, glyph: "▦", section: "basic" },
-      { id: "divider", label: labels.divider, glyph: "—", section: "basic" },
-      {
-        id: "math",
-        label: labels.mathBlock,
-        glyph: "∑",
-        section: "extended",
-      },
-      {
-        id: "inline-math",
-        label: labels.inlineMath,
-        glyph: "√x",
-        section: "extended",
-      },
-      {
-        id: "image",
-        label: labels.image,
-        glyph: "▧",
-        section: "extended",
-      },
-      {
-        id: "footnote",
-        label: labels.footnote,
-        glyph: "¹",
-        section: "extended",
-      },
-      { id: "html", label: labels.rawHtml, glyph: "<>", section: "extended" },
-      ...(inputProfile === "document"
-        ? [
-            {
-              id: "frontmatter" as const,
-              label: labels.frontmatter,
-              glyph: "≡",
-              section: "extended" as const,
-              ...(hasFrontmatter
-                ? { unavailable: labels.frontmatterAlreadyExists }
-                : {}),
-            },
-          ]
-        : []),
-    ],
-    [hasFrontmatter, inputProfile, labels]
+    () =>
+      insertions.flatMap((insertion) => {
+        if (insertion.id === "frontmatter" && inputProfile !== "document") {
+          return []
+        }
+        const label = insertion.labelKey
+          ? labels[insertion.labelKey]
+          : insertion.label
+        if (!label) return []
+        return [
+          {
+            ...insertion,
+            label,
+            ...(insertion.id === "frontmatter" && hasFrontmatter
+              ? { unavailable: labels.frontmatterAlreadyExists }
+              : {}),
+          },
+        ]
+      }),
+    [hasFrontmatter, inputProfile, insertions, labels]
   )
 
   const availableItems = useMemo(
-    () =>
-      menuMode === "inline"
-        ? items.filter((item) => item.id === "inline-math")
-        : items.filter((item) => item.id !== "inline-math"),
+    () => items.filter((item) => item.contexts.includes(menuMode)),
     [items, menuMode]
   )
 
@@ -490,12 +490,18 @@ export function InsertBlockPlugin({
         item.id,
         item.section,
         sectionLabel,
+        ...(item.keywords ?? []),
       ]
         .join(" ")
         .toLocaleLowerCase()
       return terms.every((term) => haystack.includes(term))
     })
   }, [availableItems, labels.basicBlocks, labels.extendedBlocks, query])
+  const selectedItem = visibleItems[selectedIndex]
+  const activeOptionId =
+    selectedItem && !selectedItem.unavailable
+      ? `${catalogId}-option-${selectedItem.id}`
+      : undefined
 
   const changeMenuMode = useCallback((mode: InsertMenuMode) => {
     menuModeRef.current = mode
@@ -505,8 +511,11 @@ export function InsertBlockPlugin({
   const closeMenu = useCallback(() => {
     setMenuOpen(false)
     setComposer(null)
+    setComposerError(null)
     setQuery("")
     setSelectedIndex(0)
+    setMenuNavigationMode("keyboard")
+    menuPointerPositionRef.current = null
     inlineAnchorRef.current = null
     menuModeRef.current = "block"
     setMenuMode("block")
@@ -610,6 +619,12 @@ export function InsertBlockPlugin({
         if (!menuOpen) anchorKeyRef.current = null
         return
       }
+      if (isFootnoteDefinition(top)) {
+        setPosition(null)
+        setDragDisabled(false)
+        if (!menuOpen) anchorKeyRef.current = null
+        return
+      }
       const block = editor.getElementByKey(top.getKey())
       if (!block) {
         setPosition(null)
@@ -676,6 +691,12 @@ export function InsertBlockPlugin({
         const nearest = $getNearestNodeFromDOMNode(block)
         const top = nearest ? topLevelNode(nearest) : null
         if (!top) return
+        if (isFootnoteDefinition(top)) {
+          setPosition(null)
+          setDragDisabled(false)
+          anchorKeyRef.current = null
+          return
+        }
         placeGutter(root, block, top.getKey(), isFixedFrontmatter(top))
       })
     }
@@ -730,21 +751,6 @@ export function InsertBlockPlugin({
     focusEditor()
   }, [closeMenu, focusEditor])
 
-  const activeTopLevelKey = (): NodeKey | null =>
-    editor.read(() => {
-      const selection = $getSelection()
-      if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        return topLevelNode(selection.anchor.getNode())?.getKey() ?? null
-      }
-      if ($isNodeSelection(selection)) {
-        const nodes = selection.getNodes()
-        if (nodes.length === 1) {
-          return topLevelNode(nodes[0])?.getKey() ?? null
-        }
-      }
-      return null
-    })
-
   const updateBlockDropTarget = (drag: BlockDragState) => {
     const elements = [...drag.root.children].filter(
       (element): element is HTMLElement =>
@@ -765,6 +771,20 @@ export function InsertBlockPlugin({
         targetPosition = "before"
         break
       }
+    }
+
+    const footnoteBoundaryElement = editor.read(() => {
+      const firstFootnote = $getRoot().getChildren().find(isFootnoteDefinition)
+      return firstFootnote
+        ? editor.getElementByKey(firstFootnote.getKey())
+        : null
+    })
+    if (
+      footnoteBoundaryElement &&
+      drag.currentY >= footnoteBoundaryElement.getBoundingClientRect().top
+    ) {
+      targetElement = footnoteBoundaryElement
+      targetPosition = "before"
     }
 
     const target = editor.read(() => {
@@ -843,7 +863,8 @@ export function InsertBlockPlugin({
           !source ||
           !destination ||
           source === destination ||
-          isFixedFrontmatter(source)
+          isFixedFrontmatter(source) ||
+          isFootnoteDefinition(source)
         ) {
           return
         }
@@ -856,7 +877,12 @@ export function InsertBlockPlugin({
           }
           destination.insertBefore(source)
         } else {
-          if (source.getPreviousSibling() === destination) return
+          if (
+            source.getPreviousSibling() === destination ||
+            isFootnoteDefinition(destination)
+          ) {
+            return
+          }
           destination.insertAfter(source)
         }
         selectMovedBlock(source)
@@ -869,7 +895,7 @@ export function InsertBlockPlugin({
     event: ReactPointerEvent<HTMLButtonElement>
   ) => {
     if (event.button !== 0 || dragDisabled || blockDragRef.current) return
-    const sourceKey = activeTopLevelKey() ?? anchorKeyRef.current
+    const sourceKey = anchorKeyRef.current
     const root = editor.getRootElement()
     const stage = root?.closest<HTMLElement>(".eme-editor-stage") ?? null
     const sourceElement = sourceKey ? editor.getElementByKey(sourceKey) : null
@@ -937,17 +963,29 @@ export function InsertBlockPlugin({
         : null
     if (!direction) return
     event.preventDefault()
-    const sourceKey = activeTopLevelKey() ?? anchorKeyRef.current
+    const sourceKey = anchorKeyRef.current
     if (!sourceKey || dragDisabled) return
     editor.update(
       () => {
         const source = $getNodeByKey(sourceKey)
-        if (!source || isFixedFrontmatter(source)) return
+        if (
+          !source ||
+          isFixedFrontmatter(source) ||
+          isFootnoteDefinition(source)
+        ) {
+          return
+        }
         const sibling =
           direction === "up"
             ? source.getPreviousSibling()
             : source.getNextSibling()
-        if (!sibling || isFixedFrontmatter(sibling)) return
+        if (
+          !sibling ||
+          isFixedFrontmatter(sibling) ||
+          isFootnoteDefinition(sibling)
+        ) {
+          return
+        }
         if (direction === "up") sibling.insertBefore(source)
         else sibling.insertAfter(source)
         selectMovedBlock(source)
@@ -1027,6 +1065,7 @@ export function InsertBlockPlugin({
 
   const openComposer = useCallback((kind: ComposerKind) => {
     setPrimary(COMPOSER_DEFAULTS[kind])
+    setComposerError(null)
     setComposer(kind)
   }, [])
 
@@ -1075,20 +1114,68 @@ export function InsertBlockPlugin({
   const chooseItem = useCallback(
     (item: InsertMenuItem) => {
       if (item.unavailable) return
-      if (item.id === "image" || item.id === "math") {
+      if (item.execute) {
+        try {
+          item.execute({
+            anchorKey: anchorKeyRef.current,
+            closeMenu,
+            editor,
+            focusEditor,
+            inputProfile,
+            insertBlock: (createNode) => {
+              let insertedKey: NodeKey | null = null
+              editor.update(
+                () => {
+                  const node = createNode()
+                  insertedKey = node.getKey()
+                  insertAtomicBlock(
+                    node,
+                    anchorKeyRef.current,
+                    placementRef.current
+                  )
+                },
+                { tag: HISTORY_PUSH_TAG }
+              )
+              return insertedKey
+            },
+            insertInline: (createNodes) => {
+              const inlineAnchor = inlineAnchorRef.current
+              if (!inlineAnchor) return false
+              let inserted = false
+              editor.update(
+                () => {
+                  if (!restoreInlineAnchor(inlineAnchor)) return
+                  $insertNodes([...createNodes()])
+                  inserted = true
+                },
+                { tag: HISTORY_PUSH_TAG }
+              )
+              return inserted
+            },
+            mode: menuModeRef.current,
+            placement: placementRef.current,
+          })
+        } catch (cause) {
+          onError(cause instanceof Error ? cause : new Error(String(cause)))
+        }
+      } else if (isPlaceholderKind(item.id)) {
         insertPlaceholder(item.id)
-      } else if (
-        item.id === "footnote" ||
-        item.id === "frontmatter" ||
-        item.id === "html" ||
-        item.id === "inline-math"
-      ) {
+      } else if (isComposerKind(item.id)) {
         openComposer(item.id)
-      } else {
+      } else if (isImmediateKind(item.id)) {
         runImmediate(item.id)
       }
     },
-    [insertPlaceholder, openComposer, runImmediate]
+    [
+      closeMenu,
+      editor,
+      focusEditor,
+      inputProfile,
+      insertPlaceholder,
+      onError,
+      openComposer,
+      runImmediate,
+    ]
   )
 
   const handleCatalogKeyDown = useCallback(
@@ -1101,6 +1188,7 @@ export function InsertBlockPlugin({
       if (menuDirection) {
         event.preventDefault()
         event.stopPropagation()
+        setMenuNavigationMode("keyboard")
         setSelectedIndex((current) =>
           nextAvailableIndex(visibleItems, current, menuDirection)
         )
@@ -1141,6 +1229,7 @@ export function InsertBlockPlugin({
                 : null
             if (menuDirection) {
               event.preventDefault()
+              setMenuNavigationMode("keyboard")
               setSelectedIndex((current) =>
                 nextAvailableIndex(visibleItems, current, menuDirection)
               )
@@ -1167,6 +1256,7 @@ export function InsertBlockPlugin({
             return false
           const top = topLevelNode(selection.anchor.getNode())
           if (!top) return false
+          if (isFootnoteDefinition(top)) return false
           if ($isParagraphNode(top) && top.getTextContentSize() === 0) {
             inlineAnchorRef.current = null
             changeMenuMode("block")
@@ -1238,14 +1328,64 @@ export function InsertBlockPlugin({
       }
       return
     }
+    if (composer === "footnote" && menuModeRef.current === "inline") {
+      const inlineAnchor = inlineAnchorRef.current
+      if (!inlineAnchor) return
+      const body = primary.trim() || "Footnote text."
+      let inserted = false
+      editor.update(
+        () => {
+          if (!restoreInlineAnchor(inlineAnchor)) return
+          const footnote = nextFootnote($getRoot().getChildren())
+          $insertNodes([
+            $createEfmInlineNode({
+              kind: "footnote-reference",
+              source: `[^${footnote.identifier}]`,
+              identifier: footnote.identifier,
+              label: footnote.identifier,
+              number: footnote.number,
+              referenceId: footnote.referenceId,
+            }),
+          ])
+          $getRoot().append(
+            $createEfmBlockNode({
+              kind: "footnote-definition",
+              source: `[^${footnote.identifier}]: ${body}`,
+              identifier: footnote.identifier,
+              label: footnote.identifier,
+              number: footnote.number,
+              referenceIds: [footnote.referenceId],
+              previewHtml: markdownPreviewHtml(body),
+            })
+          )
+          inserted = true
+        },
+        { tag: HISTORY_PUSH_TAG }
+      )
+      if (inserted) {
+        closeMenu()
+        focusEditor()
+      }
+      return
+    }
     const anchorKey = anchorKeyRef.current
     const placement = placementRef.current
+    const frontmatterSource =
+      composer === "frontmatter"
+        ? frontmatterSourceFromBody(primary.trim() || "title: Untitled")
+        : null
+    const frontmatterError = frontmatterSource
+      ? validateFrontmatterSource(frontmatterSource)
+      : null
+    if (frontmatterError) {
+      setComposerError(frontmatterError)
+      return
+    }
     editor.update(() => {
       if (composer === "frontmatter") {
-        const body = primary.trim() || "title: Untitled"
         const node = $createEfmBlockNode({
           kind: "frontmatter",
-          source: `---\n${body}\n---`,
+          source: frontmatterSource!,
         })
         const first = $getRoot().getFirstChild()
         if (first) first.insertBefore(node)
@@ -1380,7 +1520,10 @@ export function InsertBlockPlugin({
                 <button
                   type="button"
                   aria-label={labels.backToInsertMenu}
-                  onClick={() => setComposer(null)}
+                  onClick={() => {
+                    setComposerError(null)
+                    setComposer(null)
+                  }}
                 >
                   ←
                 </button>
@@ -1400,13 +1543,21 @@ export function InsertBlockPlugin({
                   <input
                     autoFocus
                     aria-label={labels.formulaSource}
+                    aria-describedby={
+                      externalMarkdownConflict
+                        ? `${catalogId}-composer-error`
+                        : undefined
+                    }
                     aria-keyshortcuts={ariaKeys([
                       "composer.confirm",
                       "overlay.dismiss",
                     ])}
                     value={primary}
                     spellCheck={false}
-                    onChange={(event) => setPrimary(event.target.value)}
+                    onChange={(event) => {
+                      setPrimary(event.target.value)
+                      setComposerError(null)
+                    }}
                     onKeyDown={(event) => {
                       if (matches(event, "composer.confirm")) {
                         event.preventDefault()
@@ -1428,9 +1579,18 @@ export function InsertBlockPlugin({
                       "block-editor.commit",
                       "overlay.dismiss",
                     ])}
+                    aria-describedby={
+                      composerError || externalMarkdownConflict
+                        ? `${catalogId}-composer-error`
+                        : undefined
+                    }
+                    aria-invalid={Boolean(composerError) || undefined}
                     value={primary}
                     spellCheck={composer === "footnote"}
-                    onChange={(event) => setPrimary(event.target.value)}
+                    onChange={(event) => {
+                      setPrimary(event.target.value)
+                      setComposerError(null)
+                    }}
                     onKeyDown={(event) => {
                       if (matches(event, "block-editor.commit")) {
                         event.preventDefault()
@@ -1447,6 +1607,15 @@ export function InsertBlockPlugin({
                   />
                 )}
               </label>
+              {composerError || externalMarkdownConflict ? (
+                <p
+                  id={`${catalogId}-composer-error`}
+                  className="eme-efm-block-editor-error"
+                  role="alert"
+                >
+                  {composerError ?? EXTERNAL_MARKDOWN_CONFLICT_MESSAGE}
+                </p>
+              ) : null}
               <div className="eme-insert-composer-actions">
                 <button type="button" onClick={dismissMenuToEditor}>
                   {labels.cancelBlockEdit}
@@ -1468,13 +1637,16 @@ export function InsertBlockPlugin({
                   ref={searchInputRef}
                   className="eme-insert-menu-search"
                   type="search"
-                  role="searchbox"
+                  role="combobox"
+                  aria-activedescendant={activeOptionId}
+                  aria-autocomplete="list"
                   aria-label={
                     menuMode === "inline"
                       ? labels.filterInline
                       : labels.filterBlocks
                   }
                   aria-controls={catalogId}
+                  aria-expanded="true"
                   aria-keyshortcuts={ariaKeys([
                     "menu.previous",
                     "menu.next",
@@ -1496,13 +1668,17 @@ export function InsertBlockPlugin({
               <div
                 id={catalogId}
                 className="eme-insert-menu-catalog"
-                role="menu"
+                role="listbox"
                 aria-label={
                   menuMode === "inline"
                     ? labels.insertInline
                     : labels.insertBlock
                 }
                 data-layout="list"
+                data-navigation={menuNavigationMode}
+                onPointerLeave={() => {
+                  menuPointerPositionRef.current = null
+                }}
               >
                 {INSERT_MENU_SECTIONS.map((section) => {
                   const sectionItems = visibleItems.filter(
@@ -1531,16 +1707,39 @@ export function InsertBlockPlugin({
                         const index = visibleItems.indexOf(item)
                         return (
                           <button
+                            id={`${catalogId}-option-${item.id}`}
                             key={item.id}
                             type="button"
-                            role="menuitem"
+                            role="option"
+                            aria-selected={selectedIndex === index}
                             disabled={Boolean(item.unavailable)}
                             data-selected={
                               (selectedIndex === index && !item.unavailable) ||
                               undefined
                             }
                             title={item.unavailable}
-                            onMouseEnter={() => setSelectedIndex(index)}
+                            onPointerMove={(event) => {
+                              if (
+                                event.pointerType !== "mouse" ||
+                                item.unavailable
+                              ) {
+                                return
+                              }
+                              const previous = menuPointerPositionRef.current
+                              const current = {
+                                x: event.clientX,
+                                y: event.clientY,
+                              }
+                              if (
+                                previous?.x === current.x &&
+                                previous.y === current.y
+                              ) {
+                                return
+                              }
+                              menuPointerPositionRef.current = current
+                              setMenuNavigationMode("pointer")
+                              setSelectedIndex(index)
+                            }}
                             onClick={() => chooseItem(item)}
                           >
                             <span aria-hidden="true">{item.glyph}</span>

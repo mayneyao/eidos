@@ -148,6 +148,8 @@ export function ClipboardImagePlugin({
 }) {
   const [editor] = useLexicalComposerContext()
   const controllers = useRef(new Set<AbortController>())
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
 
   useEffect(
     () => () => {
@@ -156,6 +158,12 @@ export function ClipboardImagePlugin({
     },
     []
   )
+
+  useEffect(() => {
+    if (!readOnly) return
+    for (const controller of controllers.current) controller.abort()
+    controllers.current.clear()
+  }, [readOnly])
 
   useEffect(() => {
     if (!onPasteImage || readOnly) return
@@ -193,7 +201,13 @@ export function ClipboardImagePlugin({
           )
         )
           .then((persisted) => {
-            if (controller.signal.aborted) return
+            if (
+              controller.signal.aborted ||
+              readOnlyRef.current ||
+              !editor.isEditable()
+            ) {
+              return
+            }
 
             const images: EfmBlockData[] = []
             for (const result of persisted) {
@@ -205,6 +219,8 @@ export function ClipboardImagePlugin({
               }
             }
             if (images.length === 0) return
+
+            if (readOnlyRef.current || !editor.isEditable()) return
 
             editor.update(
               () => {

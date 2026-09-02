@@ -1,4 +1,5 @@
 import type { CodeHighlightTokenizer } from "./highlighting/code-highlight-tokenizer"
+import type { MarkdownPlugin } from "./plugin-system/plugin-api"
 import type { MarkdownShortcutOverrides } from "./shortcuts/shortcut-registry"
 
 export type MarkdownEditorTheme = "light" | "dark"
@@ -161,4 +162,6 @@ export interface MarkdownEditorProps {
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   /** Override or disable package-owned keyboard shortcuts by stable shortcut ID. */
   shortcuts?: MarkdownShortcutOverrides
+  /** Immutable syntax and behavior plugins. Defaults to the complete EFM profile. */
+  plugins?: readonly MarkdownPlugin[]
 }

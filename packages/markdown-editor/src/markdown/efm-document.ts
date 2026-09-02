@@ -35,6 +35,7 @@ import {
   type EfmInlineData,
 } from "../nodes/efm-semantic-node"
 import type { EfmDiagnostic, EfmInputProfile } from "../types"
+import { MARKDOWN_FEATURES } from "../plugin-system/feature-ids"
 
 interface MdastPosition {
   start: { line: number; column: number; offset?: number }
@@ -65,6 +66,8 @@ interface OffsetRange {
 export interface EfmAnalysisOptions {
   inputProfile?: EfmInputProfile
   baseUri?: string
+  /** Enabled editor capabilities. Omit to preserve the complete EFM profile. */
+  syntaxFeatures?: ReadonlySet<string>
 }
 
 export interface EfmImportSegment {
@@ -754,8 +757,10 @@ function childSource(node: MdastNode, source: string): string {
 function inlineReplacements(
   source: string,
   context: EfmImportContext,
-  baseUri?: string
+  baseUri?: string,
+  syntaxFeatures?: ReadonlySet<string>
 ): EfmInlineReplacement[] {
+  const enabled = (feature: string) => syntaxFeatures?.has(feature) ?? true
   const supplementalDefinitions = [
     ...Array.from(
       context.footnoteDefinitions,
@@ -780,7 +785,11 @@ function inlineReplacements(
     }
     const original = source.slice(range.start, range.end)
 
-    if (node.type === "footnoteReference" && node.identifier) {
+    if (
+      enabled(MARKDOWN_FEATURES.footnote) &&
+      node.type === "footnoteReference" &&
+      node.identifier
+    ) {
       const identifier = normalizeIdentifier(node.identifier)
       if (!context.footnoteDefinitions.has(identifier)) return
       const occurrence = (context.footnoteOccurrences.get(identifier) ?? 0) + 1
@@ -803,7 +812,7 @@ function inlineReplacements(
       return
     }
 
-    if (node.type === "image" && node.url) {
+    if (enabled(MARKDOWN_FEATURES.image) && node.type === "image" && node.url) {
       replacements.push({
         start: range.start,
         end: range.end,
@@ -822,7 +831,9 @@ function inlineReplacements(
     }
 
     if (
-      (node.type === "imageReference" || node.type === "linkReference") &&
+      ((enabled(MARKDOWN_FEATURES.image) && node.type === "imageReference") ||
+        (enabled(MARKDOWN_FEATURES.reference) &&
+          node.type === "linkReference")) &&
       node.identifier
     ) {
       const definition = context.references.get(
@@ -861,17 +872,19 @@ function inlineReplacements(
     }
   })
 
-  for (const range of inlineMathRanges(root, source)) {
-    const original = source.slice(range.start, range.end)
-    replacements.push({
-      start: range.start,
-      end: range.end,
-      data: {
-        kind: "math",
-        source: original,
-        value: original.slice(1, -1),
-      },
-    })
+  if (enabled(MARKDOWN_FEATURES.math)) {
+    for (const range of inlineMathRanges(root, source)) {
+      const original = source.slice(range.start, range.end)
+      replacements.push({
+        start: range.start,
+        end: range.end,
+        data: {
+          kind: "math",
+          source: original,
+          value: original.slice(1, -1),
+        },
+      })
+    }
   }
 
   const nonOverlapping: EfmInlineReplacement[] = []
@@ -930,9 +943,15 @@ function importMarkdownWithSemantics(
   source: string,
   transformers: readonly Transformer[],
   context: EfmImportContext,
-  baseUri?: string
+  baseUri?: string,
+  syntaxFeatures?: ReadonlySet<string>
 ): LexicalNode[] {
-  const replacements = inlineReplacements(source, context, baseUri)
+  const replacements = inlineReplacements(
+    source,
+    context,
+    baseUri,
+    syntaxFeatures
+  )
   if (replacements.length === 0) {
     return $generateNodesFromMarkdownString(
       source,
@@ -1031,10 +1050,10 @@ function inlineMarkdownPreviewHtml(source: string): string {
 
 function appendMarkdownSegments(
   target: EfmImportSegment[],
-  source: string
+  source: string,
+  root: MdastNode = parseMarkdown(source)
 ): void {
   if (!source.trim()) return
-  const root = parseMarkdown(source)
   const children = root.children ?? []
   if (children.length === 0) {
     target.push({ source, sourceKind: "commonmark" })
@@ -1094,17 +1113,21 @@ export function analyzeEfmMarkdown(
     )
   )
 
-  let cursor = 0
-  for (const range of math.ranges) {
-    appendMarkdownSegments(segments, body.slice(cursor, range.start))
-    segments.push({
-      source: body.slice(range.start, range.end),
-      sourceKind: "math",
-    })
-    cursor = range.end
-    if (body[cursor] === "\n") cursor += 1
+  if (math.ranges.length === 0) {
+    appendMarkdownSegments(segments, body, markdownRoot)
+  } else {
+    let cursor = 0
+    for (const range of math.ranges) {
+      appendMarkdownSegments(segments, body.slice(cursor, range.start))
+      segments.push({
+        source: body.slice(range.start, range.end),
+        sourceKind: "math",
+      })
+      cursor = range.end
+      if (body[cursor] === "\n") cursor += 1
+    }
+    appendMarkdownSegments(segments, body.slice(cursor))
   }
-  appendMarkdownSegments(segments, body.slice(cursor))
 
   return {
     diagnostics: diagnostics.sort(
@@ -1130,10 +1153,16 @@ export function $convertFromEfmMarkdownString(
     options.inputProfile ?? "document"
   )
   const deferredFootnotes: LexicalNode[] = []
+  const enabled = (feature: string) =>
+    options.syntaxFeatures?.has(feature) ?? true
   root.clear()
 
   for (const segment of analysis.segments) {
     if (segment.sourceKind === "frontmatter") {
+      if (!enabled(MARKDOWN_FEATURES.frontmatter)) {
+        root.append($createEfmSourceBlockNode(segment.source, "frontmatter"))
+        continue
+      }
       const hasInvalidFrontmatter = analysis.diagnostics.some((diagnostic) =>
         diagnostic.code.startsWith("efm-frontmatter-")
       )
@@ -1149,6 +1178,10 @@ export function $convertFromEfmMarkdownString(
     }
 
     if (segment.sourceKind === "math") {
+      if (!enabled(MARKDOWN_FEATURES.math)) {
+        root.append($createEfmSourceBlockNode(segment.source, "math"))
+        continue
+      }
       const value = mathBlockValue(segment.source)
       if (value !== null) {
         root.append(
@@ -1166,7 +1199,8 @@ export function $convertFromEfmMarkdownString(
             segment.source,
             transformers,
             context,
-            options.baseUri
+            options.baseUri,
+            options.syntaxFeatures
           )
         )
       }
@@ -1174,7 +1208,21 @@ export function $convertFromEfmMarkdownString(
     }
 
     const parsed = segment.sourceKind ? firstNode(segment.source) : undefined
-    if (segment.sourceKind === "image" && parsed) {
+    if (
+      (segment.sourceKind === "image" && !enabled(MARKDOWN_FEATURES.image)) ||
+      (segment.sourceKind === "footnote" &&
+        !enabled(MARKDOWN_FEATURES.footnote)) ||
+      (segment.sourceKind === "reference" &&
+        !enabled(MARKDOWN_FEATURES.reference))
+    ) {
+      root.append($createEfmSourceBlockNode(segment.source, segment.sourceKind))
+      continue
+    }
+    if (
+      enabled(MARKDOWN_FEATURES.image) &&
+      segment.sourceKind === "image" &&
+      parsed
+    ) {
       const image = standaloneImageData(segment.source, parsed, options.baseUri)
       if (image) {
         root.append($createEfmBlockNode(image))
@@ -1183,6 +1231,7 @@ export function $convertFromEfmMarkdownString(
     }
     if (
       segment.sourceKind === "footnote" &&
+      enabled(MARKDOWN_FEATURES.footnote) &&
       parsed?.type === "footnoteDefinition" &&
       parsed.identifier
     ) {
@@ -1204,6 +1253,7 @@ export function $convertFromEfmMarkdownString(
 
     if (
       segment.sourceKind === "reference" &&
+      enabled(MARKDOWN_FEATURES.reference) &&
       parsed?.type === "definition" &&
       parsed.identifier
     ) {
@@ -1218,6 +1268,10 @@ export function $convertFromEfmMarkdownString(
     }
 
     if (segment.sourceKind === "raw-html") {
+      if (!enabled(MARKDOWN_FEATURES.rawHtml)) {
+        root.append($createEfmSourceBlockNode(segment.source, "raw-html"))
+        continue
+      }
       root.append(
         ACTIVE_HTML.test(segment.source)
           ? $createEfmSourceBlockNode(segment.source, "raw-html")
@@ -1240,7 +1294,8 @@ export function $convertFromEfmMarkdownString(
         segment.source,
         transformers,
         context,
-        options.baseUri
+        options.baseUri,
+        options.syntaxFeatures
       )
     )
   }

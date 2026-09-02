@@ -244,7 +244,7 @@ importers:
       '@eidos.space/graft':
         specifier: 0.3.25
         version: 0.3.25
-      '@eidos.space/markdown-editor':
+      '@eidos.space/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown-editor
       '@glideapps/glide-data-grid':
@@ -461,7 +461,7 @@ importers:
 
   apps/markdown-editor-playground:
     dependencies:
-      '@eidos.space/markdown-editor':
+      '@eidos.space/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown-editor
       react:
@@ -769,6 +769,9 @@ importers:
       '@lexical/utils':
         specifier: 0.49.0
         version: 0.49.0(typescript@5.8.3)
+      diff:
+        specifier: 8.0.4
+        version: 8.0.4
       katex:
         specifier: 0.18.5
         version: 0.18.5

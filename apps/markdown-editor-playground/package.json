@@ -14,7 +14,7 @@
     "typecheck:tsgo": "tsgo --noEmit"
   },
   "dependencies": {
-    "@eidos.space/markdown-editor": "workspace:*",
+    "@eidos.space/markdown": "workspace:*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

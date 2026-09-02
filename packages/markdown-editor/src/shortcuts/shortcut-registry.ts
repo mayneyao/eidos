@@ -86,6 +86,11 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
     description: "Move the current list item down among its siblings",
     scope: "list-item",
   },
+  "list-item.toggle-checked": {
+    bindings: [{ key: "Enter", primary: true }],
+    description: "Toggle the current checklist item",
+    scope: "list-item",
+  },
   "list-item.move-up": {
     bindings: [{ alt: true, key: "ArrowUp" }],
     description: "Move the current list item up among its siblings",
@@ -118,14 +123,17 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
   },
 } as const satisfies Record<string, MarkdownShortcutDefinition>
 
-export type MarkdownShortcutId = keyof typeof DEFAULT_MARKDOWN_SHORTCUTS
+export type BuiltInMarkdownShortcutId = keyof typeof DEFAULT_MARKDOWN_SHORTCUTS
+
+/** Stable shortcut command ID. Third-party plugins should namespace their IDs. */
+export type MarkdownShortcutId = BuiltInMarkdownShortcutId | (string & {})
 
 export type MarkdownShortcutOverrides = Partial<
-  Record<MarkdownShortcutId, readonly MarkdownShortcutBinding[] | false>
+  Record<string, readonly MarkdownShortcutBinding[] | false>
 >
 
 export type ResolvedMarkdownShortcuts = Record<
-  MarkdownShortcutId,
+  string,
   MarkdownShortcutDefinition
 >
 
@@ -161,11 +169,16 @@ function bindingMatches(
 }
 
 export function resolveMarkdownShortcuts(
-  overrides: MarkdownShortcutOverrides = {}
+  overrides: MarkdownShortcutOverrides = {},
+  extensions: Readonly<Record<string, MarkdownShortcutDefinition>> = {}
 ): ResolvedMarkdownShortcuts {
+  const definitions: Record<string, MarkdownShortcutDefinition> = {
+    ...DEFAULT_MARKDOWN_SHORTCUTS,
+    ...extensions,
+  }
   return Object.fromEntries(
-    Object.entries(DEFAULT_MARKDOWN_SHORTCUTS).map(([id, definition]) => {
-      const override = overrides[id as MarkdownShortcutId]
+    Object.entries(definitions).map(([id, definition]) => {
+      const override = overrides[id]
       return [
         id,
         {
@@ -182,7 +195,7 @@ export function matchesMarkdownShortcut(
   id: MarkdownShortcutId,
   shortcuts: ResolvedMarkdownShortcuts = resolveMarkdownShortcuts()
 ): boolean {
-  return shortcuts[id].bindings.some((binding) =>
+  return (shortcuts[id]?.bindings ?? []).some((binding) =>
     bindingMatches(event, binding)
   )
 }
@@ -196,18 +209,33 @@ function displayKey(key: string): string {
   return key.length === 1 ? key.toLocaleUpperCase() : key
 }
 
-export function markdownShortcutLabel(
-  id: MarkdownShortcutId,
-  platform: ShortcutDisplayPlatform,
-  shortcuts: ResolvedMarkdownShortcuts = resolveMarkdownShortcuts()
-): string | undefined {
-  const binding = shortcuts[id].bindings[0]
-  if (!binding) return undefined
+function shortcutBindingLabel(
+  binding: MarkdownShortcutBinding,
+  platform: ShortcutDisplayPlatform
+): string {
   const modifiers: string[] = []
   if (binding.primary) modifiers.push(platform === "mac" ? "⌘" : "Ctrl+")
   if (binding.alt) modifiers.push(platform === "mac" ? "⌥" : "Alt+")
   if (binding.shift) modifiers.push(platform === "mac" ? "⇧" : "Shift+")
   return `${modifiers.join("")}${displayKey(binding.key)}`
+}
+
+export function markdownShortcutLabels(
+  id: MarkdownShortcutId,
+  platform: ShortcutDisplayPlatform,
+  shortcuts: ResolvedMarkdownShortcuts = resolveMarkdownShortcuts()
+): string[] {
+  return (shortcuts[id]?.bindings ?? []).map((binding) =>
+    shortcutBindingLabel(binding, platform)
+  )
+}
+
+export function markdownShortcutLabel(
+  id: MarkdownShortcutId,
+  platform: ShortcutDisplayPlatform,
+  shortcuts: ResolvedMarkdownShortcuts = resolveMarkdownShortcuts()
+): string | undefined {
+  return markdownShortcutLabels(id, platform, shortcuts)[0]
 }
 
 function bindingAriaKeys(binding: MarkdownShortcutBinding): string[] {
@@ -229,16 +257,16 @@ export function markdownShortcutAriaKeys(
 ): string | undefined {
   const shortcutIds = typeof ids === "string" ? [ids] : ids
   const keys = shortcutIds.flatMap((id) =>
-    shortcuts[id].bindings.flatMap(bindingAriaKeys)
+    (shortcuts[id]?.bindings ?? []).flatMap(bindingAriaKeys)
   )
   return keys.length > 0 ? keys.join(" ") : undefined
 }
 
 export function markdownShortcutConflicts(
   shortcuts: ResolvedMarkdownShortcuts = resolveMarkdownShortcuts()
-): [MarkdownShortcutId, MarkdownShortcutId][] {
-  const conflicts: [MarkdownShortcutId, MarkdownShortcutId][] = []
-  const ids = Object.keys(shortcuts) as MarkdownShortcutId[]
+): [string, string][] {
+  const conflicts: [string, string][] = []
+  const ids = Object.keys(shortcuts)
   ids.forEach((id, index) => {
     for (const otherId of ids.slice(index + 1)) {
       const definition = shortcuts[id]

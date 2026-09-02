@@ -13,8 +13,13 @@ import {
 import { useEffect, useState, type JSX } from "react"
 
 import { EfmBlockSelection } from "../ui/efm-block-selection"
-import { useEfmSourceBlockContext } from "../ui/efm-source-block-context"
+import {
+  EXTERNAL_MARKDOWN_CONFLICT_MESSAGE,
+  useEfmSourceBlockContext,
+} from "../ui/efm-source-block-context"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import { validateFrontmatterSource } from "../markdown/frontmatter-validation"
+import { $createEfmBlockNode } from "./efm-semantic-node"
 
 export type EfmSourceBlockKind =
   | "commonmark"
@@ -54,21 +59,54 @@ function EfmSourceBlockView({
   nodeKey: NodeKey
   source: string
 }) {
-  const { editBlockLabel, saveBlockLabel, cancelBlockEditLabel, readOnly } =
-    useEfmSourceBlockContext()
+  const {
+    editBlockLabel,
+    saveBlockLabel,
+    cancelBlockEditLabel,
+    externalMarkdownConflict,
+    readOnly,
+    registerDraft,
+  } = useEfmSourceBlockContext()
   const { ariaKeys, matches } = useMarkdownShortcuts()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source)
+  const [draftError, setDraftError] = useState<string | null>(null)
 
   useEffect(() => {
     if (readOnly) setEditing(false)
   }, [readOnly])
 
+  useEffect(() => {
+    if (!editing) return
+    return registerDraft()
+  }, [editing, registerDraft])
+
+  const visibleDraftError =
+    draftError ??
+    (externalMarkdownConflict ? EXTERNAL_MARKDOWN_CONFLICT_MESSAGE : null)
+
   const save = () => {
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey)
-      if ($isEfmSourceBlockNode(node)) node.setSource(draft)
-    })
+    const error =
+      kind === "frontmatter" ? validateFrontmatterSource(draft) : null
+    if (error) {
+      setDraftError(error)
+      return
+    }
+    editor.update(
+      () => {
+        const node = $getNodeByKey(nodeKey)
+        if (!$isEfmSourceBlockNode(node)) return
+        if (kind === "frontmatter") {
+          node.replace(
+            $createEfmBlockNode({ kind: "frontmatter", source: draft })
+          )
+        } else {
+          node.setSource(draft)
+        }
+      },
+      { discrete: true }
+    )
+    setDraftError(null)
     setEditing(false)
   }
 
@@ -88,6 +126,7 @@ function EfmSourceBlockView({
             className="eme-efm-source-action"
             onClick={() => {
               setDraft(source)
+              setDraftError(null)
               setEditing(true)
             }}
           >
@@ -103,9 +142,18 @@ function EfmSourceBlockView({
               "block-editor.commit",
               "overlay.dismiss",
             ])}
+            aria-describedby={
+              visibleDraftError
+                ? `eme-source-block-error-${nodeKey}`
+                : undefined
+            }
+            aria-invalid={Boolean(draftError) || undefined}
             value={draft}
             spellCheck={false}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setDraftError(null)
+            }}
             onKeyDown={(event) => {
               if (matches(event, "block-editor.commit")) {
                 event.preventDefault()
@@ -118,6 +166,15 @@ function EfmSourceBlockView({
               }
             }}
           />
+          {visibleDraftError ? (
+            <p
+              id={`eme-source-block-error-${nodeKey}`}
+              className="eme-efm-block-editor-error"
+              role="alert"
+            >
+              {visibleDraftError}
+            </p>
+          ) : null}
           <div className="eme-efm-block-editor-actions">
             <button type="button" onClick={() => setEditing(false)}>
               {cancelBlockEditLabel}

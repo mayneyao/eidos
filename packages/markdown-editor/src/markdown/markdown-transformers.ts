@@ -26,7 +26,7 @@ import {
 
 import { TABLE } from "./table-transformer"
 
-const HORIZONTAL_RULE: ElementTransformer = {
+export const HORIZONTAL_RULE: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
   export: (node) => ($isHorizontalRuleNode(node) ? "---" : null),
   regExp: /^ {0,3}((?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/u,

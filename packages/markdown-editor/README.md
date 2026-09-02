@@ -1,4 +1,4 @@
-# @eidos.space/markdown-editor
+# @eidos.space/markdown
 
 The shared Lexical-based WYSIWYG Markdown editor used by Eidos hosts.
 
@@ -15,7 +15,8 @@ mutations.
 
 ## Source architecture
 
-The package source is organized by responsibility rather than by syntax:
+The package separates reusable definitions, editor behavior, and syntax
+composition:
 
 ```text
 src/
@@ -23,7 +24,8 @@ src/
 ├── highlighting/ # Pure code-tokenization contract and implementation
 ├── markdown/     # EFM analysis, import/export, URI policy, and transformers
 ├── nodes/        # Lexical node definitions and the node registry
-├── plugins/      # Editor-wide behavior registered with Lexical
+├── plugin-system/# Public plugin contract, compiler, and built-in profile
+├── plugins/      # Reusable editor-wide Lexical behavior components
 ├── shortcuts/    # Stable shortcut registry, matching, labels, and host overrides
 ├── ui/           # Internal views/context shared by decorator nodes
 ├── index.ts      # Stable public package exports
@@ -38,6 +40,9 @@ The directory boundary is intentional:
   insertion, formatting, or synchronization behavior.
 - `plugins/` owns those editor-wide behaviors. A plugin may use nodes and the
   Markdown layer, but it does not define canonical syntax or persisted data.
+- `plugin-system/` owns immutable syntax descriptors and compiles them into one
+  node, transformer, behavior, insertion, shortcut, and capability registry.
+  It does not use process-global mutable registration.
 - `markdown/` owns the Markdown-to-editor projection and serialization rules.
   It has no host UI or editor-wide event lifecycle.
 - `shortcuts/` is the single source of truth for package-owned key bindings.
@@ -47,7 +52,15 @@ The directory boundary is intentional:
   built-in Lexical plugins, Eidos plugins, and host callbacks together without
   reimplementing them.
 - Tests stay beside the implementation layer they verify. Consumers import
-  only from `src/index.ts`; directory paths are internal and may change.
+  from the package root or its documented `plugin-api` and `plugins` subpaths;
+  source directory paths are internal and may change.
+
+`MarkdownEditor` defaults to `eidosMarkdownPlugins`. Hosts may pass a stable
+`plugins` array to build a smaller profile or add syntax. Public contracts are
+available from `@eidos.space/markdown/plugin-api`; built-in descriptors are
+available from `@eidos.space/markdown/plugins`. Changing the compiled plugin
+signature creates a fresh editor session because Lexical's node registry is
+immutable after composer creation.
 
 The Markdown contract is Eidos Flavored Markdown 1.0: CommonMark 0.31.2, the
 named GFM extensions, YAML frontmatter, footnotes, and the constrained EFM
@@ -69,7 +82,7 @@ editor stage does nothing. Available zones use a crosshair cursor and never
 appear at the same time as a text range. Both selection modes auto-scroll long
 documents near the viewport edges, and marquee selection retains blocks that
 have scrolled out of view.
-Formula composers float above following content so opening one does not shift
+Equation composers float above following content so opening one does not shift
 the document.
 
 Collapsed selections expose a quiet, top-aligned gutter group immediately
@@ -78,20 +91,24 @@ top-level blocks. Pointer dragging shows the insertion boundary and auto-scrolls
 long documents; the focused handle also moves one position with `Alt+ArrowUp` or
 `Alt+ArrowDown`.
 Each move is one undoable editor transaction, and frontmatter remains pinned to
-the document start. Inside a list item, the same keys reorder that item among
-its siblings in place; an owned nested list moves with it, the nesting level does
-not change, and the caret remains in the moved item. Choosing a command from `+`
-always creates a new block below;
+the document start. Footnote definitions are a pinned document-tail region: they
+do not expose `+` or a drag handle, and body blocks cannot be moved after them.
+Inside a list item, the same keys reorder that item among its siblings in place;
+an owned nested list moves with it, the nesting level does not change, and the
+caret remains in the moved item. `Mod+Enter` toggles the checklist item containing
+the caret without converting ordinary list items. Choosing a command from `+` always creates a new block below;
 it never changes the active block's type. The same searchable block catalog opens
 when `/` is typed on an empty paragraph, where the empty trigger paragraph may
 become the chosen block. In rich text, `/` at a command boundary opens a compact
-inline catalog at the caret; Inline formula restores that saved caret and inserts
-the resulting `$…$` atom without transforming the block. Canceling the inline
-flow leaves Markdown unchanged. Catalogs are vertical lists that filter while
+inline catalog at the caret. Its built-in commands are Inline equation and
+Footnote; both restore the saved caret before inserting, and Footnote maintains
+its definition at the document end. Inline image creation is intentionally not
+offered. Canceling the inline flow leaves Markdown unchanged. Catalogs are
+vertical lists that filter while
 typing and support Arrow Up/Down, Enter, and Escape. The block catalog creates
-headings, quotes, lists, checklists, code, tables, dividers, display formulas,
+headings, quotes, lists, checklists, code, tables, dividers, block equations,
 images, footnotes, safe HTML, and document frontmatter without entering a
-whole-document source mode. Formula and image commands immediately create empty semantic blocks
+whole-document source mode. Equation and image commands immediately create empty semantic blocks
 with descriptive placeholders, then open floating block-local composers that
 update those same blocks. Canceling leaves the empty placeholder available for
 later input instead of injecting sample content. Footnote, HTML, and frontmatter
@@ -103,7 +120,8 @@ The editor defaults to the EFM `document` input profile. Pass
 `inputProfile="fragment"` when editing a fragment; an initial `---` is then
 ordinary Markdown. It normalizes accepted line endings to LF and never emits a
 UTF-8 BOM. EFM diagnostics are available through `analyzeEfmMarkdown` and the
-`onEfmDiagnostics` callback.
+`onEfmDiagnostics` callback. Component diagnostics are deferred and coalesced
+so typing does not synchronously run a second whole-document analysis.
 
 Keyboard behavior is defined by stable IDs in the exported
 `DEFAULT_MARKDOWN_SHORTCUTS` registry. Matching uses exact modifiers, ignores
@@ -147,6 +165,11 @@ Only the stable URL is serialized. A returned `displayUrl` or resolved `blob:`
 URL is presentation-only. The package still rejects canonical `data:`, `file:`,
 `javascript:`, and `vbscript:` destinations; host-resolved presentation URLs
 are limited to `blob:`, `http:`, and `https:`.
+
+Pending image persistence is aborted when the editor becomes read-only or
+unmounts. The playground's OPFS adapter also removes old files that are no
+longer referenced by the controlled Markdown, while retaining a grace period
+for Undo and in-flight state changes.
 
 The editor additionally enables a named presentation extension for
 `==highlight==`. It imports the delimited text as Lexical's `highlight` format,

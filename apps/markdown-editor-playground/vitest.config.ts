@@ -7,12 +7,29 @@ const directory = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@eidos.space/markdown-editor": path.resolve(
-        directory,
-        "../../packages/markdown-editor/src/index.ts"
-      ),
-    },
+    alias: [
+      {
+        find: "@eidos.space/markdown/plugin-api",
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown-editor/src/plugin-api.ts"
+        ),
+      },
+      {
+        find: "@eidos.space/markdown/plugins",
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown-editor/src/builtin-plugins.ts"
+        ),
+      },
+      {
+        find: /^@eidos\.space\/markdown$/u,
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown-editor/src/index.ts"
+        ),
+      },
+    ],
   },
   test: {
     environment: "jsdom",

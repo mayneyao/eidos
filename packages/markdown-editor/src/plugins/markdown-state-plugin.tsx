@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
+import type { Transformer } from "@lexical/markdown"
 import {
   COMMAND_PRIORITY_HIGH,
   KEY_DOWN_COMMAND,
@@ -8,20 +9,25 @@ import {
   type LexicalEditor,
 } from "lexical"
 
-import { EIDOS_MARKDOWN_TRANSFORMERS } from "../markdown/markdown-transformers"
 import {
   $convertFromEfmMarkdownString,
   $convertToEfmMarkdownString,
 } from "../markdown/efm-document"
+import { preserveMarkdownSourceEdits } from "../markdown/source-fidelity"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import type { EfmInputProfile } from "../types"
+import {
+  EXTERNAL_MARKDOWN_CONFLICT_MESSAGE,
+  useEfmSourceBlockContext,
+} from "../ui/efm-source-block-context"
 
 const EXTERNAL_MARKDOWN_TAG = "eidos-markdown-editor:external"
 
-function readMarkdown(editorState: EditorState): string {
-  return editorState.read(() =>
-    $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS)
-  )
+function readMarkdown(
+  editorState: EditorState,
+  transformers: readonly Transformer[]
+): string {
+  return editorState.read(() => $convertToEfmMarkdownString(transformers))
 }
 
 export function MarkdownStatePlugin({
@@ -32,6 +38,8 @@ export function MarkdownStatePlugin({
   onError,
   inputProfile,
   baseUri,
+  syntaxFeatures,
+  transformers,
 }: {
   markdown: string
   readOnly: boolean
@@ -40,36 +48,112 @@ export function MarkdownStatePlugin({
   onError(error: Error): void
   inputProfile: EfmInputProfile
   baseUri?: string
+  syntaxFeatures: ReadonlySet<string>
+  transformers: readonly Transformer[]
 }) {
   const [editor] = useLexicalComposerContext()
   const { matches } = useMarkdownShortcuts()
+  const {
+    activeDrafts,
+    externalMarkdownConflict,
+    setExternalMarkdownConflict,
+  } = useEfmSourceBlockContext()
   const acceptedMarkdownRef = useRef(markdown)
+  const canonicalMarkdownRef = useRef<string | null>(null)
+  const observedMarkdownPropRef = useRef(markdown)
+  const pendingExternalMarkdownRef = useRef<string | null>(null)
+  const suppressedExternalMarkdownRef = useRef<string | null>(null)
 
   useEffect(() => editor.setEditable(!readOnly), [editor, readOnly])
 
   useEffect(() => {
-    if (markdown === acceptedMarkdownRef.current) return
-    acceptedMarkdownRef.current = markdown
+    canonicalMarkdownRef.current = readMarkdown(
+      editor.getEditorState(),
+      transformers
+    )
+  }, [editor, transformers])
+
+  useEffect(() => {
+    const propChanged = markdown !== observedMarkdownPropRef.current
+    observedMarkdownPropRef.current = markdown
+
+    if (markdown === acceptedMarkdownRef.current) {
+      pendingExternalMarkdownRef.current = null
+      suppressedExternalMarkdownRef.current = null
+      if (externalMarkdownConflict) setExternalMarkdownConflict(false)
+      return
+    }
+    if (activeDrafts > 0) {
+      if (markdown === suppressedExternalMarkdownRef.current) return
+      pendingExternalMarkdownRef.current = markdown
+      if (!externalMarkdownConflict) {
+        setExternalMarkdownConflict(true)
+        onError(new Error(EXTERNAL_MARKDOWN_CONFLICT_MESSAGE))
+      }
+      return
+    }
+
+    const pendingMarkdown = pendingExternalMarkdownRef.current
+    if (!propChanged && pendingMarkdown === null) return
+    const nextMarkdown = pendingMarkdown ?? markdown
+    pendingExternalMarkdownRef.current = null
+    if (externalMarkdownConflict) setExternalMarkdownConflict(false)
+    acceptedMarkdownRef.current = nextMarkdown
     editor.update(
       () => {
-        $convertFromEfmMarkdownString(markdown, EIDOS_MARKDOWN_TRANSFORMERS, {
+        $convertFromEfmMarkdownString(nextMarkdown, transformers, {
           inputProfile,
           baseUri,
+          syntaxFeatures,
         })
       },
-      { tag: EXTERNAL_MARKDOWN_TAG }
+      { discrete: true, tag: EXTERNAL_MARKDOWN_TAG }
     )
-  }, [baseUri, editor, inputProfile, markdown])
+    canonicalMarkdownRef.current = readMarkdown(
+      editor.getEditorState(),
+      transformers
+    )
+  }, [
+    activeDrafts,
+    baseUri,
+    editor,
+    externalMarkdownConflict,
+    inputProfile,
+    markdown,
+    onError,
+    setExternalMarkdownConflict,
+    syntaxFeatures,
+    transformers,
+  ])
 
   const handleChange = useCallback(
     (editorState: EditorState, _editor: LexicalEditor, tags: Set<string>) => {
       if (tags.has(EXTERNAL_MARKDOWN_TAG)) return
-      const nextMarkdown = readMarkdown(editorState)
+      const nextCanonical = readMarkdown(editorState, transformers)
+      const canonicalBefore = canonicalMarkdownRef.current
+      const nextMarkdown = canonicalBefore
+        ? preserveMarkdownSourceEdits(
+            acceptedMarkdownRef.current,
+            canonicalBefore,
+            nextCanonical
+          )
+        : nextCanonical
+      canonicalMarkdownRef.current = nextCanonical
       if (nextMarkdown === acceptedMarkdownRef.current) return
+      pendingExternalMarkdownRef.current = null
+      if (externalMarkdownConflict) {
+        suppressedExternalMarkdownRef.current = observedMarkdownPropRef.current
+      }
+      if (externalMarkdownConflict) setExternalMarkdownConflict(false)
       acceptedMarkdownRef.current = nextMarkdown
       onMarkdownChange(nextMarkdown)
     },
-    [onMarkdownChange]
+    [
+      externalMarkdownConflict,
+      onMarkdownChange,
+      setExternalMarkdownConflict,
+      transformers,
+    ]
   )
 
   useEffect(() => {
@@ -81,8 +165,18 @@ export function MarkdownStatePlugin({
           return false
         }
         event.preventDefault()
-        const nextMarkdown = readMarkdown(editor.getEditorState())
-        acceptedMarkdownRef.current = nextMarkdown
+        const nextCanonical = readMarkdown(
+          editor.getEditorState(),
+          transformers
+        )
+        const canonicalBefore = canonicalMarkdownRef.current
+        const nextMarkdown = canonicalBefore
+          ? preserveMarkdownSourceEdits(
+              acceptedMarkdownRef.current,
+              canonicalBefore,
+              nextCanonical
+            )
+          : nextCanonical
         try {
           void Promise.resolve(onSaveRequest(nextMarkdown)).catch((cause) =>
             onError(cause instanceof Error ? cause : new Error(String(cause)))
@@ -94,7 +188,7 @@ export function MarkdownStatePlugin({
       },
       COMMAND_PRIORITY_HIGH
     )
-  }, [editor, matches, onError, onSaveRequest, readOnly])
+  }, [editor, matches, onError, onSaveRequest, readOnly, transformers])
 
   return <OnChangePlugin ignoreSelectionChange onChange={handleChange} />
 }

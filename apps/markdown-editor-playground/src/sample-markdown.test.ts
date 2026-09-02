@@ -1,4 +1,4 @@
-import { findUnsupportedMarkdownFeatures } from "@eidos.space/markdown-editor"
+import { findUnsupportedMarkdownFeatures } from "@eidos.space/markdown"
 
 import { PLAYGROUND_MARKDOWN } from "./sample-markdown"
 

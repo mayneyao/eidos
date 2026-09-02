@@ -7,7 +7,7 @@ Revised: 2026-09-02
 ## 1. Purpose
 
 This document is the package-level behavioral contract for
-`@eidos.space/markdown-editor`. It defines the editor experience that Eidos
+`@eidos.space/markdown`. It defines the editor experience that Eidos
 hosts must expose and the observable invariants that the shared implementation
 must preserve.
 
@@ -71,7 +71,7 @@ Every supported block MUST be creatable, focusable or selectable, editable,
 copyable, cuttable, deletable, movable, and undoable. Inline constructs MUST be
 selectable, editable, removable, and undoable within their containing flow.
 
-Rendered content that cannot receive a caret, such as a display formula,
+Rendered content that cannot receive a caret, such as a block equation,
 image, divider, or frontmatter card, MUST still expose block selection and
 keyboard operations.
 
@@ -103,6 +103,7 @@ The package owns:
 - text, range, and block selection behavior;
 - block creation, local editing, movement, and deletion;
 - editor-local undo and redo;
+- editor-local same-document fragment navigation;
 - clipboard conversion for editor content;
 - safe visual presentation of EFM content; and
 - diagnostics about editor support and local syntax errors.
@@ -114,7 +115,8 @@ The package does not own:
 - attachment storage or URI authorization;
 - a whole-document source editor;
 - Markdown syntax outside EFM and explicitly named presentation extensions; or
-- host navigation and external URL policy beyond exposing safe callbacks.
+- cross-document host navigation and external URL policy beyond exposing safe
+  callbacks.
 
 ## 5. Document and block model
 
@@ -123,7 +125,29 @@ top-level or structurally nested unit that can participate in block operations.
 An implementation MAY use different internal nodes as long as the observable
 behavior is the same.
 
-### 5.1 Native flow content
+### 5.1 Plugin composition
+
+The shared component MUST assemble optional syntax through an immutable plugin
+profile. A plugin MAY contribute Lexical node definitions, Markdown
+transformers, editor behavior components, block or inline insertion commands,
+text-selection toolbar actions, shortcut definitions, and capability
+identifiers. Node definitions MUST NOT
+install editor-wide event listeners; those listeners belong to behavior
+components.
+
+Before an editor session mounts, the implementation MUST validate plugin API
+versions, stable identities, dependencies, ordering constraints, conflicts,
+duplicate registrations, and required insertion handlers. Plugin order and
+transformer order MUST be deterministic. Changing the syntax profile MAY reset
+transient editor state, but MUST NOT change canonical Markdown merely because a
+plugin is absent. A recognized construct without an enabled visual codec MUST
+remain in the smallest practical source-preserving fallback block.
+
+The default profile MUST include every syntax family claimed in the complete
+support matrix. Hosts MAY intentionally provide a smaller profile, but MUST NOT
+describe disabled syntax as fully supported.
+
+### 5.2 Native flow content
 
 The following content SHOULD behave like ordinary rich text with a caret and
 continuous range selection:
@@ -140,14 +164,14 @@ continuous range selection:
 Markdown-native shortcuts MAY transform newly typed prefixes, but undo MUST be
 able to restore the literal text.
 
-### 5.2 Semantic inline atoms
+### 5.3 Semantic inline atoms
 
 Inline mathematics, images, footnote references, and other source-bearing
 inline constructs MAY be represented as semantic atoms inside text flow. They
 MUST participate in surrounding range selection and MUST expose a local edit
 interaction without converting the containing document to source.
 
-### 5.3 Semantic block atoms
+### 5.4 Semantic block atoms
 
 Display mathematics, frontmatter, block images, footnote definitions,
 reference definitions, thematic breaks, and raw HTML MAY be represented as
@@ -159,7 +183,7 @@ semantic block atoms. Each atom MUST provide:
 4. Markdown-aware copy and cut behavior; and
 5. Delete, Backspace, movement, and undo behavior.
 
-### 5.4 Source-preserving fallback blocks
+### 5.5 Source-preserving fallback blocks
 
 Valid, malformed, or unsupported source that cannot be safely projected MUST
 be retained in a localized fallback block. A fallback block:
@@ -213,14 +237,14 @@ syntax outside this matrix.
 | Autolinks                        | CommonMark `<https://eidos.space>` / `<name@example.com>` and incorporated GFM bare URL/email autolinks | Rich link                                           | Direct typing or paste/import                                       | Serializes as a valid link form; unsafe destinations remain inactive.                                                  |
 | Reference links                  | Full, collapsed, and shortcut forms such as `[label][id]`, `[id][]`, and `[id]`                         | Semantic inline link plus semantic definition block | Direct typing or paste/import                                       | Retains the normalized identifier relationship and definition source.                                                  |
 | Link reference definitions       | `[id]: destination "optional title"` and other CommonMark-valid title forms                             | Semantic block                                      | Direct typing or paste/import                                       | Remains independently selectable/editable and continues to resolve owned references.                                   |
-| Images                           | Inline and reference forms: `![alt](url "title")` and `![alt][id]`                                      | Semantic inline image or semantic image block       | `+`, slash, paste/drop/import                                       | Shows a safe image or accessible alt-text fallback; URL, alt, title, and reference meaning remain canonical.           |
+| Images                           | Inline and reference forms: `![alt](url "title")` and `![alt][id]`                                      | Semantic inline image or semantic image block       | `+`, block slash, paste/drop/import                                 | Shows a safe image or accessible alt-text fallback; URL, alt, title, and reference meaning remain canonical.           |
 | Backslash escapes                | CommonMark escapes such as `\*literal\*`                                                                | Rich text literal characters                        | Direct typing or paste/import                                       | Presents the escaped characters literally and serializes without introducing formatting.                               |
 | Character references             | Named, decimal, and hexadecimal references such as `&amp;`, `&#35;`, and `&#x23;`                       | Rich text decoded character                         | Direct typing or paste/import                                       | Preserves the decoded character semantics; spelling may normalize after an intentional edit.                           |
 | Raw HTML and HTML comments       | CommonMark inline and block HTML, including comments                                                    | Semantic inline/block or inert readable fallback    | `+`, slash, direct typing, paste/import                             | Allowed markup receives a sanitized preview; active or denied markup never executes and retains its source.            |
 | YAML frontmatter                 | One offset-zero `---` envelope containing an empty value or YAML 1.2 mapping                            | Semantic metadata block                             | `+` or slash in the `document` profile; paste/import                | Exists only in `document`, remains pinned first, and serializes as one frontmatter envelope.                           |
-| Footnote references              | `[^id]`                                                                                                 | Semantic inline reference                           | Footnote command, direct typing, paste/import                       | Displays a number derived from first-reference order while preserving the source identifier.                           |
-| Footnote definitions             | `[^id]: body`, including CommonMark-indented continuation blocks                                        | Semantic definition block                           | Footnote command, direct typing, paste/import                       | Definitions render after the body and retain their relationship to every reference.                                    |
-| Inline mathematics               | `$formula$` under the EFM whitespace, digit, escape, and single-line rules                              | Typeset semantic inline                             | Inline command, direct typing, paste/import                         | Local editor owns only the formula; canonical source retains single-dollar delimiters.                                 |
+| Footnote references              | `[^id]`                                                                                                 | Semantic inline reference                           | Block or inline Footnote command, direct typing, paste/import       | Displays a number derived from first-reference order while preserving the source identifier.                           |
+| Footnote definitions             | `[^id]: body`, including CommonMark-indented continuation blocks                                        | Semantic definition block                           | Block or inline Footnote command, direct typing, paste/import       | Definitions render after the body and retain their relationship to every reference.                                    |
+| Inline mathematics               | `$equation$` under the EFM whitespace, digit, escape, and single-line rules                             | Typeset semantic inline                             | Inline command, direct typing, paste/import                         | Local editor owns only the TeX source; canonical source retains single-dollar delimiters.                              |
 | Display mathematics              | Standalone `$$` delimiter lines or a backtick/tilde fenced block whose language is exactly `math`       | Typeset semantic block                              | `+`, slash, direct typing, paste/import                             | Local editor shows a live preview; new blocks use `$$`, while valid imported forms may be preserved.                   |
 | Highlight presentation extension | `==text==`                                                                                              | Rich highlighted text                               | Selection toolbar, Markdown shortcut, paste/import                  | Serializes with `==` delimiters and MUST be identified as an editor extension, not EFM 1.0.                            |
 
@@ -307,7 +331,8 @@ Activating `+` opens the same block command catalog as the empty-paragraph slash
 menu and inserts a new top-level block immediately after the active block. It
 MUST NOT transform or replace the active block, including when that block is an
 empty paragraph. The empty-paragraph slash entry point MAY transform its trigger
-paragraph instead.
+paragraph instead. Footnote definitions form the document's terminal definition
+region and MUST NOT expose `+`; new body content is inserted before that region.
 
 ### 8.2 Slash menu
 
@@ -320,9 +345,12 @@ link, inline-code span, or code block remains ordinary text.
 Both catalogs MUST be searchable and keyboard navigable, with Arrow Up/Down to
 move, Enter to choose, and Escape to close. The inline catalog MUST remain
 visually anchored to the saved caret while the document scrolls and MUST expose
-only constructs that can be inserted into the current text flow. It includes
-inline mathematics at minimum. Choosing a command MUST restore the saved caret
-instead of replacing or transforming its containing block.
+only constructs that can be inserted into the current text flow. Its complete
+built-in catalog is **Inline equation** and **Footnote**. Image creation MUST
+remain in the block catalog; imported inline image syntax remains supported in
+text flow but the editor does not expose an inline-image command. Choosing an
+inline command MUST restore the saved caret instead of replacing or transforming
+its containing block.
 
 The block catalog MUST expose every block construct the editor claims users can
 create. At a minimum it includes headings, quote, bullet list, ordered list,
@@ -340,10 +368,12 @@ show only fields for the new block, preserve the rest of the canvas, validate
 without destroying the draft, and place selection at a useful location after
 insertion.
 
-An inline composer MUST remain local to the saved caret. Confirming an inline
-formula inserts one valid single-dollar EFM math atom as one undoable
-transaction. Canceling the inline menu or its composer MUST leave the canonical
-Markdown unchanged and MUST NOT leave an empty semantic placeholder.
+An inline composer MUST remain local to the saved caret. Confirming **Inline
+equation** inserts one valid single-dollar EFM math atom as one undoable
+transaction. Confirming **Footnote** inserts the reference at that caret and
+appends its matching definition to the document end in the same transaction.
+Canceling the inline menu or its composer MUST leave the canonical Markdown
+unchanged and MUST NOT leave an empty semantic placeholder.
 
 ### 8.4 Movement
 
@@ -353,7 +383,9 @@ preserve its Markdown semantics and be undoable as one transaction. Pointer
 dragging MUST show the pending insertion boundary and SHOULD auto-scroll at the
 viewport edges. The focused handle SHOULD support `Alt+ArrowUp` and
 `Alt+ArrowDown` for one-step movement. Frontmatter remains pinned to source
-offset zero.
+offset zero. Footnote definitions remain pinned as a terminal region: they MUST
+NOT expose a drag handle, MUST NOT move through block-reorder commands, and an
+ordinary block MUST NOT be moved after the first footnote definition.
 
 When the caret or a text selection is contained by one list item,
 `Alt+ArrowUp` and `Alt+ArrowDown` MUST move that item one position among its
@@ -364,6 +396,11 @@ one Undo MUST restore the previous order. At the first or last sibling the
 command is a content no-op and MUST NOT escape the editor or create a history
 entry. Table rows require equivalent structure-aware movement before a row
 shortcut is claimed; no movement command may create an invalid document shape.
+
+When the caret or a text selection is contained by one task-list item,
+`Mod+Enter` MUST toggle that item's checked state as one undoable transaction.
+The same shortcut inside an ordinary bullet or ordered item MUST NOT convert
+the list or mutate its content.
 
 ## 9. Block-local editing
 
@@ -383,7 +420,7 @@ actionable diagnostic, and leave every other block editable.
 ### 9.1 Mathematics
 
 - Inline and display mathematics MUST render as typeset mathematics by default.
-- Editing MUST expose only the formula source, not surrounding Markdown
+- Editing MUST expose only the TeX source, not surrounding Markdown
   delimiters unless delimiters are themselves ambiguous.
 - Display mathematics SHOULD keep its preview visible above or beside the local
   editor.
@@ -407,6 +444,11 @@ actionable diagnostic, and leave every other block editable.
 - Footnote references MUST display the number determined by first reference.
 - Definitions SHOULD appear after the document body without becoming detached
   from their canonical identifiers.
+- Activating a footnote reference or return link MUST scroll to and focus its
+  target within the same editor instance. It MUST NOT mutate the host URL or
+  browser hash, because those values may belong to the host router.
+- The definition region is the document tail, not an ordinary insertion or
+  sorting surface. It MUST NOT expose block creation or movement controls.
 - Renaming an identifier MUST update its owned reference relationship or report
   a conflict; it MUST NOT silently orphan content.
 
@@ -438,6 +480,9 @@ readable source while remaining locally editable.
   undoable transaction. A result of `null` inserts nothing for that file. A
   rejected or invalid result MUST surface through `onError` without inserting a
   broken source node.
+- A claimed asynchronous paste MUST be cancelled when the editor unmounts or
+  becomes read-only. A late host result MUST NOT mutate a read-only or
+  unmounted editor.
 - `markdownUrl` is canonical and MUST be serialized. `displayUrl` is
   presentation-only and MUST NOT enter Markdown. On import and remount, the
   editor MAY call the host's asynchronous `resolveImageUrl` with the canonical
@@ -478,6 +523,11 @@ untouched regions. At minimum:
 replace the document when `documentKey` changes. External replacement of the
 same document while a local draft is active MUST be reconciled explicitly; it
 MUST NOT silently overwrite the local draft.
+
+The default reconciliation keeps the local draft visible. Done chooses the
+local draft and emits the resulting Markdown; Cancel or Escape chooses the
+pending external value. The conflict MUST be exposed to assistive technology
+and through the operational error callback.
 
 `document` input recognizes frontmatter. `fragment` input treats an initial
 `---` as ordinary Markdown. Switching profiles MUST NOT reinterpret and save a
@@ -520,26 +570,27 @@ top-level block while its gutter handle is focused.
 
 ### 12.2 Default shortcuts
 
-| Stable ID              | Default binding        | Scope        | Behavior                                                                          |
-| ---------------------- | ---------------------- | ------------ | --------------------------------------------------------------------------------- |
-| `document.save`        | `Mod+S`                | document     | Requests host persistence when a save callback exists.                            |
-| `history.undo`         | `Mod+Z`                | editor       | Undoes one editor transaction.                                                    |
-| `history.redo`         | `Mod+Shift+Z`, `Mod+Y` | editor       | Redoes one editor transaction.                                                    |
-| `format.bold`          | `Mod+B`                | selection    | Toggles bold on the current rich-text selection.                                  |
-| `format.italic`        | `Mod+I`                | selection    | Toggles italic on the current rich-text selection.                                |
-| `insert.open-menu`     | `/`                    | editor       | Opens block insertion on an empty line or inline insertion at a command boundary. |
-| `menu.previous`        | `ArrowUp`              | menu         | Moves to the previous command.                                                    |
-| `menu.next`            | `ArrowDown`            | menu         | Moves to the next command.                                                        |
-| `menu.choose`          | `Enter`                | menu         | Chooses the active command.                                                       |
-| `overlay.dismiss`      | `Escape`               | overlay      | Closes the active menu or composer without a content edit.                        |
-| `selection.clear`      | `Escape`               | selection    | Clears the active block selection.                                                |
-| `block.move-up`        | `Alt+ArrowUp`          | block handle | Moves the handled top-level block up one position.                                |
-| `block.move-down`      | `Alt+ArrowDown`        | block handle | Moves the handled top-level block down one position.                              |
-| `list-item.move-up`    | `Alt+ArrowUp`          | list item    | Moves the current list item before its previous sibling.                          |
-| `list-item.move-down`  | `Alt+ArrowDown`        | list item    | Moves the current list item after its next sibling.                               |
-| `block-editor.commit`  | `Mod+Enter`            | composer     | Commits a multiline block-local editor.                                           |
-| `composer.confirm`     | `Enter`                | composer     | Confirms a single-line block composer.                                            |
-| `inline-atom.activate` | `Enter`, `Space`       | editor       | Opens the focused inline semantic atom.                                           |
+| Stable ID                  | Default binding        | Scope        | Behavior                                                                          |
+| -------------------------- | ---------------------- | ------------ | --------------------------------------------------------------------------------- |
+| `document.save`            | `Mod+S`                | document     | Requests host persistence when a save callback exists.                            |
+| `history.undo`             | `Mod+Z`                | editor       | Undoes one editor transaction.                                                    |
+| `history.redo`             | `Mod+Shift+Z`, `Mod+Y` | editor       | Redoes one editor transaction.                                                    |
+| `format.bold`              | `Mod+B`                | selection    | Toggles bold on the current rich-text selection.                                  |
+| `format.italic`            | `Mod+I`                | selection    | Toggles italic on the current rich-text selection.                                |
+| `insert.open-menu`         | `/`                    | editor       | Opens block insertion on an empty line or inline insertion at a command boundary. |
+| `menu.previous`            | `ArrowUp`              | menu         | Moves to the previous command.                                                    |
+| `menu.next`                | `ArrowDown`            | menu         | Moves to the next command.                                                        |
+| `menu.choose`              | `Enter`                | menu         | Chooses the active command.                                                       |
+| `overlay.dismiss`          | `Escape`               | overlay      | Closes the active menu or composer without a content edit.                        |
+| `selection.clear`          | `Escape`               | selection    | Clears the active block selection.                                                |
+| `block.move-up`            | `Alt+ArrowUp`          | block handle | Moves the handled top-level block up one position.                                |
+| `block.move-down`          | `Alt+ArrowDown`        | block handle | Moves the handled top-level block down one position.                              |
+| `list-item.move-up`        | `Alt+ArrowUp`          | list item    | Moves the current list item before its previous sibling.                          |
+| `list-item.move-down`      | `Alt+ArrowDown`        | list item    | Moves the current list item after its next sibling.                               |
+| `list-item.toggle-checked` | `Mod+Enter`            | list item    | Toggles the current task-list item's checked state.                               |
+| `block-editor.commit`      | `Mod+Enter`            | composer     | Commits a multiline block-local editor.                                           |
+| `composer.confirm`         | `Enter`                | composer     | Confirms a single-line block composer.                                            |
+| `inline-atom.activate`     | `Enter`, `Space`       | editor       | Opens the focused inline semantic atom.                                           |
 
 ## 13. Safety and resource behavior
 
@@ -564,13 +615,15 @@ top-level block while its gutter handle is focused.
   formatting, insertion, block editing, and commit controls.
 - Selection MUST not be communicated by color alone.
 - Menus and composers MUST trap neither focus nor keyboard navigation.
-- Rendered formulas and images MUST expose useful accessible text derived from
+- Rendered equations and images MUST expose useful accessible text derived from
   source and alt text.
 - Read-only mode MUST disable mutation controls without making content
   unselectable for copying.
 - `document` layout keeps reading margins; `embedded` layout fills the width
   owned by its host. Both MUST inherit host editorial typography and semantic
-  theme tokens.
+  theme tokens, and MUST share the same block and inline presentation rules.
+  `embedded` MAY differ only in container sizing, overflow, and reading-width
+  ownership.
 - Motion is optional and MUST respect reduced-motion preferences.
 
 ## 15. Acceptance requirements
@@ -606,11 +659,12 @@ document.
 - **CRT-004**: Frontmatter creation enforces document profile, uniqueness, and
   offset-zero placement.
 - **CRT-005**: Pasted Markdown becomes the corresponding visual structure.
-- **CRT-006**: Empty formula and image creation inserts a persistent placeholder
+- **CRT-006**: Empty equation and image creation inserts a persistent placeholder
   block, then edits that same block through a local composer.
 - **CRT-007**: `/` at a rich-text command boundary opens a caret-anchored inline
-  catalog; confirming Inline formula inserts at the saved caret, while canceling
-  makes no canonical edit.
+  catalog containing only Inline equation and Footnote; either command inserts
+  at the saved caret, while canceling makes no canonical edit.
+  Footnote creation also appends its definition in the same undoable transaction.
 - **CRT-008**: A host-handled clipboard image is persisted before insertion and
   serializes the returned stable URL rather than its transient presentation URL.
 - **CRT-009**: Async image paste restores its captured selection, inserts every
@@ -627,7 +681,9 @@ document.
 - **SEL-007**: One Undo restores a deleted or cut mixed-block selection.
 - **SEL-008**: The document retains a valid caret target after full deletion.
 - **SEL-009**: Selected top-level blocks can be moved by their gutter handle,
-  remain valid Markdown, and return to their previous position with one Undo.
+  remain valid Markdown, and return to their previous position with one Undo;
+  footnote definitions expose no gutter controls and ordinary blocks cannot move
+  past the terminal definition region.
 - **SEL-010**: Block marquee starts throughout the stage's left/right empty canvas
   or trailing document padding; space outside the stage does not start it.
 
@@ -643,11 +699,19 @@ document.
   conflict in the default registry.
 - **KEY-004**: A host override or disablement changes execution, visible hints,
   and `aria-keyshortcuts` from the same resolved binding.
+- **KEY-005**: `Mod+Enter` toggles the task-list item containing the caret as
+  one undoable transaction and does not convert ordinary list items.
+
+### Navigation
+
+- **NAV-001**: Footnote references and return links scroll and focus their
+  targets inside the current editor without changing the host URL or invoking
+  external navigation.
 
 ### Local editing
 
-- **EDT-001**: Formula editing retains a typeset preview and scopes input to the
-  formula.
+- **EDT-001**: Equation editing retains a typeset preview and scopes input to the
+  TeX source.
 - **EDT-002**: Frontmatter editing does not expose or convert the entire
   document.
 - **EDT-003**: Done commits one block; Cancel or Escape leaves canonical source
@@ -682,7 +746,7 @@ package test suite should include:
 2. byte-preservation fixtures for unsupported and untouched source;
 3. interaction tests for insertion, local editing, selection, deletion,
    movement, clipboard, and undo;
-4. mixed-content fixtures that combine text, nested lists, tables, formulas,
+4. mixed-content fixtures that combine text, nested lists, tables, equations,
    HTML, frontmatter, footnotes, and fallback blocks; and
 5. host-level smoke tests proving the shared behavior in Web, Lite, and Serve.
 

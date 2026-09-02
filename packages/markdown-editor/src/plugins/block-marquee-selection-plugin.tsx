@@ -35,6 +35,13 @@ interface DragState {
   current: Point
   active: boolean
   animationFrame: number | null
+  candidates: readonly BlockCandidate[]
+}
+
+interface BlockCandidate {
+  element: HTMLElement
+  key: NodeKey
+  rect: MarqueeRect
 }
 
 interface NativeTextDragState {
@@ -190,28 +197,58 @@ export function BlockMarqueeSelectionPlugin() {
       marqueeKeysRef.current = new Set(keys)
     }
 
-    const selectedCandidates = (selectionRect: MarqueeRect) => {
-      const elements = [...root.children].filter(
-        (element): element is HTMLElement => {
-          if (!(element instanceof HTMLElement)) return false
-          const rect = element.getBoundingClientRect()
-          return (
-            element.getClientRects().length > 0 &&
-            intersects(selectionRect, {
-              left: rect.left,
-              top: rect.top + stage.scrollTop,
-              width: rect.width,
-              height: rect.height,
-            })
-          )
+    const collectCandidates = (): BlockCandidate[] => {
+      const measured = [...root.children].flatMap((element) => {
+        if (!(element instanceof HTMLElement)) return []
+        const rect = element.getBoundingClientRect()
+        if (element.getClientRects().length === 0) return []
+        return [{ element, rect }]
+      })
+      return editor
+        .read(() =>
+          measured.flatMap(({ element, rect }) => {
+            const node = $getNearestNodeFromDOMNode(element)
+            return node
+              ? [
+                  {
+                    element,
+                    key: node.getKey(),
+                    rect: {
+                      left: rect.left,
+                      top: rect.top + stage.scrollTop,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                  },
+                ]
+              : []
+          })
+        )
+        .sort((left, right) => left.rect.top - right.rect.top)
+    }
+
+    const selectedCandidates = (
+      selectionRect: MarqueeRect,
+      candidates: readonly BlockCandidate[]
+    ) => {
+      const selectionBottom = selectionRect.top + selectionRect.height
+      let low = 0
+      let high = candidates.length
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2)
+        const candidate = candidates[middle]
+        if (candidate.rect.top + candidate.rect.height < selectionRect.top) {
+          low = middle + 1
+        } else {
+          high = middle
         }
-      )
-      const entries = editor.read(() =>
-        elements.flatMap((element) => {
-          const node = $getNearestNodeFromDOMNode(element)
-          return node ? [{ element, key: node.getKey() }] : []
-        })
-      )
+      }
+      const entries: BlockCandidate[] = []
+      for (let index = low; index < candidates.length; index += 1) {
+        const candidate = candidates[index]
+        if (candidate.rect.top > selectionBottom) break
+        if (intersects(selectionRect, candidate.rect)) entries.push(candidate)
+      }
       return {
         elements: entries.map(({ element }) => element),
         keys: new Set(entries.map(({ key }) => key)),
@@ -253,7 +290,10 @@ export function BlockMarqueeSelectionPlugin() {
         width: contentRectangle.width,
         height: Math.max(0, clippedBottom - clippedTop),
       })
-      const { elements, keys } = selectedCandidates(contentRectangle)
+      const { elements, keys } = selectedCandidates(
+        contentRectangle,
+        drag.candidates
+      )
       commitSelection(elements, keys)
     }
 
@@ -401,6 +441,7 @@ export function BlockMarqueeSelectionPlugin() {
         current: { x: event.clientX, y: event.clientY },
         active: false,
         animationFrame: null,
+        candidates: collectCandidates(),
       }
       stage.setPointerCapture(event.pointerId)
     }

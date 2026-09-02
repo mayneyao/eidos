@@ -1,5 +1,5 @@
 {
-  "name": "@eidos.space/markdown-editor",
+  "name": "@eidos.space/markdown",
   "version": "0.1.0",
   "private": true,
   "description": "Lexical-based WYSIWYG Markdown editor for Eidos",
@@ -12,6 +12,16 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
+    },
+    "./plugin-api": {
+      "types": "./dist/plugin-api.d.mts",
+      "import": "./dist/plugin-api.mjs",
+      "default": "./dist/plugin-api.mjs"
+    },
+    "./plugins": {
+      "types": "./dist/builtin-plugins.d.mts",
+      "import": "./dist/builtin-plugins.mjs",
+      "default": "./dist/builtin-plugins.mjs"
     },
     "./styles.css": "./dist/styles.css"
   },
@@ -44,6 +54,7 @@
     "@lexical/selection": "0.49.0",
     "@lexical/table": "0.49.0",
     "@lexical/utils": "0.49.0",
+    "diff": "8.0.4",
     "katex": "0.18.5",
     "lexical": "0.49.0",
     "mdast-util-from-markdown": "2.0.3",

@@ -25,7 +25,7 @@ async function loadPierreEditor() {
 
 const LazyPierreEditor = lazy(loadPierreEditor)
 const LazyWysiwygEditor = lazy(async () => {
-  const module = await import("@eidos.space/markdown-editor")
+  const module = await import("@eidos.space/markdown")
   return { default: module.MarkdownEditor }
 })
 
@@ -40,7 +40,7 @@ export async function prepareMarkdownEditorSurface(
   if (editingMode === "source") {
     await loadPierreEditor()
   } else {
-    await import("@eidos.space/markdown-editor")
+    await import("@eidos.space/markdown")
   }
 }
 

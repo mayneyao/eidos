@@ -1,6 +1,16 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 
 import type { MarkdownEditorImageUrlResolver } from "../types"
+
+export const EXTERNAL_MARKDOWN_CONFLICT_MESSAGE =
+  "The document changed outside the editor. Save this draft to keep it, or cancel to load the external version."
 
 interface EfmSourceBlockContextValue {
   editBlockLabel: string
@@ -15,6 +25,10 @@ interface EfmSourceBlockContextValue {
   onError(error: Error): void
   resolveImageUrl?: MarkdownEditorImageUrlResolver
   baseUri?: string
+  activeDrafts: number
+  externalMarkdownConflict: boolean
+  registerDraft(): () => void
+  setExternalMarkdownConflict(value: boolean): void
 }
 
 const EfmSourceBlockContext = createContext<EfmSourceBlockContextValue>({
@@ -28,7 +42,19 @@ const EfmSourceBlockContext = createContext<EfmSourceBlockContextValue>({
   readOnly: false,
   documentKey: "",
   onError: console.error,
+  activeDrafts: 0,
+  externalMarkdownConflict: false,
+  registerDraft: () => () => undefined,
+  setExternalMarkdownConflict: () => undefined,
 })
+
+type EfmSourceBlockProviderProps = Omit<
+  EfmSourceBlockContextValue,
+  | "activeDrafts"
+  | "externalMarkdownConflict"
+  | "registerDraft"
+  | "setExternalMarkdownConflict"
+> & { children: ReactNode }
 
 export function EfmSourceBlockProvider({
   children,
@@ -44,7 +70,19 @@ export function EfmSourceBlockProvider({
   onError,
   resolveImageUrl,
   baseUri,
-}: EfmSourceBlockContextValue & { children: ReactNode }) {
+}: EfmSourceBlockProviderProps) {
+  const [activeDrafts, setActiveDrafts] = useState(0)
+  const [externalMarkdownConflict, setExternalMarkdownConflict] =
+    useState(false)
+  const registerDraft = useCallback(() => {
+    let registered = true
+    setActiveDrafts((count) => count + 1)
+    return () => {
+      if (!registered) return
+      registered = false
+      setActiveDrafts((count) => Math.max(0, count - 1))
+    }
+  }, [])
   const value = useMemo(
     () => ({
       editBlockLabel,
@@ -59,6 +97,10 @@ export function EfmSourceBlockProvider({
       onError,
       resolveImageUrl,
       baseUri,
+      activeDrafts,
+      externalMarkdownConflict,
+      registerDraft,
+      setExternalMarkdownConflict,
     }),
     [
       editBlockLabel,
@@ -73,6 +115,9 @@ export function EfmSourceBlockProvider({
       onError,
       resolveImageUrl,
       baseUri,
+      activeDrafts,
+      externalMarkdownConflict,
+      registerDraft,
     ]
   )
   return (
