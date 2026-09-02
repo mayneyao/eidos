@@ -1318,12 +1318,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const refreshMaterializedFiles = useCallback(
     async (
       snapshot: SpaceSnapshot,
-      materializedPaths: readonly string[] | null = []
+      materializedPaths: readonly string[] | null = null
     ) => {
       // Sync and merge materialization return an authoritative Space snapshot.
       // Keep the shell's Graft/Sync relationship and open file snapshots in
       // step with the files that were replaced on disk.
-      const refreshed = await refreshCachedEidosFiles(snapshot)
+      const refreshed = await refreshCachedEidosFiles(
+        snapshot,
+        (file) =>
+          materializedPaths === null ||
+          (materializedPaths.length > 0 &&
+            externalChangeAffectsEidosFile(
+              file.relativePath,
+              materializedPaths
+            ))
+      )
       if (refreshed) setFileMaterializationKey((current) => current + 1)
       const materialized = materializedPaths ? new Set(materializedPaths) : null
       if (materialized && materialized.size > 0) {

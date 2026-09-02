@@ -36,6 +36,7 @@ export const EIDOS_LITE_PERFORMANCE_BUDGET_MS = {
   csvImportHundredThousandRows: 30_000,
   checkpointAcknowledgement: 2_000,
   coldLargeCheckpointAcknowledgement: 5_000,
+  discardAcknowledgement: 1_000,
   versionSummary: 1_000,
   selectedVersionDiff: 3_000,
   coldLargeSelectedVersionDiff: 5_000,
@@ -60,6 +61,12 @@ export const EIDOS_LITE_LOCAL_FIRST_CRITICAL_PATH = {
   convertStoredField: ["complete-value-preflight", "atomic-table-rewrite"],
   migratePhysicalField: ["local-sqlite-schema-migration"],
   saveVersion: ["graft-stage", "graft-commit"],
+  discardChanges: [
+    "graft-status-precondition",
+    "selected-path-restore",
+    "affected-eidos-validation",
+    "space-shell-refresh",
+  ],
   changesSummary: ["graft-status-summary"],
   versionDetails: ["selected-path-diff"],
 } as const

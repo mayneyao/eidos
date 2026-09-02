@@ -546,6 +546,7 @@ export interface SpaceWorkingChangesDiscardRequest {
 export interface SpaceWorkingChangesDiscardResult {
   snapshot: SpaceSnapshot
   paths: string[]
+  changes: SpaceVersionDiff
 }
 
 export interface SpaceVersionCommit {

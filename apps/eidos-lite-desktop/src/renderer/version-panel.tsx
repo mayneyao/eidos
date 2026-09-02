@@ -1147,6 +1147,7 @@ export function VersionPanel({
   const onInspectionChangeRef = useRef(onInspectionChange)
   onInspectionChangeRef.current = onInspectionChange
   const previousWorkingChangeTokenRef = useRef(space.graft.changeToken)
+  const suppressDiscardPendingReloadRef = useRef(false)
   const checkpointInFlightRef = useRef(false)
   const inspectionRequestIdRef = useRef(0)
   const modeRequestIdRef = useRef(0)
@@ -1407,8 +1408,21 @@ export function VersionPanel({
 
   useEffect(() => {
     if (!space.graft.initialized) return
+    if (
+      suppressDiscardPendingReloadRef.current &&
+      space.materializedPaths !== undefined
+    ) {
+      suppressDiscardPendingReloadRef.current = false
+      return
+    }
     void loadMode()
-  }, [loadMode, refreshKey, space.graft.initialized, workingReloadIdentity])
+  }, [
+    loadMode,
+    refreshKey,
+    space.graft.initialized,
+    space.materializedPaths,
+    workingReloadIdentity,
+  ])
 
   useEffect(() => {
     if (
@@ -1595,7 +1609,12 @@ export function VersionPanel({
   }
 
   const requestDiscard = (target: VersionChangeDiscardTarget) => {
-    if (busy !== null || space.operation.phase !== "ready") return
+    if (
+      busy !== null ||
+      space.graft.checking ||
+      space.operation.phase !== "ready"
+    )
+      return
     if (!changes?.currentHead || !changes.changeToken) {
       setError("Refresh Changes before discarding local edits")
       return
@@ -1612,6 +1631,7 @@ export function VersionPanel({
     if (!discardConfirmation) return
     setBusy("discard")
     setError(null)
+    suppressDiscardPendingReloadRef.current = true
     try {
       const result = await window.eidosLite.discardWorkingChanges({
         target:
@@ -1626,17 +1646,10 @@ export function VersionPanel({
       })
       clearInspection()
       onSpaceChange(result.snapshot)
-      try {
-        await onFilesMaterialized(result.snapshot, result.paths)
-      } catch (cause) {
-        setError(
-          `Changes were discarded, but an open file could not refresh. ${errorMessage(cause)}`
-        )
-      }
       setDiscardConfirmation(null)
-      setChanges(null)
-      onRefresh()
+      setChanges(result.changes)
     } catch (cause) {
+      suppressDiscardPendingReloadRef.current = false
       setError(errorMessage(cause))
     } finally {
       setBusy(null)
@@ -1951,7 +1964,9 @@ export function VersionPanel({
                   onSelect={(inspection) => void inspect(inspection)}
                   onRequestDiscard={requestDiscard}
                   discardDisabled={
-                    busy !== null || space.operation.phase !== "ready"
+                    busy !== null ||
+                    space.graft.checking ||
+                    space.operation.phase !== "ready"
                   }
                 />
                 {changes.hasMore && changes.nextCursor ? (

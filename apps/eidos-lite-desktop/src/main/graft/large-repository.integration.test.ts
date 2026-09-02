@@ -236,12 +236,16 @@ describe.skipIf(!largeRepositoryRoot)(
 describe.skipIf(!largeRepositoryMutationRoot)(
   "large repository checkpoint integration",
   () => {
-    it("checkpoints and restores a tiny change without rescanning unrelated rows", async () => {
+    it("checkpoints, restores, and discards a tiny change without rescanning unrelated rows", async () => {
       const root = largeRepositoryMutationRoot!
       const filePath = path.join(root, "Untitled.eidos")
       const client = new GraftClient({
         sdkTransport: new GraftInProcessTransport(),
       })
+      const userData = await fs.mkdtemp(
+        path.join(os.tmpdir(), "eidos-lite-large-discard-state-")
+      )
+      let session: SpaceSession | null = null
 
       try {
         await client.open(root)
@@ -293,7 +297,23 @@ describe.skipIf(!largeRepositoryMutationRoot)(
           ])
         )
         const restoredStatus = await timed(() => client.status(root))
-
+        session = await SpaceSession.create(root, userData, {
+          graft: client,
+        })
+        const activeSession = session
+        activeSession.runtimePool.validatePaths = async (relativePaths) => {
+          expect(relativePaths).toEqual(["Untitled.eidos"])
+        }
+        const workingChanges = await activeSession.getVersionChanges(100)
+        expect(workingChanges.currentHead).toBe(changedHead)
+        expect(workingChanges.changeToken).toBeTruthy()
+        const discard = await timed(() =>
+          activeSession.discardWorkingChanges({
+            target: { kind: "file", path: "Untitled.eidos" },
+            expectedHead: workingChanges.currentHead!,
+            expectedChangeToken: workingChanges.changeToken!,
+          })
+        )
         console.info(
           `large-repository-checkpoint ${JSON.stringify({
             changedStatusMs: changedStatus.durationMs,
@@ -310,6 +330,8 @@ describe.skipIf(!largeRepositoryMutationRoot)(
             restoreMs: restore.durationMs,
             restoredStatusMs: restoredStatus.durationMs,
             restoredDirty: restoredStatus.value.dirty,
+            discardAcknowledgementMs: discard.durationMs,
+            discardStatusChecking: discard.value.snapshot.graft.checking,
           })}`
         )
 
@@ -318,6 +340,11 @@ describe.skipIf(!largeRepositoryMutationRoot)(
         expect(warmChangedStatus.value.paths).toEqual(["Untitled.eidos"])
         expect(warmCheckpointStatus.value.dirty).toBe(false)
         expect(restoredStatus.value.dirty).toBe(true)
+        expect(discard.value).toMatchObject({
+          paths: ["Untitled.eidos"],
+          changes: { totalPaths: 0 },
+          snapshot: { graft: { clean: true, checking: true } },
+        })
         expect(stage.durationMs + commit.durationMs).toBeLessThan(
           EIDOS_LITE_PERFORMANCE_BUDGET_MS.coldLargeCheckpointAcknowledgement
         )
@@ -325,8 +352,13 @@ describe.skipIf(!largeRepositoryMutationRoot)(
           EIDOS_LITE_PERFORMANCE_BUDGET_MS.checkpointAcknowledgement
         )
         expect(restore.durationMs).toBeLessThan(10_000)
+        expect(discard.durationMs).toBeLessThan(
+          EIDOS_LITE_PERFORMANCE_BUDGET_MS.discardAcknowledgement
+        )
       } finally {
+        await session?.close().catch(() => undefined)
         await client.close().catch(() => undefined)
+        await fs.rm(userData, { recursive: true, force: true })
       }
     }, 45_000)
   }

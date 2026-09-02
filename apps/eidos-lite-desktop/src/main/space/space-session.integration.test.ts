@@ -162,7 +162,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
       expectedVersion: () => "0.3.8",
       close: async () => undefined,
-      inspectSpace: async () => ({
+      inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk",
         version: "0.3.8",
@@ -172,7 +172,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
         changedPaths: discarded ? 0 : 4,
         currentHead: expectedHead,
         changeToken: discarded ? "clean-token" : "dirty-token",
-      }),
+      })),
       status: vi.fn(async () => ({
         dirty: !discarded,
         currentHead: expectedHead,
@@ -219,6 +219,9 @@ describe("SpaceSession Graft-backed snapshots", () => {
       await fs.mkdir(path.join(root, "docs"))
       await fs.writeFile(path.join(root, "docs", "added.txt"), "new\n")
       session = await SpaceSession.create(root, userData, { graft })
+      const validatePaths = vi
+        .spyOn(session.runtimePool, "validatePaths")
+        .mockResolvedValue(undefined)
 
       await expect(
         session.discardWorkingChanges({
@@ -230,21 +233,33 @@ describe("SpaceSession Graft-backed snapshots", () => {
       expect(restorePaths).not.toHaveBeenCalled()
       expect(session.gate.current().phase).toBe("ready")
 
-      await expect(
-        session.discardWorkingChanges({
-          target: { kind: "folder", path: "docs" },
-          expectedHead,
-          expectedChangeToken: "dirty-token",
-        })
-      ).resolves.toMatchObject({
+      const result = await session.discardWorkingChanges({
+        target: { kind: "folder", path: "docs" },
+        expectedHead,
+        expectedChangeToken: "dirty-token",
+      })
+      expect(result).toMatchObject({
         paths: [
           "docs/added.txt",
           "docs/edited.txt",
           "docs/new.txt",
           "docs/old.txt",
         ],
-        snapshot: { graft: { clean: true } },
+        snapshot: {
+          graft: { clean: false, changedPaths: 1, checking: true },
+          materializedPaths: [
+            "docs/added.txt",
+            "docs/edited.txt",
+            "docs/new.txt",
+            "docs/old.txt",
+          ],
+        },
+        changes: {
+          paths: [{ path: "outside.txt", change: "modified" }],
+          totalPaths: 1,
+        },
       })
+      expect(result.changes.changeToken).toBeUndefined()
       expect(restorePaths).toHaveBeenCalledWith(
         await fs.realpath(root),
         expectedHead,
@@ -257,6 +272,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "docs/new.txt",
         "docs/old.txt"
       )
+      expect(validatePaths).not.toHaveBeenCalled()
       await expect(
         fs.stat(path.join(root, "docs", "added.txt"))
       ).rejects.toMatchObject({ code: "ENOENT" })
@@ -279,6 +295,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const expectedHead = "d".repeat(64)
     const changedPaths = ["data/crm.eidos", "notes/readme.md", "root.md"]
     let discarded = false
+    const backgroundStatus = deferred<GraftSpaceStatus>()
     const restorePaths = vi.fn(async () => {
       discarded = true
     })
@@ -287,17 +304,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
       expectedVersion: () => "0.3.8",
       close: async () => undefined,
-      inspectSpace: async () => ({
-        available: true,
-        backend: "sdk",
-        version: "0.3.8",
-        expectedVersion: "0.3.8",
-        initialized: true,
-        clean: discarded,
-        changedPaths: discarded ? 0 : changedPaths.length,
-        currentHead: expectedHead,
-        changeToken: discarded ? "clean-token" : "dirty-token",
-      }),
+      inspectSpace: vi.fn(() => backgroundStatus.promise),
       status: vi.fn(async () => ({
         dirty: !discarded,
         currentHead: expectedHead,
@@ -328,18 +335,27 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
     try {
       await fs.mkdir(path.join(root, ".graft"))
+      await fs.mkdir(path.join(root, "data"))
+      await fs.writeFile(path.join(root, "data", "crm.eidos"), "fixture")
       session = await SpaceSession.create(root, userData, { graft })
+      const validatePaths = vi
+        .spyOn(session.runtimePool, "validatePaths")
+        .mockResolvedValue(undefined)
 
-      await expect(
-        session.discardWorkingChanges({
-          target: { kind: "all" },
-          expectedHead,
-          expectedChangeToken: "dirty-token",
-        })
-      ).resolves.toMatchObject({
-        paths: changedPaths,
-        snapshot: { graft: { clean: true } },
+      const result = await session.discardWorkingChanges({
+        target: { kind: "all" },
+        expectedHead,
+        expectedChangeToken: "dirty-token",
       })
+      expect(result).toMatchObject({
+        paths: changedPaths,
+        snapshot: {
+          graft: { clean: true, changedPaths: 0, checking: true },
+          materializedPaths: changedPaths,
+        },
+        changes: { paths: [], totalPaths: 0 },
+      })
+      expect(result.changes.changeToken).toBeUndefined()
       expect(restorePaths).toHaveBeenCalledWith(
         await fs.realpath(root),
         expectedHead,
@@ -347,7 +363,21 @@ describe("SpaceSession Graft-backed snapshots", () => {
         changedPaths,
         { requireClean: false }
       )
+      expect(validatePaths).toHaveBeenCalledOnce()
+      expect(validatePaths).toHaveBeenCalledWith(["data/crm.eidos"])
       expect(graft.status).toHaveBeenCalledOnce()
+      await vi.waitFor(() => expect(graft.inspectSpace).toHaveBeenCalledOnce())
+      backgroundStatus.resolve({
+        available: true,
+        backend: "sdk",
+        version: "0.3.8",
+        expectedVersion: "0.3.8",
+        initialized: true,
+        clean: true,
+        changedPaths: 0,
+        currentHead: expectedHead,
+        changeToken: "clean-token",
+      })
     } finally {
       await session?.close().catch(() => undefined)
       await Promise.all([

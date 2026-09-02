@@ -300,6 +300,12 @@ interface CompletedCheckpoint {
   previousStatus: GraftSpaceStatus
 }
 
+interface CompletedWorkingChangesDiscard {
+  materializedPaths: string[]
+  previousStatus: GraftRepositoryStatus
+  remainingChanges: SpaceVersionPathChange[]
+}
+
 interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
   revision: number | bigint | null
 }
@@ -2365,7 +2371,16 @@ export class SpaceSession {
     }
 
     this.cancelVersionReads()
-    const materializedPaths = await this.gate.withMaterialization({
+    let plan:
+      | {
+          previousStatus: GraftRepositoryStatus
+          selectedChanges: SpaceVersionPathChange[]
+          addedPaths: string[]
+          trackedChanges: SpaceVersionPathChange[]
+          trackedPaths: string[]
+        }
+      | undefined
+    const completed = await this.gate.withMaterialization({
       kind: "discard-working-changes",
       detail:
         normalizedRequest.target.kind === "all"
@@ -2373,7 +2388,8 @@ export class SpaceSession {
           : normalizedRequest.target.kind === "folder"
             ? `Discarding local changes in ${normalizedRequest.target.path}`
             : `Discarding local changes to ${normalizedRequest.target.path}`,
-      materialize: async () => {
+      validationPaths: (result) => result.materializedPaths,
+      beforeClose: async () => {
         const status = await this.graft.status(
           this.canonical.root,
           this.graftStatusOptions()
@@ -2435,6 +2451,26 @@ export class SpaceSession {
         ]
           .map(normalizeMutableRelativePath)
           .sort()
+        plan = {
+          previousStatus: status,
+          selectedChanges,
+          addedPaths,
+          trackedChanges,
+          trackedPaths,
+        }
+      },
+      materialize: async (): Promise<CompletedWorkingChangesDiscard> => {
+        const currentPlan = plan
+        if (!currentPlan) {
+          throw new Error("Discard plan is unavailable")
+        }
+        const {
+          previousStatus,
+          selectedChanges,
+          addedPaths,
+          trackedChanges,
+          trackedPaths,
+        } = currentPlan
         if (trackedPaths.length > 0) {
           await this.graft.restorePaths(
             this.canonical.root,
@@ -2464,12 +2500,24 @@ export class SpaceSession {
             })
           )
         )
-        return [...new Set([...trackedPaths, ...addedPaths])].sort()
+        const selected = new Set(selectedChanges)
+        return {
+          materializedPaths: [
+            ...new Set([...trackedPaths, ...addedPaths]),
+          ].sort(),
+          previousStatus,
+          remainingChanges: previousStatus.changes.filter(
+            (change) => !selected.has(change)
+          ),
+        }
       },
     })
+    const { snapshot, changes } =
+      await this.discardWorkingChangesSnapshotAndEmit(completed)
     return {
-      snapshot: await this.freshSnapshotAndEmit(true),
-      paths: materializedPaths,
+      snapshot,
+      paths: completed.materializedPaths,
+      changes,
     }
   }
 
@@ -2842,6 +2890,77 @@ export class SpaceSession {
     return snapshot
   }
 
+  private async discardWorkingChangesSnapshotAndEmit(
+    completed: CompletedWorkingChangesDiscard
+  ): Promise<{
+    snapshot: SpaceSnapshot
+    changes: SpaceVersionDiff
+  }> {
+    this.invalidateGraftStatusCache()
+    const previous = completed.previousStatus
+    const currentHead = previous.currentHead
+    if (!currentHead) {
+      throw new Error("Discarded working changes without a current checkpoint")
+    }
+    const remainingChanges = [...completed.remainingChanges].sort(
+      (left, right) => left.path.localeCompare(right.path)
+    )
+    // The selected paths have already been restored and validated. Publish
+    // that exact local result without waiting for Graft to classify the whole
+    // worktree again. The omitted change token prevents another destructive
+    // action until the immediate background refresh supplies a fresh token.
+    const pendingStatus: GraftSpaceStatus = {
+      available: true,
+      backend: this.graft.backend,
+      version: this.graft.expectedVersion(),
+      expectedVersion: this.graft.expectedVersion(),
+      initialized: true,
+      clean: remainingChanges.length === 0,
+      changedPaths: remainingChanges.length,
+      currentHead,
+      checking: true,
+      ...(previous.generation === undefined
+        ? {}
+        : { generation: previous.generation + 1 }),
+      ...(previous.sync ? { sync: previous.sync } : {}),
+    }
+    this.lastKnownGraftStatus = pendingStatus
+    const directoriesToRefresh = this.invalidateDirectoryCaches(
+      completed.materializedPaths
+    )
+    await Promise.all(
+      directoriesToRefresh.map((relativePath) =>
+        this.loadDirectoryEntries(relativePath, false)
+      )
+    )
+    const current = await this.readSnapshot(false, pendingStatus)
+    const snapshot = {
+      ...current,
+      materializedPaths: [...completed.materializedPaths],
+    }
+    for (const listener of this.changeListeners) listener(snapshot)
+    this.scheduleGraftStatusRefresh(0)
+
+    const page = remainingChanges.slice(0, 100)
+    return {
+      snapshot,
+      changes: {
+        currentHead,
+        currentBranch: previous.currentBranch,
+        from: currentHead,
+        to: null,
+        paths: page,
+        files: [],
+        totalPaths: remainingChanges.length,
+        hasMore: remainingChanges.length > page.length,
+        nextCursor:
+          remainingChanges.length > page.length
+            ? (page.at(-1)?.path ?? null)
+            : null,
+      },
+    }
+  }
+
   private async readSnapshot(
     scheduleGraftStatus: boolean,
     authoritativeGraftStatus?: GraftSpaceStatus
@@ -2946,13 +3065,19 @@ export class SpaceSession {
     return status
   }
 
-  private scheduleGraftStatusRefresh(): void {
+  private scheduleGraftStatusRefresh(
+    delayMs = BACKGROUND_GRAFT_STATUS_DELAY_MS
+  ): void {
+    if (this.graftStatusTimer) {
+      if (delayMs > 0) return
+      clearTimeout(this.graftStatusTimer)
+      this.graftStatusTimer = null
+    }
     if (
       this.closed ||
       this.gate.hasActiveMutations() ||
       this.graftStatusCache ||
-      this.graftStatusRefresh ||
-      this.graftStatusTimer
+      this.graftStatusRefresh
     ) {
       return
     }
@@ -2961,7 +3086,7 @@ export class SpaceSession {
       void this.refreshGraftStatus()
         .then(() => this.emitCachedOperationSnapshot())
         .catch(() => undefined)
-    }, BACKGROUND_GRAFT_STATUS_DELAY_MS)
+    }, delayMs)
   }
 
   private prioritizeLocalWork(): void {
@@ -3601,15 +3726,34 @@ export class SpaceSession {
         )
       : null
     if (requestedEidosPaths?.size === 0) return
+    if (requestedEidosPaths) {
+      const existingEidosPaths: string[] = []
+      for (const relativePath of requestedEidosPaths) {
+        try {
+          const stats = await fs.stat(
+            resolveSpacePath(this.canonical.root, relativePath)
+          )
+          if (stats.isFile()) existingEidosPaths.push(relativePath)
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "ENOENT"
+          ) {
+            continue
+          }
+          throw error
+        }
+      }
+      if (existingEidosPaths.length > 0) {
+        await this.runtimePool.validatePaths(existingEidosPaths)
+      }
+      return
+    }
     const entries = flattenSpaceTree(await listSpaceTree(this.canonical.root))
     await this.runtimePool.validatePaths(
       entries
-        .filter(
-          (entry) =>
-            entry.kind === "eidos" &&
-            (!requestedEidosPaths ||
-              requestedEidosPaths.has(entry.relativePath))
-        )
+        .filter((entry) => entry.kind === "eidos")
         .map((entry) => entry.relativePath)
     )
   }

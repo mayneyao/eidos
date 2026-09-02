@@ -82,6 +82,18 @@ const versionDiff: SpaceVersionDiff = {
   ],
 }
 
+const noWorkingChanges: SpaceVersionDiff = {
+  currentHead: versionDiff.currentHead,
+  currentBranch: versionDiff.currentBranch,
+  from: versionDiff.currentHead,
+  to: null,
+  paths: [],
+  files: [],
+  totalPaths: 0,
+  hasMore: false,
+  nextCursor: null,
+}
+
 const unversionedSpace: SpaceSnapshot = {
   id: "space-1",
   name: "Project",
@@ -2646,6 +2658,15 @@ describe("VersionPanel table diff", () => {
         changeToken: "clean-tree",
       },
     }
+    const pendingDiscardedSpace: SpaceSnapshot = {
+      ...discardedSpace,
+      materializedPaths: ["data/crm.eidos", "notes/readme.md"],
+      graft: {
+        ...discardedSpace.graft,
+        checking: true,
+        changeToken: undefined,
+      },
+    }
     let resolveDiscard:
       | ((result: SpaceWorkingChangesDiscardResult) => void)
       | undefined
@@ -2655,10 +2676,14 @@ describe("VersionPanel table diff", () => {
           resolveDiscard = resolve
         })
     )
+    const getVersionChanges = vi
+      .fn()
+      .mockResolvedValueOnce(versionDiff)
+      .mockResolvedValue(noWorkingChanges)
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
-        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        getVersionChanges,
         discardWorkingChanges,
         cancelVersionReads: vi.fn().mockResolvedValue(undefined),
       } as unknown as EidosLiteApi,
@@ -2748,19 +2773,50 @@ describe("VersionPanel table diff", () => {
 
     await act(async () => {
       resolveDiscard?.({
-        snapshot: discardedSpace,
+        snapshot: pendingDiscardedSpace,
         paths: ["data/crm.eidos", "notes/readme.md"],
+        changes: noWorkingChanges,
       })
       await Promise.resolve()
       await Promise.resolve()
     })
 
-    expect(onSpaceChange).toHaveBeenCalledWith(discardedSpace)
-    expect(onFilesMaterialized).toHaveBeenCalledWith(discardedSpace, [
-      "data/crm.eidos",
-      "notes/readme.md",
-    ])
-    expect(onRefresh).toHaveBeenCalledOnce()
+    expect(onSpaceChange).toHaveBeenCalledWith(pendingDiscardedSpace)
+    expect(onFilesMaterialized).not.toHaveBeenCalled()
+    expect(onRefresh).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: pendingDiscardedSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+    })
+    expect(getVersionChanges).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: discardedSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getVersionChanges).toHaveBeenCalledTimes(2)
 
     await act(async () => root.unmount())
     host.remove()
@@ -2942,6 +2998,7 @@ describe("VersionPanel table diff", () => {
     const discardWorkingChanges = vi.fn().mockResolvedValue({
       snapshot: discardedSpace,
       paths: ["notes/readme.md"],
+      changes: noWorkingChanges,
     })
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
@@ -3011,10 +3068,8 @@ describe("VersionPanel table diff", () => {
       expectedChangeToken: versionDiff.changeToken,
     })
     expect(onSpaceChange).toHaveBeenCalledWith(discardedSpace)
-    expect(onFilesMaterialized).toHaveBeenCalledWith(discardedSpace, [
-      "notes/readme.md",
-    ])
-    expect(onRefresh).toHaveBeenCalledOnce()
+    expect(onFilesMaterialized).not.toHaveBeenCalled()
+    expect(onRefresh).not.toHaveBeenCalled()
 
     await act(async () => root.unmount())
     host.remove()
