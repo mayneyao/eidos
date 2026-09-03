@@ -13,6 +13,8 @@ import {
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
 
+const EMPTY_MARKDOWN_SMOKE_CONTENT = "# Empty Markdown is editable"
+
 type SmokeEnvironmentName = "staging" | "production"
 
 const smokeEnvironmentName = (() => {
@@ -394,11 +396,26 @@ const textHistoryProbe = `
     ),
     "Pierre working change tree"
   )
-  const workingTextFile = await waitFor(
-    () => [...changeTree.shadowRoot.querySelectorAll('[data-type="item"]')]
-      .find((candidate) => candidate.dataset.itemPath === "README.md"),
-    "README working change"
-  )
+  let workingTextFile
+  try {
+    workingTextFile = await waitFor(
+      () => [...changeTree.shadowRoot.querySelectorAll('[data-type="item"]')]
+        .find((candidate) => candidate.dataset.itemPath?.endsWith("/README.md")),
+      "README working change"
+    )
+  } catch (error) {
+    throw new Error(
+      String(error) + ": " + JSON.stringify({
+        summary: panel.querySelector(".version-summary")?.textContent?.trim() ?? null,
+        error: panel.querySelector(".version-error")?.textContent?.trim() ?? null,
+        items: [...changeTree.shadowRoot.querySelectorAll('[data-type="item"]')]
+          .map((candidate) => ({
+            path: candidate.dataset.itemPath ?? null,
+            text: candidate.textContent?.trim() ?? null,
+          })),
+      })
+    )
+  }
   workingTextFile.click()
   const workingDiff = await waitFor(
     () => document.querySelector("[data-version-text-diff]"),
@@ -1716,18 +1733,6 @@ const rendererProbe = `
   }, "Pierre editable text surface")
   const emptyItem = await revealTreeItem("Empty.md")
   emptyItem.click()
-  const emptyDocument = await waitFor(
-    () => document.querySelector('[data-document-file-preview="Empty.md"]'),
-    "empty Markdown preview"
-  )
-  const emptyEditMode = await waitFor(
-    () =>
-      emptyDocument.querySelector(
-        '[data-document-preview-mode="edit"]'
-      ),
-    "empty Markdown edit action"
-  )
-  emptyEditMode.click()
   const emptyEditorSurface = await waitFor(
     () => document.querySelector('[data-text-file-editor="Empty.md"]'),
     "empty Markdown editor"
@@ -1746,25 +1751,38 @@ const rendererProbe = `
     return false
   }, "empty Markdown editable surface")
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-  const emptyContents = "# Empty Markdown is editable\\n"
-  emptyEditable.dispatchEvent(
-    new InputEvent("beforeinput", {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      data: emptyContents,
-      inputType: "insertText",
-    })
-  )
-  emptyEditable.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      key: "s",
-      metaKey: true,
-    })
-  )
+  emptyEditable.focus()
+  const emptySelection = window.getSelection()
+  const emptyRange = document.createRange()
+  emptyRange.selectNodeContents(emptyEditable)
+  emptyRange.collapse(false)
+  emptySelection.removeAllRanges()
+  emptySelection.addRange(emptyRange)
+  const emptyContents = ${JSON.stringify(EMPTY_MARKDOWN_SMOKE_CONTENT)}
+  window.__eidosLiteEmptyMarkdownInputReady = true
+  let emptyInputObserved = false
+  const emptyInputDeadline = Date.now() + 5000
+  while (Date.now() < emptyInputDeadline) {
+    if ((emptyEditable.textContent ?? "").includes("Empty Markdown is editable")) {
+      emptyInputObserved = true
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  if (!emptyInputObserved) {
+    throw new Error(
+      "Empty Markdown keyboard input did not reach the editor: " +
+        JSON.stringify({
+          textContent: emptyEditable.textContent,
+          innerHTML: emptyEditable.innerHTML,
+          documentActiveElement: document.activeElement?.tagName ?? null,
+          shadowActiveElement: emptyEditable.getRootNode() instanceof ShadowRoot
+            ? emptyEditable.getRootNode().activeElement?.tagName ?? null
+            : null,
+        })
+    )
+  }
+  window.__eidosLiteEmptyMarkdownInputObserved = true
   let savedEmpty = false
   const emptySaveDeadline = Date.now() + 15000
   while (Date.now() < emptySaveDeadline) {
@@ -1984,12 +2002,70 @@ export async function runPackagedSmoke(
     window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     onboardingWindow.destroy()
     onboardingWindow = null
+    const reportPromise = window.webContents.executeJavaScript(
+      rendererProbe,
+      true
+    ) as Promise<RendererSmokeResult>
+    void reportPromise.catch(() => undefined)
+    const emptyInputDeadline = Date.now() + 15_000
+    let emptyInputReady = false
+    while (Date.now() < emptyInputDeadline) {
+      emptyInputReady = Boolean(
+        await window.webContents.executeJavaScript(
+          "window.__eidosLiteEmptyMarkdownInputReady === true",
+          true
+        )
+      )
+      if (emptyInputReady) break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    if (!emptyInputReady) {
+      throw new Error("Empty Markdown input probe did not become ready")
+    }
+    const focusModifier = process.platform === "darwin" ? "meta" : "control"
+    window.webContents.focus()
+    window.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "1",
+      modifiers: [focusModifier],
+    })
+    window.webContents.sendInputEvent({
+      type: "keyUp",
+      keyCode: "1",
+      modifiers: [focusModifier],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await window.webContents.insertText(EMPTY_MARKDOWN_SMOKE_CONTENT)
+    const emptyInputObservedDeadline = Date.now() + 5_000
+    let emptyInputObserved = false
+    while (Date.now() < emptyInputObservedDeadline) {
+      emptyInputObserved = Boolean(
+        await window.webContents.executeJavaScript(
+          "window.__eidosLiteEmptyMarkdownInputObserved === true",
+          true
+        )
+      )
+      if (emptyInputObserved) break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    if (!emptyInputObserved) {
+      await reportPromise
+      throw new Error("Empty Markdown input was not observed by the editor")
+    }
+    const saveModifier = process.platform === "darwin" ? "meta" : "control"
+    window.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "s",
+      modifiers: [saveModifier],
+    })
+    window.webContents.sendInputEvent({
+      type: "keyUp",
+      keyCode: "s",
+      modifiers: [saveModifier],
+    })
     let report: RendererSmokeResult
     try {
-      report = (await window.webContents.executeJavaScript(
-        rendererProbe,
-        true
-      )) as RendererSmokeResult
+      report = await reportPromise
     } catch (error) {
       const step = await window.webContents.executeJavaScript(
         "window.__eidosLiteSmokeStep || 'unknown'",
@@ -2154,14 +2230,21 @@ async function runPackagedMarkdownImageSmoke(
     if (!ready)
       throw new Error("Markdown image paste probe did not become ready")
 
-    clipboard.writeImage(
-      nativeImage.createFromBuffer(
-        Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nS8AAAAASUVORK5CYII=",
-          "base64"
-        )
-      )
+    const smokeImage = nativeImage.createFromBitmap(
+      Buffer.from([0, 0, 0, 255]),
+      { width: 1, height: 1 }
     )
+    if (smokeImage.isEmpty()) {
+      throw new Error("Markdown image smoke fixture is not a valid image")
+    }
+    clipboard.clear()
+    clipboard.write({ image: smokeImage })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    if (clipboard.readImage().isEmpty()) {
+      throw new Error(
+        `Markdown image smoke clipboard did not retain the image: ${JSON.stringify(clipboard.availableFormats())}`
+      )
+    }
     window.webContents.focus()
     window.webContents.paste()
     const renderer = (await probe) as MarkdownImageSmokeResult

@@ -47,6 +47,7 @@ describe("push publication failure", () => {
       { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
     )
     const graft = {
+      expectedVersion: () => "0.3.1",
       syncRemoteOrigin: origin,
       open: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
