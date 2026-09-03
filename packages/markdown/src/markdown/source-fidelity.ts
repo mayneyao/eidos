@@ -53,6 +53,7 @@ function localizedLineEdit(
   source: string,
   canonicalBefore: string,
   canonicalAfter: string,
+  sourceLines: readonly string[],
   beforeLines: readonly string[],
   afterLines: readonly string[]
 ): string | null {
@@ -90,13 +91,25 @@ function localizedLineEdit(
     const followingOffset = beforeLines
       .slice(0, followingLineIndex)
       .join("").length
-    const sourceOffset = correspondingOccurrence(
+    const exactSourceOffset = correspondingOccurrence(
       source,
       canonicalBefore,
       following,
       followingOffset
     )
-    if (sourceOffset < 0) return null
+    const sourceOffset =
+      exactSourceOffset >= 0
+        ? exactSourceOffset
+        : sourceLines
+            .slice(
+              0,
+              mapBoundary(
+                alignment(beforeLines, sourceLines),
+                followingLineIndex,
+                "start"
+              )
+            )
+            .join("").length
     return `${source.slice(0, sourceOffset)}${next}${source.slice(sourceOffset)}`
   }
   const sourceOffset = correspondingOccurrence(
@@ -222,6 +235,7 @@ export function preserveMarkdownSourceEdits(
     source,
     canonicalBefore,
     canonicalAfter,
+    sourceLines,
     beforeLines,
     afterLines
   )

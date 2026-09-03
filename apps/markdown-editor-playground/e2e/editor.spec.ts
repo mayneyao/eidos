@@ -287,6 +287,38 @@ test("FID-003 preserves untouched source layout when editing another block", asy
     .toBe("# Changed title\n\n\nBody with  spacing.\n")
 })
 
+test("FID-003 preserves hard wraps when inserting a blank line before a paragraph", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "# Title\n\nThis paragraph is manually\nwrapped across source lines.\n\nTail.\n"
+  )
+
+  const paragraph = page
+    .getByLabel("Markdown playground editor")
+    .locator(".eme-paragraph")
+    .filter({ hasText: "This paragraph is manually" })
+  await paragraph.click()
+  await paragraph.evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    range.collapse(true)
+    const selection = document.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event("selectionchange", { bubbles: true }))
+  })
+  await page.keyboard.press("Enter")
+  await page.keyboard.press("Enter")
+
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe(
+      "# Title\n\n\nThis paragraph is manually\nwrapped across source lines.\n\nTail.\n"
+    )
+})
+
 test("renaming a definition updates its references in the same change", async ({
   page,
 }) => {

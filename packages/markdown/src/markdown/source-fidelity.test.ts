@@ -76,4 +76,35 @@ Paragraph with preserved spacing.
       preserveMarkdownSourceEdits(source, canonicalBefore, canonicalAfter)
     ).toBe("# Title\n\n\nInserted.\n\nBody.\n")
   })
+
+  it("inserts a blank line before a hard-wrapped paragraph without reflowing it", () => {
+    const source = `# Title
+
+This paragraph is manually
+wrapped across source lines.
+
+Tail.
+`
+    const canonicalBefore = `# Title
+
+This paragraph is manually wrapped across source lines.
+
+Tail.`
+    const canonicalAfter = `# Title
+
+
+This paragraph is manually wrapped across source lines.
+
+Tail.`
+
+    expect(preserveMarkdownSourceEdits(source, canonicalBefore, canonicalAfter))
+      .toBe(`# Title
+
+
+This paragraph is manually
+wrapped across source lines.
+
+Tail.
+`)
+  })
 })
