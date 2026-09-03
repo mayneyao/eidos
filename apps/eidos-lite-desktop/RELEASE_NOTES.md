@@ -52,4 +52,11 @@ Runtimes before inspecting changed paths. Records that were already open keep
 their session after a checkpoint restore instead of failing with an unknown or
 closed session error.
 
+### Keep History status current after explicit refreshes
+
+Refreshing a Space now publishes its authoritative History status to the open
+window as well as returning it to the caller. Windows reliably shows the local
+change badge after an Eidos File edit without depending on a later filesystem
+watcher event.
+
 No migration is required.
