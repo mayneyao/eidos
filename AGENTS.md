@@ -73,6 +73,28 @@ pnpm lint
 pnpm format:check
 ```
 
+### Eidos Lite development UI verification
+
+- Start the development application only with `pnpm dev:eidos-lite` from this
+  repository root. Do not use `electron`, `pnpm exec electron`, or an Electron
+  binary directly for development UI testing; those commands can open
+  Electron's default app or a built renderer without the Vite development
+  environment.
+- Before using Computer Use against Eidos Lite, verify that the inspected
+  window's document URL starts with `http://localhost:5179/` (Vite normalizes
+  its `127.0.0.1` listener to this URL) and that the listening process working
+  directory belongs to this checkout. The application name is not proof:
+  unpackaged Electron processes share the `com.github.Electron` bundle
+  identifier, and `Eidos Lite` can select the installed application in
+  `/Applications` instead of the development window.
+- Treat Electron's page that says "To run a local app" as an invalid bare
+  Electron launch, never as Eidos Lite. Stop and correct the launch before
+  performing or reporting any UI verification.
+- If port `5179` or the Electron single-instance lock is already occupied,
+  inspect the owning command and working directory first. Do not switch to the
+  installed application, reuse another worktree's Electron window, or terminate
+  an unrelated process merely to make the test proceed.
+
 CLI work stays inside its Rust workspace:
 
 ```bash
