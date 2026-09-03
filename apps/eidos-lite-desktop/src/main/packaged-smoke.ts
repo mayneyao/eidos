@@ -2006,10 +2006,27 @@ export async function runPackagedSmoke(
       rendererProbe,
       true
     ) as Promise<RendererSmokeResult>
-    void reportPromise.catch(() => undefined)
-    const emptyInputDeadline = Date.now() + 15_000
+    let rendererProbeFailure: unknown
+    void reportPromise.catch((error: unknown) => {
+      rendererProbeFailure = error
+    })
+    // The input handshake sits near the end of the full renderer smoke. Linux
+    // CI runs that probe under Xvfb after installing the fresh Debian package,
+    // so reaching the Markdown editor can legitimately take longer than one
+    // individual UI assertion's 15-second timeout. Keep the outer coordination
+    // window generous while still surfacing a real renderer failure immediately.
+    const emptyInputDeadline = Date.now() + 60_000
     let emptyInputReady = false
     while (Date.now() < emptyInputDeadline) {
+      if (rendererProbeFailure !== undefined) {
+        const step = await window.webContents.executeJavaScript(
+          "window.__eidosLiteSmokeStep || 'unknown'",
+          true
+        )
+        throw new Error(
+          `Renderer smoke failed before Markdown input at ${step}: ${String(rendererProbeFailure)}`
+        )
+      }
       emptyInputReady = Boolean(
         await window.webContents.executeJavaScript(
           "window.__eidosLiteEmptyMarkdownInputReady === true",
@@ -2020,7 +2037,13 @@ export async function runPackagedSmoke(
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     if (!emptyInputReady) {
-      throw new Error("Empty Markdown input probe did not become ready")
+      const step = await window.webContents.executeJavaScript(
+        "window.__eidosLiteSmokeStep || 'unknown'",
+        true
+      )
+      throw new Error(
+        `Empty Markdown input probe did not become ready at ${step}`
+      )
     }
     const focusModifier = process.platform === "darwin" ? "meta" : "control"
     window.webContents.focus()
