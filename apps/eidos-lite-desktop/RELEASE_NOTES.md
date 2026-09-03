@@ -39,4 +39,10 @@ reloads every cached Eidos File. Eidos Lite restores the selected paths,
 publishes the exact pending snapshot, refreshes only affected files, and
 finishes the remaining status work in the background.
 
+### Release Eidos File handles reliably
+
+Closing an Eidos File now waits for its isolated Runtime process to exit before
+the close operation finishes. Windows can rename, move, or replace the file
+immediately afterward without encountering a lingering SQLite file lock.
+
 No migration is required.
