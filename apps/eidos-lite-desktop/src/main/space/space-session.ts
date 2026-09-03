@@ -3444,10 +3444,18 @@ export class SpaceSession {
     }
   }
 
-  private async handleStableWatcherChange(
+  private handleStableWatcherChange(
     relativePaths: readonly string[]
   ): Promise<void> {
-    if (this.closed) return
+    if (this.closed) return Promise.resolve()
+    return this.gate.withRuntimeRead(() =>
+      this.handleStableWatcherChangeWithRuntime(relativePaths)
+    )
+  }
+
+  private async handleStableWatcherChangeWithRuntime(
+    relativePaths: readonly string[]
+  ): Promise<void> {
     const normalizedPaths = [
       ...new Set(relativePaths.map(normalizedWatcherPath)),
     ]

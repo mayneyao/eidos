@@ -466,6 +466,139 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
+  it("keeps open Eidos File sessions valid when the watcher observes a checkpoint restore", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-restore-watcher-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-restore-watcher-state-")
+    )
+    const relativePath = "data.eidos"
+    const filePath = path.join(root, relativePath)
+    const commitId = "a".repeat(64)
+    const expectedHead = "c".repeat(64)
+    const restoredHead = "d".repeat(64)
+    let restored = false
+    let runtimeSessionOpen = true
+    let watcherRefresh: Promise<void> | null = null
+
+    const source = createEidosFile(filePath, {
+      title: "Current",
+      defaultTable: {
+        name: "Records",
+        fields: [{ name: "Title", type: "text", isRecordLabel: true }],
+      },
+    })
+    source.close()
+
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.8",
+      close: async () => undefined,
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.8",
+        expectedVersion: "0.3.8",
+        initialized: true,
+        clean: true,
+        currentHead: restored ? restoredHead : expectedHead,
+        changedPaths: 0,
+      })),
+      status: vi.fn(async () => ({
+        initialized: true,
+        dirty: false,
+        currentHead: expectedHead,
+        paths: [],
+        changes: [],
+      })),
+      materializationPathsBetweenRevisions: vi.fn(async () => [relativePath]),
+      operationMaterializesWorktree: vi.fn(async () => true),
+      restorePaths: vi.fn(async () => {
+        watcherRefresh = (
+          session as unknown as {
+            handleStableWatcherChange(paths: readonly string[]): Promise<void>
+          }
+        ).handleStableWatcherChange([relativePath])
+        // Leave enough time for an uncoordinated watcher refresh to inspect the
+        // Runtime while checkpoint materialization still owns the worktree.
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        restored = true
+      }),
+      stageAll: vi.fn(async () => undefined),
+      commit: vi.fn(async () => ({ id: restoredHead })),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "openRelativePaths").mockImplementation(
+        () => (runtimeSessionOpen ? [relativePath] : [])
+      )
+      vi.spyOn(session.runtimePool, "open").mockResolvedValue({
+        sessionId: "runtime-session",
+        relativePath,
+        snapshot: { metadata: { revision: 1 } } as never,
+        readOnly: false,
+      })
+      vi.spyOn(session.runtimePool, "validatePaths").mockResolvedValue(
+        undefined
+      )
+      vi.spyOn(session.runtimePool, "call").mockImplementation(
+        async (_sessionId, method) => {
+          if (!runtimeSessionOpen) throw new Error("Unknown or closed session")
+          if (
+            method === "getExternalChangeProbe" &&
+            session!.gate.current().phase === "materializing"
+          ) {
+            runtimeSessionOpen = false
+            throw new Error("Runtime inspected during materialization")
+          }
+          if (method === "getExternalChangeProbe") {
+            return {
+              connectionId: restored ? "restored-runtime" : "current-runtime",
+              dataVersion: "1",
+            } as never
+          }
+          if (method === "getSnapshot") {
+            return {
+              metadata: { title: restored ? "Restored" : "Current" },
+            } as never
+          }
+          return {} as never
+        }
+      )
+      const opened = await session.openEidosFile(relativePath)
+
+      await expect(
+        session.restoreCheckpoint(commitId, expectedHead)
+      ).resolves.toMatchObject({
+        graft: { initialized: true, clean: true, currentHead: restoredHead },
+      })
+      await watcherRefresh
+
+      await expect(
+        session.callRuntime(opened.sessionId, "getSnapshot", [])
+      ).resolves.toMatchObject({ metadata: { title: "Restored" } })
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
   it("keeps a local rename responsive while Graft records the move identity", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-record-path-move-")
