@@ -34,14 +34,14 @@ export function eidosLitePreferencesPatch(
     }
     patch.language = candidate.language
   }
-  if ("markdownEditingMode" in candidate) {
+  if ("markdownFileEditingMode" in candidate) {
     if (
-      candidate.markdownEditingMode !== "source" &&
-      candidate.markdownEditingMode !== "wysiwyg"
+      candidate.markdownFileEditingMode !== "source" &&
+      candidate.markdownFileEditingMode !== "wysiwyg"
     ) {
-      throw new Error("Invalid Markdown editing mode preference")
+      throw new Error("Invalid Markdown file editing mode preference")
     }
-    patch.markdownEditingMode = candidate.markdownEditingMode
+    patch.markdownFileEditingMode = candidate.markdownFileEditingMode
   }
   if ("terminalLayout" in candidate) {
     if (

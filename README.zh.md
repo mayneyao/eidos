@@ -59,8 +59,13 @@ eidos serve example.eidos --open
 
 - [`packages/eidos-file`](./packages/eidos-file) 实现 Eidos File 格式与 Runtime。
 - [`packages/eidos-file-ui`](./packages/eidos-file-ui) 提供共享的 React 编辑器界面。
+- [`packages/markdown`](./packages/markdown) 提供基于 Lexical 的
+  Eidos Flavored Markdown 共享所见即所得编辑器。Markdown 始终是规范值；该包负责导入、
+  编辑、序列化、保真检查与插件 API，持久化和附件存储则由宿主负责。
 - [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop) 是桌面应用。
 - [`apps/eidos-file-web`](./apps/eidos-file-web) 是浏览器编辑器。
+- [`apps/markdown-editor-playground`](./apps/markdown-editor-playground) 是共享
+  Markdown 编辑器独立的开发与兼容性验证环境。
 - [`apps/cli`](./apps/cli) 包含面向智能体的 CLI 与本地服务。
 - [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer) 是独立的只读 SQLite 查看器。
 
@@ -77,7 +82,9 @@ pnpm install --frozen-lockfile
 
 pnpm dev:eidos-lite
 pnpm dev:eidos-file-web
+pnpm dev:markdown-editor-playground
 pnpm test:eidos-file
+pnpm test:markdown-editor
 ```
 
 CLI 在独立的 Rust workspace 中开发：

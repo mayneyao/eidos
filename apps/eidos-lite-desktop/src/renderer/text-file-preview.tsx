@@ -49,11 +49,13 @@ export interface TextFileDraft {
 
 export async function prepareTextFilePreview(
   preview: TextFilePreviewResult,
-  markdownEditingMode: EidosLiteMarkdownEditingMode = "source"
+  markdownFileEditingMode: EidosLiteMarkdownEditingMode = "source"
 ): Promise<void> {
   if (preview.type !== "text" || preview.truncated) return
   const editingMode =
-    preview.browserPreview?.kind === "markdown" ? markdownEditingMode : "source"
+    preview.browserPreview?.kind === "markdown"
+      ? markdownFileEditingMode
+      : "source"
   await prepareMarkdownEditorSurface(editingMode)
 }
 
@@ -448,7 +450,7 @@ function DocumentFilePreview({
   preview,
   draft,
   theme,
-  markdownEditingMode,
+  markdownFileEditingMode,
   platform,
   nativePreviewSuppressed,
   focusRequestToken,
@@ -460,7 +462,7 @@ function DocumentFilePreview({
   preview: BrowserTextPreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
-  markdownEditingMode: EidosLiteMarkdownEditingMode
+  markdownFileEditingMode: EidosLiteMarkdownEditingMode
   platform: string
   nativePreviewSuppressed: boolean
   focusRequestToken: number
@@ -485,17 +487,14 @@ function DocumentFilePreview({
   const htmlPreview =
     preview.browserPreview.kind === "html" ? preview.browserPreview : null
 
-  if (
-    preview.browserPreview.kind === "markdown" &&
-    markdownEditingMode === "wysiwyg"
-  ) {
+  if (preview.browserPreview.kind === "markdown") {
     return (
       <EditableTextFile
         key={preview.relativePath}
         preview={preview}
         draft={draft}
         theme={theme}
-        editingMode="wysiwyg"
+        editingMode={markdownFileEditingMode}
         focusRequestToken={focusRequestToken}
         onSaved={onSaved}
         onReload={onReload}
@@ -589,11 +588,7 @@ function DocumentFilePreview({
             preview={preview}
             draft={draft}
             theme={theme}
-            editingMode={
-              preview.browserPreview.kind === "markdown"
-                ? markdownEditingMode
-                : "source"
-            }
+            editingMode="source"
             autoFocus
             focusRequestToken={focusRequestToken}
             onSaved={onSaved}
@@ -610,7 +605,7 @@ export function TextFilePreview({
   preview,
   draft,
   theme,
-  markdownEditingMode = "source",
+  markdownFileEditingMode = "source",
   platform,
   nativePreviewSuppressed = false,
   focusRequestToken = 0,
@@ -622,7 +617,7 @@ export function TextFilePreview({
   preview: TextSurfacePreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
-  markdownEditingMode?: EidosLiteMarkdownEditingMode
+  markdownFileEditingMode?: EidosLiteMarkdownEditingMode
   platform: string
   nativePreviewSuppressed?: boolean
   focusRequestToken?: number
@@ -668,7 +663,7 @@ export function TextFilePreview({
           preview={preview as BrowserTextPreview}
           draft={draft}
           theme={theme}
-          markdownEditingMode={markdownEditingMode}
+          markdownFileEditingMode={markdownFileEditingMode}
           platform={platform}
           nativePreviewSuppressed={nativePreviewSuppressed}
           focusRequestToken={focusRequestToken}

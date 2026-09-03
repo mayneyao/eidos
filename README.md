@@ -59,8 +59,16 @@ See the [Eidos CLI guide](./apps/cli/README.md) for agent and automation workflo
 
 - [`packages/eidos-file`](./packages/eidos-file) implements the Eidos File format and Runtime.
 - [`packages/eidos-file-ui`](./packages/eidos-file-ui) provides the shared React editor UI.
+- [`packages/markdown`](./packages/markdown) provides the shared
+  Lexical-based WYSIWYG editor for Eidos Flavored Markdown. Markdown remains
+  the canonical value; the package owns import, editing, serialization,
+  fidelity checks, and its plugin API, while hosts own persistence and
+  attachment storage.
 - [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop) is the desktop app.
 - [`apps/eidos-file-web`](./apps/eidos-file-web) powers the browser editor.
+- [`apps/markdown-editor-playground`](./apps/markdown-editor-playground) is the
+  isolated development and compatibility playground for the shared Markdown
+  editor.
 - [`apps/cli`](./apps/cli) contains the agent-first CLI and local server.
 - [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer) is a standalone, read-only SQLite viewer.
 
@@ -78,7 +86,9 @@ pnpm install --frozen-lockfile
 
 pnpm dev:eidos-lite
 pnpm dev:eidos-file-web
+pnpm dev:markdown-editor-playground
 pnpm test:eidos-file
+pnpm test:markdown-editor
 ```
 
 CLI development stays in its Rust workspace:

@@ -60,7 +60,7 @@ describe("Markdown editability regression", () => {
             modifiedAtMs: 0,
             truncated: false,
           },
-          markdownEditingMode: "wysiwyg",
+          markdownFileEditingMode: "wysiwyg",
           theme: "light",
           platform: "darwin",
           onReveal: () => undefined,

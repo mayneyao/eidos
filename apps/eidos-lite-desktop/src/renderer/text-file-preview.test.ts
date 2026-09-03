@@ -163,7 +163,7 @@ describe("TextFilePreview", () => {
     expect(editorSurfaceRendered).not.toHaveBeenCalled()
   })
 
-  it("opens Markdown in a script-free document sandbox", async () => {
+  it("opens Markdown directly in the source editor by default", async () => {
     const preview = {
       type: "text",
       relativePath: "README.md",
@@ -192,13 +192,11 @@ describe("TextFilePreview", () => {
       })
     )
 
-    expect(markup).toContain('data-document-file-preview="README.md"')
-    expect(markup).toContain('data-document-file-preview-kind="markdown"')
-    expect(markup).toContain('class="markdown-document"')
-    expect(markup).toContain('<h1 id="read-me">Read me</h1>')
-    expect(markup).not.toContain("<iframe")
-    expect(markup).toContain("Markdown preview of README.md")
-    expect(editorModuleLoaded).not.toHaveBeenCalled()
+    expect(markup).toContain('data-text-file-editor="README.md"')
+    expect(markup).not.toContain("Document view mode")
+    expect(markup).not.toContain(">Preview<")
+    expect(markup).not.toContain(">Edit<")
+    expect(editorSurfaceRendered).toHaveBeenCalledTimes(1)
   })
 
   it("opens Markdown directly in the editor when WYSIWYG is selected", async () => {
@@ -219,7 +217,7 @@ describe("TextFilePreview", () => {
     const markup = renderToStaticMarkup(
       createElement(TextFilePreview, {
         preview,
-        markdownEditingMode: "wysiwyg",
+        markdownFileEditingMode: "wysiwyg",
         theme: "dark",
         platform: "darwin",
         onReveal: () => undefined,

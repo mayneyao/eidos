@@ -438,13 +438,13 @@ export function SettingsPage() {
                 </div>
                 <div
                   className="settings-row settings-row-stacked"
-                  data-markdown-editing-mode
+                  data-markdown-file-editing-mode
                 >
                   <div className="settings-row-copy">
-                    <strong>{t("Markdown editor")}</strong>
+                    <strong>{t("Markdown file editor")}</strong>
                     <small>
                       {t(
-                        "Choose the default editor for Markdown files and Content fields."
+                        "Choose the default editor for .md and .markdown files."
                       )}
                     </small>
                   </div>
@@ -452,20 +452,20 @@ export function SettingsPage() {
                     className="settings-segmented-control"
                     data-segment-count={MARKDOWN_EDITOR_OPTIONS.length}
                     role="radiogroup"
-                    aria-label={t("Markdown editor")}
+                    aria-label={t("Markdown file editor")}
                   >
                     {MARKDOWN_EDITOR_OPTIONS.map((option) => (
                       <button
                         type="button"
                         role="radio"
-                        data-markdown-editing-mode={option.value}
+                        data-markdown-file-editing-mode={option.value}
                         aria-checked={
-                          preferences.markdownEditingMode === option.value
+                          preferences.markdownFileEditingMode === option.value
                         }
                         key={option.value}
                         onClick={() =>
                           void updatePreferences({
-                            markdownEditingMode: option.value,
+                            markdownFileEditingMode: option.value,
                           })
                         }
                       >

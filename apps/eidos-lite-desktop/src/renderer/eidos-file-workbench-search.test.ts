@@ -28,7 +28,8 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const Empty = () => null
   function SearchResultReporter() {
     const navigation = actual.useEidosFileSearchNavigation()
-    const { activateUrl, openRelationRecord } = actual.useEidosFileUI()
+    const { activateUrl, markdownEditingMode, openRelationRecord } =
+      actual.useEidosFileUI()
     return React.createElement(
       React.Fragment,
       null,
@@ -67,6 +68,11 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
         "span",
         { "data-testid": "active-search-result" },
         String(navigation?.searchResultIndex ?? "none")
+      ),
+      React.createElement(
+        "span",
+        { "data-testid": "content-editing-mode" },
+        markdownEditingMode
       )
     )
   }
@@ -264,6 +270,9 @@ describe("Eidos Lite Eidos File search navigation", () => {
     expect(
       host.querySelector('[data-testid="active-search-result"]')?.textContent
     ).toBe("0")
+    expect(
+      host.querySelector('[data-testid="content-editing-mode"]')?.textContent
+    ).toBe("wysiwyg")
 
     act(() => {
       input?.dispatchEvent(

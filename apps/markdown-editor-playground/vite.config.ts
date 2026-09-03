@@ -14,28 +14,28 @@ export default defineConfig({
         find: "@eidos.space/markdown/styles.css",
         replacement: path.resolve(
           directory,
-          "../../packages/markdown-editor/src/styles.css"
+          "../../packages/markdown/src/styles.css"
         ),
       },
       {
         find: "@eidos.space/markdown/plugin-api",
         replacement: path.resolve(
           directory,
-          "../../packages/markdown-editor/src/plugin-api.ts"
+          "../../packages/markdown/src/plugin-api.ts"
         ),
       },
       {
         find: "@eidos.space/markdown/plugins",
         replacement: path.resolve(
           directory,
-          "../../packages/markdown-editor/src/builtin-plugins.ts"
+          "../../packages/markdown/src/builtin-plugins.ts"
         ),
       },
       {
         find: /^@eidos\.space\/markdown$/u,
         replacement: path.resolve(
           directory,
-          "../../packages/markdown-editor/src/index.ts"
+          "../../packages/markdown/src/index.ts"
         ),
       },
     ],

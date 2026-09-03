@@ -7914,6 +7914,33 @@ body {
   box-shadow: var(--elevation-shadow);
 }
 
+.space-context-menu-submenu-trigger {
+  position: relative;
+}
+
+.space-context-menu-submenu-trigger > button {
+  width: 100%;
+}
+
+.space-context-menu-submenu {
+  position: absolute;
+  z-index: 1;
+  top: -0.25rem;
+  left: calc(100% - 0.125rem);
+  display: grid;
+  min-width: 8.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: var(--elevation-shadow);
+}
+
+.space-context-menu[data-submenu-side="left"] .space-context-menu-submenu {
+  right: calc(100% - 0.125rem);
+  left: auto;
+}
+
 .space-context-menu button {
   display: flex;
   min-height: 1.9rem;
@@ -7951,6 +7978,10 @@ body {
   width: 0.8rem;
   height: 0.8rem;
   color: var(--ink-muted);
+}
+
+.space-context-menu button .space-context-menu-submenu-chevron {
+  margin-left: auto;
 }
 
 .space-context-menu .danger-menu-item {

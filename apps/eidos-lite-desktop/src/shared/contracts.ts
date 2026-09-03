@@ -697,7 +697,8 @@ export type EidosLiteTimeZone = string
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
-  markdownEditingMode: EidosLiteMarkdownEditingMode
+  /** Default editor for ordinary `.md` and `.markdown` files. */
+  markdownFileEditingMode: EidosLiteMarkdownEditingMode
   terminalLayout: EidosLiteTerminalLayout
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean

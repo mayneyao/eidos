@@ -6,7 +6,7 @@ import { defineConfig, type Plugin } from "vite"
 import electron from "vite-plugin-electron/simple"
 
 import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
-import { markdownEditorSourceAliases } from "../../packages/markdown-editor/vite-source-aliases"
+import { markdownEditorSourceAliases } from "../../packages/markdown/vite-source-aliases"
 
 import {
   EIDOS_LITE_SERVICE_ENVIRONMENTS,

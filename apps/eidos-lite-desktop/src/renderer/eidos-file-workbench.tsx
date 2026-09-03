@@ -51,7 +51,6 @@ import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
 } from "../shared/keyboard-shortcuts"
-import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
 import {
   createEidosLiteAssetSession,
   eidosLiteAssetPresenter,
@@ -69,6 +68,7 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileFormPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
+const CONTENT_FIELD_EDITING_MODE = "wysiwyg" as const
 interface FormulaEditorTarget {
   field: EidosFileFieldInfo
   previewRowId?: string
@@ -87,7 +87,6 @@ export interface EidosFileWorkbenchProps {
   weekStartsOnMonday?: boolean
   timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
-  markdownEditingMode?: EidosLiteMarkdownEditingMode
   macos?: boolean
   onTableSelect(tableId: string): void
   onSnapshot(snapshot: EidosFileSnapshot): void
@@ -106,7 +105,6 @@ export function EidosFileWorkbench({
   weekStartsOnMonday = true,
   timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
-  markdownEditingMode = "source",
   macos = false,
   onTableSelect,
   onSnapshot,
@@ -179,18 +177,17 @@ export function EidosFileWorkbench({
           documentKey={`${source.sessionId}:${cacheKey}`}
           relativePath={relativePath}
           content={content}
-          editingMode={markdownEditingMode}
+          editingMode={CONTENT_FIELD_EDITING_MODE}
           theme={theme}
           layout="embedded"
           inputProfile="fragment"
           disabled={disabled}
           persistSourceEditorState={false}
-          autoFocus={markdownEditingMode === "source"}
           onChange={onChange}
         />
       )
     },
-    [markdownEditingMode, source.sessionId, theme]
+    [source.sessionId, theme]
   )
 
   useEffect(() => {
@@ -501,7 +498,7 @@ export function EidosFileWorkbench({
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
-      markdownEditingMode={markdownEditingMode}
+      markdownEditingMode={CONTENT_FIELD_EDITING_MODE}
       renderMarkdownEditor={renderMarkdownEditor}
     >
       <EidosFileEditorShell

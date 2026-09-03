@@ -107,6 +107,7 @@ import {
   SidebarUpdateAction,
 } from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
+import { SpaceEntryOpenMenuItems } from "./space-entry-open-menu"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -854,9 +855,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [timeZone, setTimeZone] = useState(
     DEFAULT_RENDERER_PREFERENCES.timeZone
   )
-  const [markdownEditingMode, setMarkdownEditingMode] =
+  const [markdownFileEditingMode, setMarkdownFileEditingMode] =
     useState<EidosLiteMarkdownEditingMode>(
-      DEFAULT_RENDERER_PREFERENCES.markdownEditingMode
+      DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
     )
   const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
     () =>
@@ -902,6 +903,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const [textPreviewEditingMode, setTextPreviewEditingMode] =
+    useState<EidosLiteMarkdownEditingMode>(
+      DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
+    )
   const [fileSurfaceFocusRequestToken, setFileSurfaceFocusRequestToken] =
     useState(0)
   const [diffSurfaceFocusRequestToken, setDiffSurfaceFocusRequestToken] =
@@ -1152,7 +1157,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
-      setMarkdownEditingMode(preferences.markdownEditingMode)
+      setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
       setTerminalLayout(resolvedTerminalLayout)
       setBuiltInPlugins(preferences.builtInPlugins)
       if (!preferences.builtInPlugins.terminal) {
@@ -1350,7 +1355,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           const preview = await window.eidosLite.previewTextFile(
             textPreview.relativePath
           )
-          await prepareTextFilePreview(preview, markdownEditingMode)
+          await prepareTextFilePreview(preview, textPreviewEditingMode)
           setTextPreview(preview)
         } catch {
           // Discarding a newly added or renamed file can intentionally remove
@@ -1360,7 +1365,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         }
       }
     },
-    [markdownEditingMode, refreshCachedEidosFiles, textPreview]
+    [refreshCachedEidosFiles, textPreview, textPreviewEditingMode]
   )
 
   const refreshExternallyChangedEidosFiles = useCallback(
@@ -1917,7 +1922,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const openEntry = useCallback(
     async (
       entry: SpaceTreeEntry,
-      options: { recordHistory?: boolean } = {}
+      options: {
+        recordHistory?: boolean
+        markdownEditingMode?: EidosLiteMarkdownEditingMode
+      } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
       if (entry.kind !== "eidos") {
@@ -1927,11 +1935,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setError(null)
         setFileIssue(null)
         try {
+          const editingMode =
+            options.markdownEditingMode ?? markdownFileEditingMode
           const preview = await window.eidosLite.previewTextFile(
             entry.relativePath
           )
-          await prepareTextFilePreview(preview, markdownEditingMode)
+          await prepareTextFilePreview(preview, editingMode)
           setActiveSession(null)
+          setTextPreviewEditingMode(editingMode)
           setTextPreview(preview)
           rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
@@ -1939,7 +1950,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           }
           return true
         } catch (cause) {
-          setError(`Could not preview ${entry.name}. ${errorMessage(cause)}`)
+          setError(`Could not open ${entry.name}. ${errorMessage(cause)}`)
           return false
         } finally {
           fileOpenInFlight.current = false
@@ -2055,7 +2066,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     },
     [
       cachedFiles,
-      markdownEditingMode,
+      markdownFileEditingMode,
       recordNavigationLocation,
       rememberOpenedEntry,
     ]
@@ -3194,7 +3205,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
-                    markdownEditingMode={markdownEditingMode}
+                    markdownFileEditingMode={textPreviewEditingMode}
                     platform={platform}
                     nativePreviewSuppressed={
                       quickOpenVisible ||
@@ -3254,7 +3265,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
-                      markdownEditingMode={markdownEditingMode}
                       macos={macos}
                       onTableSelect={(tableId) =>
                         setCachedFiles((current) =>
@@ -3578,23 +3588,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <div
           className="space-context-menu"
           role="menu"
+          data-submenu-side={
+            contextMenu.x > window.innerWidth - 360 ? "left" : "right"
+          }
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
           onMouseLeave={() => setContextMenu(null)}
         >
-          {contextMenu.entry.kind !== "directory" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                void openEntry(contextMenu.entry)
-                setContextMenu(null)
-              }}
-            >
-              <FolderOpen />
-              {contextMenu.entry.kind === "eidos" ? t("Open") : t("Preview")}
-            </button>
-          ) : null}
+          <SpaceEntryOpenMenuItems
+            key={contextMenu.entry.relativePath}
+            entry={contextMenu.entry}
+            onOpen={(markdownEditingMode) => {
+              void openEntry(contextMenu.entry, { markdownEditingMode })
+              setContextMenu(null)
+            }}
+          />
           {isPublishableEntry(contextMenu.entry) ? (
             <button
               type="button"

@@ -20,7 +20,7 @@ import {
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
-  markdownEditingMode: "source",
+  markdownFileEditingMode: "source",
   terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
@@ -44,10 +44,10 @@ function language(value: unknown): EidosLitePreferences["language"] {
     : DEFAULT_EIDOS_LITE_PREFERENCES.language
 }
 
-function markdownEditingMode(value: unknown): EidosLiteMarkdownEditingMode {
+function markdownFileEditingMode(value: unknown): EidosLiteMarkdownEditingMode {
   return value === "source" || value === "wysiwyg"
     ? value
-    : DEFAULT_EIDOS_LITE_PREFERENCES.markdownEditingMode
+    : DEFAULT_EIDOS_LITE_PREFERENCES.markdownFileEditingMode
 }
 
 function terminalLayout(
@@ -100,7 +100,9 @@ export function normalizeEidosLitePreferences(
   return {
     appearance: appearance(candidate.appearance),
     language: language(candidate.language),
-    markdownEditingMode: markdownEditingMode(candidate.markdownEditingMode),
+    markdownFileEditingMode: markdownFileEditingMode(
+      candidate.markdownFileEditingMode
+    ),
     terminalLayout: terminalLayout(
       candidate.terminalLayout,
       candidate.workspaceLayout

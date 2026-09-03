@@ -23,9 +23,9 @@ const zh: Record<string, string> = {
   Language: "语言",
   "Use the system language or choose one for Eidos Lite.":
     "跟随系统语言，或为 Eidos Lite 指定语言。",
-  "Markdown editor": "Markdown 编辑器",
-  "Choose the default editor for Markdown files and Content fields.":
-    "选择 Markdown 文件和 Content 字段默认使用的编辑器。",
+  "Markdown file editor": "Markdown 文件编辑器",
+  "Choose the default editor for .md and .markdown files.":
+    "选择 .md 和 .markdown 文件默认使用的编辑器。",
   "Rich text": "富文本",
   "Terminal layout": "终端布局",
   "Choose how Terminal and file content share the middle work area.":
@@ -292,6 +292,7 @@ const zh: Record<string, string> = {
   "Try again": "重试",
   "Publishing…": "正在发布…",
   Preview: "预览",
+  "Open with": "打开方式",
   Source: "源码",
   Sandboxed: "沙箱保护",
   "Document view mode": "文档查看模式",

@@ -3,7 +3,7 @@ import path from "node:path"
 import { defineConfig } from "vitest/config"
 
 import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
-import { markdownEditorSourceAliases } from "../../packages/markdown-editor/vite-source-aliases"
+import { markdownEditorSourceAliases } from "../../packages/markdown/vite-source-aliases"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
 

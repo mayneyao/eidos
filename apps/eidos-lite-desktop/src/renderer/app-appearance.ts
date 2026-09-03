@@ -35,7 +35,7 @@ export function applyAppearance(
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
-  markdownEditingMode: "source",
+  markdownFileEditingMode: "source",
   terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,

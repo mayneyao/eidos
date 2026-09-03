@@ -246,7 +246,7 @@ importers:
         version: 0.3.25
       '@eidos.space/markdown':
         specifier: workspace:*
-        version: link:../../packages/markdown-editor
+        version: link:../../packages/markdown
       '@glideapps/glide-data-grid':
         specifier: ^6.0.0
         version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
@@ -463,7 +463,7 @@ importers:
     dependencies:
       '@eidos.space/markdown':
         specifier: workspace:*
-        version: link:../../packages/markdown-editor
+        version: link:../../packages/markdown
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -740,7 +740,7 @@ importers:
         specifier: ^3.2.6
         version: 3.2.6(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(supports-color@10.2.2)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
-  packages/markdown-editor:
+  packages/markdown:
     dependencies:
       '@lexical/code-core':
         specifier: 0.49.0
