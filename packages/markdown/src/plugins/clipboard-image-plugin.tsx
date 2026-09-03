@@ -21,6 +21,7 @@ import {
   resolveEfmImagePresentationUri,
   resolveEfmResourceUri,
 } from "../markdown/efm-uri"
+import { markdownImageSource } from "../markdown/image-source"
 import {
   $createEfmBlockNode,
   type EfmBlockData,
@@ -64,18 +65,6 @@ function pasteTargetsLocalEditor(event: PasteCommandType): boolean {
   )
 }
 
-function escapedImageSource(
-  markdownUrl: string,
-  alt: string,
-  title?: string
-): string {
-  const escapedAlt = alt.replace(/\\/gu, "\\\\").replace(/\]/gu, "\\]")
-  const titleSource = title
-    ? ` "${title.replace(/\\/gu, "\\\\").replace(/"/gu, '\\"')}"`
-    : ""
-  return `![${escapedAlt}](<${markdownUrl}>${titleSource})`
-}
-
 export function pastedImageData(
   asset: MarkdownEditorPastedImage,
   file: File,
@@ -94,7 +83,7 @@ export function pastedImageData(
   }
 
   const alt = asset.alt ?? file.name
-  const source = escapedImageSource(markdownUrl, alt, asset.title)
+  const source = markdownImageSource(markdownUrl, alt, asset.title)
   const displayUrl = asset.displayUrl
     ? resolveEfmImagePresentationUri(asset.displayUrl)
     : null

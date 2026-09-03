@@ -54,6 +54,7 @@ describe("serveMediaPreview", () => {
       expect(response.headers.get("Content-Type")).toBe("image/png")
       expect(response.headers.get("Content-Length")).toBe(String(bytes.length))
       expect(response.headers.get("Accept-Ranges")).toBe("bytes")
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*")
       expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes)
     })
   })

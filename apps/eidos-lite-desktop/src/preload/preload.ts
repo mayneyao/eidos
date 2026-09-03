@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
+  EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
   IPC_CHANNELS,
   type EidosLiteApi,
   type EidosLiteAssetDataSource,
@@ -143,6 +144,22 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewClose, previewId),
   saveTextFile: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.saveTextFile, request),
+  importMarkdownImage: async (relativePath, file) => {
+    if (file.size === 0 || file.size > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX) {
+      throw new Error("Markdown images must be between 1 byte and 64 MiB")
+    }
+    return ipcRenderer.invoke(IPC_CHANNELS.importMarkdownImage, {
+      relativePath,
+      name: file.name,
+      data: new Uint8Array(await file.arrayBuffer()),
+    })
+  },
+  resolveMarkdownImage: (relativePath, markdownUrl) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resolveMarkdownImage,
+      relativePath,
+      markdownUrl
+    ),
   inspectEidosFileIssue: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>

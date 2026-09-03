@@ -29,7 +29,12 @@ const mainModuleStartedAtMs = Date.now()
 protocol.registerSchemesAsPrivileged([
   {
     scheme: EIDOS_SPACE_MEDIA_SCHEME,
-    privileges: { stream: true },
+    privileges: {
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
   },
   {
     scheme: EIDOS_SPACE_DOCUMENT_SCHEME,

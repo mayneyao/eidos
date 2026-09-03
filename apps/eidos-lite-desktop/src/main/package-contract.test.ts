@@ -18,6 +18,12 @@ async function readJson(
 }
 
 describe("Eidos Lite package identity", () => {
+  it("allows the renderer to fetch tokenized local media previews", async () => {
+    const html = await fs.readFile(path.resolve(appRoot, "index.html"), "utf8")
+
+    expect(html).toContain("connect-src 'self' eidos-space-media:;")
+  })
+
   it("keeps heavy packaged verification outside the first-window startup path", async () => {
     const [bootstrapSource, applicationSource, startupSmokeSource] =
       await Promise.all([

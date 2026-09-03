@@ -83,6 +83,15 @@ runtime LRU. Lite does not register an unimplemented URL protocol, create a
 repository for one file inside an already known Space, or add a multi-tab
 surface.
 
+Ordinary `.md` and `.markdown` files use document-local image storage. Pasting
+an image in either Source or Rich text mode writes verified raster bytes to the
+document's sibling `assets/` folder, allocates a collision-safe portable name,
+and inserts a document-relative Markdown URL. Relative images are resolved
+through a main-owned, path-confined preview service; renderer code receives no
+raw filesystem path or handle. The import runs through the Space mutation gate
+and participates in whole-Space history and Sync. Content fields intentionally
+remain outside this filesystem attachment policy.
+
 Packaged staging acceptance has exercised this exact UI path with the resident
 SDK: whole-Space push, cold clone into a second ordinary folder, and pull while
 an Eidos File editor handle was open all completed with full validation and

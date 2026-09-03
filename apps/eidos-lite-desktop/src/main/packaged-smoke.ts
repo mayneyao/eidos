@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
-import type { BrowserWindow } from "electron"
+import { clipboard, nativeImage, type BrowserWindow } from "electron"
 import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../shared/performance-contract"
@@ -221,6 +221,19 @@ type TextHistorySmokeResult = {
   scrollable: boolean
   splitLayout: boolean
   unifiedLayout: boolean
+}
+
+type MarkdownImageSmokeResult = {
+  documentUrl: string
+  preloadApi: boolean
+  wysiwygEditor: boolean
+  imageRendered: boolean
+  markdownSaved: boolean
+  markdownUrl: string
+}
+
+type MarkdownImageReopenSmokeResult = {
+  reopenedImageRendered: boolean
 }
 
 type WindowTransitionSmokeResult = {
@@ -465,6 +478,171 @@ const textHistoryProbe = `
     splitLayout: true,
     unifiedLayout: Boolean(unifiedLayout),
   }
+})()
+`
+
+const markdownImageProbe = `
+(async () => {
+  const waitFor = async (read, label) => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const value = await read()
+      if (value) return value
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + label)
+  }
+  const treeHost = await waitFor(
+    () => [...document.querySelectorAll("*")].find(
+      (candidate) => candidate.shadowRoot?.querySelector('[data-type="item"]')
+    ),
+    "Space file tree"
+  )
+  const readmeItem = await waitFor(
+    () => [...treeHost.shadowRoot.querySelectorAll('[data-type="item"]')]
+      .find((candidate) => candidate.dataset.itemPath === "README.md"),
+    "README.md in Space Explorer"
+  )
+  readmeItem.click()
+  const editor = await waitFor(
+    () => document.querySelector(
+      '[data-text-file-editor="README.md"] [data-markdown-editing-mode="wysiwyg"]'
+    ),
+    "README WYSIWYG editor"
+  )
+  const editable = await waitFor(
+    () => editor.querySelector('[contenteditable="true"]'),
+    "README editable surface"
+  )
+  const pasteDiagnostics = { events: [] }
+  const recordPaste = (phase, event) => {
+    const items = [...(event.clipboardData?.items ?? [])]
+    pasteDiagnostics.events.push({
+      phase,
+      target: event.target?.className ?? event.target?.nodeName ?? null,
+      defaultPrevented: event.defaultPrevented,
+      items: items.map((item) => ({
+        kind: item.kind,
+        type: item.type,
+        file: (() => {
+          const file = item.getAsFile()
+          return file
+            ? { name: file.name, type: file.type, size: file.size }
+            : null
+        })(),
+      })),
+      files: [...(event.clipboardData?.files ?? [])].map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    })
+  }
+  document.addEventListener("paste", (event) => recordPaste("capture", event), {
+    capture: true,
+    once: true,
+  })
+  document.addEventListener("paste", (event) => recordPaste("bubble", event), {
+    once: true,
+  })
+  editable.focus()
+  const selection = window.getSelection()
+  const range = document.createRange()
+  range.selectNodeContents(editable)
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  window.__eidosLiteMarkdownImagePasteReady = true
+  let image
+  try {
+    image = await waitFor(
+      () => editor.querySelector('[data-efm-image-block="true"] img[alt="image.png"]'),
+      "pasted Markdown image"
+    )
+  } catch (error) {
+    throw new Error(
+      (error instanceof Error ? error.message : String(error)) +
+      ": " +
+      JSON.stringify({
+        ...pasteDiagnostics,
+        activeElement: document.activeElement?.className ?? document.activeElement?.nodeName,
+        editableFocused: document.activeElement === editable,
+        preloadApi: typeof window.eidosLite.importMarkdownImage,
+        editorConnected: editor.isConnected,
+        editableConnected: editable.isConnected,
+        issue: document.querySelector(".text-editor-save-issue")?.textContent ?? null,
+      })
+    )
+  }
+  editor.closest('[data-text-file-editor="README.md"]').dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      key: "s",
+      metaKey: true,
+    })
+  )
+  const saved = await waitFor(async () => {
+    const preview = await window.eidosLite.previewTextFile("README.md")
+    return preview.type === "text" && preview.content.includes("assets/")
+      ? preview
+      : null
+  }, "saved Markdown image source")
+  const match = saved.content.match(/!\\[image\\.png\\]\\(<(assets\\/[^>]+)>\\)/u)
+  if (!match) throw new Error("Saved Markdown image source is malformed")
+  return {
+    documentUrl: window.location.href,
+    preloadApi: typeof window.eidosLite.importMarkdownImage === "function",
+    wysiwygEditor: editor.dataset.markdownEditingMode === "wysiwyg",
+    imageRendered: image instanceof HTMLImageElement,
+    markdownSaved: true,
+    markdownUrl: match[1],
+  }
+})()
+`
+
+const markdownImageReopenProbe = `
+(async () => {
+  const waitFor = async (read, label) => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const value = await read()
+      if (value) return value
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + label)
+  }
+  const treeHost = await waitFor(
+    () => [...document.querySelectorAll("*")].find(
+      (candidate) => candidate.shadowRoot?.querySelector('[data-type="item"]')
+    ),
+    "Space file tree after reload"
+  )
+  const readmeItem = await waitFor(
+    () => [...treeHost.shadowRoot.querySelectorAll('[data-type="item"]')]
+      .find((candidate) => candidate.dataset.itemPath === "README.md"),
+    "README.md after reload"
+  )
+  readmeItem.click()
+  const editor = await waitFor(
+    () => document.querySelector(
+      '[data-text-file-editor="README.md"] [data-markdown-editing-mode="wysiwyg"]'
+    ),
+    "README WYSIWYG editor after reload"
+  )
+  const image = await waitFor(() => {
+    const issue = editor.querySelector(".text-editor-save-issue")?.textContent
+    if (issue) throw new Error(issue)
+    const candidate = editor.querySelector(
+      '[data-efm-image-block="true"] img[alt="image.png"]'
+    )
+    return candidate instanceof HTMLImageElement &&
+      candidate.complete && candidate.naturalWidth > 0
+      ? candidate
+      : null
+  }, "reloaded Markdown image")
+  return { reopenedImageRendered: image instanceof HTMLImageElement }
 })()
 `
 
@@ -1725,6 +1903,15 @@ export async function runPackagedSmoke(
   resultPath: string,
   startup: PackagedSmokeStartup
 ): Promise<void> {
+  if (process.env.EIDOS_LITE_SMOKE_SCOPE === "markdown-image") {
+    await runPackagedMarkdownImageSmoke(
+      controller,
+      spaceRoot,
+      resultPath,
+      startup
+    )
+    return
+  }
   if (process.env.EIDOS_LITE_SMOKE_SCOPE === "text-history") {
     await runPackagedTextHistorySmoke(
       controller,
@@ -1923,6 +2110,116 @@ export async function runPackagedSmoke(
     if (onboardingWindow && !onboardingWindow.isDestroyed()) {
       onboardingWindow.destroy()
     }
+    if (window && !window.isDestroyed()) window.destroy()
+    await controller.closeAll()
+  }
+}
+
+async function runPackagedMarkdownImageSmoke(
+  controller: WindowController,
+  spaceRoot: string,
+  resultPath: string,
+  startup: PackagedSmokeStartup
+): Promise<void> {
+  const clipboardSnapshot = {
+    text: clipboard.readText(),
+    html: clipboard.readHTML(),
+    rtf: clipboard.readRTF(),
+    image: clipboard.readImage(),
+  }
+  let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
+  let window: BrowserWindow | null = null
+  try {
+    await controller.updatePreferences({ markdownFileEditingMode: "wysiwyg" })
+    window = await controller.createSpaceWindow(spaceRoot, (candidate) => {
+      observePackagedSmokeWindow(candidate, startup.failures)
+    })
+    welcomeWindow.destroy()
+    welcomeWindow = null
+
+    const probe = window.webContents.executeJavaScript(markdownImageProbe, true)
+    void probe.catch(() => undefined)
+    const readyDeadline = Date.now() + 15_000
+    let ready = false
+    while (Date.now() < readyDeadline) {
+      ready = Boolean(
+        await window.webContents.executeJavaScript(
+          "window.__eidosLiteMarkdownImagePasteReady === true",
+          true
+        )
+      )
+      if (ready) break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    if (!ready)
+      throw new Error("Markdown image paste probe did not become ready")
+
+    clipboard.writeImage(
+      nativeImage.createFromBuffer(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nS8AAAAASUVORK5CYII=",
+          "base64"
+        )
+      )
+    )
+    window.webContents.focus()
+    window.webContents.paste()
+    const renderer = (await probe) as MarkdownImageSmokeResult
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("Markdown image reload timed out")),
+        15_000
+      )
+      window?.webContents.once("did-finish-load", () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+      window?.webContents.reload()
+    })
+    const reopened = (await window.webContents.executeJavaScript(
+      markdownImageReopenProbe,
+      true
+    )) as MarkdownImageReopenSmokeResult
+    const assetName = decodeURIComponent(
+      renderer.markdownUrl.slice("assets/".length)
+    )
+    const assetPath = path.join(spaceRoot, "assets", assetName)
+    const asset = await fs.readFile(assetPath)
+    const persisted =
+      renderer.markdownUrl.startsWith("assets/") &&
+      asset.byteLength > 8 &&
+      asset
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    if (
+      Object.values(renderer).some((value) => value === false) ||
+      Object.values(reopened).some((value) => value === false) ||
+      !persisted ||
+      startup.failures.length > 0
+    ) {
+      throw new Error(
+        `Markdown image paste is incomplete: ${JSON.stringify({ renderer, reopened, persisted, failures: startup.failures })}`
+      )
+    }
+    await fs.mkdir(path.dirname(resultPath), { recursive: true })
+    await fs.writeFile(
+      resultPath,
+      JSON.stringify({
+        ok: true,
+        markdownImage: { ...renderer, ...reopened, persisted },
+        consoleErrors: startup.failures,
+      })
+    )
+  } finally {
+    clipboard.write({
+      ...(clipboardSnapshot.text ? { text: clipboardSnapshot.text } : {}),
+      ...(clipboardSnapshot.html ? { html: clipboardSnapshot.html } : {}),
+      ...(clipboardSnapshot.rtf ? { rtf: clipboardSnapshot.rtf } : {}),
+      ...(!clipboardSnapshot.image.isEmpty()
+        ? { image: clipboardSnapshot.image }
+        : {}),
+    })
+    if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.destroy()
     if (window && !window.isDestroyed()) window.destroy()
     await controller.closeAll()
   }

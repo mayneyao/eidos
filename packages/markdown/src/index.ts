@@ -20,6 +20,7 @@ export {
   normalizeEfmSource,
 } from "./markdown/efm-document"
 export { EIDOS_MARKDOWN_TRANSFORMERS } from "./markdown/markdown-transformers"
+export { markdownImageSource } from "./markdown/image-source"
 export {
   compileMarkdownPlugins,
   defineMarkdownPlugin,

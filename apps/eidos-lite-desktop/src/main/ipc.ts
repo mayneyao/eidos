@@ -7,9 +7,11 @@ import type { AssetLease, UrlImageLease } from "@eidos.space/eidos-file"
 import {
   EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
   EIDOS_LITE_CSV_FILE_BYTES_MAX,
+  EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
   IPC_CHANNELS,
   RUNTIME_METHODS,
   type EidosLiteCsvSelection,
+  type EidosLiteMarkdownImageImportRequest,
   type EidosLitePathClipboardMode,
   type EidosLiteSettingsDestination,
   type HtmlPreviewBounds,
@@ -426,6 +428,32 @@ function textFileSaveRequest(value: unknown): TextFileSaveRequest {
     relativePath: candidate.relativePath,
     content: candidate.content,
     expectedRevision: candidate.expectedRevision,
+  }
+}
+
+function markdownImageImportRequest(
+  value: unknown
+): EidosLiteMarkdownImageImportRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid Markdown image import")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.relativePath !== "string" ||
+    candidate.relativePath.length === 0 ||
+    candidate.relativePath.length > 8_192 ||
+    typeof candidate.name !== "string" ||
+    candidate.name.length > 1_024 ||
+    !(candidate.data instanceof Uint8Array) ||
+    candidate.data.byteLength === 0 ||
+    candidate.data.byteLength > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX
+  ) {
+    throw new Error("Invalid Markdown image import")
+  }
+  return {
+    relativePath: candidate.relativePath,
+    name: candidate.name,
+    data: new Uint8Array(candidate.data),
   }
 }
 
@@ -1064,6 +1092,31 @@ export function registerIpc(
     controller
       .requireSession(event.sender)
       .saveTextFile(textFileSaveRequest(request))
+  )
+  ipcMain.handle(IPC_CHANNELS.importMarkdownImage, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .importMarkdownImage(markdownImageImportRequest(value))
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.resolveMarkdownImage,
+    (event, relativePath: unknown, markdownUrl: unknown) => {
+      const documentPath = requiredString(
+        relativePath,
+        "Markdown document path"
+      )
+      const imageUrl = requiredString(markdownUrl, "Markdown image URL")
+      if (
+        documentPath.length === 0 ||
+        documentPath.length > 8_192 ||
+        imageUrl.length > 8_192
+      ) {
+        throw new Error("Invalid Markdown image resolution")
+      }
+      return controller
+        .requireSession(event.sender)
+        .resolveMarkdownImage(documentPath, imageUrl)
+    }
   )
   ipcMain.handle(
     IPC_CHANNELS.inspectFileIssue,

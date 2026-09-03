@@ -24,11 +24,32 @@ export interface EidosLiteAssetDataSource {
   source?: "drop" | "paste"
 }
 
+export interface EidosLiteMarkdownImageImportRequest {
+  relativePath: string
+  name: string
+  data: Uint8Array
+}
+
+export interface EidosLiteMarkdownImageAsset {
+  /** Portable document-relative destination written into Markdown. */
+  markdownUrl: string
+  /** Space-relative path of the stored image. */
+  relativePath: string
+  mediaType: string
+}
+
+export interface EidosLiteMarkdownImageResolution {
+  relativePath: string
+  mediaType: string
+  previewUrl: string
+}
+
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_FILE_BYTES_MAX = 1024 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
 export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
 export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
+export const EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX = 64 * 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
@@ -79,6 +100,8 @@ export const IPC_CHANNELS = {
   htmlPreviewReload: "eidos-lite:html-preview-reload",
   htmlPreviewClose: "eidos-lite:html-preview-close",
   saveTextFile: "eidos-lite:text-file-save",
+  importMarkdownImage: "eidos-lite:markdown-image-import",
+  resolveMarkdownImage: "eidos-lite:markdown-image-resolve",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
@@ -1689,6 +1712,14 @@ export interface EidosLiteApi {
   reloadHtmlPreview(previewId: string): Promise<void>
   closeHtmlPreview(previewId: string): Promise<void>
   saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>
+  importMarkdownImage(
+    relativePath: string,
+    file: File
+  ): Promise<EidosLiteMarkdownImageAsset>
+  resolveMarkdownImage(
+    relativePath: string,
+    markdownUrl: string
+  ): Promise<EidosLiteMarkdownImageResolution | null>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(

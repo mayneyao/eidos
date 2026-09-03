@@ -28,7 +28,8 @@
     "package:release": "pnpm run build:release && pnpm run prepare:publish-engine && electron-builder --publish never --config electron-builder.json",
     "package:release:linux": "pnpm run build:release && pnpm run prepare:publish-engine && electron-builder --publish never --config electron-builder.linux.json",
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
-    "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs"
+    "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs",
+    "smoke:markdown-image": "node scripts/packaged-markdown-image-smoke.mjs"
   },
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",

@@ -9,6 +9,9 @@ import type {
 
 import type {
   EidosFileIssue,
+  EidosLiteMarkdownImageAsset,
+  EidosLiteMarkdownImageImportRequest,
+  EidosLiteMarkdownImageResolution,
   EidosLiteExternalChangeProbe,
   EidosSyncMergeApplyRequest,
   EidosSyncMergeChoice,
@@ -107,6 +110,10 @@ import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
 import { readTextFilePreview, saveTextFile } from "./text-file-preview"
+import {
+  importMarkdownDocumentImage,
+  resolveMarkdownDocumentImage,
+} from "./markdown-document-assets"
 import { readWorkingTextContent } from "./working-text-reader"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
@@ -581,6 +588,36 @@ export class SpaceSession {
       this.scheduleGraftStatusRefresh()
     }
     return result
+  }
+
+  async importMarkdownImage(
+    request: EidosLiteMarkdownImageImportRequest
+  ): Promise<EidosLiteMarkdownImageAsset> {
+    this.prioritizeLocalWork()
+    const result = await this.gate.withMutation(() =>
+      importMarkdownDocumentImage(this.canonical.root, request)
+    )
+    this.noteLocalChange()
+    await this.freshSnapshotAndEmit()
+    return result
+  }
+
+  async resolveMarkdownImage(
+    relativePath: string,
+    markdownUrl: string
+  ): Promise<EidosLiteMarkdownImageResolution | null> {
+    this.prioritizeLocalWork()
+    try {
+      return await this.gate.withRuntimeRead(() =>
+        resolveMarkdownDocumentImage(
+          this.canonical.root,
+          relativePath,
+          markdownUrl
+        )
+      )
+    } finally {
+      this.scheduleGraftStatusRefresh()
+    }
   }
 
   async inspectEidosFileIssue(

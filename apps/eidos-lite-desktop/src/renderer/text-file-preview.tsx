@@ -267,6 +267,7 @@ function EditableTextFile({
         key={`${preview.relativePath}:${editorGeneration}`}
         documentKey={`${preview.relativePath}:${editorGeneration}`}
         relativePath={preview.relativePath}
+        assetDocumentPath={preview.relativePath}
         content={editorContent}
         editingMode={editingMode}
         theme={theme}

@@ -50,6 +50,9 @@ interface MediaPreviewTicket {
 
 const MEDIA_PREVIEW_HOST = "preview"
 const MEDIA_PREVIEW_TICKETS_MAX = 256
+const MEDIA_PREVIEW_CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+} as const
 const mediaPreviewTickets = new Map<string, MediaPreviewTicket>()
 
 export function issueMediaPreviewUrl(
@@ -107,10 +110,17 @@ export async function serveMediaPreview(
   headers: Headers
 ): Promise<Response> {
   const ticket = resolveMediaPreviewUrl(url)
-  if (!ticket) return new Response("Unknown media preview", { status: 404 })
+  if (!ticket)
+    return new Response("Unknown media preview", {
+      status: 404,
+      headers: MEDIA_PREVIEW_CORS_HEADERS,
+    })
   const candidate = await statServicableFile(ticket.root, ticket.relativePath)
   if (!candidate) {
-    return new Response("Media file is unavailable", { status: 404 })
+    return new Response("Media file is unavailable", {
+      status: 404,
+      headers: MEDIA_PREVIEW_CORS_HEADERS,
+    })
   }
 
   const stats = await fs.stat(candidate)
@@ -123,12 +133,16 @@ export async function serveMediaPreview(
     if (start >= stats.size || end < start) {
       return new Response(null, {
         status: 416,
-        headers: { "Content-Range": `bytes */${stats.size}` },
+        headers: {
+          ...MEDIA_PREVIEW_CORS_HEADERS,
+          "Content-Range": `bytes */${stats.size}`,
+        },
       })
     }
     return new Response(streamFile(candidate, { start, end }), {
       status: 206,
       headers: {
+        ...MEDIA_PREVIEW_CORS_HEADERS,
         "Content-Type": ticket.mimeType,
         "Content-Length": String(end - start + 1),
         "Content-Range": `bytes ${start}-${end}/${stats.size}`,
@@ -140,6 +154,7 @@ export async function serveMediaPreview(
   return new Response(streamFile(candidate), {
     status: 200,
     headers: {
+      ...MEDIA_PREVIEW_CORS_HEADERS,
       "Content-Type": ticket.mimeType,
       "Content-Length": String(stats.size),
       "Accept-Ranges": "bytes",

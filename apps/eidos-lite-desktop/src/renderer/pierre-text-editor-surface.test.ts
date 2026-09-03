@@ -26,6 +26,7 @@ const pierre = vi.hoisted(() => ({
 vi.mock("@pierre/diffs/edit", () => ({
   Editor: class Editor {
     initialOptions: Record<string, unknown>
+    applyEdits = vi.fn()
     cleanUp = vi.fn()
     focus = vi.fn()
     getState = vi.fn(() => ({ selections: undefined, view: undefined }))
@@ -35,6 +36,10 @@ vi.mock("@pierre/diffs/edit", () => ({
       this.initialOptions = options
     }
   },
+}))
+
+vi.mock("@eidos.space/markdown", () => ({
+  markdownImageSource: (url: string, alt: string) => `![${alt}](<${url}>)`,
 }))
 
 vi.mock("@pierre/diffs/react", () => ({
@@ -371,4 +376,87 @@ describe("PierreTextEditorSurface", () => {
       '<span data-char="0"></span>'
     )
   })
+
+  it("persists clipboard images and inserts undoable Markdown", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onPasteImage = vi.fn(async ({ file }: { file: File }) => ({
+      markdownUrl: "assets/pasted.png",
+      alt: file.name,
+    }))
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "notes/readme.md",
+          content: "# Readme",
+          theme: "light",
+          onPasteImage,
+          onChange: () => undefined,
+        })
+      )
+    })
+    const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
+      applyEdits: ReturnType<typeof vi.fn>
+      getState: ReturnType<typeof vi.fn>
+    }
+    editor.getState.mockReturnValue({
+      selections: [
+        {
+          start: { line: 0, character: 8 },
+          end: { line: 0, character: 8 },
+          direction: 0,
+        },
+      ],
+    })
+    const paste = new Event("paste", { bubbles: true, composed: true })
+    const image = new File([PNG_BYTES], "pasted.png", { type: "image/png" })
+    Object.defineProperty(paste, "clipboardData", {
+      value: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => image,
+          },
+        ],
+        files: [image],
+      },
+    })
+
+    await act(async () => {
+      host
+        .querySelector(".text-file-editor-paste-surface")
+        ?.dispatchEvent(paste)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onPasteImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentKey: "notes/readme.md",
+        file: image,
+        index: 0,
+        total: 1,
+      })
+    )
+    expect(editor.applyEdits).toHaveBeenCalledWith(
+      [
+        {
+          range: {
+            start: { line: 0, character: 8 },
+            end: { line: 0, character: 8 },
+          },
+          newText: "![pasted.png](<assets/pasted.png>)",
+        },
+      ],
+      true
+    )
+
+    await act(async () => root.unmount())
+  })
 })
+
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+])

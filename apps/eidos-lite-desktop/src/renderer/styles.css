@@ -5391,6 +5391,7 @@ body {
 }
 
 .markdown-editor-surface > .eme-editor,
+.markdown-editor-surface > .text-file-editor-paste-surface,
 .markdown-editor-surface > .text-file-editor-virtualizer {
   height: 100%;
   min-height: 0;
@@ -5413,6 +5414,17 @@ body {
 
 .markdown-editor-surface > .text-file-editor-virtualizer {
   overflow: auto;
+}
+
+.text-file-editor-paste-surface {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.text-file-editor-paste-surface > .text-file-editor-virtualizer {
+  flex: 1;
 }
 
 .markdown-editor-surface-loading {

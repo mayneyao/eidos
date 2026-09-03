@@ -10,6 +10,7 @@ import {
 import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
+import { useMarkdownImageAttachments } from "./markdown-image-attachments"
 
 let pierreModule:
   | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
@@ -47,6 +48,7 @@ export async function prepareMarkdownEditorSurface(
 export function MarkdownEditorSurface({
   documentKey,
   relativePath,
+  assetDocumentPath,
   content,
   editingMode,
   theme,
@@ -60,6 +62,8 @@ export function MarkdownEditorSurface({
 }: {
   documentKey: string
   relativePath: string
+  /** Enables document-local image persistence for an ordinary Markdown file. */
+  assetDocumentPath?: string
   content: string
   editingMode: EidosLiteMarkdownEditingMode
   theme: ResolvedAppearance
@@ -73,10 +77,13 @@ export function MarkdownEditorSurface({
 }) {
   const [sessionMode, setSessionMode] =
     useState<EidosLiteMarkdownEditingMode>(editingMode)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const acceptedFocusTokenRef = useRef(focusRequestToken)
+  const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
 
   useEffect(() => setSessionMode(editingMode), [documentKey, editingMode])
+  useEffect(() => setAttachmentError(null), [documentKey])
 
   useEffect(() => {
     if (acceptedFocusTokenRef.current === focusRequestToken) return
@@ -93,6 +100,11 @@ export function MarkdownEditorSurface({
       className="markdown-editor-surface"
       data-markdown-editing-mode={sessionMode}
     >
+      {attachmentError ? (
+        <div className="text-editor-save-issue" role="alert">
+          <span>{attachmentError}</span>
+        </div>
+      ) : null}
       <Suspense
         fallback={
           <div className="markdown-editor-surface-loading" role="status">
@@ -108,6 +120,10 @@ export function MarkdownEditorSurface({
             persistEditorState={persistSourceEditorState}
             autoFocus={autoFocus}
             focusRequestToken={focusRequestToken}
+            onPasteImage={imageAttachments?.onPasteImage}
+            onPasteImageError={(error) =>
+              setAttachmentError(`Image paste failed: ${error.message}`)
+            }
             onChange={onChange}
           />
         ) : (
@@ -122,6 +138,11 @@ export function MarkdownEditorSurface({
             ariaLabel={`Markdown content for ${relativePath}`}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
+            onPasteImage={imageAttachments?.onPasteImage}
+            resolveImageUrl={imageAttachments?.resolveImageUrl}
+            onError={(error) =>
+              setAttachmentError(`Markdown editor error: ${error.message}`)
+            }
           />
         )}
       </Suspense>
