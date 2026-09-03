@@ -1158,6 +1158,53 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
+  it("broadcasts an authoritative Space refresh to renderer listeners", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-refresh-broadcast-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-refresh-broadcast-state-")
+    )
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.8",
+      close: async () => undefined,
+      inspectSpace: async () => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.8",
+        expectedVersion: "0.3.8",
+        initialized: true,
+        clean: false,
+        changedPaths: 1,
+        currentHead: "local-head",
+      }),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+      const snapshots: SpaceSnapshot[] = []
+      const unsubscribe = session.onChanged((snapshot) =>
+        snapshots.push(snapshot)
+      )
+
+      const refreshed = await session.refresh()
+      unsubscribe()
+
+      expect(refreshed.graft).toMatchObject({ clean: false, changedPaths: 1 })
+      expect(snapshots).toEqual([refreshed])
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("refreshes authoritative version status after an external file write", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-external-version-refresh-")

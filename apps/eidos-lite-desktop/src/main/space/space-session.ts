@@ -505,11 +505,7 @@ export class SpaceSession {
   }
 
   async refresh(): Promise<SpaceSnapshot> {
-    const loadedDirectories = [...this.directoryEntriesCache.keys()]
-    this.invalidateSnapshotCaches()
-    const authoritativeGraftStatus = await this.refreshGraftStatus(true)
-    await this.reloadDirectoryEntries(loadedDirectories, true)
-    return this.readSnapshot(false, authoritativeGraftStatus)
+    return this.freshSnapshotAndEmit(true)
   }
 
   async refreshExplorer(): Promise<SpaceSnapshot> {
