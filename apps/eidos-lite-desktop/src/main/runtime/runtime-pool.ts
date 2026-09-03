@@ -689,6 +689,9 @@ export class RuntimePool {
   private async closeEntry(entry: RuntimeEntry): Promise<void> {
     const child = entry.child
     if (!child) return
+    const childExited = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve())
+    })
     entry.child = null
     await this.waitForChildRequests(entry, child)
     try {
@@ -704,6 +707,7 @@ export class RuntimePool {
     } finally {
       child.kill()
     }
+    await childExited
   }
 
   private request(

@@ -39,6 +39,19 @@ class FakeRuntimeUtilityProcess extends EventEmitter {
   }
 }
 
+class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
+  private releaseExit: (() => void) | null = null
+
+  kill(): boolean {
+    this.releaseExit = () => this.emit("exit", 0)
+    return true
+  }
+
+  exit(): void {
+    this.releaseExit?.()
+  }
+}
+
 describe("RuntimePool LRU policy", () => {
   it("opens clone validation probes in read-only mode", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-validate-"))
@@ -93,6 +106,35 @@ describe("RuntimePool LRU policy", () => {
         sessionId: second.sessionId,
       })
       await pool.destroy()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("does not finish closing a session until its utility process exits", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-close-"))
+    )
+    await writeFile(path.join(root, "records.eidos"), "fixture")
+    const child = new DelayedExitRuntimeUtilityProcess()
+    vi.mocked(utilityProcess.fork).mockReturnValue(
+      child as unknown as UtilityProcess
+    )
+
+    try {
+      const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+      const session = await pool.open("records.eidos")
+      let closed = false
+      const closing = pool.closeSession(session.sessionId).then(() => {
+        closed = true
+      })
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect(closed).toBe(false)
+
+      child.exit()
+      await closing
+      expect(closed).toBe(true)
     } finally {
       await rm(root, { recursive: true, force: true })
     }
