@@ -1,41 +1,42 @@
 ## What's new
 
-### Edit Markdown as a document
+### Paste images into Markdown files
 
-Markdown files and table Content fields can now use a rich-text editor while
-Markdown remains the stored format. Headings, lists, checklists, links, code,
-inline formatting, and tables round-trip through the editor; documents with
-unsupported syntax stay in the source editor instead of being rewritten.
+Paste clipboard images while editing a `.md` or `.markdown` file in either
+Source or Rich text mode. Eidos Lite stores verified image bytes in an `assets`
+folder beside the document and inserts a portable relative reference. Existing
+relative images render again after reopening the document, and the image files
+participate in the Space's ordinary History and Sync.
 
-### Open records as focused content pages
+### Choose how each Markdown file opens
 
-A table can designate one Text field as its Content field. Those records open
-in a centered page layout with compact properties, Markdown content, and
-previous/next navigation, while ordinary tables continue to use the side
-panel.
+The Markdown file editor preference now applies only to ordinary Markdown
+files. **Open** uses that default, while **Open with** lets you choose Source or
+Rich text for one opening. Table Content fields consistently use the Rich text
+editor and no longer change when the file preference changes.
 
-### Work with structured fields more consistently
+### Edit richer Markdown without losing its source
 
-Relation values can be filtered by their linked record and copied or pasted
-within a Grid column. Field pickers now use one predictable type order, Integer
-columns keep their header icon, and invalid reserved-field indexes are rejected
-before they can make a file ambiguous.
+The Rich text editor now supports Eidos Flavored Markdown constructs including
+frontmatter, footnotes, inline and display mathematics, reference links, safe
+HTML, images, and highlighted text. Block insertion, reordering, selection,
+local editors for complex syntax, and lightweight code highlighting make these
+documents easier to work with while untouched manual wrapping and spacing stay
+intact.
 
-### Keep attachment previews available across views
+### Render and validate field values faithfully
 
-Gallery covers and Grid attachment cells now share host-issued preview leases.
-Loaded thumbnails survive equivalent table refreshes, and a failed Gallery
-preview no longer leaves the same attachment unusable after returning to Grid.
+Lookup lists keep their typed structure and row references resolve to record
+labels. Integer aggregates retain exact integer values, Rating rejects
+fractions, URL validation is consistent across writes, and pasted Select or
+Multi-select values are not discarded merely because they are not yet in the
+option catalog.
 
-### Preserve editing history during local changes
+### Discard local changes with less waiting
 
-Saving a Grid edit no longer makes the file watcher treat the same Runtime
-write as an external replacement. Undo and redo history stays available for
-local edits, while genuine changes from another process still refresh the open
-Eidos File.
+Discarding changes no longer reclassifies the whole Space before returning or
+reloads every cached Eidos File. Eidos Lite restores the selected paths,
+publishes the exact pending snapshot, refreshes only affected files, and
+finishes the remaining status work in the background.
 
-If you are updating directly from Eidos Lite 0.5.1 or earlier, review Formula
-fields that use the former Eidos-only helpers. Use SQLite `IIF`, `IS NULL`,
-`LOWER`, and `UPPER` in place of `IF`, `IS_NULL`, `LOWER_ASCII`, and
-`UPPER_ASCII`; rewrite the former date helpers with SQLite date and time
-functions.
+No migration is required.

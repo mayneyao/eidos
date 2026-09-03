@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-lite-desktop",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Independent local-first desktop client for Eidos File Spaces",
   "author": "mayneyao",
