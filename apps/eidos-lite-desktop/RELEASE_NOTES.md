@@ -45,4 +45,11 @@ Closing an Eidos File now waits for its isolated Runtime process to exit before
 the close operation finishes. Windows can rename, move, or replace the file
 immediately afterward without encountering a lingering SQLite file lock.
 
+### Keep open records stable after restoring History
+
+Filesystem refreshes now wait until a History restore has reopened Eidos File
+Runtimes before inspecting changed paths. Records that were already open keep
+their session after a checkpoint restore instead of failing with an unknown or
+closed session error.
+
 No migration is required.
