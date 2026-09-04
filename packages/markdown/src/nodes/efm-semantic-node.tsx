@@ -8,15 +8,10 @@ import { gfm } from "micromark-extension-gfm"
 import {
   $applyNodeReplacement,
   $getNodeByKey,
-  $getRoot,
-  $isElementNode,
-  COMMAND_PRIORITY_LOW,
-  createCommand,
   DecoratorNode,
   type EditorConfig,
   type ElementFormatType,
   type LexicalEditor,
-  type LexicalCommand,
   type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
@@ -25,14 +20,11 @@ import {
 import {
   createElement,
   Fragment,
-  useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
   type JSX,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react"
 import { parseDocument } from "yaml"
@@ -42,11 +34,7 @@ import {
   resolveEfmImagePresentationUri,
   resolveEfmResourceUri,
 } from "../markdown/efm-uri"
-import { validateFrontmatterSource } from "../markdown/frontmatter-validation"
-import {
-  normalizeMarkdownIdentifier,
-  parseReferenceDefinitionSource,
-} from "../markdown/reference-definition"
+import { parseReferenceDefinitionSource } from "../markdown/reference-definition"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import { EfmBlockSelection } from "../ui/efm-block-selection"
 import {
@@ -97,9 +85,6 @@ export interface EfmBlockData {
   alt?: string
   title?: string
 }
-
-export const OPEN_EFM_BLOCK_EDITOR_COMMAND: LexicalCommand<NodeKey> =
-  createCommand("OPEN_EFM_BLOCK_EDITOR_COMMAND")
 
 type SerializedEfmInlineNode = Spread<
   { data: EfmInlineData },
@@ -277,16 +262,6 @@ function MathPreview({ display, value }: { display: boolean; value: string }) {
   )
 }
 
-function EditBlockButton({ onClick }: { onClick(): void }) {
-  const { editBlockLabel, readOnly } = useEfmSourceBlockContext()
-  if (readOnly) return null
-  return (
-    <button type="button" className="eme-efm-semantic-action" onClick={onClick}>
-      {editBlockLabel}
-    </button>
-  )
-}
-
 function formatMetadataValue(value: unknown): string {
   if (typeof value === "string") return value
   if (value === null) return "null"
@@ -295,13 +270,7 @@ function formatMetadataValue(value: unknown): string {
   return String(value)
 }
 
-function FrontmatterPreview({
-  onEdit,
-  source,
-}: {
-  onEdit(): void
-  source: string
-}) {
+function FrontmatterPreview({ source }: { source: string }) {
   const entries = useMemo(() => {
     const body = source.replace(/^---\n/u, "").replace(/\n---$/u, "")
     const document = parseDocument(body)
@@ -324,7 +293,6 @@ function FrontmatterPreview({
     >
       <div className="eme-efm-semantic-header">
         <span>Document metadata</span>
-        <EditBlockButton onClick={onEdit} />
       </div>
       {entries.length > 0 ? (
         <dl>
@@ -350,13 +318,11 @@ function inlineMathSourceFromValue(source: string, value: string): string {
 }
 
 function MathComposer({
-  display,
   draft,
   onCancel,
   onChange,
   onSave,
 }: {
-  display: boolean
   draft: string
   onCancel(): void
   onChange(value: string): void
@@ -365,9 +331,7 @@ function MathComposer({
   const { saveBlockLabel } = useEfmSourceBlockContext()
   const { ariaKeys, label: shortcutLabel, matches } = useMarkdownShortcuts()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const commitShortcut = display
-    ? ("block-editor.commit" as const)
-    : ("composer.confirm" as const)
+  const commitShortcut = "composer.confirm" as const
   const commitHint = shortcutLabel(commitShortcut)
 
   useEffect(() => {
@@ -378,15 +342,14 @@ function MathComposer({
   return (
     <div
       className="eme-efm-math-composer"
-      data-display={display}
       data-efm-editor-interactive="true"
       contentEditable={false}
     >
       <textarea
         ref={inputRef}
-        aria-label={display ? "Edit block equation" : "Edit inline equation"}
+        aria-label="Edit inline equation"
         aria-keyshortcuts={ariaKeys([commitShortcut, "overlay.dismiss"])}
-        rows={display ? 3 : 1}
+        rows={1}
         value={draft}
         spellCheck={false}
         onChange={(event) => onChange(event.target.value)}
@@ -448,90 +411,6 @@ function EmptyBlockPrompt({
   )
 }
 
-function ImageComposer({
-  alt,
-  onAltChange,
-  onCancel,
-  onSave,
-  onUrlChange,
-  url,
-}: {
-  alt: string
-  onAltChange(value: string): void
-  onCancel(): void
-  onSave(): void
-  onUrlChange(value: string): void
-  url: string
-}) {
-  const { imageAltLabel, imageUrlLabel, saveBlockLabel } =
-    useEfmSourceBlockContext()
-  const { ariaKeys, label: shortcutLabel, matches } = useMarkdownShortcuts()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const confirmHint = shortcutLabel("composer.confirm")
-
-  useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  }, [])
-
-  const handleKeyDown = (event: ReactKeyboardEvent) => {
-    if (matches(event, "overlay.dismiss")) {
-      event.preventDefault()
-      event.stopPropagation()
-      onCancel()
-      return
-    }
-    if (matches(event, "composer.confirm") && url.trim()) {
-      event.preventDefault()
-      event.stopPropagation()
-      onSave()
-    }
-  }
-
-  return (
-    <div
-      className="eme-efm-image-composer"
-      data-efm-editor-interactive="true"
-      contentEditable={false}
-    >
-      <label>
-        <span>{imageUrlLabel}</span>
-        <input
-          ref={inputRef}
-          type="url"
-          aria-keyshortcuts={ariaKeys(["composer.confirm", "overlay.dismiss"])}
-          inputMode="url"
-          value={url}
-          placeholder="https://…"
-          onChange={(event) => onUrlChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-      </label>
-      <label>
-        <span>{imageAltLabel}</span>
-        <input
-          type="text"
-          aria-keyshortcuts={ariaKeys(["composer.confirm", "overlay.dismiss"])}
-          value={alt}
-          onChange={(event) => onAltChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-      </label>
-      <button
-        type="button"
-        disabled={!url.trim()}
-        title={
-          confirmHint ? `${saveBlockLabel} (${confirmHint})` : saveBlockLabel
-        }
-        onClick={onSave}
-      >
-        {saveBlockLabel}{" "}
-        {confirmHint ? <span aria-hidden="true">{confirmHint}</span> : null}
-      </button>
-    </div>
-  )
-}
-
 function InlineMathView({
   data,
   editor,
@@ -541,7 +420,7 @@ function InlineMathView({
   editor: LexicalEditor
   nodeKey: NodeKey
 }) {
-  const { editBlockLabel, externalMarkdownConflict, readOnly, registerDraft } =
+  const { externalMarkdownConflict, readOnly, registerDraft } =
     useEfmSourceBlockContext()
   const { ariaKeys, matches } = useMarkdownShortcuts()
   const [editing, setEditing] = useState(false)
@@ -583,7 +462,7 @@ function InlineMathView({
         data-efm-editor-interactive="true"
         role={readOnly ? undefined : "button"}
         tabIndex={readOnly ? undefined : 0}
-        aria-label={readOnly ? undefined : editBlockLabel}
+        aria-label={readOnly ? undefined : "Open inline equation editor"}
         aria-keyshortcuts={
           readOnly ? undefined : ariaKeys("inline-atom.activate")
         }
@@ -603,7 +482,6 @@ function InlineMathView({
       {editing ? (
         <>
           <MathComposer
-            display={false}
             draft={draft}
             onCancel={() => setEditing(false)}
             onChange={setDraft}
@@ -743,99 +621,6 @@ function markdownPreviewHtml(source: string): string {
   })
 }
 
-function mathValueFromSource(source: string): string {
-  const lines = source.split("\n")
-  if (/^ {0,3}\$\$$/u.test(lines[0] ?? "")) {
-    return /^ {0,3}\$\$$/u.test(lines.at(-1) ?? "")
-      ? lines.slice(1, -1).join("\n")
-      : lines.slice(1).join("\n")
-  }
-  const fence = lines[0]?.match(
-    /^ {0,3}((?:`{3,})|(?:~{3,}))math(?:[ \t].*)?$/u
-  )
-  return fence ? lines.slice(1, -1).join("\n") : source
-}
-
-function blockMathSourceFromValue(source: string, value: string): string {
-  const lines = source.split("\n")
-  const opening = lines[0] ?? ""
-  if (/^ {0,3}\$\$$/u.test(opening)) {
-    const closing = /^ {0,3}\$\$$/u.test(lines.at(-1) ?? "")
-      ? (lines.at(-1) ?? "$$")
-      : "$$"
-    return `${opening}\n${value}\n${closing}`
-  }
-  const fence = opening.match(/^ {0,3}((?:`{3,})|(?:~{3,}))math(?:[ \t].*)?$/u)
-  if (fence) {
-    const marker = fence[1] ?? "```"
-    const closing = (lines.at(-1) ?? "").startsWith(marker[0] ?? "`")
-      ? (lines.at(-1) ?? marker)
-      : marker
-    return `${opening}\n${value}\n${closing}`
-  }
-  return `$$\n${value}\n$$`
-}
-
-function imageDataFromSource(
-  data: EfmBlockData,
-  source: string,
-  baseUri?: string
-): EfmBlockData {
-  const match = source.match(
-    /^!\[((?:\\.|[^\]])*)\]\(\s*(?:<([^>]+)>|(\S+?))(?:\s+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?\s*\)$/u
-  )
-  const url = match?.[2] ?? match?.[3] ?? data.url ?? ""
-  const title = match?.[4] ?? match?.[5] ?? match?.[6]
-  return {
-    ...data,
-    source,
-    url,
-    resolvedUrl:
-      resolveEfmResourceUri(url, baseUri, { image: true }) ?? undefined,
-    alt: (match?.[1] ?? data.alt ?? "").replace(/\\([\\\]])/gu, "$1"),
-    ...(title ? { title } : { title: undefined }),
-  }
-}
-
-function blockDataFromSource(
-  data: EfmBlockData,
-  source: string,
-  baseUri?: string
-): EfmBlockData {
-  switch (data.kind) {
-    case "math":
-      return { ...data, source, value: mathValueFromSource(source) }
-    case "footnote-definition": {
-      const match = source.match(/^\[\^([^\]\n]+)\]:[ \t]?/u)
-      const label = match?.[1] ?? data.label ?? "note"
-      const body = source
-        .slice(match?.[0].length ?? 0)
-        .replace(/\n {1,4}/gu, "\n")
-      return {
-        ...data,
-        source,
-        label,
-        identifier: normalizeMarkdownIdentifier(label),
-        previewHtml: markdownPreviewHtml(body),
-      }
-    }
-    case "raw-html":
-      return { ...data, source, previewHtml: markdownPreviewHtml(source) }
-    case "image":
-      return imageDataFromSource(data, source, baseUri)
-    case "reference-definition": {
-      const definition = parseReferenceDefinitionSource(source)
-      return {
-        ...data,
-        source,
-        ...(definition ? { identifier: definition.identifier } : {}),
-      }
-    }
-    case "frontmatter":
-      return { ...data, source }
-  }
-}
-
 function referenceDefinitionPreview(source: string): {
   destination: string
   label: string
@@ -847,375 +632,31 @@ function referenceDefinitionPreview(source: string): {
   }
 }
 
-function descendants(node: LexicalNode): LexicalNode[] {
-  return [
-    node,
-    ...($isElementNode(node) ? node.getChildren().flatMap(descendants) : []),
-  ]
-}
-
-function definitionConflict(
-  nodeKey: NodeKey,
-  kind: "footnote-definition" | "reference-definition",
-  identifier: string
-): boolean {
-  return descendants($getRoot()).some(
-    (node) =>
-      $isEfmBlockNode(node) &&
-      node.getKey() !== nodeKey &&
-      node.getData().kind === kind &&
-      node.getData().identifier === identifier
-  )
-}
-
-function rewriteReferenceSource(source: string, identifier: string): string {
-  const firstLabelStart = source.startsWith("![") ? 1 : 0
-  const referenceLabelStart = source.lastIndexOf("[")
-  return referenceLabelStart > firstLabelStart
-    ? `${source.slice(0, referenceLabelStart)}[${identifier}]`
-    : `${source}[${identifier}]`
-}
-
-function reconcileDefinitionReferences(
-  previous: EfmBlockData,
-  next: EfmBlockData,
-  baseUri?: string
-): void {
-  const previousIdentifier = previous.identifier
-  const nextIdentifier = next.identifier
-  if (!previousIdentifier || !nextIdentifier) return
-
-  const definition =
-    next.kind === "reference-definition"
-      ? parseReferenceDefinitionSource(next.source)
-      : null
-  for (const node of descendants($getRoot())) {
-    if (!$isEfmInlineNode(node)) continue
-    const inline = node.getData()
-    if (inline.identifier !== previousIdentifier) continue
-
-    if (
-      next.kind === "footnote-definition" &&
-      inline.kind === "footnote-reference"
-    ) {
-      const label = next.label ?? nextIdentifier
-      node.setData({
-        ...inline,
-        identifier: nextIdentifier,
-        label,
-        source: `[^${label}]`,
-      })
-      continue
-    }
-
-    if (
-      next.kind === "reference-definition" &&
-      definition &&
-      (inline.kind === "reference-link" ||
-        (inline.kind === "image" && inline.identifier))
-    ) {
-      node.setData({
-        ...inline,
-        identifier: nextIdentifier,
-        source:
-          previousIdentifier === nextIdentifier
-            ? inline.source
-            : rewriteReferenceSource(inline.source, definition.label),
-        url: definition.destination,
-        resolvedUrl:
-          resolveEfmResourceUri(definition.destination, baseUri, {
-            image: inline.kind === "image",
-          }) ?? undefined,
-        ...(definition.title
-          ? { title: definition.title }
-          : { title: undefined }),
-      })
-    }
-  }
-}
-
-function validateBlockSource(
-  data: EfmBlockData,
-  source: string
-): string | null {
-  if (data.kind === "frontmatter") {
-    return validateFrontmatterSource(source)
-  }
-  if (data.kind === "footnote-definition") {
-    return /^\[\^([^\]\n]+)\]:[ \t]?/u.test(source)
-      ? null
-      : "A footnote definition must start with [^identifier]:."
-  }
-  if (data.kind === "reference-definition") {
-    return parseReferenceDefinitionSource(source)
-      ? null
-      : "A reference definition must contain a label and destination."
-  }
-  return null
-}
-
-function BlockEditor({
-  draft,
-  error,
-  invalid,
-  kind,
-  onCancel,
-  onChange,
-  onSave,
-}: {
-  draft: string
-  error?: string | null
-  invalid?: boolean
-  kind: EfmBlockKind
-  onCancel(): void
-  onChange(value: string): void
-  onSave(): void
-}) {
-  const { editBlockLabel, saveBlockLabel, cancelBlockEditLabel } =
+function EfmBlockView({ data }: { data: EfmBlockData }) {
+  const { emptyImageBlockLabel, emptyMathBlockLabel } =
     useEfmSourceBlockContext()
-  const { ariaKeys, matches } = useMarkdownShortcuts()
-  const generatedErrorId = useId()
-  const errorId = error ? generatedErrorId : undefined
-  return (
-    <div
-      className="eme-efm-block-editor eme-efm-block-surface"
-      data-efm-editor-interactive="true"
-      contentEditable={false}
-    >
-      <textarea
-        autoFocus
-        aria-label={`${editBlockLabel}: ${kind}`}
-        aria-describedby={errorId}
-        aria-invalid={invalid || undefined}
-        aria-keyshortcuts={ariaKeys(["block-editor.commit", "overlay.dismiss"])}
-        value={draft}
-        spellCheck={false}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (matches(event, "block-editor.commit")) {
-            event.preventDefault()
-            onSave()
-          }
-          if (matches(event, "overlay.dismiss")) {
-            event.preventDefault()
-            onCancel()
-          }
-        }}
-      />
-      {error ? (
-        <p id={errorId} className="eme-efm-block-editor-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="eme-efm-block-editor-actions">
-        <button type="button" onClick={onCancel}>
-          {cancelBlockEditLabel}
-        </button>
-        <button type="button" data-primary="true" onClick={onSave}>
-          {saveBlockLabel}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function EfmBlockView({
-  data,
-  editor,
-  nodeKey,
-}: {
-  data: EfmBlockData
-  editor: LexicalEditor
-  nodeKey: NodeKey
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(data.source)
-  const [draftError, setDraftError] = useState<string | null>(null)
-  const [imageAltDraft, setImageAltDraft] = useState(data.alt ?? "")
-  const {
-    baseUri,
-    editBlockLabel,
-    emptyImageBlockLabel,
-    emptyMathBlockLabel,
-    externalMarkdownConflict,
-    readOnly,
-    registerDraft,
-  } = useEfmSourceBlockContext()
   const imageUrl = useResolvedImageUrl(
     data.kind === "image" ? data.url : undefined,
     data.kind === "image" ? data.resolvedUrl : undefined
   )
-  useEffect(() => {
-    if (readOnly) setEditing(false)
-  }, [readOnly])
-
-  useEffect(() => {
-    if (!editing) return
-    return registerDraft()
-  }, [editing, registerDraft])
-
-  const startEditing = useCallback(() => {
-    if (readOnly) return
-    setDraftError(null)
-    setDraft(
-      data.kind === "math"
-        ? (data.value ?? "")
-        : data.kind === "image"
-          ? (data.url ?? "")
-          : data.source
-    )
-    if (data.kind === "image") setImageAltDraft(data.alt ?? "")
-    setEditing(true)
-  }, [data, readOnly])
-
-  useEffect(
-    () =>
-      editor.registerCommand(
-        OPEN_EFM_BLOCK_EDITOR_COMMAND,
-        (requestedKey) => {
-          if (requestedKey !== nodeKey || readOnly) return false
-          startEditing()
-          return true
-        },
-        COMMAND_PRIORITY_LOW
-      ),
-    [editor, nodeKey, readOnly, startEditing]
-  )
-
-  const save = () => {
-    let source = draft
-    if (data.kind === "math") {
-      source = blockMathSourceFromValue(data.source, draft)
-    } else if (data.kind === "image") {
-      const url = draft.trim()
-      if (!url) {
-        setDraftError("An image URL is required.")
-        return
-      }
-      const alt = imageAltDraft.trim()
-      const escapedAlt = alt.replace(/\\/gu, "\\\\").replace(/\x5d/gu, "\\]")
-      const title = data.title
-        ? ` \"${data.title.replace(/\\/gu, "\\\\").replace(/"/gu, '\\"')}\"`
-        : ""
-      source = `![${escapedAlt}](<${url}>${title})`
-    }
-
-    const sourceError = validateBlockSource(data, source)
-    if (sourceError) {
-      setDraftError(sourceError)
-      return
-    }
-
-    const nextData = blockDataFromSource(data, source, baseUri)
-    const definitionKind =
-      nextData.kind === "footnote-definition" ||
-      nextData.kind === "reference-definition"
-        ? nextData.kind
-        : null
-    if (
-      definitionKind &&
-      nextData.identifier &&
-      editor
-        .getEditorState()
-        .read(() =>
-          definitionConflict(nodeKey, definitionKind, nextData.identifier!)
-        )
-    ) {
-      setDraftError(
-        `A ${nextData.kind === "footnote-definition" ? "footnote" : "reference"} definition with this identifier already exists.`
-      )
-      return
-    }
-
-    editor.update(
-      () => {
-        const node = $getNodeByKey(nodeKey)
-        if (!$isEfmBlockNode(node)) return
-        const current = node.getData()
-        const next = blockDataFromSource(current, source, baseUri)
-        node.setData(next)
-        reconcileDefinitionReferences(current, next, baseUri)
-      },
-      { discrete: true }
-    )
-    setDraftError(null)
-    setEditing(false)
-  }
-
-  if (editing && data.kind !== "math" && data.kind !== "image") {
-    return (
-      <BlockEditor
-        draft={draft}
-        error={
-          draftError ??
-          (externalMarkdownConflict ? EXTERNAL_MARKDOWN_CONFLICT_MESSAGE : null)
-        }
-        invalid={Boolean(draftError)}
-        kind={data.kind}
-        onCancel={() => {
-          setDraftError(null)
-          setEditing(false)
-        }}
-        onChange={(value) => {
-          setDraft(value)
-          setDraftError(null)
-        }}
-        onSave={save}
-      />
-    )
-  }
-
   switch (data.kind) {
     case "frontmatter":
-      return <FrontmatterPreview source={data.source} onEdit={startEditing} />
+      return <FrontmatterPreview source={data.source} />
     case "math": {
-      const visibleValue = editing ? draft : (data.value ?? "")
-      const empty = !visibleValue.trim()
+      const value = data.value ?? ""
+      const empty = !value.trim()
       const preview = empty ? (
         <EmptyBlockPrompt kind="math" label={emptyMathBlockLabel} />
       ) : (
-        <MathPreview display value={visibleValue} />
+        <MathPreview display value={value} />
       )
       return (
         <div
           className="eme-efm-semantic-block eme-efm-block-surface eme-efm-math-block"
-          data-editing={editing || undefined}
           data-empty={empty || undefined}
           contentEditable={false}
         >
-          {readOnly ? (
-            <div className="eme-efm-math-preview-trigger">{preview}</div>
-          ) : (
-            <button
-              type="button"
-              className="eme-efm-math-preview-trigger"
-              data-efm-editor-interactive="true"
-              aria-label={
-                empty ? emptyMathBlockLabel : `${editBlockLabel} equation`
-              }
-              onClick={startEditing}
-            >
-              {preview}
-            </button>
-          )}
-          {editing ? (
-            <>
-              <MathComposer
-                display
-                draft={draft}
-                onCancel={() => setEditing(false)}
-                onChange={setDraft}
-                onSave={save}
-              />
-              {externalMarkdownConflict ? (
-                <p className="eme-efm-block-editor-error" role="alert">
-                  {EXTERNAL_MARKDOWN_CONFLICT_MESSAGE}
-                </p>
-              ) : null}
-            </>
-          ) : empty ? null : (
-            <EditBlockButton onClick={startEditing} />
-          )}
+          <div className="eme-efm-math-preview-trigger">{preview}</div>
         </div>
       )
     }
@@ -1225,26 +666,13 @@ function EfmBlockView({
         <figure
           className="eme-efm-image-block eme-efm-block-surface"
           data-efm-image-block="true"
-          data-editing={editing || undefined}
           data-empty={empty || undefined}
           contentEditable={false}
         >
           {empty ? (
-            readOnly ? (
-              <div className="eme-efm-image-placeholder">
-                <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="eme-efm-image-placeholder"
-                data-efm-editor-interactive="true"
-                aria-label={emptyImageBlockLabel}
-                onClick={startEditing}
-              >
-                <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
-              </button>
-            )
+            <div className="eme-efm-image-placeholder">
+              <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
+            </div>
           ) : imageUrl ? (
             <img
               src={imageUrl}
@@ -1258,25 +686,6 @@ function EfmBlockView({
             </span>
           )}
           {!empty && data.alt ? <figcaption>{data.alt}</figcaption> : null}
-          {editing ? (
-            <>
-              <ImageComposer
-                alt={imageAltDraft}
-                url={draft}
-                onAltChange={setImageAltDraft}
-                onCancel={() => setEditing(false)}
-                onSave={save}
-                onUrlChange={setDraft}
-              />
-              {draftError || externalMarkdownConflict ? (
-                <p className="eme-efm-block-editor-error" role="alert">
-                  {draftError ?? EXTERNAL_MARKDOWN_CONFLICT_MESSAGE}
-                </p>
-              ) : null}
-            </>
-          ) : empty ? null : (
-            <EditBlockButton onClick={startEditing} />
-          )}
         </figure>
       )
     }
@@ -1308,7 +717,6 @@ function EfmBlockView({
           <div className="eme-efm-footnote-body">
             <SafeHtmlPreview html={data.previewHtml ?? ""} />
           </div>
-          <EditBlockButton onClick={startEditing} />
         </aside>
       )
     case "raw-html":
@@ -1323,7 +731,6 @@ function EfmBlockView({
           ) : (
             <SafeHtmlPreview html={data.previewHtml ?? ""} />
           )}
-          <EditBlockButton onClick={startEditing} />
         </div>
       )
     case "reference-definition": {
@@ -1336,7 +743,6 @@ function EfmBlockView({
         >
           <span>[{reference.label}]</span>
           <code>{reference.destination}</code>
-          <EditBlockButton onClick={startEditing} />
         </div>
       )
     }
@@ -1458,7 +864,7 @@ export class EfmBlockNode extends DecoratorBlockNode {
     return (
       <>
         <EfmBlockSelection editor={editor} nodeKey={nodeKey} />
-        <EfmBlockView data={this.getData()} editor={editor} nodeKey={nodeKey} />
+        <EfmBlockView data={this.getData()} />
       </>
     )
   }

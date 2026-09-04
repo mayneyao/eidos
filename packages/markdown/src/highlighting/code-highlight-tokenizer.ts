@@ -1,3 +1,5 @@
+import { tokenizeMarkdownLightweight } from "./markdown-highlight-tokenizer"
+
 export const CODE_HIGHLIGHT_KINDS = [
   "comment",
   "keyword",
@@ -693,9 +695,10 @@ function rulesForLanguage(language: string): readonly TokenRule[] {
 }
 
 /**
- * A compact, dependency-free tokenizer for common fenced-code languages.
- * It deliberately emits semantic ranges rather than DOM nodes so rendering
- * can use the CSS Custom Highlight API without changing Lexical's document.
+ * A compact tokenizer for common fenced-code languages. Markdown delegates to
+ * its parser-backed grammar; the other built-ins remain dependency-free regex
+ * grammars. All paths emit semantic ranges rather than DOM nodes so rendering
+ * can highlight without changing Lexical's document.
  */
 export const tokenizeCodeLightweight: CodeHighlightTokenizer = (
   code,
@@ -703,6 +706,10 @@ export const tokenizeCodeLightweight: CodeHighlightTokenizer = (
 ) => {
   if (!code || !language || /^(?:plain|plaintext|text|txt)$/iu.test(language)) {
     return []
+  }
+
+  if (normalizeLanguage(language) === "markdown") {
+    return tokenizeMarkdownLightweight(code)
   }
 
   const rules = rulesForLanguage(language)

@@ -1,5 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { MarkdownEditor } from "@eidos.space/markdown"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import {
+  applySourceTextareaCommand,
+  markdownShortcutAriaKeys,
+  MarkdownEditor,
+  matchesMarkdownShortcut,
+  resolveMarkdownShortcuts,
+  SOURCE_TEXTAREA_SHORTCUT_IDS,
+  sourceTextareaCommandForEvent,
+} from "@eidos.space/markdown"
 
 import { PLAYGROUND_MARKDOWN } from "./sample-markdown"
 import { PlaygroundOpfsImageStore } from "./opfs-image-store"
@@ -11,6 +26,8 @@ type TestablePlaygroundWindow = Window & {
   __EIDOS_MARKDOWN_TEST_SET_DOCUMENT__?(markdown: string): void
   __EIDOS_MARKDOWN_TEST_VALUE__?: string
 }
+
+const PLAYGROUND_SHORTCUTS = resolveMarkdownShortcuts()
 
 async function waitForPasteTestDelay(signal: AbortSignal): Promise<void> {
   const delay = (window as TestablePlaygroundWindow)
@@ -48,7 +65,21 @@ export function App() {
   const [markdown, setMarkdown] = useState(initialMarkdown)
   const [readOnly, setReadOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"visual" | "source">("visual")
+  const sourceRef = useRef<HTMLTextAreaElement>(null)
+  const pendingSourceSelectionRef = useRef<{
+    end: number
+    start: number
+  } | null>(null)
   const imageStore = useMemo(() => new PlaygroundOpfsImageStore(), [])
+
+  useLayoutEffect(() => {
+    const selection = pendingSourceSelectionRef.current
+    const source = sourceRef.current
+    if (!selection || !source || viewMode !== "source") return
+    pendingSourceSelectionRef.current = null
+    source.focus({ preventScroll: true })
+    source.setSelectionRange(selection.start, selection.end)
+  }, [markdown, viewMode])
 
   useEffect(() => {
     const testWindow = window as TestablePlaygroundWindow
@@ -148,11 +179,51 @@ export function App() {
         ) : (
           <section className="playground-source" aria-label="Source editor">
             <textarea
+              ref={sourceRef}
               autoFocus
               aria-label="Markdown source"
+              aria-keyshortcuts={markdownShortcutAriaKeys(
+                SOURCE_TEXTAREA_SHORTCUT_IDS,
+                PLAYGROUND_SHORTCUTS
+              )}
               value={markdown}
               readOnly={readOnly}
               spellCheck={false}
+              onKeyDown={(event) => {
+                if (readOnly) return
+                const command = sourceTextareaCommandForEvent(
+                  event,
+                  (keyboardEvent, id) =>
+                    matchesMarkdownShortcut(
+                      keyboardEvent,
+                      id,
+                      PLAYGROUND_SHORTCUTS
+                    )
+                )
+                if (!command) return
+                event.preventDefault()
+                const textarea = event.currentTarget
+                const next = applySourceTextareaCommand(
+                  {
+                    value: textarea.value,
+                    selectionStart: textarea.selectionStart,
+                    selectionEnd: textarea.selectionEnd,
+                  },
+                  command
+                )
+                if (next.value !== textarea.value) {
+                  pendingSourceSelectionRef.current = {
+                    start: next.selectionStart,
+                    end: next.selectionEnd,
+                  }
+                  handleMarkdownChange(next.value)
+                } else {
+                  textarea.setSelectionRange(
+                    next.selectionStart,
+                    next.selectionEnd
+                  )
+                }
+              }}
               onChange={(event) => handleMarkdownChange(event.target.value)}
             />
           </section>

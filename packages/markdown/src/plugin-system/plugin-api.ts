@@ -9,6 +9,7 @@ import type {
 } from "lexical"
 import type { ComponentType } from "react"
 
+import type { CodeHighlightTokenizer } from "../highlighting/code-highlight-tokenizer"
 import type { EfmInputProfile, MarkdownEditorLabels } from "../types"
 import type { MarkdownShortcutDefinition } from "../shortcuts/shortcut-registry"
 
@@ -21,11 +22,14 @@ export type MarkdownInsertionPlacement = "after" | "replace-empty"
 
 export interface MarkdownPluginBehaviorProps {
   baseUri?: string
+  codeHighlightTokenizer?: CodeHighlightTokenizer | false
   documentKey: string
   inputProfile: EfmInputProfile
   labels: MarkdownEditorLabels
   onError(error: Error): void
   readOnly: boolean
+  syntaxFeatures: ReadonlySet<string>
+  transformers: readonly Transformer[]
 }
 
 export interface MarkdownPluginInsertionExecutionContext {

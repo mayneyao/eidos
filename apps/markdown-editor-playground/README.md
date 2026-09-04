@@ -1,9 +1,9 @@
 # Markdown Editor Playground
 
 This browser playground keeps Eidos's focused WYSIWYG Markdown editor at the
-center, with a read-only toggle. It intentionally has no whole-document source
-editor: supported syntax is created and edited directly or through a local
-composer owned by the active block.
+center, with a read-only toggle and a whole-document source view. Visual blocks
+can also enter an in-place, selection-driven source mode for precise Markdown
+editing without leaving the document flow.
 
 Pasted clipboard images demonstrate the editor's host callback boundary. The
 playground writes each image into its origin-private file system (OPFS), stores

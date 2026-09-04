@@ -10,4 +10,5 @@ export {
   mathPlugin,
   rawHtmlPlugin,
   referencePlugin,
+  sourceEditingPlugin,
 } from "./plugin-system/builtins"

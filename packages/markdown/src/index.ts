@@ -7,6 +7,7 @@ export {
   CODE_HIGHLIGHT_KINDS,
   tokenizeCodeLightweight,
 } from "./highlighting/code-highlight-tokenizer"
+export { tokenizeMarkdownLightweight } from "./highlighting/markdown-highlight-tokenizer"
 
 // Markdown analysis, conversion, and syntax contract
 export {
@@ -40,6 +41,7 @@ export {
   mathPlugin,
   rawHtmlPlugin,
   referencePlugin,
+  sourceEditingPlugin,
 } from "./plugin-system/builtins"
 export {
   DEFAULT_MARKDOWN_SHORTCUTS,
@@ -51,6 +53,11 @@ export {
   resolveMarkdownShortcuts,
 } from "./shortcuts/shortcut-registry"
 export { useMarkdownShortcuts } from "./shortcuts/shortcut-context"
+export {
+  applySourceTextareaCommand,
+  SOURCE_TEXTAREA_SHORTCUT_IDS,
+  sourceTextareaCommandForEvent,
+} from "./ui/source-textarea-shortcuts"
 
 // Public Lexical node definitions for advanced consumers
 export {
@@ -86,6 +93,10 @@ export type {
   ShortcutDisplayPlatform,
 } from "./shortcuts/shortcut-registry"
 export type { MarkdownShortcutContextValue } from "./shortcuts/shortcut-context"
+export type {
+  SourceTextareaCommand,
+  SourceTextareaState,
+} from "./ui/source-textarea-shortcuts"
 export type {
   CompiledMarkdownPluginBehavior,
   CompiledMarkdownPluginInsertion,

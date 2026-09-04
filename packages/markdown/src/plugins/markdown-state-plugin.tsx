@@ -18,6 +18,7 @@ import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import type { EfmInputProfile } from "../types"
 import {
   EXTERNAL_MARKDOWN_CONFLICT_MESSAGE,
+  SOURCE_RANGE_COMMIT_TAG,
   useEfmSourceBlockContext,
 } from "../ui/efm-source-block-context"
 
@@ -55,8 +56,10 @@ export function MarkdownStatePlugin({
   const { matches } = useMarkdownShortcuts()
   const {
     activeDrafts,
+    setAcceptedMarkdown,
     externalMarkdownConflict,
     setExternalMarkdownConflict,
+    takeSourceRangeCommit,
   } = useEfmSourceBlockContext()
   const acceptedMarkdownRef = useRef(markdown)
   const canonicalMarkdownRef = useRef<string | null>(null)
@@ -67,11 +70,12 @@ export function MarkdownStatePlugin({
   useEffect(() => editor.setEditable(!readOnly), [editor, readOnly])
 
   useEffect(() => {
+    setAcceptedMarkdown(acceptedMarkdownRef.current)
     canonicalMarkdownRef.current = readMarkdown(
       editor.getEditorState(),
       transformers
     )
-  }, [editor, transformers])
+  }, [editor, setAcceptedMarkdown, transformers])
 
   useEffect(() => {
     const propChanged = markdown !== observedMarkdownPropRef.current
@@ -99,6 +103,7 @@ export function MarkdownStatePlugin({
     pendingExternalMarkdownRef.current = null
     if (externalMarkdownConflict) setExternalMarkdownConflict(false)
     acceptedMarkdownRef.current = nextMarkdown
+    setAcceptedMarkdown(nextMarkdown)
     editor.update(
       () => {
         $convertFromEfmMarkdownString(nextMarkdown, transformers, {
@@ -122,6 +127,7 @@ export function MarkdownStatePlugin({
     markdown,
     onError,
     setExternalMarkdownConflict,
+    setAcceptedMarkdown,
     syntaxFeatures,
     transformers,
   ])
@@ -130,14 +136,40 @@ export function MarkdownStatePlugin({
     (editorState: EditorState, _editor: LexicalEditor, tags: Set<string>) => {
       if (tags.has(EXTERNAL_MARKDOWN_TAG)) return
       const nextCanonical = readMarkdown(editorState, transformers)
+      const sourceRangeCommit = tags.has(SOURCE_RANGE_COMMIT_TAG)
+        ? takeSourceRangeCommit()
+        : null
       const canonicalBefore = canonicalMarkdownRef.current
-      const nextMarkdown = canonicalBefore
-        ? preserveMarkdownSourceEdits(
-            acceptedMarkdownRef.current,
-            canonicalBefore,
-            nextCanonical
+      let nextMarkdown: string
+      if (
+        sourceRangeCommit &&
+        acceptedMarkdownRef.current.slice(
+          sourceRangeCommit.start,
+          sourceRangeCommit.end
+        ) === sourceRangeCommit.expectedSource
+      ) {
+        nextMarkdown = `${acceptedMarkdownRef.current.slice(
+          0,
+          sourceRangeCommit.start
+        )}${sourceRangeCommit.source}${acceptedMarkdownRef.current.slice(
+          sourceRangeCommit.end
+        )}`
+      } else {
+        if (sourceRangeCommit) {
+          onError(
+            new Error(
+              "The selected Markdown source changed before the edit could be committed."
+            )
           )
-        : nextCanonical
+        }
+        nextMarkdown = canonicalBefore
+          ? preserveMarkdownSourceEdits(
+              acceptedMarkdownRef.current,
+              canonicalBefore,
+              nextCanonical
+            )
+          : nextCanonical
+      }
       canonicalMarkdownRef.current = nextCanonical
       if (nextMarkdown === acceptedMarkdownRef.current) return
       pendingExternalMarkdownRef.current = null
@@ -146,12 +178,16 @@ export function MarkdownStatePlugin({
       }
       if (externalMarkdownConflict) setExternalMarkdownConflict(false)
       acceptedMarkdownRef.current = nextMarkdown
+      setAcceptedMarkdown(nextMarkdown)
       onMarkdownChange(nextMarkdown)
     },
     [
       externalMarkdownConflict,
       onMarkdownChange,
+      onError,
+      setAcceptedMarkdown,
       setExternalMarkdownConflict,
+      takeSourceRangeCommit,
       transformers,
     ]
   )

@@ -89,7 +89,7 @@ keyboard operations.
 ### 3.5 Borrow the interaction model, not the data model
 
 “Notion-like” means a calm block canvas, gutter insertion, slash commands,
-predictable block selection, and local editors for complex blocks. It does not
+predictable block selection, and source editing scoped to selected blocks. It does not
 mean adopting a proprietary block database, page schema, or Notion-specific
 Markdown extensions.
 
@@ -101,7 +101,7 @@ The package owns:
 - Markdown serialization after editor operations;
 - native and semantic editor nodes;
 - text, range, and block selection behavior;
-- block creation, local editing, movement, and deletion;
+- block creation, selected-block source editing, movement, and deletion;
 - editor-local undo and redo;
 - editor-local same-document fragment navigation;
 - clipboard conversion for editor content;
@@ -179,7 +179,7 @@ semantic block atoms. Each atom MUST provide:
 
 1. a visual or safely readable presentation;
 2. a selectable block surface;
-3. a block-local edit path when the construct is editable;
+3. a selected-block source-edit path when the construct is editable;
 4. Markdown-aware copy and cut behavior; and
 5. Delete, Backspace, movement, and undo behavior.
 
@@ -191,7 +191,7 @@ be retained in a localized fallback block. A fallback block:
 - MUST retain its exact source until the user edits it;
 - MUST render as inert, readable content and never execute embedded code;
 - MUST be selectable and removable like any other block;
-- MUST expose a block-local source editor;
+- MUST participate in the selected-block source editor;
 - MUST keep the rest of the document WYSIWYG; and
 - MUST report a diagnostic that identifies why native editing is unavailable.
 
@@ -207,7 +207,8 @@ are representative; the grammar and edge cases remain governed by CommonMark
 the table is not implicitly supported.
 
 “Rich text” means direct caret editing in the document flow. “Semantic inline”
-and “semantic block” mean a rendered atom with a local editing path. Neither an
+means a rendered atom with a local inline editing path; “semantic block” means a
+rendered atom that participates in selected-block source editing. Neither an
 inert preview nor a source-preserving fallback alone counts as syntax support.
 Fallback remains the required compatibility behavior for malformed input and
 syntax outside this matrix.
@@ -245,14 +246,13 @@ syntax outside this matrix.
 | Footnote references              | `[^id]`                                                                                                 | Semantic inline reference                           | Block or inline Footnote command, direct typing, paste/import       | Displays a number derived from first-reference order while preserving the source identifier.                           |
 | Footnote definitions             | `[^id]: body`, including CommonMark-indented continuation blocks                                        | Semantic definition block                           | Block or inline Footnote command, direct typing, paste/import       | Definitions render after the body and retain their relationship to every reference.                                    |
 | Inline mathematics               | `$equation$` under the EFM whitespace, digit, escape, and single-line rules                             | Typeset semantic inline                             | Inline command, direct typing, paste/import                         | Local editor owns only the TeX source; canonical source retains single-dollar delimiters.                              |
-| Display mathematics              | Standalone `$$` delimiter lines or a backtick/tilde fenced block whose language is exactly `math`       | Typeset semantic block                              | `+`, slash, direct typing, paste/import                             | Local editor shows a live preview; new blocks use `$$`, while valid imported forms may be preserved.                   |
+| Display mathematics              | Standalone `$$` delimiter lines or a backtick/tilde fenced block whose language is exactly `math`       | Typeset semantic block                              | `+`, slash, direct typing, paste/import                             | Source mode owns the full block syntax; new blocks use `$$`, while valid imported forms may be preserved.              |
 | Highlight presentation extension | `==text==`                                                                                              | Rich highlighted text                               | Selection toolbar, Markdown shortcut, paste/import                  | Serializes with `==` delimiters and MUST be identified as an editor extension, not EFM 1.0.                            |
 
-Choosing display math or image creation MUST insert an empty semantic block
-immediately. The empty block MUST present a descriptive, selectable placeholder
-and open its block-local composer without inserting sample content. Dismissing
-the composer MUST leave the placeholder in the document, and completing the
-composer MUST update that same block rather than inserting another one.
+Choosing display math or image creation MUST insert and select an empty semantic
+block immediately. The empty block MUST present a descriptive placeholder
+without inserting sample content or opening a second block-local editor. The
+normal selection hint and source-edit shortcut MUST provide its editing path.
 
 Wikilinks, callouts, directives, definition lists, superscript/subscript
 shortcuts, emoji shortcodes, Mermaid, and MDX/JSX are outside this matrix. They
@@ -275,8 +275,8 @@ node contains editable text.
   list levels; it MUST NOT be clipped to the first list container.
 - Starting a drag on non-interactive space in a block MUST select content or
   the block rather than doing nothing.
-- Controls inside an active block-local editor are exempt and retain their
-  normal input selection behavior.
+- Controls inside an active source editor or inline/insertion composer are
+  exempt and retain their normal input selection behavior.
 
 ### 7.2 Block marquee selection
 
@@ -301,10 +301,26 @@ retain its long-document auto-scroll behavior.
 - A selected block MUST have a clear but quiet visual state distinct from text
   selection and hover.
 - Arrow keys MUST allow the caret to move before or after an atomic block.
-- Enter or an explicit edit action on an editable selected atom MUST open its
-  local editor.
-- Escape MUST leave the local editor or clear block selection in a predictable
+- The registered source-edit command on an editable selected atom MUST open the
+  selected-block source editor; blocks MUST NOT expose a separate **Edit block**
+  action or local editor.
+- Escape MUST leave source mode or clear block selection in a predictable
   stepwise order.
+- Escape on a collapsed caret MUST enter keyboard block-selection mode with the
+  containing top-level block selected. It MUST NOT do so from a source textarea,
+  inline/insertion composer, or during IME composition.
+- A collapsed caret inside a table cell or an active table-cell selection MUST
+  resolve across the table cell shadow-root boundary and select the complete
+  top-level table. The editor MUST retain focus.
+- In keyboard block-selection mode, Shift+ArrowUp and Shift+ArrowDown MUST move
+  the focus end by one top-level block, extending or shrinking a consecutive
+  range around a stable anchor. Movement MUST stop at the document boundaries.
+- In keyboard block-selection mode, Mod+A MUST select every top-level block.
+  Escape MUST clear the mode and restore the caret that entered it.
+- An active block selection SHOULD expose a compact, non-interactive hint for
+  the resolved source-edit command. The hint MUST disappear when selection is
+  cleared, MUST NOT receive focus or pointer input, and MUST NOT replace the
+  editor's accessible shortcut metadata.
 
 ### 7.4 Operations on a selection
 
@@ -318,6 +334,58 @@ retain its long-document auto-scroll behavior.
 - When deletion would leave no editable caret target, the editor MUST create an
   empty paragraph without adding non-empty canonical content.
 - One Undo MUST restore the content and structure removed by one user action.
+
+### 7.5 Consecutive block source editing
+
+An editable selection of consecutive top-level blocks MAY enter one in-place
+Markdown source editor. The shipped behavior uses unmodified `E` and MUST obey
+the shortcut registry, exact-modifier, text-input, contenteditable text-editing,
+and IME-composition guards.
+
+- The selected nodes MUST be consecutive in both the projected editor root and
+  their source ownership. A list or table is eligible only as a complete
+  top-level block; nested list items and table cells MUST NOT become independent
+  source ranges.
+- Selected pinned footnote definitions and generated blocks without owned
+  source MUST be excluded before resolving the editable range. If no editable
+  block remains, the editor MUST NOT enter. Protected footnote source between
+  selected editable ranges MUST remain outside the draft and MUST be preserved
+  after the edited source on commit. Other editor or source discontinuities
+  MUST NOT enter.
+- The local textarea MUST replace the selected range in normal flow. It MUST NOT
+  use a dialog, popover, floating editor, header, action bar, or whole-document
+  source surface. It MUST present as a code block, wrap by default, expand to
+  its content, and MUST NOT show horizontal or vertical scrollbars.
+- The draft MUST contain only the exact source interval from the first selected
+  block through the last, including separators inside that interval. Source
+  before and after it MUST remain byte-stable after decoding.
+- The multiline commit shortcut MUST validate the draft, splice that
+  interval, reparse visual blocks, and create one undoable content operation.
+  Empty source deletes the range. A parse error MUST keep the draft and original
+  document source intact while exposing an accessible error.
+- Escape MUST restore the original blocks without a content history
+  entry. Moving focus away MUST leave the draft open rather than implicitly
+  choosing commit or cancel.
+- A same-document external value update while the draft is open MUST use the
+  controlled-document conflict policy in Section 11.3. Read-only mode MUST NOT
+  enter and switching to read-only MUST safely discard the uncommitted draft.
+- Closing MUST restore a block selection or a nearby valid caret. The surface
+  MUST have an accessible name and shortcut description, and SHOULD reuse code
+  syntax highlighting and theme tokens.
+- The source surface MUST provide registry-owned commands for indenting,
+  outdenting, moving, copying, deleting, and selecting complete logical lines.
+  Multi-line commands MUST operate on every line touched by the selection and
+  MUST keep the resulting caret or selection on the operated text.
+- Line commands MUST preserve untouched content and existing LF, CRLF, or CR
+  separators. Tab indentation MUST insert two spaces to match the presented
+  source surface's tab size. Commands MUST be ignored during IME composition.
+- Native textarea selection, clipboard, navigation, and deletion behavior MUST
+  remain available. Source-local undo and redo MUST cover ordinary input and
+  registry-owned line commands. `Mod+Enter` remains reserved for commit.
+- The source surface SHOULD show a compact, non-interactive summary of its
+  resolved indent, movement, commit, and cancel shortcuts. Disabled commands
+  MUST be omitted. This hint is presentational and MUST NOT become an action
+  bar, receive focus, or capture pointer input.
 
 ## 8. Block insertion and movement
 
@@ -402,28 +470,31 @@ When the caret or a text selection is contained by one task-list item,
 The same shortcut inside an ordinary bullet or ordered item MUST NOT convert
 the list or mutate its content.
 
-## 9. Block-local editing
+## 9. Scoped source editing
 
-Complex syntax uses a preview-plus-editor interaction:
+Complex top-level syntax uses the selected-block source interaction from
+Section 7.5:
 
-1. The block normally displays its rendered or semantic presentation.
-2. An explicit edit action opens an editor anchored to that block.
-3. The rendered result remains visible and SHOULD update as the draft becomes
-   valid.
-4. Done commits and reparses only that block.
-5. Escape or Cancel discards the draft and restores the previous block.
-6. `Mod+Enter` SHOULD commit when the local editor is multiline.
+1. The block normally displays its rendered or safely readable presentation.
+2. Selecting the block and invoking `selection.edit-source` replaces it in flow
+   with its Markdown source.
+3. `Mod+Enter` validates the draft, commits its owned source range, and reparses
+   the visual block.
+4. Escape discards the draft and restores the previous presentation.
 
-A parse error MUST remain local. It MUST preserve the user's draft, display an
-actionable diagnostic, and leave every other block editable.
+Top-level semantic and fallback blocks MUST NOT expose a separate **Edit block**
+button, local textarea, action bar, or floating block composer. A parse error
+MUST preserve the source draft, display an actionable diagnostic, and leave
+every other block unchanged. Inline semantic atoms MAY retain a focused local
+composer when selected-block source editing cannot isolate them.
 
 ### 9.1 Mathematics
 
 - Inline and display mathematics MUST render as typeset mathematics by default.
-- Editing MUST expose only the TeX source, not surrounding Markdown
-  delimiters unless delimiters are themselves ambiguous.
-- Display mathematics SHOULD keep its preview visible above or beside the local
-  editor.
+- Inline-math editing MUST expose only the TeX source in a focused local
+  composer.
+- Display-math editing MUST use selected-block source mode and expose its full
+  Markdown delimiters.
 - Invalid mathematics MUST retain the source and show a local error or readable
   fallback.
 
@@ -433,9 +504,8 @@ actionable diagnostic, and leave every other block editable.
   source offset zero.
 - It SHOULD render as a compact metadata card rather than a permanent YAML
   textarea.
-- Its local editor MAY be a structured property form, a YAML field, or both,
-  but committing MUST produce a YAML 1.2 mapping or keep the invalid draft
-  uncommitted.
+- Editing MUST use selected-block source mode. Committing MUST produce a YAML
+  1.2 mapping or keep the invalid draft uncommitted.
 - Moving or inserting ordinary content before frontmatter MUST NOT invalidate
   its source position.
 
@@ -449,14 +519,15 @@ actionable diagnostic, and leave every other block editable.
   browser hash, because those values may belong to the host router.
 - The definition region is the document tail, not an ordinary insertion or
   sorting surface. It MUST NOT expose block creation or movement controls.
-- Renaming an identifier MUST update its owned reference relationship or report
-  a conflict; it MUST NOT silently orphan content.
+- Generated footnote-definition blocks MUST be excluded from selected-block
+  source editing. Selecting adjacent body blocks MUST preserve their canonical
+  definition source.
 
 ### 9.4 Raw HTML
 
 Raw HTML never gains execution authority. Allowed markup MAY receive a
 sanitized preview. Active, disallowed, or malformed markup MUST render as inert
-readable source while remaining locally editable.
+readable source and participate in selected-block source editing.
 
 ## 10. Clipboard and paste
 
@@ -493,7 +564,7 @@ readable source while remaining locally editable.
   browser or another Lexical plugin MAY handle the paste. When a claimed
   clipboard payload contains both text and images, the persisted images take
   precedence so browser-generated image HTML is not also inserted.
-- Pasting inside a block-local source field MUST insert literal text and MUST
+- Pasting inside a selected-block source field MUST insert literal text and MUST
   NOT restructure the surrounding document.
 - Paste, cut, and drop operations MUST each be undoable as one transaction.
 
@@ -521,11 +592,11 @@ untouched regions. At minimum:
 
 `markdown` and `onMarkdownChange` form the canonical host boundary. A host may
 replace the document when `documentKey` changes. External replacement of the
-same document while a local draft is active MUST be reconciled explicitly; it
+same document while an editor draft is active MUST be reconciled explicitly; it
 MUST NOT silently overwrite the local draft.
 
-The default reconciliation keeps the local draft visible. Done chooses the
-local draft and emits the resulting Markdown; Cancel or Escape chooses the
+The default reconciliation keeps the draft visible. Its commit command chooses
+the local draft and emits the resulting Markdown; Cancel or Escape chooses the
 pending external value. The conflict MUST be exposed to assistive technology
 and through the operational error callback.
 
@@ -535,14 +606,14 @@ document without a user-visible operation.
 
 ## 12. Undo, focus, and keyboard behavior
 
-- Direct typing, formatting, insertion, movement, checkbox toggles, local block
+- Direct typing, formatting, insertion, movement, checkbox toggles, source-range
   commits, paste, cut, and deletion MUST participate in editor undo/redo.
-- Opening or closing a menu or local editor is transient UI state and SHOULD
+- Opening or closing a menu, source editor, or inline composer is transient UI state and SHOULD
   NOT create a content history entry.
-- A local block commit MUST be one undoable content transaction.
+- A source-range commit MUST be one undoable content transaction.
 - Undo after an automatic Markdown shortcut MUST first restore the literal
   typed prefix when practical.
-- Closing a local editor MUST return focus to its block or a predictable nearby
+- Closing a source editor MUST return focus to its block or a predictable nearby
   caret.
 - All pointer operations required by this specification MUST have a keyboard
   equivalent.
@@ -570,27 +641,40 @@ top-level block while its gutter handle is focused.
 
 ### 12.2 Default shortcuts
 
-| Stable ID                  | Default binding        | Scope        | Behavior                                                                          |
-| -------------------------- | ---------------------- | ------------ | --------------------------------------------------------------------------------- |
-| `document.save`            | `Mod+S`                | document     | Requests host persistence when a save callback exists.                            |
-| `history.undo`             | `Mod+Z`                | editor       | Undoes one editor transaction.                                                    |
-| `history.redo`             | `Mod+Shift+Z`, `Mod+Y` | editor       | Redoes one editor transaction.                                                    |
-| `format.bold`              | `Mod+B`                | selection    | Toggles bold on the current rich-text selection.                                  |
-| `format.italic`            | `Mod+I`                | selection    | Toggles italic on the current rich-text selection.                                |
-| `insert.open-menu`         | `/`                    | editor       | Opens block insertion on an empty line or inline insertion at a command boundary. |
-| `menu.previous`            | `ArrowUp`              | menu         | Moves to the previous command.                                                    |
-| `menu.next`                | `ArrowDown`            | menu         | Moves to the next command.                                                        |
-| `menu.choose`              | `Enter`                | menu         | Chooses the active command.                                                       |
-| `overlay.dismiss`          | `Escape`               | overlay      | Closes the active menu or composer without a content edit.                        |
-| `selection.clear`          | `Escape`               | selection    | Clears the active block selection.                                                |
-| `block.move-up`            | `Alt+ArrowUp`          | block handle | Moves the handled top-level block up one position.                                |
-| `block.move-down`          | `Alt+ArrowDown`        | block handle | Moves the handled top-level block down one position.                              |
-| `list-item.move-up`        | `Alt+ArrowUp`          | list item    | Moves the current list item before its previous sibling.                          |
-| `list-item.move-down`      | `Alt+ArrowDown`        | list item    | Moves the current list item after its next sibling.                               |
-| `list-item.toggle-checked` | `Mod+Enter`            | list item    | Toggles the current task-list item's checked state.                               |
-| `block-editor.commit`      | `Mod+Enter`            | composer     | Commits a multiline block-local editor.                                           |
-| `composer.confirm`         | `Enter`                | composer     | Confirms a single-line block composer.                                            |
-| `inline-atom.activate`     | `Enter`, `Space`       | editor       | Opens the focused inline semantic atom.                                           |
+| Stable ID                      | Default binding        | Scope         | Behavior                                                                           |
+| ------------------------------ | ---------------------- | ------------- | ---------------------------------------------------------------------------------- |
+| `document.save`                | `Mod+S`                | document      | Requests host persistence when a save callback exists.                             |
+| `history.undo`                 | `Mod+Z`                | editor        | Undoes one editor transaction.                                                     |
+| `history.redo`                 | `Mod+Shift+Z`, `Mod+Y` | editor        | Redoes one editor transaction.                                                     |
+| `format.bold`                  | `Mod+B`                | selection     | Toggles bold on rich text or `**` markers around a source selection.               |
+| `format.italic`                | `Mod+I`                | selection     | Toggles italic on rich text or `*` markers around a source selection.              |
+| `insert.open-menu`             | `/`                    | editor        | Opens block insertion on an empty line or inline insertion at a command boundary.  |
+| `menu.previous`                | `ArrowUp`              | menu          | Moves to the previous command.                                                     |
+| `menu.next`                    | `ArrowDown`            | menu          | Moves to the next command.                                                         |
+| `menu.choose`                  | `Enter`                | menu          | Chooses the active command.                                                        |
+| `overlay.dismiss`              | `Escape`               | overlay       | Closes the active menu or composer without a content edit.                         |
+| `selection.clear`              | `Escape`               | selection     | Clears the active block selection.                                                 |
+| `selection.enter-block`        | `Escape`               | editor        | Selects the top-level block containing the caret.                                  |
+| `selection.extend-up`          | `Shift+ArrowUp`        | selection     | Extends or shrinks the block selection upward.                                     |
+| `selection.extend-down`        | `Shift+ArrowDown`      | selection     | Extends or shrinks the block selection downward.                                   |
+| `selection.edit-source`        | `E`                    | selection     | Opens consecutive selected top-level blocks as one in-place Markdown source range. |
+| `selection.select-all-blocks`  | `Mod+A`                | selection     | Selects every top-level block.                                                     |
+| `source-editor.copy-line-down` | `Shift+Alt+ArrowDown`  | source editor | Copies selected/current source lines downward.                                     |
+| `source-editor.copy-line-up`   | `Shift+Alt+ArrowUp`    | source editor | Copies selected/current source lines upward.                                       |
+| `source-editor.delete-line`    | `Mod+Shift+K`          | source editor | Deletes selected/current source lines.                                             |
+| `source-editor.indent`         | `Tab`, `Mod+]`         | source editor | Inserts two spaces or indents selected source lines.                               |
+| `source-editor.move-line-down` | `Alt+ArrowDown`        | source editor | Moves selected/current source lines downward.                                      |
+| `source-editor.move-line-up`   | `Alt+ArrowUp`          | source editor | Moves selected/current source lines upward.                                        |
+| `source-editor.outdent`        | `Shift+Tab`, `Mod+[`   | source editor | Removes a tab or up to two leading spaces.                                         |
+| `source-editor.select-line`    | `Mod+L`                | source editor | Selects the current logical source line.                                           |
+| `block.move-up`                | `Alt+ArrowUp`          | block handle  | Moves the handled top-level block up one position.                                 |
+| `block.move-down`              | `Alt+ArrowDown`        | block handle  | Moves the handled top-level block down one position.                               |
+| `list-item.move-up`            | `Alt+ArrowUp`          | list item     | Moves the current list item before its previous sibling.                           |
+| `list-item.move-down`          | `Alt+ArrowDown`        | list item     | Moves the current list item after its next sibling.                                |
+| `list-item.toggle-checked`     | `Mod+Enter`            | list item     | Toggles the current task-list item's checked state.                                |
+| `block-editor.commit`          | `Mod+Enter`            | composer      | Commits a multiline source or insertion draft.                                     |
+| `composer.confirm`             | `Enter`                | composer      | Confirms a single-line block composer.                                             |
+| `inline-atom.activate`         | `Enter`, `Space`       | editor        | Opens the focused inline semantic atom.                                            |
 
 ## 13. Safety and resource behavior
 
@@ -606,6 +690,10 @@ top-level block while its gutter handle is focused.
   delegated to this resolver.
 - Syntax highlighting MUST be presentational. It MUST NOT add canonical text,
   break caret positions, or modify Markdown.
+- Markdown source highlighting MUST recognize the supported CommonMark, GFM,
+  frontmatter, mathematics, and highlight-extension syntax by parser-owned
+  offsets. Plain prose MUST NOT be passed through programming-language keyword,
+  type, number, or operator heuristics.
 - A renderer or parser failure MUST surface through diagnostics and preserve
   the affected source whenever possible.
 
@@ -686,6 +774,13 @@ document.
   past the terminal definition region.
 - **SEL-010**: Block marquee starts throughout the stage's left/right empty canvas
   or trailing document padding; space outside the stage does not start it.
+- **SEL-011**: Consecutive eligible top-level blocks open as one exact in-place
+  source range; nested children, pinned definitions, and source-discontinuous
+  selections do not.
+- **SEL-012**: Escape on a collapsed caret, including a table-cell caret or
+  table-cell selection, selects its complete top-level block without blurring;
+  Shift+ArrowUp/Down extends or shrinks the anchored block range, Mod+A selects
+  every top-level block, and Escape restores the original caret.
 
 ### Keyboard
 
@@ -701,6 +796,14 @@ document.
   and `aria-keyshortcuts` from the same resolved binding.
 - **KEY-005**: `Mod+Enter` toggles the task-list item containing the caret as
   one undoable transaction and does not convert ordinary list items.
+- **KEY-006**: Unmodified `E` enters selected-block source editing only outside
+  text inputs, textarea/contenteditable text editing, and IME composition.
+- **KEY-007**: Keyboard block selection uses registered, overridable shortcuts,
+  stops at root boundaries, and does not capture keys from source editors,
+  composers, menus, dialogs, or IME composition.
+- **KEY-008**: Block-selection and source-editor hints reflect resolved
+  bindings, omit disabled commands, disappear with their owning mode, and do
+  not capture focus or pointer input.
 
 ### Navigation
 
@@ -708,16 +811,25 @@ document.
   targets inside the current editor without changing the host URL or invoking
   external navigation.
 
-### Local editing
+### Scoped editing
 
-- **EDT-001**: Equation editing retains a typeset preview and scopes input to the
-  TeX source.
-- **EDT-002**: Frontmatter editing does not expose or convert the entire
-  document.
-- **EDT-003**: Done commits one block; Cancel or Escape leaves canonical source
-  unchanged.
-- **EDT-004**: Invalid local syntax preserves the draft and isolates the error.
-- **EDT-005**: A block-local commit is one undoable transaction.
+- **EDT-001**: Inline equation editing scopes input to TeX; display equations
+  use selected-block Markdown source mode.
+- **EDT-002**: Frontmatter editing uses only its selected source range and does
+  not expose or convert the entire document.
+- **EDT-003**: Top-level semantic and fallback blocks expose no **Edit block**
+  action, local textarea, action bar, or floating block composer.
+- **EDT-004**: Invalid source syntax preserves the draft and isolates the error.
+- **EDT-005**: A selected-block source commit is one undoable transaction.
+- **EDT-006**: A consecutive source-range commit splices only its owned source,
+  reparses visual blocks, and is one undoable transaction; Escape is source-neutral.
+- **EDT-007**: Empty source deletes the range, parse errors retain the draft,
+  focus departure is neutral, and external-value conflicts require an explicit
+  commit or Escape.
+- **EDT-008**: Source line shortcuts indent, outdent, move, copy, delete, and
+  select logical lines while preserving untouched source, line endings, and the
+  operated caret or selection; source-local undo and redo cover line commands
+  and ordinary input.
 
 ### Fidelity and safety
 
@@ -744,7 +856,7 @@ package test suite should include:
 1. parser, presentation, editor, and serializer fixtures for every row and
    named source-form variant in the Section 6 matrix;
 2. byte-preservation fixtures for unsupported and untouched source;
-3. interaction tests for insertion, local editing, selection, deletion,
+3. interaction tests for insertion, scoped source editing, selection, deletion,
    movement, clipboard, and undo;
 4. mixed-content fixtures that combine text, nested lists, tables, equations,
    HTML, frontmatter, footnotes, and fallback blocks; and

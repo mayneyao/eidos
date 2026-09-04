@@ -54,7 +54,9 @@ test("CAN-001 opens in the focused WYSIWYG editor", async ({ page }) => {
   await expect(editor).toContainText("A calm place to think")
   await expect(floatingToolbar).toHaveAttribute("aria-hidden", "true")
   await expect(page.getByRole("button", { name: "View source" })).toBeVisible()
-  await expect(page.getByLabel("Markdown source")).toHaveCount(0)
+  await expect(page.getByLabel("Markdown source", { exact: true })).toHaveCount(
+    0
+  )
 
   await canvas.focus()
   await expect(canvas).toBeFocused()
@@ -74,7 +76,7 @@ test("switches between visual and editable source views", async ({ page }) => {
   const sourceToggle = page.getByRole("button", { name: "View source" })
   await sourceToggle.click()
 
-  const source = page.getByLabel("Markdown source")
+  const source = page.getByLabel("Markdown source", { exact: true })
   await expect(source).toBeVisible()
   await expect(source).toBeFocused()
   await expect(
@@ -108,7 +110,47 @@ test("shows every default shortcut in an accessible reference dialog", async ({
   await trigger.click()
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" })
   await expect(dialog).toBeVisible()
-  await expect(dialog.locator("[data-shortcut-id]")).toHaveCount(19)
+  await expect(dialog.locator("[data-shortcut-id]")).toHaveCount(32)
+
+  const enterBlockRow = dialog.locator(
+    '[data-shortcut-id="selection.enter-block"]'
+  )
+  await expect(enterBlockRow).toContainText("Select the top-level block")
+  await expect(enterBlockRow.locator("kbd")).toHaveText(["Esc"])
+
+  const extendUpRow = dialog.locator('[data-shortcut-id="selection.extend-up"]')
+  await expect(extendUpRow.locator("kbd")).toHaveText([
+    process.platform === "darwin" ? "⇧↑" : "Shift+↑",
+  ])
+
+  const selectAllRow = dialog.locator(
+    '[data-shortcut-id="selection.select-all-blocks"]'
+  )
+  await expect(selectAllRow.locator("kbd")).toHaveText([
+    process.platform === "darwin" ? "⌘A" : "Ctrl+A",
+  ])
+
+  const sourceIndentRow = dialog.locator(
+    '[data-shortcut-id="source-editor.indent"]'
+  )
+  await expect(sourceIndentRow).toContainText("Indent the selected source")
+  await expect(sourceIndentRow.locator("kbd")).toHaveText([
+    "Tab",
+    process.platform === "darwin" ? "⌘]" : "Ctrl+]",
+  ])
+
+  const sourceCopyRow = dialog.locator(
+    '[data-shortcut-id="source-editor.copy-line-down"]'
+  )
+  await expect(sourceCopyRow.locator("kbd")).toHaveText([
+    process.platform === "darwin" ? "⌥⇧↓" : "Alt+Shift+↓",
+  ])
+
+  const sourceRangeRow = dialog.locator(
+    '[data-shortcut-id="selection.edit-source"]'
+  )
+  await expect(sourceRangeRow).toContainText("selected consecutive blocks")
+  await expect(sourceRangeRow.locator("kbd")).toHaveText(["E"])
 
   const toggleRow = dialog.locator(
     '[data-shortcut-id="list-item.toggle-checked"]'
@@ -124,6 +166,343 @@ test("shows every default shortcut in an accessible reference dialog", async ({
   await page.keyboard.press("Escape")
   await expect(dialog).not.toBeVisible()
   await expect(trigger).toBeFocused()
+})
+
+test("edits a consecutive block selection as one in-place source range", async ({
+  page,
+}) => {
+  await openMarkdown(page, "First block.\n\nSecond block.\n\nThird block.")
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
+  const first = editor.locator(".eme-paragraph").nth(0)
+  const second = editor.locator(".eme-paragraph").nth(1)
+  const [stageBox, rootBox, firstBox, secondBox] = await Promise.all([
+    stage.boundingBox(),
+    editor.boundingBox(),
+    first.boundingBox(),
+    second.boundingBox(),
+  ])
+  if (!stageBox || !rootBox || !firstBox || !secondBox) {
+    throw new Error("Source-range marquee endpoints are not visible")
+  }
+
+  const leftCanvasX = stageBox.x + (rootBox.x - stageBox.x) / 2
+  await page.mouse.move(leftCanvasX, firstBox.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(firstBox.x + 80, secondBox.y + secondBox.height + 2, {
+    steps: 12,
+  })
+  await page.mouse.up()
+  await expect(editor.locator("[data-block-selected='true']")).toHaveCount(2)
+
+  await page.keyboard.press("e")
+  const source = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  await expect(source).toBeVisible()
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue("First block.\n\nSecond block.")
+  await expect(source).toHaveAttribute("wrap", "soft")
+
+  await page.keyboard.press("Enter")
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue("First block.\n\nSecond block.\n")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("First block.\n\nSecond block.\n\nThird block.")
+  await page.keyboard.press("Backspace")
+  await expect(source).toHaveValue("First block.\n\nSecond block.")
+
+  await expect(source).toHaveCSS("white-space", "pre-wrap")
+  await expect(source).toHaveCSS("overflow-x", "hidden")
+  await expect(source).toHaveCSS("overflow-y", "hidden")
+  await expect(page.locator(".eme-source-range-editor header")).toHaveCount(0)
+  await expect(page.locator(".eme-source-range-editor button")).toHaveCount(0)
+
+  const wrappedDraft = Array.from(
+    { length: 48 },
+    (_, index) => `wrapped-${index}`
+  ).join(" ")
+  await source.fill(wrappedDraft)
+  await expect
+    .poll(() =>
+      source.evaluate(
+        (element) =>
+          element.scrollWidth <= element.clientWidth + 1 &&
+          element.scrollHeight <= element.clientHeight + 1
+      )
+    )
+    .toBe(true)
+
+  await source.fill("## Reparsed\n\n- one\n- two")
+  await expect(source).toHaveValue("## Reparsed\n\n- one\n- two")
+  await expect(
+    page
+      .locator('.eme-source-range-code [data-code-highlight-kind="keyword"]')
+      .filter({ hasText: "Reparsed" })
+  ).toHaveCount(1)
+  await expect(
+    page.locator(
+      '.eme-source-range-code [data-code-highlight-kind="keyword"]',
+      { hasText: "-" }
+    )
+  ).toHaveCount(2)
+  await page.keyboard.press("Control+Enter")
+  await expect(editor.getByRole("heading", { level: 2 })).toHaveText("Reparsed")
+  await expect
+    .poll(() => currentMarkdown(page))
+    .toBe("## Reparsed\n\n- one\n- two\n\nThird block.")
+})
+
+test("SEL-012 selects and extends top-level blocks entirely from the keyboard", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "# First block\n\nSecond block.\n\n> Third block.\n\n- Fourth block."
+  )
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
+  const selected = editor.locator(":scope > [data-block-selected='true']")
+  const second = editor.locator(".eme-paragraph", { hasText: "Second block." })
+
+  await second.click()
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press("Escape")
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
+  await expect(selected).toHaveCount(1)
+  await expect(selected).toHaveText(["Second block."])
+  const selectionHint = page.locator("[data-selection-shortcut-hint]")
+  await expect(selectionHint).toBeVisible()
+  await expect(selectionHint).toContainText("Edit source")
+  await expect(selectionHint.locator("kbd")).toHaveText("E")
+
+  await page.keyboard.press("Shift+ArrowDown")
+  await expect(selected).toHaveCount(2)
+  await expect(selected).toHaveText(["Second block.", "Third block."])
+
+  await page.keyboard.press("Shift+ArrowUp")
+  await expect(selected).toHaveCount(1)
+  await expect(selected).toHaveText(["Second block."])
+
+  await page.keyboard.press("Shift+ArrowUp")
+  await expect(selected).toHaveCount(2)
+  await expect(selected).toHaveText(["First block", "Second block."])
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+a" : "Control+a"
+  )
+  await expect(selected).toHaveCount(4)
+
+  await page.keyboard.press("Escape")
+  await expect(selected).toHaveCount(0)
+  await expect(selectionHint).toHaveCount(0)
+  await expect(stage).not.toHaveAttribute("data-block-selection-mode")
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press("Escape")
+  await expect(selected).toHaveCount(1)
+  await expect(selected).toHaveText(["Second block."])
+
+  await page.keyboard.press("e")
+  const source = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue("Second block.")
+  await page.keyboard.press("Escape")
+  await expect(source).toHaveCount(0)
+})
+
+test("Escape selects the containing table block without losing editor focus", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "| Name | Value |\n| --- | --- |\n| Alpha | One |\n\nAfter table."
+  )
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
+  const table = editor.locator(".eme-table")
+  await table.locator(".eme-table-cell .eme-paragraph").first().click()
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press("Escape")
+  await expect(editor).toBeFocused()
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
+  await expect(table).toHaveAttribute("data-block-selected", "true")
+
+  await page.keyboard.press("Shift+ArrowDown")
+  await expect(editor.locator("[data-block-selected='true']")).toHaveCount(2)
+})
+
+test("Escape promotes a table cell selection to whole-table block selection", async ({
+  page,
+}) => {
+  await openMarkdown(page, "| Name | Value |\n| --- | --- |\n| Alpha | One |")
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const table = editor.locator(".eme-table")
+  await table.locator(".eme-table-cell .eme-paragraph").first().click()
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+a" : "Control+a"
+  )
+  await expect(table.locator(".eme-table-cell-selected")).toHaveCount(4)
+
+  await page.keyboard.press("Escape")
+  await expect(editor).toBeFocused()
+  await expect(table).toHaveAttribute("data-block-selected", "true")
+  await expect(table.locator(".eme-table-cell-selected")).toHaveCount(0)
+})
+
+test("uses VS Code-style line shortcuts in the selected-block source editor", async ({
+  page,
+}) => {
+  await openMarkdown(page, "alpha\nbeta\ngamma")
+
+  const editor = page.getByLabel("Markdown playground editor")
+  await editor.locator(".eme-paragraph").click()
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("e")
+
+  const source = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  const primary = process.platform === "darwin" ? "Meta" : "Control"
+  const selectedText = () =>
+    source.evaluate((element) =>
+      (element as HTMLTextAreaElement).value.slice(
+        (element as HTMLTextAreaElement).selectionStart,
+        (element as HTMLTextAreaElement).selectionEnd
+      )
+    )
+
+  const sourceHint = page.locator("[data-source-shortcut-hint]")
+  await expect(sourceHint).toBeVisible()
+  await expect(sourceHint).toContainText("Format")
+  await expect(sourceHint).toContainText("Indent")
+  await expect(sourceHint).toContainText("Move")
+  await expect(sourceHint).toContainText("Apply")
+  await expect(sourceHint).toContainText("Cancel")
+
+  await source.press("!")
+  await expect(source).toHaveValue("alpha\nbeta\ngamma!")
+  await source.press(`${primary}+z`)
+  await expect(source).toHaveValue("alpha\nbeta\ngamma")
+  await source.press(`${primary}+Shift+z`)
+  await expect(source).toHaveValue("alpha\nbeta\ngamma!")
+  await source.press(`${primary}+z`)
+  await expect(source).toHaveValue("alpha\nbeta\ngamma")
+
+  await source.press(`${primary}+l`)
+  await expect.poll(selectedText).toBe("gamma")
+
+  await source.press("Alt+ArrowUp")
+  await expect(source).toHaveValue("alpha\ngamma\nbeta")
+  await expect.poll(selectedText).toBe("gamma")
+
+  await source.press("Shift+Alt+ArrowDown")
+  await expect(source).toHaveValue("alpha\ngamma\ngamma\nbeta")
+  await expect.poll(selectedText).toBe("gamma")
+
+  await source.press("Tab")
+  await expect(source).toHaveValue("alpha\n  gamma\ngamma\nbeta")
+  await source.press("Shift+Tab")
+  await expect(source).toHaveValue("alpha\ngamma\ngamma\nbeta")
+
+  await source.press(`${primary}+]`)
+  await expect(source).toHaveValue("alpha\n  gamma\ngamma\nbeta")
+  await source.press(`${primary}+[`)
+  await expect(source).toHaveValue("alpha\ngamma\ngamma\nbeta")
+
+  await source.press(`${primary}+Shift+k`)
+  await expect(source).toHaveValue("alpha\ngamma\nbeta")
+  await source.press(`${primary}+z`)
+  await expect(source).toHaveValue("alpha\ngamma\ngamma\nbeta")
+  await source.press(`${primary}+Shift+z`)
+  await expect(source).toHaveValue("alpha\ngamma\nbeta")
+  await source.press(`${primary}+Enter`)
+  await expect(source).toHaveCount(0)
+  await expect.poll(() => currentMarkdown(page)).toBe("alpha\ngamma\nbeta")
+})
+
+test("toggles bold and italic with common shortcuts in the visual editor", async ({
+  page,
+}) => {
+  await openMarkdown(page, "alpha")
+
+  const primary = process.platform === "darwin" ? "Meta" : "Control"
+  const editor = page.getByLabel("Markdown playground editor")
+  const paragraph = editor.locator(".eme-paragraph")
+  await paragraph.click()
+  await paragraph.evaluate((element) => {
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+  })
+  await expect(
+    page.getByRole("toolbar", { name: "Text formatting" })
+  ).toHaveAttribute("aria-hidden", "false")
+  await page.keyboard.press(`${primary}+b`)
+  await expect.poll(() => currentMarkdown(page)).toBe("**alpha**")
+  await page.keyboard.press(`${primary}+i`)
+  await expect.poll(() => currentMarkdown(page)).toBe("***alpha***")
+  await page.keyboard.press(`${primary}+i`)
+  await page.keyboard.press(`${primary}+b`)
+  await expect.poll(() => currentMarkdown(page)).toBe("alpha")
+})
+
+test("toggles Markdown bold and italic with common shortcuts in source editors", async ({
+  page,
+}) => {
+  await openMarkdown(page, "alpha")
+
+  const primary = process.platform === "darwin" ? "Meta" : "Control"
+  const editor = page.getByLabel("Markdown playground editor")
+  const paragraph = editor.locator(".eme-paragraph")
+  await paragraph.click()
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("e")
+
+  const selectedSource = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  await selectedSource.selectText()
+  await selectedSource.press(`${primary}+b`)
+  await expect(selectedSource).toHaveValue("**alpha**")
+  await selectedSource.press(`${primary}+i`)
+  await expect(selectedSource).toHaveValue("***alpha***")
+  await selectedSource.press(`${primary}+i`)
+  await expect(selectedSource).toHaveValue("**alpha**")
+  await selectedSource.press(`${primary}+b`)
+  await expect(selectedSource).toHaveValue("alpha")
+
+  await selectedSource.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  })
+  await selectedSource.press(`${primary}+b`)
+  await selectedSource.pressSequentially("strong")
+  await expect(selectedSource).toHaveValue("alpha**strong**")
+  await selectedSource.press(`${primary}+Enter`)
+  await expect.poll(() => currentMarkdown(page)).toBe("alpha**strong**")
+
+  await page.getByRole("button", { name: "View source" }).click()
+  const documentSource = page.getByLabel("Markdown source", { exact: true })
+  await documentSource.fill("alpha")
+  await documentSource.selectText()
+  await documentSource.press(`${primary}+b`)
+  await expect(documentSource).toHaveValue("**alpha**")
+  await documentSource.press(`${primary}+i`)
+  await expect(documentSource).toHaveValue("***alpha***")
+  await documentSource.press(`${primary}+i`)
+  await expect(documentSource).toHaveValue("**alpha**")
 })
 
 test("HST-002 keeps read-only content selectable without mutation controls", async ({
@@ -319,28 +698,21 @@ test("FID-003 preserves hard wraps when inserting a blank line before a paragrap
     )
 })
 
-test("renaming a definition updates its references in the same change", async ({
+test("generated footnote definitions do not expose block editing", async ({
   page,
 }) => {
   await openMarkdown(page, "Body[^note].\n\n[^note]: Original.")
 
   const definition = page.locator(".eme-efm-footnote-definition")
-  await definition.getByRole("button", { name: "Edit block" }).click()
-  await page
-    .getByLabel("Edit block: footnote-definition")
-    .fill("[^renamed]: Original.")
-  await page
-    .locator(".eme-efm-block-editor-actions")
-    .getByRole("button", { name: "Done" })
-    .click()
-
+  await expect(
+    definition.getByRole("button", { name: "Edit block", exact: true })
+  ).toHaveCount(0)
+  await definition.click()
+  await page.keyboard.press("e")
+  await expect(page.locator("[data-source-range-editor]")).toHaveCount(0)
   await expect
     .poll(() => currentMarkdown(page))
-    .toBe("Body[^renamed].\n\n[^renamed]: Original.")
-  await expect(page.locator(".eme-efm-footnote-reference a")).toHaveAttribute(
-    "href",
-    "#efm-footnote-renamed"
-  )
+    .toBe("Body[^note].\n\n[^note]: Original.")
 })
 
 test("NAV-001 keeps footnote jumps inside the editor without replacing the host hash", async ({
@@ -398,66 +770,73 @@ test("NAV-001 keeps footnote jumps inside the editor without replacing the host 
     .toBe(true)
 })
 
-test("invalid frontmatter remains a local draft until it is repaired", async ({
+test("invalid frontmatter remains in source mode until it is repaired", async ({
   page,
 }) => {
   const original = "---\ntitle: Valid\n---\n\n# Body"
   await openMarkdown(page, original)
 
-  await page
-    .locator(".eme-efm-frontmatter")
-    .getByRole("button", { name: "Edit block" })
-    .click()
-  const textarea = page.getByLabel("Edit block: frontmatter")
+  const frontmatter = page.locator(".eme-efm-frontmatter")
+  await expect(
+    frontmatter.getByRole("button", { name: "Edit block", exact: true })
+  ).toHaveCount(0)
+  await frontmatter.click()
+  await page.keyboard.press("e")
+  const textarea = page.getByLabel("Selected blocks Markdown source")
   await textarea.fill("---\ntitle: [\n---")
-  await page
-    .locator(".eme-efm-block-editor-actions")
-    .getByRole("button", { name: "Done" })
-    .click()
+  await textarea.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
 
   await expect(page.getByRole("alert")).toBeVisible()
   await expect(textarea).toBeVisible()
   await expect.poll(() => currentMarkdown(page)).toBe(original)
 
   await textarea.fill("---\ntitle: Repaired\n---")
-  await page
-    .locator(".eme-efm-block-editor-actions")
-    .getByRole("button", { name: "Done" })
-    .click()
+  await textarea.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
   await expect(page.locator(".eme-efm-frontmatter")).toContainText("Repaired")
   await expect
     .poll(() => currentMarkdown(page))
     .toBe("---\ntitle: Repaired\n---\n\n# Body")
 })
 
-test("external Markdown waits for an active block draft to resolve", async ({
+test("external Markdown waits for an active source-range draft to resolve", async ({
   page,
 }) => {
   await openMarkdown(page, "$$\nx\n$$\n\nTail")
 
-  await page.getByRole("button", { name: "Edit block equation" }).click()
-  const formula = page.getByRole("textbox", { name: "Edit block equation" })
-  await formula.fill("local")
+  const mathBlock = page.locator(".eme-efm-math-block")
+  await mathBlock.click()
+  await page.keyboard.press("e")
+  const source = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  await source.fill("$$\nlocal\n$$")
   await setExternalMarkdown(page, "$$\nremote\n$$\n\nRemote tail")
 
-  await expect(formula).toHaveValue("local")
+  await expect(source).toHaveValue("$$\nlocal\n$$")
   await expect(page.getByRole("alert")).toContainText(
     "document changed outside"
   )
-  await formula.press("Escape")
+  await source.press("Escape")
 
   await expect
     .poll(() => currentMarkdown(page))
     .toBe("$$\nremote\n$$\n\nRemote tail")
   await expect(page.locator(".eme-efm-math-display")).toContainText("remote")
 
-  await page.getByRole("button", { name: "Edit block equation" }).click()
+  await mathBlock.click()
+  await page.keyboard.press("e")
   const secondDraft = page.getByRole("textbox", {
-    name: "Edit block equation",
+    name: "Selected blocks Markdown source",
   })
-  await secondDraft.fill("local-kept")
+  await secondDraft.fill("$$\nlocal-kept\n$$")
   await setExternalMarkdown(page, "$$\nthird\n$$\n\nThird tail")
-  await page.getByRole("button", { name: /^Done/u }).click()
+  await secondDraft.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
 
   await expect
     .poll(() => currentMarkdown(page))
@@ -567,7 +946,7 @@ test("an in-flight image paste cannot mutate an editor switched to read only", a
   await expect(page.getByAltText("late.png")).toHaveCount(0)
 })
 
-test("EDT-001 edits an EFM equation in a floating local composer", async ({
+test("EDT-001 edits an EFM equation through selected-block source mode", async ({
   page,
 }) => {
   await page.goto("/")
@@ -579,55 +958,33 @@ test("EDT-001 edits an EFM equation in a floating local composer", async ({
   })
 
   await expect(mathBlock.locator("math")).toHaveCount(1)
-  const followingBlock = editor
-    .locator(".eme-efm-image-block")
-    .locator("xpath=..")
-  const followingTopBefore = await followingBlock.evaluate((element) => {
-    const stage = element.closest(".eme-editor-stage")
-    return (
-      element.getBoundingClientRect().top +
-      (stage instanceof HTMLElement ? stage.scrollTop : 0)
-    )
-  })
-  await mathBlock
-    .getByRole("button", { name: "Edit block equation", exact: true })
-    .click()
+  await expect(
+    mathBlock.getByRole("button", { name: "Edit block", exact: true })
+  ).toHaveCount(0)
+  await mathBlock.click()
+  await page.keyboard.press("e")
 
-  const blockSource = mathBlock.locator(
-    'textarea[aria-label="Edit block equation"]'
-  )
+  const blockSource = page.getByLabel("Selected blocks Markdown source")
   await expect(blockSource).toBeVisible()
-  await expect(mathBlock.locator("math")).toHaveCount(1)
-  await expect(page.getByLabel("Markdown source")).toHaveCount(0)
+  await expect(page.getByLabel("Markdown source", { exact: true })).toHaveCount(
+    0
+  )
   await expect(editor).toBeVisible()
   await expect(unaffectedHeading).toBeVisible()
-  await expect
-    .poll(() =>
-      followingBlock.evaluate((element) => {
-        const stage = element.closest(".eme-editor-stage")
-        return (
-          element.getBoundingClientRect().top +
-          (stage instanceof HTMLElement ? stage.scrollTop : 0)
-        )
-      })
-    )
-    .toBe(followingTopBefore)
-
-  await blockSource.fill("x^3 + y^3 = z^3")
-  await expect(mathBlock.locator(".eme-efm-math-display")).toHaveAttribute(
-    "data-efm-math-source",
-    "x^3 + y^3 = z^3"
+  await expect(blockSource).toHaveValue(
+    "$$\n\\int_0^1 x^2\\,dx = \\frac{1}{3}\n$$"
   )
+  await blockSource.fill("$$\nx^3 + y^3 = z^3\n$$")
   await expect(blockSource).toHaveAttribute(
     "aria-keyshortcuts",
-    "Meta+Enter Control+Enter Escape"
+    /Meta\+Enter Control\+Enter Escape/u
   )
   await blockSource.press(
     process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
   )
 
   await expect(blockSource).toHaveCount(0)
-  await expect(mathBlock.locator(".eme-efm-math-display")).toHaveAttribute(
+  await expect(editor.locator(".eme-efm-math-display").first()).toHaveAttribute(
     "data-efm-math-source",
     "x^3 + y^3 = z^3"
   )
@@ -637,7 +994,7 @@ test("EDT-001 edits an EFM equation in a floating local composer", async ({
     .toMatch(/\$\$\nx\^3 \+ y\^3 = z\^3\n\$\$/u)
 })
 
-test("FID-002 isolates malformed EFM in editable fallback blocks", async ({
+test("FID-002 edits source-only fallback blocks through source mode", async ({
   page,
 }) => {
   await openMarkdown(
@@ -667,29 +1024,34 @@ x + y
   const frontmatterFallback = editor.locator(
     '[data-efm-source-kind="frontmatter"]'
   )
-  await frontmatterFallback.getByRole("button", { name: "Edit block" }).click()
-  await page
-    .getByLabel("Edit block: YAML frontmatter")
-    .fill("---\ntitle: Repaired\n---")
-  await frontmatterFallback
-    .getByRole("button", { name: "Done", exact: true })
-    .click()
+  await expect(frontmatterFallback.locator("button")).toHaveCount(0)
+  await frontmatterFallback.click()
+  await page.keyboard.press("e")
+  const frontmatterSource = page.getByLabel("Selected blocks Markdown source")
+  await frontmatterSource.fill("---\ntitle: Repaired\n---")
+  await frontmatterSource.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
   await expect(frontmatterFallback).toHaveCount(0)
   await expect(editor.locator(".eme-efm-frontmatter")).toContainText("Repaired")
 
   const mathBlock = editor.locator('[data-efm-source-kind="math"]')
-  await mathBlock.getByRole("button", { name: "Edit block" }).click()
-  const blockSource = page.getByLabel("Edit block: Mathematics")
-  await blockSource.fill("$$\nx - y")
-  await mathBlock.getByRole("button", { name: "Done", exact: true }).click()
+  await expect(mathBlock.locator("button")).toHaveCount(0)
+  await mathBlock.click()
+  await page.keyboard.press("e")
+  const blockSource = page.getByLabel("Selected blocks Markdown source")
+  await blockSource.fill("$$\nx - y\n$$")
+  await blockSource.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
 
   await expect(editor).toBeVisible()
-  await expect(page.getByLabel("Markdown source")).toHaveCount(0)
-  await expect(mathBlock).toContainText("x - y")
-  await mathBlock.locator(".eme-efm-source-code").click()
-  await expect(mathBlock.locator("xpath=..")).toHaveAttribute(
-    "data-efm-selection-kind",
-    "node"
+  await expect(page.getByLabel("Markdown source", { exact: true })).toHaveCount(
+    0
+  )
+  await expect(editor.locator(".eme-efm-math-display")).toHaveAttribute(
+    "data-efm-math-source",
+    "x - y"
   )
 })
 
@@ -1381,7 +1743,7 @@ test("SEL-009 auto-scrolls long documents while dragging a block", async ({
   await expect.poll(() => currentMarkdown(page)).toBe(original)
 })
 
-test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source mode", async ({
+test("CRT-003 CRT-006 creates EFM blocks and selects placeholders for source mode", async ({
   page,
 }) => {
   await openMarkdown(page, "# Insertions\n\nStart here.")
@@ -1402,46 +1764,6 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
     "Created visually"
   )
 
-  await insertBlock.click()
-  await expect(
-    page.getByRole("option", { name: /Document properties/u })
-  ).toBeDisabled()
-  await page.getByRole("option", { name: /Block equation/u }).click()
-  const mathPlaceholder = editor.getByRole("button", {
-    name: "Add a TeX equation",
-  })
-  await expect(mathPlaceholder).toBeVisible()
-  await expect.poll(() => currentMarkdown(page)).toContain("$$\n\n$$")
-  await page.getByLabel("Edit block equation").press("Escape")
-  await expect(page.getByLabel("Edit block equation")).toHaveCount(0)
-  await expect(mathPlaceholder).toBeVisible()
-  await mathPlaceholder.click()
-  await page.getByLabel("Edit block equation").fill("a^2 + b^2 = c^2")
-  await page.getByRole("button", { name: "Done", exact: true }).click()
-  await expect(editor.locator(".eme-efm-math-display")).toHaveAttribute(
-    "data-efm-math-source",
-    "a^2 + b^2 = c^2"
-  )
-
-  await editor.locator(".eme-paragraph").last().click()
-  await insertBlock.click()
-  await page.getByRole("option", { name: /Image/u }).click()
-  const imagePlaceholder = editor.getByRole("button", {
-    name: "Add an image",
-  })
-  await expect(imagePlaceholder).toBeVisible()
-  await expect.poll(() => currentMarkdown(page)).toContain("![]()")
-  await page.getByLabel("Image URL").press("Escape")
-  await expect(page.getByLabel("Image URL")).toHaveCount(0)
-  await expect(imagePlaceholder).toBeVisible()
-  await imagePlaceholder.click()
-  await page
-    .getByLabel("Image URL")
-    .fill("https://editor.eidos.space/eidos-file-icon-192.png")
-  await page.getByLabel("Description").fill("Created image")
-  await page.getByRole("button", { name: "Done", exact: true }).click()
-  await expect(editor.locator('img[alt="Created image"]')).toHaveCount(1)
-
   await editor.locator(".eme-paragraph").last().click()
   await insertBlock.click()
   await page.getByRole("option", { name: /Footnote/u }).click()
@@ -1452,16 +1774,71 @@ test("CRT-003 CRT-006 creates native and placeholder EFM blocks without source m
     "Created footnote body."
   )
 
+  await editor.locator(".eme-paragraph").last().click()
+  await insertBlock.click()
+  await expect(
+    page.getByRole("option", { name: /Document properties/u })
+  ).toBeDisabled()
+  await page.getByRole("option", { name: /Block equation/u }).click()
+  const mathPlaceholder = editor.locator(".eme-efm-math-block[data-empty]")
+  await expect(mathPlaceholder).toBeVisible()
+  await expect.poll(() => currentMarkdown(page)).toContain("$$\n\n$$")
+  await expect(mathPlaceholder.locator("xpath=..")).toHaveAttribute(
+    "data-efm-selection-kind",
+    "node"
+  )
+  await page.keyboard.press("e")
+  const mathSource = page.getByLabel("Selected blocks Markdown source")
+  await mathSource.fill("$$\na^2 + b^2 = c^2\n$$")
+  await mathSource.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
+  await expect(editor.locator(".eme-efm-math-display")).toHaveAttribute(
+    "data-efm-math-source",
+    "a^2 + b^2 = c^2"
+  )
+
   await expect
     .poll(() => currentMarkdown(page))
     .toMatch(/title: Created visually/u)
   await expect
     .poll(() => currentMarkdown(page))
     .toMatch(/\$\$\na\^2 \+ b\^2 = c\^2\n\$\$/u)
-  await expect.poll(() => currentMarkdown(page)).toMatch(/!\[Created image\]/u)
   await expect
     .poll(() => currentMarkdown(page))
     .toMatch(/\[\^note\]: Created footnote body\./u)
+})
+
+test("CRT-006 selects a new image placeholder for source mode", async ({
+  page,
+}) => {
+  await openMarkdown(page, "# Image insertion\n\nStart here.")
+
+  const editor = page.locator('[data-markdown-editor="wysiwyg"]')
+  await editor.locator(".eme-paragraph").click()
+  const insertBlock = page.getByRole("button", { name: "Add block below" })
+  await insertBlock.click()
+  await page.getByRole("option", { name: /Image/u }).click()
+
+  const imagePlaceholder = editor.locator(".eme-efm-image-block[data-empty]")
+  await expect(imagePlaceholder).toBeVisible()
+  await expect.poll(() => currentMarkdown(page)).toContain("![]()")
+  await expect(imagePlaceholder.locator("xpath=..")).toHaveAttribute(
+    "data-efm-selection-kind",
+    "node"
+  )
+
+  await page.keyboard.press("e")
+  const imageSource = page.getByLabel("Selected blocks Markdown source")
+  await imageSource.fill(
+    "![Created image](https://editor.eidos.space/eidos-file-icon-192.png)"
+  )
+  await imageSource.press(
+    process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"
+  )
+
+  await expect(editor.locator('img[alt="Created image"]')).toHaveCount(1)
+  await expect.poll(() => currentMarkdown(page)).toMatch(/!\[Created image\]/u)
 })
 
 test("CRT-003 filters the slash insert menu as a keyboard list", async ({

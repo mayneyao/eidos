@@ -26,12 +26,28 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 import { TABLE } from "../markdown/table-transformer"
 import { HORIZONTAL_RULE } from "../markdown/markdown-transformers"
 import { EfmBlockNode, EfmInlineNode } from "../nodes/efm-semantic-node"
+import { EfmSourceRangeNode } from "../nodes/efm-source-range-node"
+import { SourceRangeEditingPlugin } from "../plugins/source-range-editing-plugin"
 import { defineMarkdownPlugin } from "./plugin-api"
 import {
   compileMarkdownPlugins,
   defineMarkdownPlugins,
 } from "./plugin-compiler"
 import { MARKDOWN_FEATURES } from "./feature-ids"
+
+export const sourceEditingPlugin = defineMarkdownPlugin({
+  apiVersion: 1,
+  id: "eidos.source-range-editing",
+  version: "1.0.0",
+  features: [MARKDOWN_FEATURES.sourceRangeEditing],
+  nodes: [EfmSourceRangeNode],
+  behaviors: [
+    {
+      id: "eidos.source-range-editing.behavior",
+      component: SourceRangeEditingPlugin,
+    },
+  ],
+})
 
 export const commonmarkPlugin = defineMarkdownPlugin({
   apiVersion: 1,
@@ -336,6 +352,7 @@ export const referencePlugin = defineMarkdownPlugin({
 
 /** The shipped EFM profile. Consumers can remove or append plugins immutably. */
 export const eidosMarkdownPlugins = defineMarkdownPlugins([
+  sourceEditingPlugin,
   commonmarkPlugin,
   gfmPlugin,
   highlightPlugin,

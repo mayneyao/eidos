@@ -55,7 +55,6 @@ import {
   $createEfmBlockNode,
   $createEfmInlineNode,
   $isEfmBlockNode,
-  OPEN_EFM_BLOCK_EDITOR_COMMAND,
 } from "../nodes/efm-semantic-node"
 import { $isEfmSourceBlockNode } from "../nodes/efm-source-block-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
@@ -1093,20 +1092,15 @@ export function InsertBlockPlugin({
         { tag: HISTORY_PUSH_TAG }
       )
       closeMenu()
-
-      const requestEditor = (remainingAttempts: number) => {
-        window.requestAnimationFrame(() => {
-          if (!insertedKey) return
-          const opened = editor.dispatchCommand(
-            OPEN_EFM_BLOCK_EDITOR_COMMAND,
-            insertedKey
-          )
-          if (!opened && remainingAttempts > 0) {
-            requestEditor(remainingAttempts - 1)
-          }
+      window.requestAnimationFrame(() => {
+        editor.getRootElement()?.focus({ preventScroll: true })
+        const key = insertedKey
+        if (!key) return
+        editor.update(() => {
+          const node = $getNodeByKey(key)
+          if (node?.isAttached()) selectMovedBlock(node)
         })
-      }
-      requestEditor(2)
+      })
     },
     [closeMenu, editor]
   )

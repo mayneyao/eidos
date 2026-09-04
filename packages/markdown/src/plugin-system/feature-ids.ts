@@ -18,6 +18,7 @@ export const MARKDOWN_FEATURES = {
   frontmatter: "efm.frontmatter",
   rawHtml: "efm.raw-html",
   reference: "efm.reference",
+  sourceRangeEditing: "editor.source-range-editing",
 } as const
 
 export type MarkdownFeatureId =

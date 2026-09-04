@@ -17,6 +17,7 @@ const SCOPE_LABELS: Record<MarkdownShortcutScope, string> = {
   menu: "Menu",
   overlay: "Overlay",
   selection: "Selection",
+  "source-editor": "Source editor",
 }
 
 type ShortcutEntry = [MarkdownShortcutId, MarkdownShortcutDefinition]

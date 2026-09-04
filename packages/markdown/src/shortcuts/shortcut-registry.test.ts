@@ -35,6 +35,24 @@ describe("Markdown shortcut registry", () => {
   it("matches exact modifiers and ignores IME composition", () => {
     expect(
       matchesMarkdownShortcut(
+        keyboardEvent({ key: "E" }),
+        "selection.edit-source"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "e", metaKey: true }),
+        "selection.edit-source"
+      )
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ isComposing: true, key: "e" }),
+        "selection.edit-source"
+      )
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(
         keyboardEvent({ altKey: true, key: "ArrowUp" }),
         "list-item.move-up"
       )
@@ -63,6 +81,59 @@ describe("Markdown shortcut registry", () => {
         "list-item.toggle-checked"
       )
     ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "Escape" }),
+        "selection.enter-block"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "ArrowUp", shiftKey: true }),
+        "selection.extend-up"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "ArrowUp" }),
+        "selection.extend-up"
+      )
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "a", metaKey: true }),
+        "selection.select-all-blocks"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "a", metaKey: true, shiftKey: true }),
+        "selection.select-all-blocks"
+      )
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ key: "Tab" }),
+        "source-editor.indent"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ altKey: true, key: "ArrowDown", shiftKey: true }),
+        "source-editor.copy-line-down"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          isComposing: true,
+          key: "ArrowDown",
+          shiftKey: true,
+        }),
+        "source-editor.copy-line-down"
+      )
+    ).toBe(false)
   })
 
   it("supports host overrides, disabling, labels, and aria keys", () => {
@@ -91,6 +162,17 @@ describe("Markdown shortcut registry", () => {
     expect(markdownShortcutAriaKeys("list-item.toggle-checked")).toBe(
       "Meta+Enter Control+Enter"
     )
+    expect(markdownShortcutAriaKeys("selection.select-all-blocks")).toBe(
+      "Meta+a Control+a"
+    )
+    expect(markdownShortcutLabel("selection.extend-up", "mac")).toBe("⇧↑")
+    expect(markdownShortcutLabel("selection.select-all-blocks", "mac")).toBe(
+      "⌘A"
+    )
+    expect(markdownShortcutLabels("source-editor.indent", "mac")).toEqual([
+      "Tab",
+      "⌘]",
+    ])
   })
 
   it("merges namespaced plugin shortcuts before host overrides", () => {

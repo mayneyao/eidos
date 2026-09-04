@@ -1,12 +1,19 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $isTableSelection } from "@lexical/table"
 import {
   $createNodeSelection,
   $getNearestNodeFromDOMNode,
+  $getRoot,
   $getSelection,
+  $isElementNode,
   $isNodeSelection,
+  $isRangeSelection,
   $setSelection,
   COMMAND_PRIORITY_HIGH,
   KEY_DOWN_COMMAND,
+  SELECTION_CHANGE_COMMAND,
+  type BaseSelection,
+  type LexicalNode,
   type NodeKey,
 } from "lexical"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
@@ -23,6 +30,11 @@ interface MarqueeRect {
   top: number
   width: number
   height: number
+}
+
+interface SelectionHintPosition {
+  left: number
+  top: number
 }
 
 type MarqueeStartZone = "bottom" | "left" | "right"
@@ -42,6 +54,11 @@ interface BlockCandidate {
   element: HTMLElement
   key: NodeKey
   rect: MarqueeRect
+}
+
+export interface KeyboardBlockSelectionRange {
+  anchorIndex: number
+  focusIndex: number
 }
 
 interface NativeTextDragState {
@@ -104,6 +121,44 @@ function sameKeys(a: ReadonlySet<NodeKey>, b: ReadonlySet<NodeKey>): boolean {
   return a.size === b.size && [...a].every((key) => b.has(key))
 }
 
+function rootBlockContaining(node: LexicalNode): LexicalNode | null {
+  return (
+    $getRoot()
+      .getChildren()
+      .find(
+        (child) =>
+          child.is(node) || ($isElementNode(child) && child.isParentOf(node))
+      ) ?? null
+  )
+}
+
+export function keyboardBlockSelectionIndices(
+  range: KeyboardBlockSelectionRange,
+  blockCount: number
+): number[] {
+  if (blockCount <= 0) return []
+  const anchor = Math.max(0, Math.min(blockCount - 1, range.anchorIndex))
+  const focus = Math.max(0, Math.min(blockCount - 1, range.focusIndex))
+  const first = Math.min(anchor, focus)
+  const last = Math.max(anchor, focus)
+  return Array.from({ length: last - first + 1 }, (_, index) => first + index)
+}
+
+export function extendKeyboardBlockSelection(
+  range: KeyboardBlockSelectionRange,
+  direction: -1 | 1,
+  blockCount: number
+): KeyboardBlockSelectionRange {
+  if (blockCount <= 0) return range
+  return {
+    anchorIndex: Math.max(0, Math.min(blockCount - 1, range.anchorIndex)),
+    focusIndex: Math.max(
+      0,
+      Math.min(blockCount - 1, range.focusIndex + direction)
+    ),
+  }
+}
+
 function cssPixelValue(value: string): number {
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : 0
@@ -148,14 +203,18 @@ function marqueeStartZone(
 
 export function BlockMarqueeSelectionPlugin() {
   const [editor] = useLexicalComposerContext()
-  const { matches } = useMarkdownShortcuts()
+  const { label, matches } = useMarkdownShortcuts()
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null)
   const [rectangle, setRectangle] = useState<MarqueeRect | null>(null)
+  const [selectionHintPosition, setSelectionHintPosition] =
+    useState<SelectionHintPosition | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const nativeTextDragRef = useRef<NativeTextDragState | null>(null)
   const suppressClickRef = useRef(false)
   const marqueeKeysRef = useRef<Set<NodeKey>>(new Set())
   const selectedElementsRef = useRef<Set<HTMLElement>>(new Set())
+  const keyboardRangeRef = useRef<KeyboardBlockSelectionRange | null>(null)
+  const previousSelectionRef = useRef<BaseSelection | null>(null)
 
   useEffect(
     () =>
@@ -177,6 +236,30 @@ export function BlockMarqueeSelectionPlugin() {
       }
       selectedElementsRef.current.clear()
       marqueeKeysRef.current.clear()
+      keyboardRangeRef.current = null
+      previousSelectionRef.current = null
+      setSelectionHintPosition(null)
+      delete stage.dataset.blockSelectionMode
+    }
+
+    const updateSelectionHintPosition = () => {
+      const elements = [...selectedElementsRef.current].filter(
+        (element) => element.isConnected
+      )
+      if (elements.length === 0) {
+        setSelectionHintPosition(null)
+        return
+      }
+      const rectangles = elements.map((element) =>
+        element.getBoundingClientRect()
+      )
+      setSelectionHintPosition({
+        left: Math.min(
+          window.innerWidth - 8,
+          Math.max(...rectangles.map((rect) => rect.right))
+        ),
+        top: Math.max(8, Math.min(...rectangles.map((rect) => rect.top)) - 8),
+      })
     }
 
     const setVisualSelection = (
@@ -195,6 +278,7 @@ export function BlockMarqueeSelectionPlugin() {
       }
       selectedElementsRef.current = nextElements
       marqueeKeysRef.current = new Set(keys)
+      updateSelectionHintPosition()
     }
 
     const collectCandidates = (): BlockCandidate[] => {
@@ -260,6 +344,8 @@ export function BlockMarqueeSelectionPlugin() {
       keys: ReadonlySet<NodeKey>
     ) => {
       if (sameKeys(keys, marqueeKeysRef.current)) return
+      keyboardRangeRef.current = null
+      previousSelectionRef.current = null
       setVisualSelection(elements, keys)
       editor.update(() => {
         if (keys.size === 0) {
@@ -270,6 +356,81 @@ export function BlockMarqueeSelectionPlugin() {
         for (const key of keys) selection.add(key)
         $setSelection(selection)
       })
+    }
+
+    const selectedRootIndices = (): number[] => {
+      const selection = $getSelection()
+      if (!$isNodeSelection(selection)) return []
+      const selectedKeys = new Set(
+        selection.getNodes().map((node) => node.getKey())
+      )
+      return $getRoot()
+        .getChildren()
+        .flatMap((node, index) =>
+          selectedKeys.has(node.getKey()) ? [index] : []
+        )
+    }
+
+    const setKeyboardSelection = (range: KeyboardBlockSelectionRange) => {
+      const rootChildren = $getRoot().getChildren()
+      const indices = keyboardBlockSelectionIndices(range, rootChildren.length)
+      if (indices.length === 0) return false
+      const entries = indices.flatMap((index) => {
+        const node = rootChildren[index]
+        const element = editor.getElementByKey(node.getKey())
+        return element ? [{ element, key: node.getKey() }] : []
+      })
+      if (entries.length !== indices.length) return false
+
+      const keys = new Set(entries.map(({ key }) => key))
+      keyboardRangeRef.current = {
+        anchorIndex: Math.max(
+          0,
+          Math.min(rootChildren.length - 1, range.anchorIndex)
+        ),
+        focusIndex: Math.max(
+          0,
+          Math.min(rootChildren.length - 1, range.focusIndex)
+        ),
+      }
+      setVisualSelection(
+        entries.map(({ element }) => element),
+        keys
+      )
+      stage.dataset.blockSelectionMode = "keyboard"
+      window.getSelection()?.removeAllRanges()
+      const selection = $createNodeSelection()
+      for (const key of keys) selection.add(key)
+      $setSelection(selection)
+      entries[
+        Math.max(0, Math.min(entries.length - 1, range.focusIndex - indices[0]))
+      ]?.element.scrollIntoView({ block: "nearest" })
+      return true
+    }
+
+    const restoreCaret = (
+      preferredIndex: number,
+      previous: BaseSelection | null
+    ) => {
+      if (previous) {
+        $setSelection(previous.clone())
+        return
+      }
+
+      const children = $getRoot().getChildren()
+      for (let distance = 0; distance < children.length; distance += 1) {
+        const after = children[preferredIndex + distance]
+        if (after && $isElementNode(after)) {
+          after.selectStart()
+          return
+        }
+        const before = children[preferredIndex - distance]
+        if (before && $isElementNode(before)) {
+          before.selectEnd()
+          return
+        }
+      }
+      $setSelection(null)
     }
 
     const updateDragSelection = (drag: DragState) => {
@@ -417,6 +578,7 @@ export function BlockMarqueeSelectionPlugin() {
         : null
       if (!startZone) {
         if (!root.contains(target)) return
+        if (keyboardRangeRef.current) clearVisualSelection()
         delete stage.dataset.blockMarqueeZone
         nativeTextDragRef.current = {
           pointerId: event.pointerId,
@@ -519,6 +681,9 @@ export function BlockMarqueeSelectionPlugin() {
 
     stage.addEventListener("pointerdown", onPointerDown, true)
     stage.addEventListener("pointerleave", onPointerLeave, true)
+    stage.addEventListener("scroll", updateSelectionHintPosition)
+    window.addEventListener("resize", updateSelectionHintPosition)
+    window.addEventListener("scroll", updateSelectionHintPosition, true)
     window.addEventListener("pointermove", onPointerMove, true)
     window.addEventListener("pointerup", onPointerUp, true)
     window.addEventListener("pointercancel", onPointerCancel, true)
@@ -538,19 +703,130 @@ export function BlockMarqueeSelectionPlugin() {
         }
       }
     )
-    const unregisterEscape = editor.registerCommand(
+    const unregisterKeyboardSelection = editor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {
+        const target = event.target
+        const targetElement =
+          target instanceof Element
+            ? target
+            : target instanceof Node
+              ? target.parentElement
+              : null
+        if (targetElement?.closest(LOCAL_EDITOR_CONTROL_SELECTOR)) {
+          return false
+        }
+
+        const selection = $getSelection()
+        if ($isNodeSelection(selection)) {
+          const selectedIndices = selectedRootIndices()
+          if (selectedIndices.length === 0) return false
+
+          if (matches(event, "selection.clear")) {
+            event.preventDefault()
+            const preferredIndex =
+              keyboardRangeRef.current?.focusIndex ??
+              selectedIndices.at(-1) ??
+              0
+            const previous = previousSelectionRef.current
+            clearVisualSelection()
+            restoreCaret(preferredIndex, previous)
+            return true
+          }
+
+          if (matches(event, "selection.select-all-blocks")) {
+            event.preventDefault()
+            const blockCount = $getRoot().getChildrenSize()
+            return setKeyboardSelection({
+              anchorIndex: 0,
+              focusIndex: Math.max(0, blockCount - 1),
+            })
+          }
+
+          const direction = matches(event, "selection.extend-up")
+            ? -1
+            : matches(event, "selection.extend-down")
+              ? 1
+              : null
+          if (direction === null) return false
+          event.preventDefault()
+          const current = keyboardRangeRef.current ?? {
+            anchorIndex:
+              direction < 0
+                ? (selectedIndices.at(-1) ?? 0)
+                : selectedIndices[0],
+            focusIndex:
+              direction < 0
+                ? selectedIndices[0]
+                : (selectedIndices.at(-1) ?? 0),
+          }
+          return setKeyboardSelection(
+            extendKeyboardBlockSelection(
+              current,
+              direction,
+              $getRoot().getChildrenSize()
+            )
+          )
+        }
+
         if (
-          marqueeKeysRef.current.size === 0 ||
-          !matches(event, "selection.clear")
+          !matches(event, "selection.enter-block") ||
+          stage.querySelector('[role="dialog"], [role="menu"]')
         ) {
           return false
         }
+        if (!selection) return false
+
+        const selectedNode = $isTableSelection(selection)
+          ? selection.focus.getNode()
+          : $isRangeSelection(selection) && selection.isCollapsed()
+            ? selection.anchor.getNode()
+            : null
+        if (!selectedNode) return false
+        const topLevel = rootBlockContaining(selectedNode)
+        if (!topLevel) return false
+        const index = $getRoot()
+          .getChildren()
+          .findIndex((node) => node.getKey() === topLevel.getKey())
+        if (index < 0) return false
+
         event.preventDefault()
-        clearVisualSelection()
-        editor.update(() => $setSelection(null))
-        return true
+        previousSelectionRef.current = selection.clone()
+        return setKeyboardSelection({ anchorIndex: index, focusIndex: index })
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+    const unregisterKeyboardSelectionSync = editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        const range = keyboardRangeRef.current
+        if (!range) return false
+        if (
+          [...selectedElementsRef.current].some(
+            (element) => !root.contains(element)
+          )
+        ) {
+          clearVisualSelection()
+          return false
+        }
+
+        const selection = $getSelection()
+        const expectedIndices = keyboardBlockSelectionIndices(
+          range,
+          $getRoot().getChildrenSize()
+        )
+        const selectedIndices = selectedRootIndices()
+        if (
+          $isNodeSelection(selection) &&
+          expectedIndices.length === selectedIndices.length &&
+          expectedIndices.every((index, position) =>
+            Object.is(index, selectedIndices[position])
+          )
+        ) {
+          return false
+        }
+
+        return setKeyboardSelection(range)
       },
       COMMAND_PRIORITY_HIGH
     )
@@ -568,26 +844,44 @@ export function BlockMarqueeSelectionPlugin() {
       nativeTextDragRef.current = null
       stage.removeEventListener("pointerdown", onPointerDown, true)
       stage.removeEventListener("pointerleave", onPointerLeave, true)
+      stage.removeEventListener("scroll", updateSelectionHintPosition)
+      window.removeEventListener("resize", updateSelectionHintPosition)
+      window.removeEventListener("scroll", updateSelectionHintPosition, true)
       window.removeEventListener("pointermove", onPointerMove, true)
       window.removeEventListener("pointerup", onPointerUp, true)
       window.removeEventListener("pointercancel", onPointerCancel, true)
       stage.removeEventListener("click", onClick, true)
       unregisterUpdate()
-      unregisterEscape()
+      unregisterKeyboardSelection()
+      unregisterKeyboardSelectionSync()
       clearVisualSelection()
       delete stage.dataset.blockMarqueeActive
       delete stage.dataset.blockMarqueeZone
     }
   }, [editor, matches, rootElement])
 
-  if (!rectangle) return null
-  const style: CSSProperties = rectangle
+  const editSourceShortcut = label("selection.edit-source")
   return (
-    <div
-      className="eme-block-marquee"
-      data-block-marquee="true"
-      aria-hidden="true"
-      style={style}
-    />
+    <>
+      {rectangle ? (
+        <div
+          className="eme-block-marquee"
+          data-block-marquee="true"
+          aria-hidden="true"
+          style={rectangle satisfies CSSProperties}
+        />
+      ) : null}
+      {!rectangle && selectionHintPosition && editSourceShortcut ? (
+        <div
+          className="eme-selection-shortcut-hint"
+          data-selection-shortcut-hint="true"
+          aria-hidden="true"
+          style={selectionHintPosition}
+        >
+          <kbd>{editSourceShortcut}</kbd>
+          <span>Edit source</span>
+        </div>
+      ) : null}
+    </>
   )
 }

@@ -61,7 +61,6 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   inlineCode: "Inline code",
   undo: "Undo",
   redo: "Redo",
-  editBlock: "Edit block",
   saveBlock: "Done",
   cancelBlockEdit: "Cancel",
   insertBlock: "Insert block",
@@ -81,8 +80,6 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   divider: "Divider",
   frontmatterAlreadyExists: "Already added",
   backToInsertMenu: "Back to insert menu",
-  imageUrl: "Image URL",
-  imageAlt: "Description",
   emptyMathBlock: "Add a TeX equation",
   emptyImageBlock: "Add an image",
   frontmatterYaml: "Properties (YAML)",
@@ -217,14 +214,15 @@ function MarkdownEditorImplementation({
   return (
     <EfmSourceBlockProvider
       documentKey={documentKey}
+      markdown={markdown}
       onError={handleError}
       resolveImageUrl={resolveImageUrl}
       baseUri={baseUri}
-      editBlockLabel={resolvedLabels.editBlock}
+      codeHighlightTokenizer={codeHighlightTokenizer}
+      inputProfile={inputProfile}
+      syntaxFeatures={registry.features}
+      transformers={registry.transformers}
       saveBlockLabel={resolvedLabels.saveBlock}
-      cancelBlockEditLabel={resolvedLabels.cancelBlockEdit}
-      imageUrlLabel={resolvedLabels.imageUrl}
-      imageAltLabel={resolvedLabels.imageAlt}
       emptyMathBlockLabel={resolvedLabels.emptyMathBlock}
       emptyImageBlockLabel={resolvedLabels.emptyImageBlock}
       readOnly={readOnly}
@@ -277,6 +275,11 @@ function MarkdownEditorImplementation({
                     "format.italic",
                     "insert.open-menu",
                     "selection.clear",
+                    "selection.enter-block",
+                    "selection.extend-up",
+                    "selection.extend-down",
+                    "selection.edit-source",
+                    "selection.select-all-blocks",
                     "list-item.move-up",
                     "list-item.move-down",
                     "list-item.toggle-checked",
@@ -363,6 +366,9 @@ function MarkdownEditorImplementation({
                 labels={resolvedLabels}
                 onError={handleError}
                 readOnly={readOnly}
+                codeHighlightTokenizer={codeHighlightTokenizer}
+                syntaxFeatures={registry.features}
+                transformers={registry.transformers}
               />
             ))}
             {autoFocus && !readOnly ? <AutoFocusPlugin /> : null}

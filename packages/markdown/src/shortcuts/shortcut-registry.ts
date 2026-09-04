@@ -7,6 +7,7 @@ export type MarkdownShortcutScope =
   | "menu"
   | "overlay"
   | "selection"
+  | "source-editor"
 
 export interface MarkdownShortcutBinding {
   key: string
@@ -49,12 +50,12 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
   },
   "format.bold": {
     bindings: [{ key: "b", primary: true }],
-    description: "Toggle bold formatting",
+    description: "Toggle bold formatting in rich text or Markdown source",
     scope: "selection",
   },
   "format.italic": {
     bindings: [{ key: "i", primary: true }],
-    description: "Toggle italic formatting",
+    description: "Toggle italic formatting in rich text or Markdown source",
     scope: "selection",
   },
   "history.redo": {
@@ -120,6 +121,74 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
     bindings: [{ key: "Escape" }],
     description: "Clear the active block selection",
     scope: "selection",
+  },
+  "selection.enter-block": {
+    bindings: [{ key: "Escape" }],
+    description: "Select the top-level block containing the caret",
+    scope: "editor",
+  },
+  "selection.extend-down": {
+    bindings: [{ key: "ArrowDown", shift: true }],
+    description: "Extend the block selection downward",
+    scope: "selection",
+  },
+  "selection.extend-up": {
+    bindings: [{ key: "ArrowUp", shift: true }],
+    description: "Extend the block selection upward",
+    scope: "selection",
+  },
+  "selection.edit-source": {
+    bindings: [{ key: "e" }],
+    description: "Edit the selected consecutive blocks as Markdown source",
+    scope: "selection",
+  },
+  "selection.select-all-blocks": {
+    bindings: [{ key: "a", primary: true }],
+    description: "Select every top-level block",
+    scope: "selection",
+  },
+  "source-editor.copy-line-down": {
+    bindings: [{ alt: true, key: "ArrowDown", shift: true }],
+    description: "Copy the selected source line or lines down",
+    scope: "source-editor",
+  },
+  "source-editor.copy-line-up": {
+    bindings: [{ alt: true, key: "ArrowUp", shift: true }],
+    description: "Copy the selected source line or lines up",
+    scope: "source-editor",
+  },
+  "source-editor.delete-line": {
+    bindings: [{ key: "k", primary: true, shift: true }],
+    description: "Delete the selected source line or lines",
+    scope: "source-editor",
+  },
+  "source-editor.indent": {
+    bindings: [{ key: "Tab" }, { key: "]", primary: true }],
+    description: "Indent the selected source line or lines",
+    scope: "source-editor",
+  },
+  "source-editor.move-line-down": {
+    bindings: [{ alt: true, key: "ArrowDown" }],
+    description: "Move the selected source line or lines down",
+    scope: "source-editor",
+  },
+  "source-editor.move-line-up": {
+    bindings: [{ alt: true, key: "ArrowUp" }],
+    description: "Move the selected source line or lines up",
+    scope: "source-editor",
+  },
+  "source-editor.outdent": {
+    bindings: [
+      { key: "Tab", shift: true },
+      { key: "[", primary: true },
+    ],
+    description: "Outdent the selected source line or lines",
+    scope: "source-editor",
+  },
+  "source-editor.select-line": {
+    bindings: [{ key: "l", primary: true }],
+    description: "Select the current source line",
+    scope: "source-editor",
   },
 } as const satisfies Record<string, MarkdownShortcutDefinition>
 

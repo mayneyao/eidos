@@ -9,9 +9,9 @@ The complete host integration surface is documented in
 [API.md](./API.md).
 
 Markdown remains the canonical persisted representation. This package owns the
-Lexical editor, Markdown import/export, editor UI, and compatibility checks. It
-does not own source editing, persistence, file-system access, or Eidos File
-mutations.
+Lexical editor, Markdown import/export, editor UI, selected-block source
+editing, and compatibility checks. It does not own persistence, file-system
+access, Eidos File mutations, or a whole-document source editor.
 
 ## Source architecture
 
@@ -68,11 +68,11 @@ mathematics profile. Lexical-native constructs remain directly editable.
 Frontmatter, inline and display mathematics, images, reference links, and
 footnotes are imported as source-preserving semantic nodes with visual
 WYSIWYG rendering. Footnotes are numbered by first reference and presented
-after the document body. Atomic block nodes expose a block-local editor for
-their underlying syntax; saving reparses and refreshes only that node, without
-switching or converting the whole document. Malformed frontmatter and
-unterminated display mathematics remain editable as inert, source-preserving
-blocks while the rest of the document stays WYSIWYG.
+after the document body. Top-level semantic and fallback blocks use the same
+selection-driven source editor; they do not expose per-block **Edit block**
+actions or a second local editing surface. Malformed frontmatter and
+unterminated display mathematics remain inert, source-preserving blocks that can
+be selected and repaired with `E` while the rest of the document stays WYSIWYG.
 
 Pointer dragging that starts on content remains a native text range and can
 continue across block boundaries. A separate block marquee starts throughout
@@ -82,8 +82,42 @@ editor stage does nothing. Available zones use a crosshair cursor and never
 appear at the same time as a text range. Both selection modes auto-scroll long
 documents near the viewport edges, and marquee selection retains blocks that
 have scrolled out of view.
-Equation composers float above following content so opening one does not shift
-the document.
+
+With a collapsed caret, `Escape` enters keyboard block-selection mode on the
+containing top-level block. A caret or cell selection inside a table selects
+the complete top-level table without blurring the editor. `Shift+ArrowUp` and
+`Shift+ArrowDown` extend or shrink the consecutive range around a stable
+anchor, `Mod+A` selects every top-level block, and `Escape` returns to the
+original caret or cell selection. Existing block
+commands such as copy, delete, and unmodified `E` then work without requiring a
+pointer. While blocks are selected, a small non-interactive hint beside the
+range shows the resolved `selection.edit-source` key.
+
+A consecutive top-level block selection can be opened as one in-place Markdown
+source range with unmodified `E`. The range replaces those blocks at their
+current width and approximate height, uses the fenced-code tokenizer and theme,
+and appears as a bare code-block surface without a header or action buttons.
+Source wraps by default and the surface grows without scrollbars. `Mod+Enter`
+commits one undoable local splice; `Escape` restores the original source. Moving
+focus away leaves the draft open. VS Code-style source shortcuts cover line
+selection, two-space indentation/outdentation, moving, copying, and deleting
+whole lines. `Mod+B` and `Mod+I` toggle Markdown `**bold**` and `*italic*`
+markers around the source selection; with a collapsed caret they insert paired
+markers and leave the caret between them. Native textarea copy, paste,
+selection, and navigation remain available. Formatting, line operations, and
+ordinary input share a local undo/redo history. Lists and tables are editable
+only as complete top-level blocks,
+nested children cannot be opened independently, and pinned
+footnote definitions and generated source-empty blocks are automatically left
+out. Protected footnote source between editable blocks is preserved outside the
+draft and placed after the edited range on commit. A remaining unprotected
+source-discontinuous selection is unavailable. An empty committed range deletes
+the editable blocks. External controlled values follow the same draft-conflict
+policy as other editor drafts. A compact hint above the source surface
+summarizes the resolved format, indent, move, apply, and cancel keys; disabled commands
+are omitted and the hint never receives focus or pointer input. Inline equations
+retain their focused TeX composer because they are atoms inside editable text
+rather than independently selectable top-level blocks.
 
 Collapsed selections expose a quiet, top-aligned gutter group immediately
 beside the current block: `+` first, then a six-dot handle for reordering
@@ -108,13 +142,13 @@ vertical lists that filter while
 typing and support Arrow Up/Down, Enter, and Escape. The block catalog creates
 headings, quotes, lists, checklists, code, tables, dividers, block equations,
 images, footnotes, safe HTML, and document frontmatter without entering a
-whole-document source mode. Equation and image commands immediately create empty semantic blocks
-with descriptive placeholders, then open floating block-local composers that
-update those same blocks. Canceling leaves the empty placeholder available for
-later input instead of injecting sample content. Footnote, HTML, and frontmatter
-creation use focused composers; frontmatter is inserted at the document start
-and can only be created once, while footnote definitions are maintained at the
-end of the document.
+whole-document source mode. Equation and image commands immediately create and
+select empty semantic blocks with descriptive placeholders. The selection hint
+points to `E`, which opens the same in-place source editor used by existing
+blocks; no block-local composer is opened. Footnote, HTML, and frontmatter
+creation use focused insertion composers; frontmatter is inserted at the
+document start and can only be created once, while footnote definitions are
+maintained at the end of the document.
 
 The editor defaults to the EFM `document` input profile. Pass
 `inputProfile="fragment"` when editing a fragment; an initial `---` is then
@@ -180,11 +214,13 @@ directives, MDX, and the other EFM exclusions remain ordinary Markdown text.
 Formatting controls are shown as a contextual toolbar when text is selected;
 the editor does not reserve permanent document space for a toolbar.
 
-Fenced code is highlighted with a dependency-free semantic tokenizer and the
-CSS Custom Highlight API. Highlighting does not add token elements to Lexical's
-DOM or alter the canonical Markdown, and unsupported browsers keep a plain,
-fully editable code block. Consumers that need another grammar can pass a
-`codeHighlightTokenizer`; pass `false` to disable syntax highlighting.
+Fenced code is highlighted with a semantic tokenizer and the CSS Custom
+Highlight API. Markdown gets a dedicated Micromark/GFM grammar plus EFM
+frontmatter, math, and `==highlight==` ranges; it does not fall through to
+programming-language heuristics. Highlighting does not add token elements to
+Lexical's DOM or alter the canonical Markdown, and unsupported browsers keep a
+plain, fully editable code block. Consumers that need another grammar can pass
+a `codeHighlightTokenizer`; pass `false` to disable syntax highlighting.
 
 Use `layout="document"` (the default) for a standalone Markdown file with
 reading margins. Use `layout="embedded"` for a Content field whose host already

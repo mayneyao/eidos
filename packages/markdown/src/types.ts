@@ -93,7 +93,6 @@ export interface MarkdownEditorLabels {
   inlineCode: string
   undo: string
   redo: string
-  editBlock: string
   saveBlock: string
   cancelBlockEdit: string
   insertBlock: string
@@ -113,8 +112,6 @@ export interface MarkdownEditorLabels {
   divider: string
   frontmatterAlreadyExists: string
   backToInsertMenu: string
-  imageUrl: string
-  imageAlt: string
   emptyMathBlock: string
   emptyImageBlock: string
   frontmatterYaml: string

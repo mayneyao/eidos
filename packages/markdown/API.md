@@ -5,7 +5,7 @@ This document describes the public React API of
 
 For the interaction contract and supported syntax matrix, see
 [SPEC.md](./SPEC.md). Markdown is always the canonical document value; Lexical
-state, DOM nodes, selections, menus, and block-local drafts are transient.
+state, DOM nodes, selections, menus, and editor drafts are transient.
 
 ## Installation and imports
 
@@ -64,7 +64,7 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 | Prop                     | Type                                                        | Required | Default                  | Behavior                                                                                                                                                                                                                          |
 | ------------------------ | ----------------------------------------------------------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `documentKey`            | `string`                                                    | Yes      | —                        | Stable identity for the open document. Changing it creates a fresh editor session, resets selection and history, and imports `markdown` again.                                                                                    |
-| `markdown`               | `string`                                                    | Yes      | —                        | Canonical controlled Markdown value. Host updates with a different value are imported unless a block-local draft is active; see [Controlled document lifecycle](#controlled-document-lifecycle).                                  |
+| `markdown`               | `string`                                                    | Yes      | —                        | Canonical controlled Markdown value. Host updates with a different value are imported unless an editor draft is active; see [Controlled document lifecycle](#controlled-document-lifecycle).                                      |
 | `onMarkdownChange`       | `(markdown: string) => void`                                | Yes      | —                        | Receives canonical Markdown after editor content changes. Selection-only and presentation-only changes do not call it.                                                                                                            |
 | `onSaveRequest`          | `(markdown: string) => void \| Promise<void>`               | No       | —                        | Called with the latest serialized Markdown for the `document.save` shortcut, `Mod+S` by default. The editor does not persist the result itself.                                                                                   |
 | `onOpenExternalUrl`      | `(url: string) => void \| Promise<void>`                    | No       | —                        | Receives a resolved, allowed external destination. Editable content requires `Mod+Click`; read-only content uses a normal click. Same-document fragments are handled inside the editor without changing the host URL.             |
@@ -97,16 +97,95 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 3. The host stores that value and passes it back as `markdown`.
 4. A genuinely different host value is imported into the open session.
 
-If step 4 happens while an equation, frontmatter, definition, fallback block, or
+If step 4 happens while a selected-block source range, inline equation, or
 insertion composer has an uncommitted draft, the editor keeps that draft open
-and reports the conflict through `onError`. **Done** keeps the local editor
-state and emits it through `onMarkdownChange`; **Cancel** or **Escape** discards
-the draft and imports the pending host value. The host should still provide its
-own persisted-document conflict policy around `onSaveRequest`.
+and reports the conflict through `onError`. Committing keeps the local draft and
+emits it through `onMarkdownChange`; **Escape** or **Cancel** discards the draft
+and imports the pending host value. The host should still provide its own
+persisted-document conflict policy around `onSaveRequest`.
 
 Edits are source-local where the Markdown mapping is unambiguous. Unchanged
 blocks keep their original whitespace and source spelling instead of being
 rewritten merely because another block changed.
+
+### Keyboard block selection
+
+When the editable surface owns a collapsed caret, `Escape` selects its
+containing top-level block and enters keyboard block-selection mode. Within that
+mode:
+
+- `Shift+ArrowUp` and `Shift+ArrowDown` move the focus end of the selection,
+  extending or shrinking a consecutive range around its original anchor;
+- `Mod+A` selects every top-level block instead of creating a native text
+  selection; and
+- `Escape` clears the block selection and restores the caret that entered the
+  mode.
+
+The resulting node selection uses the same copy, cut, delete, and source-editing
+operations as a pointer-created block selection. These commands do not capture
+keys from source textareas, inline/insertion composers, or IME composition. While a
+block selection exists, a small presentational hint displays the resolved
+`selection.edit-source` binding. It disappears with the selection and does not
+accept focus or pointer input.
+
+### Consecutive block source editing
+
+The default `sourceEditingPlugin` lets a user select consecutive top-level
+blocks and press unmodified `E` to replace that range in place with one
+Markdown source editor. This is selection-driven behavior, not an imperative or
+whole-document source-mode API.
+
+- The selection must be consecutive both in the visual root and in canonical
+  source order. A whole top-level list or table is one eligible block; a nested
+  list item or table cell is not independently eligible.
+- Selected pinned footnote definitions and generated blocks without owned
+  source are automatically excluded. If the remaining selected blocks are
+  separated only by protected footnote source, the draft joins the editable
+  ranges and a successful commit preserves the footnote source after them.
+  Other editor or source discontinuities remain unavailable.
+- Text inputs, textareas, ordinary contenteditable text selections, modified
+  `E`, key repeat during an active editor, and IME composition do not enter the
+  mode. `readOnly` disables it.
+- The textarea contains the exact host-owned source from the first selected
+  segment through the last, including whitespace between selected blocks but
+  excluding surrounding source. Its highlighted mirror reuses
+  `codeHighlightTokenizer` with the `markdown` language and the code theme
+  tokens. The bare code-block surface has no header or action buttons, wraps
+  source by default, and grows without horizontal or vertical scrollbars.
+- `Mod+Enter` validates and commits. The host value is produced by
+  splicing only this range, then the visual tree is reparsed. Parser errors keep
+  the draft open with an accessible error. Empty source deletes the range and
+  restores the nearest valid selection or caret.
+- `Escape` restores the original content. Moving focus elsewhere
+  does not implicitly commit or cancel. Opening and canceling are transient;
+  one successful commit is one undoable content operation.
+- An external `markdown` update leaves the draft visible and reports the
+  existing controlled-value conflict. `Mod+Enter` chooses the local splice;
+  `Escape` loads the pending external value.
+
+The source surface supports these VS Code-style line operations through the
+same overridable shortcut registry:
+
+| Action                                                     | Default shortcut                           |
+| ---------------------------------------------------------- | ------------------------------------------ |
+| Toggle Markdown bold markers around the selection          | `Mod+B`                                    |
+| Toggle Markdown italic markers around the selection        | `Mod+I`                                    |
+| Indent at the caret or indent selected lines by two spaces | `Tab`, `Mod+]`                             |
+| Outdent selected/current lines                             | `Shift+Tab`, `Mod+[`                       |
+| Move selected/current lines                                | `Alt+ArrowUp`, `Alt+ArrowDown`             |
+| Copy selected/current lines                                | `Shift+Alt+ArrowUp`, `Shift+Alt+ArrowDown` |
+| Delete selected/current lines                              | `Mod+Shift+K`                              |
+| Select the current line                                    | `Mod+L`                                    |
+
+Standard textarea commands remain native, including `Mod+A`, copy/cut/paste,
+character and word deletion, and caret movement with optional Shift selection.
+`Mod+Z`, `Mod+Shift+Z`, and `Mod+Y` use a source-local history so both ordinary
+input, formatting, and line commands can be undone and redone before commit. `Mod+Enter`
+remains the source commit command rather than VS Code's “insert line below”
+action. A compact, non-interactive hint above the surface displays the resolved
+format, indent, move, apply, and cancel bindings; a disabled command is omitted.
+
+Remove `sourceEditingPlugin` from a custom plugin profile to omit this behavior.
 
 Change `documentKey` whenever the logical document changes, even if two
 documents currently contain identical Markdown. The new key resets history,
@@ -201,9 +280,9 @@ The package exports the compiler and contract from both the root and
 `@eidos.space/markdown/plugin-api`. Built-in descriptors are available from
 the root and `@eidos.space/markdown/plugins`.
 
-The default profile is composed, in order, from `commonmarkPlugin`,
-`gfmPlugin`, `highlightPlugin`, `mathPlugin`, `imagePlugin`, `footnotePlugin`,
-`frontmatterPlugin`, `rawHtmlPlugin`, and `referencePlugin`. `gfmPlugin`
+The default profile is composed, in order, from `sourceEditingPlugin`,
+`commonmarkPlugin`, `gfmPlugin`, `highlightPlugin`, `mathPlugin`, `imagePlugin`,
+`footnotePlugin`, `frontmatterPlugin`, `rawHtmlPlugin`, and `referencePlugin`. `gfmPlugin`
 requires `commonmarkPlugin`; the remaining descriptors can be selected
 independently. The editor kernel always registers its source-preserving
 fallback node even when the profile is empty.
@@ -346,8 +425,8 @@ When `onPasteImage` is defined and a clipboard event contains images:
 
 Returning `null` intentionally inserts nothing for that file. Rejections and
 invalid results call `onError`; no broken image node is inserted. Paste inside
-a block-local input or textarea remains ordinary literal input and does not call
-the attachment callback.
+an editor-owned source textarea or composer remains ordinary literal input and
+does not call the attachment callback.
 
 `signal` is aborted if the editor unmounts or becomes read-only before
 persistence completes. Hosts should stop work when practical and must not
@@ -478,7 +557,6 @@ interface MarkdownEditorLabels {
   inlineCode: string
   undo: string
   redo: string
-  editBlock: string
   saveBlock: string
   cancelBlockEdit: string
   insertBlock: string
@@ -498,8 +576,6 @@ interface MarkdownEditorLabels {
   divider: string
   frontmatterAlreadyExists: string
   backToInsertMenu: string
-  imageUrl: string
-  imageAlt: string
   emptyMathBlock: string
   emptyImageBlock: string
   frontmatterYaml: string
@@ -551,27 +627,40 @@ type MarkdownShortcutOverrides = Partial<
 `primary` means Command on macOS and Control on other platforms. Matching uses
 exact modifiers and ignores composing IME keyboard events.
 
-| Shortcut ID                | Default binding        | Scope        |
-| -------------------------- | ---------------------- | ------------ |
-| `document.save`            | `Mod+S`                | document     |
-| `history.undo`             | `Mod+Z`                | editor       |
-| `history.redo`             | `Mod+Shift+Z`, `Mod+Y` | editor       |
-| `format.bold`              | `Mod+B`                | selection    |
-| `format.italic`            | `Mod+I`                | selection    |
-| `insert.open-menu`         | `/`                    | editor       |
-| `selection.clear`          | `Escape`               | selection    |
-| `overlay.dismiss`          | `Escape`               | overlay      |
-| `menu.previous`            | `ArrowUp`              | menu         |
-| `menu.next`                | `ArrowDown`            | menu         |
-| `menu.choose`              | `Enter`                | menu         |
-| `block.move-up`            | `Alt+ArrowUp`          | block handle |
-| `block.move-down`          | `Alt+ArrowDown`        | block handle |
-| `list-item.move-up`        | `Alt+ArrowUp`          | list item    |
-| `list-item.move-down`      | `Alt+ArrowDown`        | list item    |
-| `list-item.toggle-checked` | `Mod+Enter`            | list item    |
-| `block-editor.commit`      | `Mod+Enter`            | composer     |
-| `composer.confirm`         | `Enter`                | composer     |
-| `inline-atom.activate`     | `Enter`, `Space`       | editor       |
+| Shortcut ID                    | Default binding        | Scope         |
+| ------------------------------ | ---------------------- | ------------- |
+| `document.save`                | `Mod+S`                | document      |
+| `history.undo`                 | `Mod+Z`                | editor        |
+| `history.redo`                 | `Mod+Shift+Z`, `Mod+Y` | editor        |
+| `format.bold`                  | `Mod+B`                | selection     |
+| `format.italic`                | `Mod+I`                | selection     |
+| `insert.open-menu`             | `/`                    | editor        |
+| `selection.clear`              | `Escape`               | selection     |
+| `selection.enter-block`        | `Escape`               | editor        |
+| `selection.extend-up`          | `Shift+ArrowUp`        | selection     |
+| `selection.extend-down`        | `Shift+ArrowDown`      | selection     |
+| `selection.edit-source`        | `E`                    | selection     |
+| `selection.select-all-blocks`  | `Mod+A`                | selection     |
+| `source-editor.copy-line-down` | `Shift+Alt+ArrowDown`  | source editor |
+| `source-editor.copy-line-up`   | `Shift+Alt+ArrowUp`    | source editor |
+| `source-editor.delete-line`    | `Mod+Shift+K`          | source editor |
+| `source-editor.indent`         | `Tab`, `Mod+]`         | source editor |
+| `source-editor.move-line-down` | `Alt+ArrowDown`        | source editor |
+| `source-editor.move-line-up`   | `Alt+ArrowUp`          | source editor |
+| `source-editor.outdent`        | `Shift+Tab`, `Mod+[`   | source editor |
+| `source-editor.select-line`    | `Mod+L`                | source editor |
+| `overlay.dismiss`              | `Escape`               | overlay       |
+| `menu.previous`                | `ArrowUp`              | menu          |
+| `menu.next`                    | `ArrowDown`            | menu          |
+| `menu.choose`                  | `Enter`                | menu          |
+| `block.move-up`                | `Alt+ArrowUp`          | block handle  |
+| `block.move-down`              | `Alt+ArrowDown`        | block handle  |
+| `list-item.move-up`            | `Alt+ArrowUp`          | list item     |
+| `list-item.move-down`          | `Alt+ArrowDown`        | list item     |
+| `list-item.toggle-checked`     | `Mod+Enter`            | list item     |
+| `block-editor.commit`          | `Mod+Enter`            | composer      |
+| `composer.confirm`             | `Enter`                | composer      |
+| `inline-atom.activate`         | `Enter`, `Space`       | editor        |
 
 The package also exports registry helpers for hosts that render their own hints
 or compose overrides:
@@ -583,16 +672,22 @@ markdownShortcutLabel(id, platform, shortcuts?): string | undefined
 markdownShortcutLabels(id, platform, shortcuts?): string[]
 markdownShortcutAriaKeys(ids, shortcuts?): string | undefined
 markdownShortcutConflicts(shortcuts?): [MarkdownShortcutId, MarkdownShortcutId][]
+sourceTextareaCommandForEvent(event, matches): SourceTextareaCommand | null
+applySourceTextareaCommand(state, command): SourceTextareaState
 ```
 
 Use `markdownShortcutConflicts` before mounting host-provided overrides when the
-host needs to reject same-scope collisions.
+host needs to reject same-scope collisions. Hosts that provide a whole-document
+source textarea can use the source textarea helpers to apply the same formatting
+and line commands as the selected-block source editor.
 
 ## Code highlighting API
 
 The built-in highlighter uses the CSS Custom Highlight API and never inserts
 token spans into Lexical content. Unsupported browsers retain an ordinary,
-fully editable code block.
+fully editable code block. `markdown` and `md` use a dedicated Micromark/GFM
+tokenizer with additional EFM frontmatter, math, and `==highlight==` support;
+ordinary prose is not treated as programming-language identifiers or numbers.
 
 ```ts
 type CodeHighlightKind =
@@ -640,7 +735,9 @@ Pass a tokenizer to the component, or use `false` to keep plain code:
 
 `CodeHighlightPlugin`, `CODE_HIGHLIGHT_KINDS`, and
 `tokenizeCodeLightweight` are exported for advanced consumers with their own
-Lexical composer. `MarkdownEditor` already mounts this plugin automatically.
+Lexical composer. `tokenizeMarkdownLightweight(source)` exposes the dedicated
+Markdown grammar directly. `MarkdownEditor` already mounts this plugin
+automatically.
 
 ## Presentation and accessibility
 
@@ -672,8 +769,11 @@ interface EfmAnalysisOptions {
 }
 
 interface EfmImportSegment {
+  start: number
+  end: number
   source: string
   sourceKind?: EfmSourceBlockKind
+  placement?: "footnote-tail"
 }
 
 interface EfmDocumentAnalysis {

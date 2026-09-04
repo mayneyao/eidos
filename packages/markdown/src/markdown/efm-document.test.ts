@@ -86,7 +86,7 @@ not math
 `)
 
     expect(analysis.segments).toEqual([
-      { source: "```text\n$$\nnot math\n```" },
+      { start: 0, end: 23, source: "```text\n$$\nnot math\n```" },
     ])
     expect(analysis.diagnostics).toEqual([])
   })

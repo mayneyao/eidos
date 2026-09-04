@@ -71,8 +71,14 @@ export interface EfmAnalysisOptions {
 }
 
 export interface EfmImportSegment {
+  /** Start offset in normalized LF source. */
+  start: number
+  /** End offset in normalized LF source. */
+  end: number
   source: string
   sourceKind?: EfmSourceBlockKind
+  /** Non-visual source ordering that the editor projects to a pinned region. */
+  placement?: "footnote-tail"
 }
 
 export interface EfmDocumentAnalysis {
@@ -1051,12 +1057,18 @@ function inlineMarkdownPreviewHtml(source: string): string {
 function appendMarkdownSegments(
   target: EfmImportSegment[],
   source: string,
-  root: MdastNode = parseMarkdown(source)
+  root: MdastNode = parseMarkdown(source),
+  sourceOffset = 0
 ): void {
   if (!source.trim()) return
   const children = root.children ?? []
   if (children.length === 0) {
-    target.push({ source, sourceKind: "commonmark" })
+    target.push({
+      start: sourceOffset,
+      end: sourceOffset + source.length,
+      source,
+      sourceKind: "commonmark",
+    })
     return
   }
 
@@ -1066,8 +1078,23 @@ function appendMarkdownSegments(
     const markdown = source.slice(range.start, range.end)
     target.push(
       isLexicalSafe(node, source)
-        ? { source: markdown }
-        : { source: markdown, sourceKind: opaqueKind(node, source) }
+        ? {
+            start: sourceOffset + range.start,
+            end: sourceOffset + range.end,
+            source: markdown,
+            ...(node.type === "footnoteDefinition"
+              ? { placement: "footnote-tail" as const }
+              : {}),
+          }
+        : {
+            start: sourceOffset + range.start,
+            end: sourceOffset + range.end,
+            source: markdown,
+            sourceKind: opaqueKind(node, source),
+            ...(node.type === "footnoteDefinition"
+              ? { placement: "footnote-tail" as const }
+              : {}),
+          }
     )
   }
 }
@@ -1084,7 +1111,12 @@ export function analyzeEfmMarkdown(
   let bodyOffset = 0
 
   if (frontmatter) {
-    segments.push({ source: frontmatter.source, sourceKind: "frontmatter" })
+    segments.push({
+      start: 0,
+      end: frontmatter.end,
+      source: frontmatter.source,
+      sourceKind: "frontmatter",
+    })
     diagnostics.push(...frontmatter.diagnostics)
     bodyOffset =
       frontmatter.end < normalizedSource.length &&
@@ -1114,19 +1146,31 @@ export function analyzeEfmMarkdown(
   )
 
   if (math.ranges.length === 0) {
-    appendMarkdownSegments(segments, body, markdownRoot)
+    appendMarkdownSegments(segments, body, markdownRoot, bodyOffset)
   } else {
     let cursor = 0
     for (const range of math.ranges) {
-      appendMarkdownSegments(segments, body.slice(cursor, range.start))
+      appendMarkdownSegments(
+        segments,
+        body.slice(cursor, range.start),
+        undefined,
+        bodyOffset + cursor
+      )
       segments.push({
+        start: bodyOffset + range.start,
+        end: bodyOffset + range.end,
         source: body.slice(range.start, range.end),
         sourceKind: "math",
       })
       cursor = range.end
       if (body[cursor] === "\n") cursor += 1
     }
-    appendMarkdownSegments(segments, body.slice(cursor))
+    appendMarkdownSegments(
+      segments,
+      body.slice(cursor),
+      undefined,
+      bodyOffset + cursor
+    )
   }
 
   return {
