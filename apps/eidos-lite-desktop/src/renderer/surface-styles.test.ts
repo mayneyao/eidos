@@ -242,19 +242,30 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(primary).toContain("margin: 0")
   })
 
-  it("keeps update progress beside the persistent sidebar Settings entry", () => {
-    expect(rule(".sidebar-footer")).toContain(
-      "grid-template-columns: minmax(0, 1fr) auto"
-    )
+  it("overlays update progress without squeezing the sidebar Settings entry", () => {
+    expect(rule(".sidebar-footer")).toContain("position: relative")
     expect(rule(".sidebar-footer")).not.toContain("border-top")
     expect(rule(".sidebar-settings-button")).toContain(
       "background: transparent"
     )
     expect(rule(".sidebar-settings-button")).toContain("height: 2rem")
+    expect(rule(".sidebar-update-action")).toContain("position: absolute")
+    expect(rule(".sidebar-update-action")).toContain("bottom: 0.625rem")
     expect(rule(".sidebar-update-action")).not.toContain("border-top")
     expect(rule(".sidebar-update-action")).toContain(
       "animation: sidebar-update-enter"
     )
-    expect(rule(".sidebar-update-pill")).toContain("border-radius: 999px")
+    expect(rule(".sidebar-update-pill")).toContain(
+      "background: var(--primary-action)"
+    )
+    expect(rule(".sidebar-update-pill")).toContain("border-radius: 0.4rem")
+    expect(
+      rule('.sidebar-update-action[data-sidebar-update-state="downloading"]')
+    ).toContain("width: 8.5rem")
+    expect(
+      rule(
+        '.sidebar-update-action[data-sidebar-update-state="downloading"]\n  .sidebar-update-pill'
+      )
+    ).toContain("font-variant-numeric: tabular-nums")
   })
 })

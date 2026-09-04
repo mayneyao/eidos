@@ -1450,18 +1450,23 @@ body {
 }
 
 .sidebar-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.375rem;
+  position: relative;
   padding: 0.375rem 0.5rem 0.5rem;
   background: color-mix(in oklab, var(--lite-sidebar) 94%, transparent);
 }
 
 .sidebar-update-action {
+  position: absolute;
+  z-index: 1;
+  right: 0.5rem;
+  bottom: 0.625rem;
   min-width: 0;
-  max-width: 100%;
+  max-width: calc(100% - 1rem);
   animation: sidebar-update-enter 160ms var(--sidebar-motion-ease-out) both;
+}
+
+.sidebar-update-action[data-sidebar-update-state="downloading"] {
+  width: 8.5rem;
 }
 
 .sidebar-update-pill {
@@ -1472,18 +1477,19 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  padding: 0 0.625rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--primary-action);
-  border-radius: 999px;
+  border-radius: 0.4rem;
   color: var(--primary-action-foreground);
   background: var(--primary-action);
   box-shadow: var(--primary-action-shadow);
   font: inherit;
   font-size: 0.6875rem;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   transition:
+    border-color 120ms ease-out,
     background 120ms ease-out,
     transform 90ms ease-out;
 }
@@ -1493,8 +1499,16 @@ body {
   cursor: pointer;
 }
 
+.sidebar-update-action[data-sidebar-update-state="downloading"]
+  .sidebar-update-pill {
+  width: 100%;
+  justify-content: flex-start;
+  font-variant-numeric: tabular-nums;
+}
+
 .sidebar-update-action:not([data-sidebar-update-state="downloading"])
   .sidebar-update-pill:hover {
+  border-color: var(--primary-action-hover);
   background: var(--primary-action-hover);
 }
 
