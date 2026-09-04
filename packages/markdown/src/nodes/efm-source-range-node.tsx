@@ -376,18 +376,6 @@ function SourceRangeEditor({
     (externalMarkdownConflict ? EXTERNAL_MARKDOWN_CONFLICT_MESSAGE : null)
   const sourceHints = [
     {
-      ids: ["format.bold", "format.italic"],
-      text: "Format",
-    },
-    {
-      ids: ["source-editor.indent"],
-      text: "Indent",
-    },
-    {
-      ids: ["source-editor.move-line-up", "source-editor.move-line-down"],
-      text: "Move",
-    },
-    {
       ids: ["block-editor.commit"],
       text: "Apply",
     },

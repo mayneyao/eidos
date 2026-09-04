@@ -383,11 +383,11 @@ test("uses VS Code-style line shortcuts in the selected-block source editor", as
 
   const sourceHint = page.locator("[data-source-shortcut-hint]")
   await expect(sourceHint).toBeVisible()
-  await expect(sourceHint).toContainText("Format")
-  await expect(sourceHint).toContainText("Indent")
-  await expect(sourceHint).toContainText("Move")
-  await expect(sourceHint).toContainText("Apply")
-  await expect(sourceHint).toContainText("Cancel")
+  await expect(sourceHint).toHaveText(/Apply.*Cancel/)
+  await expect(sourceHint.locator("kbd")).toHaveCount(2)
+  await expect(sourceHint).not.toContainText("Format")
+  await expect(sourceHint).not.toContainText("Indent")
+  await expect(sourceHint).not.toContainText("Move")
 
   await source.press("!")
   await expect(source).toHaveValue("alpha\nbeta\ngamma!")
