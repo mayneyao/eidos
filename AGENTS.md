@@ -87,6 +87,14 @@ pnpm format:check
   unpackaged Electron processes share the `com.github.Electron` bundle
   identifier, and `Eidos Lite` can select the installed application in
   `/Applications` instead of the development window.
+- Never select an unpackaged development instance with a generic Computer Use
+  lookup such as `getApp("Electron")`. Multiple checkouts share Electron's
+  display name and bundle identifier, and a generic lookup can surface an
+  unrelated checkout's bare default-app window. Before the first app selection,
+  inspect the process listening on port `5179`, resolve its Electron process and
+  executable under this checkout, and select Computer Use by that exact absolute
+  `Electron.app` path. If the exact current-checkout instance cannot be selected,
+  stop without selecting or raising any other Electron window.
 - Treat Electron's page that says "To run a local app" as an invalid bare
   Electron launch, never as Eidos Lite. Stop and correct the launch before
   performing or reporting any UI verification.
