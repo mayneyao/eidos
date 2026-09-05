@@ -486,6 +486,15 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5)
+      micromark:
+        specifier: 4.0.2
+        version: 4.0.2(supports-color@10.2.2)
+      micromark-extension-gfm:
+        specifier: 3.0.0
+        version: 3.0.0
+      supports-color:
+        specifier: 10.2.2
+        version: 10.2.2
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -784,12 +793,48 @@ importers:
       mdast-util-gfm:
         specifier: 3.1.0
         version: 3.1.0(supports-color@10.2.2)
+      mdast-util-gfm-autolink-literal:
+        specifier: 2.0.1
+        version: 2.0.1
+      mdast-util-gfm-footnote:
+        specifier: 2.1.0
+        version: 2.1.0(supports-color@10.2.2)
+      mdast-util-gfm-strikethrough:
+        specifier: 2.0.0
+        version: 2.0.0(supports-color@10.2.2)
+      mdast-util-gfm-table:
+        specifier: 2.0.0
+        version: 2.0.0(supports-color@10.2.2)
+      mdast-util-gfm-task-list-item:
+        specifier: 2.0.0
+        version: 2.0.0(supports-color@10.2.2)
       micromark:
         specifier: 4.0.2
         version: 4.0.2(supports-color@10.2.2)
       micromark-extension-gfm:
         specifier: 3.0.0
         version: 3.0.0
+      micromark-extension-gfm-autolink-literal:
+        specifier: 2.1.0
+        version: 2.1.0
+      micromark-extension-gfm-footnote:
+        specifier: 2.1.0
+        version: 2.1.0
+      micromark-extension-gfm-strikethrough:
+        specifier: 2.1.0
+        version: 2.1.0
+      micromark-extension-gfm-table:
+        specifier: 2.1.1
+        version: 2.1.1
+      micromark-extension-gfm-tagfilter:
+        specifier: 2.0.0
+        version: 2.0.0
+      micromark-extension-gfm-task-list-item:
+        specifier: 2.1.0
+        version: 2.1.0
+      micromark-util-types:
+        specifier: 2.0.2
+        version: 2.0.2
       supports-color:
         specifier: 10.2.2
         version: 10.2.2
