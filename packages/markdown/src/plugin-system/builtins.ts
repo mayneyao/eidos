@@ -1,39 +1,31 @@
-import { CodeNode } from "@lexical/code-core"
-import { LinkNode } from "@lexical/link"
-import { ListItemNode, ListNode } from "@lexical/list"
-import {
-  BOLD_ITALIC_STAR,
-  BOLD_ITALIC_UNDERSCORE,
-  BOLD_STAR,
-  BOLD_UNDERSCORE,
-  CHECK_LIST,
-  CODE,
-  HEADING,
-  HIGHLIGHT,
-  INLINE_CODE,
-  ITALIC_STAR,
-  ITALIC_UNDERSCORE,
-  LINK,
-  ORDERED_LIST,
-  QUOTE,
-  STRIKETHROUGH,
-  UNORDERED_LIST,
-} from "@lexical/markdown"
-import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
-import { HeadingNode, QuoteNode } from "@lexical/rich-text"
-import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
-
-import { TABLE } from "../markdown/table-transformer"
-import { HORIZONTAL_RULE } from "../markdown/markdown-transformers"
+import { HIGHLIGHT } from "@lexical/markdown"
+import { gfmFootnote, gfmFootnoteHtml } from "micromark-extension-gfm-footnote"
+import { gfmFootnoteFromMarkdown } from "mdast-util-gfm-footnote"
 import { EfmBlockNode, EfmInlineNode } from "../nodes/efm-semantic-node"
 import { EfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { SourceRangeEditingPlugin } from "../plugins/source-range-editing-plugin"
+import { RelativeLinkBehavior } from "../features/commonmark/relative-link-behavior"
 import { defineMarkdownPlugin } from "./plugin-api"
 import {
   compileMarkdownPlugins,
   defineMarkdownPlugins,
 } from "./plugin-compiler"
 import { MARKDOWN_FEATURES } from "./feature-ids"
+import { mathPlugin } from "../features/math/plugin"
+import { rawHtmlPlugin } from "../features/html/plugin"
+import { mathInsertions } from "../features/math/insertions"
+import { mathBlockSyntax } from "../features/math/block-syntax"
+import { calloutBlockSyntax } from "../features/vault-blocks/callout-syntax"
+import { mathInlineSyntax } from "../features/math/inline-syntax"
+import { frontmatterBoundary } from "../features/frontmatter/boundary"
+import { footnoteBoundary } from "../features/footnote/boundary"
+import { commonmarkPlugin } from "../features/commonmark/plugin"
+import { gfmPlugin } from "../features/gfm/plugin"
+import { vaultInlineSyntax } from "../features/vault-inline/syntax"
+export { commonmarkPlugin } from "../features/commonmark/plugin"
+export { gfmPlugin } from "../features/gfm/plugin"
+export { mathPlugin } from "../features/math/plugin"
+export { rawHtmlPlugin } from "../features/html/plugin"
 
 export const sourceEditingPlugin = defineMarkdownPlugin({
   apiVersion: 1,
@@ -45,184 +37,6 @@ export const sourceEditingPlugin = defineMarkdownPlugin({
     {
       id: "eidos.source-range-editing.behavior",
       component: SourceRangeEditingPlugin,
-    },
-  ],
-})
-
-export const commonmarkPlugin = defineMarkdownPlugin({
-  apiVersion: 1,
-  id: "eidos.commonmark",
-  version: "1.0.0",
-  features: [
-    MARKDOWN_FEATURES.paragraph,
-    MARKDOWN_FEATURES.heading,
-    MARKDOWN_FEATURES.quote,
-    MARKDOWN_FEATURES.list,
-    MARKDOWN_FEATURES.code,
-    MARKDOWN_FEATURES.inlineCode,
-    MARKDOWN_FEATURES.emphasis,
-    MARKDOWN_FEATURES.link,
-    MARKDOWN_FEATURES.thematicBreak,
-  ],
-  nodes: [
-    HeadingNode,
-    QuoteNode,
-    ListNode,
-    ListItemNode,
-    CodeNode,
-    LinkNode,
-    HorizontalRuleNode,
-  ],
-  transformers: [
-    { order: 30, transformer: HORIZONTAL_RULE },
-    { order: 40, transformer: HEADING },
-    { order: 50, transformer: QUOTE },
-    { order: 60, transformer: UNORDERED_LIST },
-    { order: 70, transformer: ORDERED_LIST },
-    { order: 80, transformer: CODE },
-    { order: 90, transformer: INLINE_CODE },
-    { order: 100, transformer: BOLD_ITALIC_STAR },
-    { order: 110, transformer: BOLD_ITALIC_UNDERSCORE },
-    { order: 120, transformer: BOLD_STAR },
-    { order: 130, transformer: BOLD_UNDERSCORE },
-    { order: 140, transformer: ITALIC_STAR },
-    { order: 150, transformer: ITALIC_UNDERSCORE },
-    { order: 180, transformer: LINK },
-  ],
-  toolbar: [
-    {
-      id: "format.bold",
-      order: 100,
-      glyph: "B",
-      labelKey: "bold",
-      shortcutId: "format.bold",
-      format: "bold",
-    },
-    {
-      id: "format.italic",
-      order: 110,
-      glyph: "I",
-      labelKey: "italic",
-      shortcutId: "format.italic",
-      format: "italic",
-    },
-    {
-      id: "format.inline-code",
-      order: 140,
-      glyph: "</>",
-      labelKey: "inlineCode",
-      format: "code",
-    },
-  ],
-  insertions: [
-    {
-      id: "heading-1",
-      order: 100,
-      contexts: ["block"],
-      glyph: "H1",
-      labelKey: "heading1",
-      section: "basic",
-    },
-    {
-      id: "heading-2",
-      order: 110,
-      contexts: ["block"],
-      glyph: "H2",
-      labelKey: "heading2",
-      section: "basic",
-    },
-    {
-      id: "heading-3",
-      order: 120,
-      contexts: ["block"],
-      glyph: "H3",
-      labelKey: "heading3",
-      section: "basic",
-    },
-    {
-      id: "quote",
-      order: 130,
-      contexts: ["block"],
-      glyph: "❯",
-      labelKey: "quote",
-      section: "basic",
-    },
-    {
-      id: "bullet-list",
-      order: 140,
-      contexts: ["block"],
-      glyph: "•",
-      labelKey: "bulletList",
-      section: "basic",
-    },
-    {
-      id: "number-list",
-      order: 150,
-      contexts: ["block"],
-      glyph: "1.",
-      labelKey: "numberedList",
-      section: "basic",
-    },
-    {
-      id: "code",
-      order: 170,
-      contexts: ["block"],
-      glyph: "</>",
-      labelKey: "codeBlock",
-      section: "basic",
-    },
-    {
-      id: "divider",
-      order: 190,
-      contexts: ["block"],
-      glyph: "—",
-      labelKey: "divider",
-      section: "basic",
-    },
-  ],
-})
-
-export const gfmPlugin = defineMarkdownPlugin({
-  apiVersion: 1,
-  id: "eidos.gfm",
-  version: "1.0.0",
-  requires: [commonmarkPlugin.id],
-  features: [
-    MARKDOWN_FEATURES.gfmStrikethrough,
-    MARKDOWN_FEATURES.gfmTable,
-    MARKDOWN_FEATURES.gfmTaskList,
-  ],
-  nodes: [ListNode, ListItemNode, TableNode, TableRowNode, TableCellNode],
-  transformers: [
-    { order: 10, transformer: TABLE },
-    { order: 20, transformer: CHECK_LIST },
-    { order: 160, transformer: STRIKETHROUGH },
-  ],
-  toolbar: [
-    {
-      id: "format.strikethrough",
-      order: 120,
-      glyph: "S",
-      labelKey: "strikethrough",
-      format: "strikethrough",
-    },
-  ],
-  insertions: [
-    {
-      id: "check-list",
-      order: 160,
-      contexts: ["block"],
-      glyph: "☐",
-      labelKey: "checkList",
-      section: "basic",
-    },
-    {
-      id: "table",
-      order: 180,
-      contexts: ["block"],
-      glyph: "▦",
-      labelKey: "table",
-      section: "basic",
     },
   ],
 })
@@ -244,33 +58,8 @@ export const highlightPlugin = defineMarkdownPlugin({
   ],
 })
 
-export const mathPlugin = defineMarkdownPlugin({
-  apiVersion: 1,
-  id: "eidos.math",
-  version: "1.0.0",
-  features: [MARKDOWN_FEATURES.math],
-  nodes: [EfmBlockNode, EfmInlineNode],
-  insertions: [
-    {
-      id: "math",
-      order: 200,
-      contexts: ["block"],
-      glyph: "∑",
-      labelKey: "mathBlock",
-      section: "extended",
-    },
-    {
-      id: "inline-math",
-      order: 210,
-      contexts: ["inline"],
-      glyph: "√x",
-      labelKey: "inlineMath",
-      section: "extended",
-    },
-  ],
-})
-
 export const imagePlugin = defineMarkdownPlugin({
+  grammar: { commonmark: ["labelStartImage", "definition"] },
   apiVersion: 1,
   id: "eidos.image",
   version: "1.0.0",
@@ -289,6 +78,12 @@ export const imagePlugin = defineMarkdownPlugin({
 })
 
 export const footnotePlugin = defineMarkdownPlugin({
+  grammar: {
+    extensions: [gfmFootnote()],
+    mdastExtensions: [gfmFootnoteFromMarkdown()],
+    htmlExtensions: [gfmFootnoteHtml()],
+  },
+  blockBoundaries: [footnoteBoundary],
   apiVersion: 1,
   id: "eidos.footnote",
   version: "1.0.0",
@@ -307,6 +102,7 @@ export const footnotePlugin = defineMarkdownPlugin({
 })
 
 export const frontmatterPlugin = defineMarkdownPlugin({
+  blockBoundaries: [frontmatterBoundary],
   apiVersion: 1,
   id: "eidos.frontmatter",
   version: "1.0.0",
@@ -324,13 +120,79 @@ export const frontmatterPlugin = defineMarkdownPlugin({
   ],
 })
 
-export const rawHtmlPlugin = defineMarkdownPlugin({
+export const referencePlugin = defineMarkdownPlugin({
+  grammar: { commonmark: ["definition"] },
   apiVersion: 1,
-  id: "eidos.raw-html",
+  id: "eidos.reference",
   version: "1.0.0",
-  features: [MARKDOWN_FEATURES.rawHtml],
-  nodes: [EfmBlockNode],
+  features: [MARKDOWN_FEATURES.reference],
+  nodes: [EfmBlockNode, EfmInlineNode],
+})
+
+/** Obsidian-owned syntax and UI contributions layered only on shared Markdown. */
+export const obsidianSyntaxPlugin = defineMarkdownPlugin({
+  inlineSyntax: [...vaultInlineSyntax, mathInlineSyntax],
+  grammar: {
+    ...footnotePlugin.grammar,
+    commonmark: ["labelStartImage", "definition", "htmlFlow", "htmlText"],
+  },
+  blockBoundaries: [frontmatterBoundary, footnoteBoundary],
+  blockSyntax: [mathBlockSyntax, calloutBlockSyntax],
+  apiVersion: 1,
+  id: "obsidian.syntax",
+  version: "1.0.0",
+  requires: [commonmarkPlugin.id, gfmPlugin.id],
+  features: [
+    MARKDOWN_FEATURES.obsidianHighlight,
+    MARKDOWN_FEATURES.obsidianMath,
+    MARKDOWN_FEATURES.obsidianAttachment,
+    MARKDOWN_FEATURES.obsidianFootnote,
+    MARKDOWN_FEATURES.obsidianProperties,
+    MARKDOWN_FEATURES.obsidianRawHtml,
+    MARKDOWN_FEATURES.obsidianReference,
+    MARKDOWN_FEATURES.obsidianWikilink,
+    MARKDOWN_FEATURES.obsidianEmbed,
+    MARKDOWN_FEATURES.obsidianBlockId,
+    MARKDOWN_FEATURES.obsidianCallout,
+    MARKDOWN_FEATURES.obsidianComment,
+    MARKDOWN_FEATURES.obsidianTag,
+    MARKDOWN_FEATURES.obsidianInlineFootnote,
+  ],
+  nodes: [EfmBlockNode, EfmInlineNode],
+  behaviors: [
+    {
+      id: "obsidian.internal-link-dom",
+      component: RelativeLinkBehavior,
+    },
+  ],
+  transformers: [{ order: 170, transformer: HIGHLIGHT }],
+  toolbar: [
+    {
+      id: "obsidian.format.highlight",
+      order: 130,
+      glyph: "==",
+      labelKey: "highlight",
+      format: "highlight",
+    },
+  ],
   insertions: [
+    ...mathInsertions,
+    {
+      id: "image",
+      order: 220,
+      contexts: ["block"],
+      glyph: "▧",
+      labelKey: "image",
+      section: "extended",
+    },
+    {
+      id: "footnote",
+      order: 230,
+      contexts: ["block", "inline"],
+      glyph: "¹",
+      labelKey: "footnote",
+      section: "extended",
+    },
     {
       id: "html",
       order: 240,
@@ -339,16 +201,27 @@ export const rawHtmlPlugin = defineMarkdownPlugin({
       labelKey: "rawHtml",
       section: "extended",
     },
+    {
+      id: "frontmatter",
+      order: 250,
+      contexts: ["block"],
+      glyph: "≡",
+      labelKey: "frontmatter",
+      section: "extended",
+    },
   ],
 })
 
-export const referencePlugin = defineMarkdownPlugin({
-  apiVersion: 1,
-  id: "eidos.reference",
-  version: "1.0.0",
-  features: [MARKDOWN_FEATURES.reference],
-  nodes: [EfmBlockNode, EfmInlineNode],
-})
+export const obsidianMarkdownPlugins = defineMarkdownPlugins([
+  sourceEditingPlugin,
+  commonmarkPlugin,
+  gfmPlugin,
+  obsidianSyntaxPlugin,
+])
+
+export const OBSIDIAN_MARKDOWN_PLUGIN_REGISTRY = compileMarkdownPlugins(
+  obsidianMarkdownPlugins
+)
 
 /** The shipped EFM profile. Consumers can remove or append plugins immutably. */
 export const eidosMarkdownPlugins = defineMarkdownPlugins([
@@ -367,3 +240,13 @@ export const eidosMarkdownPlugins = defineMarkdownPlugins([
 /** Precompiled default registry reused by the component and advanced hosts. */
 export const EIDOS_MARKDOWN_PLUGIN_REGISTRY =
   compileMarkdownPlugins(eidosMarkdownPlugins)
+
+/** GFM's complete syntax families, without EFM or vault-specific extensions. */
+export const gfmMarkdownPlugins = defineMarkdownPlugins([
+  sourceEditingPlugin,
+  commonmarkPlugin,
+  gfmPlugin,
+  imagePlugin,
+  rawHtmlPlugin,
+  referencePlugin,
+])

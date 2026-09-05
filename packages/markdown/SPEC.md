@@ -6,6 +6,26 @@ Revised: 2026-09-02
 
 ## 1. Purpose
 
+### Preset boundary
+
+Built-in document presets are GFM (`profile="gfm"`), Eidos (the default),
+and experimental Obsidian. They share editing interactions but select mutually
+exclusive syntax codecs and plugin sets. The syntax matrix in this document
+describes the default Eidos preset; [Presets](./docs/presets.md) states which
+extensions are enabled in each preset.
+
+GFM MUST cover CommonMark and the five specified extension families: tables,
+task lists, strikethrough, extended autolinks and disallowed raw HTML. It MUST
+NOT treat YAML envelopes, dollar-delimited equations, math fences or vault
+links as non-GFM extensions. Security restrictions apply to every preset;
+unsafe HTML MUST stay inert even when a dialect recognizes it.
+
+Changing preset MUST retain host-controlled Markdown unless the host explicitly
+replaces it. It creates a new editor session; undo history and selection do not
+cross dialect boundaries. A syntax demo MUST use the real profile and disclose
+source-editing, safe-fallback and host-resolution limitations, rather than
+present static HTML as proof of rich-text editing conformance.
+
 This document is the package-level behavioral contract for
 `@eidos.space/markdown`. It defines the editor experience that Eidos
 hosts must expose and the observable invariants that the shared implementation
@@ -13,8 +33,8 @@ must preserve.
 
 The product goal is:
 
-> A WYSIWYG Markdown editor with Notion-like block interaction, Eidos Flavored
-> Markdown as its only canonical representation, and no silent loss or rewrite
+> A WYSIWYG Markdown editor with Notion-like block interaction, the selected
+> preset's Markdown as its canonical representation, and no silent loss or rewrite
 > of document meaning.
 
 A user must not need a whole-document source mode to create, select, edit,
@@ -126,6 +146,19 @@ An implementation MAY use different internal nodes as long as the observable
 behavior is the same.
 
 ### 5.1 Plugin composition
+
+Plugins MAY declare fixed start or end block boundaries. Shared gutter movement
+and insertion interactions MUST consume those declarations without identifying
+the concrete syntax. End boundaries MUST NOT expose a block insertion or drag
+handle; start boundaries MAY expose insertion after the block but MUST NOT be
+moved. Boundary declarations do not reorder imported source by themselves.
+
+Top-level block syntax contributions MUST identify their source ranges using
+half-open, whole-line offsets in normalized source. Invalid or overlapping
+claims MUST be rejected. Import MUST produce one detached block node per
+claimed segment; text, inline, root, and attached nodes MUST be rejected.
+Registered grammar exporters MUST be consulted before general-purpose node
+exporters. This contract does not imply support for nested container grammars.
 
 The shared component MUST assemble optional syntax through an immutable plugin
 profile. A plugin MAY contribute Lexical node definitions, Markdown
@@ -504,10 +537,16 @@ composer when selected-block source editing cannot isolate them.
   source offset zero.
 - It SHOULD render as a compact metadata card rather than a permanent YAML
   textarea.
+- The metadata card SHOULD preserve value shape in its presentation: empty
+  scalars remain empty, sequences remain separate values, mappings remain
+  structured, and safe URI values remain links. A syntax profile MAY add
+  profile-specific scalar presentation without changing the YAML source.
 - Editing MUST use selected-block source mode. Committing MUST produce a YAML
   1.2 mapping or keep the invalid draft uncommitted.
 - Moving or inserting ordinary content before frontmatter MUST NOT invalidate
   its source position.
+- Frontmatter is pinned and MUST NOT expose block-reordering controls. It MAY
+  still expose insertion below the metadata card.
 
 ### 9.3 Footnotes and definitions
 

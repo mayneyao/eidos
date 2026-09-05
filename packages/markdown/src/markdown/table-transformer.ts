@@ -24,7 +24,9 @@ import {
   type ElementNode,
 } from "lexical"
 
-const TABLE_ROW = /^\s*\|?.+\|.+\|?\s*$/u
+// This is only a candidate row; the following delimiter validates a table.
+// A single column may have only a leading or trailing pipe, or be empty.
+const TABLE_ROW = /^[^\n]*\|[^\n]*$/u
 const TABLE_CELL_TRANSFORMERS: Transformer[] = [
   ...TEXT_FORMAT_TRANSFORMERS,
   ...TEXT_MATCH_TRANSFORMERS,
@@ -55,7 +57,6 @@ function splitTableRow(line: string): string[] {
 
 function readTableAlignments(line: string): (TableAlignment | null)[] | null {
   const cells = splitTableRow(line)
-  if (cells.length < 2) return null
   const alignments: (TableAlignment | null)[] = []
   for (const cell of cells) {
     const marker = cell.replace(/\s/gu, "")
@@ -76,15 +77,13 @@ function readTableAlignments(line: string): (TableAlignment | null)[] | null {
 function createTableCell(
   markdown: string,
   header: boolean,
-  alignment: TableAlignment | null
+  alignment: TableAlignment | null,
+  transformers: Transformer[]
 ): TableCellNode {
   const cell = $createTableCellNode(
     header ? TableCellHeaderStates.ROW : TableCellHeaderStates.NO_STATUS
   )
-  const nodes = $generateNodesFromMarkdownString(
-    markdown,
-    TABLE_CELL_TRANSFORMERS
-  )
+  const nodes = $generateNodesFromMarkdownString(markdown, transformers)
   if (nodes.length === 0) nodes.push($createParagraphNode())
   for (const node of nodes) {
     if (alignment && $isElementNode(node)) node.setFormat(alignment)
@@ -121,64 +120,79 @@ function alignmentMarker(alignment: TableAlignment | null): string {
   return "---"
 }
 
-export const TABLE: MultilineElementTransformer = {
-  dependencies: [TableNode, TableRowNode, TableCellNode],
-  export: (node, traverseChildren) => {
-    if (!$isTableNode(node)) return null
-    const rows = node.getChildren().filter($isTableRowNode)
-    if (rows.length === 0) return ""
-    const columnCount = Math.max(
-      1,
-      ...rows.map((row) => row.getChildren().filter($isTableCellNode).length)
-    )
-    const markdownRows = rows.map((row) => {
-      const cells = row.getChildren().filter($isTableCellNode)
-      const values = Array.from({ length: columnCount }, (_, index) => {
-        const cell = cells[index]
-        return cell ? escapeTableCell(traverseChildren(cell)) : ""
+export function createTableTransformer(
+  transformers: readonly Transformer[]
+): MultilineElementTransformer {
+  const inlineTransformers = transformers.filter(
+    (transformer) =>
+      transformer.type === "text-format" || transformer.type === "text-match"
+  )
+  return {
+    dependencies: [TableNode, TableRowNode, TableCellNode],
+    export: (node, traverseChildren) => {
+      if (!$isTableNode(node)) return null
+      const rows = node.getChildren().filter($isTableRowNode)
+      if (rows.length === 0) return ""
+      const columnCount = Math.max(
+        1,
+        ...rows.map((row) => row.getChildren().filter($isTableCellNode).length)
+      )
+      const markdownRows = rows.map((row) => {
+        const cells = row.getChildren().filter($isTableCellNode)
+        const values = Array.from({ length: columnCount }, (_, index) => {
+          const cell = cells[index]
+          return cell ? escapeTableCell(traverseChildren(cell)) : ""
+        })
+        return `| ${values.join(" | ")} |`
       })
-      return `| ${values.join(" | ")} |`
-    })
-    const headerCells = rows[0].getChildren().filter($isTableCellNode)
-    const separator = Array.from({ length: columnCount }, (_, index) =>
-      alignmentMarker(tableAlignment(headerCells[index]))
-    )
-    markdownRows.splice(1, 0, `| ${separator.join(" | ")} |`)
-    return markdownRows.join("\n")
-  },
-  regExpStart: TABLE_ROW,
-  handleImportAfterStartMatch: ({ lines, rootNode, startLineIndex }) => {
-    const delimiterLine = lines[startLineIndex + 1]
-    if (delimiterLine === undefined) return null
-    const alignments = readTableAlignments(delimiterLine)
-    if (!alignments) return null
+      const headerCells = rows[0].getChildren().filter($isTableCellNode)
+      const separator = Array.from({ length: columnCount }, (_, index) =>
+        alignmentMarker(tableAlignment(headerCells[index]))
+      )
+      markdownRows.splice(1, 0, `| ${separator.join(" | ")} |`)
+      return markdownRows.join("\n")
+    },
+    regExpStart: TABLE_ROW,
+    handleImportAfterStartMatch: ({ lines, rootNode, startLineIndex }) => {
+      const delimiterLine = lines[startLineIndex + 1]
+      if (delimiterLine === undefined) return null
+      const alignments = readTableAlignments(delimiterLine)
+      if (!alignments) return null
 
-    const headerCells = splitTableRow(lines[startLineIndex])
-    const columnCount = Math.max(headerCells.length, alignments.length)
-    const table = $createTableNode()
-    const sourceRows = [headerCells]
-    let endLineIndex = startLineIndex + 2
-    while (endLineIndex < lines.length && TABLE_ROW.test(lines[endLineIndex])) {
-      sourceRows.push(splitTableRow(lines[endLineIndex]))
-      endLineIndex += 1
-    }
-
-    sourceRows.forEach((values, rowIndex) => {
-      const row = $createTableRowNode()
-      for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-        row.append(
-          createTableCell(
-            values[columnIndex] ?? "",
-            rowIndex === 0,
-            alignments[columnIndex] ?? null
-          )
-        )
+      const headerCells = splitTableRow(lines[startLineIndex])
+      const columnCount = Math.max(headerCells.length, alignments.length)
+      const table = $createTableNode()
+      const sourceRows = [headerCells]
+      let endLineIndex = startLineIndex + 2
+      while (
+        endLineIndex < lines.length &&
+        TABLE_ROW.test(lines[endLineIndex])
+      ) {
+        sourceRows.push(splitTableRow(lines[endLineIndex]))
+        endLineIndex += 1
       }
-      table.append(row)
-    })
-    rootNode.append(table)
-    return [true, endLineIndex - 1]
-  },
-  replace: () => false,
-  type: "multiline-element",
+
+      sourceRows.forEach((values, rowIndex) => {
+        const row = $createTableRowNode()
+        for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+          row.append(
+            createTableCell(
+              values[columnIndex] ?? "",
+              rowIndex === 0,
+              alignments[columnIndex] ?? null,
+              inlineTransformers
+            )
+          )
+        }
+        table.append(row)
+      })
+      rootNode.append(table)
+      return [true, endLineIndex - 1]
+    },
+    replace: () => false,
+    type: "multiline-element",
+  }
 }
+
+/** Legacy full-syntax transformer; plugin compositions bind their own instance. */
+export const TABLE = createTableTransformer(TABLE_CELL_TRANSFORMERS)

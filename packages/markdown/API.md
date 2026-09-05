@@ -4,13 +4,22 @@ This document describes the public React API of
 `@eidos.space/markdown`. It applies to package version `0.1.0`.
 
 For the interaction contract and supported syntax matrix, see
-[SPEC.md](./SPEC.md). Markdown is always the canonical document value; Lexical
-state, DOM nodes, selections, menus, and editor drafts are transient.
+[SPEC.md](./SPEC.md). The optional Obsidian Markdown profile is documented in
+[OBSIDIAN-COMPATIBILITY.md](./OBSIDIAN-COMPATIBILITY.md). Markdown is always the
+canonical document value; Lexical state, DOM nodes, selections, menus, and
+editor drafts are transient.
 
 ## Installation and imports
 
-The component requires React 18 or 19. Import the shared stylesheet once in the
-host entry point:
+The component requires React 18 or 19 and a browser DOM. It is currently a
+workspace-private prerelease, not a published stable package.
+
+For strict declaration checking, use TypeScript 5.2 or newer with
+`"lib": ["ES2022", "ESNext.Disposable", "DOM", "DOM.Iterable"]` (or compatible
+supersets). Lexical 0.50 uses the `Disposable` type. Do not rely on
+`skipLibCheck` to make an otherwise incomplete host configuration compile.
+
+Import the shared stylesheet once in the host entry point:
 
 ```tsx
 import { MarkdownEditor } from "@eidos.space/markdown"
@@ -68,6 +77,8 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 | `onMarkdownChange`       | `(markdown: string) => void`                                | Yes      | —                        | Receives canonical Markdown after editor content changes. Selection-only and presentation-only changes do not call it.                                                                                                            |
 | `onSaveRequest`          | `(markdown: string) => void \| Promise<void>`               | No       | —                        | Called with the latest serialized Markdown for the `document.save` shortcut, `Mod+S` by default. The editor does not persist the result itself.                                                                                   |
 | `onOpenExternalUrl`      | `(url: string) => void \| Promise<void>`                    | No       | —                        | Receives a resolved, allowed external destination. Editable content requires `Mod+Click`; read-only content uses a normal click. Same-document fragments are handled inside the editor without changing the host URL.             |
+| `onOpenInternalLink`     | `MarkdownEditorInternalLinkHandler`                         | No       | —                        | Receives a parsed Obsidian wikilink or Markdown note link when the Obsidian profile is active. The host owns document lookup and navigation.                                                                                      |
+| `navigationTarget`       | `MarkdownEditorNavigationTarget`                            | No       | —                        | Scrolls to an Obsidian heading or block ID after a document mounts. It does not alter browser history or the host URL.                                                                                                            |
 | `onPasteImage`           | `MarkdownEditorPasteImageHandler`                           | No       | —                        | Gives clipboard image files to the host for persistence. Successful results are inserted at the saved paste selection. See [Clipboard image integration](#clipboard-image-integration).                                           |
 | `resolveImageUrl`        | `MarkdownEditorImageUrlResolver`                            | No       | —                        | Resolves a canonical image destination, such as `opfs:`, to a current browser presentation URL. May be synchronous or asynchronous.                                                                                               |
 | `onError`                | `(error: Error) => void`                                    | No       | `console.error`          | Receives Lexical, persistence, image resolution, save, external navigation, and code tokenizer failures surfaced by the component.                                                                                                |
@@ -84,7 +95,8 @@ component callbacks for save, navigation, diagnostics, and binary resources.
 | `readOnly`               | `boolean`                                                   | No       | `false`                  | Disables mutations and editing controls while preserving text and block selection for copying.                                                                                                                                    |
 | `autoFocus`              | `boolean`                                                   | No       | `false`                  | Focuses the editable surface when the editor session mounts.                                                                                                                                                                      |
 | `showToolbar`            | `boolean`                                                   | No       | `true`                   | Controls the package-owned floating formatting toolbar and insertion UI, including the gutter `+` and searchable slash catalogs. Native Markdown shortcuts remain registered.                                                     |
-| `plugins`                | `readonly MarkdownPlugin[]`                                 | No       | `eidosMarkdownPlugins`   | Immutable syntax and behavior profile. Changing its compiled signature creates a fresh editor session because Lexical node registration is session-scoped.                                                                        |
+| `plugins`                | `readonly MarkdownPlugin[]`                                 | No       | —                        | Immutable Eidos-codec syntax and behavior composition. It is mutually exclusive with `profile`; changing its compiled signature creates a fresh editor session because Lexical node registration is session-scoped.               |
+| `profile`                | `"gfm" \| "eidos" \| "obsidian" \| MarkdownProfile`         | No       | `"eidos"`                | Selects one mutually exclusive, versioned document codec and its plugin set. The built-in Obsidian profile is experimental. Changing profile identity creates a fresh editor session.                                             |
 | `codeHighlightTokenizer` | `CodeHighlightTokenizer \| false`                           | No       | Built-in tokenizer       | Replaces the fenced-code tokenizer. `false` disables syntax highlighting without changing code content.                                                                                                                           |
 | `shortcuts`              | `MarkdownShortcutOverrides`                                 | No       | Default registry         | Replaces or disables package-owned shortcut bindings by stable shortcut ID.                                                                                                                                                       |
 
@@ -103,6 +115,12 @@ and reports the conflict through `onError`. Committing keeps the local draft and
 emits it through `onMarkdownChange`; **Escape** or **Cancel** discards the draft
 and imports the pending host value. The host should still provide its own
 persisted-document conflict policy around `onSaveRequest`.
+
+Internally, one document session owns the accepted source, canonical baseline,
+pending host value, draft registrations, and one-shot source-range commits.
+UI consumers subscribe to draft/conflict state; they do not keep independent
+copies of the accepted source. The active profile codec is explicitly injected
+by the editor rather than selected implicitly by a source-editing UI component.
 
 Edits are source-local where the Markdown mapping is unambiguous. Unchanged
 blocks keep their original whitespace and source spelling instead of being
@@ -193,11 +211,98 @@ selection, open overlays, local drafts, and the initial editor configuration.
 
 `inputProfile` and `baseUri` are document-level settings. Keep them stable for
 one `documentKey`; when either setting changes semantically, use a new
-`documentKey` so every node is re-imported under the new rules.
+`documentKey` so every node is re-imported under the new rules. Changing
+`profile` identity automatically creates a fresh editor session.
 
 Do not debounce by withholding the controlled `markdown` prop indefinitely.
 Debounce storage or network writes instead, while keeping the React state
 passed to the editor current.
+
+## Document profiles
+
+### Composable presets
+
+Interaction controls are independent of syntax. Pass `interactions` with optional
+`toolbar`, `insertMenu`, `blockDrag`, and `blockSelection` booleans. Explicit values
+override the legacy `showToolbar` defaults for toolbar, menu and drag controls;
+block selection defaults to enabled. Disabling menus leaves `/` as normal input.
+Disabling block selection preserves native cross-block text selection. Formatting
+and list-item shortcuts remain configured through `shortcuts`, not UI switches.
+Read-only mode suppresses editing controls regardless of these choices.
+
+`createMarkdownPreset({ id, extends, plugins, exclude })` creates an explicit
+grammar and editor contribution set. Pass it through the `preset` prop; this is
+an alias for `profile`, and the two must not be provided together. See
+[Build your editor](./docs/composition.md) for composition boundaries and code.
+Reusable compositions are exported from `@eidos.space/markdown/presets`.
+
+The site calls document profiles **presets**. Built-ins are `"gfm"`,
+`"eidos"` (default), and `"obsidian"`. See [Presets](./docs/presets.md)
+for the syntax matrix and switching contract. `gfmMarkdownProfile` is also
+exported for typed custom integrations. GFM does not interpret YAML envelopes,
+math fences or vault syntax as extensions.
+
+A document profile binds one versioned Markdown codec to the exact plugins
+needed to edit that dialect. Select a built-in profile explicitly:
+
+```tsx
+<MarkdownEditor {...props} profile="eidos" />
+<MarkdownEditor {...props} profile="gfm" />
+<MarkdownEditor {...props} profile="obsidian" />
+```
+
+`eidos` is the stable default EFM profile. `obsidian` enables the experimental,
+opt-in Obsidian Markdown compatibility listed in
+[OBSIDIAN-COMPATIBILITY.md](./OBSIDIAN-COMPATIBILITY.md). Selecting the latter
+does not inspect the filesystem and never reads or infers behavior from an
+`.obsidian` directory. Its coverage is incomplete and may change between
+prereleases; hosts should label it as experimental wherever users select it.
+
+Use `defineMarkdownProfile` when another Markdown dialect requires different
+analysis, import, or export behavior:
+
+```ts
+import {
+  defineMarkdownProfile,
+  MARKDOWN_PROFILE_API_VERSION,
+} from "@eidos.space/markdown"
+
+const profile = defineMarkdownProfile({
+  apiVersion: MARKDOWN_PROFILE_API_VERSION,
+  id: "acme.markdown",
+  version: "1.0.0",
+  plugins,
+  codec: {
+    analyze,
+    import: importMarkdown,
+    export: exportMarkdown,
+  },
+})
+```
+
+The active profile codec is also used when mapping, validating, saving, or
+canceling a local source-range edit. Reimporting the document through that
+editor does not switch it to the default Eidos syntax dialect.
+
+`MarkdownProfileCodec` uses neutral `MarkdownAnalysisOptions` and
+`MarkdownDocumentAnalysis` contracts exported from the package and `plugin-api`.
+It does not require EFM-specific segment kinds or a dialect flag. Each analysis
+segment supplies half-open offsets into `normalizedSource` and corresponds to
+one source-backed editor root block. `normalizedSource` removes one leading BOM
+and converts CRLF/CR to LF; it must not perform other source rewrites. A codec
+that imports a segment at the end
+of the document declares `projection: { placement: "end", sourceEditable: false }`
+when that block must also be excluded from local source editing. Projected
+segments preserve their source-relative order within the trailing group. This
+metadata must match the actual import behavior; the core does not infer it
+from feature IDs. Built-in EFM analysis types remain available for callers of
+the EFM-specific conversion helpers.
+
+`profile` and `plugins` are mutually exclusive. Use `plugins` only to compose
+features that share the default Eidos codec; use a profile when source syntax
+or serialization semantics change. Profile `id` plus `version` is part of the
+editor-session identity, so switching codecs cannot reuse nodes imported under
+the previous dialect.
 
 ## Plugin API
 
@@ -248,6 +353,17 @@ const plugins = [commonmarkPlugin, gfmPlugin, calloutPlugin]
 Each descriptor may contribute:
 
 - `nodes`: Lexical node definitions only;
+- `blockBoundaries`: fixed document regions. Each namespaced rule declares a
+  `matches(node)` predicate and `placement: "start" | "end"`. Predicates run in
+  a Lexical read/update. The shared gutter and drag commands prevent moving
+  these blocks, prevent dropping before a start boundary or after an end
+  boundary, and hide insertion controls on end boundaries. This controls
+  interactions only; the codec remains responsible for initial placement and
+  source projection. Contradictory placements for the same node are errors.
+- `blockSyntax`: namespaced top-level block grammars with `scan` and/or
+  `matchParsedBlock`, plus `import` and `export` hooks (see below);
+- `inlineSyntax`: namespaced inline scanners and node import/export hooks;
+  see [inline syntax](./docs/plugins.md#custom-inline-syntax);
 - `transformers`: Markdown import/export and typing transformers, with an
   explicit numeric order;
 - `behaviors`: React/Lexical lifecycle plugins mounted once inside the shared
@@ -262,6 +378,45 @@ Each descriptor may contribute:
 - `features`: capability IDs used to enable shared UI and built-in semantic
   codecs.
 
+Capability IDs are not a request for the editor shell to install arbitrary
+syntax behavior. CommonMark owns its list, indentation, divider and code
+highlighting behaviors; GFM owns checklist and table behaviors. Include the
+owning built-in plugin or provide your own `behaviors` contribution. A custom
+descriptor that only copies those feature IDs does not install those handlers.
+
+`MarkdownBlockSyntax.scan(source, context)` returns non-overlapping, half-open
+whole-line ranges in the supplied normalized source. Do not scan through code
+or other protected constructs: `context.protectedRanges` identifies them, and
+the built-in codec excludes matches starting inside them. Overlapping grammar
+claims and invalid ranges throw rather than silently changing ownership.
+Optional diagnostics use offsets in that same source.
+
+`matchParsedBlock(block, options)` is the alternative for extending an existing
+parsed block. The `MarkdownParsedBlock` descriptor contains the parser's `type`,
+complete `source`, and half-open `start`/`end` offsets in the normalized body.
+Only root-level blocks are offered. Returning `true` claims the complete block,
+including its nested content, without promoting nested children to root blocks.
+This explicit ownership can claim a quote or other container protected from raw
+scanners. Claims still participate in the same overlap checks. At least one of
+`scan` or `matchParsedBlock` is required. Both may be supplied but must not return
+overlapping matches, including duplicates from the same owner.
+
+`import(source, options)` runs inside a Lexical update and must return exactly
+one detached block node, registered through the plugin's `nodes` contribution.
+`export(node)` returns Markdown for a node owned by this grammar, or `null` to
+decline it. Grammar exporters run before ordinary Lexical exporters; an empty
+string is a valid result. The current hook handles top-level blocks, not nested
+container grammars or typing shortcuts. Those require separate support.
+
+The editor passes the compiled registry as `options.blockSyntax` to the selected
+profile codec for analysis and import. Built-in profiles honor this registry;
+a custom codec must honor it too to support block syntax plugins. Direct codec
+callers must pass the compiled registry and transformers themselves. An explicit
+empty registry disables contributed grammars; omission retains legacy helper
+defaults. Inline node ownership uses `inlineSyntax`; typing shortcuts can still
+use transformers. Parsed block matching does not add typing shortcuts or a
+nested HTML renderer automatically.
+
 The compiler validates API versions, namespaced plugin IDs, dependencies,
 conflicts, ordering cycles, duplicate node types, menu IDs, behavior IDs, and
 shortcut IDs before Lexical mounts. `requires`, `before`, and `after` order
@@ -271,10 +426,35 @@ the syntax profile changes. Treat `id` plus `version` as the session identity:
 increment the plugin version whenever its node classes, transformers, or
 behavior contract changes.
 
-Node classes stay in `nodes/`, editor-wide event lifecycles stay in behavior
-components, and a syntax plugin only composes those pieces. This prevents a
+Syntax features are moving into `features/<syntax>/`, with separate node,
+insertion, view, and behavior modules inside each feature. Editor-wide event
+lifecycles stay in behavior components. This prevents a
 node definition from silently installing global listeners and prevents an
 interaction plugin from becoming another persistence format.
+
+Insertion `execute(context)` can use `context.requestText({ title, label,
+initialValue, onSubmit })` to open a single-line draft form while retaining the
+original insertion anchor. The host owns focus, Escape/back navigation, and
+draft tracking. `onSubmit` receives the text; the plugin validates it and uses
+`insertInline` or `insertBlock`, then calls `closeMenu` and `focusEditor`.
+`insertBlock(factory, { focus: "start" })` focuses the inserted editable block
+without adding a trailing paragraph. The default `focus: "after"` adds and
+focuses a following paragraph, suitable for atomic blocks. Both modes honor the
+original insertion anchor and replace an empty slash-menu paragraph rather than
+changing the preceding block. Each insertion runs in one history-push update.
+
+CommonMark and GFM insertions supply their own factories through `execute`;
+the shared menu no longer dispatches on their syntax names. Their command IDs
+are namespaced as `eidos.commonmark.heading-1` (also `heading-2`, `heading-3`,
+`quote`, `bullet-list`, `number-list`, `code`, `divider`) and
+`eidos.gfm.check-list` / `eidos.gfm.table`. These replace the corresponding bare
+IDs; integrations selecting commands by ID must update.
+`selectBlock(key)` selects an inserted decorator after it mounts. Menu labels
+are available as `context.labels`.
+
+Equation insertions use this same API rather than special menu branches. Their
+command IDs are now `eidos.math.block` and `eidos.math.inline` (previously `math`
+and `inline-math`). The visible labels and Markdown syntax are unchanged.
 
 The package exports the compiler and contract from both the root and
 `@eidos.space/markdown/plugin-api`. Built-in descriptors are available from
@@ -348,6 +528,41 @@ The host still owns the final navigation action:
   }}
 />
 ```
+
+When the Obsidian profile is active, wikilinks and relative Markdown note links
+are reported separately through `onOpenInternalLink`:
+
+```ts
+interface MarkdownEditorInternalLinkRequest {
+  documentKey: string
+  target: string
+  path: string
+  heading?: string
+  blockId?: string
+  displayText?: string
+  embed: boolean
+  syntax: "wikilink" | "markdown"
+}
+
+interface MarkdownEditorNavigationTarget {
+  requestId: string | number
+  heading?: string
+  blockId?: string
+}
+```
+
+```tsx
+<MarkdownEditor
+  {...props}
+  profile="obsidian"
+  onOpenInternalLink={(request) => notes.open(request)}
+  navigationTarget={{ requestId: 3, heading: "Details" }}
+/>
+```
+
+The editor parses syntax and handles same-document targets. The host remains
+responsible for locating another Markdown file, opening it, and then passing a
+new `navigationTarget`. Increment `requestId` to revisit the same target.
 
 ### Errors
 
@@ -520,7 +735,9 @@ interface MarkdownUnsupportedFeature {
 
 The default profile recognizes one YAML 1.2 mapping between offset-zero `---`
 delimiters. Frontmatter is presented as a document metadata block and remains
-pinned at the beginning of the canonical source.
+pinned at the beginning of the canonical source. Its presentation keeps empty,
+scalar, sequence, mapping, and safe URL values distinct; this display model
+does not normalize or rewrite the YAML source.
 
 ### `fragment`
 
@@ -848,6 +1065,7 @@ interface MarkdownEditorProps {
   readOnly?: boolean
   autoFocus?: boolean
   showToolbar?: boolean
+  interactions?: MarkdownEditorInteractions
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   shortcuts?: MarkdownShortcutOverrides
   plugins?: readonly MarkdownPlugin[]

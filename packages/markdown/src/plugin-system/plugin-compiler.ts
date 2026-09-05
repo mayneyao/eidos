@@ -1,4 +1,12 @@
 import type { Klass, LexicalNode } from "lexical"
+import type {
+  MultilineElementTransformer,
+  TextMatchTransformer,
+} from "@lexical/markdown"
+import type { MarkdownInlineSyntax } from "../core/inline-syntax"
+import type { MarkdownBlockSyntax } from "../core/block-syntax"
+import type { MarkdownBlockBoundary } from "../core/block-boundary"
+import { composeMarkdownGrammar } from "../core/markdown-grammar"
 
 import type { MarkdownShortcutDefinition } from "../shortcuts/shortcut-registry"
 import {
@@ -22,22 +30,10 @@ interface OrderedPlugin {
 }
 
 const BUILT_IN_INSERTION_IDS = new Set([
-  "bullet-list",
-  "check-list",
-  "code",
-  "divider",
   "footnote",
   "frontmatter",
-  "heading-1",
-  "heading-2",
-  "heading-3",
   "html",
   "image",
-  "inline-math",
-  "math",
-  "number-list",
-  "quote",
-  "table",
 ])
 
 function isNamespacedId(id: string): boolean {
@@ -160,8 +156,45 @@ export function compileMarkdownPlugins(
   const toolbar: CompiledMarkdownPluginToolbarItem[] = []
   const toolbarIds = new Set<string>()
   const features = new Set<string>()
+  const blockSyntax: MarkdownBlockSyntax[] = []
+  const blockSyntaxIds = new Set<string>()
+  const inlineSyntax: MarkdownInlineSyntax[] = []
+  const inlineSyntaxIds = new Set<string>()
+  const blockBoundaries: MarkdownBlockBoundary[] = []
+  const boundaryIds = new Set<string>()
 
   ordered.forEach(({ plugin }, pluginIndex) => {
+    for (const syntax of plugin.inlineSyntax ?? []) {
+      if (!isNamespacedId(syntax.id) || inlineSyntaxIds.has(syntax.id))
+        throw new Error(
+          `Inline syntax "${syntax.id}" must have a unique namespaced ID.`
+        )
+      inlineSyntaxIds.add(syntax.id)
+      inlineSyntax.push(syntax)
+    }
+    for (const boundary of plugin.blockBoundaries ?? []) {
+      if (!isNamespacedId(boundary.id) || boundaryIds.has(boundary.id)) {
+        throw new Error(
+          `Block boundary "${boundary.id}" must have a unique namespaced ID.`
+        )
+      }
+      boundaryIds.add(boundary.id)
+      blockBoundaries.push(boundary)
+    }
+    for (const syntax of plugin.blockSyntax ?? []) {
+      if (!syntax.scan && !syntax.matchParsedBlock) {
+        throw new Error(
+          `Block syntax "${syntax.id}" must provide a scanner or parsed-block matcher.`
+        )
+      }
+      if (!isNamespacedId(syntax.id) || blockSyntaxIds.has(syntax.id)) {
+        throw new Error(
+          `Block syntax "${syntax.id}" must have a unique namespaced ID.`
+        )
+      }
+      blockSyntaxIds.add(syntax.id)
+      blockSyntax.push(syntax)
+    }
     for (const feature of plugin.features ?? []) {
       if (!isNamespacedId(feature)) {
         throw new Error(`Markdown feature ID "${feature}" must be namespaced.`)
@@ -219,7 +252,8 @@ export function compileMarkdownPlugins(
       }
       if (
         !insertion.execute &&
-        (!plugin.id.startsWith("eidos.") ||
+        ((!plugin.id.startsWith("eidos.") &&
+          !plugin.id.startsWith("obsidian.")) ||
           !BUILT_IN_INSERTION_IDS.has(insertion.id))
       ) {
         throw new Error(
@@ -283,6 +317,16 @@ export function compileMarkdownPlugins(
     }
   }
 
+  const orderedTransformers = transformers.sort(
+    (left, right) =>
+      (left.order ?? 1_000) - (right.order ?? 1_000) ||
+      left.pluginIndex - right.pluginIndex ||
+      left.contributionIndex - right.contributionIndex
+  )
+  const unboundTransformers = Object.freeze(
+    orderedTransformers.map(({ transformer }) => transformer)
+  )
+
   const shortcutConflicts = markdownShortcutConflicts(
     resolveMarkdownShortcuts({}, shortcuts)
   )
@@ -294,6 +338,12 @@ export function compileMarkdownPlugins(
   }
 
   return Object.freeze({
+    grammar: composeMarkdownGrammar(
+      ordered.flatMap(({ plugin }) => (plugin.grammar ? [plugin.grammar] : []))
+    ),
+    blockSyntax: Object.freeze(blockSyntax),
+    inlineSyntax: Object.freeze(inlineSyntax),
+    blockBoundaries: Object.freeze(blockBoundaries),
     behaviors: Object.freeze(behaviors),
     features,
     insertions: Object.freeze(
@@ -312,16 +362,31 @@ export function compileMarkdownPlugins(
         (left, right) => (left.order ?? 1_000) - (right.order ?? 1_000)
       )
     ),
-    transformers: Object.freeze(
-      transformers
-        .sort(
-          (left, right) =>
-            (left.order ?? 1_000) - (right.order ?? 1_000) ||
-            left.pluginIndex - right.pluginIndex ||
-            left.contributionIndex - right.contributionIndex
-        )
-        .map(({ transformer }) => transformer)
-    ),
+    transformers: Object.freeze([
+      ...inlineSyntax.map(
+        (syntax): TextMatchTransformer => ({
+          type: "text-match",
+          dependencies: [],
+          regExp: /(?!)/u,
+          replace: () => {},
+          export: (node) => syntax.export(node),
+        })
+      ),
+      ...blockSyntax.map(
+        (syntax): MultilineElementTransformer => ({
+          // Lexical tries multiline exporters before element exporters, regardless
+          // of array order. Grammar ownership must precede built-in code export.
+          type: "multiline-element",
+          dependencies: [],
+          regExpStart: /(?!)/u,
+          replace: () => false,
+          export: (node) => syntax.export(node),
+        })
+      ),
+      ...orderedTransformers.map(({ transformer, configure }) =>
+        configure ? configure(unboundTransformers) : transformer
+      ),
+    ]),
   })
 }
 

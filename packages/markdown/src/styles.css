@@ -1328,15 +1328,15 @@
   text-transform: uppercase;
 }
 
-.eme-efm-frontmatter dl {
+.eme-efm-metadata-properties {
   display: grid;
   grid-template-columns: minmax(6rem, 0.3fr) minmax(0, 1fr);
   margin: 0;
   font-size: 0.82rem;
 }
 
-.eme-efm-frontmatter dt,
-.eme-efm-frontmatter dd {
+.eme-efm-metadata-properties > dt,
+.eme-efm-metadata-properties > dd {
   min-width: 0;
   margin: 0;
   padding: 0.38rem 0.65rem;
@@ -1344,7 +1344,51 @@
   overflow-wrap: anywhere;
 }
 
-.eme-efm-frontmatter dt {
+.eme-efm-metadata-properties > dt {
+  color: var(--eme-muted-foreground);
+  font-weight: 600;
+}
+
+.eme-efm-metadata-empty {
+  color: var(--eme-muted-foreground);
+}
+
+.eme-efm-metadata-link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.eme-efm-metadata-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.24rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eme-efm-metadata-sequence > li {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: baseline;
+  padding: 0.06rem 0.34rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--eme-muted) 78%, transparent);
+}
+
+.eme-efm-metadata-mapping {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.eme-efm-metadata-mapping-entry {
+  display: grid;
+  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr);
+  gap: 0.4rem;
+}
+
+.eme-efm-metadata-mapping-entry > strong {
   color: var(--eme-muted-foreground);
   font-weight: 600;
 }
@@ -1553,6 +1597,110 @@
 
 .eme-link:hover {
   text-decoration-color: currentColor;
+}
+
+.eme-obsidian-link,
+.eme-obsidian-embed-placeholder {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--accent-strong, var(--primary, oklch(0.48 0.12 255)));
+  background: transparent;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.eme-obsidian-link {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 36%, transparent);
+  text-underline-offset: 0.16em;
+}
+
+.eme-obsidian-image-embed img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+.eme-obsidian-block-id,
+.eme-obsidian-comment {
+  margin-inline-start: 0.25rem;
+  color: var(--eme-muted-foreground);
+  font-family: "SFMono-Regular", "Cascadia Code", monospace;
+  font-size: 0.68em;
+  opacity: 0.55;
+}
+
+.eme-obsidian-inline-footnote {
+  padding-inline: 0.16em;
+  border-radius: 0.2em;
+  color: var(--accent-strong, var(--primary, oklch(0.48 0.12 255)));
+  background: var(--eme-muted);
+  font-size: 0.64em;
+}
+
+.eme-obsidian-tag {
+  padding: 0.08em 0.32em;
+  border-radius: 999px;
+  color: var(--accent-strong, var(--primary, oklch(0.48 0.12 255)));
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.eme-obsidian-callout {
+  --eme-callout-color: var(
+    --accent-strong,
+    var(--primary, oklch(0.55 0.12 255))
+  );
+
+  margin: 0 0 1.1em;
+  overflow: hidden;
+  border: 1px solid
+    color-mix(in srgb, var(--eme-callout-color) 30%, var(--eme-border));
+  border-inline-start: 0.22rem solid var(--eme-callout-color);
+  border-radius: 0.35rem;
+  background: color-mix(
+    in srgb,
+    var(--eme-callout-color) 7%,
+    var(--eme-background)
+  );
+}
+
+.eme-obsidian-callout-title {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.48rem 0.7rem;
+  color: var(--eme-callout-color);
+  font-weight: 650;
+}
+
+.eme-obsidian-callout-title > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.eme-obsidian-callout-body {
+  padding: 0 0.75rem 0.65rem;
+}
+
+.eme-obsidian-callout-body > :first-child {
+  margin-top: 0;
+}
+
+.eme-obsidian-callout-body > :last-child {
+  margin-bottom: 0;
 }
 
 .eme-table {

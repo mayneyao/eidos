@@ -9,14 +9,48 @@ import {
 import { EIDOS_MARKDOWN_TRANSFORMERS } from "../markdown/markdown-transformers"
 import { EfmSourceBlockNode } from "../nodes/efm-source-block-node"
 import { MARKDOWN_EDITOR_CORE_NODES } from "../nodes/node-registry"
-import { commonmarkPlugin, eidosMarkdownPlugins } from "./builtins"
+import { commonmarkPlugin, eidosMarkdownPlugins, gfmPlugin } from "./builtins"
 import { defineMarkdownPlugin } from "./plugin-api"
 import { compileMarkdownPlugins } from "./plugin-compiler"
 
 describe("compileMarkdownPlugins", () => {
+  it("installs standard editing behaviors only with their owning plugins", () => {
+    expect(compileMarkdownPlugins([]).behaviors).toEqual([])
+    expect(
+      compileMarkdownPlugins([commonmarkPlugin]).behaviors.map(
+        (item) => item.id
+      )
+    ).toEqual(["eidos.commonmark.behavior"])
+    expect(
+      compileMarkdownPlugins([gfmPlugin, commonmarkPlugin]).behaviors.map(
+        (item) => item.id
+      )
+    ).toEqual([
+      "eidos.commonmark.behavior",
+      "markdown.table.behavior",
+      "markdown.task-list.behavior",
+    ])
+  })
   it("reconstructs the shipped transformer order from the default profile", () => {
     const registry = compileMarkdownPlugins(eidosMarkdownPlugins)
-    expect(registry.transformers).toEqual(EIDOS_MARKDOWN_TRANSFORMERS)
+    expect(registry.blockSyntax.map((syntax) => syntax.id)).toEqual([
+      "eidos.math.block",
+      "markdown.html.block",
+    ])
+    expect(registry.inlineSyntax.map((syntax) => syntax.id)).toEqual([
+      "eidos.math.inline",
+    ])
+    const native = registry.transformers.slice(
+      registry.blockSyntax.length + registry.inlineSyntax.length
+    )
+    // Tables are freshly bound to each composition; other definitions retain identity.
+    expect(native[0]).not.toBe(EIDOS_MARKDOWN_TRANSFORMERS[0])
+    expect(native[0].type).toBe("multiline-element")
+    expect("dependencies" in native[0] && native[0].dependencies).toEqual(
+      "dependencies" in EIDOS_MARKDOWN_TRANSFORMERS[0] &&
+        EIDOS_MARKDOWN_TRANSFORMERS[0].dependencies
+    )
+    expect(native.slice(1)).toEqual(EIDOS_MARKDOWN_TRANSFORMERS.slice(1))
     expect(registry.toolbar.map((item) => item.id)).toEqual([
       "format.bold",
       "format.italic",
@@ -25,18 +59,18 @@ describe("compileMarkdownPlugins", () => {
       "format.inline-code",
     ])
     expect(registry.insertions.map((item) => item.id)).toEqual([
-      "heading-1",
-      "heading-2",
-      "heading-3",
-      "quote",
-      "bullet-list",
-      "number-list",
-      "check-list",
-      "code",
-      "table",
-      "divider",
-      "math",
-      "inline-math",
+      "eidos.commonmark.heading-1",
+      "eidos.commonmark.heading-2",
+      "eidos.commonmark.heading-3",
+      "eidos.commonmark.quote",
+      "eidos.commonmark.bullet-list",
+      "eidos.commonmark.number-list",
+      "eidos.gfm.check-list",
+      "eidos.commonmark.code",
+      "eidos.gfm.table",
+      "eidos.commonmark.divider",
+      "eidos.math.block",
+      "eidos.math.inline",
       "image",
       "footnote",
       "html",

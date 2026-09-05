@@ -7,7 +7,6 @@ import {
   $createNodeSelection,
   $getNodeByKey,
   $getRoot,
-  $isElementNode,
   $setSelection,
   HISTORIC_TAG,
   HISTORY_PUSH_TAG,
@@ -31,10 +30,6 @@ import {
   tokenizeCodeLightweight,
   type CodeHighlightToken,
 } from "../highlighting/code-highlight-tokenizer"
-import {
-  analyzeEfmMarkdown,
-  $convertFromEfmMarkdownString,
-} from "../markdown/efm-document"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import type { EfmInputProfile } from "../types"
 import {
@@ -92,14 +87,10 @@ function focusEditor(editor: LexicalEditor): void {
   })
 }
 
-function selectNearIndex(index: number): void {
+function selectBlockNearIndex(index: number): void {
   const children = $getRoot().getChildren()
   const target = children[Math.min(index, Math.max(0, children.length - 1))]
   if (!target) return
-  if ($isElementNode(target)) {
-    target.selectStart()
-    return
-  }
   const selection = $createNodeSelection()
   selection.add(target.getKey())
   $setSelection(selection)
@@ -148,6 +139,7 @@ function SourceRangeEditor({
 }) {
   const {
     baseUri,
+    codec,
     clearSourceRangeCommit,
     codeHighlightTokenizer,
     externalMarkdownConflict,
@@ -239,12 +231,12 @@ function SourceRangeEditor({
     editor.update(
       () => {
         if (!$isEfmSourceRangeNode($getNodeByKey(nodeKey))) return
-        $convertFromEfmMarkdownString(acceptedMarkdown, transformers, {
+        codec.import(acceptedMarkdown, transformers, {
           inputProfile: data.documentInputProfile,
           baseUri,
           syntaxFeatures,
         })
-        selectNearIndex(data.selectionIndex)
+        selectBlockNearIndex(data.selectionIndex)
       },
       { discrete: true, tag: HISTORIC_TAG }
     )
@@ -272,7 +264,7 @@ function SourceRangeEditor({
       return
     }
 
-    const draftAnalysis = analyzeEfmMarkdown(draft, {
+    const draftAnalysis = codec.analyze(draft, {
       inputProfile: data.inputProfile,
       baseUri,
       syntaxFeatures,
@@ -297,12 +289,12 @@ function SourceRangeEditor({
       editor.update(
         () => {
           if (!$isEfmSourceRangeNode($getNodeByKey(nodeKey))) return
-          $convertFromEfmMarkdownString(nextMarkdown, transformers, {
+          codec.import(nextMarkdown, transformers, {
             inputProfile: data.documentInputProfile,
             baseUri,
             syntaxFeatures,
           })
-          selectNearIndex(data.selectionIndex)
+          selectBlockNearIndex(data.selectionIndex)
         },
         {
           discrete: true,

@@ -1,4 +1,32 @@
 // Editor surface
+export { createMarkdownPreset } from "./profile-system/create-preset"
+export type { MarkdownPresetOptions } from "./profile-system/create-preset"
+export {
+  tablePlugin,
+  taskListPlugin,
+  strikethroughPlugin,
+  autolinkPlugin,
+  tagFilterPlugin,
+  gfmSyntaxPlugins,
+} from "./features/gfm/individual-plugins"
+export type {
+  MarkdownGrammar,
+  MarkdownCommonmarkConstruct,
+} from "./core/markdown-grammar"
+export type {
+  MarkdownBlockSyntax,
+  MarkdownParsedBlock,
+  MarkdownBlockMatch,
+  MarkdownSyntaxRange,
+} from "./core/block-syntax"
+export type {
+  MarkdownAnalysisOptions,
+  MarkdownDiagnostic,
+  MarkdownDocumentAnalysis,
+  MarkdownInputMode,
+  MarkdownSourcePosition,
+  MarkdownSourceSegment,
+} from "./core/document-contract"
 export { MarkdownEditor } from "./editor/markdown-editor"
 
 // Optional behavior and highlighting extension points
@@ -30,9 +58,17 @@ export {
   MARKDOWN_PLUGIN_API_VERSION,
 } from "./plugin-system"
 export {
+  defineMarkdownProfile,
+  eidosMarkdownProfile,
+  gfmMarkdownProfile,
+  obsidianMarkdownProfile,
+  MARKDOWN_PROFILE_API_VERSION,
+} from "./profile-system"
+export {
   commonmarkPlugin,
   EIDOS_MARKDOWN_PLUGIN_REGISTRY,
   eidosMarkdownPlugins,
+  gfmMarkdownPlugins,
   footnotePlugin,
   frontmatterPlugin,
   gfmPlugin,
@@ -42,6 +78,9 @@ export {
   rawHtmlPlugin,
   referencePlugin,
   sourceEditingPlugin,
+  obsidianSyntaxPlugin,
+  obsidianMarkdownPlugins,
+  OBSIDIAN_MARKDOWN_PLUGIN_REGISTRY,
 } from "./plugin-system/builtins"
 export {
   DEFAULT_MARKDOWN_SHORTCUTS,
@@ -116,10 +155,20 @@ export type {
   MarkdownTransformerContribution,
 } from "./plugin-system"
 export type {
+  MarkdownProfile,
+  MarkdownProfileApiVersion,
+  MarkdownProfileCodec,
+} from "./profile-system"
+export type {
   EfmDiagnostic,
   EfmInputProfile,
+  BuiltInMarkdownProfileId,
   EfmSourcePosition,
   MarkdownEditorImageUrlResolver,
+  MarkdownEditorInteractions,
+  MarkdownEditorInternalLinkHandler,
+  MarkdownEditorInternalLinkRequest,
+  MarkdownEditorNavigationTarget,
   MarkdownEditorLabels,
   MarkdownEditorLayout,
   MarkdownEditorPasteImageHandler,
@@ -143,3 +192,5 @@ export type {
   EfmInlineData,
   EfmInlineKind,
 } from "./nodes/efm-semantic-node"
+export type { MarkdownBlockBoundary } from "./core/block-boundary"
+export type { MarkdownInlineSyntax } from "./core/inline-syntax"

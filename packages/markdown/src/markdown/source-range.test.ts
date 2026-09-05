@@ -1,5 +1,9 @@
 import { EIDOS_MARKDOWN_PLUGIN_REGISTRY } from "../plugin-system/builtins"
 import { resolveEfmEditableSourceRange } from "./source-range"
+import { OBSIDIAN_MARKDOWN_PLUGIN_REGISTRY } from "../plugin-system/builtins"
+import { obsidianMarkdownProfile } from "../profile-system/builtins"
+import type { MarkdownDocumentAnalysis } from "../core/document-contract"
+import { analyzeEfmMarkdown } from "./efm-document"
 
 const syntaxFeatures = EIDOS_MARKDOWN_PLUGIN_REGISTRY.features
 
@@ -19,6 +23,80 @@ function resolve(
 }
 
 describe("resolveEfmEditableSourceRange", () => {
+  it("uses a custom codec's projection without knowing its syntax or feature IDs", () => {
+    const markdown = "A\n\nB\n\nC"
+    const analysis: MarkdownDocumentAnalysis = {
+      normalizedSource: markdown,
+      diagnostics: [],
+      segments: [
+        { start: 0, end: 1, source: "A" },
+        {
+          start: 3,
+          end: 4,
+          source: "B",
+          projection: { placement: "end", sourceEditable: false },
+        },
+        { start: 6, end: 7, source: "C" },
+      ],
+    }
+    const options = {
+      markdown,
+      analyze: () => analysis,
+      inputProfile: "document" as const,
+      syntaxFeatures: new Set<string>(),
+      topLevelCount: 3,
+    }
+    expect(
+      resolveEfmEditableSourceRange({ ...options, selectedIndices: [1] }).range
+        ?.source
+    ).toBe("C")
+    expect(
+      resolveEfmEditableSourceRange({ ...options, selectedIndices: [0, 1] })
+        .range
+    ).toMatchObject({
+      source: "A\n\nC",
+      expectedSource: markdown,
+      protectedSourceSuffix: "\n\nB",
+    })
+    expect(
+      resolveEfmEditableSourceRange({ ...options, selectedIndices: [2] })
+    ).toEqual({ reason: "protected-block" })
+  })
+
+  it("does not project footnotes when their syntax feature is disabled", () => {
+    const markdown = "One\n\n[^n]: Note\n\nTwo"
+    const syntaxFeatures = new Set<string>()
+    const analysis = analyzeEfmMarkdown(markdown, { syntaxFeatures })
+    expect(
+      analysis.segments.every((segment) => segment.projection === undefined)
+    ).toBe(true)
+    expect(
+      resolveEfmEditableSourceRange({
+        markdown,
+        syntaxFeatures,
+        inputProfile: "document",
+        selectedIndices: [1],
+        topLevelCount: 3,
+      }).range?.source
+    ).toBe("[^n]: Note")
+  })
+  it("maps Obsidian footnotes using the active profile", () => {
+    const markdown = "One[^n]\n\n[^n]: Note\n\nTwo"
+    const options = {
+      analyze: obsidianMarkdownProfile.codec.analyze,
+      inputProfile: "document" as const,
+      markdown,
+      syntaxFeatures: OBSIDIAN_MARKDOWN_PLUGIN_REGISTRY.features,
+      topLevelCount: 3,
+    }
+    expect(
+      resolveEfmEditableSourceRange({ ...options, selectedIndices: [1] }).range
+        ?.source
+    ).toBe("Two")
+    expect(
+      resolveEfmEditableSourceRange({ ...options, selectedIndices: [2] })
+    ).toEqual({ reason: "protected-block" })
+  })
   it("maps duplicate blocks to the exact selected source occurrence", () => {
     const markdown = "Same.\n\n\nSame.\n\nSame.\n"
     expect(resolve(markdown, [1], 3)).toEqual({
@@ -71,7 +149,7 @@ After`
       },
     })
     expect(resolve(markdown, [2], 3)).toEqual({
-      reason: "pinned-footnote",
+      reason: "protected-block",
     })
   })
 

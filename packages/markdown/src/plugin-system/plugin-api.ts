@@ -12,6 +12,10 @@ import type { ComponentType } from "react"
 import type { CodeHighlightTokenizer } from "../highlighting/code-highlight-tokenizer"
 import type { EfmInputProfile, MarkdownEditorLabels } from "../types"
 import type { MarkdownShortcutDefinition } from "../shortcuts/shortcut-registry"
+import type { MarkdownBlockSyntax } from "../core/block-syntax"
+import type { MarkdownBlockBoundary } from "../core/block-boundary"
+import type { MarkdownGrammar } from "../core/markdown-grammar"
+import type { MarkdownInlineSyntax } from "../core/inline-syntax"
 
 export const MARKDOWN_PLUGIN_API_VERSION = 1 as const
 
@@ -33,15 +37,31 @@ export interface MarkdownPluginBehaviorProps {
 }
 
 export interface MarkdownPluginInsertionExecutionContext {
+  labels: MarkdownEditorLabels
+  /** Opens a host-owned draft form, preserving the original insertion anchor. */
+  requestText(options: MarkdownInsertionTextRequest): void
+  /** Selects an inserted block after its decorator has mounted. */
+  selectBlock(key: NodeKey): void
   anchorKey: NodeKey | null
   closeMenu(): void
   editor: LexicalEditor
   focusEditor(): void
   inputProfile: EfmInputProfile
-  insertBlock(createNode: () => LexicalNode): NodeKey | null
+  insertBlock(
+    createNode: () => LexicalNode,
+    options?: { focus: "start" | "after" }
+  ): NodeKey | null
   insertInline(createNodes: () => readonly LexicalNode[]): boolean
   mode: MarkdownInsertionContext
   placement: MarkdownInsertionPlacement
+}
+
+export interface MarkdownInsertionTextRequest {
+  title: string
+  label: string
+  initialValue?: string
+  /** Keep the form open by not calling closeMenu when input is incomplete. */
+  onSubmit(value: string): void
 }
 
 export interface MarkdownPluginInsertion {
@@ -86,9 +106,16 @@ export interface MarkdownTransformerContribution {
   /** Lower values run first. Equal values retain resolved plugin order. */
   order?: number
   transformer: Transformer
+  /** Bind a fresh transformer to the ordered, unbound contributions of this
+   * composition. Do not mutate these shared definitions or the input array. */
+  configure?(transformers: readonly Transformer[]): Transformer
 }
 
 export interface MarkdownPlugin {
+  grammar?: MarkdownGrammar
+  blockBoundaries?: readonly MarkdownBlockBoundary[]
+  blockSyntax?: readonly MarkdownBlockSyntax[]
+  inlineSyntax?: readonly MarkdownInlineSyntax[]
   apiVersion: MarkdownPluginApiVersion
   /** Stable plugin identity, for example `eidos.math`. */
   id: string
@@ -120,6 +147,10 @@ export interface CompiledMarkdownPluginToolbarItem extends MarkdownPluginToolbar
 }
 
 export interface CompiledMarkdownPlugins {
+  grammar: MarkdownGrammar
+  blockBoundaries: readonly MarkdownBlockBoundary[]
+  blockSyntax: readonly MarkdownBlockSyntax[]
+  inlineSyntax: readonly MarkdownInlineSyntax[]
   behaviors: readonly CompiledMarkdownPluginBehavior[]
   features: ReadonlySet<string>
   insertions: readonly CompiledMarkdownPluginInsertion[]

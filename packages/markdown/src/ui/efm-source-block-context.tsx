@@ -1,16 +1,24 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react"
 import type { Transformer } from "@lexical/markdown"
+import {
+  DocumentSession,
+  type SourceRangeCommit,
+} from "../core/document-session"
+import type { MarkdownProfileCodec } from "../profile-system/profile-api"
 
 import type { CodeHighlightTokenizer } from "../highlighting/code-highlight-tokenizer"
-import type { EfmInputProfile, MarkdownEditorImageUrlResolver } from "../types"
+import type {
+  EfmInputProfile,
+  MarkdownEditorImageUrlResolver,
+  MarkdownEditorInternalLinkHandler,
+} from "../types"
 
 export const EXTERNAL_MARKDOWN_CONFLICT_MESSAGE =
   "The document changed outside the editor. Save this draft to keep it, or cancel to load the external version."
@@ -18,21 +26,20 @@ export const EXTERNAL_MARKDOWN_CONFLICT_MESSAGE =
 export const SOURCE_RANGE_COMMIT_TAG =
   "eidos-markdown-editor:source-range-commit"
 
-export interface EfmSourceRangeCommit {
-  end: number
-  expectedSource: string
-  source: string
-  start: number
-}
+export type EfmSourceRangeCommit = SourceRangeCommit
 
 interface EfmSourceBlockContextValue {
+  session: DocumentSession
+  codec: MarkdownProfileCodec
   saveBlockLabel: string
   emptyMathBlockLabel: string
   emptyImageBlockLabel: string
+  obsidianWikilinks: boolean
   readOnly: boolean
   documentKey: string
   onError(error: Error): void
   resolveImageUrl?: MarkdownEditorImageUrlResolver
+  onOpenInternalLink?: MarkdownEditorInternalLinkHandler
   baseUri?: string
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   inputProfile: EfmInputProfile
@@ -44,15 +51,19 @@ interface EfmSourceBlockContextValue {
   getAcceptedMarkdown(): string
   queueSourceRangeCommit(commit: EfmSourceRangeCommit): void
   registerDraft(): () => void
-  setAcceptedMarkdown(markdown: string): void
-  setExternalMarkdownConflict(value: boolean): void
-  takeSourceRangeCommit(): EfmSourceRangeCommit | null
 }
 
 const EfmSourceBlockContext = createContext<EfmSourceBlockContextValue>({
+  get session(): DocumentSession {
+    throw new Error("Document editing requires EfmSourceBlockProvider.")
+  },
+  get codec(): MarkdownProfileCodec {
+    throw new Error("Document editing requires an explicit profile codec.")
+  },
   saveBlockLabel: "Done",
   emptyMathBlockLabel: "Add a TeX equation",
   emptyImageBlockLabel: "Add an image",
+  obsidianWikilinks: false,
   readOnly: false,
   documentKey: "",
   onError: console.error,
@@ -65,78 +76,63 @@ const EfmSourceBlockContext = createContext<EfmSourceBlockContextValue>({
   getAcceptedMarkdown: () => "",
   queueSourceRangeCommit: () => undefined,
   registerDraft: () => () => undefined,
-  setAcceptedMarkdown: () => undefined,
-  setExternalMarkdownConflict: () => undefined,
-  takeSourceRangeCommit: () => null,
 })
 
 type EfmSourceBlockProviderProps = Omit<
   EfmSourceBlockContextValue,
   | "activeDrafts"
+  | "session"
   | "clearSourceRangeCommit"
   | "externalMarkdownConflict"
   | "getAcceptedMarkdown"
   | "queueSourceRangeCommit"
   | "registerDraft"
-  | "setAcceptedMarkdown"
-  | "setExternalMarkdownConflict"
-  | "takeSourceRangeCommit"
 > & { children: ReactNode; markdown: string }
 
 export function EfmSourceBlockProvider({
+  codec,
   children,
   saveBlockLabel,
   emptyMathBlockLabel,
   emptyImageBlockLabel,
+  obsidianWikilinks,
   readOnly,
   documentKey,
   markdown,
   onError,
   resolveImageUrl,
+  onOpenInternalLink,
   baseUri,
   codeHighlightTokenizer,
   inputProfile,
   syntaxFeatures,
   transformers,
 }: EfmSourceBlockProviderProps) {
-  const [activeDrafts, setActiveDrafts] = useState(0)
-  const [externalMarkdownConflict, setExternalMarkdownConflict] =
-    useState(false)
-  const acceptedMarkdownRef = useRef(markdown)
-  const sourceRangeCommitRef = useRef<EfmSourceRangeCommit | null>(null)
-  const clearSourceRangeCommit = useCallback(() => {
-    sourceRangeCommitRef.current = null
-  }, [])
-  const getAcceptedMarkdown = useCallback(() => acceptedMarkdownRef.current, [])
-  const queueSourceRangeCommit = useCallback((commit: EfmSourceRangeCommit) => {
-    sourceRangeCommitRef.current = commit
-  }, [])
-  const setAcceptedMarkdown = useCallback((nextMarkdown: string) => {
-    acceptedMarkdownRef.current = nextMarkdown
-  }, [])
-  const takeSourceRangeCommit = useCallback(() => {
-    const commit = sourceRangeCommitRef.current
-    sourceRangeCommitRef.current = null
-    return commit
-  }, [])
-  const registerDraft = useCallback(() => {
-    let registered = true
-    setActiveDrafts((count) => count + 1)
-    return () => {
-      if (!registered) return
-      registered = false
-      setActiveDrafts((count) => Math.max(0, count - 1))
-    }
-  }, [])
+  const [session] = useState(() => new DocumentSession(markdown))
+  const { activeDrafts, externalMarkdownConflict } = useSyncExternalStore(
+    session.subscribe,
+    session.getSnapshot,
+    session.getSnapshot
+  )
+  const {
+    clearSourceRangeCommit,
+    getAcceptedMarkdown,
+    queueSourceRangeCommit,
+    registerDraft,
+  } = session
   const value = useMemo(
     () => ({
+      session,
+      codec,
       saveBlockLabel,
       emptyMathBlockLabel,
       emptyImageBlockLabel,
+      obsidianWikilinks,
       readOnly,
       documentKey,
       onError,
       resolveImageUrl,
+      onOpenInternalLink,
       baseUri,
       codeHighlightTokenizer,
       inputProfile,
@@ -148,18 +144,19 @@ export function EfmSourceBlockProvider({
       getAcceptedMarkdown,
       queueSourceRangeCommit,
       registerDraft,
-      setAcceptedMarkdown,
-      setExternalMarkdownConflict,
-      takeSourceRangeCommit,
     }),
     [
+      session,
+      codec,
       saveBlockLabel,
       emptyMathBlockLabel,
       emptyImageBlockLabel,
+      obsidianWikilinks,
       readOnly,
       documentKey,
       onError,
       resolveImageUrl,
+      onOpenInternalLink,
       baseUri,
       codeHighlightTokenizer,
       inputProfile,
@@ -171,8 +168,6 @@ export function EfmSourceBlockProvider({
       getAcceptedMarkdown,
       queueSourceRangeCommit,
       registerDraft,
-      setAcceptedMarkdown,
-      takeSourceRangeCommit,
     ]
   )
   return (

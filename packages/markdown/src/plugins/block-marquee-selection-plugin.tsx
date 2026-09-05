@@ -2,6 +2,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $isTableSelection } from "@lexical/table"
 import {
   $createNodeSelection,
+  $createParagraphNode,
   $getNearestNodeFromDOMNode,
   $getRoot,
   $getSelection,
@@ -18,6 +19,7 @@ import {
 } from "lexical"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 
+import { $isEfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 
 interface Point {
@@ -327,12 +329,20 @@ export function BlockMarqueeSelectionPlugin() {
           high = middle
         }
       }
-      const entries: BlockCandidate[] = []
+      const matches: { candidate: BlockCandidate; index: number }[] = []
       for (let index = low; index < candidates.length; index += 1) {
         const candidate = candidates[index]
         if (candidate.rect.top > selectionBottom) break
-        if (intersects(selectionRect, candidate.rect)) entries.push(candidate)
+        if (intersects(selectionRect, candidate.rect)) {
+          matches.push({ candidate, index })
+        }
       }
+      const first = matches[0]?.index
+      const last = matches.at(-1)?.index
+      const entries =
+        first === undefined || last === undefined
+          ? []
+          : candidates.slice(first, last + 1)
       return {
         elements: entries.map(({ element }) => element),
         keys: new Set(entries.map(({ key }) => key)),
@@ -398,6 +408,7 @@ export function BlockMarqueeSelectionPlugin() {
         keys
       )
       stage.dataset.blockSelectionMode = "keyboard"
+      root.focus({ preventScroll: true })
       window.getSelection()?.removeAllRanges()
       const selection = $createNodeSelection()
       for (const key of keys) selection.add(key)
@@ -405,6 +416,41 @@ export function BlockMarqueeSelectionPlugin() {
       entries[
         Math.max(0, Math.min(entries.length - 1, range.focusIndex - indices[0]))
       ]?.element.scrollIntoView({ block: "nearest" })
+      return true
+    }
+
+    const deleteSelectedRootBlocks = (selectedIndices: readonly number[]) => {
+      const rootNode = $getRoot()
+      const rootChildren = rootNode.getChildren()
+      const selectedKeys = new Set(
+        selectedIndices.flatMap((index) => {
+          const node = rootChildren[index]
+          return node ? [node.getKey()] : []
+        })
+      )
+      const firstSelectedIndex = selectedIndices[0] ?? 0
+
+      clearVisualSelection()
+      for (const node of rootChildren) {
+        if (selectedKeys.has(node.getKey())) node.remove()
+      }
+
+      const remainingChildren = rootNode.getChildren()
+      if (remainingChildren.length > 0) {
+        const nextIndex = Math.min(
+          firstSelectedIndex,
+          remainingChildren.length - 1
+        )
+        return setKeyboardSelection({
+          anchorIndex: nextIndex,
+          focusIndex: nextIndex,
+        })
+      }
+
+      const paragraph = $createParagraphNode()
+      rootNode.append(paragraph)
+      paragraph.selectStart()
+      root.focus({ preventScroll: true })
       return true
     }
 
@@ -692,15 +738,53 @@ export function BlockMarqueeSelectionPlugin() {
     const unregisterUpdate = editor.registerUpdateListener(
       ({ editorState }) => {
         if (dragRef.current) return
-        const selectionKeys = editorState.read(() => {
+        const rootSelection = editorState.read(() => {
           const selection = $getSelection()
-          return $isNodeSelection(selection)
-            ? new Set(selection.getNodes().map((node) => node.getKey()))
-            : new Set<NodeKey>()
+          if (!$isNodeSelection(selection)) return null
+          const selectedNodes = selection.getNodes()
+          if (selectedNodes.some($isEfmSourceRangeNode)) return null
+
+          const keys = new Set(selectedNodes.map((node) => node.getKey()))
+          const indices = $getRoot()
+            .getChildren()
+            .flatMap((node, index) => (keys.has(node.getKey()) ? [index] : []))
+          return indices.length === keys.size ? { indices, keys } : null
         })
-        if (!sameKeys(selectionKeys, marqueeKeysRef.current)) {
-          clearVisualSelection()
+
+        if (!rootSelection) {
+          if (marqueeKeysRef.current.size > 0) clearVisualSelection()
+          return
         }
+        if (sameKeys(rootSelection.keys, marqueeKeysRef.current)) return
+
+        const { indices, keys } = rootSelection
+        const first = indices[0]
+        const last = indices.at(-1)
+        const consecutive = indices.every(
+          (index, position) =>
+            position === 0 || index === indices[position - 1] + 1
+        )
+        if (first === undefined || last === undefined || !consecutive) {
+          clearVisualSelection()
+          return
+        }
+
+        const elements = [...keys].flatMap((key) => {
+          const element = editor.getElementByKey(key)
+          return element ? [element] : []
+        })
+        if (elements.length !== keys.size) {
+          clearVisualSelection()
+          return
+        }
+
+        keyboardRangeRef.current = {
+          anchorIndex: first,
+          focusIndex: last,
+        }
+        previousSelectionRef.current = null
+        setVisualSelection(elements, keys)
+        stage.dataset.blockSelectionMode = "keyboard"
       }
     )
     const unregisterKeyboardSelection = editor.registerCommand(
@@ -721,6 +805,11 @@ export function BlockMarqueeSelectionPlugin() {
         if ($isNodeSelection(selection)) {
           const selectedIndices = selectedRootIndices()
           if (selectedIndices.length === 0) return false
+
+          if (event.key === "Backspace" || event.key === "Delete") {
+            event.preventDefault()
+            return deleteSelectedRootBlocks(selectedIndices)
+          }
 
           if (matches(event, "selection.clear")) {
             event.preventDefault()
@@ -811,13 +900,13 @@ export function BlockMarqueeSelectionPlugin() {
         }
 
         const selection = $getSelection()
+        if ($isNodeSelection(selection)) return false
         const expectedIndices = keyboardBlockSelectionIndices(
           range,
           $getRoot().getChildrenSize()
         )
         const selectedIndices = selectedRootIndices()
         if (
-          $isNodeSelection(selection) &&
           expectedIndices.length === selectedIndices.length &&
           expectedIndices.every((index, position) =>
             Object.is(index, selectedIndices[position])

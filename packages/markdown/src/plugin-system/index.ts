@@ -13,6 +13,7 @@ export type {
   MarkdownInsertionContext,
   MarkdownInsertionPlacement,
   MarkdownInsertionSection,
+  MarkdownInsertionTextRequest,
   MarkdownPlugin,
   MarkdownPluginApiVersion,
   MarkdownPluginBehavior,

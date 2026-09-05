@@ -21,6 +21,7 @@ export type EfmSourceBlockKind =
   | "math"
   | "raw-html"
   | "reference"
+  | "obsidian-callout"
 
 type SerializedEfmSourceBlockNode = Spread<
   {
@@ -38,6 +39,7 @@ const SOURCE_BLOCK_LABELS: Record<EfmSourceBlockKind, string> = {
   math: "Mathematics",
   "raw-html": "Raw HTML (source only)",
   reference: "Reference definition",
+  "obsidian-callout": "Obsidian callout",
 }
 
 function EfmSourceBlockView({

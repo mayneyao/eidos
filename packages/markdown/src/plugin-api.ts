@@ -6,6 +6,25 @@ export {
   MARKDOWN_PLUGIN_API_VERSION,
 } from "./plugin-system"
 export { useMarkdownShortcuts } from "./shortcuts/shortcut-context"
+export type { MarkdownInlineSyntax } from "./core/inline-syntax"
+export type {
+  MarkdownGrammar,
+  MarkdownCommonmarkConstruct,
+} from "./core/markdown-grammar"
+export type {
+  MarkdownBlockSyntax,
+  MarkdownParsedBlock,
+  MarkdownBlockMatch,
+  MarkdownSyntaxRange,
+} from "./core/block-syntax"
+export type {
+  MarkdownAnalysisOptions,
+  MarkdownDiagnostic,
+  MarkdownDocumentAnalysis,
+  MarkdownInputMode,
+  MarkdownSourcePosition,
+  MarkdownSourceSegment,
+} from "./core/document-contract"
 
 export type {
   CompiledMarkdownPluginBehavior,
@@ -16,6 +35,7 @@ export type {
   MarkdownInsertionContext,
   MarkdownInsertionPlacement,
   MarkdownInsertionSection,
+  MarkdownInsertionTextRequest,
   MarkdownPlugin,
   MarkdownPluginApiVersion,
   MarkdownPluginBehavior,
@@ -33,3 +53,4 @@ export type {
   MarkdownShortcutId,
   MarkdownShortcutScope,
 } from "./shortcuts/shortcut-registry"
+export type { MarkdownBlockBoundary } from "./core/block-boundary"

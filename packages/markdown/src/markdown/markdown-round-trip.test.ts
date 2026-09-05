@@ -1,16 +1,24 @@
 import {
   $getRoot,
   $isElementNode,
+  $isTextNode,
   createEditor,
   type LexicalNode,
 } from "lexical"
+import { $isCodeNode } from "@lexical/code-core"
+import { $isListItemNode, $isListNode } from "@lexical/list"
+import { $isQuoteNode } from "@lexical/rich-text"
 
 import {
   $convertFromEfmMarkdownString,
   $convertToEfmMarkdownString,
 } from "./efm-document"
 import { MARKDOWN_EDITOR_NODES } from "../nodes/node-registry"
-import { $isEfmBlockNode, $isEfmInlineNode } from "../nodes/efm-semantic-node"
+import {
+  $isEfmBlockNode,
+  $isEfmInlineNode,
+  parseObsidianPreviewText,
+} from "../nodes/efm-semantic-node"
 import { $isEfmSourceBlockNode } from "../nodes/efm-source-block-node"
 import { EIDOS_MARKDOWN_TRANSFORMERS } from "./markdown-transformers"
 
@@ -207,5 +215,157 @@ $$
         .getEditorState()
         .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
     ).toBe("Before ==highlighted text== after")
+  })
+
+  it("keeps denied inline links visible and source-preserving", () => {
+    const input = "Before [Unsafe link](javascript:alert) after"
+    const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    editor.update(
+      () => {
+        $convertFromEfmMarkdownString(input, EIDOS_MARKDOWN_TRANSFORMERS)
+      },
+      { discrete: true }
+    )
+
+    editor.getEditorState().read(() => {
+      const denied = descendants($getRoot())
+        .filter($isEfmInlineNode)
+        .map((node) => node.getData())
+      expect(denied).toEqual([
+        expect.objectContaining({
+          kind: "denied-link",
+          source: "[Unsafe link](javascript:alert)",
+        }),
+      ])
+    })
+    expect(
+      editor
+        .getEditorState()
+        .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
+    ).toBe(input)
+  })
+
+  it("renders complex CommonMark lists without falling back to a source block", () => {
+    const input = `1. Install the package:
+
+   \`\`\`bash
+   snap install obsidian --classic
+   \`\`\`
+
+2. Read the warning:
+
+   > Keep a backup.
+
+   Then continue.`
+    const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    editor.update(
+      () => {
+        $convertFromEfmMarkdownString(input, EIDOS_MARKDOWN_TRANSFORMERS)
+      },
+      { discrete: true }
+    )
+
+    editor.getEditorState().read(() => {
+      const nodes = descendants($getRoot())
+      expect(nodes.filter($isEfmSourceBlockNode)).toHaveLength(0)
+      expect(nodes.filter($isEfmBlockNode)).toHaveLength(0)
+      const lists = nodes.filter($isListNode)
+      expect(lists).toHaveLength(1)
+      expect(lists[0].getChildren().filter($isListItemNode)).toHaveLength(2)
+      expect(nodes.filter($isCodeNode)).toHaveLength(1)
+      expect(nodes.filter($isQuoteNode)).toHaveLength(1)
+    })
+    expect(
+      editor
+        .getEditorState()
+        .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
+    ).toBe(input)
+  })
+
+  it.each([
+    "First item:",
+    "See [guide](https://example.com).",
+    "See [**guide**](https://example.com) and `code`.",
+  ])(
+    "serializes rich list edits without duplicating inline content: %s",
+    (lead) => {
+      const input = `1. ${lead}
+
+   > Original quote.
+
+2. Second item.`
+      const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+      editor.update(
+        () => {
+          $convertFromEfmMarkdownString(input, EIDOS_MARKDOWN_TRANSFORMERS)
+          const quoteText = descendants($getRoot()).find(
+            (node) =>
+              $isTextNode(node) && node.getTextContent() === "Original quote."
+          )
+          if ($isTextNode(quoteText)) quoteText.setTextContent("Edited quote.")
+        },
+        { discrete: true }
+      )
+
+      expect(
+        editor
+          .getEditorState()
+          .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
+      ).toBe(`1. ${lead}
+
+   > Edited quote.
+2. Second item.`)
+    }
+  )
+
+  it("preserves GFM autolinks as semantic inline nodes", () => {
+    const input = "1. Download from https://obsidian.md/download."
+    const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    editor.update(
+      () => {
+        $convertFromEfmMarkdownString(input, EIDOS_MARKDOWN_TRANSFORMERS)
+      },
+      { discrete: true }
+    )
+
+    editor.getEditorState().read(() => {
+      const links = descendants($getRoot()).filter($isEfmInlineNode)
+      expect(links.map((node) => node.getData())).toEqual([
+        expect.objectContaining({
+          kind: "autolink",
+          source: "https://obsidian.md/download",
+          resolvedUrl: "https://obsidian.md/download",
+        }),
+      ])
+    })
+    expect(
+      editor
+        .getEditorState()
+        .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
+    ).toBe(input)
+  })
+
+  it("recognizes wikilinks and embeds inside rendered container text", () => {
+    expect(
+      parseObsidianPreviewText(
+        "See [[Notes/Physics#Energy|the note]] and ![[assets/chart.svg|240x120]]."
+      )
+    ).toEqual([
+      "See ",
+      expect.objectContaining({
+        kind: "obsidian-link",
+        path: "Notes/Physics",
+        heading: "Energy",
+        label: "the note",
+      }),
+      " and ",
+      expect.objectContaining({
+        kind: "obsidian-embed",
+        path: "assets/chart.svg",
+        width: 240,
+        height: 120,
+      }),
+      ".",
+    ])
   })
 })

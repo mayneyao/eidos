@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Eidos Markdown</title>
+  <desc>Three joined M forms create the cube's edges, with gently rounded corners and broad, flat-bottomed V transitions joined to the lower edge.</desc>
+  <defs>
+    <clipPath id="rounded-silhouette">
+      <path d="M264 36.619L441.99 139.381Q449.99 144 449.99 153.238V358.762Q449.99 368 441.99 372.619L264 475.381Q256 480 248 475.381L70.01 372.619Q62.01 368 62.01 358.762V153.238Q62.01 144 70.01 139.381L248 36.619Q256 32 264 36.619Z"/>
+    </clipPath>
+  </defs>
+  <g fill="#007284" fill-rule="evenodd" clip-path="url(#rounded-silhouette)">
+    <path transform="matrix(.8660254 .5 0 1 62.01031 144)" d="M0 224V0L94 141Q100 150 106 150H118Q124 150 130 141L224 0V224ZM34 196Q28 196 28 190V97Q28 84 35.2 94.8L95.5 185.25Q102.667 196 90 196ZM190 196Q196 196 196 190V97Q196 84 188.8 94.8L128.5 185.25Q121.333 196 134 196Z"/>
+    <g transform="rotate(120 256 256)">
+      <path transform="matrix(.8660254 .5 0 1 62.01031 144)" d="M0 224V0L94 141Q100 150 106 150H118Q124 150 130 141L224 0V224ZM34 196Q28 196 28 190V97Q28 84 35.2 94.8L95.5 185.25Q102.667 196 90 196ZM190 196Q196 196 196 190V97Q196 84 188.8 94.8L128.5 185.25Q121.333 196 134 196Z"/>
+    </g>
+    <g transform="rotate(240 256 256)">
+      <path transform="matrix(.8660254 .5 0 1 62.01031 144)" d="M0 224V0L94 141Q100 150 106 150H118Q124 150 130 141L224 0V224ZM34 196Q28 196 28 190V97Q28 84 35.2 94.8L95.5 185.25Q102.667 196 90 196ZM190 196Q196 196 196 190V97Q196 84 188.8 94.8L128.5 185.25Q121.333 196 134 196Z"/>
+    </g>
+  </g>
+</svg>

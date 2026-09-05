@@ -36,7 +36,11 @@ function matchesBuiltIn(
  * priority lets host overrides replace or disable the built-in binding instead
  * of merely changing the displayed shortcut label.
  */
-export function EditorShortcutsPlugin() {
+export function EditorShortcutsPlugin({
+  allowEmphasis = true,
+}: {
+  allowEmphasis?: boolean
+}) {
   const [editor] = useLexicalComposerContext()
   const { matches } = useMarkdownShortcuts()
 
@@ -57,6 +61,7 @@ export function EditorShortcutsPlugin() {
           if (command) {
             event.preventDefault()
             if (command === FORMAT_TEXT_COMMAND) {
+              if (!allowEmphasis) return true
               editor.dispatchCommand(
                 command,
                 matches(event, "format.bold") ? "bold" : "italic"
@@ -75,7 +80,7 @@ export function EditorShortcutsPlugin() {
         },
         COMMAND_PRIORITY_HIGH
       ),
-    [editor, matches]
+    [editor, matches, allowEmphasis]
   )
 
   return null

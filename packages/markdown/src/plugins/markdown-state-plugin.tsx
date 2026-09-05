@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import type { Transformer } from "@lexical/markdown"
@@ -9,11 +9,7 @@ import {
   type LexicalEditor,
 } from "lexical"
 
-import {
-  $convertFromEfmMarkdownString,
-  $convertToEfmMarkdownString,
-} from "../markdown/efm-document"
-import { preserveMarkdownSourceEdits } from "../markdown/source-fidelity"
+import type { MarkdownProfileCodec } from "../profile-system/profile-api"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import type { EfmInputProfile } from "../types"
 import {
@@ -26,9 +22,10 @@ const EXTERNAL_MARKDOWN_TAG = "eidos-markdown-editor:external"
 
 function readMarkdown(
   editorState: EditorState,
-  transformers: readonly Transformer[]
+  transformers: readonly Transformer[],
+  codec: MarkdownProfileCodec
 ): string {
-  return editorState.read(() => $convertToEfmMarkdownString(transformers))
+  return editorState.read(() => codec.export(transformers))
 }
 
 export function MarkdownStatePlugin({
@@ -41,6 +38,7 @@ export function MarkdownStatePlugin({
   baseUri,
   syntaxFeatures,
   transformers,
+  codec,
 }: {
   markdown: string
   readOnly: boolean
@@ -51,62 +49,30 @@ export function MarkdownStatePlugin({
   baseUri?: string
   syntaxFeatures: ReadonlySet<string>
   transformers: readonly Transformer[]
+  codec: MarkdownProfileCodec
 }) {
   const [editor] = useLexicalComposerContext()
   const { matches } = useMarkdownShortcuts()
-  const {
-    activeDrafts,
-    setAcceptedMarkdown,
-    externalMarkdownConflict,
-    setExternalMarkdownConflict,
-    takeSourceRangeCommit,
-  } = useEfmSourceBlockContext()
-  const acceptedMarkdownRef = useRef(markdown)
-  const canonicalMarkdownRef = useRef<string | null>(null)
-  const observedMarkdownPropRef = useRef(markdown)
-  const pendingExternalMarkdownRef = useRef<string | null>(null)
-  const suppressedExternalMarkdownRef = useRef<string | null>(null)
+  const { session, activeDrafts, externalMarkdownConflict } =
+    useEfmSourceBlockContext()
 
   useEffect(() => editor.setEditable(!readOnly), [editor, readOnly])
 
   useEffect(() => {
-    setAcceptedMarkdown(acceptedMarkdownRef.current)
-    canonicalMarkdownRef.current = readMarkdown(
-      editor.getEditorState(),
-      transformers
+    session.setCanonical(
+      readMarkdown(editor.getEditorState(), transformers, codec)
     )
-  }, [editor, setAcceptedMarkdown, transformers])
+  }, [codec, editor, session, transformers])
 
   useEffect(() => {
-    const propChanged = markdown !== observedMarkdownPropRef.current
-    observedMarkdownPropRef.current = markdown
-
-    if (markdown === acceptedMarkdownRef.current) {
-      pendingExternalMarkdownRef.current = null
-      suppressedExternalMarkdownRef.current = null
-      if (externalMarkdownConflict) setExternalMarkdownConflict(false)
-      return
-    }
-    if (activeDrafts > 0) {
-      if (markdown === suppressedExternalMarkdownRef.current) return
-      pendingExternalMarkdownRef.current = markdown
-      if (!externalMarkdownConflict) {
-        setExternalMarkdownConflict(true)
-        onError(new Error(EXTERNAL_MARKDOWN_CONFLICT_MESSAGE))
-      }
-      return
-    }
-
-    const pendingMarkdown = pendingExternalMarkdownRef.current
-    if (!propChanged && pendingMarkdown === null) return
-    const nextMarkdown = pendingMarkdown ?? markdown
-    pendingExternalMarkdownRef.current = null
-    if (externalMarkdownConflict) setExternalMarkdownConflict(false)
-    acceptedMarkdownRef.current = nextMarkdown
-    setAcceptedMarkdown(nextMarkdown)
+    const observation = session.observeExternal(markdown)
+    if (observation.newConflict)
+      onError(new Error(EXTERNAL_MARKDOWN_CONFLICT_MESSAGE))
+    if (observation.importMarkdown === undefined) return
+    const nextMarkdown = observation.importMarkdown
     editor.update(
       () => {
-        $convertFromEfmMarkdownString(nextMarkdown, transformers, {
+        codec.import(nextMarkdown, transformers, {
           inputProfile,
           baseUri,
           syntaxFeatures,
@@ -114,9 +80,8 @@ export function MarkdownStatePlugin({
       },
       { discrete: true, tag: EXTERNAL_MARKDOWN_TAG }
     )
-    canonicalMarkdownRef.current = readMarkdown(
-      editor.getEditorState(),
-      transformers
+    session.setCanonical(
+      readMarkdown(editor.getEditorState(), transformers, codec)
     )
   }, [
     activeDrafts,
@@ -126,70 +91,24 @@ export function MarkdownStatePlugin({
     inputProfile,
     markdown,
     onError,
-    setExternalMarkdownConflict,
-    setAcceptedMarkdown,
+    session,
     syntaxFeatures,
     transformers,
+    codec,
   ])
 
   const handleChange = useCallback(
     (editorState: EditorState, _editor: LexicalEditor, tags: Set<string>) => {
       if (tags.has(EXTERNAL_MARKDOWN_TAG)) return
-      const nextCanonical = readMarkdown(editorState, transformers)
-      const sourceRangeCommit = tags.has(SOURCE_RANGE_COMMIT_TAG)
-        ? takeSourceRangeCommit()
-        : null
-      const canonicalBefore = canonicalMarkdownRef.current
-      let nextMarkdown: string
-      if (
-        sourceRangeCommit &&
-        acceptedMarkdownRef.current.slice(
-          sourceRangeCommit.start,
-          sourceRangeCommit.end
-        ) === sourceRangeCommit.expectedSource
-      ) {
-        nextMarkdown = `${acceptedMarkdownRef.current.slice(
-          0,
-          sourceRangeCommit.start
-        )}${sourceRangeCommit.source}${acceptedMarkdownRef.current.slice(
-          sourceRangeCommit.end
-        )}`
-      } else {
-        if (sourceRangeCommit) {
-          onError(
-            new Error(
-              "The selected Markdown source changed before the edit could be committed."
-            )
-          )
-        }
-        nextMarkdown = canonicalBefore
-          ? preserveMarkdownSourceEdits(
-              acceptedMarkdownRef.current,
-              canonicalBefore,
-              nextCanonical
-            )
-          : nextCanonical
-      }
-      canonicalMarkdownRef.current = nextCanonical
-      if (nextMarkdown === acceptedMarkdownRef.current) return
-      pendingExternalMarkdownRef.current = null
-      if (externalMarkdownConflict) {
-        suppressedExternalMarkdownRef.current = observedMarkdownPropRef.current
-      }
-      if (externalMarkdownConflict) setExternalMarkdownConflict(false)
-      acceptedMarkdownRef.current = nextMarkdown
-      setAcceptedMarkdown(nextMarkdown)
-      onMarkdownChange(nextMarkdown)
+      const nextCanonical = readMarkdown(editorState, transformers, codec)
+      const result = session.commitCanonical(
+        nextCanonical,
+        tags.has(SOURCE_RANGE_COMMIT_TAG)
+      )
+      if (result.error) onError(result.error)
+      if (result.markdown !== null) onMarkdownChange(result.markdown)
     },
-    [
-      externalMarkdownConflict,
-      onMarkdownChange,
-      onError,
-      setAcceptedMarkdown,
-      setExternalMarkdownConflict,
-      takeSourceRangeCommit,
-      transformers,
-    ]
+    [session, onMarkdownChange, onError, transformers, codec]
   )
 
   useEffect(() => {
@@ -203,16 +122,10 @@ export function MarkdownStatePlugin({
         event.preventDefault()
         const nextCanonical = readMarkdown(
           editor.getEditorState(),
-          transformers
+          transformers,
+          codec
         )
-        const canonicalBefore = canonicalMarkdownRef.current
-        const nextMarkdown = canonicalBefore
-          ? preserveMarkdownSourceEdits(
-              acceptedMarkdownRef.current,
-              canonicalBefore,
-              nextCanonical
-            )
-          : nextCanonical
+        const nextMarkdown = session.previewCanonical(nextCanonical)
         try {
           void Promise.resolve(onSaveRequest(nextMarkdown)).catch((cause) =>
             onError(cause instanceof Error ? cause : new Error(String(cause)))
@@ -224,7 +137,16 @@ export function MarkdownStatePlugin({
       },
       COMMAND_PRIORITY_HIGH
     )
-  }, [editor, matches, onError, onSaveRequest, readOnly, transformers])
+  }, [
+    codec,
+    editor,
+    matches,
+    onError,
+    onSaveRequest,
+    readOnly,
+    session,
+    transformers,
+  ])
 
   return <OnChangePlugin ignoreSelectionChange onChange={handleChange} />
 }

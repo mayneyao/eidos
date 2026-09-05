@@ -15,7 +15,7 @@ import {
 } from "lexical"
 import { useEffect } from "react"
 
-import { resolveEfmEditableSourceRange } from "../markdown/source-range"
+import { resolveEditableSourceRange } from "../core/source-range"
 import { $isEfmBlockNode } from "../nodes/efm-semantic-node"
 import { $createEfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import type { MarkdownPluginBehaviorProps } from "../plugin-system/plugin-api"
@@ -99,7 +99,8 @@ export function SourceRangeEditingPlugin({
 }: MarkdownPluginBehaviorProps) {
   const [editor] = useLexicalComposerContext()
   const { matches } = useMarkdownShortcuts()
-  const { activeDrafts, getAcceptedMarkdown } = useEfmSourceBlockContext()
+  const { activeDrafts, getAcceptedMarkdown, codec } =
+    useEfmSourceBlockContext()
 
   useEffect(
     () =>
@@ -155,7 +156,8 @@ export function SourceRangeEditingPlugin({
           if (selectedIndices.length === 0) return true
 
           const acceptedMarkdown = getAcceptedMarkdown()
-          const resolved = resolveEfmEditableSourceRange({
+          const resolved = resolveEditableSourceRange({
+            analyze: (markdown, options) => codec.analyze(markdown, options),
             inputProfile,
             markdown: acceptedMarkdown,
             selectedIndices: selectedSourceIndices,
@@ -232,6 +234,7 @@ export function SourceRangeEditingPlugin({
       ),
     [
       activeDrafts,
+      codec,
       editor,
       getAcceptedMarkdown,
       inputProfile,

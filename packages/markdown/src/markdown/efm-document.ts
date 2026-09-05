@@ -5,17 +5,23 @@ import {
 } from "@lexical/markdown"
 import { fromMarkdown } from "mdast-util-from-markdown"
 import { gfmFromMarkdown } from "mdast-util-gfm"
-import { micromark } from "micromark"
 import { gfm } from "micromark-extension-gfm"
 import {
   $createParagraphNode,
   $getRoot,
   $getSelection,
   $isElementNode,
+  $isParagraphNode,
   $isTextNode,
   type ElementNode,
   type LexicalNode,
 } from "lexical"
+import {
+  $createListItemNode,
+  $createListNode,
+  type ListNode,
+  type ListType,
+} from "@lexical/list"
 import { isMap, LineCounter, parseDocument } from "yaml"
 
 import {
@@ -23,7 +29,11 @@ import {
   normalizeEfmUri,
   resolveEfmResourceUri,
 } from "./efm-uri"
-import { EIDOS_MARKDOWN_TRANSFORMERS } from "./markdown-transformers"
+import {
+  $setRichListSource,
+  EIDOS_MARKDOWN_TRANSFORMERS,
+} from "./markdown-transformers"
+import { obsidianImagePresentation } from "./obsidian-image-presentation"
 import {
   $createEfmSourceBlockNode,
   type EfmSourceBlockKind,
@@ -36,6 +46,21 @@ import {
 } from "../nodes/efm-semantic-node"
 import type { EfmDiagnostic, EfmInputProfile } from "../types"
 import { MARKDOWN_FEATURES } from "../plugin-system/feature-ids"
+import { scanDisplayMath, scanInlineMath } from "../features/math/syntax"
+import { mathInlineSyntax } from "../features/math/inline-syntax"
+import { calloutBlockSyntax } from "../features/vault-blocks/callout-syntax"
+import { markdownPreviewHtml } from "./preview"
+import { isEscaped } from "./source-escapes"
+import type { MarkdownGrammar } from "../core/markdown-grammar"
+import { importBlockSyntax, scanBlockSyntax } from "../core/block-syntax"
+import { importInlineSyntax, scanInlineSyntax } from "../core/inline-syntax"
+import { ACTIVE_HTML } from "../core/html-safety"
+import { htmlBlockSyntax } from "../features/html/plugin"
+import type {
+  MarkdownAnalysisOptions,
+  MarkdownDocumentAnalysis,
+  MarkdownSourceSegment,
+} from "../core/document-contract"
 
 interface MdastPosition {
   start: { line: number; column: number; offset?: number }
@@ -51,6 +76,8 @@ interface MdastNode {
   label?: string
   lang?: string | null
   meta?: string | null
+  ordered?: boolean
+  start?: number | null
   spread?: boolean
   title?: string | null
   url?: string
@@ -63,27 +90,19 @@ interface OffsetRange {
   end: number
 }
 
-export interface EfmAnalysisOptions {
-  inputProfile?: EfmInputProfile
-  baseUri?: string
-  /** Enabled editor capabilities. Omit to preserve the complete EFM profile. */
-  syntaxFeatures?: ReadonlySet<string>
+export interface EfmAnalysisOptions extends MarkdownAnalysisOptions {
+  /** Internal dialect switch used by mutually exclusive built-in profiles. */
+  dialect?: "eidos" | "obsidian" | "gfm"
 }
 
-export interface EfmImportSegment {
-  /** Start offset in normalized LF source. */
-  start: number
-  /** End offset in normalized LF source. */
-  end: number
-  source: string
-  sourceKind?: EfmSourceBlockKind
-  /** Non-visual source ordering that the editor projects to a pinned region. */
+export interface EfmImportSegment extends MarkdownSourceSegment {
+  syntaxId?: string
+  sourceKind?: EfmSourceBlockKind | "commonmark-container" | "rich-list"
+  /** @deprecated Use projection for the actual enabled editor placement. */
   placement?: "footnote-tail"
 }
 
-export interface EfmDocumentAnalysis {
-  diagnostics: EfmDiagnostic[]
-  normalizedSource: string
+export interface EfmDocumentAnalysis extends MarkdownDocumentAnalysis {
   segments: EfmImportSegment[]
 }
 
@@ -97,9 +116,6 @@ interface MathScan {
   diagnostics: EfmDiagnostic[]
   ranges: OffsetRange[]
 }
-
-const ACTIVE_HTML =
-  /<(?:script|iframe|object|embed|style|link|meta|base|title|textarea|xmp|noembed|noframes|plaintext|form|input|button|select)\b|\son[a-z]+\s*=|(?:javascript|vbscript)\s*:/iu
 
 export function normalizeEfmSource(source: string): string {
   const withoutBom = source.charCodeAt(0) === 0xfeff ? source.slice(1) : source
@@ -214,11 +230,14 @@ function readFrontmatter(
   return null
 }
 
-function parseMarkdown(source: string): MdastNode {
-  return fromMarkdown(source, {
-    extensions: [gfm()],
-    mdastExtensions: [gfmFromMarkdown()],
-  }) as unknown as MdastNode
+function parseMarkdown(source: string, grammar?: MarkdownGrammar): MdastNode {
+  return fromMarkdown(
+    source,
+    grammar ?? {
+      extensions: [gfm()],
+      mdastExtensions: [gfmFromMarkdown()],
+    }
+  ) as unknown as MdastNode
 }
 
 function nodeRange(node: MdastNode): OffsetRange | null {
@@ -258,53 +277,38 @@ function displayMathRanges(
     if (range) protectedRanges.push(range)
   })
 
-  const ranges: OffsetRange[] = []
-  const diagnostics: EfmDiagnostic[] = []
-  let cursor = 0
-  while (cursor <= source.length) {
-    const end = lineEnd(source, cursor)
-    const line = source.slice(cursor, end)
-    if (!isInsideRange(cursor, protectedRanges) && /^ {0,3}\$\$$/u.test(line)) {
-      let closingStart = end < source.length ? end + 1 : source.length
-      let closingEnd: number | null = null
-      while (closingStart <= source.length) {
-        const candidateEnd = lineEnd(source, closingStart)
-        if (/^ {0,3}\$\$$/u.test(source.slice(closingStart, candidateEnd))) {
-          closingEnd = candidateEnd
-          break
-        }
-        if (candidateEnd === source.length) break
-        closingStart = candidateEnd + 1
-      }
-
-      if (closingEnd === null) {
-        ranges.push({ start: cursor, end: source.length })
-        diagnostics.push(
-          diagnosticAt(
-            fullSource,
-            "efm-math-unterminated",
-            "error",
-            "Display mathematics is missing a closing $$ delimiter line.",
-            sourceOffset + cursor,
-            sourceOffset + end
-          )
-        )
-        break
-      }
-
-      ranges.push({ start: cursor, end: closingEnd })
-      cursor = closingEnd < source.length ? closingEnd + 1 : source.length + 1
-      continue
-    }
-    if (end === source.length) break
-    cursor = end + 1
+  const scan = scanDisplayMath(source, protectedRanges)
+  return {
+    ranges: scan.ranges,
+    diagnostics: scan.unterminated.map((range) =>
+      diagnosticAt(
+        fullSource,
+        "efm-math-unterminated",
+        "error",
+        "Display mathematics is missing a closing $$ delimiter line.",
+        sourceOffset + range.start,
+        sourceOffset + range.end
+      )
+    ),
   }
-  return { diagnostics, ranges }
 }
 
 function sourceForNode(node: MdastNode, source: string): string {
   const range = nodeRange(node)
   return range ? source.slice(range.start, range.end) : ""
+}
+
+function sourceForNestedBlock(node: MdastNode, source: string): string {
+  const markdown = sourceForNode(node, source)
+  const indent = Math.max(0, (node.position?.start.column ?? 1) - 1)
+  if (indent === 0 || !markdown.includes("\n")) return markdown
+  const prefix = " ".repeat(indent)
+  return markdown
+    .split("\n")
+    .map((line, index) =>
+      index > 0 && line.startsWith(prefix) ? line.slice(indent) : line
+    )
+    .join("\n")
 }
 
 function descendantsMatch(
@@ -317,18 +321,6 @@ function descendantsMatch(
   )
 }
 
-function isEscaped(source: string, offset: number): boolean {
-  let slashes = 0
-  for (
-    let index = offset - 1;
-    index >= 0 && source[index] === "\\";
-    index -= 1
-  ) {
-    slashes += 1
-  }
-  return slashes % 2 === 1
-}
-
 function inlineMathRanges(node: MdastNode, source: string): OffsetRange[] {
   const range = nodeRange(node)
   if (!range) return []
@@ -339,40 +331,7 @@ function inlineMathRanges(node: MdastNode, source: string): OffsetRange[] {
     if (protectedRange) protectedRanges.push(protectedRange)
   })
 
-  const mathRanges: OffsetRange[] = []
-  for (let opening = range.start; opening < range.end; opening += 1) {
-    if (
-      source[opening] !== "$" ||
-      source[opening - 1] === "$" ||
-      source[opening + 1] === "$" ||
-      isEscaped(source, opening) ||
-      isInsideRange(opening, protectedRanges) ||
-      source[opening + 1] === undefined ||
-      /\s/u.test(source[opening + 1])
-    ) {
-      continue
-    }
-
-    for (let closing = opening + 1; closing < range.end; closing += 1) {
-      const character = source[closing]
-      if (character === "\n") break
-      if (
-        character !== "$" ||
-        source[closing - 1] === "$" ||
-        source[closing + 1] === "$" ||
-        isEscaped(source, closing) ||
-        isInsideRange(closing, protectedRanges) ||
-        /\s/u.test(source[closing - 1]) ||
-        /[0-9]/u.test(source[closing + 1] ?? "")
-      ) {
-        continue
-      }
-      mathRanges.push({ start: opening, end: closing + 1 })
-      opening = closing
-      break
-    }
-  }
-  return mathRanges
+  return scanInlineMath(source, range, protectedRanges)
 }
 
 function hasInlineMath(node: MdastNode, source: string): boolean {
@@ -389,15 +348,10 @@ function isSafeInline(node: MdastNode, source: string): boolean {
     case "strong":
     case "delete":
       return (node.children ?? []).every((child) => isSafeInline(child, source))
-    case "link": {
-      const markdown = sourceForNode(node, source)
-      const normalizedUrl = normalizeEfmUri(node.url ?? "")
-      return (
-        !isDeniedEfmUri(normalizedUrl) &&
-        /^\[[\s\S]+\]\([^\s()]+(?:\s+"(?:[^"\\]|\\.)*")?\)$/u.test(markdown) &&
-        (node.children ?? []).every((child) => isSafeInline(child, source))
-      )
-    }
+    // URI safety is handled by the denied-link replacement during import.
+    // A denied destination does not make the surrounding paragraph unsupported.
+    case "link":
+      return (node.children ?? []).every((child) => isSafeInline(child, source))
     default:
       return false
   }
@@ -420,6 +374,58 @@ function isSimpleList(node: MdastNode, source: string): boolean {
     }
     return children.length === 1 || isSimpleList(children[1], source)
   })
+}
+
+function isRichListInline(node: MdastNode, source: string): boolean {
+  if (isSafeInline(node, source)) return true
+  switch (node.type) {
+    case "image":
+    case "imageReference":
+    case "linkReference":
+    case "footnoteReference":
+      return true
+    case "emphasis":
+    case "strong":
+    case "delete":
+      return (node.children ?? []).every((child) =>
+        isRichListInline(child, source)
+      )
+    default:
+      return false
+  }
+}
+
+function isRichListBlock(node: MdastNode, source: string): boolean {
+  switch (node.type) {
+    case "paragraph":
+      return (node.children ?? []).every((child) =>
+        isRichListInline(child, source)
+      )
+    case "blockquote":
+      return (node.children ?? []).every((child) =>
+        isRichListBlock(child, source)
+      )
+    case "list":
+      return isRichListImportable(node, source)
+    case "code":
+      return node.lang !== "math" && node.meta == null
+    case "thematicBreak":
+      return true
+    default:
+      return false
+  }
+}
+
+function isRichListImportable(node: MdastNode, source: string): boolean {
+  return (
+    node.type === "list" &&
+    (node.children ?? []).every(
+      (item) =>
+        item.type === "listItem" &&
+        (item.children ?? []).length > 0 &&
+        (item.children ?? []).every((child) => isRichListBlock(child, source))
+    )
+  )
 }
 
 function isLexicalSafe(node: MdastNode, source: string): boolean {
@@ -470,7 +476,10 @@ function isLexicalSafe(node: MdastNode, source: string): boolean {
   }
 }
 
-function opaqueKind(node: MdastNode, source: string): EfmSourceBlockKind {
+function opaqueKind(
+  node: MdastNode,
+  source: string
+): EfmSourceBlockKind | "commonmark-container" {
   if (node.type === "code" && node.lang === "math") return "math"
   if (hasInlineMath(node, source)) return "math"
   if (
@@ -504,7 +513,7 @@ function opaqueKind(node: MdastNode, source: string): EfmSourceBlockKind {
   ) {
     return "reference"
   }
-  return "commonmark"
+  return "commonmark-container"
 }
 
 function normalizeIdentifier(identifier: string): string {
@@ -675,6 +684,8 @@ interface EfmReferenceDefinition {
 }
 
 interface EfmImportContext {
+  inlineOptions?: MarkdownAnalysisOptions
+  grammar?: MarkdownGrammar
   footnoteDefinitions: Set<string>
   footnoteNumbers: Map<string, number>
   footnoteOccurrences: Map<string, number>
@@ -683,22 +694,44 @@ interface EfmImportContext {
 }
 
 interface EfmInlineReplacement {
-  data: EfmInlineData
+  data?: EfmInlineData
+  importNode?: () => LexicalNode
   end: number
   start: number
 }
 
+function imagePresentation(
+  alt: string,
+  dialect: EfmAnalysisOptions["dialect"]
+): { alt: string; width?: number; height?: number; obsidian?: boolean } {
+  if (dialect !== "obsidian") return { alt }
+  return obsidianImagePresentation(alt)
+}
+
+function isProtectedInlineNode(node: MdastNode): boolean {
+  return (
+    node.type === "code" ||
+    node.type === "inlineCode" ||
+    node.type === "html" ||
+    node.type === "link" ||
+    node.type === "image"
+  )
+}
+
 function createImportContext(
   source: string,
-  profile: EfmInputProfile
+  profile: EfmInputProfile,
+  grammar?: MarkdownGrammar,
+  hasFrontmatter = true,
+  inlineOptions?: MarkdownAnalysisOptions
 ): EfmImportContext {
-  const frontmatter = readFrontmatter(source, profile)
+  const frontmatter = hasFrontmatter ? readFrontmatter(source, profile) : null
   const bodyOffset = frontmatter
     ? frontmatter.end < source.length && source[frontmatter.end] === "\n"
       ? frontmatter.end + 1
       : frontmatter.end
     : 0
-  const root = parseMarkdown(source.slice(bodyOffset))
+  const root = parseMarkdown(source.slice(bodyOffset), grammar)
   const footnoteDefinitions = new Set<string>()
   const references = new Map<string, EfmReferenceDefinition>()
 
@@ -737,6 +770,8 @@ function createImportContext(
     }
   }
   return {
+    grammar,
+    inlineOptions,
     footnoteDefinitions,
     footnoteNumbers,
     footnoteOccurrences: new Map(),
@@ -764,9 +799,33 @@ function inlineReplacements(
   source: string,
   context: EfmImportContext,
   baseUri?: string,
-  syntaxFeatures?: ReadonlySet<string>
-): EfmInlineReplacement[] {
+  syntaxFeatures?: ReadonlySet<string>,
+  dialect: EfmAnalysisOptions["dialect"] = "eidos"
+): { replacements: EfmInlineReplacement[]; sourceRoot?: MdastNode } {
   const enabled = (feature: string) => syntaxFeatures?.has(feature) ?? true
+  const imageDialect =
+    (syntaxFeatures?.has(MARKDOWN_FEATURES.obsidianAttachment) ??
+    dialect === "obsidian")
+      ? "obsidian"
+      : "eidos"
+  const semanticEnabled = (eidosFeature: string, obsidianFeature: string) =>
+    enabled(eidosFeature) || enabled(obsidianFeature)
+  const semanticInlineNodesEnabled =
+    syntaxFeatures === undefined ||
+    [
+      MARKDOWN_FEATURES.link,
+      MARKDOWN_FEATURES.math,
+      MARKDOWN_FEATURES.image,
+      MARKDOWN_FEATURES.footnote,
+      MARKDOWN_FEATURES.reference,
+      MARKDOWN_FEATURES.gfmAutolink,
+      MARKDOWN_FEATURES.obsidianMath,
+      MARKDOWN_FEATURES.obsidianAttachment,
+      MARKDOWN_FEATURES.obsidianFootnote,
+      MARKDOWN_FEATURES.obsidianReference,
+      MARKDOWN_FEATURES.obsidianWikilink,
+      MARKDOWN_FEATURES.obsidianEmbed,
+    ].some(enabled)
   const supplementalDefinitions = [
     ...Array.from(
       context.footnoteDefinitions,
@@ -780,7 +839,8 @@ function inlineReplacements(
   const root = parseMarkdown(
     supplementalDefinitions.length > 0
       ? `${source}\n\n${supplementalDefinitions.join("\n\n")}`
-      : source
+      : source,
+    context.grammar
   )
   const replacements: EfmInlineReplacement[] = []
 
@@ -791,8 +851,51 @@ function inlineReplacements(
     }
     const original = source.slice(range.start, range.end)
 
+    if (node.type === "link" && node.url) {
+      const normalizedUrl = normalizeEfmUri(node.url)
+      if (isDeniedEfmUri(normalizedUrl)) {
+        replacements.push({
+          start: range.start,
+          end: range.end,
+          data: {
+            kind: "denied-link",
+            source: original,
+            url: node.url,
+            label: textFromNode(node),
+          },
+        })
+        return
+      }
+    }
+
     if (
-      enabled(MARKDOWN_FEATURES.footnote) &&
+      semanticInlineNodesEnabled &&
+      node.type === "link" &&
+      node.url &&
+      !original.startsWith("[")
+    ) {
+      const normalizedUrl = normalizeEfmUri(node.url)
+      if (isDeniedEfmUri(normalizedUrl)) return
+      replacements.push({
+        start: range.start,
+        end: range.end,
+        data: {
+          kind: "autolink",
+          source: original,
+          url: node.url,
+          resolvedUrl: resolveEfmResourceUri(node.url, baseUri) ?? undefined,
+          label: textFromNode(node),
+          ...(node.title ? { title: node.title } : {}),
+        },
+      })
+      return
+    }
+
+    if (
+      semanticEnabled(
+        MARKDOWN_FEATURES.footnote,
+        MARKDOWN_FEATURES.obsidianFootnote
+      ) &&
       node.type === "footnoteReference" &&
       node.identifier
     ) {
@@ -818,7 +921,15 @@ function inlineReplacements(
       return
     }
 
-    if (enabled(MARKDOWN_FEATURES.image) && node.type === "image" && node.url) {
+    if (
+      semanticEnabled(
+        MARKDOWN_FEATURES.image,
+        MARKDOWN_FEATURES.obsidianAttachment
+      ) &&
+      node.type === "image" &&
+      node.url
+    ) {
+      const presentation = imagePresentation(node.alt ?? "", imageDialect)
       replacements.push({
         start: range.start,
         end: range.end,
@@ -829,7 +940,7 @@ function inlineReplacements(
           resolvedUrl:
             resolveEfmResourceUri(node.url, baseUri, { image: true }) ??
             undefined,
-          alt: node.alt ?? "",
+          ...presentation,
           ...(node.title ? { title: node.title } : {}),
         },
       })
@@ -837,8 +948,15 @@ function inlineReplacements(
     }
 
     if (
-      ((enabled(MARKDOWN_FEATURES.image) && node.type === "imageReference") ||
-        (enabled(MARKDOWN_FEATURES.reference) &&
+      ((semanticEnabled(
+        MARKDOWN_FEATURES.image,
+        MARKDOWN_FEATURES.obsidianAttachment
+      ) &&
+        node.type === "imageReference") ||
+        (semanticEnabled(
+          MARKDOWN_FEATURES.reference,
+          MARKDOWN_FEATURES.obsidianReference
+        ) &&
           node.type === "linkReference")) &&
       node.identifier
     ) {
@@ -860,7 +978,10 @@ function inlineReplacements(
                   resolveEfmResourceUri(definition.url, baseUri, {
                     image: true,
                   }) ?? undefined,
-                alt: node.alt ?? node.label ?? node.identifier,
+                ...imagePresentation(
+                  node.alt ?? node.label ?? node.identifier,
+                  imageDialect
+                ),
                 ...(definition.title ? { title: definition.title } : {}),
               }
             : {
@@ -871,27 +992,15 @@ function inlineReplacements(
                 resolvedUrl:
                   resolveEfmResourceUri(definition.url, baseUri) ?? undefined,
                 label: textFromNode(node),
-                labelHtml: inlineMarkdownPreviewHtml(childSource(node, source)),
+                labelHtml: inlineMarkdownPreviewHtml(
+                  childSource(node, source),
+                  context.grammar
+                ),
                 ...(definition.title ? { title: definition.title } : {}),
               },
       })
     }
   })
-
-  if (enabled(MARKDOWN_FEATURES.math)) {
-    for (const range of inlineMathRanges(root, source)) {
-      const original = source.slice(range.start, range.end)
-      replacements.push({
-        start: range.start,
-        end: range.end,
-        data: {
-          kind: "math",
-          source: original,
-          value: original.slice(1, -1),
-        },
-      })
-    }
-  }
 
   const nonOverlapping: EfmInlineReplacement[] = []
   for (const replacement of replacements.sort(
@@ -907,12 +1016,17 @@ function inlineReplacements(
     }
     nonOverlapping.push(replacement)
   }
-  return nonOverlapping
+  return {
+    replacements: nonOverlapping,
+    // Supplemental definitions can change how references are parsed. Only
+    // share the tree when both consumers parse exactly the same source.
+    sourceRoot: supplementalDefinitions.length === 0 ? root : undefined,
+  }
 }
 
 function replaceInlinePlaceholders(
   nodes: readonly LexicalNode[],
-  placeholders: readonly { data: EfmInlineData; value: string }[]
+  placeholders: readonly { importNode: () => LexicalNode; value: string }[]
 ): void {
   const textNodes = nodes.flatMap((node) =>
     $isTextNode(node)
@@ -940,7 +1054,7 @@ function replaceInlinePlaceholders(
       ]
       const pieces = textNode.splitText(...offsets)
       const target = pieces[match.start > 0 ? 1 : 0]
-      target.replace($createEfmInlineNode(match.data))
+      target.replace(match.importNode())
     }
   }
 }
@@ -950,25 +1064,88 @@ function importMarkdownWithSemantics(
   transformers: readonly Transformer[],
   context: EfmImportContext,
   baseUri?: string,
-  syntaxFeatures?: ReadonlySet<string>
+  syntaxFeatures?: ReadonlySet<string>,
+  dialect: EfmAnalysisOptions["dialect"] = "eidos"
 ): LexicalNode[] {
-  const replacements = inlineReplacements(
+  const { replacements, sourceRoot } = inlineReplacements(
     source,
     context,
     baseUri,
-    syntaxFeatures
+    syntaxFeatures,
+    dialect
   )
+  const inlineOptions = context.inlineOptions ?? {}
+  // The grammar has already recognized a table. Lexical's generic paragraph
+  // normalization can merge rows with only one outer pipe before TABLE runs.
+  const preserveTableRows =
+    (sourceRoot ?? parseMarkdown(source, context.grammar)).children?.some(
+      (node) => node.type === "table"
+    ) ?? false
+  // Preserve the direct EFM codec's legacy default; composed presets always
+  // supply their explicit registry (including an intentionally empty one).
+  const inlineSyntax =
+    inlineOptions.inlineSyntax ??
+    (!syntaxFeatures ||
+    syntaxFeatures.has(MARKDOWN_FEATURES.math) ||
+    syntaxFeatures.has(MARKDOWN_FEATURES.obsidianMath)
+      ? [mathInlineSyntax]
+      : [])
+  if (inlineSyntax.length) {
+    const protectedRanges: OffsetRange[] = []
+    visit(sourceRoot ?? parseMarkdown(source, context.grammar), (node) => {
+      if (!isProtectedInlineNode(node)) return
+      const range = nodeRange(node)
+      if (range) protectedRanges.push(range)
+    })
+    const captures = scanInlineSyntax(
+      source,
+      inlineSyntax.filter((syntax) => syntax.capturesContent),
+      protectedRanges,
+      inlineOptions
+    )
+    for (let index = replacements.length - 1; index >= 0; index--)
+      if (
+        captures.some(
+          (range) =>
+            replacements[index].start < range.end &&
+            replacements[index].end > range.start
+        )
+      )
+        replacements.splice(index, 1)
+    const matches = [
+      ...captures,
+      ...scanInlineSyntax(
+        source,
+        inlineSyntax.filter((syntax) => !syntax.capturesContent),
+        [...protectedRanges, ...replacements, ...captures],
+        inlineOptions
+      ),
+    ]
+    for (const match of matches)
+      replacements.push({
+        start: match.start,
+        end: match.end,
+        importNode: () =>
+          importInlineSyntax(
+            match.syntax,
+            source.slice(match.start, match.end),
+            inlineOptions
+          ),
+      })
+    replacements.sort((a, b) => a.start - b.start)
+  }
   if (replacements.length === 0) {
     return $generateNodesFromMarkdownString(
       source,
       [...transformers],
-      false,
+      preserveTableRows,
       true
     )
   }
 
   const placeholders = replacements.map((replacement, index) => ({
-    data: replacement.data,
+    importNode:
+      replacement.importNode ?? (() => $createEfmInlineNode(replacement.data!)),
     value: `\u{e000}efm-${index}\u{e001}`,
   }))
   let cursor = 0
@@ -983,11 +1160,81 @@ function importMarkdownWithSemantics(
   const nodes = $generateNodesFromMarkdownString(
     markdown,
     [...transformers],
-    false,
+    preserveTableRows,
     true
   )
   replaceInlinePlaceholders(nodes, placeholders)
   return nodes
+}
+
+function richListType(node: MdastNode): ListType {
+  if (node.ordered) return "number"
+  const items = node.children ?? []
+  return items.length > 0 && items.every((item) => item.checked != null)
+    ? "check"
+    : "bullet"
+}
+
+function importRichList(
+  source: string,
+  node: MdastNode,
+  transformers: readonly Transformer[],
+  context: EfmImportContext,
+  baseUri?: string,
+  syntaxFeatures?: ReadonlySet<string>,
+  dialect: EfmAnalysisOptions["dialect"] = "eidos"
+): ListNode {
+  const listType = richListType(node)
+  const list = $createListNode(
+    listType,
+    listType === "number" ? (node.start ?? 1) : undefined
+  )
+  for (const item of node.children ?? []) {
+    const listItem = $createListItemNode(
+      listType === "check" ? item.checked === true : undefined
+    )
+    for (const [index, child] of (item.children ?? []).entries()) {
+      const markdown = sourceForNestedBlock(child, source)
+      if (child.type === "list") {
+        const parsedChild = firstNode(markdown)
+        if (parsedChild) {
+          listItem.splice(listItem.getChildrenSize(), 0, [
+            importRichList(
+              markdown,
+              parsedChild,
+              transformers,
+              context,
+              baseUri,
+              syntaxFeatures,
+              dialect
+            ),
+          ])
+        }
+        continue
+      }
+      const nodes = importMarkdownWithSemantics(
+        markdown,
+        transformers,
+        context,
+        baseUri,
+        syntaxFeatures,
+        dialect
+      )
+      if (
+        index === 0 &&
+        child.type === "paragraph" &&
+        nodes.length === 1 &&
+        $isParagraphNode(nodes[0])
+      ) {
+        listItem.append(...nodes[0].getChildren())
+      } else {
+        listItem.splice(listItem.getChildrenSize(), 0, nodes)
+      }
+    }
+    list.append(listItem)
+  }
+  $setRichListSource(list, source)
+  return list
 }
 
 function mathBlockValue(source: string): string | null {
@@ -1010,8 +1257,11 @@ function mathBlockValue(source: string): string | null {
     : null
 }
 
-function firstNode(source: string): MdastNode | undefined {
-  return parseMarkdown(source).children?.[0]
+function firstNode(
+  source: string,
+  grammar?: MarkdownGrammar
+): MdastNode | undefined {
+  return parseMarkdown(source, grammar).children?.[0]
 }
 
 function footnotePreviewSource(source: string, node: MdastNode): string {
@@ -1025,7 +1275,8 @@ function footnotePreviewSource(source: string, node: MdastNode): string {
 function standaloneImageData(
   source: string,
   node: MdastNode,
-  baseUri?: string
+  baseUri?: string,
+  dialect: EfmAnalysisOptions["dialect"] = "eidos"
 ): EfmBlockData | null {
   if (node.type !== "paragraph" || node.children?.length !== 1) return null
   const image = node.children[0]
@@ -1036,20 +1287,16 @@ function standaloneImageData(
     url: image.url,
     resolvedUrl:
       resolveEfmResourceUri(image.url, baseUri, { image: true }) ?? undefined,
-    alt: image.alt ?? "",
+    ...imagePresentation(image.alt ?? "", dialect),
     ...(image.title ? { title: image.title } : {}),
   }
 }
 
-function markdownPreviewHtml(source: string): string {
-  return micromark(source, {
-    allowDangerousHtml: true,
-    extensions: [gfm()],
-  })
-}
-
-function inlineMarkdownPreviewHtml(source: string): string {
-  return markdownPreviewHtml(source)
+function inlineMarkdownPreviewHtml(
+  source: string,
+  grammar?: MarkdownGrammar
+): string {
+  return markdownPreviewHtml(source, grammar)
     .replace(/^<p>/u, "")
     .replace(/<\/p>\n?$/u, "")
 }
@@ -1057,17 +1304,21 @@ function inlineMarkdownPreviewHtml(source: string): string {
 function appendMarkdownSegments(
   target: EfmImportSegment[],
   source: string,
-  root: MdastNode = parseMarkdown(source),
-  sourceOffset = 0
+  root: MdastNode | undefined = undefined,
+  sourceOffset = 0,
+  dialect: EfmAnalysisOptions["dialect"] = "eidos",
+  grammar?: MarkdownGrammar,
+  syntaxFeatures?: ReadonlySet<string>,
+  legacyCallouts = true
 ): void {
   if (!source.trim()) return
-  const children = root.children ?? []
+  const children = (root ?? parseMarkdown(source, grammar)).children ?? []
   if (children.length === 0) {
     target.push({
       start: sourceOffset,
       end: sourceOffset + source.length,
       source,
-      sourceKind: "commonmark",
+      sourceKind: "commonmark-container",
     })
     return
   }
@@ -1076,25 +1327,55 @@ function appendMarkdownSegments(
     const range = nodeRange(node)
     if (!range) continue
     const markdown = source.slice(range.start, range.end)
+    if (
+      legacyCallouts &&
+      (syntaxFeatures?.has(MARKDOWN_FEATURES.obsidianCallout) ??
+        dialect === "obsidian") &&
+      /^ {0,3}>[ \t]*\[![A-Za-z][\w-]*\][+-]?(?:[ \t]+.*)?(?:\n|$)/u.test(
+        markdown
+      )
+    ) {
+      target.push({
+        start: sourceOffset + range.start,
+        end: sourceOffset + range.end,
+        source: markdown,
+        sourceKind: "obsidian-callout",
+      })
+      continue
+    }
+    const placement =
+      node.type === "footnoteDefinition"
+        ? { placement: "footnote-tail" as const }
+        : {}
     target.push(
       isLexicalSafe(node, source)
         ? {
             start: sourceOffset + range.start,
             end: sourceOffset + range.end,
             source: markdown,
-            ...(node.type === "footnoteDefinition"
-              ? { placement: "footnote-tail" as const }
-              : {}),
+            ...placement,
           }
-        : {
-            start: sourceOffset + range.start,
-            end: sourceOffset + range.end,
-            source: markdown,
-            sourceKind: opaqueKind(node, source),
-            ...(node.type === "footnoteDefinition"
-              ? { placement: "footnote-tail" as const }
-              : {}),
-          }
+        : isRichListImportable(node, source)
+          ? {
+              start: sourceOffset + range.start,
+              end: sourceOffset + range.end,
+              source: markdown,
+              sourceKind: "rich-list",
+              ...placement,
+            }
+          : {
+              start: sourceOffset + range.start,
+              end: sourceOffset + range.end,
+              source: markdown,
+              sourceKind:
+                (syntaxFeatures
+                  ? !syntaxFeatures.has(MARKDOWN_FEATURES.math) &&
+                    !syntaxFeatures.has(MARKDOWN_FEATURES.obsidianMath)
+                  : dialect === "gfm") && opaqueKind(node, source) === "math"
+                  ? "commonmark-container"
+                  : opaqueKind(node, source),
+              ...placement,
+            }
     )
   }
 }
@@ -1107,7 +1388,14 @@ export function analyzeEfmMarkdown(
   const profile = options.inputProfile ?? "document"
   const diagnostics: EfmDiagnostic[] = []
   const segments: EfmImportSegment[] = []
-  const frontmatter = readFrontmatter(normalizedSource, profile)
+  const frontmatter = (
+    options.grammar !== undefined
+      ? !options.syntaxFeatures?.has(MARKDOWN_FEATURES.obsidianProperties) &&
+        !options.syntaxFeatures?.has(MARKDOWN_FEATURES.frontmatter)
+      : options.dialect === "gfm"
+  )
+    ? null
+    : readFrontmatter(normalizedSource, profile)
   let bodyOffset = 0
 
   if (frontmatter) {
@@ -1126,41 +1414,109 @@ export function analyzeEfmMarkdown(
   }
 
   const body = normalizedSource.slice(bodyOffset)
-  const markdownRoot = parseMarkdown(body)
-  const math = displayMathRanges(
-    body,
-    markdownRoot,
-    normalizedSource,
-    bodyOffset
-  )
-  diagnostics.push(...math.diagnostics)
+  const markdownRoot = parseMarkdown(body, options.grammar)
+  let blocks: {
+    ranges: (OffsetRange & { syntaxId?: string })[]
+    diagnostics: EfmDiagnostic[]
+  }
+  if (options.blockSyntax !== undefined) {
+    const protectedRanges: OffsetRange[] = []
+    visit(markdownRoot, (node) => {
+      if (
+        !["code", "html", "inlineCode", "list", "blockquote"].includes(
+          node.type
+        )
+      )
+        return
+      const range = nodeRange(node)
+      if (range) protectedRanges.push(range)
+    })
+    const matches = scanBlockSyntax(
+      body,
+      options.blockSyntax,
+      protectedRanges,
+      options,
+      (markdownRoot.children ?? []).flatMap((node) => {
+        const range = nodeRange(node)
+        return range
+          ? [
+              Object.freeze({
+                ...range,
+                type: node.type,
+                source: body.slice(range.start, range.end),
+              }),
+            ]
+          : []
+      })
+    )
+    blocks = {
+      ranges: matches,
+      diagnostics: matches.flatMap((match) =>
+        (match.diagnostics ?? []).map((entry) =>
+          diagnosticAt(
+            normalizedSource,
+            entry.code,
+            entry.severity,
+            entry.message,
+            bodyOffset + entry.start,
+            bodyOffset + entry.end
+          )
+        )
+      ),
+    }
+  } else {
+    blocks = displayMathRanges(body, markdownRoot, normalizedSource, bodyOffset)
+  }
+  diagnostics.push(...blocks.diagnostics)
   diagnostics.push(
     ...collectBodyDiagnostics(
       markdownRoot,
       body,
       normalizedSource,
       bodyOffset,
-      math.ranges,
+      blocks.ranges,
       options.baseUri
+    ).filter(
+      (entry) =>
+        (options.syntaxFeatures
+          ? options.syntaxFeatures.has(MARKDOWN_FEATURES.footnote) ||
+            options.syntaxFeatures.has(MARKDOWN_FEATURES.obsidianFootnote)
+          : options.dialect !== "gfm") ||
+        !entry.code.startsWith("efm-footnote-")
     )
   )
 
-  if (math.ranges.length === 0) {
-    appendMarkdownSegments(segments, body, markdownRoot, bodyOffset)
+  if (blocks.ranges.length === 0) {
+    appendMarkdownSegments(
+      segments,
+      body,
+      markdownRoot,
+      bodyOffset,
+      options.dialect,
+      options.grammar,
+      options.syntaxFeatures,
+      options.blockSyntax === undefined
+    )
   } else {
     let cursor = 0
-    for (const range of math.ranges) {
+    for (const range of blocks.ranges) {
       appendMarkdownSegments(
         segments,
         body.slice(cursor, range.start),
         undefined,
-        bodyOffset + cursor
+        bodyOffset + cursor,
+        options.dialect,
+        options.grammar,
+        options.syntaxFeatures,
+        options.blockSyntax === undefined
       )
       segments.push({
         start: bodyOffset + range.start,
         end: bodyOffset + range.end,
         source: body.slice(range.start, range.end),
-        sourceKind: "math",
+        ...(range.syntaxId
+          ? { syntaxId: range.syntaxId }
+          : { sourceKind: "math" as const }),
       })
       cursor = range.end
       if (body[cursor] === "\n") cursor += 1
@@ -1169,8 +1525,22 @@ export function analyzeEfmMarkdown(
       segments,
       body.slice(cursor),
       undefined,
-      bodyOffset + cursor
+      bodyOffset + cursor,
+      options.dialect,
+      options.grammar,
+      options.syntaxFeatures,
+      options.blockSyntax === undefined
     )
+  }
+
+  const projectsFootnotes =
+    options.syntaxFeatures === undefined ||
+    options.syntaxFeatures.has(MARKDOWN_FEATURES.obsidianFootnote) ||
+    options.syntaxFeatures.has(MARKDOWN_FEATURES.footnote)
+  for (const segment of segments) {
+    if (segment.placement === "footnote-tail" && projectsFootnotes) {
+      segment.projection = { placement: "end", sourceEditable: false }
+    }
   }
 
   return {
@@ -1194,16 +1564,54 @@ export function $convertFromEfmMarkdownString(
   const root = node ?? $getRoot()
   const context = createImportContext(
     analysis.normalizedSource,
-    options.inputProfile ?? "document"
+    options.inputProfile ?? "document",
+    options.grammar,
+    analysis.segments[0]?.sourceKind === "frontmatter",
+    options
   )
   const deferredFootnotes: LexicalNode[] = []
   const enabled = (feature: string) =>
     options.syntaxFeatures?.has(feature) ?? true
+  const semanticEnabled = (eidosFeature: string, obsidianFeature: string) =>
+    enabled(eidosFeature) || enabled(obsidianFeature)
+  const semanticBlockNodesEnabled =
+    options.syntaxFeatures === undefined ||
+    [
+      MARKDOWN_FEATURES.math,
+      MARKDOWN_FEATURES.image,
+      MARKDOWN_FEATURES.footnote,
+      MARKDOWN_FEATURES.frontmatter,
+      MARKDOWN_FEATURES.rawHtml,
+      MARKDOWN_FEATURES.reference,
+      MARKDOWN_FEATURES.obsidianMath,
+      MARKDOWN_FEATURES.obsidianAttachment,
+      MARKDOWN_FEATURES.obsidianFootnote,
+      MARKDOWN_FEATURES.obsidianProperties,
+      MARKDOWN_FEATURES.obsidianRawHtml,
+      MARKDOWN_FEATURES.obsidianReference,
+      MARKDOWN_FEATURES.obsidianCallout,
+    ].some(enabled)
   root.clear()
 
   for (const segment of analysis.segments) {
+    if (segment.syntaxId) {
+      const syntax = options.blockSyntax?.find(
+        (candidate) => candidate.id === segment.syntaxId
+      )
+      if (!syntax)
+        throw new Error(
+          `Missing block syntax "${segment.syntaxId}" during import.`
+        )
+      root.append(importBlockSyntax(syntax, segment.source, options))
+      continue
+    }
     if (segment.sourceKind === "frontmatter") {
-      if (!enabled(MARKDOWN_FEATURES.frontmatter)) {
+      if (
+        !semanticEnabled(
+          MARKDOWN_FEATURES.frontmatter,
+          MARKDOWN_FEATURES.obsidianProperties
+        )
+      ) {
         root.append($createEfmSourceBlockNode(segment.source, "frontmatter"))
         continue
       }
@@ -1222,7 +1630,9 @@ export function $convertFromEfmMarkdownString(
     }
 
     if (segment.sourceKind === "math") {
-      if (!enabled(MARKDOWN_FEATURES.math)) {
+      if (
+        !semanticEnabled(MARKDOWN_FEATURES.math, MARKDOWN_FEATURES.obsidianMath)
+      ) {
         root.append($createEfmSourceBlockNode(segment.source, "math"))
         continue
       }
@@ -1244,30 +1654,54 @@ export function $convertFromEfmMarkdownString(
             transformers,
             context,
             options.baseUri,
-            options.syntaxFeatures
+            options.syntaxFeatures,
+            options.dialect
           )
         )
       }
       continue
     }
 
-    const parsed = segment.sourceKind ? firstNode(segment.source) : undefined
+    const parsed = segment.sourceKind
+      ? firstNode(segment.source, options.grammar)
+      : undefined
     if (
-      (segment.sourceKind === "image" && !enabled(MARKDOWN_FEATURES.image)) ||
+      (segment.sourceKind === "image" &&
+        !semanticEnabled(
+          MARKDOWN_FEATURES.image,
+          MARKDOWN_FEATURES.obsidianAttachment
+        )) ||
       (segment.sourceKind === "footnote" &&
-        !enabled(MARKDOWN_FEATURES.footnote)) ||
+        !semanticEnabled(
+          MARKDOWN_FEATURES.footnote,
+          MARKDOWN_FEATURES.obsidianFootnote
+        )) ||
       (segment.sourceKind === "reference" &&
-        !enabled(MARKDOWN_FEATURES.reference))
+        !semanticEnabled(
+          MARKDOWN_FEATURES.reference,
+          MARKDOWN_FEATURES.obsidianReference
+        ))
     ) {
       root.append($createEfmSourceBlockNode(segment.source, segment.sourceKind))
       continue
     }
     if (
-      enabled(MARKDOWN_FEATURES.image) &&
+      semanticEnabled(
+        MARKDOWN_FEATURES.image,
+        MARKDOWN_FEATURES.obsidianAttachment
+      ) &&
       segment.sourceKind === "image" &&
       parsed
     ) {
-      const image = standaloneImageData(segment.source, parsed, options.baseUri)
+      const image = standaloneImageData(
+        segment.source,
+        parsed,
+        options.baseUri,
+        (options.syntaxFeatures?.has(MARKDOWN_FEATURES.obsidianAttachment) ??
+          options.dialect === "obsidian")
+          ? "obsidian"
+          : "eidos"
+      )
       if (image) {
         root.append($createEfmBlockNode(image))
         continue
@@ -1275,7 +1709,10 @@ export function $convertFromEfmMarkdownString(
     }
     if (
       segment.sourceKind === "footnote" &&
-      enabled(MARKDOWN_FEATURES.footnote) &&
+      semanticEnabled(
+        MARKDOWN_FEATURES.footnote,
+        MARKDOWN_FEATURES.obsidianFootnote
+      ) &&
       parsed?.type === "footnoteDefinition" &&
       parsed.identifier
     ) {
@@ -1289,7 +1726,7 @@ export function $convertFromEfmMarkdownString(
           label: parsed.label ?? parsed.identifier,
           number: context.footnoteNumbers.get(identifier),
           referenceIds: context.footnoteReferenceIds.get(identifier) ?? [],
-          previewHtml: markdownPreviewHtml(previewSource),
+          previewHtml: markdownPreviewHtml(previewSource, options.grammar),
         })
       )
       continue
@@ -1297,7 +1734,10 @@ export function $convertFromEfmMarkdownString(
 
     if (
       segment.sourceKind === "reference" &&
-      enabled(MARKDOWN_FEATURES.reference) &&
+      semanticEnabled(
+        MARKDOWN_FEATURES.reference,
+        MARKDOWN_FEATURES.obsidianReference
+      ) &&
       parsed?.type === "definition" &&
       parsed.identifier
     ) {
@@ -1312,24 +1752,87 @@ export function $convertFromEfmMarkdownString(
     }
 
     if (segment.sourceKind === "raw-html") {
-      if (!enabled(MARKDOWN_FEATURES.rawHtml)) {
+      if (
+        !semanticEnabled(
+          MARKDOWN_FEATURES.rawHtml,
+          MARKDOWN_FEATURES.obsidianRawHtml
+        )
+      ) {
         root.append($createEfmSourceBlockNode(segment.source, "raw-html"))
         continue
       }
+      root.append(htmlBlockSyntax.import(segment.source, options))
+      continue
+    }
+
+    if (
+      segment.sourceKind === "obsidian-callout" &&
+      enabled(MARKDOWN_FEATURES.obsidianCallout)
+    ) {
+      root.append(calloutBlockSyntax.import(segment.source, options))
+      continue
+    }
+
+    if (
+      segment.sourceKind === "rich-list" &&
+      parsed?.type === "list" &&
+      isRichListImportable(parsed, segment.source)
+    ) {
       root.append(
-        ACTIVE_HTML.test(segment.source)
-          ? $createEfmSourceBlockNode(segment.source, "raw-html")
-          : $createEfmBlockNode({
-              kind: "raw-html",
-              source: segment.source,
-              previewHtml: markdownPreviewHtml(segment.source),
-            })
+        importRichList(
+          segment.source,
+          parsed,
+          transformers,
+          context,
+          options.baseUri,
+          options.syntaxFeatures,
+          options.dialect
+        )
       )
       continue
     }
 
-    if (segment.sourceKind === "commonmark") {
-      root.append($createEfmSourceBlockNode(segment.source, "commonmark"))
+    if (
+      segment.sourceKind === "commonmark" ||
+      segment.sourceKind === "commonmark-container"
+    ) {
+      // An explicitly registered inline owner can make an otherwise opaque
+      // paragraph editable, without declaring a built-in semantic feature.
+      if (parsed?.type === "paragraph" || parsed?.type === "heading") {
+        const protectedRanges: OffsetRange[] = []
+        visit(parsed, (child) => {
+          const range = nodeRange(child)
+          if (range && isProtectedInlineNode(child)) protectedRanges.push(range)
+        })
+        if (
+          options.inlineSyntax?.some(
+            (syntax) =>
+              syntax.scan(segment.source, { protectedRanges, options }).length >
+              0
+          )
+        ) {
+          root.append(
+            ...importMarkdownWithSemantics(
+              segment.source,
+              transformers,
+              context,
+              options.baseUri,
+              options.syntaxFeatures,
+              options.dialect
+            )
+          )
+          continue
+        }
+      }
+      root.append(
+        semanticBlockNodesEnabled
+          ? $createEfmBlockNode({
+              kind: "commonmark-container",
+              source: segment.source,
+              previewHtml: markdownPreviewHtml(segment.source, options.grammar),
+            })
+          : $createEfmSourceBlockNode(segment.source, "commonmark")
+      )
       continue
     }
 
@@ -1339,7 +1842,8 @@ export function $convertFromEfmMarkdownString(
         transformers,
         context,
         options.baseUri,
-        options.syntaxFeatures
+        options.syntaxFeatures,
+        options.dialect
       )
     )
   }

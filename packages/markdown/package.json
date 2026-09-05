@@ -2,7 +2,7 @@
   "name": "@eidos.space/markdown",
   "version": "0.1.0",
   "private": true,
-  "description": "Lexical-based WYSIWYG Markdown editor for Eidos",
+  "description": "A composable React Markdown editor with source-aware editing and block interactions",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -23,11 +23,20 @@
       "import": "./dist/builtin-plugins.mjs",
       "default": "./dist/builtin-plugins.mjs"
     },
+    "./presets": {
+      "types": "./dist/presets.d.mts",
+      "import": "./dist/presets.mjs",
+      "default": "./dist/presets.mjs"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "files": [
     "dist",
+    "docs",
+    "specs",
+    "architecture",
     "API.md",
+    "OBSIDIAN-COMPATIBILITY.md",
     "README.md",
     "SPEC.md"
   ],
@@ -37,6 +46,8 @@
   "scripts": {
     "build": "tsdown && node scripts/copy-css.mjs",
     "test": "vitest run",
+    "benchmark:codec": "pnpm run build && node scripts/benchmark-codec.mjs",
+    "test:package": "pnpm run build && node scripts/test-package.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit"
   },

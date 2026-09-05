@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react"
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
   LexicalComposer,
@@ -6,35 +7,39 @@ import {
 } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary"
-import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
-import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
-import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
-import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
-import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 
 import { MARKDOWN_EDITOR_CORE_NODES } from "../nodes/node-registry"
 import { MARKDOWN_EDITOR_THEME } from "./editor-theme"
-import {
-  $convertFromEfmMarkdownString,
-  analyzeEfmMarkdown,
-} from "../markdown/efm-document"
+import { resolveEditorInteractions } from "./interactions"
 import { resolveEfmResourceUri } from "../markdown/efm-uri"
+import {
+  findObsidianHeadingTarget,
+  parseObsidianMarkdownLinkDestination,
+} from "../markdown/obsidian-internal-link"
 import { unsupportedMarkdownFeaturesFromDiagnostics } from "../markdown/markdown-support"
 import { compileMarkdownPlugins } from "../plugin-system/plugin-compiler"
 import { EIDOS_MARKDOWN_PLUGIN_REGISTRY } from "../plugin-system/builtins"
 import { MARKDOWN_FEATURES } from "../plugin-system/feature-ids"
 import type { CompiledMarkdownPlugins } from "../plugin-system/plugin-api"
+import {
+  eidosMarkdownProfile,
+  gfmMarkdownProfile,
+  obsidianMarkdownProfile,
+} from "../profile-system/builtins"
+import type {
+  MarkdownProfile,
+  MarkdownProfileCodec,
+} from "../profile-system/profile-api"
 import { BlockMarqueeSelectionPlugin } from "../plugins/block-marquee-selection-plugin"
 import { ClipboardImagePlugin } from "../plugins/clipboard-image-plugin"
-import { CodeHighlightPlugin } from "../plugins/code-highlight-plugin"
 import { EditorShortcutsPlugin } from "../plugins/editor-shortcuts-plugin"
+import { TextFormatPolicyPlugin } from "../plugins/text-format-policy-plugin"
 import { InsertBlockPlugin } from "../plugins/insert-block-plugin"
 import { InternalNavigationPlugin } from "../plugins/internal-navigation-plugin"
-import { ListItemShortcutsPlugin } from "../plugins/list-item-shortcuts-plugin"
 import { MarkdownStatePlugin } from "../plugins/markdown-state-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
 import {
@@ -105,6 +110,7 @@ function MarkdownDiagnostics({
   onEfmDiagnostics,
   onUnsupportedMarkdown,
   syntaxFeatures,
+  codec,
 }: Pick<
   MarkdownEditorProps,
   | "markdown"
@@ -112,14 +118,17 @@ function MarkdownDiagnostics({
   | "baseUri"
   | "onEfmDiagnostics"
   | "onUnsupportedMarkdown"
-> & { syntaxFeatures: ReadonlySet<string> }) {
+> & {
+  syntaxFeatures: ReadonlySet<string>
+  codec: MarkdownProfileCodec
+}) {
   useEffect(() => {
     if (!onEfmDiagnostics && !onUnsupportedMarkdown) return
 
     let cancelled = false
     const analyze = () => {
       if (cancelled) return
-      const analysis = analyzeEfmMarkdown(markdown, {
+      const analysis = codec.analyze(markdown, {
         inputProfile,
         baseUri,
         syntaxFeatures,
@@ -157,7 +166,39 @@ function MarkdownDiagnostics({
     onEfmDiagnostics,
     onUnsupportedMarkdown,
     syntaxFeatures,
+    codec,
   ])
+  return null
+}
+
+function RequestedInternalNavigationPlugin({
+  navigationTarget: target,
+}: Pick<MarkdownEditorProps, "navigationTarget">) {
+  const [editor] = useLexicalComposerContext()
+  useEffect(() => {
+    if (!target?.heading && !target?.blockId) return
+    let frame = 0
+    let attempts = 0
+    const locate = () => {
+      const root = editor.getRootElement()
+      const match = target.blockId
+        ? root?.querySelector(
+            `[data-obsidian-block-id="${CSS.escape(target.blockId)}"]`
+          )
+        : target.heading && root
+          ? findObsidianHeadingTarget(root, target.heading)
+          : null
+      if (match instanceof HTMLElement) {
+        match.scrollIntoView({ block: "center" })
+        match.focus({ preventScroll: true })
+        return
+      }
+      attempts += 1
+      if (attempts < 20) frame = window.requestAnimationFrame(locate)
+    }
+    frame = window.requestAnimationFrame(locate)
+    return () => window.cancelAnimationFrame(frame)
+  }, [editor, target])
   return null
 }
 
@@ -167,6 +208,8 @@ function MarkdownEditorImplementation({
   onMarkdownChange,
   onSaveRequest,
   onOpenExternalUrl,
+  onOpenInternalLink,
+  navigationTarget,
   onPasteImage,
   resolveImageUrl,
   onError,
@@ -176,12 +219,18 @@ function MarkdownEditorImplementation({
   readOnly = false,
   autoFocus = false,
   showToolbar = true,
+  interactions,
   codeHighlightTokenizer,
   inputProfile = "document",
   baseUri,
   registry,
-}: MarkdownEditorProps & { registry: CompiledMarkdownPlugins }) {
+  profile,
+}: MarkdownEditorProps & {
+  registry: CompiledMarkdownPlugins
+  profile: MarkdownProfile
+}) {
   const { ariaKeys } = useMarkdownShortcuts()
+  const controls = resolveEditorInteractions(interactions, showToolbar)
   const resolvedLabels = useMemo(
     () => ({ ...DEFAULT_LABELS, ...labels }),
     [labels]
@@ -200,7 +249,7 @@ function MarkdownEditorImplementation({
       nodes: [...MARKDOWN_EDITOR_CORE_NODES, ...registry.nodes],
       theme: MARKDOWN_EDITOR_THEME,
       editorState: () => {
-        $convertFromEfmMarkdownString(markdown, registry.transformers, {
+        profile.codec.import(markdown, registry.transformers, {
           inputProfile,
           baseUri,
           syntaxFeatures: registry.features,
@@ -213,10 +262,12 @@ function MarkdownEditorImplementation({
 
   return (
     <EfmSourceBlockProvider
+      codec={profile.codec}
       documentKey={documentKey}
       markdown={markdown}
       onError={handleError}
       resolveImageUrl={resolveImageUrl}
+      onOpenInternalLink={onOpenInternalLink}
       baseUri={baseUri}
       codeHighlightTokenizer={codeHighlightTokenizer}
       inputProfile={inputProfile}
@@ -225,11 +276,14 @@ function MarkdownEditorImplementation({
       saveBlockLabel={resolvedLabels.saveBlock}
       emptyMathBlockLabel={resolvedLabels.emptyMathBlock}
       emptyImageBlockLabel={resolvedLabels.emptyImageBlock}
+      obsidianWikilinks={registry.features.has(
+        MARKDOWN_FEATURES.obsidianWikilink
+      )}
       readOnly={readOnly}
     >
       <LexicalComposer initialConfig={initialConfig}>
         <div className="eme-editor-shell">
-          {!readOnly && showToolbar ? (
+          {!readOnly && controls.toolbar ? (
             <FloatingToolbarPlugin
               items={registry.toolbar}
               labels={resolvedLabels}
@@ -244,6 +298,35 @@ function MarkdownEditorImplementation({
               if (!anchor) return
               if (!readOnly && !(event.metaKey || event.ctrlKey)) return
               const rawDestination = anchor.getAttribute("href") ?? ""
+              const internalTarget = registry.features.has(
+                MARKDOWN_FEATURES.obsidianWikilink
+              )
+                ? parseObsidianMarkdownLinkDestination(rawDestination)
+                : null
+              if (internalTarget) {
+                if (!readOnly && !(event.metaKey || event.ctrlKey)) return
+                event.preventDefault()
+                if (!onOpenInternalLink) return
+                try {
+                  void Promise.resolve(
+                    onOpenInternalLink({
+                      documentKey,
+                      ...internalTarget,
+                      embed: false,
+                      syntax: "markdown",
+                    })
+                  ).catch((cause) =>
+                    handleError(
+                      cause instanceof Error ? cause : new Error(String(cause))
+                    )
+                  )
+                } catch (cause) {
+                  handleError(
+                    cause instanceof Error ? cause : new Error(String(cause))
+                  )
+                }
+                return
+              }
               if (rawDestination.startsWith("#")) return
               event.preventDefault()
               const destination = resolveActiveLink(rawDestination, baseUri)
@@ -267,23 +350,32 @@ function MarkdownEditorImplementation({
                 <ContentEditable
                   className="eme-content-editable"
                   aria-label={ariaLabel}
-                  aria-keyshortcuts={ariaKeys([
-                    "document.save",
-                    "history.undo",
-                    "history.redo",
-                    "format.bold",
-                    "format.italic",
-                    "insert.open-menu",
-                    "selection.clear",
-                    "selection.enter-block",
-                    "selection.extend-up",
-                    "selection.extend-down",
-                    "selection.edit-source",
-                    "selection.select-all-blocks",
-                    "list-item.move-up",
-                    "list-item.move-down",
-                    "list-item.toggle-checked",
-                  ])}
+                  aria-keyshortcuts={ariaKeys(
+                    (
+                      [
+                        "document.save",
+                        "history.undo",
+                        "history.redo",
+                        "format.bold",
+                        "format.italic",
+                        "insert.open-menu",
+                        "selection.clear",
+                        "selection.enter-block",
+                        "selection.extend-up",
+                        "selection.extend-down",
+                        "selection.edit-source",
+                        "selection.select-all-blocks",
+                        "list-item.move-up",
+                        "list-item.move-down",
+                        "list-item.toggle-checked",
+                      ] as const
+                    ).filter(
+                      (id) =>
+                        (id !== "insert.open-menu" || controls.insertMenu) &&
+                        (!id.startsWith("selection.") ||
+                          controls.blockSelection)
+                    )
+                  )}
                 />
               }
               placeholder={
@@ -293,9 +385,13 @@ function MarkdownEditorImplementation({
               }
               ErrorBoundary={LexicalErrorBoundary}
             />
-            <BlockMarqueeSelectionPlugin />
+            {controls.blockSelection ? <BlockMarqueeSelectionPlugin /> : null}
             <InternalNavigationPlugin />
-            {registry.features.has(MARKDOWN_FEATURES.image) ? (
+            <RequestedInternalNavigationPlugin
+              navigationTarget={navigationTarget}
+            />
+            {registry.features.has(MARKDOWN_FEATURES.image) ||
+            registry.features.has(MARKDOWN_FEATURES.obsidianAttachment) ? (
               <ClipboardImagePlugin
                 baseUri={baseUri}
                 documentKey={documentKey}
@@ -305,43 +401,28 @@ function MarkdownEditorImplementation({
               />
             ) : null}
             <HistoryPlugin />
-            <EditorShortcutsPlugin />
-            {registry.features.has(MARKDOWN_FEATURES.list) ? (
-              <>
-                <ListPlugin />
-                <ListItemShortcutsPlugin />
-                <TabIndentationPlugin />
-              </>
-            ) : null}
-            {registry.features.has(MARKDOWN_FEATURES.gfmTaskList) ? (
-              <CheckListPlugin />
-            ) : null}
-            {registry.features.has(MARKDOWN_FEATURES.gfmTable) ? (
-              <TablePlugin
-                hasCellMerge={false}
-                hasCellBackgroundColor={false}
-              />
-            ) : null}
+            <EditorShortcutsPlugin
+              allowEmphasis={registry.features.has(MARKDOWN_FEATURES.emphasis)}
+            />
+            <TextFormatPolicyPlugin transformers={registry.transformers} />
             {registry.features.has(MARKDOWN_FEATURES.link) ? (
               <LinkPlugin
-                validateUrl={(url) => resolveActiveLink(url, baseUri) !== null}
+                validateUrl={(url) =>
+                  resolveActiveLink(url, baseUri) !== null ||
+                  (registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) &&
+                    parseObsidianMarkdownLinkDestination(url) !== null)
+                }
               />
             ) : null}
-            {registry.features.has(MARKDOWN_FEATURES.thematicBreak) ? (
-              <HorizontalRulePlugin />
-            ) : null}
-            {codeHighlightTokenizer === false ||
-            !registry.features.has(MARKDOWN_FEATURES.code) ? null : (
-              <CodeHighlightPlugin
-                onError={handleError}
-                tokenizer={codeHighlightTokenizer}
-              />
-            )}
             <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
-            {!readOnly && showToolbar ? (
+            {!readOnly && (controls.insertMenu || controls.blockDrag) ? (
               <InsertBlockPlugin
+                key={`${controls.insertMenu}:${controls.blockDrag}`}
+                enableMenu={controls.insertMenu}
+                enableDrag={controls.blockDrag}
                 inputProfile={inputProfile}
                 insertions={registry.insertions}
+                blockBoundaries={registry.blockBoundaries}
                 labels={resolvedLabels}
                 onError={handleError}
               />
@@ -356,6 +437,7 @@ function MarkdownEditorImplementation({
               baseUri={baseUri}
               syntaxFeatures={registry.features}
               transformers={registry.transformers}
+              codec={profile.codec}
             />
             {registry.behaviors.map(({ component: Behavior, id, pluginId }) => (
               <Behavior
@@ -380,29 +462,81 @@ function MarkdownEditorImplementation({
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {
+  if (props.profile && props.preset)
+    throw new Error("Provide preset or profile, not both.")
+  const selectedProfile = props.preset ?? props.profile
+  if (selectedProfile && props.plugins) {
+    throw new Error(
+      "MarkdownEditor accepts either a document profile or a plugin list, not both."
+    )
+  }
+  const profile =
+    selectedProfile === "obsidian"
+      ? obsidianMarkdownProfile
+      : selectedProfile === "gfm"
+        ? gfmMarkdownProfile
+        : selectedProfile === "eidos" || !selectedProfile
+          ? eidosMarkdownProfile
+          : selectedProfile
   const registry = useMemo(
     () =>
       props.plugins
         ? compileMarkdownPlugins(props.plugins)
-        : EIDOS_MARKDOWN_PLUGIN_REGISTRY,
-    [props.plugins]
+        : selectedProfile
+          ? compileMarkdownPlugins(profile.plugins)
+          : EIDOS_MARKDOWN_PLUGIN_REGISTRY,
+    [profile, props.plugins, selectedProfile]
+  )
+  const sessionProfile = useMemo<MarkdownProfile>(
+    () => ({
+      ...profile,
+      codec: {
+        analyze: (source, options) =>
+          profile.codec.analyze(source, {
+            ...options,
+            blockSyntax: registry.blockSyntax,
+            inlineSyntax: registry.inlineSyntax,
+          }),
+        import: (source, transformers, options, node) =>
+          profile.codec.import(
+            source,
+            transformers,
+            {
+              ...options,
+              blockSyntax: registry.blockSyntax,
+              inlineSyntax: registry.inlineSyntax,
+            },
+            node
+          ),
+        export: (transformers, node) =>
+          profile.codec.export(transformers, node),
+      },
+    }),
+    [profile, registry]
   )
   return (
     <section
       className={`eme-editor${props.className ? ` ${props.className}` : ""}`}
       data-markdown-editor="wysiwyg"
+      data-markdown-document-key={props.documentKey}
+      data-markdown-profile={profile.id}
       data-theme={props.theme ?? "light"}
       data-layout={props.layout ?? "document"}
     >
-      <MarkdownDiagnostics {...props} syntaxFeatures={registry.features} />
+      <MarkdownDiagnostics
+        {...props}
+        syntaxFeatures={registry.features}
+        codec={sessionProfile.codec}
+      />
       <MarkdownShortcutProvider
         definitions={registry.shortcuts}
         overrides={props.shortcuts}
       >
         <MarkdownEditorImplementation
-          key={`${props.documentKey}:${registry.signature}`}
+          key={`${props.documentKey}:${profile.id}@${profile.version}:${registry.signature}`}
           {...props}
           registry={registry}
+          profile={sessionProfile}
         />
       </MarkdownShortcutProvider>
     </section>

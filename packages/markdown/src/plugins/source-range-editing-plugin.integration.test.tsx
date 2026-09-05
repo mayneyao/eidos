@@ -15,6 +15,8 @@ import { MarkdownEditor } from "../editor/markdown-editor"
 import { $isEfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { eidosMarkdownPlugins } from "../plugin-system/builtins"
 import { defineMarkdownPlugin } from "../plugin-system/plugin-api"
+import { obsidianMarkdownProfile } from "../profile-system/builtins"
+import type { MarkdownProfile } from "../profile-system/profile-api"
 
 let capturedEditor: LexicalEditor | null = null
 
@@ -31,6 +33,10 @@ const capturePlugin = defineMarkdownPlugin({
   behaviors: [{ id: "test.capture-editor.behavior", component: CaptureEditor }],
 })
 const plugins = [...eidosMarkdownPlugins, capturePlugin]
+const originalRangeRect = Object.getOwnPropertyDescriptor(
+  Range.prototype,
+  "getBoundingClientRect"
+)
 
 function changeTextarea(textarea: HTMLTextAreaElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(
@@ -83,7 +89,11 @@ describe("SourceRangeEditingPlugin integration", () => {
   let onMarkdownChange: ReturnType<typeof vi.fn>
   let onError: ReturnType<typeof vi.fn>
 
-  const renderEditor = async (markdown: string, readOnly = false) => {
+  const renderEditor = async (
+    markdown: string,
+    readOnly = false,
+    profile?: MarkdownProfile
+  ) => {
     await act(async () => {
       root.render(
         <MarkdownEditor
@@ -91,7 +101,7 @@ describe("SourceRangeEditingPlugin integration", () => {
           markdown={markdown}
           onMarkdownChange={onMarkdownChange}
           onError={onError}
-          plugins={plugins}
+          {...(profile ? { profile } : { plugins })}
           readOnly={readOnly}
           showToolbar={false}
         />
@@ -100,6 +110,13 @@ describe("SourceRangeEditingPlugin integration", () => {
   }
 
   beforeEach(() => {
+    // JSDOM has no layout. Lexical measures the focused caret on external imports;
+    // actual scrolling and caret geometry are covered by browser tests.
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => new DOMRect(0, 0, 1, 20),
+    })
+    vi.spyOn(window, "scrollBy").mockImplementation(() => {})
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -114,7 +131,69 @@ describe("SourceRangeEditingPlugin integration", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.restoreAllMocks()
+    if (originalRangeRect) {
+      Object.defineProperty(
+        Range.prototype,
+        "getBoundingClientRect",
+        originalRangeRect
+      )
+    } else {
+      Reflect.deleteProperty(Range.prototype, "getBoundingClientRect")
+    }
   })
+
+  it.each(["save", "cancel"])(
+    "uses the selected profile for source range %s",
+    async (action) => {
+      const codec = {
+        ...obsidianMarkdownProfile.codec,
+        analyze: vi.fn(obsidianMarkdownProfile.codec.analyze),
+        import: vi.fn(obsidianMarkdownProfile.codec.import),
+      }
+      const profile: MarkdownProfile = {
+        ...obsidianMarkdownProfile,
+        plugins: [...obsidianMarkdownProfile.plugins, capturePlugin],
+        codec,
+      }
+      const original = "Before [[Note]]\n\n> [!note] Hint\n> Keep me\n\nAfter"
+      await renderEditor(original, false, profile)
+      codec.analyze.mockClear()
+      codec.import.mockClear()
+      act(() => {
+        selectBlocks(0)
+        openSourceEditor()
+      })
+      await flushEditor()
+      expect(codec.analyze).toHaveBeenCalled()
+      const textarea = container.querySelector<HTMLTextAreaElement>(
+        "[data-source-range-textarea='true']"
+      )!
+      expect(textarea).not.toBeNull()
+      act(() => {
+        changeTextarea(textarea, "Changed [[Other]]")
+        if (action === "save") commitTextarea(textarea)
+        else
+          textarea.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              bubbles: true,
+              cancelable: true,
+              key: "Escape",
+            })
+          )
+      })
+      await flushEditor()
+      expect(codec.import).toHaveBeenCalled()
+      expect(codec.import.mock.calls.at(-1)?.[0]).toBe(
+        action === "save"
+          ? original.replace("Before [[Note]]", "Changed [[Other]]")
+          : original
+      )
+      expect(onError).not.toHaveBeenCalled()
+      if (action === "cancel") expect(onMarkdownChange).not.toHaveBeenCalled()
+      expect(container.querySelector("[data-source-range-editor]")).toBeNull()
+    }
+  )
 
   it("commits one exact source slice and reparses it into visual blocks", async () => {
     const original =
@@ -296,6 +375,32 @@ describe("SourceRangeEditingPlugin integration", () => {
       openSourceEditor()
     })
     expect(container.querySelector("[data-source-range-editor]")).toBeNull()
+  })
+
+  it("keeps the local source commit when an external update arrived during editing", async () => {
+    await renderEditor("One\n\nTwo")
+    act(() => {
+      selectBlocks(1)
+      openSourceEditor()
+    })
+    await flushEditor()
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      "[data-source-range-textarea='true']"
+    )!
+    act(() => changeTextarea(textarea, "Local"))
+    await renderEditor("External\n\nValue")
+    act(() => commitTextarea(textarea))
+    await flushEditor()
+    expect(onMarkdownChange).toHaveBeenLastCalledWith("One\n\nLocal")
+    await renderEditor("External\n\nValue")
+    expect(container.textContent).toContain("Local")
+    expect(container.textContent).not.toContain("External")
+    await renderEditor("One\n\nLocal")
+    // Exercise external synchronization with the caret still in the editor,
+    // independent of when the source composer's focus animation frame runs.
+    act(() => capturedEditor!.getRootElement()!.focus())
+    await renderEditor("New external")
+    expect(container.textContent).toContain("New external")
   })
 
   it("opens the editable selection while leaving a selected footnote tail out", async () => {

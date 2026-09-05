@@ -93,6 +93,7 @@ export function EfmBlockSelection({
         }
 
         event.preventDefault()
+        editor.getRootElement()?.focus({ preventScroll: true })
         clearSelection()
         setSelected(true)
         return true
