@@ -8,7 +8,6 @@ application needs with `createMarkdownPreset`.
 ```tsx
 import { MarkdownEditor } from "@eidos.space/markdown"
 import { gfmPreset } from "@eidos.space/markdown/presets"
-
 ;<MarkdownEditor
   documentKey="notes"
   preset={gfmPreset}

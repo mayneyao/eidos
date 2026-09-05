@@ -6,6 +6,7 @@ import {
   $isElementNode,
   KEY_DOWN_COMMAND,
   type LexicalEditor,
+  type LexicalNode,
 } from "lexical"
 import { MarkdownEditor } from "../editor/markdown-editor"
 import { eidosMarkdownProfile } from "../profile-system/builtins"
@@ -30,7 +31,7 @@ describe("plugin boundaries through the shared gutter", () => {
               {
                 id: "test.fixed",
                 placement,
-                matches: (node: import("lexical").LexicalNode) =>
+                matches: (node: LexicalNode) =>
                   node.getTextContent() === "Fixed",
               },
             ]
