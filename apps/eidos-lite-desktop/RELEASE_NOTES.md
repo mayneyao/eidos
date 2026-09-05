@@ -1,62 +1,37 @@
 ## What's new
 
-### Paste images into Markdown files
+### Try experimental Obsidian Markdown compatibility
 
-Paste clipboard images while editing a `.md` or `.markdown` file in either
-Source or Rich text mode. Eidos Lite stores verified image bytes in an `assets`
-folder beside the document and inserts a portable relative reference. Existing
-relative images render again after reopening the document, and the image files
-participate in the Space's ordinary History and Sync.
+Settings now offers an explicit **Obsidian (Experimental)** Markdown profile.
+It previews Vault links and embeds, callouts, block IDs, tags, comments, inline
+footnotes, Obsidian image sizes, and richer YAML properties without changing
+the default Eidos Markdown profile. Internal note and attachment resolution
+stays inside the open Vault, while same-note headings and block references
+scroll in place instead of navigating the application away.
 
-### Choose how each Markdown file opens
+This compatibility mode is incomplete and may change in later releases. It
+does not read `.obsidian`, emulate Obsidian plugins or themes, maintain
+backlinks, or rewrite links after a file rename. Keep important Vaults backed
+up and switch back to Eidos Markdown if a document does not render as expected.
 
-The Markdown file editor preference now applies only to ordinary Markdown
-files. **Open** uses that default, while **Open with** lets you choose Source or
-Rich text for one opening. Table Content fields consistently use the Rich text
-editor and no longer change when the file preference changes.
+### Read complex lists without a source fallback
 
-### Edit richer Markdown without losing its source
+Lists containing multiple paragraphs or fenced code blocks now render as
+structured content instead of turning the entire list into a Markdown source
+panel. Single-column tables also render as tables. YAML properties display
+lists and empty values more readably without replacing the original YAML.
 
-The Rich text editor now supports Eidos Flavored Markdown constructs including
-frontmatter, footnotes, inline and display mathematics, reference links, safe
-HTML, images, and highlighted text. Block insertion, reordering, selection,
-local editors for complex syntax, and lightweight code highlighting make these
-documents easier to work with while untouched manual wrapping and spacing stay
-intact.
+### Edit selected blocks as one source range
 
-### Render and validate field values faithfully
+Select consecutive blocks and press **E** to edit their original Markdown in
+place. The source surface supports keyboard formatting, indentation, moving,
+copying, deleting, undo, and redo, then commits as one undoable change. Pinned
+frontmatter and footnote definitions remain outside incompatible block moves.
 
-Lookup lists keep their typed structure and row references resolve to record
-labels. Integer aggregates retain exact integer values, Rating rejects
-fractions, URL validation is consistent across writes, and pasted Select or
-Multi-select values are not discarded merely because they are not yet in the
-option catalog.
+### Keep the sidebar update action stable
 
-### Discard local changes with less waiting
+The sidebar update control now keeps its reserved space and alignment while
+update state changes, avoiding layout shifts during routine navigation.
 
-Discarding changes no longer reclassifies the whole Space before returning or
-reloads every cached Eidos File. Eidos Lite restores the selected paths,
-publishes the exact pending snapshot, refreshes only affected files, and
-finishes the remaining status work in the background.
-
-### Release Eidos File handles reliably
-
-Closing an Eidos File now waits for its isolated Runtime process to exit before
-the close operation finishes. Windows can rename, move, or replace the file
-immediately afterward without encountering a lingering SQLite file lock.
-
-### Keep open records stable after restoring History
-
-Filesystem refreshes now wait until a History restore has reopened Eidos File
-Runtimes before inspecting changed paths. Records that were already open keep
-their session after a checkpoint restore instead of failing with an unknown or
-closed session error.
-
-### Keep History status current after explicit refreshes
-
-Refreshing a Space now publishes its authoritative History status to the open
-window as well as returning it to the caller. Windows reliably shows the local
-change badge after an Eidos File edit without depending on a later filesystem
-watcher event.
-
-No migration is required.
+No migration is required. Obsidian compatibility remains an opt-in experimental
+feature in this release.
