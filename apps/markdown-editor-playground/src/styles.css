@@ -14,14 +14,6 @@ body,
 }
 
 .playground-shell {
-  --background: oklch(0.985 0.004 255);
-  --foreground: oklch(0.25 0.018 255);
-  --muted: oklch(0.95 0.008 255);
-  --muted-foreground: oklch(0.52 0.018 255);
-  --accent: oklch(0.92 0.016 255);
-  --border: oklch(0.88 0.01 255);
-  --ring: oklch(0.56 0.1 255);
-  --primary: oklch(0.48 0.11 255);
   display: grid;
   height: 100dvh;
   min-height: 0;

@@ -7,6 +7,11 @@ import {
   type ShortcutDisplayPlatform,
 } from "@eidos.space/markdown"
 import { useMemo, useRef } from "react"
+import { useSiteLocale } from "./site/locale"
+import {
+  chineseShortcutDescriptions,
+  chineseShortcutScopes,
+} from "./site/shortcut-translations"
 
 const SCOPE_LABELS: Record<MarkdownShortcutScope, string> = {
   "block-handle": "Block",
@@ -27,6 +32,7 @@ function displayPlatform(): ShortcutDisplayPlatform {
 }
 
 export function ShortcutReference() {
+  const { locale, t } = useSiteLocale()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const platform = useMemo(displayPlatform, [])
   const shortcuts = Object.entries(
@@ -41,7 +47,7 @@ export function ShortcutReference() {
         aria-haspopup="dialog"
         onClick={() => dialogRef.current?.showModal()}
       >
-        Shortcuts
+        {t("Shortcuts", "快捷键")}
       </button>
       <dialog
         ref={dialogRef}
@@ -55,16 +61,21 @@ export function ShortcutReference() {
         <section className="playground-shortcuts-panel">
           <header className="playground-shortcuts-heading">
             <div>
-              <h2 id="playground-shortcuts-title">Keyboard shortcuts</h2>
+              <h2 id="playground-shortcuts-title">
+                {t("Keyboard shortcuts", "键盘快捷键")}
+              </h2>
               <p id="playground-shortcuts-description">
-                Default Markdown editor bindings
+                {t(
+                  "Default Markdown editor bindings",
+                  "Markdown 编辑器的默认快捷键"
+                )}
               </p>
             </div>
             <form method="dialog">
               <button
                 className="playground-shortcuts-close"
                 type="submit"
-                aria-label="Close keyboard shortcuts"
+                aria-label={t("Close keyboard shortcuts", "关闭快捷键说明")}
                 autoFocus
               >
                 <span aria-hidden="true">×</span>
@@ -80,10 +91,16 @@ export function ShortcutReference() {
               >
                 <div className="playground-shortcut-copy">
                   <span className="playground-shortcut-description">
-                    {definition.description}
+                    {locale === "zh"
+                      ? (chineseShortcutDescriptions[
+                          id as keyof typeof chineseShortcutDescriptions
+                        ] ?? definition.description)
+                      : definition.description}
                   </span>
                   <span className="playground-shortcut-meta">
-                    {SCOPE_LABELS[definition.scope]}
+                    {locale === "zh"
+                      ? chineseShortcutScopes[definition.scope]
+                      : SCOPE_LABELS[definition.scope]}
                     <code>{id}</code>
                   </span>
                 </div>

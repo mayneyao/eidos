@@ -6,7 +6,7 @@ async function openMarkdown(page: Page, markdown: string) {
       window as Window & { __EIDOS_MARKDOWN_TEST_DOCUMENT__?: string }
     ).__EIDOS_MARKDOWN_TEST_DOCUMENT__ = documentValue
   }, markdown)
-  await page.goto("/")
+  await page.goto("/playground")
 }
 
 async function currentMarkdown(page: Page): Promise<string> {
@@ -28,7 +28,7 @@ async function setExternalMarkdown(page: Page, markdown: string) {
 }
 
 test("CAN-001 opens in the focused WYSIWYG editor", async ({ page }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const shell = page.locator(".playground-shell")
   const editor = page.locator('[data-markdown-editor="wysiwyg"]')
@@ -104,7 +104,7 @@ test("switches between visual and editable source views", async ({ page }) => {
 test("shows every default shortcut in an accessible reference dialog", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const trigger = page.getByRole("button", { name: "Shortcuts" })
   await trigger.click()
@@ -317,6 +317,56 @@ test("SEL-012 selects and extends top-level blocks entirely from the keyboard", 
   await expect(source).toHaveCount(0)
 })
 
+test("keeps the keyboard block workflow active after deleting a selection", async ({
+  page,
+}) => {
+  await openMarkdown(page, "Before.\n\nSelected.\n\nAfter.")
+
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
+  const selected = editor.locator(":scope > [data-block-selected='true']")
+
+  await editor.locator(".eme-paragraph", { hasText: "Selected." }).click()
+  await page.keyboard.press("Escape")
+  await expect(selected).toHaveText(["Selected."])
+
+  await page.keyboard.press("Delete")
+  await expect.poll(() => currentMarkdown(page)).toBe("Before.\n\nAfter.")
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
+  await expect(selected).toHaveText(["After."])
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press("e")
+  const source = page.getByRole("textbox", {
+    name: "Selected blocks Markdown source",
+  })
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue("After.")
+
+  await page.keyboard.press("Escape")
+  await expect(source).toHaveCount(0)
+  await expect(editor).toBeFocused()
+  await expect(selected).toHaveText(["After."])
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
+
+  await page.keyboard.press("Backspace")
+  await expect.poll(() => currentMarkdown(page)).toBe("Before.")
+  await expect(selected).toHaveText(["Before."])
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+a" : "Control+a"
+  )
+  await page.keyboard.press("Delete")
+  await expect.poll(() => currentMarkdown(page)).toBe("")
+  await expect(selected).toHaveCount(0)
+  await expect(stage).not.toHaveAttribute("data-block-selection-mode")
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.type("Replacement.")
+  await expect.poll(() => currentMarkdown(page)).toBe("Replacement.")
+})
+
 test("Escape selects the containing table block without losing editor focus", async ({
   page,
 }) => {
@@ -508,7 +558,7 @@ test("toggles Markdown bold and italic with common shortcuts in source editors",
 test("HST-002 keeps read-only content selectable without mutation controls", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const readOnly = page.getByRole("switch", { name: "Read only" })
   const canvas = page.getByLabel("Markdown playground editor")
@@ -535,7 +585,7 @@ test("HST-002 keeps read-only content selectable without mutation controls", asy
 test("highlights fenced code without changing the Lexical DOM", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const code = page.locator(".eme-code-block")
   await expect(code).toHaveAttribute("data-language", "ts")
@@ -949,7 +999,7 @@ test("an in-flight image paste cannot mutate an editor switched to read only", a
 test("EDT-001 edits an EFM equation through selected-block source mode", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const editor = page.locator('[data-markdown-editor="wysiwyg"]')
   const mathBlock = editor.locator(".eme-efm-semantic-block").first()
@@ -1090,11 +1140,30 @@ test("SEL-004 SEL-006 SEL-007 selects an atomic block and restores deletion", as
 
   const image = page.locator(".eme-efm-image-block")
   const decorator = image.locator("xpath=..")
+  const editor = page.getByLabel("Markdown playground editor")
+  const stage = page.locator(".eme-editor-stage")
   await image.click()
   await expect(decorator).toHaveAttribute("data-efm-selection-kind", "node")
+  await expect(editor).toBeFocused()
+
+  await page.keyboard.press("e")
+  const source = page.getByLabel("Selected blocks Markdown source")
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue(
+    "![Disposable image](https://example.com/image.png)"
+  )
+  await page.keyboard.press("Escape")
+  await expect(editor).toBeFocused()
+  await expect(decorator).toHaveAttribute("data-block-selected", "true")
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
 
   await page.keyboard.press("Delete")
   await expect(image).toHaveCount(0)
+  await expect(stage).toHaveAttribute("data-block-selection-mode", "keyboard")
+  await expect(
+    editor.locator(":scope > [data-block-selected='true']")
+  ).toHaveText(["After."])
+  await expect(editor).toBeFocused()
   await page.keyboard.press(
     process.platform === "darwin" ? "Meta+z" : "Control+z"
   )
@@ -1594,6 +1663,24 @@ test("SEL-009 keeps footnote definitions as a non-sortable document tail", async
     .toBe("Tail paragraph.\n\nFirst[^n].\n\n[^n]: Footnote body.")
 })
 
+test("SEL-009 keeps frontmatter pinned while allowing insertion below it", async ({
+  page,
+}) => {
+  const original = "---\ntitle: Pinned\n---\n\nBody."
+  await openMarkdown(page, original)
+
+  const editor = page.getByLabel("Markdown playground editor")
+  await editor
+    .locator(".eme-efm-frontmatter")
+    .hover({ position: { x: 12, y: 12 } })
+
+  await expect(
+    page.getByRole("button", { name: "Add block below" })
+  ).toBeVisible()
+  await expect(page.getByRole("button", { name: "Drag block" })).toHaveCount(0)
+  await expect.poll(() => currentMarkdown(page)).toBe(original)
+})
+
 test("KEY-001 KEY-002 reorders a list item with its subtree and undoes once", async ({
   page,
 }) => {
@@ -1844,7 +1931,7 @@ test("CRT-006 selects a new image placeholder for source mode", async ({
 test("CRT-003 filters the slash insert menu as a keyboard list", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
   const heading = page
     .getByLabel("Markdown playground editor")
     .locator(".eme-heading-h1")
@@ -1863,12 +1950,12 @@ test("CRT-003 filters the slash insert menu as a keyboard list", async ({
     "listbox"
   )
   await expect(search).toHaveAttribute("aria-activedescendant", /option-/u)
-  await expect(page.getByRole("option").first()).toHaveAttribute(
+  await expect(menu.getByRole("option").first()).toHaveAttribute(
     "aria-selected",
     "true"
   )
 
-  const [firstItemBox, secondItemBox] = await page
+  const [firstItemBox, secondItemBox] = await menu
     .getByRole("option")
     .evaluateAll((elements) =>
       elements.slice(0, 2).map((element) => {
@@ -1884,10 +1971,10 @@ test("CRT-003 filters the slash insert menu as a keyboard list", async ({
 
   await search.fill("missing block type")
   await expect(menu.getByRole("status")).toHaveText("No matching blocks")
-  await expect(page.getByRole("option")).toHaveCount(0)
+  await expect(menu.getByRole("option")).toHaveCount(0)
 
   await search.fill("h3")
-  await expect(page.getByRole("option")).toHaveCount(1)
+  await expect(menu.getByRole("option")).toHaveCount(1)
   await expect(page.getByRole("option", { name: /Heading 3/u })).toBeVisible()
   await search.press("Enter")
   await expect(menu).toBeHidden()
@@ -1909,7 +1996,7 @@ test("CRT-003 keeps keyboard navigation authoritative while the pointer rests ov
     .click()
   await page.getByRole("button", { name: "Add block below" }).click()
 
-  const options = page.getByRole("option")
+  const options = page.getByRole("dialog").getByRole("option")
   const hoveredOption = page.getByRole("option", { name: /^Numbered list/u })
   await hoveredOption.hover()
   await expect(hoveredOption).toHaveAttribute("aria-selected", "true")
@@ -2213,7 +2300,7 @@ test("CRT-007 inserts inline commands from a caret-anchored slash menu", async (
   await expect(menu).toBeVisible()
   await expect(menu).toHaveAttribute("data-context", "inline")
   await expect(search).toBeFocused()
-  await expect(page.getByRole("option")).toHaveCount(2)
+  await expect(menu.getByRole("option")).toHaveCount(2)
   await expect(
     page.getByRole("option", { name: "Inline equation" })
   ).toBeVisible()
@@ -2341,7 +2428,7 @@ test("keeps long documents editable and scrollable", async ({ page }) => {
 test("uses the standalone document typography and reading width", async ({
   page,
 }) => {
-  await page.goto("/")
+  await page.goto("/playground")
 
   const editor = page.locator('[data-markdown-editor="wysiwyg"]')
   const canvas = page.getByLabel("Markdown playground editor")
@@ -2389,7 +2476,7 @@ test("uses the standalone document typography and reading width", async ({
 })
 
 test("aligns unordered, checklist, and ordered list text", async ({ page }) => {
-  await page.goto("/")
+  await page.goto("/playground")
   await page.addStyleTag({
     content: "ol, ul, menu { list-style: none; }",
   })
@@ -2458,6 +2545,7 @@ test("aligns unordered, checklist, and ordered list text", async ({ page }) => {
   })
   expect(checkboxMarkerAlignment).toBeLessThanOrEqual(1)
 
+  await uncheckedItem.scrollIntoViewIfNeeded()
   const checkbox = await uncheckedItem.evaluate((element) => {
     const item = element.getBoundingClientRect()
     const marker = getComputedStyle(element, "::before")

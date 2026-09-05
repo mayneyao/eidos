@@ -60,6 +60,13 @@ export function referencedOpfsImageFileNames(markdown: string): Set<string> {
 export class PlaygroundOpfsImageStore {
   readonly #objectUrls = new Map<string, string>()
   #directoryPromise?: Promise<FileSystemDirectoryHandle>
+  #generation = 0
+
+  #assertActive(signal: AbortSignal, generation: number): void {
+    abortIfNeeded(signal)
+    if (generation !== this.#generation)
+      throw new DOMException("Image store was disposed", "AbortError")
+  }
 
   async #directory(): Promise<FileSystemDirectoryHandle> {
     if (!navigator.storage?.getDirectory) {
@@ -88,22 +95,26 @@ export class PlaygroundOpfsImageStore {
     file,
     signal,
   }: MarkdownEditorPasteImageRequest): Promise<MarkdownEditorPastedImage> {
-    abortIfNeeded(signal)
+    const generation = this.#generation
+    this.#assertActive(signal, generation)
     const directory = await this.#directory()
-    abortIfNeeded(signal)
+    this.#assertActive(signal, generation)
 
     const fileName = `${crypto.randomUUID()}.${extensionFor(file)}`
     const markdownUrl = `${IMAGE_URL_PREFIX}${fileName}`
-    const handle = await directory.getFileHandle(fileName, { create: true })
-    const writable = await handle.createWritable()
+    let writable: FileSystemWritableFileStream | undefined
     try {
-      abortIfNeeded(signal)
+      const handle = await directory.getFileHandle(fileName, { create: true })
+      this.#assertActive(signal, generation)
+      writable = await handle.createWritable()
+      this.#assertActive(signal, generation)
       await writable.write(file)
-      abortIfNeeded(signal)
+      this.#assertActive(signal, generation)
       await writable.close()
+      this.#assertActive(signal, generation)
     } catch (cause) {
       try {
-        await writable.abort(cause)
+        await writable?.abort(cause)
       } catch {
         // The stream may already be closed; the unique entry is removed below.
       }
@@ -128,15 +139,17 @@ export class PlaygroundOpfsImageStore {
   }: MarkdownEditorResolveImageUrlRequest): Promise<string | null> {
     const fileName = fileNameFromMarkdownUrl(markdownUrl)
     if (!fileName) return null
-    abortIfNeeded(signal)
+    const generation = this.#generation
+    this.#assertActive(signal, generation)
 
     const cached = this.#objectUrls.get(markdownUrl)
     if (cached) return cached
     const directory = await this.#directory()
-    abortIfNeeded(signal)
+    this.#assertActive(signal, generation)
     const handle = await directory.getFileHandle(fileName)
+    this.#assertActive(signal, generation)
     const file = await handle.getFile()
-    abortIfNeeded(signal)
+    this.#assertActive(signal, generation)
     return this.#displayUrl(markdownUrl, file)
   }
 
@@ -164,6 +177,9 @@ export class PlaygroundOpfsImageStore {
   }
 
   dispose(): void {
+    // Invalidate pending work as well as existing URLs. A later operation may
+    // reuse this store (for example after React StrictMode effect replay).
+    this.#generation += 1
     for (const url of this.#objectUrls.values()) URL.revokeObjectURL(url)
     this.#objectUrls.clear()
   }

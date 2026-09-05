@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "pnpm --filter @eidos.space/markdown build && vite build && node scripts/package-download.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "dry-run": "pnpm run build && wrangler deploy --dry-run",
     "test": "vitest run",

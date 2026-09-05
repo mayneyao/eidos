@@ -1,0 +1,207 @@
+.builder-page {
+  padding: 40px clamp(20px, 4vw, 64px) 64px;
+}
+.builder-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+.builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.builder-page button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.builder-intro h1 {
+  margin: 8px 0;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+.builder-intro p {
+  margin: 0;
+  color: var(--site-secondary);
+}
+.builder-page button {
+  border: 1px solid var(--site-line);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.builder-page button:hover,
+.builder-page button[aria-pressed="true"] {
+  background: var(--site-soft);
+}
+.builder-workbench {
+  display: grid;
+  border-block: 1px solid var(--site-line);
+}
+.builder-workbench > * {
+  min-width: 0;
+}
+.builder-config {
+  padding: 20px;
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(100% + 8px);
+  width: min(720px, calc(100vw - 40px));
+  max-height: 65dvh;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+  background: var(--site-paper);
+  border: 1px solid var(--site-line);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px #0002;
+  z-index: 10;
+}
+.builder-config > .builder-note,
+.builder-config > a,
+.builder-config > .builder-start {
+  grid-column: 1 / -1;
+}
+.builder-selector {
+  position: relative;
+  width: fit-content;
+  margin-bottom: 16px;
+}
+.builder-selector summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  border: 1px solid var(--site-line);
+  border-radius: 4px;
+}
+.builder-start {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.builder-start select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--site-line);
+  background: var(--site-paper);
+  color: inherit;
+  border-radius: 4px;
+}
+.builder-note {
+  color: var(--site-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.builder-config fieldset {
+  padding: 16px 0 8px;
+  margin: 16px 0 0;
+  border: 0;
+  border-top: 1px solid var(--site-line);
+}
+.builder-config legend {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  padding: 0 8px 0 0;
+}
+.builder-option {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  cursor: pointer;
+}
+.builder-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--site-link);
+}
+.builder-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--site-line);
+  font-size: 0.8125rem;
+}
+.builder-bar strong {
+  margin-right: auto;
+}
+.builder-preview-note {
+  padding: 0 20px;
+}
+.builder-preview .eme-editor {
+  min-height: 540px;
+}
+.builder-source {
+  width: 100%;
+  min-height: 540px;
+  padding: 24px;
+  resize: vertical;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-family: var(--eme-font-mono, monospace) !important;
+  font-size: 0.875rem !important;
+}
+.builder-code pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 20px;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  min-height: 320px;
+}
+.builder-code > .builder-note {
+  margin: 20px;
+}
+.builder-files {
+  display: flex;
+  gap: 4px;
+  padding: 12px;
+  border-bottom: 1px solid var(--site-line);
+  overflow: auto;
+  font-size: 0.75rem;
+}
+.builder-mobile-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.builder-workbench[data-panel="preview"] > :not(.builder-preview),
+.builder-workbench[data-panel="code"] > :not(.builder-code) {
+  display: none;
+}
+@media (min-width: 900px) {
+  .builder-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .builder-workbench > * {
+    display: block !important;
+  }
+  .builder-code {
+    border-left: 1px solid var(--site-line);
+  }
+  .builder-mobile-tabs {
+    display: none;
+  }
+}
+@media (max-width: 500px) {
+  .builder-config {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (pointer: coarse) {
+  .builder-option {
+    min-height: 44px;
+  }
+}

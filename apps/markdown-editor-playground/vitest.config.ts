@@ -9,6 +9,13 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: "@eidos.space/markdown/presets",
+        replacement: path.resolve(
+          directory,
+          "../../packages/markdown/src/presets.ts"
+        ),
+      },
+      {
         find: "@eidos.space/markdown/plugin-api",
         replacement: path.resolve(
           directory,

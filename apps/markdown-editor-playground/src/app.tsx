@@ -16,9 +16,14 @@ import {
   sourceTextareaCommandForEvent,
 } from "@eidos.space/markdown"
 
-import { PLAYGROUND_MARKDOWN } from "./sample-markdown"
 import { PlaygroundOpfsImageStore } from "./opfs-image-store"
 import { ShortcutReference } from "./shortcut-reference"
+import "@eidos.space/markdown/styles.css"
+import { useSiteLocale } from "./site/locale"
+import { chineseEditorLabels } from "./site/editor-labels"
+import { PresetSelect } from "./site/preset-select"
+import { presetFromSearch, presets, updatePresetUrl } from "./site/presets"
+import { presetSample } from "./site/preset-samples"
 
 type TestablePlaygroundWindow = Window & {
   __EIDOS_MARKDOWN_TEST_DOCUMENT__?: string
@@ -55,14 +60,22 @@ function initialMarkdown(): string {
     isLocalTestHost &&
     typeof testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__ === "string"
       ? testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__
-      : PLAYGROUND_MARKDOWN
+      : presetSample(presetFromSearch())
 
   if (isLocalTestHost) testWindow.__EIDOS_MARKDOWN_TEST_VALUE__ = value
   return value
 }
 
-export function App() {
+export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
+  const { locale, t, href } = useSiteLocale()
+  const [preset, setPreset] = useState(() => presetFromSearch())
   const [markdown, setMarkdown] = useState(initialMarkdown)
+  const [previousDraft, setPreviousDraft] = useState<string | null>(null)
+  useEffect(() => {
+    const syncPreset = () => setPreset(presetFromSearch())
+    window.addEventListener("popstate", syncPreset)
+    return () => window.removeEventListener("popstate", syncPreset)
+  }, [])
   const [readOnly, setReadOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"visual" | "source">("visual")
   const sourceRef = useRef<HTMLTextAreaElement>(null)
@@ -100,10 +113,12 @@ export function App() {
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      void imageStore.sweepUnusedImages(markdown).catch(console.error)
+      void imageStore
+        .sweepUnusedImages(`${markdown}\n${previousDraft ?? ""}`)
+        .catch(console.error)
     }, 1_000)
     return () => window.clearTimeout(handle)
-  }, [imageStore, markdown])
+  }, [imageStore, markdown, previousDraft])
 
   const persistPastedImage = useCallback(
     async (
@@ -132,11 +147,58 @@ export function App() {
   }
 
   return (
-    <main className="playground-shell">
+    <main
+      id="site-main"
+      className="playground-shell"
+      data-theme={theme}
+      tabIndex={-1}
+    >
       <header className="playground-header">
-        <h1>Markdown Editor Playground</h1>
+        <div className="playground-identity">
+          <h1>{t("Markdown Editor Playground", "Markdown 编辑器交互体验")}</h1>
+          <p className="playground-preset-description">
+            {presets.find((entry) => entry.id === preset)?.[locale]}
+          </p>
+        </div>
         <div className="playground-actions">
+          <PresetSelect
+            value={preset}
+            onChange={(next) => {
+              setPreset(next)
+              updatePresetUrl(next)
+            }}
+          />
+          <a
+            className="playground-mode-trigger"
+            href={`${href("/spec")}?preset=${preset}`}
+          >
+            {t("Syntax reference", "语法对照")}
+          </a>
           <ShortcutReference />
+          <button
+            type="button"
+            className="playground-mode-trigger"
+            disabled={readOnly}
+            onClick={() => {
+              setPreviousDraft(markdown)
+              handleMarkdownChange(presetSample(preset))
+            }}
+          >
+            {t("Load preset example", "载入预设示例")}
+          </button>
+          {previousDraft !== null && (
+            <button
+              type="button"
+              className="playground-mode-trigger"
+              disabled={readOnly}
+              onClick={() => {
+                handleMarkdownChange(previousDraft)
+                setPreviousDraft(null)
+              }}
+            >
+              {t("Restore previous draft", "恢复之前的草稿")}
+            </button>
+          )}
           <button
             type="button"
             className="playground-mode-trigger"
@@ -147,10 +209,12 @@ export function App() {
               )
             }
           >
-            {viewMode === "visual" ? "View source" : "View editor"}
+            {viewMode === "visual"
+              ? t("View source", "查看源码")
+              : t("View editor", "返回编辑器")}
           </button>
           <label className="playground-switch">
-            <span>Read only</span>
+            <span>{t("Read only", "只读")}</span>
             <input
               type="checkbox"
               role="switch"
@@ -164,10 +228,17 @@ export function App() {
       <div className="playground-content">
         {viewMode === "visual" ? (
           <MarkdownEditor
+            profile={preset}
+            theme={theme}
             documentKey="playground"
             markdown={markdown}
             baseUri={window.location.href}
-            ariaLabel="Markdown playground editor"
+            ariaLabel={t(
+              "Markdown playground editor",
+              "Markdown 交互体验编辑器"
+            )}
+            placeholder={t("Write with Markdown…", "用 Markdown 开始书写…")}
+            labels={locale === "zh" ? chineseEditorLabels : undefined}
             readOnly={readOnly}
             onMarkdownChange={handleMarkdownChange}
             onPasteImage={persistPastedImage}
@@ -177,11 +248,14 @@ export function App() {
             }}
           />
         ) : (
-          <section className="playground-source" aria-label="Source editor">
+          <section
+            className="playground-source"
+            aria-label={t("Source editor", "源码编辑器")}
+          >
             <textarea
               ref={sourceRef}
               autoFocus
-              aria-label="Markdown source"
+              aria-label={t("Markdown source", "Markdown 源码")}
               aria-keyshortcuts={markdownShortcutAriaKeys(
                 SOURCE_TEXTAREA_SHORTCUT_IDS,
                 PLAYGROUND_SHORTCUTS
