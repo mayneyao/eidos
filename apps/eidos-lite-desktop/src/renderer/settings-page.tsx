@@ -20,6 +20,7 @@ import type {
   EidosLiteAppInfo,
   EidosLiteLanguage,
   EidosLiteMarkdownEditingMode,
+  EidosLiteMarkdownCompatibilityProfile,
   EidosLitePreferences,
   EidosLiteSettingsDestination,
   EidosLiteTerminalLayout,
@@ -51,6 +52,14 @@ const MARKDOWN_EDITOR_OPTIONS: Array<{
 }> = [
   { label: "Source", value: "source" },
   { label: "Rich text", value: "wysiwyg" },
+]
+
+const MARKDOWN_COMPATIBILITY_OPTIONS: Array<{
+  label: string
+  value: EidosLiteMarkdownCompatibilityProfile
+}> = [
+  { label: "Eidos Markdown", value: "eidos" },
+  { label: "Obsidian (Experimental)", value: "obsidian" },
 ]
 
 const TERMINAL_LAYOUT_OPTIONS: Array<{
@@ -466,6 +475,45 @@ export function SettingsPage() {
                         onClick={() =>
                           void updatePreferences({
                             markdownFileEditingMode: option.value,
+                          })
+                        }
+                      >
+                        {t(option.label)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className="settings-row settings-row-stacked"
+                  data-markdown-compatibility-profile
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t("Markdown compatibility")}</strong>
+                    <small>
+                      {t(
+                        "Open Markdown using the explicitly selected syntax profile. Experimental Obsidian mode enables Vault links, embeds, callouts, block IDs, and Obsidian formatting. Compatibility is incomplete and may change."
+                      )}
+                    </small>
+                  </div>
+                  <div
+                    className="settings-segmented-control"
+                    data-segment-count={MARKDOWN_COMPATIBILITY_OPTIONS.length}
+                    role="radiogroup"
+                    aria-label={t("Markdown compatibility")}
+                  >
+                    {MARKDOWN_COMPATIBILITY_OPTIONS.map((option) => (
+                      <button
+                        type="button"
+                        role="radio"
+                        data-markdown-compatibility-profile={option.value}
+                        aria-checked={
+                          preferences.markdownCompatibilityProfile ===
+                          option.value
+                        }
+                        key={option.value}
+                        onClick={() =>
+                          void updatePreferences({
+                            markdownCompatibilityProfile: option.value,
                           })
                         }
                       >

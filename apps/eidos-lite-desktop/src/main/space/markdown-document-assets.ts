@@ -25,8 +25,53 @@ const IMAGE_EXTENSION: Readonly<Record<string, string>> = {
   "image/gif": ".gif",
   "image/jpeg": ".jpg",
   "image/png": ".png",
+  "image/svg+xml": ".svg",
   "image/webp": ".webp",
   "image/x-icon": ".ico",
+}
+
+const ACTIVE_SVG_CONTENT =
+  /<!DOCTYPE|<!ENTITY|<\s*(?:audio|canvas|embed|foreignObject|form|iframe|input|link|meta|object|script|style|textarea|video)\b|\son[a-z]+\s*=|\bstyle\s*=|(?:javascript|vbscript)\s*:/iu
+const SVG_REFERENCE_ATTRIBUTE =
+  /\b(?:href|xlink:href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/giu
+const SVG_URL_REFERENCE = /url\(\s*([^)]+)\s*\)/giu
+
+function isSafeSvgImage(data: Uint8Array): boolean {
+  let source: string
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(data)
+  } catch {
+    return false
+  }
+  const root = source
+    .replace(/^\ufeff/u, "")
+    .replace(/^\s*<\?xml[^>]*\?>/iu, "")
+    .replace(/^(?:\s*<!--[\s\S]*?-->)+/u, "")
+    .trimStart()
+  if (!/^<svg(?:\s|>)/iu.test(root) || ACTIVE_SVG_CONTENT.test(source)) {
+    return false
+  }
+  for (const match of source.matchAll(SVG_REFERENCE_ATTRIBUTE)) {
+    const value = (match[1] ?? match[2] ?? match[3] ?? "").trim()
+    if (!value.startsWith("#")) return false
+  }
+  for (const match of source.matchAll(SVG_URL_REFERENCE)) {
+    const value = (match[1] ?? "").trim().replace(/^['"]|['"]$/gu, "")
+    if (!value.startsWith("#")) return false
+  }
+  return true
+}
+
+function detectMarkdownImageMediaType(
+  data: Uint8Array,
+  sourceName: string
+): string | null {
+  const raster = detectRasterMediaType(data.subarray(0, 32))
+  if (raster) return raster
+  return path.extname(sourceName).toLocaleLowerCase("en-US") === ".svg" &&
+    isSafeSvgImage(data)
+    ? "image/svg+xml"
+    : null
 }
 
 function pastedImageTimestamp(timestamp: number): string {
@@ -153,7 +198,7 @@ export async function importMarkdownDocumentImage(
   ) {
     throw new Error("Markdown images must be between 1 byte and 64 MiB")
   }
-  const mediaType = detectRasterMediaType(request.data.subarray(0, 32))
+  const mediaType = detectMarkdownImageMediaType(request.data, request.name)
   if (!mediaType) throw new Error("The clipboard file is not a supported image")
 
   const { documentRoot } = await requireMarkdownDocument(
@@ -217,6 +262,77 @@ function localMarkdownImageSegments(markdownUrl: string): string[] | null {
   return segments.length > 0 ? segments : null
 }
 
+async function findVaultImageByName(
+  spaceRoot: string,
+  name: string
+): Promise<string | null> {
+  const queue = [spaceRoot]
+  const expected = name.normalize("NFC").toLocaleLowerCase("en-US")
+  let inspected = 0
+  while (queue.length > 0 && inspected < 20_000) {
+    const directory = queue.shift()!
+    const entries = (
+      await fs.readdir(directory, { withFileTypes: true }).catch(() => [])
+    ).sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    )
+    for (const entry of entries) {
+      inspected += 1
+      if (inspected >= 20_000) break
+      if (entry.isSymbolicLink() || entry.name === ".graft") continue
+      const candidate = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        queue.push(candidate)
+      } else if (
+        entry.isFile() &&
+        entry.name.normalize("NFC").toLocaleLowerCase("en-US") === expected
+      ) {
+        return candidate
+      }
+    }
+  }
+  return null
+}
+
+async function resolvedMarkdownImage(
+  spaceRoot: string,
+  candidate: string
+): Promise<EidosLiteMarkdownImageResolution | null> {
+  const relativeToSpace = path.relative(spaceRoot, candidate)
+  if (
+    !relativeToSpace ||
+    relativeToSpace === ".." ||
+    relativeToSpace.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeToSpace) ||
+    relativeToSpace.split(path.sep).includes(".graft")
+  ) {
+    return null
+  }
+  const stats = await fs.lstat(candidate).catch(() => null)
+  if (
+    !stats?.isFile() ||
+    stats.isSymbolicLink() ||
+    stats.size > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX
+  ) {
+    return null
+  }
+  if ((await fs.realpath(candidate).catch(() => null)) !== candidate) {
+    return null
+  }
+  const data = await fs.readFile(candidate)
+  const mediaType = detectMarkdownImageMediaType(data, candidate)
+  if (!mediaType) return null
+  const relativePath = relativeToSpace.split(path.sep).join("/")
+  return {
+    relativePath,
+    mediaType,
+    previewUrl: issueMediaPreviewUrl(spaceRoot, relativePath, mediaType),
+  }
+}
+
 export async function resolveMarkdownDocumentImage(
   spaceRoot: string,
   relativePath: string,
@@ -228,48 +344,15 @@ export async function resolveMarkdownDocumentImage(
     spaceRoot,
     relativePath
   )
-  const candidate = path.resolve(documentRoot, ...segments)
-  const relativeToDocument = path.relative(documentRoot, candidate)
-  if (
-    !relativeToDocument ||
-    relativeToDocument === ".." ||
-    relativeToDocument.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeToDocument)
-  ) {
-    throw new Error("The Markdown image URL escapes its document folder")
+  const documentRelative = path.resolve(documentRoot, ...segments)
+  const vaultRelative = path.resolve(spaceRoot, ...segments)
+  for (const candidate of new Set([documentRelative, vaultRelative])) {
+    const resolution = await resolvedMarkdownImage(spaceRoot, candidate)
+    if (resolution) return resolution
   }
-  const stats = await fs.lstat(candidate).catch(() => null)
-  if (
-    !stats?.isFile() ||
-    stats.isSymbolicLink() ||
-    stats.size > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX
-  ) {
-    return null
+  if (segments.length === 1) {
+    const candidate = await findVaultImageByName(spaceRoot, segments[0])
+    if (candidate) return resolvedMarkdownImage(spaceRoot, candidate)
   }
-  if ((await fs.realpath(candidate).catch(() => null)) !== candidate)
-    return null
-  const handle = await fs.open(candidate, "r")
-  let header: Uint8Array
-  try {
-    const bytes = Buffer.alloc(32)
-    const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
-    header = bytes.subarray(0, bytesRead)
-  } finally {
-    await handle.close()
-  }
-  const mediaType = detectRasterMediaType(header)
-  if (!mediaType) return null
-  const resolvedRelativePath = path
-    .relative(spaceRoot, candidate)
-    .split(path.sep)
-    .join("/")
-  return {
-    relativePath: resolvedRelativePath,
-    mediaType,
-    previewUrl: issueMediaPreviewUrl(
-      spaceRoot,
-      resolvedRelativePath,
-      mediaType
-    ),
-  }
+  return null
 }

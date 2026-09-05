@@ -12,6 +12,7 @@ import {
 } from "react"
 import { flushSync } from "react-dom"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import {
   ArrowLeft,
   ArrowRight,
@@ -43,6 +44,7 @@ import type {
   EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLiteMarkdownEditingMode,
+  EidosLiteMarkdownCompatibilityProfile,
   EidosLitePreferences,
   EidosLiteTerminalLayout,
   EidosLiteUpdateStatus,
@@ -89,6 +91,7 @@ import {
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { rendererPlatform } from "./renderer-platform"
+import { resolveObsidianSpaceEntry } from "./obsidian-vault"
 import { QuickOpen } from "./quick-open"
 import {
   isPublishableEntry,
@@ -859,6 +862,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteMarkdownEditingMode>(
       DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
     )
+  const [markdownCompatibilityProfile, setMarkdownCompatibilityProfile] =
+    useState<EidosLiteMarkdownCompatibilityProfile>(
+      DEFAULT_RENDERER_PREFERENCES.markdownCompatibilityProfile
+    )
   const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
     () =>
       storedLegacyTerminalLayout() ??
@@ -907,6 +914,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteMarkdownEditingMode>(
       DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
     )
+  const [markdownNavigationTarget, setMarkdownNavigationTarget] = useState<{
+    relativePath: string
+    requestId: number
+    heading?: string
+    blockId?: string
+  } | null>(null)
   const [fileSurfaceFocusRequestToken, setFileSurfaceFocusRequestToken] =
     useState(0)
   const [diffSurfaceFocusRequestToken, setDiffSurfaceFocusRequestToken] =
@@ -1158,6 +1171,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
       setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
+      setMarkdownCompatibilityProfile(preferences.markdownCompatibilityProfile)
       setTerminalLayout(resolvedTerminalLayout)
       setBuiltInPlugins(preferences.builtInPlugins)
       if (!preferences.builtInPlugins.terminal) {
@@ -2070,6 +2084,38 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       recordNavigationLocation,
       rememberOpenedEntry,
     ]
+  )
+
+  const openMarkdownInternalLink = useCallback(
+    async (
+      sourceRelativePath: string,
+      request: MarkdownEditorInternalLinkRequest
+    ) => {
+      if (!request.path) return
+      const entry = await resolveObsidianSpaceEntry(
+        sourceRelativePath,
+        request,
+        window.eidosLite.searchSpacePaths
+      )
+      if (!entry) {
+        setError(`Could not find Obsidian link target: ${request.path}`)
+        return
+      }
+      const requestId = Date.now()
+      setMarkdownNavigationTarget({
+        relativePath: entry.relativePath,
+        requestId,
+        ...(request.heading ? { heading: request.heading } : {}),
+        ...(request.blockId ? { blockId: request.blockId } : {}),
+      })
+      const opened = await openEntry(entry)
+      if (!opened) {
+        setMarkdownNavigationTarget((current) =>
+          current?.requestId === requestId ? null : current
+        )
+      }
+    },
+    [openEntry]
   )
 
   const openRecentFile = useCallback(
@@ -3206,6 +3252,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
                     markdownFileEditingMode={textPreviewEditingMode}
+                    markdownCompatibilityProfile={markdownCompatibilityProfile}
+                    navigationTarget={
+                      markdownNavigationTarget?.relativePath ===
+                      textPreview.relativePath
+                        ? markdownNavigationTarget
+                        : undefined
+                    }
+                    onOpenInternalLink={openMarkdownInternalLink}
                     platform={platform}
                     nativePreviewSuppressed={
                       quickOpenVisible ||

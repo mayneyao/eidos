@@ -4,6 +4,7 @@ import path from "node:path"
 import type {
   EidosLiteAppearance,
   EidosLiteMarkdownEditingMode,
+  EidosLiteMarkdownCompatibilityProfile,
   EidosLitePreferences,
   EidosLiteTerminalLayout,
   EidosLiteTimeZone,
@@ -21,6 +22,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
   markdownFileEditingMode: "source",
+  markdownCompatibilityProfile: "eidos",
   terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
@@ -48,6 +50,14 @@ function markdownFileEditingMode(value: unknown): EidosLiteMarkdownEditingMode {
   return value === "source" || value === "wysiwyg"
     ? value
     : DEFAULT_EIDOS_LITE_PREFERENCES.markdownFileEditingMode
+}
+
+function markdownCompatibilityProfile(
+  value: unknown
+): EidosLiteMarkdownCompatibilityProfile {
+  return value === "obsidian" || value === "eidos"
+    ? value
+    : DEFAULT_EIDOS_LITE_PREFERENCES.markdownCompatibilityProfile
 }
 
 function terminalLayout(
@@ -102,6 +112,9 @@ export function normalizeEidosLitePreferences(
     language: language(candidate.language),
     markdownFileEditingMode: markdownFileEditingMode(
       candidate.markdownFileEditingMode
+    ),
+    markdownCompatibilityProfile: markdownCompatibilityProfile(
+      candidate.markdownCompatibilityProfile
     ),
     terminalLayout: terminalLayout(
       candidate.terminalLayout,

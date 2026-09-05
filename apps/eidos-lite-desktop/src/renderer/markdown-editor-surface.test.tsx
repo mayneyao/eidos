@@ -85,6 +85,7 @@ describe("MarkdownEditorSurface", () => {
   })
 
   it("routes rich-text mode to the Lexical package", async () => {
+    const onOpenInternalLink = vi.fn()
     await act(async () => {
       root.render(
         createElement(MarkdownEditorSurface, {
@@ -95,6 +96,8 @@ describe("MarkdownEditorSurface", () => {
           theme: "dark",
           layout: "embedded",
           inputProfile: "fragment",
+          compatibilityProfile: "obsidian",
+          onOpenInternalLink,
           onChange: vi.fn(),
         })
       )
@@ -111,6 +114,8 @@ describe("MarkdownEditorSurface", () => {
         theme: "dark",
         layout: "embedded",
         inputProfile: "fragment",
+        profile: "obsidian",
+        onOpenInternalLink,
       })
     )
     expect(wysiwygEditor.mock.calls[0][0]).not.toHaveProperty(

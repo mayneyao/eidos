@@ -714,6 +714,7 @@ export type EidosLiteAppearance = "system" | "light" | "dark"
 export type EidosLiteLanguage = "system" | "en" | "zh"
 export type EidosLiteTerminalLayout = "bottom" | "side"
 export type EidosLiteMarkdownEditingMode = "source" | "wysiwyg"
+export type EidosLiteMarkdownCompatibilityProfile = "eidos" | "obsidian"
 /** `system` follows the operating system; every other value is an IANA zone. */
 export type EidosLiteTimeZone = string
 
@@ -722,6 +723,8 @@ export interface EidosLitePreferences {
   language: EidosLiteLanguage
   /** Default editor for ordinary `.md` and `.markdown` files. */
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
+  /** Explicit syntax profile for Markdown documents; Obsidian support is experimental and never inferred per file. */
+  markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   terminalLayout: EidosLiteTerminalLayout
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean

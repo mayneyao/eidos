@@ -8,6 +8,11 @@ import {
 } from "react"
 
 import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
+import type { EidosLiteMarkdownCompatibilityProfile } from "../shared/contracts"
+import type {
+  MarkdownEditorInternalLinkHandler,
+  MarkdownEditorNavigationTarget,
+} from "@eidos.space/markdown"
 import type { ResolvedAppearance } from "./app-appearance"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
 import { useMarkdownImageAttachments } from "./markdown-image-attachments"
@@ -54,6 +59,9 @@ export function MarkdownEditorSurface({
   theme,
   layout = "document",
   inputProfile = "document",
+  compatibilityProfile = "eidos",
+  navigationTarget,
+  onOpenInternalLink,
   disabled = false,
   persistSourceEditorState = false,
   autoFocus = false,
@@ -69,6 +77,9 @@ export function MarkdownEditorSurface({
   theme: ResolvedAppearance
   layout?: "document" | "embedded"
   inputProfile?: "document" | "fragment"
+  compatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
+  navigationTarget?: MarkdownEditorNavigationTarget
+  onOpenInternalLink?: MarkdownEditorInternalLinkHandler
   disabled?: boolean
   persistSourceEditorState?: boolean
   autoFocus?: boolean
@@ -133,6 +144,9 @@ export function MarkdownEditorSurface({
             theme={theme}
             layout={layout}
             inputProfile={inputProfile}
+            profile={compatibilityProfile}
+            navigationTarget={navigationTarget}
+            onOpenInternalLink={onOpenInternalLink}
             readOnly={disabled}
             autoFocus={autoFocus}
             ariaLabel={`Markdown content for ${relativePath}`}

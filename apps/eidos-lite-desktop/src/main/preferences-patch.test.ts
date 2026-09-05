@@ -7,6 +7,7 @@ describe("Eidos Lite preference IPC patch", () => {
       appearance: "dark" as const,
       language: "zh" as const,
       markdownFileEditingMode: "wysiwyg" as const,
+      markdownCompatibilityProfile: "obsidian" as const,
       terminalLayout: "side" as const,
       timeZone: "Europe/London",
       weekStartsOnMonday: false,
@@ -52,6 +53,19 @@ describe("Eidos Lite preference IPC patch", () => {
     expect(() =>
       eidosLitePreferencesPatch({ markdownFileEditingMode: "html" })
     ).toThrow("Invalid Markdown file editing mode preference")
+  })
+
+  it("accepts only mutually exclusive Markdown compatibility profiles", () => {
+    for (const markdownCompatibilityProfile of ["eidos", "obsidian"] as const) {
+      expect(
+        eidosLitePreferencesPatch({ markdownCompatibilityProfile })
+      ).toEqual({ markdownCompatibilityProfile })
+    }
+    expect(() =>
+      eidosLitePreferencesPatch({
+        markdownCompatibilityProfile: "auto" as never,
+      })
+    ).toThrow("Invalid Markdown compatibility profile preference")
   })
 
   it("accepts only the complete built-in plugin preference shape", () => {

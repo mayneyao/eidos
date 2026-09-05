@@ -43,6 +43,15 @@ export function eidosLitePreferencesPatch(
     }
     patch.markdownFileEditingMode = candidate.markdownFileEditingMode
   }
+  if ("markdownCompatibilityProfile" in candidate) {
+    if (
+      candidate.markdownCompatibilityProfile !== "eidos" &&
+      candidate.markdownCompatibilityProfile !== "obsidian"
+    ) {
+      throw new Error("Invalid Markdown compatibility profile preference")
+    }
+    patch.markdownCompatibilityProfile = candidate.markdownCompatibilityProfile
+  }
   if ("terminalLayout" in candidate) {
     if (
       candidate.terminalLayout !== "bottom" &&

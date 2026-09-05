@@ -10,6 +10,12 @@ import {
 const PNG = new Uint8Array([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
 ])
+const SAFE_SVG = new TextEncoder().encode(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><defs><linearGradient id="g" /></defs><rect width="10" height="10" fill="url(#g)" /></svg>'
+)
+const ACTIVE_SVG = new TextEncoder().encode(
+  '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+)
 
 const roots: string[] = []
 
@@ -91,6 +97,66 @@ describe("Markdown document images", () => {
         "notes/readme.md",
         "https://example.com/cover.png"
       )
+    ).resolves.toBeNull()
+  })
+
+  it("resolves Obsidian vault-root and shortest-name image embeds", async () => {
+    const root = await fixture()
+    await fs.mkdir(path.join(root, "Attachments"))
+    await fs.writeFile(path.join(root, "Attachments", "diagram.png"), PNG)
+
+    await expect(
+      resolveMarkdownDocumentImage(
+        root,
+        "notes/readme.md",
+        "Attachments/diagram.png"
+      )
+    ).resolves.toMatchObject({
+      relativePath: "Attachments/diagram.png",
+      mediaType: "image/png",
+    })
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", "diagram.png")
+    ).resolves.toMatchObject({
+      relativePath: "Attachments/diagram.png",
+      mediaType: "image/png",
+    })
+  })
+
+  it("imports and resolves static SVG images while rejecting active SVG", async () => {
+    const root = await fixture()
+    const imported = await importMarkdownDocumentImage(root, {
+      relativePath: "notes/readme.md",
+      name: "diagram.svg",
+      data: SAFE_SVG,
+    })
+
+    expect(imported).toEqual({
+      markdownUrl: "assets/diagram.svg",
+      relativePath: "notes/assets/diagram.svg",
+      mediaType: "image/svg+xml",
+    })
+    await expect(
+      resolveMarkdownDocumentImage(
+        root,
+        "notes/readme.md",
+        "assets/diagram.svg"
+      )
+    ).resolves.toMatchObject({
+      relativePath: "notes/assets/diagram.svg",
+      mediaType: "image/svg+xml",
+      previewUrl: expect.stringMatching(/^eidos-space-media:\/\/preview\//u),
+    })
+    await expect(
+      importMarkdownDocumentImage(root, {
+        relativePath: "notes/readme.md",
+        name: "active.svg",
+        data: ACTIVE_SVG,
+      })
+    ).rejects.toThrow("not a supported image")
+    await fs.writeFile(path.join(root, "notes", "active.svg"), ACTIVE_SVG)
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", "active.svg")
     ).resolves.toBeNull()
   })
 

@@ -19,8 +19,13 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react"
+import type {
+  MarkdownEditorInternalLinkRequest,
+  MarkdownEditorNavigationTarget,
+} from "@eidos.space/markdown"
 
 import type {
+  EidosLiteMarkdownCompatibilityProfile,
   EidosLiteMarkdownEditingMode,
   HtmlPreviewBounds,
   TextFilePreviewResult,
@@ -95,6 +100,9 @@ function EditableTextFile({
   autoFocus = false,
   focusRequestToken = 0,
   editingMode = "source",
+  markdownCompatibilityProfile = "eidos",
+  navigationTarget,
+  onOpenInternalLink,
   onSaved,
   onReload,
   onDraftChange,
@@ -105,6 +113,12 @@ function EditableTextFile({
   autoFocus?: boolean
   focusRequestToken?: number
   editingMode?: EidosLiteMarkdownEditingMode
+  markdownCompatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
+  navigationTarget?: MarkdownEditorNavigationTarget
+  onOpenInternalLink?(
+    sourceRelativePath: string,
+    request: MarkdownEditorInternalLinkRequest
+  ): void | Promise<void>
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -270,6 +284,11 @@ function EditableTextFile({
         assetDocumentPath={preview.relativePath}
         content={editorContent}
         editingMode={editingMode}
+        compatibilityProfile={markdownCompatibilityProfile}
+        navigationTarget={navigationTarget}
+        onOpenInternalLink={(request) =>
+          onOpenInternalLink?.(preview.relativePath, request)
+        }
         theme={theme}
         persistSourceEditorState
         autoFocus={autoFocus}
@@ -452,6 +471,9 @@ function DocumentFilePreview({
   draft,
   theme,
   markdownFileEditingMode,
+  markdownCompatibilityProfile,
+  navigationTarget,
+  onOpenInternalLink,
   platform,
   nativePreviewSuppressed,
   focusRequestToken,
@@ -464,6 +486,12 @@ function DocumentFilePreview({
   draft?: TextFileDraft
   theme: ResolvedAppearance
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
+  markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
+  navigationTarget?: MarkdownEditorNavigationTarget
+  onOpenInternalLink?(
+    sourceRelativePath: string,
+    request: MarkdownEditorInternalLinkRequest
+  ): void | Promise<void>
   platform: string
   nativePreviewSuppressed: boolean
   focusRequestToken: number
@@ -496,6 +524,9 @@ function DocumentFilePreview({
         draft={draft}
         theme={theme}
         editingMode={markdownFileEditingMode}
+        markdownCompatibilityProfile={markdownCompatibilityProfile}
+        navigationTarget={navigationTarget}
+        onOpenInternalLink={onOpenInternalLink}
         focusRequestToken={focusRequestToken}
         onSaved={onSaved}
         onReload={onReload}
@@ -607,6 +638,9 @@ export function TextFilePreview({
   draft,
   theme,
   markdownFileEditingMode = "source",
+  markdownCompatibilityProfile = "eidos",
+  navigationTarget,
+  onOpenInternalLink,
   platform,
   nativePreviewSuppressed = false,
   focusRequestToken = 0,
@@ -619,6 +653,12 @@ export function TextFilePreview({
   draft?: TextFileDraft
   theme: ResolvedAppearance
   markdownFileEditingMode?: EidosLiteMarkdownEditingMode
+  markdownCompatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
+  navigationTarget?: MarkdownEditorNavigationTarget
+  onOpenInternalLink?(
+    sourceRelativePath: string,
+    request: MarkdownEditorInternalLinkRequest
+  ): void | Promise<void>
   platform: string
   nativePreviewSuppressed?: boolean
   focusRequestToken?: number
@@ -665,6 +705,9 @@ export function TextFilePreview({
           draft={draft}
           theme={theme}
           markdownFileEditingMode={markdownFileEditingMode}
+          markdownCompatibilityProfile={markdownCompatibilityProfile}
+          navigationTarget={navigationTarget}
+          onOpenInternalLink={onOpenInternalLink}
           platform={platform}
           nativePreviewSuppressed={nativePreviewSuppressed}
           focusRequestToken={focusRequestToken}
