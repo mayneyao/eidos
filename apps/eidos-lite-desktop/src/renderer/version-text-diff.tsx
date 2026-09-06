@@ -14,6 +14,7 @@ import type {
 } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
 import type { VersionTextDiffComputationResponse } from "./version-text-diff-computation"
+import { VersionTextRecovery } from "./version-text-recovery"
 
 const PierreTextDiffSurface = lazy(() => import("./pierre-text-diff-surface"))
 
@@ -390,10 +391,16 @@ export function VersionTextDiff({
   }
 
   return (
-    <VersionTextDiffContent
-      content={content}
-      previousPath={previousPath}
-      theme={theme}
-    />
+    <div className="version-text-change-stack">
+      <VersionTextRecovery
+        key={`${mode}:${commitId ?? expectedHead}:${path}:${attempt}`}
+        content={content}
+      />
+      <VersionTextDiffContent
+        content={content}
+        previousPath={previousPath}
+        theme={theme}
+      />
+    </div>
   )
 }

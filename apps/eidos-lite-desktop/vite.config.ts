@@ -125,7 +125,19 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
-    resolve: { alias: aliases },
+    resolve: { alias: aliases, dedupe: ["react", "react-dom"] },
+    optimizeDeps: {
+      // The diff worker also imports the root entry. Discover all entries before
+      // opening a diff so late optimization cannot replace the React singleton.
+      include: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "@pierre/diffs",
+        "@pierre/diffs/react",
+        "@pierre/diffs/edit",
+      ],
+    },
     build: {
       target: "chrome150",
       reportCompressedSize: false,

@@ -1,7 +1,7 @@
 # Lite minimum usable loop
 
-Status: steps 1–3 implemented and locally verified; recovery and candidate
-release acceptance remain pending.
+Status: steps 1–4 implemented and locally verified; candidate release
+acceptance remains pending.
 
 ## Product boundary
 
@@ -92,6 +92,18 @@ edit/save, and find the new phrase. Exercise Chinese, duplicate filenames,
 rapid queries, cancellation, external writes and large folders.
 
 ## 4. Recover one document safely
+
+Implemented. Text version inspection offers exclusive Save before/after as a
+copy, including recovery of deleted historical text. Native macOS development
+acceptance on 2026-09-06 verified old/new copies, preservation of another file's
+unsaved draft, native text paste, undo/redo, save, rename plus maintained Wiki
+link navigation, literal `![[...]]` preservation, Move to Trash and Finder Put
+Back with identical recovered bytes. Real Graft integration tests recover old
+and deleted notes without reverting another file's newer work. Existing tests
+cover skipped link-maintenance reporting and exclusive-copy overwrite refusal.
+The native audit also found and fixed first-load diff-view blanking caused by
+late Vite optimization of the diff worker dependency; React is deduplicated and
+all Pierre entry points are prebuilt before the first window loads.
 
 - Verify undo, system Trash recovery, historical preview/copy and existing
   restore operations using a disposable folder.
