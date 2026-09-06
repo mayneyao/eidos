@@ -10,7 +10,7 @@ describe("Version panel layout", () => {
       /\.workbench > \.version-inspector-route,\s*\.workbench > \.sync-merge-editor,\s*\.workbench > \.workbench-main-loading\s*\{([^}]*)\}/
     )?.[1]
     const headerRule = styles.match(
-      /\.version-inspector-bar\s*\{([^}]*)\}/
+      /^\.version-inspector-bar\s*\{([^}]*)\}/m
     )?.[1]
     const headerButtonRule = styles.match(
       /\.version-inspector-bar button\s*\{([^}]*)\}/

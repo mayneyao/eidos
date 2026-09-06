@@ -1703,7 +1703,14 @@ body {
     [data-platform="other"]
   ):not([data-right-sidebar-open="true"])
   > .editor-region
-  .file-titlebar {
+  .file-titlebar,
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  ):not([data-right-sidebar-open="true"])
+  > .version-inspector-route
+  .version-inspector-bar {
   padding-right: calc(var(--window-controls-overlay-width) + 0.5rem);
 }
 
@@ -7149,7 +7156,7 @@ body {
   padding-left: 11.25rem;
 }
 
-.version-inspector-bar > div {
+.version-inspector-breadcrumbs {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -7168,6 +7175,7 @@ body {
 
 .version-inspector-bar strong {
   color: var(--ink);
+  font-size: inherit;
   font-weight: 620;
 }
 

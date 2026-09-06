@@ -731,54 +731,56 @@ export function VersionDiffPreview({
     >
       <header className="version-inspector-bar">
         {titlebarNavigation}
-        <div>
-          {inspection.type === "table" ? (
-            <button
-              type="button"
-              className="version-inspector-crumb"
-              aria-label={`Back to ${fileName(inspection.change.path)} file changes`}
-              onClick={() => onNavigate?.(fileInspection())}
-            >
-              {fileName(inspection.change.path)}
-            </button>
-          ) : (
-            <strong>{fileName(inspection.change.path)}</strong>
-          )}
-          {inspection.type === "table" ? (
-            <>
-              <ChevronRight aria-hidden="true" />
-              {recordSelection ? (
-                <button
-                  type="button"
-                  className="version-inspector-crumb"
-                  aria-label={`Back to ${inspection.table.name} table changes`}
-                  onClick={() => setRecordSelection(null)}
-                >
-                  {inspection.table.name}
-                </button>
-              ) : (
-                <strong>{inspection.table.name}</strong>
-              )}
-              {recordSelection ? (
-                <>
-                  <ChevronRight aria-hidden="true" />
-                  <strong title={recordSelection.label}>
-                    {recordSelection.label}
-                  </strong>
-                </>
-              ) : null}
-            </>
-          ) : null}
+        <div className="file-titlebar-identity">
+          <div className="version-inspector-breadcrumbs">
+            {inspection.type === "table" ? (
+              <button
+                type="button"
+                className="version-inspector-crumb"
+                aria-label={`Back to ${fileName(inspection.change.path)} file changes`}
+                onClick={() => onNavigate?.(fileInspection())}
+              >
+                {fileName(inspection.change.path)}
+              </button>
+            ) : (
+              <strong>{fileName(inspection.change.path)}</strong>
+            )}
+            {inspection.type === "table" ? (
+              <>
+                <ChevronRight aria-hidden="true" />
+                {recordSelection ? (
+                  <button
+                    type="button"
+                    className="version-inspector-crumb"
+                    aria-label={`Back to ${inspection.table.name} table changes`}
+                    onClick={() => setRecordSelection(null)}
+                  >
+                    {inspection.table.name}
+                  </button>
+                ) : (
+                  <strong>{inspection.table.name}</strong>
+                )}
+                {recordSelection ? (
+                  <>
+                    <ChevronRight aria-hidden="true" />
+                    <strong title={recordSelection.label}>
+                      {recordSelection.label}
+                    </strong>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="icon-button active-file-close"
+            onClick={onClose}
+            aria-label="Close change details"
+            title="Close change details"
+          >
+            <X />
+          </button>
         </div>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={onClose}
-          aria-label="Close change details"
-          title="Close change details"
-        >
-          <X />
-        </button>
       </header>
 
       <div
