@@ -1,12 +1,15 @@
 # Eidos Lite Desktop delivery status
 
-Last audited: 2026-08-17
+Last audited: 2026-09-06
 
 ## Verdict
 
-The current branch is the source for **Eidos Lite 0.1.12**. Local Spaces and
-versioning are public desktop capabilities; Eidos Sync remains an invite-only
-private preview backed by the official Hosted Remote.
+The current package base version is **Eidos Lite 0.8.0**. The minimum offline
+loop now includes draft protection, document Find, workspace text search and
+single-document historical recovery. This is locally verified implementation,
+not a verified 1.0 release. Eidos Sync remains an invite-only private preview.
+
+The execution checklist is [Minimum usable loop](./MINIMUM-LOOP-PLAN.md).
 
 This verdict preserves the product boundary: one window owns one ordinary
 folder Space, one Space owns one Graft repository and one Hosted Remote, and
@@ -23,7 +26,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 | Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK     |
 | Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery         |
 | Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.25           |
-| Recovery                | Release verified          | Durable merge reopen/abort, operation journals, close/validate/reopen materialization, two-copy recovery, external invalidation, and utility crash reopen         |
+| Recovery                | Locally verified          | Historical text copies, Trash recovery, draft protection, durable merge reopen/abort, operation journals, external invalidation, and utility crash reopen         |
 | Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                             |
 | Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                  |
 | Languages               | Source-ready              | System/English/Simplified Chinese preference, native menu/dialog translation, Lite core surfaces, and shared Eidos File editor locale                             |
@@ -31,7 +34,40 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 ## Current verification record
 
-The final local audit passed:
+Implementation candidate: `7e53c5b0eaa909448fadc78d159a79aaba37805b`.
+All results in this section refer to that source revision on macOS arm64;
+the documentation update recording them follows it.
+
+- Lite source: 811 passed, 187 explicitly skipped; performance: 16 passed.
+- Built-in node:sqlite adapter: 11 passed; download routing: 5 passed.
+- Lite typecheck, lint, development packaging and production release-mode
+  compilation passed. The production service-environment manifest and clean
+  Electron output checks passed. No signed release was produced.
+- The unsigned staging package passed its unchanged smoke budgets: 462 ms
+  launch, utility-open P95 201.4 ms, zero console errors. External-rename
+  invalidation, retry, Runtime worker reopen and Graft worker reopen passed.
+  This single local sample is not a clean-machine startup P95.
+- A deterministic source regression reproduces a failed close request after
+  an external rename. Cleanup now removes invalidated session metadata and
+  awaits child exit even when close fails; concurrent closes share the same
+  completion. This addresses a plausible cause of the earlier Intel failure;
+  a green Intel run on this revision is still required.
+- Native development acceptance for steps 1–4 used disposable local folders:
+  save/cancel/discard and conflict copies; non-mutating rich/source Find;
+  workspace search → open match → edit/save → search again; historical text
+  copies, undo/redo, rename/link navigation and Trash/Put Back. Details and
+  per-step evidence are recorded in the execution checklist.
+
+Search scans supported saved text within explicit resource limits. It does not
+search unsaved drafts or unify `.eidos` table content. Normal-exit draft
+protection does not promise draft recovery after an OS/process crash. Wiki-link
+support does not imply full Obsidian compatibility; `![[...]]` stays literal.
+
+## Earlier verification record (2026-08-17)
+
+The following records describe earlier builds, not the current candidate.
+Their version numbers and performance samples must not be reused as current
+release proof. The earlier local audit passed:
 
 - The reviewed merge source integration passes one real local-Graft dual-client
   E2E: common ancestor -> Policy v1 CAS -> text/binary/real `.eidos` conflicts
@@ -205,9 +241,14 @@ The following must stay visibly open before Public v1:
    Intel workers for every `lite-v*` tag.
 3. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
    `.eidos` association, native Graft package loading and credential storage.
-4. Complete clean-machine in-place upgrade and rollback from 0.1.3 to the
-   signed/notarized 0.1.4 package. Signing, notarization, stable update metadata,
-   public checksum, and direct launch verification are complete.
+4. Complete an actual installed previous-version upgrade to the candidate,
+   restart and binary rollback on disposable representative Spaces. Verify
+   saved text, `.eidos` data and local history after each transition. Earlier
+   0.1.3/0.1.4 records do not satisfy this candidate's acceptance.
+
+The remaining gates below apply to expanding Sync beyond private preview;
+they are not prerequisites for the offline minimum loop:
+
 5. Complete at least two weeks of two-device dogfood using real Spaces and the
    official staging subscription/Credits path.
 6. Re-run the owner-only staging OAuth acceptance for the release candidate,
@@ -224,7 +265,8 @@ The following must stay visibly open before Public v1:
 
 ## Next delivery sequence
 
-Exercise the signed 0.1.3 -> 0.1.4 upgrade and rollback on a clean Mac, then
-execute the owner-only staging acceptance and start two-device dogfood. In
-parallel, close the real Windows/Linux hardware, destructive test matrix, and
-service-operations gates.
+Run cross-platform gates against one frozen candidate, including the previously
+failing Intel invalidation assertion. Complete the signed upgrade/restart/
+rollback and offline final scenario in the execution checklist. Record exact
+artifact hashes and results before deciding whether to release 1.0. Sync
+service acceptance remains a separate private-preview workstream.

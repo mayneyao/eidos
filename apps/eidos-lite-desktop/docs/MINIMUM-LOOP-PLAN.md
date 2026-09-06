@@ -118,6 +118,29 @@ newer edits remain unchanged. Protect dirty drafts during recovery.
 
 ## 5. Freeze and accept one candidate
 
+Partially complete. Implementation candidate
+`7e53c5b0eaa909448fadc78d159a79aaba37805b` passed macOS arm64 source
+(811 passed, 187 skipped), performance (16), node:sqlite (11), download routing
+(5), typecheck, lint, development packaging and production-mode compilation.
+Its unsigned staging packaged smoke passed with no console errors and with
+externalRenameInvalidated/issue/retry all true. A forced close-error regression
+now verifies metadata cleanup and waiting for child exit, including concurrent
+close calls. Intel CI must still establish whether this fixes its prior failure.
+
+Remaining acceptance, in order:
+
+1. Run the frozen candidate's macOS arm64/Intel and Windows CI gates; retain
+   the exact SHA and reports. Exercise Linux arm64/x64 distribution separately.
+2. On disposable representative Spaces, install the previous public version,
+   upgrade to the candidate, restart and roll back the binary. Compare saved
+   text, `.eidos` content and local history at each stage.
+3. Execute the complete offline scenario below on the candidate artifact;
+   record artifact hashes, platform, failures and recovery outcomes.
+4. Repeat clean-machine startup samples and decide release readiness from
+   those results. Prepare version/release notes only after acceptance passes.
+
+No version bump, tag, signed release or production update has been performed.
+
 - Resolve the Intel external-rename Runtime invalidation gate; distinguish
   product races from test timing without weakening lifecycle assertions.
 - Require source, packaged and release checks to pass for the same commit.
