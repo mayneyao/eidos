@@ -69,7 +69,7 @@
 .eme-editor[data-layout="embedded"] {
   --eme-content-padding-top: 0px;
   --eme-content-padding-inline: 0px;
-  --eme-content-padding-bottom: 5rem;
+  --eme-content-padding-bottom: max(10rem, 20vh);
   --eme-content-max-width: 47.5rem;
   height: auto;
   overflow: visible;

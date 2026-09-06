@@ -1454,6 +1454,91 @@ test("SEL-004 embedded layout uses the full stage as its side selection surface"
   await selectFromSide("right")
 })
 
+test("embedded host margins and bottom safe area start block selection", async ({
+  page,
+}) => {
+  await openMarkdown(page, "First.\n\nSecond.\n\nThird.")
+  await page.goto("/playground?layout=embedded")
+  const canvas = page.locator("[data-markdown-selection-canvas]")
+  const editor = page.getByLabel("Markdown playground editor")
+  const first = await editor.locator(".eme-paragraph").first().boundingBox()
+  const second = await editor.locator(".eme-paragraph").nth(1).boundingBox()
+  const last = await editor.locator(".eme-paragraph").last().boundingBox()
+  const host = await canvas.boundingBox()
+  const stage = await page.locator(".eme-editor-stage").boundingBox()
+  const root = await editor.boundingBox()
+  if (!first || !second || !last || !host || !stage || !root)
+    throw new Error("Missing embedded geometry")
+  expect(root.y + root.height - last.y - last.height).toBeGreaterThanOrEqual(
+    160
+  )
+  expect(stage.x - host.x).toBeGreaterThanOrEqual(80)
+  for (const x of [host.x + 8, host.x + host.width - 8]) {
+    // Start above the editor as well as outside its own stage.
+    await page.mouse.move(x, host.y + 20)
+    await page.mouse.down()
+    await page.mouse.move(second.x + 100, second.y + second.height - 2, {
+      steps: 12,
+    })
+    await page.mouse.up()
+    await expect(editor.locator("[data-block-selected='true']")).toHaveCount(2)
+    await page.keyboard.press("e")
+    await expect(
+      page.getByLabel("Selected blocks Markdown source")
+    ).toBeFocused()
+    await page.keyboard.press("Escape")
+    await page.keyboard.press("Escape")
+  }
+  await page.mouse.move(last.x + 100, last.y + last.height + 100)
+  await expect(canvas).toHaveAttribute("data-block-marquee-zone", "bottom")
+  await page.mouse.down()
+  await page.mouse.move(last.x + 120, last.y + 2, { steps: 12 })
+  await page.mouse.up()
+  await expect(editor.locator("[data-block-selected='true']")).toHaveText([
+    "Third.",
+  ])
+})
+
+test("embedded marquee scrolls the host and preserves field interaction", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    Array.from({ length: 60 }, (_, i) => `Block ${i}.`).join("\n\n")
+  )
+  await page.goto("/playground?layout=embedded")
+  const canvas = page.locator("[data-markdown-selection-canvas]")
+  await canvas.evaluate((element) => {
+    const field = document.createElement("input")
+    field.setAttribute("aria-label", "Record field")
+    field.setAttribute("data-markdown-selection-ignore", "")
+    field.style.cssText =
+      "position:fixed;left:8px;top:160px;width:60px;z-index:100"
+    element.append(field)
+  })
+  const field = page.getByLabel("Record field")
+  await field.fill("Unchanged")
+  await expect(field).toBeFocused()
+  await expect(page.locator(".eme-block-marquee")).toHaveCount(0)
+  const editor = page.getByLabel("Markdown playground editor")
+  const host = await canvas.boundingBox()
+  const first = await editor.locator(".eme-paragraph").first().boundingBox()
+  if (!host || !first) throw new Error("Missing host geometry")
+  await page.mouse.move(host.x + host.width - 8, first.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(first.x + 100, host.y + host.height - 4, { steps: 12 })
+  await expect
+    .poll(() => canvas.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(200)
+  await expect
+    .poll(() => editor.locator("[data-block-selected='true']").count())
+    .toBeGreaterThan(8)
+  await page.mouse.up()
+  await expect(field).toHaveValue("Unchanged")
+  await page.keyboard.press("e")
+  await expect(page.getByLabel("Selected blocks Markdown source")).toBeFocused()
+})
+
 test("CRT-001 keeps the gutter plus beside the block and inserts below", async ({
   page,
 }) => {

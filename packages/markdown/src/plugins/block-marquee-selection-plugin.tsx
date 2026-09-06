@@ -228,7 +228,11 @@ export function BlockMarqueeSelectionPlugin() {
 
   useEffect(() => {
     const root = rootElement
-    const stage = root?.closest<HTMLElement>(".eme-editor-stage")
+    // Embedded hosts own both the surrounding canvas and its scrolling.
+    const hostCanvas = root
+      ?.closest('[data-layout="embedded"]')
+      ?.closest<HTMLElement>("[data-markdown-selection-canvas]")
+    const stage = hostCanvas ?? root?.closest<HTMLElement>(".eme-editor-stage")
     if (!root || !stage) return
 
     const clearVisualSelection = () => {
@@ -615,6 +619,7 @@ export function BlockMarqueeSelectionPlugin() {
       const target = event.target
       if (!(target instanceof Element)) return
       if (target.closest(LOCAL_EDITOR_CONTROL_SELECTOR)) return
+      if (target.closest("[data-markdown-selection-ignore]")) return
 
       const startZone = stage.contains(target)
         ? marqueeStartZone(stage, root, {
@@ -678,6 +683,7 @@ export function BlockMarqueeSelectionPlugin() {
         const zone =
           target instanceof Element &&
           !target.closest(EXTERNAL_INTERACTIVE_SELECTOR) &&
+          !target.closest("[data-markdown-selection-ignore]") &&
           stage.contains(target)
             ? marqueeStartZone(stage, root, {
                 x: event.clientX,

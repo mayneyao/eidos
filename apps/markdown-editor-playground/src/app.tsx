@@ -67,6 +67,8 @@ function initialMarkdown(): string {
 }
 
 export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
+  const embedded =
+    new URLSearchParams(window.location.search).get("layout") === "embedded"
   const { locale, t, href } = useSiteLocale()
   const [preset, setPreset] = useState(() => presetFromSearch())
   const [markdown, setMarkdown] = useState(initialMarkdown)
@@ -225,9 +227,16 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
           </label>
         </div>
       </header>
-      <div className="playground-content">
+      <div
+        className="playground-content"
+        data-markdown-selection-canvas={embedded ? "" : undefined}
+        style={
+          embedded ? { overflowY: "auto", padding: "100px 80px 0" } : undefined
+        }
+      >
         {viewMode === "visual" ? (
           <MarkdownEditor
+            layout={embedded ? "embedded" : "document"}
             profile={preset}
             theme={theme}
             documentKey="playground"

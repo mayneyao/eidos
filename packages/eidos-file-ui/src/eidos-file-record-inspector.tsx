@@ -823,6 +823,7 @@ export function EidosFileRecordInspector({
             contentEditorOwnsScroll ? "overflow-hidden" : "overflow-y-auto"
           )}
           data-eidos-file-record-page-scroll=""
+          data-markdown-selection-canvas={directWysiwygContent ? "" : undefined}
         >
           <article
             className={cn(
@@ -836,6 +837,7 @@ export function EidosFileRecordInspector({
               <div
                 className="mx-auto grid w-full max-w-[760px] gap-0 py-2"
                 data-eidos-file-record-properties=""
+                data-markdown-selection-ignore=""
               >
                 {metadataRows}
               </div>
