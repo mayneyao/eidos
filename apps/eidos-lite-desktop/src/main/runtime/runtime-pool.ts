@@ -115,6 +115,7 @@ function isWorkerResponse(value: unknown): value is RuntimeWorkerResponse {
 
 export class RuntimePool {
   private readonly entriesBySession = new Map<string, RuntimeEntry>()
+  private readonly closingEntries = new WeakMap<RuntimeEntry, Promise<void>>()
   private readonly sessionByCanonicalPath = new Map<string, string>()
   private readonly suspendedSessionIds = new Set<string>()
   private readonly pendingInvalidations: EidosFileIssue[] = []
@@ -258,7 +259,7 @@ export class RuntimePool {
     const entry = this.requireEntry(sessionId)
     const issue = await this.entryIssue(entry)
     if (issue) {
-      await this.closeSession(sessionId)
+      await this.invalidateSession(sessionId)
       throw new EidosFileRuntimeError(issue)
     }
     this.touch(entry)
@@ -278,10 +279,28 @@ export class RuntimePool {
 
   async closeSession(sessionId: string): Promise<void> {
     const entry = this.requireEntry(sessionId)
-    await this.closeEntry(entry)
-    this.entriesBySession.delete(sessionId)
-    this.sessionByCanonicalPath.delete(entry.canonicalPath)
-    this.suspendedSessionIds.delete(sessionId)
+    try {
+      await this.closeEntry(entry)
+    } finally {
+      this.entriesBySession.delete(sessionId)
+      if (this.sessionByCanonicalPath.get(entry.canonicalPath) === sessionId) {
+        this.sessionByCanonicalPath.delete(entry.canonicalPath)
+      }
+      this.suspendedSessionIds.delete(sessionId)
+    }
+  }
+
+  private async invalidateSession(sessionId: string): Promise<void> {
+    try {
+      await this.closeSession(sessionId)
+    } catch (error) {
+      // The child has exited and metadata is removed even when SQLite cannot
+      // close gracefully after a rename. Keep the actionable path diagnosis.
+      console.warn(
+        "Could not gracefully close an invalidated Eidos File runtime",
+        error
+      )
+    }
   }
 
   async closeHandles(): Promise<void> {
@@ -459,7 +478,7 @@ export class RuntimePool {
       if (!issue) continue
       if (!canInvalidate()) return invalidated
       invalidated.push(issue)
-      await this.closeSession(entry.sessionId)
+      await this.invalidateSession(entry.sessionId)
     }
     return invalidated
   }
@@ -588,6 +607,7 @@ export class RuntimePool {
     entry: RuntimeEntry,
     createTitle?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
+    await this.closingEntries.get(entry)
     if (entry.child) return null
     while (this.residentCount() >= this.maxResidentRuntimes) {
       const sessionId = selectLruRuntimeToEvict(
@@ -686,7 +706,17 @@ export class RuntimePool {
     }
   }
 
-  private async closeEntry(entry: RuntimeEntry): Promise<void> {
+  private closeEntry(entry: RuntimeEntry): Promise<void> {
+    const existing = this.closingEntries.get(entry)
+    if (existing) return existing
+    const closing = this.closeEntryInternal(entry)
+    this.closingEntries.set(entry, closing)
+    const clear = () => this.closingEntries.delete(entry)
+    void closing.then(clear, clear)
+    return closing
+  }
+
+  private async closeEntryInternal(entry: RuntimeEntry): Promise<void> {
     const child = entry.child
     if (!child) return
     const childExited = new Promise<void>((resolve) => {
@@ -706,8 +736,8 @@ export class RuntimePool {
       )
     } finally {
       child.kill()
+      await childExited
     }
-    await childExited
   }
 
   private request(

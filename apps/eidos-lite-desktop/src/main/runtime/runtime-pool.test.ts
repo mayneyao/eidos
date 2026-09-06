@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, realpath, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { utilityProcess, type UtilityProcess } from "electron"
@@ -53,6 +53,60 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("invalidates a renamed file even when graceful close fails, after the child exits", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-invalid-close-"))
+    )
+    await writeFile(path.join(root, "note.eidos"), "fixture")
+    class FailedClose extends DelayedExitRuntimeUtilityProcess {
+      postMessage(request: RuntimeWorkerRequest): void {
+        if (request.type !== "close") {
+          super.postMessage(request)
+          return
+        }
+        queueMicrotask(() =>
+          this.emit("message", {
+            requestId: request.requestId,
+            ok: false,
+            error: {
+              name: "Error",
+              message: "Close failed after external rename",
+            },
+          })
+        )
+      }
+    }
+    const child = new FailedClose()
+    vi.mocked(utilityProcess.fork).mockReturnValue(
+      child as unknown as UtilityProcess
+    )
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      const opened = await pool.open("note.eidos")
+      await rename(
+        path.join(root, "note.eidos"),
+        path.join(root, "moved.eidos")
+      )
+      let settled = false
+      const failedCall = pool
+        .call(opened.sessionId, "getSnapshot", [])
+        .catch((error: unknown) => {
+          settled = true
+          return error
+        })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      const settledBeforeExit = settled
+      child.exit()
+      const error = await failedCall
+      expect(settledBeforeExit).toBe(false)
+      expect(error).toMatchObject({ issue: { reason: "missing" } })
+      expect(pool.openRelativePaths()).toEqual([])
+    } finally {
+      child.exit()
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it("opens clone validation probes in read-only mode", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-validate-"))
     const filePath = path.join(root, "records.eidos")
@@ -131,9 +185,15 @@ describe("RuntimePool LRU policy", () => {
 
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
       expect(closed).toBe(false)
+      let secondClosed = false
+      const secondClosing = pool.closeSession(session.sessionId).then(() => {
+        secondClosed = true
+      })
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect(secondClosed).toBe(false)
 
       child.exit()
-      await closing
+      await Promise.all([closing, secondClosing])
       expect(closed).toBe(true)
     } finally {
       await rm(root, { recursive: true, force: true })
