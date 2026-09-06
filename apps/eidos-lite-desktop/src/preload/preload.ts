@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
+import type { TextSearchProgress } from "../shared/text-search"
 
 import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
@@ -90,6 +91,19 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   searchSpacePaths: (query, limit) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
+  searchSpaceText: (requestId, query) =>
+    ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query),
+  cancelTextSearch: (requestId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.cancelTextSearch, requestId),
+  onTextSearchProgress: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: TextSearchProgress
+    ) => listener(progress)
+    ipcRenderer.on(IPC_CHANNELS.searchTextProgress, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.searchTextProgress, handler)
+  },
   searchMarkdownNotes: (query, limit) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchMarkdownNotes, query, limit),
   onSpaceChanged: (listener) => {

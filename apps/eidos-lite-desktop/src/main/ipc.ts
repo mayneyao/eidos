@@ -1082,6 +1082,29 @@ export function registerIpc(
         .searchPaths(query, normalizedLimit)
     }
   )
+  ipcMain.handle(
+    IPC_CHANNELS.searchText,
+    (event, requestId: unknown, query: unknown) => {
+      if (
+        typeof requestId !== "string" ||
+        requestId.length > 100 ||
+        typeof query !== "string" ||
+        !query ||
+        query.length > 512
+      )
+        throw new Error("Invalid text search")
+      return controller
+        .requireSession(event.sender)
+        .searchText(requestId, query, (progress) => {
+          if (!event.sender.isDestroyed())
+            event.sender.send(IPC_CHANNELS.searchTextProgress, progress)
+        })
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.cancelTextSearch, (event, requestId: unknown) => {
+    if (typeof requestId !== "string") throw new Error("Invalid text search ID")
+    controller.sessionFor(event.sender)?.cancelTextSearch(requestId)
+  })
   ipcMain.handle(IPC_CHANNELS.takeLaunchFile, (event) =>
     controller.takeLaunchEidosFile(event.sender)
   )

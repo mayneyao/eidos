@@ -1262,7 +1262,7 @@ body {
   grid-column: 1;
   width: 100%;
   grid-template-rows:
-    var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr)
+    var(--workbench-titlebar-height) 1.75rem auto minmax(0, 1fr)
     auto;
   min-width: 0;
   min-height: 0;
@@ -9187,4 +9187,79 @@ body {
   color: var(--ink-muted);
   font-size: 0.8125rem;
   text-align: center;
+}
+/* Workspace text search uses the host's shared semantic colors. */
+.workspace-text-search {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+  overflow: auto;
+}
+.workspace-search-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px;
+  padding: 6px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+.workspace-search-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.workspace-search-input input {
+  min-width: 0;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+}
+.workspace-text-search p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+.workspace-search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.workspace-search-results button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  gap: 4px;
+  text-align: left;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--control-border);
+  color: inherit;
+  background: transparent;
+}
+.workspace-search-results strong {
+  overflow-wrap: anywhere;
+}
+.workspace-search-results pre {
+  grid-column: 1 / -1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font: inherit;
+}
+.workspace-search-results button:hover {
+  background: var(--surface-hover);
+}
+.explorer[hidden] {
+  display: none;
 }

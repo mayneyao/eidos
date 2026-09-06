@@ -1,3 +1,4 @@
+import type { TextSearchProgress } from "./text-search"
 import type {
   AssetLease,
   EidosFileCsvImportOptions,
@@ -85,6 +86,9 @@ export const IPC_CHANNELS = {
   refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   searchPaths: "eidos-lite:space-paths-search",
+  searchText: "eidos-lite:space-text-search",
+  searchTextProgress: "eidos-lite:space-text-search-progress",
+  cancelTextSearch: "eidos-lite:space-text-search-cancel",
   searchMarkdownNotes: "eidos-lite:markdown-notes-search",
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
@@ -1704,6 +1708,11 @@ export interface EidosLiteApi {
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
+  searchSpaceText(requestId: string, query: string): Promise<TextSearchProgress>
+  cancelTextSearch(requestId: string): Promise<void>
+  onTextSearchProgress(
+    listener: (progress: TextSearchProgress) => void
+  ): () => void
   searchMarkdownNotes(
     query: string,
     limit?: number

@@ -19,10 +19,8 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react"
-import type {
-  MarkdownEditorInternalLinkRequest,
-  MarkdownEditorNavigationTarget,
-} from "@eidos.space/markdown"
+import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
+import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
 
 import type {
   EidosLiteMarkdownCompatibilityProfile,
@@ -566,7 +564,10 @@ function DocumentFilePreview({
   const htmlPreview =
     preview.browserPreview.kind === "html" ? preview.browserPreview : null
 
-  if (preview.browserPreview.kind === "markdown") {
+  if (
+    preview.browserPreview.kind === "markdown" ||
+    navigationTarget?.textSearch
+  ) {
     return (
       <EditableTextFile
         key={preview.relativePath}
@@ -774,6 +775,7 @@ export function TextFilePreview({
         preview={preview}
         draft={draft}
         theme={theme}
+        navigationTarget={navigationTarget}
         focusRequestToken={focusRequestToken}
         onSaved={onSaved}
         onReload={onReload}

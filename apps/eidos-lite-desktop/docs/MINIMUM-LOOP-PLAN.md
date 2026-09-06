@@ -1,6 +1,7 @@
 # Lite minimum usable loop
 
-Status: planned; implementation and release acceptance remain pending.
+Status: steps 1–3 implemented and locally verified; recovery and candidate
+release acceptance remain pending.
 
 ## Product boundary
 
@@ -61,6 +62,19 @@ Acceptance: opening, navigating and closing Find changes no document bytes;
 edits refresh matches, and off-screen matches become visible.
 
 ## 3. Search workspace text
+
+Implemented. A main-owned bounded disk scan exposes typed progress/cancellation
+IPC; each window replaces stale queries. The visible sidebar entry labels
+saved text scope and exclusions. Results include paths, snippets and positions;
+opening revalidates against disk/current drafts and locates Markdown in Source
+mode so source offsets are unambiguous. Native macOS development acceptance on
+2026-09-06 completed phrase search → open → edit → save → search the new phrase,
+and refused a stale match after an external write. First-load positioning waits
+for Pierre's attached viewport. Tests cover Chinese, UTF-16, duplicate names,
+literal punctuation, exclusions, cancellation before/after start, stale query
+events, limits, renames and changed-content locations. Full source tests passed
+808 tests, with 187 opt-in tests skipped, under normal local permissions (the
+sandbox prevents loopback sockets and some native file-watch events).
 
 - Add a main-owned cancellable text-search service behind typed IPC. Start
   with bounded scans rather than a persistent index; measure before adding

@@ -12,10 +12,10 @@ import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
 import type { EidosLiteMarkdownCompatibilityProfile } from "../shared/contracts"
 import type {
   MarkdownEditorInternalLinkHandler,
-  MarkdownEditorNavigationTarget,
   MarkdownNoteSearchHandler,
   MarkdownEditorInternalLinkRequest,
 } from "@eidos.space/markdown"
+import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
 import {
   missingMarkdownNotePath,
   resolveObsidianSpaceEntry,
@@ -230,6 +230,7 @@ export function MarkdownEditorSurface({
       >
         {sessionMode === "source" ? (
           <PierreEditor
+            searchTarget={navigationTarget?.textSearch}
             relativePath={relativePath}
             content={content}
             theme={theme}

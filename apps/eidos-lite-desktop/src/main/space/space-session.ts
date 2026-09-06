@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto"
+import { searchSpaceText } from "./text-search"
+import type { TextSearchProgress } from "../../shared/text-search"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -371,6 +373,10 @@ export class SpaceSession {
   private versioningEnabled = false
   private automaticCheckpointsEnabled: boolean
   private closed = false
+  private textSearch: {
+    requestId: string
+    controller: AbortController
+  } | null = null
 
   private constructor(
     readonly canonical: CanonicalSpace,
@@ -506,6 +512,33 @@ export class SpaceSession {
     if (this.closed) throw new Error("Space is closed")
     await this.pathIndex.ensureScanned()
     return this.pathIndex.search(query, limit)
+  }
+
+  async searchText(
+    requestId: string,
+    query: string,
+    onProgress: (progress: TextSearchProgress) => void
+  ): Promise<TextSearchProgress> {
+    if (this.closed || this.closeInFlight) throw new Error("Space is closed")
+    this.textSearch?.controller.abort()
+    const search = { requestId, controller: new AbortController() }
+    this.textSearch = search
+    try {
+      return await searchSpaceText(
+        this.canonical.root,
+        requestId,
+        query,
+        search.controller.signal,
+        onProgress
+      )
+    } finally {
+      if (this.textSearch === search) this.textSearch = null
+    }
+  }
+
+  cancelTextSearch(requestId: string): void {
+    if (this.textSearch?.requestId === requestId)
+      this.textSearch.controller.abort()
   }
 
   async searchMarkdownNotes(
@@ -2812,6 +2845,7 @@ export class SpaceSession {
   }
 
   private async closeInternal(): Promise<void> {
+    this.textSearch?.controller.abort()
     this.watcher.close()
     await this.watcherRefreshTail.catch(() => undefined)
     this.cancelVersionReads()

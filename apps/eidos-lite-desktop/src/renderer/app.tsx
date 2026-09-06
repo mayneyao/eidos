@@ -32,12 +32,19 @@ import {
   PanelLeft,
   Pencil,
   RefreshCw,
+  Search,
   Settings,
   SquareTerminal,
   Trash2,
   Upload,
   X,
 } from "lucide-react"
+import { WorkspaceTextSearch } from "./workspace-text-search"
+import {
+  resolveTextSearchTarget,
+  type TextSearchHit,
+  type TextSearchTarget,
+} from "../shared/text-search"
 
 import type {
   EidosFileIssue,
@@ -814,6 +821,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     requestId: number
     heading?: string
     blockId?: string
+    textSearch?: TextSearchTarget
   } | null>(null)
   const [fileSurfaceFocusRequestToken, setFileSurfaceFocusRequestToken] =
     useState(0)
@@ -828,6 +836,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [busyFile, setBusyFile] = useState<string | null>(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
+  const [textSearchVisible, setTextSearchVisible] = useState(false)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
@@ -2074,6 +2083,55 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     [openEntry]
   )
 
+  const openTextSearchHit = useCallback(
+    async (hit: TextSearchHit) => {
+      const preview = await window.eidosLite.previewTextFile(hit.relativePath)
+      if (preview.type !== "text" || preview.truncated)
+        throw new Error(t("This file is no longer available as editable text."))
+      const content =
+        textFileDrafts[hit.relativePath]?.content ?? preview.content
+      const target = resolveTextSearchTarget(content, {
+        requestId: crypto.randomUUID(),
+        query: hit.query,
+        start: hit.start,
+        end: hit.end,
+      })
+      if (!target)
+        throw new Error(
+          t(
+            "The text has changed and this match no longer exists. Search again."
+          )
+        )
+      const opened = await openEntry(
+        {
+          name: hit.relativePath.split("/").at(-1)!,
+          relativePath: hit.relativePath,
+          kind: "file",
+          size: preview.size,
+          modifiedAtMs: preview.modifiedAtMs,
+        },
+        { markdownEditingMode: "source" }
+      )
+      if (opened) {
+        setMarkdownNavigationTarget({
+          relativePath: hit.relativePath,
+          requestId: Date.now(),
+          textSearch: target,
+        })
+        if (
+          textFileDrafts[hit.relativePath] ||
+          preview.revision !== hit.revision
+        )
+          setError(
+            t(
+              "Content changed since this search. Located the nearest current match."
+            )
+          )
+      }
+    },
+    [openEntry, textFileDrafts, t]
+  )
+
   const openRecentFile = useCallback(
     async (recent: RecentFileEntry) => {
       if (!space) return
@@ -2948,7 +3006,26 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             </button>
           </div>
         </div>
-        <nav className="explorer" aria-label={`${space.name} files`}>
+        <button
+          type="button"
+          className="workspace-search-open"
+          aria-pressed={textSearchVisible}
+          onClick={() => setTextSearchVisible((open) => !open)}
+        >
+          <Search size={14} />
+          {t("Search Space text")}
+        </button>
+        {textSearchVisible ? (
+          <WorkspaceTextSearch
+            onOpen={openTextSearchHit}
+            onClose={() => setTextSearchVisible(false)}
+          />
+        ) : null}
+        <nav
+          className="explorer"
+          hidden={textSearchVisible}
+          aria-label={`${space.name} files`}
+        >
           <Suspense
             fallback={
               <p className="explorer-busy" role="status">

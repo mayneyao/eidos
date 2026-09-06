@@ -4,6 +4,30 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Search Space text": "搜索空间文本",
+  "Search saved text": "搜索已保存的文本",
+  "Close search": "关闭搜索",
+  "Saved Markdown and text files only. Unsaved drafts and Eidos tables are not searched.":
+    "仅搜索已保存的 Markdown 和文本文件，不包含未保存草稿及 Eidos 表格。",
+  "Search scope and limits": "搜索范围与限制",
+  "Skips symlinks, binaries, unsupported types, implementation and build folders. Up to 2 MB per file, 64 MB, 2,000 files, 10,000 entries, 10 seconds and 500 matches per search.":
+    "跳过符号链接、二进制、不支持的类型及实现与构建目录。单文件最多 2 MB；每次最多扫描 64 MB、2,000 个文件、10,000 个目录项、10 秒，返回 500 个匹配。",
+  "Search finished": "搜索完成",
+  "Searching…": "正在搜索…",
+  "{matches} matches · {files} files · {skipped} skipped · {errors} errors":
+    "{matches} 个匹配 · {files} 个文件 · 跳过 {skipped} 项 · {errors} 个错误",
+  "Partial results: a search limit was reached. Use a more specific phrase.":
+    "结果不完整：已达到搜索上限。请使用更具体的短语。",
+  "Stop search": "停止搜索",
+  "Search again": "重新搜索",
+  "Search stopped. Results are partial.": "搜索已停止。结果不完整。",
+  "No text matches in the scanned files.": "已扫描的文件中没有匹配文本。",
+  "The text has changed and this match no longer exists. Search again.":
+    "文本已改变，此匹配已不存在。请重新搜索。",
+  "This file is no longer available as editable text.":
+    "此文件已无法作为文本编辑。",
+  "Content changed since this search. Located the nearest current match.":
+    "内容在搜索后发生了变化，已定位到当前最接近的匹配。",
   "Find in document": "在文档中查找",
   "No matches": "无匹配项",
   "Previous match": "上一个匹配项",

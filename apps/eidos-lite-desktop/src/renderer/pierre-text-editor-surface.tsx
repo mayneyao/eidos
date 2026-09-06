@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ClipboardEvent,
 } from "react"
 import { Editor, type EditorOptions } from "@pierre/diffs/edit"
@@ -14,6 +15,12 @@ import {
 
 import type { ResolvedAppearance } from "./app-appearance"
 import { shouldDisableTextEditorLineNumbers } from "./text-editor-options"
+import {
+  resolveTextSearchTarget,
+  textOffsetPosition,
+  type TextSearchTarget,
+} from "../shared/text-search"
+import { useEidosLiteI18n } from "./i18n"
 
 function ensureEmptyEditorCaretTarget(
   fileContainer: HTMLElement,
@@ -71,6 +78,7 @@ export default function PierreTextEditorSurface({
   persistEditorState = true,
   autoFocus = false,
   focusRequestToken = 0,
+  searchTarget,
   onPasteImage,
   onPasteImageError,
   onChange,
@@ -81,11 +89,53 @@ export default function PierreTextEditorSurface({
   persistEditorState?: boolean
   autoFocus?: boolean
   focusRequestToken?: number
+  searchTarget?: TextSearchTarget
   onPasteImage?: MarkdownEditorPasteImageHandler
   onPasteImageError?(error: Error): void
   onChange(content: string): void
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
+  const [searchMissing, setSearchMissing] = useState(false)
+  const { t } = useEidosLiteI18n()
+  const appliedSearch = useRef<string | null>(null)
+  const revealFrame = useRef(0)
+  const searchTargetRef = useRef(searchTarget)
+  searchTargetRef.current = searchTarget
+  const revealSearch = useCallback((editor: Editor<undefined>) => {
+    const target = searchTargetRef.current
+    if (
+      !target ||
+      !editor.getFile() ||
+      appliedSearch.current === target.requestId
+    )
+      return
+    appliedSearch.current = target.requestId
+    const text = editor.getText()
+    const resolved = resolveTextSearchTarget(text, target)
+    setSearchMissing(!resolved)
+    if (!resolved) return
+    const start = textOffsetPosition(text, resolved.start)
+    const end = textOffsetPosition(text, resolved.end)
+    editor.focus({ lineNumber: start.lineNumber, character: start.character })
+    editor.setSelections([
+      {
+        start: { line: start.lineNumber - 1, character: start.character },
+        end: { line: end.lineNumber - 1, character: end.character },
+        direction: "forward",
+      },
+    ])
+  }, [])
+  const scheduleSearchReveal = useCallback(
+    (editor: Editor<undefined>) => {
+      cancelAnimationFrame(revealFrame.current)
+      revealFrame.current = requestAnimationFrame(() => revealSearch(editor))
+    },
+    [revealSearch]
+  )
+  useEffect(() => {
+    if (editorRef.current) scheduleSearchReveal(editorRef.current)
+    return () => cancelAnimationFrame(revealFrame.current)
+  }, [searchTarget, scheduleSearchReveal])
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
   const contentPropRef = useRef(content)
   const currentContentRef = useRef(content)
@@ -210,6 +260,13 @@ export default function PierreTextEditorSurface({
       className="text-file-editor-paste-surface"
       onPasteCapture={handlePasteCapture}
     >
+      {searchMissing ? (
+        <p role="status">
+          {t(
+            "The text has changed and this match no longer exists. Search again."
+          )}
+        </p>
+      ) : null}
       <EditProvider createEditor={createEditor}>
         <Virtualizer
           className="text-file-editor-virtualizer"
@@ -224,6 +281,10 @@ export default function PierreTextEditorSurface({
                 readText: () => window.eidosLite.readClipboardText(),
               },
               onAttach: (editor) => {
+                if (searchTargetRef.current) {
+                  scheduleSearchReveal(editor)
+                  return
+                }
                 if (!autoFocus) return
                 focusTextEditor(editor, currentContentRef.current)
               },
