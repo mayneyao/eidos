@@ -1,5 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { readMarkdownNoteAliases } from "./markdown-note-metadata"
 
 import type { SpacePathSearchHit } from "../../shared/contracts"
 import {
@@ -104,6 +105,65 @@ export class SpacePathIndex {
   private entries: IndexedPath[] = []
   private readonly byPath = new Map<string, IndexedPath>()
   private scanPromise: Promise<void> | null = null
+  private readonly aliases = new WeakMap<IndexedPath, Promise<string[]>>()
+
+  /** Lazy metadata search; ordinary path search never reads document contents. */
+  async searchMarkdownNotes(
+    query: string,
+    limit?: number
+  ): Promise<SpacePathSearchHit[]> {
+    if (!query.trim()) return []
+    await this.ensureScanned()
+    const canonicalRoot = await fs.realpath(this.root)
+    const entries = this.entries.filter(
+      (entry) => entry.kind === "file" && /\.md$/iu.test(entry.name)
+    )
+    const results: SpacePathSearchHit[] = []
+    let cursor = 0
+    const worker = async () => {
+      while (cursor < entries.length) {
+        const entry = entries[cursor++]!
+        let pending = this.aliases.get(entry)
+        if (!pending) {
+          pending = readMarkdownNoteAliases(canonicalRoot, entry.relativePath)
+          this.aliases.set(entry, pending)
+        }
+        const aliases = await pending
+        if (this.byPath.get(entry.relativePath) !== entry) continue
+        let score = scoreSpacePathCandidate(query, entry)
+        let matchedAlias: string | undefined
+        for (const alias of aliases) {
+          const aliasScore = scoreSpacePathCandidate(query, {
+            name: alias,
+            lowerName: alias.toLowerCase(),
+            relativePath: alias,
+            lowerPath: alias.toLowerCase(),
+          })
+          if (aliasScore !== null && (score === null || aliasScore > score)) {
+            score = aliasScore
+            matchedAlias = alias
+          }
+        }
+        if (score !== null)
+          results.push({
+            relativePath: entry.relativePath,
+            name: entry.name,
+            kind: entry.kind,
+            score,
+            ...(matchedAlias ? { matchedAlias } : {}),
+          })
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(8, entries.length) }, worker)
+    )
+    return results
+      .sort(
+        (a, b) =>
+          b.score - a.score || a.relativePath.localeCompare(b.relativePath)
+      )
+      .slice(0, normalizeSpacePathSearchLimit(limit))
+  }
 
   constructor(private readonly root: string) {}
 

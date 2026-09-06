@@ -83,6 +83,53 @@ describe("normalizeSpacePathSearchLimit", () => {
 })
 
 describe("SpacePathIndex", () => {
+  it("searches aliases only on demand and refreshes changed or removed metadata", async () => {
+    await fs.writeFile(
+      path.join(root, "notes", "readme.md"),
+      '---\naliases: ["Getting started", "上手指南"]\n---\nBody'
+    )
+    const index = new SpacePathIndex(root)
+    await index.ensureScanned()
+    expect(index.search("上手指南")).toEqual([])
+    expect(await index.searchMarkdownNotes("上手指南")).toEqual([
+      expect.objectContaining({
+        relativePath: "notes/readme.md",
+        matchedAlias: "上手指南",
+      }),
+    ])
+    await fs.writeFile(
+      path.join(root, "notes", "readme.md"),
+      "---\naliases: Updated\n---\nBody"
+    )
+    await index.applyChanges(["notes/readme.md"])
+    expect(await index.searchMarkdownNotes("上手指南")).toEqual([])
+    expect(await index.searchMarkdownNotes("Updated")).toHaveLength(1)
+    await fs.unlink(path.join(root, "notes", "readme.md"))
+    await index.applyChanges(["notes/readme.md"])
+    expect(await index.searchMarkdownNotes("Updated")).toEqual([])
+  })
+
+  it("skips symlink contents and oversized frontmatter while supporting UTF-16", async () => {
+    await fs.writeFile(
+      path.join(root, "notes", "readme.md"),
+      Buffer.from("\uFEFF---\naliases: Encoded\n---\n", "utf16le")
+    )
+    await fs.symlink(
+      path.join(root, "notes", "readme.md"),
+      path.join(root, "linked.md")
+    )
+    await fs.writeFile(
+      path.join(root, "huge.md"),
+      `---\npadding: ${"a".repeat(65536)}\naliases: Invisible\n---\n`
+    )
+    const index = new SpacePathIndex(root)
+    expect(
+      (await index.searchMarkdownNotes("Encoded")).map(
+        (entry) => entry.relativePath
+      )
+    ).toEqual(["notes/readme.md"])
+    expect(await index.searchMarkdownNotes("Invisible")).toEqual([])
+  })
   it("scans a space and finds files by fuzzy query", async () => {
     const index = new SpacePathIndex(root)
     await index.ensureScanned()

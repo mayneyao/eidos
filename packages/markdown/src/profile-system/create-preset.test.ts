@@ -37,7 +37,6 @@ import { obsidianMarkdownProfile } from "./builtins"
 import { $createEfmInlineNode, EfmInlineNode } from "../nodes/efm-semantic-node"
 import type { MarkdownPlugin } from "../plugin-system/plugin-api"
 import {
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,
@@ -270,7 +269,6 @@ describe("composable presets", () => {
     ).toBe("Caption|240")
   })
   it.each([
-    [embedPlugin, "![[Note]]", "obsidian-embed"],
     [tagPlugin, "#topic", "obsidian-tag"],
     [commentPlugin, "%%private%%", "obsidian-comment"],
     [blockIdPlugin, "Text ^block", "obsidian-block-id"],

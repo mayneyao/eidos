@@ -6,13 +6,66 @@ Revised: 2026-09-02
 
 ## 1. Purpose
 
-### Preset boundary
+### Paragraph block references
 
-Built-in document presets are GFM (`profile="gfm"`), Eidos (the default),
-and experimental Obsidian. They share editing interactions but select mutually
-exclusive syntax codecs and plugin sets. The syntax matrix in this document
-describes the default Eidos preset; [Presets](./docs/presets.md) states which
-extensions are enabled in each preset.
+In editable documents with the block-ID plugin enabled, clicking a standalone
+paragraph's drag handle MUST offer **Copy block link**. It MUST target that
+handle's paragraph, regardless of the caret's location. Completing a drag MUST
+NOT open this action menu. Footnote definitions and other non-paragraph blocks
+are not eligible for this initial interaction.
+
+Copying MUST reuse an existing ID or append a unique `^b-…` marker through the
+normal Markdown change/persistence contract. A generated ID remains stable when
+the paragraph is edited or moved. Newly duplicated ID nodes during editing receive
+a fresh identifier, leaving the original target intact. Loading external source
+MUST NOT rewrite existing IDs merely to normalize duplicates. IDs are hidden in the visual editor and
+remain explicit in source mode. Clipboard failures MUST be reported.
+
+Continuing to type MUST keep the ID at the paragraph's end, separated from
+its text. Splitting a paragraph MUST retain the ID on the original paragraph,
+not transfer it to the newly created paragraph. Failed clipboard writes MUST
+NOT add an ID or emit a document change.
+
+With a host-supplied document path, the clipboard receives a root-qualified
+`[[/path/file.md#^id]]`; without a path it receives `[[#^id]]`. Navigation MUST
+remain inside the host's document navigation, scroll to and focus the containing
+paragraph, and briefly highlight it. Missing targets MUST report an error rather
+than navigate to a blank host page. Block candidate search and ID management are
+outside this initial interaction.
+
+When the wiki-link plugin is enabled, pasting a plain-text payload consisting
+of one complete wiki link MUST insert an inline reference, including block and
+heading targets. Code contexts MUST retain literal text. Rich HTML, Lexical
+clipboard payloads, and file uploads retain their existing paste handling.
+
+### Eidos Markdown dialect
+
+A standalone `^id` separated by a blank line from a preceding list, block quote,
+table, or callout MUST identify that structured block. The structure and marker
+MUST form one editable source range and one root editor block. Reordering and
+serialized editor-state restoration MUST retain the ID. Navigation MUST reveal
+the owning structure, not an empty marker paragraph. Code-fenced markers and
+orphan IDs MUST NOT be attached to unrelated blocks. Creating IDs through the
+Copy block link menu remains limited to standalone paragraphs.
+
+Eidos Markdown is the default and only user-facing dialect: CommonMark + GFM
+
+- Wiki links, with retained Eidos document extensions. Plugins separate syntax
+  implementation responsibilities; users do not select an Obsidian compatibility
+  mode. Legacy `profile="obsidian"` selects the same default dialect.
+
+The default retains equations, YAML frontmatter, footnotes, highlights, callouts,
+tags, comments and explicit block IDs. Unsupported constructs MUST retain
+their source rather than being silently discarded. Obsidian compatibility is a
+property of these supported syntaxes, not a separate product mode or a promise of
+complete Obsidian feature parity.
+
+Wiki links MAY reference any host file, including `.md`, `.eidos`, images and
+PDFs. `[[path|label]]` navigates; `![[path]]` is unsupported literal text. The host owns
+search, path resolution and opening. Markdown links resolve relative to the
+current document; explicit wiki paths resolve from the Space root. Symlinks and
+paths escaping the Space are not authoring candidates. The picker MUST show the
+file path to distinguish identical names. Selecting a file MUST NOT embed it.
 
 GFM MUST cover CommonMark and the five specified extension families: tables,
 task lists, strikethrough, extended autolinks and disallowed raw HTML. It MUST
@@ -914,3 +967,9 @@ When requirements compete, implementation work follows this order:
 3. creation and local editing for the complete supported syntax set;
 4. Notion-like interaction fluency and keyboard parity; and
 5. visual polish, animation, and delight.
+
+# Document reference presentation
+
+`[[path]]`, `[[path#Heading]]` and `[[path#^block-id]]` navigate to a file or target.
+`![[...]]` MUST remain literal source: no preview, image loading, completion or
+file-reference rewriting. Standard Markdown images `![alt](path)` remain supported.

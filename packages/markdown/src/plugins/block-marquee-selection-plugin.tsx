@@ -21,6 +21,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { $isEfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import { editorScrollSurface } from "../ui/editor-scroll-surface"
 
 interface Point {
   x: number
@@ -228,11 +229,7 @@ export function BlockMarqueeSelectionPlugin() {
 
   useEffect(() => {
     const root = rootElement
-    // Embedded hosts own both the surrounding canvas and its scrolling.
-    const hostCanvas = root
-      ?.closest('[data-layout="embedded"]')
-      ?.closest<HTMLElement>("[data-markdown-selection-canvas]")
-    const stage = hostCanvas ?? root?.closest<HTMLElement>(".eme-editor-stage")
+    const stage = root ? editorScrollSurface(root) : null
     if (!root || !stage) return
 
     const clearVisualSelection = () => {

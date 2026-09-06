@@ -96,7 +96,7 @@ Vault 语法。可以与普通公式、脚注和文档属性插件组合使用�
 Builder 读取插件声明来补齐依赖；依赖方仍被
 选中时，不能移除被依赖的能力。悬停禁用的控件可查看依赖方。
 
-`/plugins` 同时导出 `embedPlugin`、`tagPlugin`、`commentPlugin`、`blockIdPlugin`
+`/plugins` 同时导出 `tagPlugin`、`commentPlugin`、`blockIdPlugin`
 和 `inlineFootnotePlugin`，每个都可以独立加入 `minimalPreset`。嵌入引用的目标由
 宿主解析，启用它不会获得文件系统访问能力。这些插件共用节点与视图基础设施，
 扫描和导出逻辑现由功能模块通过 `inlineSyntax` 注册，不再位于中央方言分支。

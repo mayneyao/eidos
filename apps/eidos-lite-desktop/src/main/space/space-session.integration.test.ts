@@ -29,6 +29,66 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("moves a Markdown folder and maintains incoming, outgoing and image references offline", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-markdown-folder-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-markdown-folder-state-")
+    )
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      await fs.mkdir(path.join(root, "notes"))
+      await fs.mkdir(path.join(root, "archive"))
+      await fs.writeFile(
+        path.join(root, "image.png"),
+        Buffer.from([137, 80, 78, 71])
+      )
+      await fs.writeFile(
+        path.join(root, "index.md"),
+        "[[notes/A#Heading|A]]\r\n![[notes/B]]\r\n"
+      )
+      await fs.writeFile(
+        path.join(root, "notes/A.md"),
+        "# Heading\r\n\r\n[[B]] [Home](../index.md) ![Image](../image.png)\r\n"
+      )
+      await fs.writeFile(path.join(root, "notes/B.md"), "B\n")
+      session = await SpaceSession.create(root, userData, { graft })
+      const result = await session.movePath("notes", "archive")
+      expect(result.relativePath).toBe("archive/notes")
+      expect(result.markdownLinks?.updatedPaths.sort()).toEqual([
+        "archive/notes/A.md",
+        "index.md",
+      ])
+      expect(result.markdownLinks?.skippedPaths).toEqual([])
+      expect(await fs.readFile(path.join(root, "index.md"), "utf8")).toBe(
+        "[[/archive/notes/A#Heading|A]]\r\n![[notes/B]]\r\n"
+      )
+      expect(
+        await fs.readFile(path.join(root, "archive/notes/A.md"), "utf8")
+      ).toBe(
+        "# Heading\r\n\r\n[[B]] [Home](../../index.md) ![Image](../../image.png)\r\n"
+      )
+      expect(
+        await fs.readFile(path.join(root, "archive/notes/B.md"), "utf8")
+      ).toBe("B\n")
+      await expect(fs.stat(path.join(root, "notes"))).rejects.toMatchObject({
+        code: "ENOENT",
+      })
+      await expect(fs.stat(path.join(root, ".graft"))).rejects.toMatchObject({
+        code: "ENOENT",
+      })
+    } finally {
+      await session?.close().catch(() => undefined)
+      await graft.close().catch(() => undefined)
+      await fs.rm(root, { recursive: true, force: true })
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
+
   it("normalizes business row values through stable Eidos Field identities", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-field-diff-")
@@ -640,10 +700,18 @@ describe("SpaceSession Graft-backed snapshots", () => {
     try {
       await fs.mkdir(path.join(root, ".graft"))
       await fs.writeFile(path.join(root, "old.txt"), "local content")
+      await fs.writeFile(path.join(root, "index.md"), "[Attachment](old.txt)\n")
       session = await SpaceSession.create(root, userData, { graft })
 
       const renamed = await session.renamePath("old.txt", "new.txt")
       expect(renamed.relativePath).toBe("new.txt")
+      expect(renamed.markdownLinks).toEqual({
+        updatedPaths: ["index.md"],
+        skippedPaths: [],
+      })
+      await expect(
+        fs.readFile(path.join(root, "index.md"), "utf8")
+      ).resolves.toBe("[Attachment](new.txt)\n")
       await expect(
         fs.readFile(path.join(root, "new.txt"), "utf8")
       ).resolves.toBe("local content")
@@ -2424,9 +2492,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
       await expect(
         fs.readFile(path.join(root, "notes.md"), "utf8")
       ).resolves.toBe("")
+      await fs.writeFile(path.join(root, "notes.md"), "Keep this note")
+      await expect(session.createTextFile(null, "notes.md")).rejects.toThrow()
+      await expect(
+        fs.readFile(path.join(root, "notes.md"), "utf8")
+      ).resolves.toBe("Keep this note")
       expect(ignoreInspectionReleased).toBe(false)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(inspectIgnores).toHaveBeenCalled()
+      await vi.waitFor(() => expect(inspectIgnores).toHaveBeenCalled())
       ignoreInspectionReleased = true
       releaseIgnoreInspection.resolve()
     } finally {

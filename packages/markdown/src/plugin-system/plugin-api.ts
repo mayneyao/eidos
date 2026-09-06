@@ -10,7 +10,11 @@ import type {
 import type { ComponentType } from "react"
 
 import type { CodeHighlightTokenizer } from "../highlighting/code-highlight-tokenizer"
-import type { EfmInputProfile, MarkdownEditorLabels } from "../types"
+import type {
+  EfmInputProfile,
+  MarkdownEditorLabels,
+  MarkdownNoteSearchHandler,
+} from "../types"
 import type { MarkdownShortcutDefinition } from "../shortcuts/shortcut-registry"
 import type { MarkdownBlockSyntax } from "../core/block-syntax"
 import type { MarkdownBlockBoundary } from "../core/block-boundary"
@@ -25,6 +29,7 @@ export type MarkdownInsertionSection = "basic" | "extended"
 export type MarkdownInsertionPlacement = "after" | "replace-empty"
 
 export interface MarkdownPluginBehaviorProps {
+  searchNotes?: MarkdownNoteSearchHandler
   baseUri?: string
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   documentKey: string

@@ -10,22 +10,9 @@ import { syntaxLessons } from "./syntax-lessons"
 
 const columns = [{ id: "commonmark", name: "CommonMark" }, ...presets] as const
 type ColumnId = (typeof columns)[number]["id"]
-const readPreset = (): ColumnId =>
-  columns.find(
-    (entry) =>
-      entry.id === new URLSearchParams(window.location.search).get("preset")
-  )?.id ??
-  columns.find((column) => {
-    const example = syntaxExamples.find(
-      (entry) => entry.id === window.location.hash.slice(1)
-    )
-    return example && supports(example, column.id)
-  })?.id ??
-  "gfm"
+const readPreset = (): ColumnId => "eidos"
 const supports = (entry: (typeof syntaxExamples)[number], id: ColumnId) =>
-  id === "commonmark"
-    ? entry.group === "CommonMark"
-    : entry.presets.includes(id)
+  id === "commonmark" ? entry.group === "CommonMark" : true
 
 export default function SyntaxLab({ theme }: { theme: "light" | "dark" }) {
   const { locale, t, href } = useSiteLocale()
@@ -192,7 +179,7 @@ export default function SyntaxLab({ theme }: { theme: "light" | "dark" }) {
             </p>
             <ul
               className="site-syntax-tags"
-              aria-label={t("Available presets", "可用预设")}
+              aria-label={t("Syntax layers", "语法组成")}
             >
               {columns
                 .filter((column) => supports(selected, column.id))
@@ -202,39 +189,10 @@ export default function SyntaxLab({ theme }: { theme: "light" | "dark" }) {
             </ul>
             <p className="site-lab-note">
               {t(
-                "These tags identify editor presets, not full specification conformance.",
-                "标签表示包含此示例的编辑器预设，不代表完整规范认证。"
+                "Eidos Markdown includes these syntax layers.",
+                "Eidos Markdown 默认包含这些语法。"
               )}
             </p>
-            <details className="site-syntax-preview-settings">
-              <summary>{t("Preview settings", "预览设置")}</summary>
-              <label className="site-preset-select">
-                <span>{t("Preset", "预设")}</span>
-                <select
-                  aria-label={t("Preset", "预设")}
-                  value={preset}
-                  onChange={(event) => {
-                    const next = columns.find(
-                      (entry) => entry.id === event.target.value
-                    )
-                    if (next) choose(selected, next.id)
-                  }}
-                >
-                  {columns.map((column) => (
-                    <option key={column.id} value={column.id}>
-                      {column.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <p>
-                {t(
-                  "Switching presets keeps your source; editor history restarts.",
-                  "切换预设保留源码，编辑器撤销历史会重新开始。"
-                )}
-              </p>
-            </details>
             <p>
               {supported
                 ? modes[selected.mode]
@@ -302,8 +260,8 @@ export default function SyntaxLab({ theme }: { theme: "light" | "dark" }) {
           </div>
           <p className="site-lab-note">
             {t(
-              "HTML never executes scripts. Vault embeds need a host and do not transclude notes here. Complex containers may use a visual preview with source editing.",
-              "HTML 不执行脚本。笔记嵌入需要宿主支持，此处不展开其他笔记。复杂容器可能使用可视化预览与源码编辑。"
+              "HTML never executes scripts. Wiki embeds are unsupported and remain literal text. Complex containers may use a visual preview with source editing.",
+              "HTML 不执行脚本。Wiki 嵌入不受支持，保留为原始文本。复杂容器可能使用可视化预览与源码编辑。"
             )}
           </p>
         </section>

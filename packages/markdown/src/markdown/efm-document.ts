@@ -4,6 +4,10 @@ import {
   type Transformer,
 } from "@lexical/markdown"
 import { fromMarkdown } from "mdast-util-from-markdown"
+import {
+  $setStructuredBlockId,
+  withStructuredBlockIds,
+} from "../features/vault-inline/structured-block-id"
 import { gfmFromMarkdown } from "mdast-util-gfm"
 import { gfm } from "micromark-extension-gfm"
 import {
@@ -96,6 +100,7 @@ export interface EfmAnalysisOptions extends MarkdownAnalysisOptions {
 }
 
 export interface EfmImportSegment extends MarkdownSourceSegment {
+  structuredBlockId?: { identifier: string; body: string }
   syntaxId?: string
   sourceKind?: EfmSourceBlockKind | "commonmark-container" | "rich-list"
   /** @deprecated Use projection for the actual enabled editor placement. */
@@ -1537,6 +1542,30 @@ export function analyzeEfmMarkdown(
     options.syntaxFeatures === undefined ||
     options.syntaxFeatures.has(MARKDOWN_FEATURES.obsidianFootnote) ||
     options.syntaxFeatures.has(MARKDOWN_FEATURES.footnote)
+  if (options.syntaxFeatures?.has(MARKDOWN_FEATURES.obsidianBlockId)) {
+    for (let index = 1; index < segments.length; index++) {
+      const marker = segments[index]
+      const previous = segments[index - 1]
+      const match = /^\^([A-Za-z0-9-]+)\s*$/u.exec(marker.source)
+      if (
+        !match ||
+        previous.structuredBlockId ||
+        !/\n\s*\n/u.test(normalizedSource.slice(previous.end, marker.start))
+      )
+        continue
+      const type = parseMarkdown(previous.source, options.grammar).children?.[0]
+        ?.type
+      if (!["list", "blockquote", "table"].includes(type ?? "")) continue
+      previous.structuredBlockId = {
+        identifier: match[1],
+        body: previous.source,
+      }
+      previous.end = marker.end
+      previous.source = normalizedSource.slice(previous.start, marker.end)
+      segments.splice(index, 1)
+      index--
+    }
+  }
   for (const segment of segments) {
     if (segment.placement === "footnote-tail" && projectsFootnotes) {
       segment.projection = { placement: "end", sourceEditable: false }
@@ -1594,6 +1623,23 @@ export function $convertFromEfmMarkdownString(
   root.clear()
 
   for (const segment of analysis.segments) {
+    if (segment.structuredBlockId) {
+      const container = $createParagraphNode()
+      $convertFromEfmMarkdownString(
+        segment.structuredBlockId.body,
+        transformers,
+        options,
+        container
+      )
+      const children = container.getChildren()
+      if (children.length !== 1)
+        throw new Error(
+          "A structured block reference must own exactly one block."
+        )
+      $setStructuredBlockId(children[0], segment.structuredBlockId.identifier)
+      root.append(children[0])
+      continue
+    }
     if (segment.syntaxId) {
       const syntax = options.blockSyntax?.find(
         (candidate) => candidate.id === segment.syntaxId
@@ -1859,5 +1905,5 @@ export function $convertToEfmMarkdownString(
   transformers: readonly Transformer[] = EIDOS_MARKDOWN_TRANSFORMERS,
   node?: ElementNode
 ): string {
-  return $convertToMarkdownString([...transformers], node)
+  return $convertToMarkdownString(withStructuredBlockIds(transformers), node)
 }

@@ -151,7 +151,6 @@ export const obsidianSyntaxPlugin = defineMarkdownPlugin({
     MARKDOWN_FEATURES.obsidianRawHtml,
     MARKDOWN_FEATURES.obsidianReference,
     MARKDOWN_FEATURES.obsidianWikilink,
-    MARKDOWN_FEATURES.obsidianEmbed,
     MARKDOWN_FEATURES.obsidianBlockId,
     MARKDOWN_FEATURES.obsidianCallout,
     MARKDOWN_FEATURES.obsidianComment,
@@ -164,6 +163,8 @@ export const obsidianSyntaxPlugin = defineMarkdownPlugin({
       id: "obsidian.internal-link-dom",
       component: RelativeLinkBehavior,
     },
+    { id: "obsidian.wikilink-completion", component: WikiLinkCompletion },
+    { id: "obsidian.wikilink-paste", component: WikiLinkPaste },
   ],
   transformers: [{ order: 170, transformer: HIGHLIGHT }],
   toolbar: [
@@ -250,3 +251,5 @@ export const gfmMarkdownPlugins = defineMarkdownPlugins([
   rawHtmlPlugin,
   referencePlugin,
 ])
+import { WikiLinkCompletion } from "../features/wikilink/wiki-link-completion"
+import { WikiLinkPaste } from "../features/wikilink/wiki-link-paste"

@@ -1,7 +1,42 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { SpacePathSearchHit } from "../shared/contracts"
-import { resolveObsidianSpaceEntry } from "./obsidian-vault"
+import {
+  missingMarkdownNotePath,
+  resolveObsidianSpaceEntry,
+} from "./obsidian-vault"
+
+describe("missing Markdown note paths", () => {
+  it.each([
+    ["New", "wikilink", "Notes/New.md"],
+    ["/New", "wikilink", "New.md"],
+    ["Folder/New.md", "wikilink", "Folder/New.md"],
+    ["../New", "markdown", "New.md"],
+    ["New.md", "markdown", "Notes/New.md"],
+  ] as const)("resolves %s (%s)", (path, syntax, expected) => {
+    expect(missingMarkdownNotePath("Notes/Current.md", { path, syntax })).toBe(
+      expected
+    )
+  })
+  it.each([
+    "",
+    "../outside",
+    "/../../outside",
+    "file.eidos",
+    "image.png",
+    ".secret",
+    "a\\b",
+    "note#heading",
+    "note|alias",
+    "a\nb",
+    "https://host/note",
+    "file?.md",
+  ])("does not create unsafe or non-Markdown target %s", (path) => {
+    expect(
+      missingMarkdownNotePath("Notes/Current.md", { path, syntax: "wikilink" })
+    ).toBeNull()
+  })
+})
 
 function hit(
   relativePath: string,
@@ -16,6 +51,30 @@ function hit(
 }
 
 describe("resolveObsidianSpaceEntry", () => {
+  it.each(["wikilink", "markdown"] as const)(
+    "resolves .eidos file links using %s syntax",
+    async (syntax) => {
+      await expect(
+        resolveObsidianSpaceEntry(
+          "index.md",
+          { path: "business/customers.eidos", syntax },
+          vi.fn().mockResolvedValue([hit("business/customers.eidos", "eidos")])
+        )
+      ).resolves.toMatchObject({
+        relativePath: "business/customers.eidos",
+        kind: "eidos",
+      })
+    }
+  )
+  it("resolves a completion's root note without selecting a same-folder namesake", async () => {
+    await expect(
+      resolveObsidianSpaceEntry(
+        "Folder/Current.md",
+        { path: "/Note.md", syntax: "wikilink" },
+        vi.fn().mockResolvedValue([hit("Folder/Note.md"), hit("Note.md")])
+      )
+    ).resolves.toMatchObject({ relativePath: "Note.md" })
+  })
   it("resolves explicit Vault-root paths and appends the Markdown extension", async () => {
     const search = vi
       .fn()

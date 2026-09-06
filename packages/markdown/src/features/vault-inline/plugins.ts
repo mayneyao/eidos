@@ -1,11 +1,12 @@
 import { EfmInlineNode } from "../../nodes/efm-semantic-node"
+import { BlockIdIdentityPlugin } from "./block-id-identity-plugin"
+import { StructuredBlockIdPlugin } from "./structured-block-id-plugin"
 import {
   defineMarkdownPlugin,
   type MarkdownPlugin,
 } from "../../plugin-system/plugin-api"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
 import {
-  embedSyntax,
   tagSyntax,
   commentSyntax,
   blockIdSyntax,
@@ -29,11 +30,6 @@ function inlinePlugin(
   })
 }
 
-export const embedPlugin = inlinePlugin(
-  "markdown.embed",
-  MARKDOWN_FEATURES.obsidianEmbed,
-  embedSyntax
-)
 export const tagPlugin = inlinePlugin(
   "markdown.tag",
   MARKDOWN_FEATURES.obsidianTag,
@@ -44,11 +40,17 @@ export const commentPlugin = inlinePlugin(
   MARKDOWN_FEATURES.obsidianComment,
   commentSyntax
 )
-export const blockIdPlugin = inlinePlugin(
-  "markdown.block-id",
-  MARKDOWN_FEATURES.obsidianBlockId,
-  blockIdSyntax
-)
+export const blockIdPlugin = defineMarkdownPlugin({
+  ...inlinePlugin(
+    "markdown.block-id",
+    MARKDOWN_FEATURES.obsidianBlockId,
+    blockIdSyntax
+  ),
+  behaviors: [
+    { id: "block-id.identity", component: BlockIdIdentityPlugin },
+    { id: "block-id.structured", component: StructuredBlockIdPlugin },
+  ],
+})
 export const inlineFootnotePlugin = inlinePlugin(
   "markdown.inline-footnote",
   MARKDOWN_FEATURES.obsidianInlineFootnote,

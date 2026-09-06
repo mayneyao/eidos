@@ -8,6 +8,11 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
+    "./source": {
+      "types": "./dist/source.d.mts",
+      "import": "./dist/source.mjs",
+      "default": "./dist/source.mjs"
+    },
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",

@@ -2,6 +2,8 @@ import { EfmInlineNode } from "../../nodes/efm-semantic-node"
 import { defineMarkdownPlugin } from "../../plugin-system/plugin-api"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
 import { wikilinkSyntax } from "../vault-inline/syntax"
+import { WikiLinkCompletion } from "./wiki-link-completion"
+import { WikiLinkPaste } from "./wiki-link-paste"
 
 /** Wiki links only; embeds, tags and other vault syntax are separate choices. */
 export const wikilinkPlugin = defineMarkdownPlugin({
@@ -12,4 +14,8 @@ export const wikilinkPlugin = defineMarkdownPlugin({
   features: [MARKDOWN_FEATURES.obsidianWikilink],
   nodes: [EfmInlineNode],
   inlineSyntax: [wikilinkSyntax],
+  behaviors: [
+    { id: "wikilink.completion", component: WikiLinkCompletion },
+    { id: "wikilink.paste", component: WikiLinkPaste },
+  ],
 })

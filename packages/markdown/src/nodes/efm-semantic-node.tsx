@@ -50,7 +50,9 @@ export class EfmInlineNode extends DecoratorNode<JSX.Element> {
   }
 
   static importJSON(serializedNode: SerializedEfmInlineNode): EfmInlineNode {
-    return $createEfmInlineNode(serializedNode.data)
+    return $createEfmInlineNode(serializedNode.data).updateFromJSON(
+      serializedNode
+    )
   }
 
   constructor(data: EfmInlineData, key?: NodeKey) {
@@ -126,8 +128,8 @@ export class EfmBlockNode extends DecoratorBlockNode {
   }
 
   static importJSON(serializedNode: SerializedEfmBlockNode): EfmBlockNode {
-    return $createEfmBlockNode(serializedNode.data).setFormat(
-      serializedNode.format
+    return $createEfmBlockNode(serializedNode.data).updateFromJSON(
+      serializedNode
     )
   }
 

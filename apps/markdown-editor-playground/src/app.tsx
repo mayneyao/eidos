@@ -21,8 +21,7 @@ import { ShortcutReference } from "./shortcut-reference"
 import "@eidos.space/markdown/styles.css"
 import { useSiteLocale } from "./site/locale"
 import { chineseEditorLabels } from "./site/editor-labels"
-import { PresetSelect } from "./site/preset-select"
-import { presetFromSearch, presets, updatePresetUrl } from "./site/presets"
+import { presetFromSearch, presets } from "./site/presets"
 import { presetSample } from "./site/preset-samples"
 
 type TestablePlaygroundWindow = Window & {
@@ -70,14 +69,9 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
   const embedded =
     new URLSearchParams(window.location.search).get("layout") === "embedded"
   const { locale, t, href } = useSiteLocale()
-  const [preset, setPreset] = useState(() => presetFromSearch())
+  const preset = "eidos" as const
   const [markdown, setMarkdown] = useState(initialMarkdown)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
-  useEffect(() => {
-    const syncPreset = () => setPreset(presetFromSearch())
-    window.addEventListener("popstate", syncPreset)
-    return () => window.removeEventListener("popstate", syncPreset)
-  }, [])
   const [readOnly, setReadOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"visual" | "source">("visual")
   const sourceRef = useRef<HTMLTextAreaElement>(null)
@@ -163,13 +157,6 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
           </p>
         </div>
         <div className="playground-actions">
-          <PresetSelect
-            value={preset}
-            onChange={(next) => {
-              setPreset(next)
-              updatePresetUrl(next)
-            }}
-          />
           <a
             className="playground-mode-trigger"
             href={`${href("/spec")}?preset=${preset}`}
@@ -186,7 +173,7 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
               handleMarkdownChange(presetSample(preset))
             }}
           >
-            {t("Load preset example", "载入预设示例")}
+            {t("Load example", "载入示例")}
           </button>
           {previousDraft !== null && (
             <button

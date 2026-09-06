@@ -43,7 +43,6 @@ export {
   vaultLinkPlugin,
 } from "./features/vault-blocks/plugins"
 export {
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,

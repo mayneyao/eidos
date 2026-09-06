@@ -283,6 +283,28 @@ const zh: Record<string, string> = {
   "{count} responses collected": "已收集 {count} 条回复",
   "Collect now": "立即收集",
   "Copy link": "复制链接",
+  "Copy block link": "复制块链接",
+  "Create linked note?": "创建被引用的笔记？",
+  "Note path": "笔记路径",
+  "Link to new note: {name}": "引用新笔记：{name}",
+  "This note does not exist. Create an empty Markdown file at this path? Existing folders are required.":
+    "此笔记尚不存在。是否在此路径创建一个空 Markdown 文件？所在文件夹必须已存在。",
+  "Refresh embedded document": "刷新引用内容",
+  "Loading document…": "正在加载文档…",
+  "Embedded document nesting limit reached.": "已达到文档引用的嵌套层数上限。",
+  "Could not find a Markdown document for this embed.":
+    "找不到此引用对应的 Markdown 文档。",
+  "Circular document embed.": "检测到循环文档引用。",
+  "The embedded document could not be read in full.":
+    "无法完整读取被引用的文档。",
+  "The referenced heading or block no longer exists.":
+    "被引用的标题或块已不存在。",
+  "Link to a file": "链接到文件",
+  "Search files…": "搜索文件…",
+  "Searching files…": "正在搜索文件…",
+  "No matching files": "没有匹配的文件",
+  "Could not search files. Try typing again.":
+    "无法搜索文件，请重新输入后重试。",
   Copied: "已复制",
   "A Publish subscription is required": "需要开通 Publish",
   "Sign in to publish": "登录后才能发布",

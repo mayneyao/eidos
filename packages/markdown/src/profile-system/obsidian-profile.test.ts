@@ -27,7 +27,7 @@ function descendants() {
 }
 
 describe("Obsidian Markdown profile", () => {
-  it("does not enable Obsidian semantics in the Eidos profile", () => {
+  it("enables file links and retained extensions in the default Eidos dialect", () => {
     const editor = createEditor({
       nodes: [
         ...MARKDOWN_EDITOR_CORE_NODES,
@@ -50,7 +50,17 @@ describe("Obsidian Markdown profile", () => {
     )
 
     editor.getEditorState().read(() => {
-      expect(descendants().filter($isEfmInlineNode)).toEqual([])
+      expect(
+        descendants()
+          .filter($isEfmInlineNode)
+          .map((node) => node.getData().kind)
+      ).toEqual([
+        "obsidian-link",
+        "obsidian-tag",
+        "obsidian-comment",
+        "obsidian-block-id",
+      ])
+      expect(obsidianMarkdownProfile).toBe(eidosMarkdownProfile)
       expect(
         eidosMarkdownProfile.codec.export(
           EIDOS_MARKDOWN_PLUGIN_REGISTRY.transformers
@@ -132,12 +142,6 @@ An inline ^[Footnote body] and an %%editor comment%%. ^stable-block
           path: "Notes/Physics",
           heading: "Energy",
           label: "the note",
-        }),
-        expect.objectContaining({
-          kind: "obsidian-embed",
-          path: "assets/chart.png",
-          width: 120,
-          height: 80,
         }),
         expect.objectContaining({ kind: "obsidian-tag", value: "research" }),
         expect.objectContaining({

@@ -80,6 +80,7 @@ export const IPC_CHANNELS = {
   refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   searchPaths: "eidos-lite:space-paths-search",
+  searchMarkdownNotes: "eidos-lite:markdown-notes-search",
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
   workspaceShortcutCommand: "eidos-lite:workspace-shortcut-command",
@@ -327,6 +328,8 @@ export interface EidosPublicationBindingsRequest {
 }
 
 export interface SpacePathSearchHit {
+  /** Present only when Markdown metadata search matched a YAML alias. */
+  matchedAlias?: string
   relativePath: string
   name: string
   kind: Exclude<SpaceEntryKind, "directory">
@@ -697,6 +700,8 @@ export interface OpenEidosFileResult {
 }
 
 export interface SpacePathMutationResult {
+  /** Best-effort source-local reference maintenance; skipped paths require user review. */
+  markdownLinks?: { updatedPaths: string[]; skippedPaths: string[] }
   snapshot: SpaceSnapshot
   relativePath?: string
   invalidatedSessionIds: string[]
@@ -723,7 +728,7 @@ export interface EidosLitePreferences {
   language: EidosLiteLanguage
   /** Default editor for ordinary `.md` and `.markdown` files. */
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
-  /** Explicit syntax profile for Markdown documents; Obsidian support is experimental and never inferred per file. */
+  /** @deprecated Accepted for old preferences; all values use Eidos Markdown. */
   markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   terminalLayout: EidosLiteTerminalLayout
   timeZone: EidosLiteTimeZone
@@ -1689,6 +1694,10 @@ export interface EidosLiteApi {
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
+  searchMarkdownNotes(
+    query: string,
+    limit?: number
+  ): Promise<SpacePathSearchHit[]>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   onNavigationCommand(
     listener: (direction: EidosLiteNavigationDirection) => void

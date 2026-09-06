@@ -18,6 +18,7 @@ import type {
   EfmInputProfile,
   MarkdownEditorImageUrlResolver,
   MarkdownEditorInternalLinkHandler,
+  MarkdownEditorProps,
 } from "../types"
 
 export const EXTERNAL_MARKDOWN_CONFLICT_MESSAGE =
@@ -37,6 +38,7 @@ interface EfmSourceBlockContextValue {
   obsidianWikilinks: boolean
   readOnly: boolean
   documentKey: string
+  documentPath?: string
   onError(error: Error): void
   resolveImageUrl?: MarkdownEditorImageUrlResolver
   onOpenInternalLink?: MarkdownEditorInternalLinkHandler
@@ -98,6 +100,7 @@ export function EfmSourceBlockProvider({
   obsidianWikilinks,
   readOnly,
   documentKey,
+  documentPath,
   markdown,
   onError,
   resolveImageUrl,
@@ -130,6 +133,7 @@ export function EfmSourceBlockProvider({
       obsidianWikilinks,
       readOnly,
       documentKey,
+      documentPath,
       onError,
       resolveImageUrl,
       onOpenInternalLink,
@@ -154,6 +158,7 @@ export function EfmSourceBlockProvider({
       obsidianWikilinks,
       readOnly,
       documentKey,
+      documentPath,
       onError,
       resolveImageUrl,
       onOpenInternalLink,

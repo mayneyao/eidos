@@ -1056,6 +1056,21 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.takeLaunchFile, (event) =>
     controller.takeLaunchEidosFile(event.sender)
   )
+  ipcMain.handle(
+    IPC_CHANNELS.searchMarkdownNotes,
+    (event, query: unknown, limit: unknown) => {
+      if (typeof query !== "string" || query.length > 512)
+        throw new Error("Invalid Markdown search query")
+      return controller
+        .requireSession(event.sender)
+        .searchMarkdownNotes(
+          query,
+          typeof limit === "number" && Number.isFinite(limit)
+            ? limit
+            : undefined
+        )
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.openFile, (event, relativePath: unknown) => {
     if (typeof relativePath !== "string") throw new Error("Invalid file path")
     return controller.requireSession(event.sender).openEidosFile(relativePath)

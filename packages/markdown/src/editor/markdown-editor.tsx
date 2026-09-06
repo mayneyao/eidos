@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
+import { revealDocumentTarget } from "../ui/reveal-document-target"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
@@ -22,14 +23,10 @@ import {
 } from "../markdown/obsidian-internal-link"
 import { unsupportedMarkdownFeaturesFromDiagnostics } from "../markdown/markdown-support"
 import { compileMarkdownPlugins } from "../plugin-system/plugin-compiler"
-import { EIDOS_MARKDOWN_PLUGIN_REGISTRY } from "../plugin-system/builtins"
+import { eidosPreset } from "../presets"
 import { MARKDOWN_FEATURES } from "../plugin-system/feature-ids"
 import type { CompiledMarkdownPlugins } from "../plugin-system/plugin-api"
-import {
-  eidosMarkdownProfile,
-  gfmMarkdownProfile,
-  obsidianMarkdownProfile,
-} from "../profile-system/builtins"
+import { gfmMarkdownProfile } from "../profile-system/builtins"
 import type {
   MarkdownProfile,
   MarkdownProfileCodec,
@@ -72,6 +69,12 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   insertInline: "Insert inline",
   addBlockBelow: "Add block below",
   dragBlock: "Drag block",
+  copyBlockLink: "Copy block link",
+  linkToFile: "Link to a file",
+  searchFiles: "Search files…",
+  searchingFiles: "Searching files…",
+  noMatchingFiles: "No matching files",
+  fileSearchFailed: "Could not search files. Try typing again.",
   insert: "Insert",
   basicBlocks: "Basic",
   extendedBlocks: "Rich content",
@@ -173,8 +176,13 @@ function MarkdownDiagnostics({
 
 function RequestedInternalNavigationPlugin({
   navigationTarget: target,
-}: Pick<MarkdownEditorProps, "navigationTarget">) {
+  onError,
+}: Pick<MarkdownEditorProps, "navigationTarget" | "onError">) {
   const [editor] = useLexicalComposerContext()
+  const errorRef = useRef(onError)
+  useEffect(() => {
+    errorRef.current = onError
+  }, [onError])
   useEffect(() => {
     if (!target?.heading && !target?.blockId) return
     let frame = 0
@@ -189,12 +197,15 @@ function RequestedInternalNavigationPlugin({
           ? findObsidianHeadingTarget(root, target.heading)
           : null
       if (match instanceof HTMLElement) {
-        match.scrollIntoView({ block: "center" })
-        match.focus({ preventScroll: true })
+        revealDocumentTarget(match)
         return
       }
       attempts += 1
       if (attempts < 20) frame = window.requestAnimationFrame(locate)
+      else
+        errorRef.current?.(
+          new Error("The referenced document target no longer exists.")
+        )
     }
     frame = window.requestAnimationFrame(locate)
     return () => window.cancelAnimationFrame(frame)
@@ -209,6 +220,8 @@ function MarkdownEditorImplementation({
   onSaveRequest,
   onOpenExternalUrl,
   onOpenInternalLink,
+  documentPath,
+  searchNotes,
   navigationTarget,
   onPasteImage,
   resolveImageUrl,
@@ -264,6 +277,7 @@ function MarkdownEditorImplementation({
     <EfmSourceBlockProvider
       codec={profile.codec}
       documentKey={documentKey}
+      documentPath={documentPath}
       markdown={markdown}
       onError={handleError}
       resolveImageUrl={resolveImageUrl}
@@ -389,6 +403,7 @@ function MarkdownEditorImplementation({
             <InternalNavigationPlugin />
             <RequestedInternalNavigationPlugin
               navigationTarget={navigationTarget}
+              onError={handleError}
             />
             {registry.features.has(MARKDOWN_FEATURES.image) ||
             registry.features.has(MARKDOWN_FEATURES.obsidianAttachment) ? (
@@ -417,6 +432,7 @@ function MarkdownEditorImplementation({
             <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
             {!readOnly && (controls.insertMenu || controls.blockDrag) ? (
               <InsertBlockPlugin
+                documentPath={documentPath}
                 key={`${controls.insertMenu}:${controls.blockDrag}`}
                 enableMenu={controls.insertMenu}
                 enableDrag={controls.blockDrag}
@@ -442,6 +458,7 @@ function MarkdownEditorImplementation({
             {registry.behaviors.map(({ component: Behavior, id, pluginId }) => (
               <Behavior
                 key={`${pluginId}:${id}`}
+                searchNotes={searchNotes}
                 baseUri={baseUri}
                 documentKey={documentKey}
                 inputProfile={inputProfile}
@@ -472,19 +489,17 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
   }
   const profile =
     selectedProfile === "obsidian"
-      ? obsidianMarkdownProfile
+      ? eidosPreset
       : selectedProfile === "gfm"
         ? gfmMarkdownProfile
         : selectedProfile === "eidos" || !selectedProfile
-          ? eidosMarkdownProfile
+          ? eidosPreset
           : selectedProfile
   const registry = useMemo(
     () =>
       props.plugins
         ? compileMarkdownPlugins(props.plugins)
-        : selectedProfile
-          ? compileMarkdownPlugins(profile.plugins)
-          : EIDOS_MARKDOWN_PLUGIN_REGISTRY,
+        : compileMarkdownPlugins(profile.plugins),
     [profile, props.plugins, selectedProfile]
   )
   const sessionProfile = useMemo<MarkdownProfile>(

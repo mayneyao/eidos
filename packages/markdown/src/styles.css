@@ -1805,3 +1805,95 @@
     scroll-behavior: auto !important;
   }
 }
+.eme-note-menu {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.4rem;
+  border: 1px solid var(--eme-border);
+  border-radius: 0.65rem;
+  background: var(--eme-background);
+  color: var(--eme-foreground);
+  box-shadow: 0 8px 28px #0002;
+}
+.eme-note-menu-title {
+  padding: 0.5rem;
+  font-weight: 600;
+}
+.eme-note-menu-options {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.eme-note-menu-options button {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.eme-note-menu-options button.is-selected {
+  background: var(--eme-accent);
+}
+.eme-note-menu-options small {
+  color: var(--eme-muted-foreground);
+  overflow-wrap: anywhere;
+}
+.eme-note-menu-anchor {
+  z-index: 60;
+}
+.eme-block-actions {
+  position: fixed;
+  z-index: 70;
+  min-width: 12rem;
+  padding: 0.3rem;
+  background: var(--eme-background);
+  color: var(--eme-foreground);
+  border: 1px solid var(--eme-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 20px #0002;
+}
+.eme-block-actions button {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0.25rem;
+}
+.eme-block-actions button:hover,
+.eme-block-actions button:focus-visible {
+  background: var(--eme-accent);
+}
+.eme-editor .eme-obsidian-block-id {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.eme-document-embed {
+  display: block;
+  border-inline-start: 2px solid var(--eme-border, currentColor);
+  padding: 0.5rem 1rem;
+  margin-block: 0.75rem;
+  max-height: 32rem;
+  overflow: auto;
+}
+
+.eme-document-embed-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85em;
+}
+
+.eme-document-embed-header button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}

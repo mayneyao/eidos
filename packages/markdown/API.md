@@ -4,10 +4,24 @@ This document describes the public React API of
 `@eidos.space/markdown`. It applies to package version `0.1.0`.
 
 For the interaction contract and supported syntax matrix, see
-[SPEC.md](./SPEC.md). The optional Obsidian Markdown profile is documented in
+[SPEC.md](./SPEC.md). Markdown vault compatibility is documented in
 [OBSIDIAN-COMPATIBILITY.md](./OBSIDIAN-COMPATIBILITY.md). Markdown is always the
 canonical document value; Lexical state, DOM nodes, selections, menus, and
 editor drafts are transient.
+
+## Headless link source ranges
+
+`import { markdownFileLinkRanges } from "@eidos.space/markdown/source"` works
+without React or Lexical. It returns `{ start, end, path, syntax, angled? }`
+for local wiki links, Markdown links/images and reference definitions.
+Offsets are UTF-16 string offsets covering only the source path, excluding
+fragments, aliases and titles; `path` is decoded and `syntax` is `wikilink` or
+`markdown`. Code, raw HTML URLs, comments, math and external URLs are excluded.
+Wiki references inside YAML properties are included.
+
+This utility does not access files or perform renames. Hosts own path resolution,
+filesystem mutation, revision checks and failure reporting. Apply non-overlapping
+source replacements from right to left to preserve all unrelated source bytes.
 
 ## Installation and imports
 
@@ -1071,3 +1085,79 @@ interface MarkdownEditorProps {
   plugins?: readonly MarkdownPlugin[]
 }
 ```
+
+# Note completion
+
+## Paragraph block links
+
+Click a standalone paragraph's drag handle, then **Copy block link**. The editor
+reuses its existing block ID or appends a generated `^b-…` marker. The change is
+reported through `onMarkdownChange` for the host to persist. Reordering preserves
+the ID; duplicate ID nodes receive new IDs. Markers are hidden in the visual
+editor but preserved in Markdown source.
+
+Continuing to type keeps the marker at the paragraph's end. On a paragraph
+split, the original paragraph retains its ID. If clipboard access fails, the
+editor reports the error without adding an ID to the document.
+
+Set `documentPath` to the file's Space-root-relative path (not an opaque
+`documentKey`) to copy `[[/Notes/file.md#^b-…]]`. Without it, the editor copies a
+same-document `[[#^b-…]]` link. Lite supplies the ordinary Markdown file path;
+embedded fragments use same-document links. Cross-file links use the existing
+`onOpenInternalLink` / `navigationTarget` contract. Navigation focuses and briefly
+highlights the target paragraph; missing targets are reported through `onError`.
+
+The clipboard contains portable Markdown text. Pasting a complete `[[…]]` link
+back into the visual editor creates a clickable reference without requiring
+`searchNotes`. Pasting into code or an external plain-text editor keeps the source
+text. Mixed prose and rich clipboard content use the existing paste behavior.
+
+This first interaction supports standalone paragraphs only, not table cells,
+list items, headings or footnote definitions. It does not add block-search
+completion or a separate block-ID management UI.
+
+Existing structured IDs are also supported: a standalone `^id` after a blank
+line beneath a list, quote, table or callout belongs to that whole block.
+`navigationTarget.blockId` reveals the owning structure. Native editing,
+reordering and editor-state serialization retain this metadata; the source
+continues to use the standalone marker syntax.
+
+With the default Eidos Markdown dialect, pass `searchNotes` to enable
+an inline file picker when the user types `[[`. The host owns discovery; the
+editor does not access the filesystem. Without this callback, manual wiki-link
+syntax still works but no picker appears.
+
+```tsx
+<MarkdownEditor
+  documentKey="Notes/Current.md"
+  markdown={markdown}
+  onMarkdownChange={setMarkdown}
+  searchNotes={async ({ documentKey, query, signal }) => {
+    return searchMyNotes({ documentKey, query, signal })
+    // [{ title: "Project", path: "Projects/Project.md" }]
+  }}
+/>
+```
+
+Return unambiguous wiki-link targets and readable titles. Requests are debounced
+and aborted when superseded; stale results are ignored even if a provider cannot
+cancel its work. Up/Down selects a candidate, Enter/Tab inserts it, and Escape
+closes the picker without deleting the typed text. Code spans/blocks and existing
+links do not trigger completion. This initial picker searches documents only,
+not headings, block anchors, or embeds. Despite its compatibility name,
+`searchNotes` accepts any file candidate, not only Markdown. Lite searches ordinary
+files and `.eidos` files in the open Space and shows paths to distinguish namesakes.
+
+# Document reference completion
+
+Note candidates may include `displayText` for a discovered alias. Completion
+keeps `path` as the canonical destination and emits `[[path|displayText]]`.
+`title` controls the candidate label only; it does not silently rename the target.
+Hosts must return separate paths for ambiguous aliases rather than select a file
+implicitly. Lite's dedicated `searchMarkdownNotes` IPC reads alias metadata in
+the filesystem-owning process and feeds these candidates to the editor.
+
+`markdownReferenceTargets(markdown)` lists headings and explicit block IDs for completion.
+Wiki embeds (`![[...]]`) are unsupported and remain literal source. They do not
+trigger completion, resolve files, or request previews. Use `[[...]]` for navigation
+and standard Markdown images `![alt](path)` for images.

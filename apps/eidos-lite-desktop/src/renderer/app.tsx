@@ -91,7 +91,11 @@ import {
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { rendererPlatform } from "./renderer-platform"
-import { resolveObsidianSpaceEntry } from "./obsidian-vault"
+import {
+  missingMarkdownNotePath,
+  resolveObsidianSpaceEntry,
+} from "./obsidian-vault"
+import { PathActionDialog, type PathDialogState } from "./path-action-dialog"
 import { QuickOpen } from "./quick-open"
 import {
   isPublishableEntry,
@@ -571,13 +575,6 @@ function shortcutTitle(label: string, shortcut: string): string {
   return shortcut === "—" ? label : `${label} (${shortcut})`
 }
 
-type PathDialogAction = "create-file" | "create-folder" | "delete"
-
-interface PathDialogState {
-  action: PathDialogAction
-  entry: SpaceTreeEntry | null
-}
-
 function parentPath(entry: SpaceTreeEntry | null): string | null {
   if (!entry) return null
   if (entry.kind === "directory") return entry.relativePath
@@ -591,109 +588,6 @@ function hasUnloadedDirectories(entries: readonly SpaceTreeEntry[]): boolean {
       entry.kind === "directory" &&
       (entry.childrenLoaded === false ||
         hasUnloadedDirectories(entry.children ?? []))
-  )
-}
-
-function PathActionDialog({
-  state,
-  busy,
-  onCancel,
-  onSubmit,
-}: {
-  state: PathDialogState
-  busy: boolean
-  onCancel(): void
-  onSubmit(value: string): void
-}) {
-  const { t } = useEidosLiteI18n()
-  const config = {
-    "create-file": {
-      title: t("New File"),
-      label: t("File name"),
-      initial: "Untitled.eidos",
-      action: t("Create"),
-    },
-    "create-folder": {
-      title: t("New folder"),
-      label: t("Folder name"),
-      initial: t("New folder"),
-      action: t("Create"),
-    },
-    delete: {
-      title: t("Move {name} to Trash?", {
-        name: state.entry?.name ?? t("item"),
-      }),
-      label: "",
-      initial: "",
-      action: t("Move to Trash"),
-    },
-  }[state.action]
-  const [value, setValue] = useState(config.initial)
-  const destructive = state.action === "delete"
-  const description =
-    state.action === "create-file"
-      ? t(
-          "Use .eidos for an Eidos File. Another extension, such as .md or .txt, creates an empty text file. Names without an extension use .eidos."
-        )
-      : null
-
-  return (
-    <div className="path-dialog-backdrop" role="presentation">
-      <form
-        className="path-dialog"
-        aria-label={config.title}
-        onSubmit={(event) => {
-          event.preventDefault()
-          onSubmit(value)
-        }}
-      >
-        <header>
-          <strong>{config.title}</strong>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onCancel}
-            aria-label={t("Cancel")}
-            disabled={busy}
-          >
-            <X />
-          </button>
-        </header>
-        {destructive ? (
-          <p>
-            {t(
-              "The item will leave this Space and can be recovered from the system Trash."
-            )}
-          </p>
-        ) : (
-          <label>
-            <span>{config.label}</span>
-            <input
-              autoFocus
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              disabled={busy}
-            />
-            {description ? (
-              <small className="path-dialog-description">{description}</small>
-            ) : null}
-          </label>
-        )}
-        <footer>
-          <button type="button" onClick={onCancel} disabled={busy}>
-            {t("Cancel")}
-          </button>
-          <button
-            type="submit"
-            className={destructive ? "danger-action" : "primary-action"}
-            disabled={busy || (!destructive && !value.trim())}
-          >
-            {busy ? <LoaderCircle className="spin" /> : null}
-            {busy ? t("Working…") : config.action}
-          </button>
-        </footer>
-      </form>
-    </div>
   )
 }
 
@@ -927,6 +821,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [textFileDrafts, setTextFileDrafts] = useState<
     Record<string, TextFileDraft | undefined>
   >({})
+  const [textPreviewReloadToken, setTextPreviewReloadToken] = useState(0)
   const [openingSpace, setOpeningSpace] = useState(false)
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
@@ -2098,7 +1993,19 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         window.eidosLite.searchSpacePaths
       )
       if (!entry) {
-        setError(`Could not find Obsidian link target: ${request.path}`)
+        const linkedNotePath = missingMarkdownNotePath(
+          sourceRelativePath,
+          request
+        )
+        if (linkedNotePath) {
+          setPathDialog({
+            action: "create-linked-note",
+            entry: null,
+            linkedNotePath,
+          })
+          return
+        }
+        setError(`Could not find file link target: ${request.path}`)
         return
       }
       const requestId = Date.now()
@@ -2571,11 +2478,38 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   )
 
   const applyPathMutation = useCallback(
-    (result: SpacePathMutationResult) => {
+    async (result: SpacePathMutationResult) => {
       acceptSpaceSnapshot(result.snapshot)
       invalidateCachedSessions(result.invalidatedSessionIds)
+      if (result.markdownLinks?.skippedPaths.length) {
+        setError(
+          `The file was moved, but some Markdown references could not be updated: ${result.markdownLinks.skippedPaths.join(", ")}`
+        )
+      }
+      if (
+        textPreview &&
+        !textFileDrafts[textPreview.relativePath] &&
+        result.markdownLinks?.updatedPaths.includes(textPreview.relativePath)
+      ) {
+        try {
+          const refreshed = await window.eidosLite.previewTextFile(
+            textPreview.relativePath
+          )
+          setTextPreview((current) =>
+            current?.relativePath === refreshed.relativePath
+              ? refreshed
+              : current
+          )
+          setTextPreviewReloadToken((token) => token + 1)
+        } catch (cause) {
+          setError(
+            `The file operation completed, but the active note could not be refreshed. Reopen it before editing. ${errorMessage(cause)}`
+          )
+          setTextPreview(null)
+        }
+      }
     },
-    [acceptSpaceSnapshot, invalidateCachedSessions]
+    [acceptSpaceSnapshot, invalidateCachedSessions, textPreview, textFileDrafts]
   )
 
   const closeActiveDocument = useCallback(async () => {
@@ -2590,6 +2524,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   const moveTreeEntry = useCallback(
     async (relativePath: string, targetDirectory: string | null) => {
+      if (Object.values(textFileDrafts).some(Boolean))
+        throw new Error(
+          "Save or discard open text drafts before moving files so Markdown references can be updated safely."
+        )
       setPathMutationBusy(true)
       setError(null)
       const activePathMoved = pathMatchesPrefix(
@@ -2601,7 +2539,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           relativePath,
           targetDirectory
         )
-        applyPathMutation(result)
+        await applyPathMutation(result)
         if (result.relativePath) {
           updateRecentFilePaths(relativePath, result.relativePath)
         }
@@ -2624,11 +2562,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       applyPathMutation,
       recordNavigationLocation,
       updateRecentFilePaths,
+      textFileDrafts,
     ]
   )
 
   const renameTreeEntry = useCallback(
     async (entry: SpaceTreeEntry, name: string) => {
+      if (Object.values(textFileDrafts).some(Boolean))
+        throw new Error(
+          "Save or discard open text drafts before renaming files so Markdown references can be updated safely."
+        )
       setPathMutationBusy(true)
       setError(null)
       const activePathMoved = pathMatchesPrefix(
@@ -2640,7 +2583,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           entry.relativePath,
           name
         )
-        applyPathMutation(result)
+        await applyPathMutation(result)
         if (result.relativePath) {
           updateRecentFilePaths(entry.relativePath, result.relativePath)
           setSelectedEntry(
@@ -2661,6 +2604,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       applyPathMutation,
       recordNavigationLocation,
       updateRecentFilePaths,
+      textFileDrafts,
     ]
   )
 
@@ -2672,6 +2616,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       try {
         let result: SpacePathMutationResult
         switch (pathDialog.action) {
+          case "create-linked-note": {
+            const path = pathDialog.linkedNotePath
+            if (!path || value !== path)
+              throw new Error(
+                "The linked note path changed. Try opening the link again."
+              )
+            const parts = path.split("/")
+            const name = parts.pop()!
+            result = await window.eidosLite.createTextFile(
+              parts.join("/") || null,
+              name
+            )
+            break
+          }
           case "create-file":
             result =
               eidosLiteNewFileKind(value) === "text"
@@ -2697,7 +2655,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             )
             break
         }
-        applyPathMutation(result)
+        await applyPathMutation(result)
         if (pathDialog.entry && pathDialog.action === "delete") {
           updateRecentFilePaths(pathDialog.entry.relativePath, null)
         }
@@ -2716,7 +2674,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             ? findSpaceEntry(result.snapshot.entries, result.relativePath)
             : null
         )
-        if (pathDialog.action === "create-file" && result.relativePath) {
+        if (
+          (pathDialog.action === "create-file" ||
+            pathDialog.action === "create-linked-note") &&
+          result.relativePath
+        ) {
           const created = findSpaceEntry(
             result.snapshot.entries,
             result.relativePath
@@ -3233,7 +3195,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
         <div className="editor-work-area">
           <div className="editor-primary-area">
-            <div className="editor-work-content">
+            <div
+              className="editor-work-content"
+              ref={(element) => {
+                element?.toggleAttribute("inert", pathMutationBusy)
+              }}
+            >
               {textPreview ? (
                 textPreview.type === "media" ? (
                   <MediaFilePreview
@@ -3248,6 +3215,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   />
                 ) : (
                   <TextFilePreview
+                    key={`${textPreview.relativePath}:${textPreviewReloadToken}`}
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
@@ -3884,7 +3852,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       ) : null}
       {pathDialog ? (
         <PathActionDialog
-          key={`${pathDialog.action}:${pathDialog.entry?.relativePath ?? "root"}`}
+          key={`${pathDialog.action}:${pathDialog.linkedNotePath ?? pathDialog.entry?.relativePath ?? "root"}`}
           state={pathDialog}
           busy={pathMutationBusy}
           onCancel={() => setPathDialog(null)}

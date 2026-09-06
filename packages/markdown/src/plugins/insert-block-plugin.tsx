@@ -1,5 +1,10 @@
 import { $isCodeNode } from "@lexical/code-core"
 import {
+  $ensureParagraphBlockId,
+  $prepareParagraphBlockId,
+  blockReferenceMarkdown,
+} from "../features/vault-inline/block-reference"
+import {
   resolveBlockBoundary,
   type MarkdownBlockBoundary,
 } from "../core/block-boundary"
@@ -54,6 +59,7 @@ import {
 } from "../nodes/efm-semantic-node"
 import { $isEfmSourceBlockNode } from "../nodes/efm-source-block-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
+import { editorScrollSurface } from "../ui/editor-scroll-surface"
 import {
   frontmatterSourceFromBody,
   validateFrontmatterSource,
@@ -368,6 +374,7 @@ function composerTitle(
 }
 
 export function InsertBlockPlugin({
+  documentPath,
   enableMenu = true,
   enableDrag = true,
   inputProfile,
@@ -376,6 +383,7 @@ export function InsertBlockPlugin({
   labels,
   onError,
 }: {
+  documentPath?: string
   enableMenu?: boolean
   enableDrag?: boolean
   inputProfile: EfmInputProfile
@@ -396,7 +404,19 @@ export function InsertBlockPlugin({
     [blockBoundaries]
   )
   const { ariaKeys, matches } = useMarkdownShortcuts()
-  const { externalMarkdownConflict, registerDraft } = useEfmSourceBlockContext()
+  const { externalMarkdownConflict, registerDraft, syntaxFeatures } =
+    useEfmSourceBlockContext()
+  const [blockActions, setBlockActions] = useState<{
+    key: NodeKey
+    left: number
+    top: number
+  } | null>(null)
+  const blockActionsRef = useRef<HTMLDivElement>(null)
+  const copyingBlockLink = useRef(false)
+  const copyContext = useRef({ documentPath, externalMarkdownConflict })
+  copyContext.current = { documentPath, externalMarkdownConflict }
+  const clickedBlockRef = useRef<NodeKey | null>(null)
+  const suppressDragClickRef = useRef(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuMode, setMenuMode] = useState<InsertMenuMode>("block")
@@ -420,6 +440,75 @@ export function InsertBlockPlugin({
   const menuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const menuPointerPositionRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!blockActions) return
+    blockActionsRef.current?.querySelector<HTMLButtonElement>("button")?.focus()
+    const dismiss = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !blockActionsRef.current?.contains(event.target)
+      )
+        setBlockActions(null)
+    }
+    document.addEventListener("pointerdown", dismiss, true)
+    return () => document.removeEventListener("pointerdown", dismiss, true)
+  }, [blockActions])
+
+  const copyBlockLink = async () => {
+    if (
+      !blockActions ||
+      externalMarkdownConflict ||
+      !editor.isEditable() ||
+      copyingBlockLink.current
+    )
+      return
+    copyingBlockLink.current = true
+    const originalRoot = editor.getRootElement()
+    try {
+      // Validate the path before making any document edit.
+      blockReferenceMarkdown(documentPath, "check")
+      if (!navigator.clipboard?.writeText)
+        throw new Error("Clipboard access is not available.")
+      const identifier = editor
+        .getEditorState()
+        .read(() => $prepareParagraphBlockId(blockActions.key))
+      if (!identifier)
+        throw new Error("Only standalone paragraphs support block links here.")
+      await navigator.clipboard.writeText(
+        blockReferenceMarkdown(documentPath, identifier)
+      )
+      if (
+        !editor.isEditable() ||
+        editor.getRootElement() !== originalRoot ||
+        copyContext.current.documentPath !== documentPath ||
+        copyContext.current.externalMarkdownConflict
+      )
+        throw new Error(
+          "The document changed while copying the block link. Please copy again."
+        )
+      let savedIdentifier: string | null = null
+      editor.update(
+        () => {
+          savedIdentifier = $ensureParagraphBlockId(
+            blockActions.key,
+            identifier
+          )
+        },
+        { discrete: true, tag: HISTORY_PUSH_TAG }
+      )
+      if (savedIdentifier !== identifier)
+        throw new Error(
+          "The paragraph changed while copying the block link. Please copy again."
+        )
+      setBlockActions(null)
+      editor.focus()
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error(String(error)))
+    } finally {
+      copyingBlockLink.current = false
+    }
+  }
 
   useEffect(() => {
     if (!composer) return
@@ -843,6 +932,7 @@ export function InsertBlockPlugin({
     drag.sourceElement.classList.remove("eme-block-dragging")
     delete drag.stage.dataset.blockDragging
     blockDragRef.current = null
+    suppressDragClickRef.current = drag.active
     setDropIndicator(null)
 
     if (!commit || !drag.active || !drag.target) return
@@ -888,8 +978,10 @@ export function InsertBlockPlugin({
   ) => {
     if (event.button !== 0 || dragDisabled || blockDragRef.current) return
     const sourceKey = anchorKeyRef.current
+    clickedBlockRef.current = sourceKey
+    suppressDragClickRef.current = false
     const root = editor.getRootElement()
-    const stage = root?.closest<HTMLElement>(".eme-editor-stage") ?? null
+    const stage = root ? editorScrollSurface(root) : null
     const sourceElement = sourceKey ? editor.getElementByKey(sourceKey) : null
     if (!sourceKey || !root || !stage || !sourceElement) return
 
@@ -1403,9 +1495,40 @@ export function InsertBlockPlugin({
             type="button"
             className="eme-block-drag-handle"
             aria-label={labels.dragBlock}
+            aria-haspopup="menu"
+            aria-expanded={blockActions !== null}
             aria-keyshortcuts={ariaKeys(["block.move-up", "block.move-down"])}
             title={labels.dragBlock}
-            onClick={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.preventDefault()
+              if (suppressDragClickRef.current) {
+                suppressDragClickRef.current = false
+                return
+              }
+              const key =
+                event.detail === 0
+                  ? anchorKeyRef.current
+                  : clickedBlockRef.current
+              if (!key || !syntaxFeatures.has("obsidian.block-id")) return
+              const eligible = editor.getEditorState().read(() => {
+                const node = $getNodeByKey(key)
+                return $isParagraphNode(node) && node.getParent() === $getRoot()
+              })
+              if (!eligible) return
+              const rect = event.currentTarget.getBoundingClientRect()
+              closeMenu()
+              setBlockActions({
+                key,
+                left: Math.max(
+                  8,
+                  Math.min(rect.right, window.innerWidth - 220)
+                ),
+                top: Math.max(
+                  8,
+                  Math.min(rect.bottom + 4, window.innerHeight - 60)
+                ),
+              })
+            }}
             onKeyDown={handleBlockDragKeyDown}
             onPointerDown={handleBlockDragPointerDown}
             onPointerMove={handleBlockDragPointerMove}
@@ -1423,6 +1546,33 @@ export function InsertBlockPlugin({
           </button>
         ) : null}
       </div>
+      {blockActions ? (
+        <div
+          ref={blockActionsRef}
+          className="eme-block-actions"
+          role="menu"
+          aria-label={labels.copyBlockLink}
+          style={{ left: blockActions.left, top: blockActions.top }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" || event.key === "Tab") {
+              setBlockActions(null)
+              if (event.key === "Escape") {
+                event.preventDefault()
+                editor.focus()
+              }
+            }
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={externalMarkdownConflict}
+            onClick={() => void copyBlockLink()}
+          >
+            {labels.copyBlockLink}
+          </button>
+        </div>
+      ) : null}
       {dropIndicator ? (
         <div
           className="eme-block-drop-indicator"

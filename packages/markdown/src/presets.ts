@@ -16,7 +16,6 @@ import {
 } from "./features/commonmark/plugin"
 import { wikilinkPlugin } from "./features/wikilink/plugin"
 import {
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,
@@ -54,15 +53,12 @@ export const gfmPreset = createMarkdownPreset({
 export const eidosPreset = createMarkdownPreset({
   id: "eidos.composable",
   extends: gfmPreset,
-  plugins: [mathPlugin, footnotePlugin, frontmatterPlugin, highlightPlugin],
-})
-
-export const obsidianPreset = createMarkdownPreset({
-  id: "obsidian.composable",
-  extends: eidosPreset,
   plugins: [
+    mathPlugin,
+    footnotePlugin,
+    frontmatterPlugin,
+    highlightPlugin,
     wikilinkPlugin,
-    embedPlugin,
     tagPlugin,
     commentPlugin,
     blockIdPlugin,
@@ -72,3 +68,6 @@ export const obsidianPreset = createMarkdownPreset({
     vaultLinkPlugin,
   ],
 })
+
+/** @deprecated Eidos Markdown includes these extensions by default. */
+export const obsidianPreset = eidosPreset

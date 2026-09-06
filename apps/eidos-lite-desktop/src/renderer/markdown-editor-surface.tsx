@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useCallback,
   useRef,
   useState,
   type ComponentProps,
@@ -12,10 +13,17 @@ import type { EidosLiteMarkdownCompatibilityProfile } from "../shared/contracts"
 import type {
   MarkdownEditorInternalLinkHandler,
   MarkdownEditorNavigationTarget,
+  MarkdownNoteSearchHandler,
+  MarkdownEditorInternalLinkRequest,
 } from "@eidos.space/markdown"
+import {
+  missingMarkdownNotePath,
+  resolveObsidianSpaceEntry,
+} from "./obsidian-vault"
 import type { ResolvedAppearance } from "./app-appearance"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
 import { useMarkdownImageAttachments } from "./markdown-image-attachments"
+import { useEidosLiteI18n } from "./i18n"
 
 let pierreModule:
   | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
@@ -32,7 +40,19 @@ async function loadPierreEditor() {
 const LazyPierreEditor = lazy(loadPierreEditor)
 const LazyWysiwygEditor = lazy(async () => {
   const module = await import("@eidos.space/markdown")
-  return { default: module.MarkdownEditor }
+  const { eidosPreset } = await import("@eidos.space/markdown/presets")
+  function LiteMarkdownEditor(
+    props: ComponentProps<typeof module.MarkdownEditor>
+  ) {
+    return (
+      <module.MarkdownEditor
+        {...props}
+        profile={undefined}
+        preset={eidosPreset}
+      />
+    )
+  }
+  return { default: LiteMarkdownEditor }
 })
 
 function PierreEditor(props: ComponentProps<typeof LazyPierreEditor>) {
@@ -92,6 +112,91 @@ export function MarkdownEditorSurface({
   const containerRef = useRef<HTMLDivElement>(null)
   const acceptedFocusTokenRef = useRef(focusRequestToken)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
+  const { t } = useEidosLiteI18n()
+  const searchNotes = useCallback<MarkdownNoteSearchHandler>(
+    async ({ query, signal }) => {
+      const hash = query.indexOf("#")
+      if (hash >= 0) {
+        const targetPath = query.slice(0, hash)
+        const entry = targetPath
+          ? await resolveObsidianSpaceEntry(
+              relativePath,
+              { path: targetPath, syntax: "wikilink" },
+              window.eidosLite.searchSpacePaths
+            )
+          : { relativePath }
+        if (!entry || signal.aborted || !/\.md$/iu.test(entry.relativePath))
+          return []
+        const preview =
+          entry.relativePath === relativePath
+            ? {
+                type: "text",
+                content: content,
+                truncated: false,
+              }
+            : await window.eidosLite.previewTextFile(entry.relativePath)
+        if (signal.aborted || preview.type !== "text" || preview.truncated)
+          return []
+        const { markdownReferenceTargets } =
+          await import("@eidos.space/markdown")
+        const filter = query.slice(hash).toLocaleLowerCase()
+        return markdownReferenceTargets(preview.content)
+          .filter(
+            (item) =>
+              item.target.toLocaleLowerCase().includes(filter) ||
+              ((filter === "#" || filter === "#^") &&
+                item.target.startsWith(filter))
+          )
+          .map((item) => ({
+            path: `/${entry.relativePath}${item.target}`,
+            title: item.title,
+          }))
+      }
+      const [pathHits, noteHits] = await Promise.all([
+        window.eidosLite.searchSpacePaths(query.trim() || ".", 200),
+        window.eidosLite.searchMarkdownNotes(query.trim(), 200),
+      ])
+      const hits = [
+        ...new Map(
+          [...pathHits, ...noteHits].map((hit) => [hit.relativePath, hit])
+        ).values(),
+      ].sort((a, b) => b.score - a.score)
+      if (signal.aborted) return []
+      const candidates = hits
+        .filter((hit) => hit.kind === "file" || hit.kind === "eidos")
+        .map((hit) => ({
+          title: hit.matchedAlias ?? hit.name.replace(/\.md$/iu, ""),
+          displayText: hit.matchedAlias,
+          path: hit.relativePath.includes("/")
+            ? hit.relativePath
+            : `/${hit.relativePath}`,
+        }))
+      const missing = missingMarkdownNotePath(relativePath, {
+        path: query,
+        syntax: "wikilink",
+      })
+      const queryName = query
+        .trim()
+        .replace(/^\//u, "")
+        .replace(/\.md$/iu, "")
+        .toLocaleLowerCase()
+      const exact = hits.some(
+        (hit) =>
+          hit.matchedAlias?.toLocaleLowerCase() === queryName ||
+          (query.includes("/") ? hit.relativePath : hit.name)
+            .replace(/\.md$/iu, "")
+            .toLocaleLowerCase() === queryName
+      )
+      if (missing && !exact)
+        candidates.push({
+          path: `/${missing}`,
+          displayText: undefined,
+          title: t("Link to new note: {name}", { name: query.trim() }),
+        })
+      return candidates
+    },
+    [relativePath, content, t]
+  )
 
   useEffect(() => setSessionMode(editingMode), [documentKey, editingMode])
   useEffect(() => setAttachmentError(null), [documentKey])
@@ -140,6 +245,17 @@ export function MarkdownEditorSurface({
         ) : (
           <LazyWysiwygEditor
             documentKey={documentKey}
+            documentPath={
+              inputProfile === "document" ? relativePath : undefined
+            }
+            labels={{
+              copyBlockLink: t("Copy block link"),
+              linkToFile: t("Link to a file"),
+              searchFiles: t("Search files…"),
+              searchingFiles: t("Searching files…"),
+              noMatchingFiles: t("No matching files"),
+              fileSearchFailed: t("Could not search files. Try typing again."),
+            }}
             markdown={content}
             theme={theme}
             layout={layout}
@@ -147,6 +263,7 @@ export function MarkdownEditorSurface({
             profile={compatibilityProfile}
             navigationTarget={navigationTarget}
             onOpenInternalLink={onOpenInternalLink}
+            searchNotes={searchNotes}
             readOnly={disabled}
             autoFocus={autoFocus}
             ariaLabel={`Markdown content for ${relativePath}`}

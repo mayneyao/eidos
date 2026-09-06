@@ -71,6 +71,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   searchSpacePaths: (query, limit) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
+  searchMarkdownNotes: (query, limit) =>
+    ipcRenderer.invoke(IPC_CHANNELS.searchMarkdownNotes, query, limit),
   onSpaceChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, value: SpaceSnapshot) =>
       listener(value)

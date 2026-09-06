@@ -109,6 +109,10 @@ describe("plugin block syntax", () => {
   })
 
   it("imports, edits, and exports a third-party grammar without changing the core", () => {
+    const profile = createMarkdownPreset({
+      id: "test.note",
+      plugins: [...eidosMarkdownPlugins, notePlugin],
+    })
     const registry = compileMarkdownPlugins([
       ...eidosMarkdownPlugins,
       notePlugin,
@@ -121,7 +125,7 @@ describe("plugin block syntax", () => {
       blockSyntax: registry.blockSyntax,
       syntaxFeatures: registry.features,
     }
-    const analysis = eidosMarkdownProfile.codec.analyze(source, options)
+    const analysis = profile.codec.analyze(source, options)
     expect(analysis.segments.map((segment) => segment.source)).toEqual([
       "Before",
       ":::note\nHello\n:::",
@@ -129,11 +133,7 @@ describe("plugin block syntax", () => {
     ])
     editor.update(
       () => {
-        eidosMarkdownProfile.codec.import(
-          source,
-          registry.transformers,
-          options
-        )
+        profile.codec.import(source, registry.transformers, options)
         const note = $getRoot().getChildAtIndex(1)
         expect($isCodeNode(note)).toBe(true)
         if ($isCodeNode(note)) note.clear().append($createTextNode("Changed"))
@@ -143,7 +143,7 @@ describe("plugin block syntax", () => {
     expect(
       editor
         .getEditorState()
-        .read(() => eidosMarkdownProfile.codec.export(registry.transformers))
+        .read(() => profile.codec.export(registry.transformers))
     ).toBe(source.replace("Hello", "Changed"))
   })
 
@@ -207,3 +207,4 @@ describe("plugin block syntax", () => {
     ).toThrow(/unique namespaced/u)
   })
 })
+import { createMarkdownPreset } from "../presets"

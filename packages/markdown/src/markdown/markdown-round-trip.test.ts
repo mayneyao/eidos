@@ -43,6 +43,10 @@ function descendants(node: LexicalNode): LexicalNode[] {
 }
 
 describe("Lexical Markdown round-trip", () => {
+  it("preserves unsupported wiki embeds as literal source", () => {
+    const source = "Before ![[Note#Heading|Label]] after.\n\n![[image.png|200]]"
+    expect(roundTrip(source)).toBe(source)
+  })
   it("reaches a stable canonical representation for supported Markdown", () => {
     const input = `# Portable document
 

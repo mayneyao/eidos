@@ -71,18 +71,8 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   const obsidianProfile = host.querySelector<HTMLButtonElement>(
     'button[data-markdown-compatibility-profile="obsidian"]'
   )
-  expect(obsidianProfile?.textContent).toBe("Obsidian (Experimental)")
-  expect(host.textContent).toContain(
-    "Experimental Obsidian mode enables Vault links"
-  )
-  expect(obsidianProfile?.getAttribute("aria-checked")).toBe("false")
-  await act(async () => {
-    obsidianProfile?.click()
-    await Promise.resolve()
-  })
-  expect(updatePreferences).toHaveBeenCalledWith({
-    markdownCompatibilityProfile: "obsidian",
-  })
+  expect(obsidianProfile).toBeNull()
+  expect(host.querySelector("[data-markdown-compatibility-profile]")).toBeNull()
 
   const pluginsPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),

@@ -15,7 +15,6 @@ import {
   emphasisPlugin,
   quotePlugin,
   wikilinkPlugin,
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,
@@ -83,7 +82,6 @@ quoteEditor.getEditorState().read(() => {
 
 for (const plugin of [
   wikilinkPlugin,
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,

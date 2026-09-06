@@ -6,6 +6,14 @@ const sourceDirectory = fileURLToPath(new URL("./src/", import.meta.url))
 export function markdownEditorSourceAliases() {
   return [
     {
+      find: "@eidos.space/markdown/source",
+      replacement: `${sourceDirectory}source.ts`,
+    },
+    {
+      find: "@eidos.space/markdown/presets",
+      replacement: `${sourceDirectory}presets.ts`,
+    },
+    {
       find: "@eidos.space/markdown/styles.css",
       replacement: `${sourceDirectory}styles.css`,
     },

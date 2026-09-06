@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
+import {
+  prepareMarkdownLinkMove,
+  applyMarkdownLinkMove,
+} from "./markdown-link-maintenance"
 import type {
   EidosSystemMergeDomainConflict,
   FileEntry,
@@ -504,6 +508,14 @@ export class SpaceSession {
     return this.pathIndex.search(query, limit)
   }
 
+  async searchMarkdownNotes(
+    query: string,
+    limit?: number
+  ): Promise<SpacePathSearchHit[]> {
+    if (this.closed) throw new Error("Space is closed")
+    return this.pathIndex.searchMarkdownNotes(query, limit)
+  }
+
   async refresh(): Promise<SpaceSnapshot> {
     return this.freshSnapshotAndEmit(true)
   }
@@ -693,6 +705,26 @@ export class SpaceSession {
     }
   }
 
+  private prepareMarkdownLinkMove(source: string, target: string) {
+    return prepareMarkdownLinkMove(
+      this.canonical.root,
+      source,
+      target,
+      this.graftSessionOpen()
+        ? {
+            ignoredPaths: async (paths) => {
+              const ignored = await this.inspectIgnores(paths)
+              return new Set(
+                [...ignored.entries()]
+                  .filter(([, entry]) => this.shouldPruneIgnored(entry))
+                  .map(([relativePath]) => relativePath)
+              )
+            },
+          }
+        : {}
+    )
+  }
+
   async renamePath(
     relativePath: string,
     requestedName: string
@@ -722,13 +754,16 @@ export class SpaceSession {
     )
     await this.requireMissingPath(target)
     let invalidatedSessionIds: string[] = []
+    let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
+      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
       invalidatedSessionIds =
         await this.runtimePool.closeSessionsForPath(source)
       await fs.rename(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
       )
+      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
@@ -736,6 +771,7 @@ export class SpaceSession {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
       invalidatedSessionIds,
+      markdownLinks,
     }
   }
 
@@ -763,13 +799,16 @@ export class SpaceSession {
     }
     await this.requireMissingPath(target)
     let invalidatedSessionIds: string[] = []
+    let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
+      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
       invalidatedSessionIds =
         await this.runtimePool.closeSessionsForPath(source)
       await fs.rename(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
       )
+      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
@@ -777,6 +816,7 @@ export class SpaceSession {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
       invalidatedSessionIds,
+      markdownLinks,
     }
   }
 

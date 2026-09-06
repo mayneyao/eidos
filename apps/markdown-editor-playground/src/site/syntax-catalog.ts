@@ -327,15 +327,6 @@ export const syntaxExamples: readonly SyntaxExample[] = [
     mode: "host",
   },
   {
-    id: "embed",
-    en: "Embeds",
-    zh: "嵌入引用",
-    group: "Vault",
-    source: "![[Note#Heading]]\n\n![[attachments/photo.png|240x120]]",
-    presets: vault,
-    mode: "host",
-  },
-  {
     id: "callout",
     en: "Callouts & folding",
     zh: "提示块与折叠",

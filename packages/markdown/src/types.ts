@@ -1,4 +1,5 @@
 import type { CodeHighlightTokenizer } from "./highlighting/code-highlight-tokenizer"
+import type { ReactNode } from "react"
 import type { MarkdownPlugin } from "./plugin-system/plugin-api"
 import type { MarkdownProfile } from "./profile-system/profile-api"
 import type { MarkdownShortcutOverrides } from "./shortcuts/shortcut-registry"
@@ -12,6 +13,20 @@ export type MarkdownEditorTheme = "light" | "dark"
 export type MarkdownEditorLayout = "document" | "embedded"
 export type EfmInputProfile = MarkdownInputMode
 export type BuiltInMarkdownProfileId = "eidos" | "obsidian" | "gfm"
+
+export interface MarkdownNoteCandidate {
+  /** Optional alias label; the destination remains the canonical file path. */
+  displayText?: string
+  /** An unambiguous wiki-link target supplied by the host. */
+  path: string
+  title: string
+}
+
+export type MarkdownNoteSearchHandler = (request: {
+  documentKey: string
+  query: string
+  signal: AbortSignal
+}) => Promise<readonly MarkdownNoteCandidate[]>
 
 export interface MarkdownEditorInternalLinkRequest {
   documentKey: string
@@ -98,6 +113,12 @@ export interface MarkdownUnsupportedFeature {
 }
 
 export interface MarkdownEditorLabels {
+  copyBlockLink: string
+  linkToFile: string
+  searchFiles: string
+  searchingFiles: string
+  noMatchingFiles: string
+  fileSearchFailed: string
   paragraph: string
   heading1: string
   heading2: string
@@ -168,6 +189,10 @@ export interface MarkdownEditorProps {
   onOpenExternalUrl?(url: string): void | Promise<void>
   /** Opens an Obsidian wikilink after the editor has parsed its target. */
   onOpenInternalLink?: MarkdownEditorInternalLinkHandler
+  /** Enables [[ note completion when the wiki-link plugin is installed. */
+  searchNotes?: MarkdownNoteSearchHandler
+  /** Space-root-relative file path for portable block links; omitted means same-document links. */
+  documentPath?: string
   /** Scrolls a newly opened document to an Obsidian heading or block target. */
   navigationTarget?: MarkdownEditorNavigationTarget
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */

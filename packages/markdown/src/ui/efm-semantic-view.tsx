@@ -259,10 +259,11 @@ function FrontmatterWikilink({
           ? findObsidianHeadingTarget(root, value.heading)
           : null
       if (target instanceof HTMLElement) {
-        target.scrollIntoView({ block: "center" })
-        target.focus({ preventScroll: true })
+        revealDocumentTarget(target)
         return
       }
+      onError(new Error("The referenced document target no longer exists."))
+      return
     }
     if (!onOpenInternalLink) return
     try {
@@ -468,10 +469,8 @@ function useResolvedImageUrl(
   return hostUrl ?? fallbackUrl
 }
 
-const OBSIDIAN_IMAGE_PATH = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/iu
-
 function useOpenObsidianLink(data: EfmInlineData): () => void {
-  const { documentKey, onError, onOpenInternalLink } =
+  const { documentKey, documentPath, onError, onOpenInternalLink } =
     useEfmSourceBlockContext()
   return useCallback(() => {
     const request = {
@@ -498,10 +497,22 @@ function useOpenObsidianLink(data: EfmInlineData): () => void {
           ? findObsidianHeadingTarget(root, request.heading)
           : null
       if (target instanceof HTMLElement) {
-        target.scrollIntoView({ block: "center" })
-        target.focus({ preventScroll: true })
+        revealDocumentTarget(target)
         return
       }
+      if (documentPath && onOpenInternalLink) {
+        void Promise.resolve()
+          .then(() =>
+            onOpenInternalLink({
+              ...request,
+              path: `/${documentPath.replace(/^\//u, "")}`,
+            })
+          )
+          .catch((cause) => onError(errorFrom(cause)))
+        return
+      }
+      onError(new Error("The referenced document target no longer exists."))
+      return
     }
     if (!onOpenInternalLink) return
     try {
@@ -511,17 +522,10 @@ function useOpenObsidianLink(data: EfmInlineData): () => void {
     } catch (cause) {
       onError(errorFrom(cause))
     }
-  }, [data, documentKey, onError, onOpenInternalLink])
+  }, [data, documentKey, documentPath, onError, onOpenInternalLink])
 }
 
 function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
-  const imagePath =
-    data.kind === "obsidian-embed" &&
-    data.path &&
-    OBSIDIAN_IMAGE_PATH.test(data.path)
-      ? data.path
-      : undefined
-  const imageUrl = useResolvedImageUrl(imagePath, data.resolvedUrl)
   const openInternalLink = useOpenObsidianLink(data)
 
   if (data.kind === "obsidian-link") {
@@ -537,26 +541,7 @@ function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
     )
   }
 
-  return imageUrl ? (
-    <span className="eme-obsidian-embed eme-obsidian-image-embed">
-      <img
-        src={imageUrl}
-        alt={data.label ?? data.path ?? ""}
-        width={data.width}
-        height={data.height}
-        loading="lazy"
-      />
-    </span>
-  ) : (
-    <button
-      type="button"
-      className="eme-obsidian-embed eme-obsidian-embed-placeholder"
-      data-obsidian-target={data.target}
-      onClick={openInternalLink}
-    >
-      {data.label || data.target}
-    </button>
-  )
+  return <span>{data.source}</span>
 }
 
 export function EfmInlineView({
@@ -656,13 +641,15 @@ export function EfmInlineView({
         </span>
       )
     case "obsidian-link":
-    case "obsidian-embed":
       return <ObsidianInlinePreview data={data} />
+    case "obsidian-embed":
+      return <span>{data.source}</span>
     case "obsidian-block-id":
       return (
         <span
           id={`obsidian-block-${data.identifier}`}
           className="eme-obsidian-block-id"
+          aria-hidden="true"
           data-obsidian-block-id={data.identifier}
           title={`Block ID: ${data.identifier}`}
         >
@@ -860,3 +847,4 @@ export function EfmBlockView({ data }: { data: EfmBlockData }) {
     }
   }
 }
+import { revealDocumentTarget } from "./reveal-document-target"

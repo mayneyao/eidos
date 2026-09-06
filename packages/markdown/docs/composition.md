@@ -121,7 +121,7 @@ Builder derives these dependencies from
 the plugin declarations and disables removal of a required capability while its
 dependent remains selected. Hover the disabled control to see its dependents.
 
-The same `/plugins` entry exports `embedPlugin`, `tagPlugin`, `commentPlugin`,
+The same `/plugins` entry exports `tagPlugin`, `commentPlugin`,
 `blockIdPlugin`, and `inlineFootnotePlugin`. Each can be added to `minimalPreset`
 without enabling the others. Embeds identify host-resolved targets; selecting
 them does not add filesystem access. These descriptors currently share the

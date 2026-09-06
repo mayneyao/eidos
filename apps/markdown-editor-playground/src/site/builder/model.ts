@@ -23,7 +23,6 @@ import {
   thematicBreakPlugin,
   referencePlugin,
   wikilinkPlugin,
-  embedPlugin,
   tagPlugin,
   commentPlugin,
   blockIdPlugin,
@@ -60,15 +59,6 @@ export const builderPlugins = [
     plugin: vaultLinkPlugin,
     symbol: "vaultLinkPlugin",
     examples: ["relative-link"],
-    group: "Vault",
-  },
-  {
-    id: "embed",
-    en: "Embeds",
-    zh: "嵌入引用",
-    plugin: embedPlugin,
-    symbol: "embedPlugin",
-    examples: ["embed"],
     group: "Vault",
   },
   {

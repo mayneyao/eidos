@@ -19,11 +19,7 @@ function firstUnescaped(value: string, character: string): number {
   return -1
 }
 
-function obsidianLinkData(
-  source: string,
-  body: string,
-  embed: boolean
-): EfmInlineData | null {
+function obsidianLinkData(source: string, body: string): EfmInlineData | null {
   const aliasOffset = firstUnescaped(body, "|")
   const target = (aliasOffset < 0 ? body : body.slice(0, aliasOffset)).trim()
   if (!target) return null
@@ -37,17 +33,12 @@ function obsidianLinkData(
   const hashOffset = firstUnescaped(target, "#")
   const path = (hashOffset < 0 ? target : target.slice(0, hashOffset)).trim()
   const fragment = hashOffset < 0 ? "" : target.slice(hashOffset + 1).trim()
-  const size = embed
-    ? (displayText?.match(/^(\d+)(?:x(\d+))?$/u) ?? null)
-    : null
   return {
-    kind: embed ? "obsidian-embed" : "obsidian-link",
+    kind: "obsidian-link",
     source,
     target,
     path,
-    ...(displayText && !size ? { label: displayText } : {}),
-    ...(size ? { width: Number(size[1]) } : {}),
-    ...(size?.[2] ? { height: Number(size[2]) } : {}),
+    ...(displayText ? { label: displayText } : {}),
     ...(fragment.startsWith("^")
       ? { blockId: fragment.slice(1) }
       : fragment
@@ -66,24 +57,18 @@ function vaultInlineMatches(
     !isEscaped(source, start) &&
     !protectedRanges.some((range) => start < range.end && end > range.start)
 
-  if (
-    enabled(MARKDOWN_FEATURES.obsidianWikilink) ||
-    enabled(MARKDOWN_FEATURES.obsidianEmbed)
-  ) {
+  if (enabled(MARKDOWN_FEATURES.obsidianWikilink)) {
     for (const match of source.matchAll(/(!?)\[\[([^\]\n]+)\]\]/gu)) {
       const start = match.index
       if (start === undefined) continue
       const end = start + match[0].length
       const embed = match[1] === "!"
-      if (
-        !available(start, end) ||
-        (embed
-          ? !enabled(MARKDOWN_FEATURES.obsidianEmbed)
-          : !enabled(MARKDOWN_FEATURES.obsidianWikilink))
-      ) {
+      // Wiki embeds are deliberately unsupported; keep their source literal.
+      if (embed) continue
+      if (!available(start, end)) {
         continue
       }
-      const data = obsidianLinkData(match[0], match[2], embed)
+      const data = obsidianLinkData(match[0], match[2])
       if (data) replacements.push({ start, end, data })
     }
   }
@@ -213,7 +198,6 @@ export const wikilinkSyntax = syntax(
   "markdown.wikilink.syntax",
   "obsidian-link"
 )
-export const embedSyntax = syntax("markdown.embed.syntax", "obsidian-embed")
 export const tagSyntax = syntax("markdown.tag.syntax", "obsidian-tag")
 export const commentSyntax = syntax(
   "markdown.comment.syntax",
@@ -229,7 +213,6 @@ export const inlineFootnoteSyntax = syntax(
 )
 export const vaultInlineSyntax = [
   wikilinkSyntax,
-  embedSyntax,
   tagSyntax,
   commentSyntax,
   blockIdSyntax,

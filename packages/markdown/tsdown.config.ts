@@ -6,6 +6,7 @@ export default defineConfig({
     "src/plugin-api.ts",
     "src/builtin-plugins.ts",
     "src/presets.ts",
+    "src/source.ts",
   ],
   format: "esm",
   dts: true,

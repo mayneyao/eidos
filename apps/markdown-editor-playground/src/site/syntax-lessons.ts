@@ -159,18 +159,13 @@ export const syntaxLessons: Record<string, { en: string; zh: string }> =
       ],
       [
         "obsidian-image",
-        "Use ![[image.png]] for a vault attachment. Optional sizing follows a pipe; the host must resolve the attachment path.",
-        "使用 ![[image.png]] 引用笔记库附件，可在竖线后添加尺寸。附件路径需要宿主解析。",
+        "Use ![alt](image.png) for an image. The host resolves the attachment path. Wiki embeds are unsupported.",
+        "使用 ![alt](image.png) 插入图片，附件路径由宿主解析。不支持 wiki 嵌入。",
       ],
       [
         "relative-link",
         "Relative destinations are resolved from the current document, not the website root. Moving a file may require updating these links.",
         "相对地址以当前文档为基准，而不是网站根目录。移动文件后可能需要更新这些链接。",
-      ],
-      [
-        "embed",
-        "Prefix a wiki link with ! to request an embedded note or block. This demo preserves the reference; a host is required to load the target content.",
-        "在双链前加 ! 请求嵌入笔记或块。本演示保留引用，实际加载目标内容需要宿主支持。",
       ],
       [
         "callout",

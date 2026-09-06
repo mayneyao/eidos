@@ -28,6 +28,7 @@ export type {
   MarkdownSourceSegment,
 } from "./core/document-contract"
 export { MarkdownEditor } from "./editor/markdown-editor"
+export { markdownReferenceTargets } from "./markdown/document-embed-source"
 
 // Optional behavior and highlighting extension points
 export { CodeHighlightPlugin } from "./plugins/code-highlight-plugin"
@@ -167,6 +168,8 @@ export type {
   MarkdownEditorImageUrlResolver,
   MarkdownEditorInteractions,
   MarkdownEditorInternalLinkHandler,
+  MarkdownNoteCandidate,
+  MarkdownNoteSearchHandler,
   MarkdownEditorInternalLinkRequest,
   MarkdownEditorNavigationTarget,
   MarkdownEditorLabels,
