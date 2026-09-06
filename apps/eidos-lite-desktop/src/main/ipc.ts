@@ -864,6 +864,35 @@ export function registerIpc(
     }
     return { session, status }
   }
+  ipcMain.on(
+    IPC_CHANNELS.textDraftCloseReply,
+    (event, token: unknown, allowed: unknown) => {
+      controller.textDraftClose.reply(event.sender.id, token, allowed)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.textDraftCloseChoice, (event, paths: unknown) => {
+    if (
+      !Array.isArray(paths) ||
+      paths.length > 10_000 ||
+      !paths.every((item) => typeof item === "string" && item.length < 4096)
+    ) {
+      throw new Error("Invalid draft paths")
+    }
+    return controller.chooseTextDraftClose(event.sender, paths)
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.textDraftSaveCopy,
+    (event, relativePath: unknown, content: unknown) => {
+      if (
+        typeof relativePath !== "string" ||
+        typeof content !== "string" ||
+        Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024
+      ) {
+        throw new Error("Invalid text draft")
+      }
+      return controller.saveTextDraftCopy(event.sender, relativePath, content)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.appInfo, () => ({
     name: app.getName(),
     version: app.getVersion(),

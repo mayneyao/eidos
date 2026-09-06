@@ -232,4 +232,32 @@ describe("TextFilePreview", () => {
     expect(markup).not.toContain(">Preview<")
     expect(markup).not.toContain(">Edit<")
   })
+
+  it("offers recovery immediately when reopening a draft against a newer disk revision", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TextFilePreview, {
+        preview: {
+          type: "text",
+          relativePath: "note.md",
+          content: "external edit",
+          encoding: "utf-8",
+          bom: false,
+          revision: "new",
+          size: 13,
+          modifiedAtMs: 1,
+          truncated: false,
+        },
+        draft: { content: "my draft", revision: "old" },
+        theme: "light",
+        platform: "darwin",
+        onReveal: () => {},
+        onSaved: () => {},
+        onReload: () => {},
+        onDraftChange: () => {},
+      })
+    )
+    expect(markup).toContain("Changed on disk")
+    expect(markup).toContain("Save a copy")
+    expect(markup).toContain("Reload from disk")
+  })
 })

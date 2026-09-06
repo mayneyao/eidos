@@ -68,6 +68,8 @@ import {
   type LiteWindowKind,
 } from "./window-chrome"
 import { welcomeWindowActionAfterSpaceClosed } from "./window-lifecycle"
+import { TextDraftCloseCoordinator } from "./text-draft-close"
+import { writeTextDraftCopy } from "./space/text-draft-copy"
 import {
   centeredWindowBounds,
   fitWindowBounds,
@@ -79,6 +81,7 @@ const SPACE_WINDOW_SIZE = { width: 1320, height: 860 }
 const SPACE_WINDOW_MINIMUM = { width: 900, height: 600 }
 
 export class WindowController {
+  readonly textDraftClose = new TextDraftCloseCoordinator()
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
   private readonly windowBySpaceId = new Map<string, BrowserWindow>()
   private readonly pendingLaunchFilesByWebContents = new Map<number, string[]>()
@@ -644,6 +647,71 @@ export class WindowController {
     await this.sessionCloses.waitForAll()
   }
 
+  async prepareTextDraftsForShutdown(): Promise<boolean> {
+    const windows = [...this.windowBySpaceId.values()]
+    try {
+      for (const window of windows) {
+        if (
+          window.isDestroyed() ||
+          !(await this.textDraftClose.prepare(window.webContents))
+        ) {
+          throw new Error("Draft closure cancelled")
+        }
+      }
+      return true
+    } catch {
+      for (const candidate of windows) {
+        if (!candidate.isDestroyed())
+          this.textDraftClose.cancel(candidate.webContents)
+      }
+      return false
+    }
+  }
+
+  async chooseTextDraftClose(
+    owner: WebContents,
+    paths: string[]
+  ): Promise<"save" | "discard" | "cancel"> {
+    this.requireSession(owner)
+    const window = BrowserWindow.fromWebContents(owner)
+    if (!window) return "cancel"
+    const locale = await this.locale()
+    const t = (message: string) => translateEidosLite(locale, message)
+    const result = await dialog.showMessageBox(window, {
+      type: "warning",
+      message: t("Save changes before closing?"),
+      detail: paths.slice(0, 20).join("\n"),
+      buttons: [t("Save all"), t("Discard changes"), t("Cancel")],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    })
+    return (["save", "discard", "cancel"] as const)[result.response] ?? "cancel"
+  }
+
+  async saveTextDraftCopy(
+    owner: WebContents,
+    relativePath: string,
+    content: string
+  ): Promise<boolean> {
+    const session = this.requireSession(owner)
+    const source = session.resolveUserPath(relativePath)
+    const window = BrowserWindow.fromWebContents(owner)
+    if (!window) return false
+    const extension = path.extname(source)
+    const result = await dialog.showSaveDialog(window, {
+      title: translateEidosLite(await this.locale(), "Save a copy"),
+      defaultPath: `${source.slice(0, source.length - extension.length)}-copy${extension}`,
+    })
+    if (result.canceled || !result.filePath) return false
+    // A copy must never overwrite the original or another existing file.
+    const destination = result.filePath
+    await session.gate.withMutation(() =>
+      writeTextDraftCopy(destination, content)
+    )
+    return true
+  }
+
   private async bindSpace(
     webContents: WebContents,
     root: string
@@ -692,6 +760,24 @@ export class WindowController {
       throw new Error("The requesting window no longer exists")
     }
     this.sessionByWebContents.set(webContents.id, session)
+    let closeApproved = false
+    let checkingDrafts = false
+    window.on("close", (event) => {
+      if (this.closing || closeApproved) return
+      event.preventDefault()
+      if (checkingDrafts) return
+      checkingDrafts = true
+      void this.textDraftClose.prepare(webContents).then((allowed) => {
+        checkingDrafts = false
+        if (allowed && !window.isDestroyed()) {
+          closeApproved = true
+          window.close()
+        } else {
+          this.textDraftClose.cancel(webContents)
+        }
+      })
+    })
+    window.once("closed", () => this.textDraftClose.cancel(webContents))
     this.promoteToSpaceWindow(window)
     session.onChanged((snapshot) => {
       if (!webContents.isDestroyed()) {

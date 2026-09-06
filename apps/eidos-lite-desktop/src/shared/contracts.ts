@@ -52,6 +52,11 @@ export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
 export const EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX = 64 * 1024 * 1024
 
 export const IPC_CHANNELS = {
+  textDraftPrepareClose: "eidos-lite:text-draft-prepare-close",
+  textDraftReleaseClose: "eidos-lite:text-draft-release-close",
+  textDraftCloseReply: "eidos-lite:text-draft-close-reply",
+  textDraftCloseChoice: "eidos-lite:text-draft-close-choice",
+  textDraftSaveCopy: "eidos-lite:text-draft-save-copy",
   appInfo: "eidos-lite:app-info",
   preferencesGet: "eidos-lite:preferences-get",
   preferencesUpdate: "eidos-lite:preferences-update",
@@ -1659,6 +1664,11 @@ export interface RuntimeSystemMetadataMergeOptions {
 export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
 
 export interface EidosLiteApi {
+  onTextDraftPrepareClose(listener: (token: string) => void): () => void
+  onTextDraftReleaseClose(listener: () => void): () => void
+  replyTextDraftClose(token: string, allowed: boolean): void
+  chooseTextDraftClose(paths: string[]): Promise<"save" | "discard" | "cancel">
+  saveTextDraftCopy(relativePath: string, content: string): Promise<boolean>
   getAppInfo(): Promise<EidosLiteAppInfo>
   getPreferences(): Promise<EidosLitePreferences>
   updatePreferences(

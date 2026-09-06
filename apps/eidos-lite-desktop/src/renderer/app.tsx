@@ -90,6 +90,7 @@ import {
   type VersionDiffNavigationLocation,
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
+import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { rendererPlatform } from "./renderer-platform"
 import {
   missingMarkdownNotePath,
@@ -1514,6 +1515,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   const updateTextFileDraft = useCallback(
     (relativePath: string, draft: TextFileDraft | null) => {
+      textDraftLifecycle.update(relativePath, draft)
       setTextFileDrafts((current) => {
         if (draft) return { ...current, [relativePath]: draft }
         if (!(relativePath in current)) return current
@@ -1524,6 +1526,53 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     },
     []
   )
+
+  useEffect(() => {
+    const api = window.eidosLite
+    if (!api.onTextDraftPrepareClose) return
+    let preparing = false
+    const release = () => {
+      textDraftLifecycle.release()
+      document.getElementById("root")?.removeAttribute("inert")
+    }
+    const unsubscribe = api.onTextDraftPrepareClose((token) => {
+      if (preparing) return
+      preparing = true
+      document.getElementById("root")?.setAttribute("inert", "")
+      void textDraftLifecycle
+        .prepare({
+          choose: api.chooseTextDraftClose,
+          save: api.saveTextFile,
+          saved: (relativePath, result) => {
+            if (result.status === "saved") {
+              updateTextFileDraft(relativePath, null)
+              setTextPreview((current) =>
+                current?.relativePath === relativePath ? result.file : current
+              )
+              setTextPreviewReloadToken((current) => current + 1)
+            }
+          },
+        })
+        .then((allowed) => {
+          if (!allowed) release()
+          api.replyTextDraftClose(token, allowed)
+        })
+        .catch((cause) => {
+          setError(errorMessage(cause))
+          release()
+          api.replyTextDraftClose(token, false)
+        })
+        .finally(() => {
+          preparing = false
+        })
+    })
+    const unsubscribeRelease = api.onTextDraftReleaseClose(release)
+    return () => {
+      unsubscribe()
+      unsubscribeRelease()
+      release()
+    }
+  }, [updateTextFileDraft])
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {

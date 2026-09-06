@@ -16,6 +16,16 @@ available, and text search must label its scope explicitly.
 
 ## 1. Protect text drafts
 
+Implemented. Native macOS development acceptance on 2026-09-06 verified two
+dirty documents in the close dialog, cancellation, Save all followed by byte
+inspection and reopen, external-conflict close refusal, exclusive Save a copy,
+quit cancellation, and explicit discard. Real files were confined to a temporary
+Space. Closing after a conflict now exposes recovery actions in the editor.
+The initial full source run passed 799 tests (187 opt-in tests skipped), with
+focused follow-up coverage for conflict recovery. Update preparation is covered
+by the shared handshake and updater tests; an actual installed-version update
+remains part of step 5. Same-window Space replacement is rejected by the host.
+
 - Reproduce unsaved edits followed by window close, quit, Space replacement,
   and update installation before changing lifecycle behavior.
 - Add a host/renderer close handshake covering every dirty document, including

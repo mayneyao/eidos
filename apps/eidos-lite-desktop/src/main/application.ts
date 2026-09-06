@@ -142,11 +142,15 @@ const updater = new EidosLiteUpdater({
   // electron-updater closes windows before Electron emits before-quit. Drain
   // runtimes and mark the controller as closing first so a Space close cannot
   // recreate Welcome and cancel the install lifecycle.
-  prepareToInstall: () =>
-    prepareForShutdown("update-install").catch((error) => {
+  prepareToInstall: async () => {
+    if (!(await controller.prepareTextDraftsForShutdown())) {
+      throw new Error("Update cancelled: text drafts were not closed")
+    }
+    await prepareForShutdown("update-install").catch((error) => {
       failShutdown(error)
       throw error
-    }),
+    })
+  },
   broadcast: (status) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {
@@ -230,7 +234,14 @@ app.on("activate", () => {
 app.on("before-quit", (event) => {
   if (shutdownStarted) return
   event.preventDefault()
-  void prepareForShutdown("quit").then(() => app.quit(), failShutdown)
+  void controller
+    .prepareTextDraftsForShutdown()
+    .then(async (allowed) => {
+      if (!allowed) return
+      await prepareForShutdown("quit")
+      app.quit()
+    })
+    .catch(failShutdown)
 })
 
 async function installApplicationMenu(): Promise<void> {

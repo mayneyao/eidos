@@ -39,6 +39,7 @@ import {
   prepareMarkdownEditorSurface,
 } from "./markdown-editor-surface"
 import { renderSafeMarkdown } from "./markdown-preview"
+import { textDraftLifecycle } from "./text-draft-lifecycle"
 
 const useRendererLayoutEffect =
   typeof document === "undefined" ? useEffect : useLayoutEffect
@@ -125,8 +126,13 @@ function EditableTextFile({
 }) {
   const { t } = useEidosLiteI18n()
   const initialContent = draft?.content ?? preview.content
+  const initialConflict = Boolean(draft && draft.revision !== preview.revision)
   const [state, setState] = useState<SaveState>(
-    initialContent === preview.content ? "saved" : "dirty"
+    initialConflict
+      ? "conflict"
+      : initialContent === preview.content
+        ? "saved"
+        : "dirty"
   )
   const [error, setError] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState(initialContent)
@@ -134,7 +140,9 @@ function EditableTextFile({
   const draftRef = useRef(initialContent)
   const savedRef = useRef(preview.content)
   const revisionRef = useRef(draft?.revision ?? preview.revision)
-  const conflictRef = useRef<TextFilePreviewResult | null>(null)
+  const conflictRef = useRef<TextFilePreviewResult | null>(
+    initialConflict ? preview : null
+  )
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const mountedRef = useRef(true)
 
@@ -146,6 +154,7 @@ function EditableTextFile({
   }, [])
 
   const requestSave = useCallback((): Promise<void> => {
+    if (textDraftLifecycle.isLocked) return Promise.resolve()
     const content = draftRef.current
     queueRef.current = queueRef.current
       .catch(() => undefined)
@@ -176,15 +185,18 @@ function EditableTextFile({
           savedRef.current = content
           revisionRef.current = result.file.revision
           onSaved(result.file)
+          if (draftRef.current === content) {
+            onDraftChange(preview.relativePath, null)
+          } else {
+            onDraftChange(preview.relativePath, {
+              content: draftRef.current,
+              revision: result.file.revision,
+            })
+          }
           if (mountedRef.current) {
             if (draftRef.current === content) {
-              onDraftChange(preview.relativePath, null)
               setState("saved")
             } else {
-              onDraftChange(preview.relativePath, {
-                content: draftRef.current,
-                revision: result.file.revision,
-              })
               setState("dirty")
             }
           }
@@ -196,13 +208,28 @@ function EditableTextFile({
           }
         }
       })
-    return queueRef.current
+    return textDraftLifecycle.track(queueRef.current)
   }, [onDraftChange, onSaved, preview.relativePath])
+
+  const [copySaved, setCopySaved] = useState(false)
+
+  useEffect(
+    () =>
+      textDraftLifecycle.onConflict((relativePath, result) => {
+        if (relativePath !== preview.relativePath) return
+        conflictRef.current = result.current
+        setState("conflict")
+        setError(null)
+      }),
+    [preview.relativePath]
+  )
 
   const handleChange = useCallback(
     (content: string) => {
+      if (textDraftLifecycle.isLocked) return
       if (content === draftRef.current) return
       draftRef.current = content
+      setCopySaved(false)
       setEditorContent(content)
       setError(null)
       const changed = content !== savedRef.current
@@ -274,6 +301,29 @@ function EditableTextFile({
             >
               {t("Reload from disk")}
             </button>
+          ) : null}
+          <button
+            type="button"
+            className="text-editor-save-issue-action"
+            onClick={() => {
+              void window.eidosLite
+                .saveTextDraftCopy(preview.relativePath, draftRef.current)
+                .then((saved) => {
+                  if (saved) setCopySaved(true)
+                })
+                .catch((cause) =>
+                  setError(
+                    cause instanceof Error ? cause.message : String(cause)
+                  )
+                )
+            }}
+          >
+            {t("Save a copy")}
+          </button>
+          {copySaved ? (
+            <span role="status">
+              {t("Copy saved. The original draft is still unsaved.")}
+            </span>
           ) : null}
         </div>
       ) : null}

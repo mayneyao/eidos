@@ -4,6 +4,12 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Save changes before closing?": "关闭前保存更改？",
+  "Save all": "全部保存",
+  "Discard changes": "放弃更改",
+  "Save a copy": "另存副本",
+  "Copy saved. The original draft is still unsaved.":
+    "副本已保存。原文件中的草稿仍未保存。",
   "Settings…": "设置…",
   File: "文件",
   Edit: "编辑",

@@ -21,6 +21,25 @@ import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
+  onTextDraftPrepareClose: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, token: string) =>
+      listener(token)
+    ipcRenderer.on(IPC_CHANNELS.textDraftPrepareClose, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.textDraftPrepareClose, handler)
+  },
+  onTextDraftReleaseClose: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.textDraftReleaseClose, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.textDraftReleaseClose, handler)
+  },
+  replyTextDraftClose: (token, allowed) =>
+    ipcRenderer.send(IPC_CHANNELS.textDraftCloseReply, token, allowed),
+  chooseTextDraftClose: (paths) =>
+    ipcRenderer.invoke(IPC_CHANNELS.textDraftCloseChoice, paths),
+  saveTextDraftCopy: (relativePath, content) =>
+    ipcRenderer.invoke(IPC_CHANNELS.textDraftSaveCopy, relativePath, content),
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo),
   getPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.preferencesGet),
   updatePreferences: (patch) =>
