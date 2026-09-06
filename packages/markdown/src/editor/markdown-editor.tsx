@@ -38,6 +38,7 @@ import { TextFormatPolicyPlugin } from "../plugins/text-format-policy-plugin"
 import { InsertBlockPlugin } from "../plugins/insert-block-plugin"
 import { InternalNavigationPlugin } from "../plugins/internal-navigation-plugin"
 import { MarkdownStatePlugin } from "../plugins/markdown-state-plugin"
+import { DocumentFindPlugin } from "../plugins/document-find-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
 import {
   MarkdownShortcutProvider,
@@ -47,6 +48,11 @@ import type { MarkdownEditorLabels, MarkdownEditorProps } from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
 
 const DEFAULT_LABELS: MarkdownEditorLabels = {
+  findInDocument: "Find in document",
+  noTextMatches: "No matches",
+  previousMatch: "Previous match",
+  nextMatch: "Next match",
+  closeFind: "Close find",
   paragraph: "Paragraph",
   heading1: "Heading 1",
   heading2: "Heading 2",
@@ -297,6 +303,7 @@ function MarkdownEditorImplementation({
     >
       <LexicalComposer initialConfig={initialConfig}>
         <div className="eme-editor-shell">
+          <DocumentFindPlugin labels={resolvedLabels} />
           {!readOnly && controls.toolbar ? (
             <FloatingToolbarPlugin
               items={registry.toolbar}

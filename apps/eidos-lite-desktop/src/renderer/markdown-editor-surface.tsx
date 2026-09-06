@@ -249,6 +249,11 @@ export function MarkdownEditorSurface({
               inputProfile === "document" ? relativePath : undefined
             }
             labels={{
+              findInDocument: t("Find in document"),
+              noTextMatches: t("No matches"),
+              previousMatch: t("Previous match"),
+              nextMatch: t("Next match"),
+              closeFind: t("Close find"),
               copyBlockLink: t("Copy block link"),
               linkToFile: t("Link to a file"),
               searchFiles: t("Search files…"),

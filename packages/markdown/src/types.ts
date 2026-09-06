@@ -113,6 +113,11 @@ export interface MarkdownUnsupportedFeature {
 }
 
 export interface MarkdownEditorLabels {
+  findInDocument: string
+  noTextMatches: string
+  previousMatch: string
+  nextMatch: string
+  closeFind: string
   copyBlockLink: string
   linkToFile: string
   searchFiles: string

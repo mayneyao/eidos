@@ -261,6 +261,49 @@
   scrollbar-width: thin;
 }
 
+.eme-document-find {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--eme-border);
+  color: var(--eme-foreground);
+  background: var(--eme-background);
+  font-size: 0.8125rem;
+}
+.eme-document-find input {
+  min-width: 0;
+  flex: 1;
+  max-width: 24rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--eme-border);
+  border-radius: 0.25rem;
+  color: inherit;
+  background: var(--eme-background);
+}
+.eme-document-find button {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--eme-border);
+  background: var(--eme-muted);
+  color: inherit;
+  cursor: pointer;
+}
+.eme-document-find button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.eme-document-find :focus-visible {
+  outline: 2px solid var(--eme-ring);
+  outline-offset: 1px;
+}
+.eme-document-find [role="status"] {
+  white-space: nowrap;
+  color: var(--eme-muted-foreground);
+}
+
 .eme-editor[data-layout="embedded"] .eme-editor-stage {
   height: auto;
   overflow: visible;

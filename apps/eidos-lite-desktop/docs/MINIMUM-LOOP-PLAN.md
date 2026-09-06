@@ -41,6 +41,16 @@ drafts, disk conflicts and write failures through the real host boundary.
 
 ## 2. Find text inside the current document
 
+Implemented. The shared rich Markdown editor now provides literal Find over
+rendered text with non-mutating CSS highlights. Source mode uses Pierre's existing
+Find panel. Native macOS development acceptance on 2026-09-06 verified Cmd+F,
+Chinese matches across inline formatting, counts, previous/next, off-screen
+reveal and Escape. Source acceptance also verified literal `[a]+` matching.
+Both fixture files retained identical SHA-256 hashes, and closing required no
+draft decision. Focused tests cover live match refresh and undo without Find
+adding document changes. Workspace result navigation will reuse the text-range
+reveal helper in step 3; source locations remain distinct from rendered text.
+
 - Provide Cmd/Ctrl+F, match count, previous/next and Escape.
 - Support literal Chinese/English queries in Source and Rich text modes.
 - Define matching over visible text in Rich text mode and source in Source

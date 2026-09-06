@@ -2,6 +2,11 @@ import type { MarkdownEditorLabels } from "@eidos.space/markdown"
 
 /** Site-owned translations through the public component API. */
 export const chineseEditorLabels = {
+  findInDocument: "在文档中查找",
+  noTextMatches: "无匹配项",
+  previousMatch: "上一个匹配项",
+  nextMatch: "下一个匹配项",
+  closeFind: "关闭查找",
   paragraph: "正文",
   heading1: "一级标题",
   heading2: "二级标题",

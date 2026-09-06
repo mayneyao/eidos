@@ -4,6 +4,11 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Find in document": "在文档中查找",
+  "No matches": "无匹配项",
+  "Previous match": "上一个匹配项",
+  "Next match": "下一个匹配项",
+  "Close find": "关闭查找",
   "Save changes before closing?": "关闭前保存更改？",
   "Save all": "全部保存",
   "Discard changes": "放弃更改",
