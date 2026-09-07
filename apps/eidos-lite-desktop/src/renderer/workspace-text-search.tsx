@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { TextSearchHit, TextSearchProgress } from "../shared/text-search"
 import { useEidosLiteI18n } from "./i18n"
-import { SearchHighlight } from "./search-highlight"
+import { WorkspaceSearchResults } from "./workspace-search-results"
 
 export function WorkspaceTextSearch({
   onOpen,
@@ -76,21 +76,26 @@ export function WorkspaceTextSearch({
           )}
         </p>
       </details>
+      {progress && (progress.skipped > 0 || progress.errors > 0) ? (
+        <p>
+          {t("{scanned} scanned · {skipped} skipped · {errors} errors", {
+            scanned: progress.scanned,
+            skipped: progress.skipped,
+            errors: progress.errors,
+          })}
+        </p>
+      ) : null}
       {error ? (
         <p role="alert">{error}</p>
       ) : query ? (
         <p role="status">
           {progress?.done ? t("Search finished") : t("Searching…")}{" "}
           {progress
-            ? t(
-                "{matches} matches · {files} files · {skipped} skipped · {errors} errors",
-                {
-                  matches: progress.hits.length,
-                  files: progress.scanned,
-                  skipped: progress.skipped,
-                  errors: progress.errors,
-                }
-              )
+            ? t("{matches} matches in {files} files", {
+                matches: progress.hits.length,
+                files: new Set(progress.hits.map((hit) => hit.relativePath))
+                  .size,
+              })
             : ""}
         </p>
       ) : null}
@@ -137,30 +142,21 @@ export function WorkspaceTextSearch({
       {progress?.done && progress.hits.length === 0 ? (
         <p>{t("No text matches in the scanned files.")}</p>
       ) : null}
-      <ol className="workspace-search-results">
-        {progress?.hits.map((hit) => (
-          <li key={`${hit.relativePath}:${hit.start}`}>
-            <button
-              disabled={opening}
-              title={`${hit.relativePath}:${hit.line}:${hit.column}`}
-              onClick={() => {
-                setOpening(true)
-                void onOpen(hit)
-                  .catch((cause) => setError(String(cause)))
-                  .finally(() => setOpening(false))
-              }}
-            >
-              <strong>{hit.relativePath}</strong>
-              <span>
-                {hit.line}:{hit.column}
-              </span>
-              <pre>
-                <SearchHighlight text={hit.snippet} query={hit.query} />
-              </pre>
-            </button>
-          </li>
-        ))}
-      </ol>
+      <WorkspaceSearchResults
+        hits={progress?.hits ?? []}
+        query={query}
+        opening={opening}
+        onOpen={async (hit) => {
+          setOpening(true)
+          try {
+            await onOpen(hit)
+          } catch (cause) {
+            setError(String(cause))
+          } finally {
+            setOpening(false)
+          }
+        }}
+      />
     </section>
   )
 }

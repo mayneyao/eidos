@@ -9289,29 +9289,96 @@ body {
   margin: 0;
 }
 .workspace-search-results button {
-  display: grid;
-  grid-template-columns: 1fr auto;
   width: 100%;
-  gap: 4px;
-  text-align: left;
-  padding: 8px 4px;
+  min-width: 0;
+  height: 26px;
   border: 0;
-  border-bottom: 1px solid var(--control-border);
+  border-radius: 3px;
   color: inherit;
   background: transparent;
-}
-.workspace-search-results strong {
-  overflow-wrap: anywhere;
-}
-.workspace-search-results pre {
-  grid-column: 1 / -1;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 0;
   font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .workspace-search-results button:hover {
   background: var(--surface-hover);
+}
+.workspace-search-results button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.workspace-search-file-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px;
+}
+.workspace-search-file-heading > svg {
+  flex: none;
+}
+.workspace-search-file-heading[aria-expanded="true"] .workspace-search-chevron {
+  transform: rotate(90deg);
+}
+.workspace-search-file-heading strong,
+.workspace-search-directory {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-search-file-heading strong {
+  flex: 0 1 auto;
+  font-weight: 500;
+}
+.workspace-search-directory {
+  min-width: 0;
+  flex: 1;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.workspace-search-count {
+  margin-left: auto;
+  flex: none;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  background: var(--control-fill);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-size: 11px;
+}
+.workspace-search-file-matches {
+  margin: 0 0 4px 10px;
+  padding: 0 0 0 8px;
+  list-style: none;
+  border-left: 1px solid var(--control-border);
+}
+.workspace-search-match {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+.workspace-search-line {
+  flex: none;
+  min-width: 3ch;
+  color: var(--ink-muted);
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.workspace-search-snippet {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.workspace-search-match[aria-current="true"] {
+  background: var(--surface-selected);
+}
+.workspace-search-match:disabled {
+  cursor: default;
 }
 .workspace-search-results mark {
   color: inherit;

@@ -4,6 +4,9 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "{matches} matches in {files} files": "{files} 个文件中有 {matches} 个匹配",
+  "{scanned} scanned · {skipped} skipped · {errors} errors":
+    "已扫描 {scanned} 个文件 · 跳过 {skipped} 个 · {errors} 个错误",
   Files: "文件",
   "Back to files": "返回文件",
   Search: "搜索",
