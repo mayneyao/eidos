@@ -132,7 +132,9 @@ export function EidosFileRecordAttachmentEditor({
           ))}
         </div>
       ) : (
-        <p className="px-1 text-xs text-muted-foreground">{t("No files")}</p>
+        <p className="px-1 text-xs leading-5 text-muted-foreground">
+          {t("No files")}
+        </p>
       )}
       {onImportFiles || eidosFileRemoteAssetAcquisitionAllowed(assetSession) ? (
         <div className="flex flex-wrap items-start gap-1">

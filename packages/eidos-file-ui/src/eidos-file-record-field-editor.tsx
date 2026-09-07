@@ -69,7 +69,7 @@ export function EidosFileRecordFieldEditor({
   const [numberError, setNumberError] = useState<string | null>(null)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
     text: draft,
-    maxLines: appearance === "record-title" ? 4 : field.isRecordLabel ? 3 : 12,
+    maxLines: appearance === "record-title" ? 1 : field.isRecordLabel ? 3 : 12,
     whiteSpace: appearance === "record-title" ? "normal" : undefined,
   })
 
@@ -271,9 +271,24 @@ export function EidosFileRecordFieldEditor({
             ? "min-h-8 resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl"
             : "min-h-8 resize-none text-xs leading-5"
         }
-        style={measuredText.style}
+        style={
+          appearance === "record-title"
+            ? {
+                ...measuredText.style,
+                height: "1lh",
+                minHeight: "1lh",
+                maxHeight: "1lh",
+                overflowY: "hidden",
+              }
+            : measuredText.style
+        }
+        title={appearance === "record-title" ? draft : undefined}
         data-eidos-file-text-overflow={
-          measuredText.overflowing ? "scroll" : undefined
+          measuredText.overflowing
+            ? appearance === "record-title"
+              ? "clipped"
+              : "scroll"
+            : undefined
         }
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}

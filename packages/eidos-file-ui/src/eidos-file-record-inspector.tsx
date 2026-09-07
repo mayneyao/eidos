@@ -18,6 +18,7 @@ import type {
 import { decodeEidosFileValues } from "@eidos.space/eidos-file"
 import {
   Check,
+  Copy,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -84,7 +85,7 @@ function AutosizedRecordFieldText({
       ref={measured.ref}
       className={cn(
         empty
-          ? "text-xs text-muted-foreground"
+          ? "text-xs leading-5 text-muted-foreground"
           : "whitespace-pre-wrap break-words text-xs leading-5",
         measured.overflowing && "overscroll-contain pr-1"
       )}
@@ -95,6 +96,63 @@ function AutosizedRecordFieldText({
     >
       {display}
     </p>
+  )
+}
+
+function CopyableFieldValue({
+  field,
+  row,
+  onError,
+}: {
+  field: EidosFileFieldInfo
+  row: EidosFileRow
+  onError?: (error: unknown) => void
+}) {
+  const { timeZone, translate: t } = useEidosFileUI()
+  const [copied, setCopied] = useState(false)
+  const value = row[field.tableColumnName]
+  const text = eidosFileRecordFieldText(row, field, timeZone)
+  useEffect(() => {
+    setCopied(false)
+  }, [text, row._id])
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return (
+    <div className="relative min-w-0 pr-8">
+      <FieldValue field={field} row={row} onError={onError} />
+      {value !== null && value !== undefined && value !== "" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-0 -top-0.5 h-6 w-6 text-muted-foreground opacity-0 group-hover/readonly:opacity-100 group-focus-within/readonly:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={t("Copy {field}", {
+            field: eidosFileFieldDisplayName(field),
+          })}
+          title={copied ? t("Copied") : t("Copy")}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(text)
+              setCopied(true)
+            } catch (error) {
+              onError?.(error)
+            }
+          }}
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          <span className="sr-only" role="status">
+            {copied ? t("Copied") : ""}
+          </span>
+        </Button>
+      ) : null}
+    </div>
   )
 }
 
@@ -591,7 +649,7 @@ export function EidosFileRecordInspector({
       <div
         key={field.tableColumnName}
         className={cn(
-          "eidos-file-record-field grid",
+          "eidos-file-record-field group/readonly grid",
           variant === "page"
             ? "gap-x-5 gap-y-1 py-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-start"
             : "gap-1.5 px-4 py-3"
@@ -600,7 +658,11 @@ export function EidosFileRecordInspector({
         <p
           className={cn(
             "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground",
-            variant === "page" ? "pt-1 text-xs" : "text-[11px]"
+            variant === "page" ? "text-xs leading-5" : "text-[11px]",
+            variant === "page" &&
+              fieldWritable &&
+              field.type !== "file" &&
+              "pt-1.5"
           )}
         >
           {FieldTypeIcon ? (
@@ -641,7 +703,12 @@ export function EidosFileRecordInspector({
             onChange={(value) => editField(field, value)}
           />
         ) : (
-          <FieldValue field={field} row={currentRow} onError={onError} />
+          <CopyableFieldValue
+            key={`${currentRow._id}:${field.tableColumnName}`}
+            field={field}
+            row={currentRow}
+            onError={onError}
+          />
         )}
       </div>
     )
@@ -682,7 +749,13 @@ export function EidosFileRecordInspector({
                 ) : (
                   <h2
                     ref={measuredTitle.ref}
-                    className="min-w-0 break-words text-xl font-semibold leading-tight tracking-tight sm:text-2xl"
+                    className="line-clamp-1 min-w-0 break-words text-xl font-semibold leading-tight tracking-tight sm:text-2xl"
+                    style={{
+                      height: "1lh",
+                      minHeight: "1lh",
+                      overflowY: "hidden",
+                    }}
+                    title={title}
                     data-eidos-file-record-title=""
                   >
                     {title}

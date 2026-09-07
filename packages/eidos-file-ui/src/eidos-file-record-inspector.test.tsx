@@ -100,6 +100,51 @@ describe("EidosFileRecordInspector", () => {
     container.remove()
   })
 
+  it("copies the full readonly value, including multiline text and zero, without editing", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    })
+    const onCellEdit = vi.fn()
+    const onError = vi.fn()
+    const render = async (formula: string | number) => {
+      await act(async () =>
+        root.render(
+          <EidosFileRecordInspector
+            row={{ _id: String(formula), title: "Title", done: 0, formula }}
+            fields={fields}
+            onCellEdit={onCellEdit}
+            onError={onError}
+          />
+        )
+      )
+    }
+    try {
+      const text = "First line\n\nSecond line"
+      await render(text)
+      const copy = () =>
+        container.querySelector<HTMLButtonElement>(
+          'button[aria-label="Copy Formula"]'
+        )!
+      await act(async () => copy().click())
+      expect(writeText).toHaveBeenLastCalledWith(text)
+      expect(copy().title).toBe("Copied")
+      await render(0)
+      await act(async () => copy().click())
+      expect(writeText).toHaveBeenLastCalledWith("0")
+      const failure = new Error("Clipboard denied")
+      writeText.mockRejectedValueOnce(failure)
+      await act(async () => copy().click())
+      expect(onError).toHaveBeenCalledWith(failure)
+      expect(onCellEdit).not.toHaveBeenCalled()
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor)
+      else Reflect.deleteProperty(navigator, "clipboard")
+    }
+  })
+
   it("autosaves editable fields and keeps derived values readonly", async () => {
     const row = {
       _id: "row_1",
