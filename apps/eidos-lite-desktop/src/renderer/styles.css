@@ -1140,6 +1140,7 @@ body {
 
 .workbench {
   --space-sidebar-width: 17.5rem;
+  --space-sidebar-resize-hit-width: 12px;
   --space-sidebar-track-width: var(--space-sidebar-width);
   --space-sidebar-min-width: 13rem;
   --workbench-content-min-width: 22.5rem;
@@ -1674,8 +1675,10 @@ body {
   z-index: 50;
   top: 0;
   bottom: 0;
-  left: calc(var(--effective-space-sidebar-width) - 12px);
-  width: 12px;
+  left: calc(
+    var(--effective-space-sidebar-width) - var(--space-sidebar-resize-hit-width)
+  );
+  width: var(--space-sidebar-resize-hit-width);
   opacity: 1;
   cursor: col-resize;
   touch-action: none;
@@ -9260,6 +9263,11 @@ body {
 /* Workspace text search uses the host's shared semantic colors. */
 .workspace-text-search {
   min-height: 0;
+  /* Keep native scrollbar interactions outside the overlaid resize handle. */
+  margin-inline-end: var(--space-sidebar-resize-hit-width);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--control-border) transparent;
   flex: 1;
   display: flex;
   flex-direction: column;
