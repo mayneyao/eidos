@@ -35,7 +35,7 @@
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
     "@eidos.space/markdown": "workspace:*",
-    "@eidos.space/graft": "0.3.25",
+    "@eidos.space/graft": "0.3.26",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.3.2",
     "@pierre/trees": "1.0.0-beta.5",
@@ -54,11 +54,11 @@
     "yaml": "2.9.0"
   },
   "optionalDependencies": {
-    "@eidos.space/graft-darwin-arm64": "0.3.25",
-    "@eidos.space/graft-darwin-x64": "0.3.25",
-    "@eidos.space/graft-linux-arm64-gnu": "0.3.25",
-    "@eidos.space/graft-linux-x64-gnu": "0.3.25",
-    "@eidos.space/graft-win32-x64-msvc": "0.3.25"
+    "@eidos.space/graft-darwin-arm64": "0.3.26",
+    "@eidos.space/graft-darwin-x64": "0.3.26",
+    "@eidos.space/graft-linux-arm64-gnu": "0.3.26",
+    "@eidos.space/graft-linux-x64-gnu": "0.3.26",
+    "@eidos.space/graft-win32-x64-msvc": "0.3.26"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

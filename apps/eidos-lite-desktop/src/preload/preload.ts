@@ -306,6 +306,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message),
   getVersionChanges: (limit, after) =>
     ipcRenderer.invoke(IPC_CHANNELS.versionChanges, limit, after),
+  getFileHistory: (path, cursor) =>
+    ipcRenderer.invoke(IPC_CHANNELS.fileHistory, path, cursor),
+  restoreTextVersion: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.restoreTextVersion, request),
   getVersionHistory: (limit, after) =>
     ipcRenderer.invoke(IPC_CHANNELS.versionHistory, limit, after),
   getVersionDiff: (commitId, parentId, limit, after) =>

@@ -131,6 +131,7 @@ export function InlineTextDiff({
   fixedLayout,
   fixedSoftWrap,
   toolbarEnd,
+  toolbarStart,
 }: {
   content: SpaceVersionTextContentDiff
   theme: ResolvedAppearance
@@ -140,6 +141,7 @@ export function InlineTextDiff({
   fixedLayout?: "split" | "unified"
   fixedSoftWrap?: boolean
   toolbarEnd?: ReactNode
+  toolbarStart?: ReactNode
 }) {
   const [layout, setLayout] = useState<"split" | "unified">(
     fixedLayout ?? defaultLayout ?? "split"
@@ -177,27 +179,34 @@ export function InlineTextDiff({
 
   if (before === null || after === null) {
     return (
-      <VersionTextDiffUnavailable
-        before={content.before}
-        after={content.after}
-      />
+      <div>
+        {toolbarStart}
+        <VersionTextDiffUnavailable
+          before={content.before}
+          after={content.after}
+        />
+      </div>
     )
   }
 
   return (
     <div className="version-text-diff" data-version-text-diff>
       <header className="version-inspector-diff-bar version-text-diff-toolbar">
-        <div>
-          <strong>{title}</strong>
-          <span>
-            {byteCount(
-              content.before.state === "utf8" ? content.before.size : 0
-            )}
-            B<span aria-hidden="true"> → </span>
-            {byteCount(content.after.state === "utf8" ? content.after.size : 0)}
-            B
-          </span>
-        </div>
+        {toolbarStart ?? (
+          <div>
+            <strong>{title}</strong>
+            <span>
+              {byteCount(
+                content.before.state === "utf8" ? content.before.size : 0
+              )}
+              B<span aria-hidden="true"> → </span>
+              {byteCount(
+                content.after.state === "utf8" ? content.after.size : 0
+              )}
+              B
+            </span>
+          </div>
+        )}
         {toolbarEnd ??
           (!fixedLayout ||
           (defaultSoftWrap !== undefined && fixedSoftWrap === undefined) ? (
@@ -272,19 +281,29 @@ export function VersionTextDiffContent({
   content,
   previousPath,
   theme,
+  actions,
 }: {
   content: SpaceVersionTextContentDiff
   previousPath?: string
   theme: ResolvedAppearance
+  actions?: ReactNode
 }) {
   if (previousPath && textContentMatches(content)) {
     return (
-      <VersionRenameSummary previousPath={previousPath} path={content.path} />
+      <div>
+        {actions}
+        <VersionRenameSummary previousPath={previousPath} path={content.path} />
+      </div>
     )
   }
   if (!previousPath) {
     return (
-      <InlineTextDiff content={content} theme={theme} defaultSoftWrap={false} />
+      <InlineTextDiff
+        content={content}
+        theme={theme}
+        defaultSoftWrap={false}
+        toolbarStart={actions}
+      />
     )
   }
   return (
@@ -294,7 +313,12 @@ export function VersionTextDiffContent({
         path={content.path}
         compact
       />
-      <InlineTextDiff content={content} theme={theme} defaultSoftWrap={false} />
+      <InlineTextDiff
+        content={content}
+        theme={theme}
+        defaultSoftWrap={false}
+        toolbarStart={actions}
+      />
     </div>
   )
 }
@@ -307,10 +331,12 @@ export function VersionTextDiff({
   path,
   previousPath,
   theme,
+  onRestoreVersion,
 }: {
   path: string
   previousPath?: string
   theme: ResolvedAppearance
+  onRestoreVersion?(revision: string): Promise<string[]>
 } & (
   | {
       mode: "history"
@@ -390,17 +416,29 @@ export function VersionTextDiff({
     )
   }
 
+  const actions = (
+    <VersionTextRecovery
+      key={`${mode}:${commitId ?? expectedHead}:${path}:${attempt}`}
+      content={content}
+      onRestore={
+        onRestoreVersion &&
+        mode === "history" &&
+        (content.after.state === "utf8" ||
+          (content.after.state === "absent" && parentId))
+          ? () =>
+              onRestoreVersion(
+                content.after.state === "utf8" ? commitId! : parentId!
+              )
+          : undefined
+      }
+    />
+  )
   return (
-    <div className="version-text-change-stack">
-      <VersionTextRecovery
-        key={`${mode}:${commitId ?? expectedHead}:${path}:${attempt}`}
-        content={content}
-      />
-      <VersionTextDiffContent
-        content={content}
-        previousPath={previousPath}
-        theme={theme}
-      />
-    </div>
+    <VersionTextDiffContent
+      content={content}
+      previousPath={previousPath}
+      theme={theme}
+      actions={actions}
+    />
   )
 }

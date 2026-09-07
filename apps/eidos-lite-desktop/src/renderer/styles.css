@@ -1890,6 +1890,32 @@ body {
   letter-spacing: -0.015em;
 }
 
+.file-titlebar-document {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.file-titlebar-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+.file-titlebar-document:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .file-titlebar-dirty {
   width: 0.4rem;
   height: 0.4rem;
@@ -5709,6 +5735,37 @@ body {
   min-height: 0;
 }
 
+.version-history-scope {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+.version-history-scope label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--ink-muted);
+  height: 1.75rem;
+  min-width: 0;
+}
+.version-history-scope select {
+  min-width: 0;
+  flex-shrink: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.4rem;
+}
+.version-history-scope label > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+}
+
 .version-panel {
   display: grid;
   grid-template-rows: var(--version-header-height) 2.15rem minmax(0, 1fr);
@@ -6871,6 +6928,7 @@ body {
 .version-panel-body.version-panel-history {
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .version-change-tree-shell,
@@ -9423,9 +9481,19 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 0;
   font-size: 12px;
-  border-bottom: 1px solid var(--control-border);
+}
+.version-text-diff-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.version-text-diff-toolbar > .version-text-recovery {
+  align-items: center;
+}
+.version-text-recovery [role="status"],
+.version-text-recovery [role="alert"] {
+  overflow-wrap: anywhere;
 }
 .version-text-recovery button {
   padding: 4px 8px;

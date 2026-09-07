@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto"
+import { restoreTextVersion } from "./restore-text-version"
+import type { RestoreTextVersionRequest } from "../../shared/path-history"
 import { searchSpaceText } from "./text-search"
 import type {
   TextSearchProgress,
@@ -180,6 +182,7 @@ function runtimeResultRevision(value: unknown): number | bigint | null {
 const versionReadKeys = [
   "version-changes",
   "version-history",
+  "file-history",
   "version-diff",
   "version-path-diff",
   "version-tracked-ignored",
@@ -2210,6 +2213,41 @@ export class SpaceSession {
           verifyPaths: this.runtimePool.openRelativePaths(),
         })
     )
+  }
+
+  async getFileHistory(relativePath: string, cursor?: string) {
+    await this.requireInitializedVersioning()
+    const safePath = normalizeMutableRelativePath(relativePath)
+    return this.withVersionRead(
+      "file-history",
+      "Reading file history",
+      (signal) =>
+        this.graft.pathHistory(this.canonical.root, safePath, cursor, signal)
+    )
+  }
+
+  async restoreTextVersion(request: RestoreTextVersionRequest) {
+    const historical = await this.getVersionTextDiff(
+      request.revision,
+      null,
+      request.path
+    )
+    if (historical.after.state !== "utf8")
+      throw new Error(
+        "This version has no recoverable text. Select an earlier version."
+      )
+    const content = historical.after.content
+    this.prioritizeLocalWork()
+    try {
+      const result = await this.gate.withMutation(() =>
+        restoreTextVersion(this.canonical.root, request, content)
+      )
+      this.noteLocalChange()
+      return result
+    } finally {
+      // Writes may have succeeded before an error. Never retain a stale snapshot.
+      await this.freshSnapshotAndEmit()
+    }
   }
 
   async getVersionHistory(

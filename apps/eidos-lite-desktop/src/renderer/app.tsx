@@ -892,6 +892,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [selectedEntry, setSelectedEntry] = useState<SpaceTreeEntry | null>(
     null
   )
+  const [treeRevealToken, setTreeRevealToken] = useState(0)
+  const [titleHovered, setTitleHovered] = useState(false)
+  const [titleAltPressed, setTitleAltPressed] = useState(false)
+  useEffect(() => {
+    if (!titleHovered) return
+    const update = (event: KeyboardEvent) => setTitleAltPressed(event.altKey)
+    const reset = () => setTitleAltPressed(false)
+    window.addEventListener("keydown", update)
+    window.addEventListener("keyup", update)
+    window.addEventListener("blur", reset)
+    return () => {
+      window.removeEventListener("keydown", update)
+      window.removeEventListener("keyup", update)
+      window.removeEventListener("blur", reset)
+    }
+  }, [titleHovered])
+  const titleActionRef = useRef({ path: "", spaceId: "" })
   const [contextMenu, setContextMenu] = useState<{
     entry: SpaceTreeEntry
     x: number
@@ -1383,6 +1400,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setActiveSession(null)
     setTextPreview(null)
     setTextFileDrafts({})
+    textDraftLifecycle.release()
   }, [space?.id])
 
   useEffect(() => {
@@ -1448,6 +1466,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     : false
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  titleActionRef.current = {
+    path: activeDocumentPath ?? "",
+    spaceId: space?.id ?? "",
+  }
   const activeDocumentDirty = Boolean(
     activeDocumentPath && textFileDrafts[activeDocumentPath]
   )
@@ -2910,6 +2932,50 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     activeDocumentPath,
     busyFile
   )
+  const openEntryContextMenu = (
+    entry: SpaceTreeEntry,
+    x: number,
+    y: number
+  ) => {
+    setSelectedEntry(entry)
+    void refreshPublicationBindings()
+    void refreshPublishAccountState()
+    setContextMenu({
+      entry,
+      x: Math.max(8, Math.min(x, window.innerWidth - 200)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 260)),
+    })
+  }
+  const activateDocumentTitle = async (menu?: { x: number; y: number }) => {
+    if (!activeDocumentPath || busyFile || localInteractionBlocked) return
+    const requested = titleActionRef.current
+    try {
+      const resolved = await resolveSpaceEntry(
+        space,
+        activeDocumentPath,
+        (directory) => window.eidosLite.loadSpaceDirectory(directory)
+      )
+      if (
+        titleActionRef.current.path !== requested.path ||
+        titleActionRef.current.spaceId !== requested.spaceId
+      )
+        return
+      if (!resolved.entry)
+        throw new Error(
+          `${activeDocumentPath} is no longer available in this Space.`
+        )
+      acceptSpaceSnapshot(resolved.snapshot)
+      setSelectedEntry(resolved.entry)
+      if (menu) openEntryContextMenu(resolved.entry, menu.x, menu.y)
+      else {
+        setSidebarCollapsed(false)
+        setTextSearchVisible(false)
+        setTreeRevealToken((value) => value + 1)
+      }
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+  }
   const terminalOwnsTitlebarNavigation =
     sidebarCollapsed && workbenchSurfaces.terminal === "side"
   const collapsedTitlebarNavigation = sidebarCollapsed ? (
@@ -3086,6 +3152,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               key={space.id}
               entries={space.entries}
               activePath={activeDocumentPath}
+              revealToken={treeRevealToken}
               disabled={localInteractionBlocked || busyFile !== null}
               renameRequest={treeRenameRequest}
               onSelect={setSelectedEntry}
@@ -3104,15 +3171,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onRenameError={(cause) =>
                 setError(`Could not rename item. ${errorMessage(cause)}`)
               }
-              onContextMenu={(entry, x, y) => {
-                void refreshPublicationBindings()
-                void refreshPublishAccountState()
-                setContextMenu({
-                  entry,
-                  x: Math.max(8, Math.min(x, window.innerWidth - 200)),
-                  y: Math.max(8, Math.min(y, window.innerHeight - 260)),
-                })
-              }}
+              onContextMenu={openEntryContextMenu}
             />
           </Suspense>
           {busyFile ? (
@@ -3200,7 +3259,40 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             : null}
           <div className="file-titlebar-identity">
             <div>
-              <strong>{titlebarPresentation.title}</strong>
+              {activeDocumentPath && !titlebarPresentation.pending ? (
+                <button
+                  type="button"
+                  className="file-titlebar-document"
+                  title={`${activeDocumentPath} — ${t("Reveal in Explorer")}`}
+                  aria-label={t("Reveal in Explorer")}
+                  disabled={localInteractionBlocked}
+                  onMouseEnter={(event) => {
+                    setTitleHovered(true)
+                    setTitleAltPressed(event.altKey)
+                  }}
+                  onMouseLeave={() => {
+                    setTitleHovered(false)
+                    setTitleAltPressed(false)
+                  }}
+                  onClick={() => void activateDocumentTitle()}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    void activateDocumentTitle({
+                      x: event.clientX,
+                      y: event.clientY,
+                    })
+                  }}
+                >
+                  <strong>{titlebarPresentation.title}</strong>
+                  {titleHovered && titleAltPressed ? (
+                    <small className="file-titlebar-path">
+                      {activeDocumentPath}
+                    </small>
+                  ) : null}
+                </button>
+              ) : (
+                <strong>{titlebarPresentation.title}</strong>
+              )}
               {activeDocumentDirty && !titlebarPresentation.pending ? (
                 <span
                   className="file-titlebar-dirty"
@@ -3547,6 +3639,35 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               }
               onClose={closeVersionDiffRoute}
               onNavigate={handleVersionInspectionChange}
+              onRestoreTextVersion={async (path, revision) => {
+                setPathMutationBusy(true)
+                await textDraftLifecycle.pause()
+                try {
+                  const current = await window.eidosLite
+                    .previewTextFile(path)
+                    .catch((error: unknown) => {
+                      if (String(error).includes("ENOENT")) return null
+                      throw error
+                    })
+                  if (current && current.type !== "text")
+                    throw new Error("Only text files can be restored here.")
+                  const result = await window.eidosLite.restoreTextVersion({
+                    path,
+                    revision,
+                    expectedRevision: current?.revision ?? null,
+                    draft: textDraftLifecycle.getDraft(path)?.content,
+                  })
+                  updateTextFileDraft(path, null)
+                  if (textPreview?.relativePath === path) {
+                    setTextPreview(await window.eidosLite.previewTextFile(path))
+                    setTextPreviewReloadToken((value) => value + 1)
+                  }
+                  return result.backupPaths
+                } finally {
+                  textDraftLifecycle.release()
+                  setPathMutationBusy(false)
+                }
+              }}
             />
           </Suspense>
         ) : (
@@ -3607,6 +3728,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <Suspense fallback={null}>
           <VersionPanel
             space={space}
+            currentDocumentPath={activeDocumentPath}
             refreshKey={versionRefreshKey}
             onClose={() => setVersionPanelOpen(false)}
             onSpaceChange={acceptSpaceSnapshot}
@@ -3790,7 +3912,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           }
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
-          onMouseLeave={() => setContextMenu(null)}
         >
           <SpaceEntryOpenMenuItems
             key={contextMenu.entry.relativePath}
@@ -3881,6 +4002,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     : contextMenu.entry.relativePath,
                 nonce: Date.now(),
               })
+              setSidebarCollapsed(false)
+              setTextSearchVisible(false)
+              if (contextMenu.entry.relativePath === activeDocumentPath) {
+                setTreeRevealToken((value) => value + 1)
+              }
               setContextMenu(null)
             }}
           >

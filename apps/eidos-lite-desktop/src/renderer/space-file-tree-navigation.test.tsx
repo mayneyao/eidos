@@ -62,7 +62,8 @@ it("reveals navigation once, preserves folder browsing, and retries when a missi
   }
   const render = async (
     entries: SpaceTreeEntry[],
-    activePath: string | null
+    activePath: string | null,
+    revealToken = 0
   ) => {
     await act(async () =>
       root.render(
@@ -70,6 +71,7 @@ it("reveals navigation once, preserves folder browsing, and retries when a missi
           <SpaceFileTree
             entries={entries}
             activePath={activePath}
+            revealToken={revealToken}
             renameRequest={null}
             {...callbacks}
           />
@@ -97,6 +99,10 @@ it("reveals navigation once, preserves folder browsing, and retries when a missi
     await render([readme], null)
     await render([readme], "readme.md")
     expect(scroll).toHaveBeenCalledTimes(4)
+    await render([readme], "readme.md", 1)
+    expect(scroll).toHaveBeenCalledTimes(5)
+    await render([readme, file("other.md")], "readme.md", 1)
+    expect(scroll).toHaveBeenCalledTimes(5)
   } finally {
     await act(async () => root.unmount())
     scroll.mockRestore()

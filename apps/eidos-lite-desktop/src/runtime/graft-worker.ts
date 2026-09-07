@@ -213,6 +213,16 @@ async function runCommand(
         ) as HistoryOptions),
         signal,
       })
+    case "pathHistory":
+      if (typeof repository.pathHistory !== "function") {
+        throw new Error(
+          "File history requires Graft 0.3.26 or newer. Update the SDK and restart Eidos Lite."
+        )
+      }
+      return repository.pathHistory({
+        ...(objectValue(args[0], "path history options") as { path: string }),
+        signal,
+      })
     case "commitDetails":
       return repository.commitDetails(requireString(args[0], "revision"), {
         signal,

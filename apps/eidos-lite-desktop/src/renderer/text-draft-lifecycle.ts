@@ -50,6 +50,15 @@ export class TextDraftLifecycle {
     return this.locked
   }
 
+  getDraft(path: string): TextDraft | undefined {
+    return this.drafts.get(path)
+  }
+
+  async pause(): Promise<void> {
+    this.locked = true
+    while (this.pending.size) await Promise.allSettled([...this.pending])
+  }
+
   release(): void {
     this.locked = false
   }

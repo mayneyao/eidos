@@ -24,6 +24,7 @@ import { setSpacePathDragData } from "./space-path-drag"
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
   activePath: string | null
+  revealToken?: number
   disabled?: boolean
   renameRequest: SpaceTreeRenameRequest | null
   onSelect(entry: SpaceTreeEntry): void
@@ -236,6 +237,7 @@ export const SPACE_FILE_TREE_STYLES = {
 export function SpaceFileTree({
   entries,
   activePath,
+  revealToken = 0,
   disabled,
   renameRequest,
   onSelect,
@@ -361,7 +363,12 @@ export function SpaceFileTree({
     },
   })
   const selectedPaths = useFileTreeSelection(model)
-  const activeRevealRef = useRef({ model, path: activePath, revealed: false })
+  const activeRevealRef = useRef({
+    model,
+    path: activePath,
+    revealToken,
+    revealed: false,
+  })
 
   useEffect(() => {
     const signature = sortedPathsSignature(tree.paths)
@@ -384,9 +391,15 @@ export function SpaceFileTree({
   useEffect(() => {
     if (
       activeRevealRef.current.model !== model ||
-      activeRevealRef.current.path !== activePath
+      activeRevealRef.current.path !== activePath ||
+      activeRevealRef.current.revealToken !== revealToken
     ) {
-      activeRevealRef.current = { model, path: activePath, revealed: false }
+      activeRevealRef.current = {
+        model,
+        path: activePath,
+        revealToken,
+        revealed: false,
+      }
     }
     // Directory hydration also changes treeSignature. Reveal once per document
     // navigation, so browsing folders cannot pull the viewport back to the editor.
@@ -404,7 +417,7 @@ export function SpaceFileTree({
     if (!item.isSelected()) item.select()
     model.scrollToPath(activePath, { offset: "nearest", focus: false })
     activeRevealRef.current.revealed = true
-  }, [activePath, model, treeSignature])
+  }, [activePath, model, treeSignature, revealToken])
 
   const openTreePath = (treePath: string | null) => {
     if (!treePath || disabled) return

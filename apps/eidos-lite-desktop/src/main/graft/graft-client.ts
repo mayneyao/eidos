@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import type { FileHistoryPage } from "../../shared/path-history"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
@@ -43,8 +44,8 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.25"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.25"
+export const GRAFT_SDK_VERSION = "0.3.26"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.26"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -1632,6 +1633,28 @@ export class GraftClient {
     options: { signal?: AbortSignal } = {}
   ): Promise<string[]> {
     return this.changedPathsBetween(root, from, to, options)
+  }
+
+  async pathHistory(
+    root: string,
+    relativePath: string,
+    cursor?: string,
+    signal?: AbortSignal
+  ) {
+    return this.runSdk(
+      root,
+      "pathHistory",
+      [
+        {
+          path: relativePath,
+          cursor,
+          limit: 50,
+          maxCommits: 100,
+          maxBytes: 8 * 1024 * 1024,
+        },
+      ],
+      { signal }
+    ) as Promise<FileHistoryPage>
   }
 
   async history(

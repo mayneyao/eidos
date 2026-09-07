@@ -2,6 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { searchSpaceText, TEXT_SEARCH_LIMITS } from "./text-search"
+import type { TextSearchOptions } from "../../shared/text-search"
 
 let root: string
 beforeEach(async () => {
@@ -21,10 +22,7 @@ it("propagates matching modes and exact regex highlights through a real file sca
     path.join(root, "note.md"),
     "work12 Work7 workspace 中文 中文字符"
   )
-  const run = (
-    query: string,
-    options: import("../../shared/text-search").TextSearchOptions
-  ) =>
+  const run = (query: string, options: TextSearchOptions) =>
     searchSpaceText(
       root,
       "modes",

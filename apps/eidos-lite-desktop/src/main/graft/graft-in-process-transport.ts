@@ -183,6 +183,16 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           ...(this.object(args[0] ?? {}) as HistoryOptions),
           signal,
         })
+      case "pathHistory":
+        if (typeof session.pathHistory !== "function") {
+          throw new Error(
+            "File history requires Graft 0.3.26 or newer. Update the SDK and restart Eidos Lite."
+          )
+        }
+        return session.pathHistory({
+          ...(this.object(args[0]) as { path: string }),
+          signal,
+        })
       case "commitDetails":
         return session.commitDetails(this.string(args[0], "revision"), {
           signal,

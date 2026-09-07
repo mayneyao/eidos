@@ -7,6 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { loadFileHistoryBatch } from "./load-file-history"
+import { useEidosLiteI18n } from "./i18n"
+import type { SpaceVersionHistory } from "../shared/contracts"
 import {
   Check,
   ChevronDown,
@@ -599,6 +602,7 @@ export function VersionDiffPreview({
   theme,
   titlebarNavigation,
   focusRequestToken = 0,
+  onRestoreTextVersion,
 }: {
   inspection: VersionInspection
   onClose(): void
@@ -606,6 +610,7 @@ export function VersionDiffPreview({
   theme: ResolvedAppearance
   titlebarNavigation?: ReactNode
   focusRequestToken?: number
+  onRestoreTextVersion?(path: string, revision: string): Promise<string[]>
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
   useFileContentFocusRequest(focusRequestToken, () =>
@@ -837,6 +842,12 @@ export function VersionDiffPreview({
           inspection.mode === "history" && inspection.commit ? (
             <VersionTextDiff
               mode="history"
+              onRestoreVersion={
+                onRestoreTextVersion
+                  ? (revision) =>
+                      onRestoreTextVersion(inspection.change.path, revision)
+                  : undefined
+              }
               commitId={inspection.commit.id}
               parentId={inspection.diff.from ?? inspection.commit.parent}
               path={inspection.change.path}
@@ -1109,6 +1120,7 @@ function HistoryDiffList({
 
 export function VersionPanel({
   space,
+  currentDocumentPath = null,
   refreshKey,
   onClose,
   onSpaceChange,
@@ -1117,6 +1129,7 @@ export function VersionPanel({
   onInspectionChange,
 }: {
   space: SpaceSnapshot
+  currentDocumentPath?: string | null
   refreshKey: number
   onClose(): void
   onSpaceChange(snapshot: SpaceSnapshot): void
@@ -1127,6 +1140,9 @@ export function VersionPanel({
   onRefresh(): void
   onInspectionChange(inspection: VersionInspection | null): void
 }) {
+  const { t } = useEidosLiteI18n()
+  const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
+  const historyPath = historyScope === "current" ? currentDocumentPath : null
   const [mode, setMode] = useState<PanelMode>(
     space.graft.clean === false ? "changes" : "history"
   )
@@ -1344,6 +1360,70 @@ export function VersionPanel({
     ]
   )
 
+  useEffect(() => {
+    modeRequestIdRef.current++
+    paginationRequestIdRef.current++
+    selectionRequestIdRef.current++
+    modeLoadInFlightRef.current = null
+    modeLoadQueuedRef.current = null
+    loadedHistoryHeadRef.current = undefined
+    setCommits([])
+    setSelectedCommit(null)
+    setSelectedDiff(null)
+    setHistoryCursor(null)
+    setHistoryHasMore(false)
+    setPaginationLoading(false)
+    clearInspection()
+    return () => {
+      modeRequestIdRef.current++
+      paginationRequestIdRef.current++
+      selectionRequestIdRef.current++
+      modeLoadInFlightRef.current = null
+    }
+  }, [historyPath, clearInspection])
+
+  const readHistory = useCallback(
+    async (
+      cursor?: string,
+      current: () => boolean = () => true
+    ): Promise<SpaceVersionHistory> => {
+      if (!historyPath) return window.eidosLite.getVersionHistory(50, cursor)
+      const result: SpaceVersionHistory = {
+        currentHead: null,
+        currentBranch: null,
+        commits: [],
+        hasMore: false,
+      }
+      await loadFileHistoryBatch({
+        cursor,
+        current,
+        read: (after) => window.eidosLite.getFileHistory(historyPath, after),
+        onPage: (page) => {
+          result.currentHead = page.start
+          result.hasMore = page.has_more
+          result.nextCursor = page.next_cursor
+          result.commits.push(
+            ...page.commits.map(
+              (commit): SpaceVersionCommit => ({
+                id: commit.id,
+                parent: commit.parents[0] ?? null,
+                parents: commit.parents,
+                message: commit.message,
+                timestampMs: commit.timestamp_ms,
+                files: 1,
+                changes: [{ path: historyPath, change: commit.change }],
+                tables: [],
+                changedTables: 0,
+              })
+            )
+          )
+        },
+      })
+      return result
+    },
+    [historyPath]
+  )
+
   const loadMode = useCallback(async () => {
     const requestedMode = mode
     if (modeLoadInFlightRef.current === requestedMode) {
@@ -1363,7 +1443,10 @@ export function VersionPanel({
         if (modeRequestIdRef.current !== requestId) return
         setChanges(nextChanges)
       } else {
-        const history = await window.eidosLite.getVersionHistory(50)
+        const history = await readHistory(
+          undefined,
+          () => modeRequestIdRef.current === requestId
+        )
         if (modeRequestIdRef.current !== requestId) return
         loadedHistoryHeadRef.current = history.currentHead
         setCommits(history.commits)
@@ -1394,7 +1477,7 @@ export function VersionPanel({
         }
       }
     }
-  }, [mode])
+  }, [mode, readHistory])
 
   useEffect(() => {
     loadModeRef.current = loadMode
@@ -1517,10 +1600,33 @@ export function VersionPanel({
     setError(null)
     try {
       const diff = withCommitTableSummaries(
-        await window.eidosLite.getVersionDiff(commit.id, commit.parent, 100),
+        historyPath
+          ? await window.eidosLite.getVersionPathDiff(
+              historyPath,
+              commit.id,
+              commit.parent
+            )
+          : await window.eidosLite.getVersionDiff(
+              commit.id,
+              commit.parent,
+              100
+            ),
         commit
       )
-      if (selectionRequestIdRef.current === requestId) setSelectedDiff(diff)
+      if (selectionRequestIdRef.current === requestId) {
+        setSelectedDiff(diff)
+        const change = diff.paths.find((item) => item.path === historyPath)
+        if (change)
+          void inspect({
+            type: "file",
+            key: `history:${commit.id}:${change.path}`,
+            mode: "history",
+            diff,
+            change,
+            file: diff.files.find((file) => file.path === change.path) ?? null,
+            commit,
+          })
+      }
     } catch (cause) {
       if (
         selectionRequestIdRef.current === requestId &&
@@ -1719,7 +1825,11 @@ export function VersionPanel({
     setPaginationLoading(true)
     setError(null)
     try {
-      const next = await window.eidosLite.getVersionHistory(50, historyCursor)
+      const next = await readHistory(
+        historyCursor,
+        () => paginationRequestIdRef.current === requestId
+      )
+      if (paginationRequestIdRef.current !== requestId) return
       setCommits((current) => [
         ...current,
         ...next.commits.filter(
@@ -1936,6 +2046,27 @@ export function VersionPanel({
       ) : null}
 
       <div className={`version-panel-body version-panel-${mode}`}>
+        {mode === "history" ? (
+          <div className="version-history-scope">
+            <label>
+              <span title={historyPath ?? undefined}>
+                {historyPath ?? t("History scope")}
+              </span>
+              <select
+                aria-label={t("History scope")}
+                value={historyScope}
+                onChange={(event) =>
+                  setHistoryScope(event.target.value as "all" | "current")
+                }
+              >
+                <option value="all">{t("All versions")}</option>
+                <option value="current" disabled={!currentDocumentPath}>
+                  {t("Current document")}
+                </option>
+              </select>
+            </label>
+          </div>
+        ) : null}
         {modeLoading && !changes && commits.length === 0 ? (
           <div className="version-loading" role="status">
             <LoaderCircle className="spin" /> Loading version data…
@@ -2010,7 +2141,7 @@ export function VersionPanel({
               </section>
             ) : null}
           </>
-        ) : commits.length || space.graft.sync ? (
+        ) : commits.length || space.graft.sync || historyHasMore ? (
           <ol className="commit-list">
             {space.graft.sync ? (
               <HistorySyncSummary sync={space.graft.sync} />
@@ -2095,60 +2226,63 @@ export function VersionPanel({
                             ) : null}
                           </>
                         ) : null}
-                        <div className="commit-restore">
-                          {commit.id === historyHead ? (
-                            <p className="restore-note">
-                              This is the current saved version.
-                            </p>
-                          ) : hasLocalChanges ? (
-                            <p className="restore-note">
-                              Save a version of local changes before restoring.
-                            </p>
-                          ) : confirmRestore ? (
-                            <div className="restore-confirm">
-                              <p>
-                                Restore the entire Space to this version? A new
-                                saved version will record the restore.
+                        {!historyPath ? (
+                          <div className="commit-restore">
+                            {commit.id === historyHead ? (
+                              <p className="restore-note">
+                                This is the current saved version.
                               </p>
-                              <div>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmRestore(false)}
-                                  disabled={busy !== null}
-                                >
-                                  Keep current Space
-                                </button>
-                                <button
-                                  type="button"
-                                  className="danger-action"
-                                  onClick={() => void restore()}
-                                  disabled={busy !== null}
-                                >
-                                  {busy === "restore" ? (
-                                    <LoaderCircle className="spin" />
-                                  ) : (
-                                    <RotateCcw />
-                                  )}
-                                  {busy === "restore"
-                                    ? "Restoring…"
-                                    : "Restore Space"}
-                                </button>
+                            ) : hasLocalChanges ? (
+                              <p className="restore-note">
+                                Save a version of local changes before
+                                restoring.
+                              </p>
+                            ) : confirmRestore ? (
+                              <div className="restore-confirm">
+                                <p>
+                                  Restore the entire Space to this version? A
+                                  new saved version will record the restore.
+                                </p>
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmRestore(false)}
+                                    disabled={busy !== null}
+                                  >
+                                    Keep current Space
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="danger-action"
+                                    onClick={() => void restore()}
+                                    disabled={busy !== null}
+                                  >
+                                    {busy === "restore" ? (
+                                      <LoaderCircle className="spin" />
+                                    ) : (
+                                      <RotateCcw />
+                                    )}
+                                    {busy === "restore"
+                                      ? "Restoring…"
+                                      : "Restore Space"}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="restore-action"
-                              onClick={() => setConfirmRestore(true)}
-                              disabled={
-                                busy !== null ||
-                                space.operation.phase !== "ready"
-                              }
-                            >
-                              <RotateCcw /> Restore this version
-                            </button>
-                          )}
-                        </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="restore-action"
+                                onClick={() => setConfirmRestore(true)}
+                                disabled={
+                                  busy !== null ||
+                                  space.operation.phase !== "ready"
+                                }
+                              >
+                                <RotateCcw /> Restore this version
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </li>
@@ -2156,7 +2290,11 @@ export function VersionPanel({
               )
             })}
             {!commits.length ? (
-              <li className="version-empty-copy">No saved versions yet.</li>
+              <li className="version-empty-copy">
+                {historyHasMore
+                  ? t("No versions in this section of history.")
+                  : t("No recorded versions.")}
+              </li>
             ) : null}
             {historyHasMore && historyCursor ? (
               <li className="commit-load-more">

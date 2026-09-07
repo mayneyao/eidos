@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from "react"
+import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it } from "vitest"
@@ -470,6 +470,137 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("Start local versions")
     expect(markup).toContain("data-enable-versioning")
     expect(markup).not.toContain('role="tab"')
+  })
+
+  it("defaults to all history and automatically crosses sparse document pages in StrictMode", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const getVersionHistory = vi.fn().mockResolvedValue({
+      currentHead: "head",
+      currentBranch: null,
+      commits: [],
+      hasMore: false,
+    })
+    const page = {
+      path: "notes/readme.md",
+      start: "head",
+      commits: [],
+      has_more: true,
+      next_cursor: "next",
+      telemetry: {
+        commits_scanned: 100,
+        object_bytes_read: 100,
+        commit_objects_read: 100,
+        tree_objects_read: 1,
+        blob_objects_read: 0,
+      },
+    }
+    const getFileHistory = vi
+      .fn()
+      .mockResolvedValueOnce(page)
+      .mockResolvedValue({
+        ...page,
+        has_more: false,
+        next_cursor: null,
+        commits: [
+          {
+            id: "doc-version",
+            parents: ["parent"],
+            message: "Document edit",
+            timestamp_ms: 1,
+            change: "modified",
+          },
+        ],
+      })
+    const getVersionPathDiff = vi.fn().mockResolvedValue({
+      ...versionDiff,
+      paths: [versionDiff.paths[0]],
+      files: [],
+    })
+    const onInspectionChange = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory,
+        getFileHistory,
+        getVersionPathDiff,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    const props = {
+      space: {
+        ...unversionedSpace,
+        graft: {
+          ...unversionedSpace.graft,
+          initialized: true,
+          clean: true,
+          currentHead: "head",
+        },
+      },
+      refreshKey: 0,
+      currentDocumentPath: "notes/readme.md",
+      onClose: () => {},
+      onSpaceChange: () => {},
+      onFilesMaterialized: () => {},
+      onRefresh: () => {},
+      onInspectionChange,
+    }
+    try {
+      await act(async () =>
+        root.render(
+          createElement(StrictMode, null, createElement(VersionPanel, props))
+        )
+      )
+      expect(host.querySelector("select")?.value).toBe("all")
+      expect(getFileHistory).not.toHaveBeenCalled()
+      await act(async () => {
+        const select = host.querySelector("select")!
+        select.value = "current"
+        select.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      expect(getFileHistory).toHaveBeenNthCalledWith(
+        2,
+        "notes/readme.md",
+        "next"
+      )
+      expect(host.textContent).toContain("Document edit")
+      await act(async () =>
+        (host.querySelector(".commit-row") as HTMLButtonElement).click()
+      )
+      expect(getVersionPathDiff).toHaveBeenCalledWith(
+        "notes/readme.md",
+        "doc-version",
+        "parent"
+      )
+      expect(onInspectionChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          type: "file",
+          change: expect.objectContaining({ path: "notes/readme.md" }),
+        })
+      )
+      expect(host.querySelector(".commit-restore")).toBeNull()
+      await act(async () =>
+        root.render(
+          createElement(
+            StrictMode,
+            null,
+            createElement(VersionPanel, {
+              ...props,
+              currentDocumentPath: "other.md",
+            })
+          )
+        )
+      )
+      expect(getFileHistory).toHaveBeenLastCalledWith("other.md", undefined)
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
   })
 
   it("keeps cached Changes visible during a background status refresh", async () => {

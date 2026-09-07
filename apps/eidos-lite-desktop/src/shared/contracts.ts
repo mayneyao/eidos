@@ -1,5 +1,10 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
 import type {
+  FileHistoryPage,
+  RestoreTextVersionRequest,
+  RestoreTextVersionResult,
+} from "./path-history"
+import type {
   AssetLease,
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
@@ -138,6 +143,8 @@ export const IPC_CHANNELS = {
   createCheckpoint: "eidos-lite:checkpoint-create",
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
+  fileHistory: "eidos-lite:file-history",
+  restoreTextVersion: "eidos-lite:restore-text-version",
   versionDiff: "eidos-lite:version-diff",
   versionPathDiff: "eidos-lite:version-path-diff",
   versionCancel: "eidos-lite:version-cancel",
@@ -1827,6 +1834,10 @@ export interface EidosLiteApi {
     limit?: number,
     after?: string
   ): Promise<SpaceVersionHistory>
+  getFileHistory(path: string, cursor?: string): Promise<FileHistoryPage>
+  restoreTextVersion(
+    request: RestoreTextVersionRequest
+  ): Promise<RestoreTextVersionResult>
   getVersionDiff(
     commitId: string,
     parentId?: string | null,

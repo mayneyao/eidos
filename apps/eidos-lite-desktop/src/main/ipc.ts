@@ -1724,6 +1724,41 @@ export function registerIpc(
     }
   )
   ipcMain.handle(
+    IPC_CHANNELS.fileHistory,
+    (event, path: unknown, cursor: unknown) => {
+      if (
+        typeof path !== "string" ||
+        (cursor !== undefined &&
+          (typeof cursor !== "string" || cursor.length > 8192))
+      )
+        throw new Error("Invalid file history request")
+      return controller
+        .requireSession(event.sender)
+        .getFileHistory(path, cursor)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.restoreTextVersion, (event, request: unknown) => {
+    if (!request || typeof request !== "object")
+      throw new Error("Invalid text restore request")
+    const value = request as Record<string, unknown>
+    if (
+      typeof value.path !== "string" ||
+      typeof value.revision !== "string" ||
+      (value.expectedRevision !== null &&
+        typeof value.expectedRevision !== "string") ||
+      (value.draft !== undefined &&
+        (typeof value.draft !== "string" ||
+          value.draft.length > 2 * 1024 * 1024))
+    )
+      throw new Error("Invalid text restore request")
+    return controller.requireSession(event.sender).restoreTextVersion({
+      path: value.path,
+      revision: value.revision,
+      expectedRevision: value.expectedRevision,
+      ...(typeof value.draft === "string" ? { draft: value.draft } : {}),
+    })
+  })
+  ipcMain.handle(
     IPC_CHANNELS.versionHistory,
     (event, limit: unknown, after: unknown) => {
       if (limit !== undefined && typeof limit !== "number") {

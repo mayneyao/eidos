@@ -6,6 +6,8 @@ import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environmen
 import {
   classifySyncHistory,
   GraftClient,
+  GRAFT_SDK_VERSION,
+  GRAFT_LOCAL_MERGE_SDK_VERSION,
   isOfficialRemoteUrl,
 } from "./graft-client"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
@@ -758,7 +760,9 @@ describe("GraftClient", () => {
       command: vi.fn(async (command) => {
         commands.push(command)
         if (command === "sdkVersion") {
-          return "0.3.25"
+          return process.env.EIDOS_LITE_GRAFT_SDK_PATH
+            ? GRAFT_LOCAL_MERGE_SDK_VERSION
+            : GRAFT_SDK_VERSION
         }
         if (command === "statusIncremental") {
           return {

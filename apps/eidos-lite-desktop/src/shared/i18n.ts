@@ -4,6 +4,30 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Reveal in Explorer": "在目录树中定位",
+  "Save before copy": "保存旧版副本",
+  "Save after copy": "保存新版副本",
+  "History scope": "历史范围",
+  "All versions": "全部版本",
+  "Current document": "当前文档",
+  "File history": "文件历史",
+  "File versions": "文件版本",
+  "History for this exact path. Earlier names are not included.":
+    "仅显示当前路径的历史，不包含重命名前的版本。",
+  "No versions in this section of history.": "这段历史中没有该文件的版本。",
+  "No recorded versions.": "暂无版本记录。",
+  "Find earlier versions": "继续查找更早版本",
+  "Compare with current content": "与当前内容对比",
+  "Current content → selected version": "当前内容 → 所选版本",
+  "This file was deleted. Select an earlier version to recover its content.":
+    "此版本中该文件已删除，请选择更早版本恢复内容。",
+  "Select a version to compare.": "选择一个版本查看差异。",
+  "Version restored. Recovery copies:": "版本已恢复，恢复前的副本：",
+  "Restoring keeps copies of your current file and unsaved draft beside the document.":
+    "恢复前会在文档旁保留当前文件和未保存草稿的副本。",
+  "Restore this version": "恢复此版本",
+  "Restore before deletion": "恢复删除前的内容",
+  "Restoring…": "正在恢复…",
   "Match case": "区分大小写",
   "Match whole word": "全词匹配",
   "Use regular expression": "使用正则表达式",

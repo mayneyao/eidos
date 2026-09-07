@@ -7,7 +7,7 @@
 > architecture and verification contract.
 
 Eidos Lite 0.4.0 is the current release. Local Spaces, editing, and version
-history require no account. It uses Graft SDK 0.3.25 for durable merge state,
+history require no account. It uses Graft SDK 0.3.26 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -26,6 +26,26 @@ part of the Eidos product family while retaining its own launcher identity. A
 package contract test prevents builds from silently falling back to a generic
 Electron icon, changing the Lite brand color, or losing the
 `space.eidos.lite` identity.
+
+The **Versions → History** sidebar defaults to **All versions**. Open a document
+and select **Current document** to filter history in the same panel. History
+follows the current exact path along first parents; renames are not followed.
+Each SDK page scans at most 100 comparisons and 8 MiB of metadata, returning up
+to 50 versions without reading file bodies. Opening history automatically crosses
+sparse pages until it finds 20 versions, reaches the end, or consumes 20 pages,
+128 MiB of metadata or two seconds (checked between requests). It retries transient
+cancellation at most twice. **Load older versions** continues another bounded
+batch when needed. Closing stops pagination. Selecting a document version loads
+its diff lazily in the main work area, comparing it with its parent checkpoint.
+Text versions up to 1 MiB can be restored or saved as copies. Restore first saves
+the current disk text and any draft to uniquely named sibling recovery files,
+then writes through Lite's revision-checked text save path. A missing target is
+created exclusively; a deletion entry can recover its parent content.
+HEAD, the Graft index and unrelated documents remain unchanged. History requires
+Local versioning; enabling it does not recover edits made before recording began.
+Restoring briefly pauses Lite draft saves. Disk revision checks detect intervening edits,
+but the filesystem does not provide atomic content-CAS against arbitrary external
+writers. A failed restore preserves recovery copies.
 
 The current architecture slice supports local editing through an explicit
 runtime mutation whitelist. The right-hand editor composes the same
@@ -134,7 +154,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.3.25` Node-API SDK.
+Graft runs through the published `@eidos.space/graft@0.3.26` Node-API SDK.
 Opening a Space does not open or classify its repository. The root Explorer and
 local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one

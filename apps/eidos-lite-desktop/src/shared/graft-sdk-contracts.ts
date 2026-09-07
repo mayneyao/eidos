@@ -44,6 +44,7 @@ export type GraftSdkCommand =
   | "diffSqlitePaths"
   | "history"
   | "historySummaries"
+  | "pathHistory"
   | "commitDetails"
   | "commitChangedPaths"
   | "isIgnoredPath"
