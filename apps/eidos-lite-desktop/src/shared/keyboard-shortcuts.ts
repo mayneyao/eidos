@@ -14,6 +14,7 @@ export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
   // Keep new commands after established ones so preference migration never
   // steals an existing custom binding when a new default is introduced.
   "focus-file-content",
+  "search-space-text",
 ] as const
 
 export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
@@ -35,6 +36,7 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   "toggle-terminal",
   "toggle-terminal-position",
   "focus-file-content",
+  "search-space-text",
 ] as const
 
 export type EidosLiteShortcutCommand =
@@ -64,6 +66,7 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "toggle-terminal": "Ctrl+Backquote",
     "toggle-terminal-position": "Ctrl+Shift+Backquote",
     "focus-file-content": "Mod+1",
+    "search-space-text": "Mod+Shift+F",
   })
 
 const MODIFIERS = ["Mod", "Ctrl", "Alt", "Shift"] as const

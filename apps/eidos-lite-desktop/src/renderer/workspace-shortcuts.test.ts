@@ -22,6 +22,20 @@ function shortcutEvent(
 }
 
 describe("Eidos Lite workspace shortcuts", () => {
+  it("opens workspace search with the platform modifier without taking document Find", () => {
+    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
+      expect(
+        workspaceShortcutForKeyboardEvent(
+          shortcutEvent({ key: "F", shiftKey: true, ...modifier })
+        )
+      ).toBe("search-space-text")
+      expect(
+        workspaceShortcutForKeyboardEvent(
+          shortcutEvent({ key: "f", ...modifier })
+        )
+      ).toBeNull()
+    }
+  })
   it("maps file creation and workspace toggles on macOS and other platforms", () => {
     expect(
       workspaceShortcutForKeyboardEvent(

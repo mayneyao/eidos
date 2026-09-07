@@ -117,6 +117,18 @@ describe("Eidos Lite keyboard shortcuts", () => {
     expect(normalized["toggle-terminal"]).toBe("Ctrl+Backquote")
     expect(normalized["toggle-terminal-position"]).toBe("Ctrl+Shift+Backquote")
     expect(normalized["focus-file-content"]).toBe("Mod+1")
+    expect(normalized["search-space-text"]).toBe("Mod+Shift+F")
+  })
+
+  it("preserves an existing custom binding when introducing workspace search", () => {
+    const { "search-space-text": _search, ...previous } =
+      DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS
+    const normalized = normalizeEidosLiteKeyboardShortcuts({
+      ...previous,
+      "quick-open": "Mod+Shift+F",
+    })
+    expect(normalized["quick-open"]).toBe("Mod+Shift+F")
+    expect(normalized["search-space-text"]).toBeNull()
   })
 
   it("does not let the new file-content focus default steal an existing custom binding", () => {

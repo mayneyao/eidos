@@ -6,9 +6,11 @@ import { useEidosLiteI18n } from "./i18n"
 export function WorkspaceTextSearch({
   onOpen,
   onClose,
+  focusToken = 0,
 }: {
   onOpen(hit: TextSearchHit): Promise<void>
   onClose(): void
+  focusToken?: number
 }) {
   const { t } = useEidosLiteI18n()
   const [query, setQuery] = useState("")
@@ -18,6 +20,11 @@ export function WorkspaceTextSearch({
   const [generation, setGeneration] = useState(0)
   const active = useRef<string | null>(null)
   const pendingTimer = useRef<number | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    input.current?.focus({ preventScroll: true })
+    input.current?.select()
+  }, [focusToken])
   useEffect(() => {
     setProgress(null)
     setError(null)
@@ -53,7 +60,7 @@ export function WorkspaceTextSearch({
       <div className="workspace-search-input">
         <Search size={16} aria-hidden="true" />
         <input
-          autoFocus
+          ref={input}
           type="search"
           value={query}
           maxLength={512}

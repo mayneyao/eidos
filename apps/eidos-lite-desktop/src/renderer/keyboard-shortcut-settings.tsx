@@ -23,7 +23,7 @@ export const SHORTCUT_GROUPS: Array<{
 }> = [
   {
     label: "File",
-    commands: ["new-file", "quick-open"],
+    commands: ["new-file", "quick-open", "search-space-text"],
   },
   {
     label: "Workspace",
@@ -53,6 +53,7 @@ export const SHORTCUT_GROUPS: Array<{
 const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "new-file": "New File",
   "quick-open": "Quick Open",
+  "search-space-text": "Search Space text",
   "focus-file-content": "Focus file content",
   "toggle-sidebar": "Toggle Space Explorer",
   "toggle-theme": "Toggle theme",

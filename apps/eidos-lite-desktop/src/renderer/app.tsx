@@ -837,6 +837,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
+  const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
@@ -2502,6 +2503,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setQuickOpenVisible((current) => !current)
         return
       }
+      if (workspaceShortcut === "search-space-text" && space) {
+        if (pathDialog || blocksLocalInteraction(space.operation.phase)) return
+        setSidebarCollapsed(false)
+        setQuickOpenVisible(false)
+        setTextSearchVisible(true)
+        setTextSearchFocusToken((current) => current + 1)
+        return
+      }
       if (workspaceShortcut === "focus-file-content") {
         requestFileContentFocus()
         return
@@ -3009,6 +3018,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <button
           type="button"
           className="workspace-search-open"
+          title={`${t("Search Space text")} (${workspaceShortcutLabel("search-space-text", macos, keyboardShortcuts)})`}
+          aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+            "search-space-text",
+            macos,
+            keyboardShortcuts
+          )}
           aria-pressed={textSearchVisible}
           onClick={() => setTextSearchVisible((open) => !open)}
         >
@@ -3017,6 +3032,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         </button>
         {textSearchVisible ? (
           <WorkspaceTextSearch
+            focusToken={textSearchFocusToken}
             onOpen={openTextSearchHit}
             onClose={() => setTextSearchVisible(false)}
           />
