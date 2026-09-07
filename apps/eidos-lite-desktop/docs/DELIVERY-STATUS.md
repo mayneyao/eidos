@@ -1,10 +1,10 @@
 # Eidos Lite Desktop delivery status
 
-Last audited: 2026-09-06
+Last audited: 2026-09-07
 
 ## Verdict
 
-The current package base version is **Eidos Lite 0.8.0**. The minimum offline
+The current package base version is **Eidos Lite 0.9.0**. The minimum offline
 loop now includes draft protection, document Find, workspace text search and
 single-document historical recovery. This is locally verified implementation,
 not a verified 1.0 release. Eidos Sync remains an invite-only private preview.
@@ -75,7 +75,7 @@ release proof. The earlier local audit passed:
   reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
   full validation -> two-parent continue -> push/fetch equality. The same test
   covers partial resolution, reopen, abort, cancellation, idempotent status,
-  and a transient filesystem Remote failure. Graft SDK 0.3.25 is pinned in the
+  and a transient filesystem Remote failure. Graft SDK 0.3.26 is pinned in the
   lockfile, and the real merge flow passed against the published registry
   package.
 

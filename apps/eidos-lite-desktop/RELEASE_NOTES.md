@@ -1,37 +1,43 @@
 ## What's new
 
-### Try experimental Obsidian Markdown compatibility
+### Find text across your Space
 
-Settings now offers an explicit **Obsidian (Experimental)** Markdown profile.
-It previews Vault links and embeds, callouts, block IDs, tags, comments, inline
-footnotes, Obsidian image sizes, and richer YAML properties without changing
-the default Eidos Markdown profile. Internal note and attachment resolution
-stays inside the open Vault, while same-note headings and block references
-scroll in place instead of navigating the application away.
+Press **Cmd/Ctrl+Shift+F** to search saved text without leaving the sidebar.
+Results are grouped by file with highlighted matches, case sensitivity,
+whole-word matching, and regular expressions. Open a result at its matching
+location while keeping the result list stable. **Cmd/Ctrl+F** opens a compact
+Find bar inside the current document.
 
-This compatibility mode is incomplete and may change in later releases. It
-does not read `.obsidian`, emulate Obsidian plugins or themes, maintain
-backlinks, or rewrite links after a file rename. Keep important Vaults backed
-up and switch back to Eidos Markdown if a document does not render as expected.
+### Recover one document from History
 
-### Read complex lists without a source fallback
+The Versions sidebar now lets you switch between all saved versions and the
+current document's history. Sparse history pages load automatically within a
+bounded scan, and selected versions open in the main diff area. Restore a text
+version or save either side as a copy from one compact toolbar. Before restoring,
+Lite keeps sibling copies of the current file and any unsaved draft.
 
-Lists containing multiple paragraphs or fenced code blocks now render as
-structured content instead of turning the entire list into a Markdown source
-panel. Single-column tables also render as tables. YAML properties display
-lists and empty values more readably without replacing the original YAML.
+Document history requires Local versioning and follows the current path; it
+does not include history from before a rename. Text recovery supports readable
+historical versions up to 1 MiB.
 
-### Edit selected blocks as one source range
+### Keep unsaved text safe when closing
 
-Select consecutive blocks and press **E** to edit their original Markdown in
-place. The source surface supports keyboard formatting, indentation, moving,
-copying, deleting, undo, and redo, then commits as one undoable change. Pinned
-frontmatter and footnote definitions remain outside incompatible block moves.
+Closing a document or quitting now checks outstanding text drafts and offers
+save, discard, or cancel. Changes detected on disk keep the draft available for
+recovery instead of silently overwriting the external edit.
 
-### Keep the sidebar update action stable
+### Navigate large folders without losing your place
 
-The sidebar update control now keeps its reserved space and alignment while
-update state changes, avoiding layout shifts during routine navigation.
+Quick Open now excludes dependency trees and common build output so large
+repositories remain searchable, and reports indexing failures instead of an
+empty result. Expanding folders no longer scrolls back to the open document.
+Click the titlebar filename to reveal it in Explorer, right-click it for file
+actions, or hold Alt while hovering to see its relative path.
 
-No migration is required. Obsidian compatibility remains an opt-in experimental
-feature in this release.
+### Review record properties with less movement
+
+Expanded record titles occupy a consistent single line, and property labels
+align with their values. Hover over a read-only field to copy its complete value,
+including multiline formulas and record metadata.
+
+No file-format migration is required.
