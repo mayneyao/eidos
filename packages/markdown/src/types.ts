@@ -50,6 +50,7 @@ export interface MarkdownEditorNavigationTarget {
   requestId: string | number
   heading?: string
   blockId?: string
+  textSearch?: { requestId: string; query: string; start: number; end: number }
 }
 
 export interface MarkdownEditorPasteImageRequest {
@@ -200,6 +201,7 @@ export interface MarkdownEditorProps {
   documentPath?: string
   /** Scrolls a newly opened document to an Obsidian heading or block target. */
   navigationTarget?: MarkdownEditorNavigationTarget
+  onTextSearchUnavailable?: () => void
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */
   onPasteImage?: MarkdownEditorPasteImageHandler
   /** Resolves a canonical image URL to a safe URL usable by the current DOM. */

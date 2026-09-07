@@ -43,6 +43,13 @@ require Eidos File, a filesystem, or an account. Use `layout="embedded"` when
 your application owns the reading width, and `layout="document"` for a
 standalone document surface.
 
+Hosts can pass `navigationTarget.textSearch` with an original Markdown
+`start`/`end` range, `query`, and a new `requestId` for each navigation. Ordinary
+literal text is mapped through source blocks and parser text spans, then
+highlighted briefly without changing the document. Ambiguous projections and
+source-only matches call `onTextSearchUnavailable`; the host can open its source
+editor at the original range. No approximate rich-text location is claimed.
+
 ## What it provides
 
 - Rich-text editing, cross-block text selection, and separate block selection.

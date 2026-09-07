@@ -39,6 +39,7 @@ import { InsertBlockPlugin } from "../plugins/insert-block-plugin"
 import { InternalNavigationPlugin } from "../plugins/internal-navigation-plugin"
 import { MarkdownStatePlugin } from "../plugins/markdown-state-plugin"
 import { DocumentFindPlugin } from "../plugins/document-find-plugin"
+import { RequestedTextSearchPlugin } from "../plugins/requested-text-search-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
 import {
   MarkdownShortcutProvider,
@@ -229,6 +230,7 @@ function MarkdownEditorImplementation({
   documentPath,
   searchNotes,
   navigationTarget,
+  onTextSearchUnavailable,
   onPasteImage,
   resolveImageUrl,
   onError,
@@ -411,6 +413,13 @@ function MarkdownEditorImplementation({
             <RequestedInternalNavigationPlugin
               navigationTarget={navigationTarget}
               onError={handleError}
+            />
+            <RequestedTextSearchPlugin
+              target={navigationTarget}
+              markdown={markdown}
+              inputProfile={inputProfile}
+              syntaxFeatures={registry.features}
+              onUnavailable={onTextSearchUnavailable}
             />
             {registry.features.has(MARKDOWN_FEATURES.image) ||
             registry.features.has(MARKDOWN_FEATURES.obsidianAttachment) ? (

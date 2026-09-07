@@ -199,6 +199,11 @@ export function MarkdownEditorSurface({
   )
 
   useEffect(() => setSessionMode(editingMode), [documentKey, editingMode])
+  const [searchFallback, setSearchFallback] = useState(false)
+  useEffect(() => {
+    setSearchFallback(false)
+    if (navigationTarget?.textSearch) setSessionMode("wysiwyg")
+  }, [navigationTarget?.textSearch?.requestId])
   useEffect(() => setAttachmentError(null), [documentKey])
 
   useEffect(() => {
@@ -219,6 +224,13 @@ export function MarkdownEditorSurface({
       {attachmentError ? (
         <div className="text-editor-save-issue" role="alert">
           <span>{attachmentError}</span>
+        </div>
+      ) : null}
+      {searchFallback && sessionMode === "source" ? (
+        <div className="text-editor-save-issue" role="status">
+          {t(
+            "Opened source to locate this match precisely; it could not be mapped to rendered text."
+          )}
         </div>
       ) : null}
       <Suspense
@@ -267,7 +279,11 @@ export function MarkdownEditorSurface({
             layout={layout}
             inputProfile={inputProfile}
             profile={compatibilityProfile}
-            navigationTarget={navigationTarget}
+            navigationTarget={searchFallback ? undefined : navigationTarget}
+            onTextSearchUnavailable={() => {
+              setSearchFallback(true)
+              setSessionMode("source")
+            }}
             onOpenInternalLink={onOpenInternalLink}
             searchNotes={searchNotes}
             readOnly={disabled}

@@ -2109,7 +2109,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           size: preview.size,
           modifiedAtMs: preview.modifiedAtMs,
         },
-        { markdownEditingMode: "source" }
+        { markdownEditingMode: "wysiwyg" }
       )
       if (opened) {
         setMarkdownNavigationTarget({
