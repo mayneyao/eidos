@@ -670,7 +670,7 @@ const rendererProbe = `
   const waitFor = async (read, label) => {
     const deadline = Date.now() + 15000
     while (Date.now() < deadline) {
-      const value = read()
+      const value = await read()
       if (value) return value
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
@@ -690,13 +690,13 @@ const rendererProbe = `
       JSON.stringify(appInfo.services)
     )
   }
-  let space = await window.eidosLite.getSpace()
-  if (space?.entries.some((entry) => entry.relativePath === "projects")) {
-    space = await window.eidosLite.loadSpaceDirectory("projects")
-  }
-  if (!space || space.eidosFileCount < 4) {
-    throw new Error("UI smoke requires a bound Space with four Eidos Files")
-  }
+  const space = await waitFor(async () => {
+    let current = await window.eidosLite.getSpace()
+    if (current?.entries.some((entry) => entry.relativePath === "projects")) {
+      current = await window.eidosLite.loadSpaceDirectory("projects")
+    }
+    return current && current.eidosFileCount >= 4 ? current : null
+  }, "bound Space with four Eidos Files")
   const eidosPaths = []
   const collect = (entries) => {
     for (const entry of entries) {
@@ -1195,6 +1195,7 @@ const rendererProbe = `
     "Lifecycle",
     "Created"
   )
+  await new Promise((resolve) => setTimeout(resolve, 50))
   const renamed = await window.eidosLite.renamePath(
     fileCreated.relativePath,
     "Renamed.eidos"

@@ -156,6 +156,32 @@ function isEidosDatabaseSidecar(value: string): boolean {
   )
 }
 
+async function renameWithRetry(
+  sourcePath: string,
+  targetPath: string,
+  maxRetries = 15,
+  initialDelayMs = 50
+): Promise<void> {
+  let delay = initialDelayMs
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(sourcePath, targetPath)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code
+      if (
+        attempt < maxRetries &&
+        (code === "EBUSY" || code === "EPERM" || code === "EACCES")
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        delay = Math.min(delay * 1.5, 500)
+        continue
+      }
+      throw error
+    }
+  }
+}
+
 function runtimeResultRevision(value: unknown): number | bigint | null {
   if (!value || typeof value !== "object") return null
   const result = value as Record<string, unknown>
@@ -363,6 +389,15 @@ export class SpaceSession {
     RuntimeExternalChangeState
   >()
   private readonly runtimeSessionByPath = new Map<string, string>()
+
+  private evictRuntimeSessionByPath(source: string): void {
+    const normalized = source.replace(/\/$/, "")
+    for (const key of this.runtimeSessionByPath.keys()) {
+      if (key === normalized || key.startsWith(`${normalized}/`)) {
+        this.runtimeSessionByPath.delete(key)
+      }
+    }
+  }
   private watcherRefreshTail: Promise<void> = Promise.resolve()
   private graftStatusCache: GraftSpaceStatus | null = null
   private lastKnownGraftStatus: GraftSpaceStatus | null = null
@@ -812,7 +847,8 @@ export class SpaceSession {
       const linkPlan = await this.prepareMarkdownLinkMove(source, target)
       invalidatedSessionIds =
         await this.runtimePool.closeSessionsForPath(source)
-      await fs.rename(
+      this.evictRuntimeSessionByPath(source)
+      await renameWithRetry(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
       )
@@ -857,7 +893,8 @@ export class SpaceSession {
       const linkPlan = await this.prepareMarkdownLinkMove(source, target)
       invalidatedSessionIds =
         await this.runtimePool.closeSessionsForPath(source)
-      await fs.rename(
+      this.evictRuntimeSessionByPath(source)
+      await renameWithRetry(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
       )
@@ -935,6 +972,7 @@ export class SpaceSession {
     await this.gate.withMutation(async () => {
       invalidatedSessionIds =
         await this.runtimePool.closeSessionsForPath(source)
+      this.evictRuntimeSessionByPath(source)
       await trash(this.resolveUserPath(source))
     })
     this.noteLocalChange()
@@ -988,7 +1026,7 @@ export class SpaceSession {
           }
         }
         for (const source of sources) {
-          await fs.rename(
+          await renameWithRetry(
             this.resolveUserPath(source.temporaryPath),
             this.resolveUserPath(source.relativePath)
           )

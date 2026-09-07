@@ -23,6 +23,18 @@ const generatedBoilerplate = [
   /github\.com\/[^\s]+\/compare\//iu,
 ]
 
+const allowedContentHeadings = new Set([
+  "What's new",
+  "Improvements",
+  "Bug fixes",
+])
+
+const allowedOperationalHeadings = new Set([
+  "Install",
+  "Use with Codex",
+  "Use with an Agent",
+])
+
 const forbiddenWhatsNewHeadings = [
   /^(?:bug fixes(?: and improvements)?|improvements|miscellaneous|updates)$/iu,
   /^install(?:ation)?$/iu,
@@ -55,15 +67,11 @@ function similarity(left, right) {
   return intersection / (a.size + b.size - intersection)
 }
 
-export function parseWhatsNew(
+export function parseReleaseNotes(
   markdown,
   label = "release notes",
   enforceCurrentPolicy = true
 ) {
-  const headings = [...markdown.matchAll(/^## What's new\s*$/gmu)]
-  if (headings.length !== 1)
-    fail(`${label} must contain exactly one \"## What's new\" heading`)
-
   if (enforceCurrentPolicy) {
     for (const pattern of generatedBoilerplate) {
       if (pattern.test(markdown))
@@ -71,37 +79,126 @@ export function parseWhatsNew(
     }
   }
 
-  const start = headings[0].index + headings[0][0].length
-  const remainder = markdown.slice(start)
-  const nextLevelTwo = remainder.search(/^## (?!#)/mu)
-  const sectionBody =
-    nextLevelTwo === -1 ? remainder : remainder.slice(0, nextLevelTwo)
-  const sectionMatches = [...sectionBody.matchAll(/^### (.+?)\s*$/gmu)]
-  if (sectionMatches.length === 0)
-    fail(`${label} must contain at least one user-visible \"###\" section`)
+  const levelTwoMatches = [...markdown.matchAll(/^## (.+?)\s*$/gmu)]
+  if (levelTwoMatches.length === 0)
+    fail(`${label} must contain at least one level-2 heading`)
 
-  return sectionMatches.map((match, index) => {
-    const bodyStart = match.index + match[0].length
-    const bodyEnd =
-      index + 1 < sectionMatches.length
-        ? sectionMatches[index + 1].index
-        : sectionBody.length
+  const sections = []
+  for (let i = 0; i < levelTwoMatches.length; i += 1) {
+    const match = levelTwoMatches[i]
     const heading = match[1].trim()
-    const body = sectionBody.slice(bodyStart, bodyEnd).trim()
-    if (!body) fail(`${label} has an empty section: ${heading}`)
-    if (
-      enforceCurrentPolicy &&
-      forbiddenWhatsNewHeadings.some((pattern) => pattern.test(heading))
+    const startIndex = match.index + match[0].length
+    const endIndex =
+      i + 1 < levelTwoMatches.length
+        ? levelTwoMatches[i + 1].index
+        : markdown.length
+    const body = markdown.slice(startIndex, endIndex).trim()
+
+    sections.push({ body, heading })
+  }
+
+  if (enforceCurrentPolicy) {
+    for (const s of sections) {
+      if (
+        !allowedContentHeadings.has(s.heading) &&
+        !allowedOperationalHeadings.has(s.heading)
+      ) {
+        fail(`${label} uses an unrecognized heading: ## ${s.heading}`)
+      }
+    }
+
+    const hasContentHeading = sections.some((s) =>
+      allowedContentHeadings.has(s.heading)
     )
+    if (!hasContentHeading) {
       fail(
-        `${label} uses a generic or operational heading under What's new: ${heading}`
+        `${label} must contain at least one of ## What's new, ## Improvements, or ## Bug fixes`
       )
-    return { body, heading }
-  })
+    }
+  }
+
+  const items = []
+
+  for (const s of sections) {
+    if (allowedOperationalHeadings.has(s.heading)) {
+      continue
+    }
+
+    if (!s.body) {
+      fail(`${label} has an empty section: ## ${s.heading}`)
+    }
+
+    // 1. Check for ### subheadings
+    const subMatches = [...s.body.matchAll(/^### (.+?)\s*$/gmu)]
+    if (subMatches.length > 0) {
+      for (let j = 0; j < subMatches.length; j += 1) {
+        const subMatch = subMatches[j]
+        const subHeading = subMatch[1].trim()
+        const subStart = subMatch.index + subMatch[0].length
+        const subEnd =
+          j + 1 < subMatches.length ? subMatches[j + 1].index : s.body.length
+        const subBody = s.body.slice(subStart, subEnd).trim()
+
+        if (!subBody) fail(`${label} has an empty section: ### ${subHeading}`)
+
+        if (
+          enforceCurrentPolicy &&
+          s.heading === "What's new" &&
+          forbiddenWhatsNewHeadings.some((pattern) => pattern.test(subHeading))
+        ) {
+          fail(
+            `${label} uses a generic or operational heading under What's new: ${subHeading}`
+          )
+        }
+
+        items.push({ body: subBody, heading: subHeading, section: s.heading })
+      }
+      continue
+    }
+
+    // 2. Check for bullet points (- or *)
+    const bulletMatches = [...s.body.matchAll(/^[-*]\s+(.+)$/gmu)]
+    if (bulletMatches.length > 0) {
+      for (const bulletMatch of bulletMatches) {
+        const fullBullet = bulletMatch[1].trim()
+        if (!fullBullet) continue
+
+        // Check if starts with bold title/scope e.g. **Scope**: Description
+        const boldMatch = /^\*\*([^*]+)\*\*:\s*(.+)$/u.exec(fullBullet)
+        let itemHeading = ""
+        let itemBody = fullBullet
+
+        if (boldMatch) {
+          itemHeading = `${s.heading} (${boldMatch[1].trim()}): ${boldMatch[2].trim()}`
+          itemBody = boldMatch[2].trim()
+        } else {
+          itemHeading = `${s.heading}: ${fullBullet}`
+        }
+
+        items.push({ body: itemBody, heading: itemHeading, section: s.heading })
+      }
+      continue
+    }
+
+    // 3. Raw text fallback
+    items.push({ body: s.body, heading: s.heading, section: s.heading })
+  }
+
+  if (items.length === 0) {
+    fail(`${label} must contain at least one user-visible section`)
+  }
+
+  return items
 }
 
+export const parseWhatsNew = parseReleaseNotes
+
 export function auditBodies(candidateBody, history) {
-  const candidate = parseWhatsNew(candidateBody, "candidate release notes")
+  const candidate = parseReleaseNotes(
+    candidateBody,
+    "candidate release notes",
+    true
+  )
   const seenHeadings = new Map()
   const seenBodies = new Map()
 
@@ -119,7 +216,7 @@ export function auditBodies(candidateBody, history) {
   }
 
   for (const previous of history) {
-    const historical = parseWhatsNew(previous.body, previous.label, false)
+    const historical = parseReleaseNotes(previous.body, previous.label, false)
     for (const current of candidate) {
       for (const old of historical) {
         const sameHeading =
@@ -201,11 +298,16 @@ function verifyUnpublishedTags(contract, candidateTag, tags, unpublishedTags) {
       fail(`candidate tag cannot be marked unpublished: ${tag}`)
     if (!parseVersion(tag, contract.prefix))
       fail(`${tag} is not a valid ${contract.prefix}<semver> tag`)
-    if (!tags.includes(tag)) fail(`unpublished tag does not exist locally: ${tag}`)
+    if (!tags.includes(tag))
+      fail(`unpublished tag does not exist locally: ${tag}`)
 
-    const release = spawnSync("gh", ["release", "view", tag, "--json", "tagName"], {
-      encoding: "utf8",
-    })
+    const release = spawnSync(
+      "gh",
+      ["release", "view", tag, "--json", "tagName"],
+      {
+        encoding: "utf8",
+      }
+    )
     if (release.error)
       fail(`could not verify unpublished tag ${tag}: ${release.error.message}`)
     if (release.status === 0)
@@ -217,12 +319,7 @@ function verifyUnpublishedTags(contract, candidateTag, tags, unpublishedTags) {
   }
 }
 
-function readRecentBodies(
-  contract,
-  candidateTag,
-  limit,
-  unpublishedTags = []
-) {
+function readRecentBodies(contract, candidateTag, limit, unpublishedTags = []) {
   const candidateVersion = parseVersion(candidateTag, contract.prefix)
   if (!candidateVersion)
     fail(`${candidateTag} is not a valid ${contract.prefix}<semver> tag`)
@@ -231,7 +328,10 @@ function readRecentBodies(
   const tags = execFileSync(
     "git",
     ["tag", "--list", `${contract.prefix}*`, "--sort=-version:refname"],
-    { encoding: "utf8" }
+    {
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
+    }
   )
     .trim()
     .split("\n")
@@ -258,6 +358,7 @@ function readRecentBodies(
       history.push({
         body: execFileSync("git", ["show", `${tag}:${contract.notes}`], {
           encoding: "utf8",
+          env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
           stdio: ["ignore", "pipe", "ignore"],
         }),
         label: tag,

@@ -62,11 +62,23 @@ Reject stale or unrelated generated churn. The generated diff is delivery
 evidence, not a separate release-note feature.
 
 For a stable version, write the exact version without a `v` prefix to
-`apps/cli/LATEST`. Rewrite `apps/cli/RELEASE_NOTES.md` for the exact version and
-CLI-only behavior. Leave `LATEST` on the previous stable version for beta,
-alpha, or rc tags. Apply the shared release-notes policy: keep only this
-version's CLI delta under `## What's new`, and keep repeatable install and Skill
-instructions in separate level-two operational sections.
+`apps/cli/LATEST`. Leave `LATEST` on the previous stable version for beta,
+alpha, or rc tags.
+
+Extract the CLI version delta using the preparation tool:
+
+```bash
+node .codex/skills/eidos-release/scripts/prepare-release-notes.mjs \
+  --surface cli
+```
+
+The AI Agent then writes and polishes `apps/cli/RELEASE_NOTES.md` for the exact
+version and CLI-only behavior.
+
+Apply the shared release-notes policy: keep only this version's CLI delta under
+`## What's new`, `## Improvements`, or `## Bug fixes` (absorbing iterative development
+fixes into new features), and retain repeatable install and Skill instructions in
+separate level-two operational sections (`## Install`, `## Use with an Agent`).
 
 Commit the version preparation coherently. Before tagging, require the branch
 commit to exist on the intended remote and verify that neither the local nor

@@ -35,48 +35,60 @@ Require a clean worktree for version preparation. Update the exact base version
 in `apps/eidos-lite-desktop/package.json`, refresh `pnpm-lock.yaml`, rewrite the
 Lite release notes, and commit the preparation coherently.
 
-## Write What's new
+## Prepare release notes
 
 Write the notes before tagging. Derive them from the previous Lite tag, not the
 repository's latest GitHub Release, because CLI and Lite use independent tag
 namespaces. Apply the shared release-notes policy and replace the previous
-manifest completely:
+manifest completely.
+
+Extract the evidence-backed version delta using the preparation tool:
 
 ```bash
-git tag --list 'lite-v*' --sort=-v:refname | head -10
-git log --oneline <previous-lite-tag>..HEAD -- \
-  apps/eidos-lite-desktop apps/download apps/cli \
-  packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
-git diff --stat <previous-lite-tag>..HEAD -- \
-  apps/eidos-lite-desktop apps/download apps/cli \
-  packages/eidos-file packages/eidos-file-ui pnpm-lock.yaml
+node .codex/skills/eidos-release/scripts/prepare-release-notes.mjs \
+  --surface lite
 ```
 
-Rewrite `apps/eidos-lite-desktop/RELEASE_NOTES.md` as concise user-facing
-Markdown with this required opening:
+The script performs the factual analysis and noise filtering:
+
+- Resolves the previous Lite baseline tag;
+- Identifies new features and clusters related commits;
+- Absorbs iterative development fixes for those new features so they do not pollute `## Bug fixes`;
+- Categorizes pre-existing bug fixes into `## Bug fixes` and enhancements into `## Improvements`;
+- Filters out internal chores, CI churn, and build configs.
+
+The AI Agent then authors and polishes `apps/eidos-lite-desktop/RELEASE_NOTES.md`
+based on the script's evidence dossier, crafting user-centric product copy:
 
 ```markdown
 ## What's new
 
-### <user-visible improvement>
+### <user-visible feature>
 
 <What changed, why it matters, and any action the user needs to take.>
+
+## Improvements
+
+- **<Area>**: <Concise user-visible improvement>
+
+## Bug fixes
+
+- **<Area>**: <Concise bug fix for pre-existing behavior>
 ```
 
 Add further improvement or fix sections only when supported by the scoped diff.
-For a maintenance release, describe the concrete reliability or compatibility
-fix; never publish an empty `What's new` section or say only "bug fixes and
+For a maintenance release, describe concrete reliability or compatibility
+fixes; never publish an empty section or say only "bug fixes and
 improvements." Do not fill the notes with commit subjects, signing policy,
 internal package versions, or unrelated CLI/Web changes. Mention a migration,
 limitation, or access requirement only when it affects users of this release.
 Do not retain a section merely because it is still important: if it shipped in
 an earlier Lite tag, it belongs in that historical GitHub Release.
 
-Before tagging, require a substantive body:
+Before tagging, require a substantive body and run the audit:
 
 ```bash
 test -s apps/eidos-lite-desktop/RELEASE_NOTES.md
-rg -n "^## What's new$" apps/eidos-lite-desktop/RELEASE_NOTES.md
 git diff --check -- apps/eidos-lite-desktop/RELEASE_NOTES.md
 node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
   --surface lite \
@@ -167,6 +179,6 @@ gh release view lite-v<version> --json body \
 diff -u apps/eidos-lite-desktop/RELEASE_NOTES.md "$notes_copy"
 ```
 
-Report the exact tag, commit, workflow and Release URLs, the `What's new`
-headings, platform coverage, update-route evidence, validation, and
+Report the exact tag, commit, workflow and Release URLs, the release notes
+sections, platform coverage, update-route evidence, validation, and
 branch/worktree state.

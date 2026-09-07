@@ -16,24 +16,97 @@ Apply this policy to every tagged Eidos Lite or standalone CLI release.
 - Do not publish a generated body temporarily and edit it after subscribers may
   have received a notification.
 
+## Structure and categories
+
+Release notes organize user-visible changes into standard, focused sections:
+
+1. **`## What's new`**: New features and major capabilities introduced in this
+   version. Format items with `### <Feature Title>` followed by a concise narrative
+   explaining what changed, user value, and required actions.
+2. **`## Improvements`**: User-visible enhancements, performance optimizations,
+   and ergonomic refinements to pre-existing features. Format items with `### <Title>`
+   or bullet points `- **<Area>**: <Description>`.
+3. **`## Bug fixes`**: Fixes for bugs or unexpected behaviors in pre-existing
+   functionality that shipped in prior releases. Format items with `### <Title>`
+   or bullet points `- **<Area>**: <Description>`.
+4. **Operational sections (CLI only)**: `## Install` and `## Use with Codex` /
+   `## Use with an Agent` are reference material placed under separate level-two
+   headings.
+
+Notes must contain at least one user-visible content section (`What's new`,
+`Improvements`, or `Bug fixes`). Sections with no applicable changes can be
+omitted (for example, a maintenance patch may contain only `## Bug fixes`). Empty
+headings, generic placeholders (such as "Bug fixes and improvements" with no
+specific detail), and unreviewed GitHub monorepo-generated logs are blockers.
+
 ## Derive only this version's delta
 
-Identify the previous tag in the same surface namespace. Build an evidence
-table before writing prose:
+Identify the previous tag in the same surface namespace. Release notes must
+describe only the delta that is user-visible or perceivable when upgrading from
+the previous release to the current candidate.
 
-| Candidate note     | User-visible evidence            | Owning surface | First shipped here? |
-| ------------------ | -------------------------------- | -------------- | ------------------- |
-| One concise change | Commit, test, or measured result | Lite or CLI    | Yes                 |
+### Consolidate iterative fixes for new features
 
-Every `###` section under `## What's new` must have one row. Exclude release
-bookkeeping when deriving the delta: the release manifest itself, version-only
-edits, lockfile churn caused only by a version bump, generated bundles, tags,
-workflow mechanics, and previous release-preparation commits. Include a shared
-package change only when that surface actually ships it in this version.
+During development between two releases, a new feature is often introduced and
+subsequently tweaked, refactored, or debugged across multiple commits.
+**Do not list internal fixes for a new feature as separate bug fixes.**
+To an end user upgrading from the previous version, the feature is entirely new;
+intermediate bugs introduced and resolved during the same iteration were never
+visible in a published release. All development fixes and adjustments targeting
+a new feature must be consolidated and absorbed into that feature's description
+under `## What's new`.
 
-Combine multiple implementation commits for one user outcome into one section.
-Split a section only when users can independently observe the outcomes. Never
-repeat the same outcome under reliability, performance, and UX headings.
+Only fixes addressing issues in functionality that existed in prior releases
+belong under `## Bug fixes`.
+
+### Exclude internal engineering and release bookkeeping
+
+Exclude commits that do not produce an observable user outcome:
+
+- The release manifest (`RELEASE_NOTES.md`) itself
+- Version bumps and lockfile churn caused solely by version changes
+- Workflow mechanics, CI definitions, and build tool adjustments
+- Internal unit/integration test fixtures and refactors
+- Generated bundles and artifacts
+
+Build an evidence table before writing or finalizing prose:
+
+| Candidate note     | Category            | User-visible evidence            | Owning surface | First shipped here? |
+| ------------------ | ------------------- | -------------------------------- | -------------- | ------------------- |
+| One concise change | New / Improve / Fix | Commit, test, or measured result | Lite or CLI    | Yes                 |
+
+## Workflow: Script Extraction → Agent Authoring → Audit Gate
+
+Writing release notes is a collaborative pipeline between deterministic tooling and the AI Agent:
+
+1. **Step 1: Deterministic Evidence Extraction (Script)**
+   Run `prepare-release-notes.mjs` to extract and structure the version delta:
+
+   ```bash
+   node .codex/skills/eidos-release/scripts/prepare-release-notes.mjs \
+     --surface <lite|cli> \
+     [--from <tag>] \
+     [--to <ref>] \
+     [--json]
+   ```
+
+   The script does the heavy lifting of factual analysis:
+   - Resolves the baseline tag and scopes git diffs;
+   - Clusters `feat:` commits into cohesive feature concepts;
+   - Detects all development fixes/refactors targeting those new features and absorbs them into the feature entity;
+   - Extracts genuine fixes for pre-existing features into `Bug fixes` and enhancements into `Improvements`;
+   - Strips out internal CI, build, and bookkeeping churn.
+
+2. **Step 2: User-Facing Authoring and Polishing (Agent / AI)**
+   The Agent reads the structured evidence output from Step 1 (or its JSON representation).
+   The Agent's role is to **author and polish the actual narrative**:
+   - Translate clustered features into engaging, product-oriented sections under `## What's new`, explaining _what changed_, _why it matters to users_, and _how to use it_;
+   - Fold the absorbed iterative fixes into the feature narrative (e.g., highlighting that search handles scrollbars, focus, and layout smoothly);
+   - Polish the items under `## Improvements` and `## Bug fixes` into concise, readable summaries;
+   - Write the finalized Markdown to `apps/<surface>/RELEASE_NOTES.md`.
+
+3. **Step 3: Quality Gate Audit (Script)**
+   Run `audit-release-notes.mjs` to verify the Agent's written notes against historical releases and formatting invariants.
 
 ## Compare history before tagging
 
@@ -41,7 +114,7 @@ Read the complete bodies of the previous three releases from the same surface,
 not the repository-wide latest Release. Compare headings and meaning, not just
 exact text.
 
-Run the deterministic local audit after rewriting the manifest:
+Run the deterministic local audit after writing the manifest:
 
 ```bash
 node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
@@ -49,23 +122,19 @@ node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
   --tag <lite-vX.Y.Z|cli-vX.Y.Z>
 ```
 
-The audit rejects duplicate sections inside the candidate, exact or near-copy
-sections found in recent same-surface tags, empty sections, and GitHub's
-generated monorepo-note boilerplate. It is a lower bound, not a substitute for
-the semantic review: rewording an old feature is still a blocker.
+The audit verifies that:
+
+- Headings are recognized and non-empty.
+- At least one user-visible content section exists.
+- Headings and bodies are not duplicated within the candidate.
+- Content does not duplicate items from the recent three same-surface releases
+  (structural and token similarity check).
+- GitHub-generated monorepo-note boilerplate is rejected.
 
 If an immutable failed tag must remain but never created a GitHub Release, the
-next candidate may pass `--unpublished-tag <tag>`. The audit requires the tag to
-exist locally and uses `gh release view` to prove that no Release exists before
-excluding it from release history. Export `GH_TOKEN` in CI. Never use this for a
-tag that has a GitHub Release, and never use it to hide previously published
-release notes.
-
-For CLI, stable installer commands and the version-matched Skill link are
-operational reference material. Put them under separate `## Install` and
-`## Use with Codex` headings, not under `## What's new`. Their presence is
-allowed across releases because their version-specific correctness is checked
-separately; they must not be counted as new features.
+next candidate may pass `--unpublished-tag <tag>`. Export `GH_TOKEN` in CI. Never
+use this for a tag that has a GitHub Release, and never use it to hide previously
+published release notes.
 
 ## Require exact publication
 

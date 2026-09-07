@@ -107,3 +107,52 @@ test("rejects duplicate candidate bodies and generated GitHub notes", () => {
     /generic or operational heading/u
   )
 })
+
+test("accepts multi-section notes with What's new, Improvements, and Bug fixes", () => {
+  const markdown = [
+    "## What's new",
+    "",
+    "### Workspace Search",
+    "",
+    "Search text across the whole space with Cmd+Shift+F.",
+    "",
+    "## Improvements",
+    "",
+    "- **Explorer**: Preserve scroll position when loading folders.",
+    "- **Quick Open**: Keep quick open responsive in large repositories.",
+    "",
+    "## Bug fixes",
+    "",
+    "- **Session**: Avoid collision during concurrent file open.",
+    "- **Diff**: Keep diff close button aligned with title.",
+    "",
+    "## Install",
+    "",
+    "curl -fsSL https://download.eidos.space/cli/install.sh | sh",
+  ].join("\n")
+
+  const result = auditBodies(markdown, [])
+  assert.equal(result.sectionCount, 5)
+})
+
+test("accepts patch release notes with only Bug fixes", () => {
+  const patchNotes = [
+    "## Bug fixes",
+    "",
+    "- **Database**: Resolve database lock on quick app restart.",
+  ].join("\n")
+
+  const result = auditBodies(patchNotes, [])
+  assert.equal(result.sectionCount, 1)
+})
+
+test("rejects empty Bug fixes or Improvements section and unrecognized headings", () => {
+  assert.throws(
+    () => auditBodies("## Bug fixes\n\n", []),
+    /empty section: ## Bug fixes/u
+  )
+  assert.throws(
+    () => auditBodies("## Unknown Heading\n\nSomething here.", []),
+    /unrecognized heading: ## Unknown Heading/u
+  )
+})
