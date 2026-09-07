@@ -778,6 +778,9 @@ export class RuntimePool {
         childExited,
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ])
+      if (process.platform === "win32") {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
     }
   }
 

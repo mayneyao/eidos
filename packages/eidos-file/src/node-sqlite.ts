@@ -810,8 +810,14 @@ export class NodeSqliteConnectionPort implements ConnectionPort {
     for (const snapshot of this.snapshots) snapshot.release()
     this.snapshots.clear()
     if (this.database.isOpen) {
-      this.database.setAuthorizer(null)
-      this.database.close()
+      try {
+        this.database.setAuthorizer(null)
+      } catch {}
+      try {
+        this.database.close()
+      } catch (error) {
+        console.warn("Could not cleanly close DatabaseSync", error)
+      }
     }
   }
 

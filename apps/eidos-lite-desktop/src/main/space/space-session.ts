@@ -414,6 +414,9 @@ export class SpaceSession {
         this.runtimeSessionByPath.delete(key)
       }
     }
+    for (const id of closed) {
+      this.runtimeExternalChangeState.delete(id)
+    }
     return [...closed]
   }
 

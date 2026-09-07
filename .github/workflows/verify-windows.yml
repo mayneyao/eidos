@@ -1,0 +1,43 @@
+name: Verify Windows Package & Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-windows:
+    name: Windows packaged smoke validation
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Setup Rust for the bundled Publish engine
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build unsigned Windows release
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm build:eidos-lite:release
+
+      - name: Validate fresh packaged release
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: pnpm smoke:eidos-lite-packaged

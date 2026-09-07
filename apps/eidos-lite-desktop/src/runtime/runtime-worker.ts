@@ -322,11 +322,17 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       }
       return mergeEidosSystemMetadataFiles(request)
     }
-    case "close":
-      await openedRuntime?.close()
-      openedRuntime = null
-      source = null
+    case "close": {
+      try {
+        await openedRuntime?.close()
+      } catch (error) {
+        console.warn("Could not cleanly close openedRuntime", error)
+      } finally {
+        openedRuntime = null
+        source = null
+      }
       return { closed: true }
+    }
   }
 }
 
@@ -335,7 +341,7 @@ parentPort.on("message", (event) => {
   void handle(request).then(
     (result) => {
       parentPort.postMessage({ requestId: request.requestId, ok: true, result })
-      if (request.type === "close") setTimeout(() => process.exit(0), 0)
+      if (request.type === "close") setTimeout(() => process.exit(0), 10)
     },
     (error) => {
       parentPort.postMessage({
@@ -343,6 +349,7 @@ parentPort.on("message", (event) => {
         ok: false,
         error: serializeRuntimeWorkerError(error),
       })
+      if (request.type === "close") setTimeout(() => process.exit(0), 10)
     }
   )
 })
