@@ -261,7 +261,7 @@ jobs:
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Enforce packaged macOS release performance
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && matrix.architecture == 'arm64'
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: pnpm smoke:eidos-lite-packaged

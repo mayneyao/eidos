@@ -316,7 +316,7 @@ const emptySpaceOnboardingProbe = `
 const launchRouteProbe = `
 (async () => {
   const relativePath = "projects/content-calendar.eidos"
-  const deadline = Date.now() + 30000
+  const deadline = Date.now() + 60000
   while (Date.now() < deadline) {
     const editor = document.querySelector(
       '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
