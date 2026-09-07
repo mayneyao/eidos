@@ -68,6 +68,7 @@ export function QuickOpen({
 }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<QuickOpenItem[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -113,10 +114,12 @@ export function QuickOpen({
     if (!trimmedQuery) {
       setResults([])
       setLoading(false)
+      setSearchError(null)
       return
     }
     const requestId = ++requestIdRef.current
     setLoading(true)
+    setSearchError(null)
     const timer = setTimeout(() => {
       window.eidosLite
         .searchSpacePaths(trimmedQuery, QUICK_OPEN_RESULT_LIMIT)
@@ -130,16 +133,20 @@ export function QuickOpen({
             }))
           )
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (requestIdRef.current !== requestId) return
           setResults([])
+          setSearchError(error instanceof Error ? error.message : String(error))
         })
         .finally(() => {
           if (requestIdRef.current !== requestId) return
           setLoading(false)
         })
     }, QUICK_OPEN_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      requestIdRef.current++
+    }
   }, [trimmedQuery])
 
   const pick = (item: QuickOpenItem | undefined) => {
@@ -200,13 +207,18 @@ export function QuickOpen({
             <LoaderCircle className="spin" aria-hidden="true" />
           ) : null}
         </div>
+        {searchError ? (
+          <div className="quick-open-empty" role="alert">
+            Could not search files: {searchError}
+          </div>
+        ) : null}
         <ul
           className="quick-open-results"
           id="quick-open-results"
           role="listbox"
           aria-label={trimmedQuery ? "Matching files" : "Recent files"}
         >
-          {items.length === 0 && !loading ? (
+          {items.length === 0 && !loading && !searchError ? (
             <li className="quick-open-empty" role="presentation">
               {trimmedQuery ? "No matching files" : "No recent files"}
             </li>

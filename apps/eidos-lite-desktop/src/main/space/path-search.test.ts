@@ -83,6 +83,34 @@ describe("normalizeSpacePathSearchLimit", () => {
 })
 
 describe("SpacePathIndex", () => {
+  it("finds release notes while excluding generated trees from initial and incremental indexing", async () => {
+    const document = "apps/lite/RELEASE_NOTES.md"
+    const dependency = "apps/lite/node_modules/dependency/RELEASE_NOTES.md"
+    const generated = "target/debug/RELEASE_NOTES.md"
+    for (const name of [document, dependency, generated]) {
+      await fs.mkdir(path.dirname(path.join(root, name)), { recursive: true })
+      await fs.writeFile(path.join(root, name), "notes")
+    }
+    const index = new SpacePathIndex(root)
+    await index.ensureScanned()
+    expect(
+      index.search("RELEASE_NOTES").map((hit) => hit.relativePath)
+    ).toEqual([document])
+    await index.applyChanges([dependency, generated, "apps"])
+    expect(
+      index.search("RELEASE_NOTES").map((hit) => hit.relativePath)
+    ).toEqual([document])
+  })
+
+  it("can retry a failed initial scan instead of caching its rejection", async () => {
+    const missing = path.join(root, "later")
+    const index = new SpacePathIndex(missing)
+    await expect(index.ensureScanned()).rejects.toThrow()
+    await fs.mkdir(missing)
+    await fs.writeFile(path.join(missing, "RELEASE_NOTES.md"), "notes")
+    await index.ensureScanned()
+    expect(index.search("RELEASE_NOTES")).toHaveLength(1)
+  })
   it("searches aliases only on demand and refreshes changed or removed metadata", async () => {
     await fs.writeFile(
       path.join(root, "notes", "readme.md"),

@@ -12,6 +12,30 @@ import {
 export const SPACE_PATH_SEARCH_DEFAULT_LIMIT = 50
 export const SPACE_PATH_SEARCH_MAX_LIMIT = 200
 
+// Search documents, not dependency trees or generated build output.
+const EXCLUDED_SEARCH_DIRECTORIES = new Set([
+  ".git",
+  ".svn",
+  ".hg",
+  "node_modules",
+  "vendor",
+  "dist",
+  "build",
+  "target",
+  ".cache",
+  ".next",
+])
+
+function excludedSearchPath(relativePath: string): boolean {
+  return relativePath
+    .split("/")
+    .some(
+      (part) =>
+        isHiddenImplementationEntry(part) ||
+        EXCLUDED_SEARCH_DIRECTORIES.has(part)
+    )
+}
+
 interface IndexedPath {
   relativePath: string
   name: string
@@ -172,7 +196,10 @@ export class SpacePathIndex {
   }
 
   async ensureScanned(): Promise<void> {
-    this.scanPromise ??= this.scan()
+    this.scanPromise ??= this.scan().catch((error: unknown) => {
+      this.scanPromise = null
+      throw error
+    })
     return this.scanPromise
   }
 
@@ -183,7 +210,7 @@ export class SpacePathIndex {
       const relativePath = changedPath.split("\\").join("/").replace(/^\/+/, "")
       if (!relativePath) continue
       const segments = relativePath.split("/")
-      if (segments.some((segment) => isHiddenImplementationEntry(segment))) {
+      if (excludedSearchPath(relativePath)) {
         this.removePath(relativePath)
         continue
       }
@@ -225,7 +252,9 @@ export class SpacePathIndex {
   }
 
   private async scan(): Promise<void> {
-    const tree = await listSpaceTree(this.root)
+    const tree = await listSpaceTree(this.root, {
+      ignoredPaths: async (paths) => new Set(paths.filter(excludedSearchPath)),
+    })
     const next: IndexedPath[] = []
     for (const entry of flattenSpaceTree(tree)) {
       if (entry.kind === "directory") continue
@@ -247,7 +276,7 @@ export class SpacePathIndex {
       return
     }
     for (const child of children) {
-      if (isHiddenImplementationEntry(child.name)) continue
+      if (excludedSearchPath(child.name)) continue
       const childAbsolute = path.join(absoluteDirectory, child.name)
       const childRelative = `${relativeDirectory}/${child.name}`
       try {

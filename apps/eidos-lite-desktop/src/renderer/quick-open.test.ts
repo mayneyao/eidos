@@ -184,6 +184,27 @@ describe("QuickOpen", () => {
     expect(host?.textContent).toContain("No matching files")
   })
 
+  it("reports index failure instead of claiming there are no matching files", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        searchSpacePaths: vi
+          .fn()
+          .mockRejectedValue(new Error("Index scan failed")),
+      },
+    })
+    await renderQuickOpen({})
+    const input = host?.querySelector<HTMLInputElement>(
+      'input[aria-label="Search files by name"]'
+    )
+    await act(async () => {
+      setInputValue(input!, "RELEASE_NOTES")
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    expect(host?.textContent).toContain("Index scan failed")
+    expect(host?.textContent).not.toContain("No matching files")
+  })
+
   it("lists active Eidos File tables before any query is typed", async () => {
     await renderQuickOpen({
       activeTableSource: {
