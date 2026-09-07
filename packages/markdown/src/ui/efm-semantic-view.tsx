@@ -57,10 +57,12 @@ const ALLOWED_HTML_TAGS = new Set([
   "mark",
   "ol",
   "p",
+  "picture",
   "pre",
   "s",
   "small",
   "span",
+  "source",
   "strong",
   "sub",
   "summary",
@@ -183,28 +185,19 @@ function renderHtmlNode(
   }
 
   const props: Record<string, unknown> = { key }
+  const align = element.getAttribute("align")?.toLowerCase()
+  if (align && /^(left|center|right|justify)$/u.test(align)) props.align = align
+  if (
+    tag === "img" ||
+    (tag === "source" && element.parentElement?.tagName === "PICTURE")
+  ) {
+    return createElement(SafeHtmlImage, { key, element, baseUri })
+  }
   if (tag === "a") {
     const href = element.getAttribute("href")
     const resolved = href ? resolveEfmResourceUri(href, baseUri) : null
     if (resolved) props.href = resolved
     else props["aria-disabled"] = true
-    const title = element.getAttribute("title")
-    if (title) props.title = title
-  } else if (tag === "img") {
-    const src = element.getAttribute("src")
-    const resolved = src
-      ? resolveEfmResourceUri(src, baseUri, { image: true })
-      : null
-    if (!resolved) {
-      return createElement(
-        "span",
-        { className: "eme-efm-image-unavailable", key },
-        element.getAttribute("alt") || "Image unavailable"
-      )
-    }
-    props.src = resolved
-    props.alt = element.getAttribute("alt") ?? ""
-    props.loading = "lazy"
     const title = element.getAttribute("title")
     if (title) props.title = title
   } else if (tag === "ol") {
@@ -235,6 +228,58 @@ function SafeHtmlPreview({ html }: { html: string }) {
     )
   }, [baseUri, html, obsidianWikilinks])
   return <>{content}</>
+}
+
+// Resource resolution is shared with Markdown images; raw HTML never bypasses
+// the host's local-file boundary or the URL scheme allowlist.
+function SafeHtmlImage({
+  element,
+  baseUri,
+}: {
+  element: Element
+  baseUri?: string
+}) {
+  const source = element.tagName.toLowerCase() === "source"
+  const raw = element.getAttribute(source ? "srcset" : "src") ?? ""
+  // Accept a single picture source. Do not interpret an arbitrary srcset as a URL.
+  const path = source && /[\s,]/u.test(raw) ? "" : raw
+  const fallback =
+    resolveEfmResourceUri(path, baseUri, { image: true }) ?? undefined
+  const url = useResolvedImageUrl(path || undefined, fallback)
+  if (source) {
+    return url ? (
+      <source
+        srcSet={url}
+        media={element.getAttribute("media") ?? undefined}
+        type={element.getAttribute("type") ?? undefined}
+      />
+    ) : null
+  }
+  if (!url)
+    return (
+      <span className="eme-efm-image-unavailable">
+        {element.getAttribute("alt") || "Image unavailable"}
+      </span>
+    )
+  const dimension = (name: string) => {
+    const value = element.getAttribute(name)
+    return value && /^\d+$/u.test(value) && Number(value) > 0
+      ? Number(value)
+      : undefined
+  }
+  return (
+    <img
+      src={url}
+      alt={element.getAttribute("alt") ?? ""}
+      title={element.getAttribute("title") ?? undefined}
+      width={dimension("width")}
+      height={dimension("height")}
+      // HTML dimensions are presentation hints, weaker than host CSS resets.
+      // Promote only validated numbers, never source-provided CSS.
+      style={{ width: dimension("width"), height: dimension("height") }}
+      loading="lazy"
+    />
+  )
 }
 
 function FrontmatterWikilink({

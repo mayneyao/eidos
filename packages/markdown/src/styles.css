@@ -1307,8 +1307,7 @@
   font-size: 0.72rem;
 }
 
-.eme-efm-image img,
-.eme-efm-html-preview img {
+.eme-efm-image img {
   display: block;
   max-width: 100%;
   height: auto;
@@ -1470,11 +1469,26 @@
 }
 
 .eme-efm-html-preview {
+  white-space: normal;
   position: relative;
   margin: 0 0 1.1em;
   padding: 0.35rem 0.5rem;
   border: 1px solid transparent;
   border-radius: 0.42rem;
+}
+
+.eme-efm-html-preview img {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.eme-efm-html-preview img:not([height]) {
+  height: auto;
+}
+
+.eme-efm-html-preview pre {
+  white-space: pre;
 }
 
 .eme-efm-html-preview > :first-child {

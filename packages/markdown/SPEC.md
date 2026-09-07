@@ -73,6 +73,13 @@ NOT treat YAML envelopes, dollar-delimited equations, math fences or vault
 links as non-GFM extensions. Security restrictions apply to every preset;
 unsafe HTML MUST stay inert even when a dialect recognizes it.
 
+Safe HTML previews preserve validated alignment and positive integer image
+dimensions. HTML images use the same host resource resolver as Markdown images.
+Picture elements support a single URL source with a media condition; unsupported
+source sets fall back to the picture's image. HTML formatting whitespace collapses
+normally, except in preformatted content. Arbitrary styles and event handlers
+remain excluded from the preview.
+
 Changing preset MUST retain host-controlled Markdown unless the host explicitly
 replaces it. It creates a new editor session; undo history and selection do not
 cross dialect boundaries. A syntax demo MUST use the real profile and disclose
