@@ -20,11 +20,7 @@ const cargoTarget = process.env.CARGO_TARGET_DIR
   ? path.resolve(cliRoot, process.env.CARGO_TARGET_DIR)
   : path.join(cliRoot, "target")
 const source = path.join(cargoTarget, "release", executableName)
-const destinationDirectory = path.join(
-  appRoot,
-  "resources",
-  "publish-engine"
-)
+const destinationDirectory = path.join(appRoot, "resources", "publish-engine")
 const destination = path.join(destinationDirectory, executableName)
 await fs.rm(destinationDirectory, { recursive: true, force: true })
 await fs.mkdir(destinationDirectory, { recursive: true })

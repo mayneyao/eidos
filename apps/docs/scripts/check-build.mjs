@@ -36,9 +36,7 @@ try {
   const headers = await readFile(path.join(outputRoot, "_headers"), "utf8")
   if (
     !headers.includes("/_astro/*") ||
-    !headers.includes(
-      "Cache-Control: public, max-age=31536000, immutable"
-    )
+    !headers.includes("Cache-Control: public, max-age=31536000, immutable")
   ) {
     failures.push(
       "Missing immutable cache policy for fingerprinted Astro assets"

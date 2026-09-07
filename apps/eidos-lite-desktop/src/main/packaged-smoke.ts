@@ -1195,7 +1195,7 @@ const rendererProbe = `
     "Lifecycle",
     "Created"
   )
-  await new Promise((resolve) => setTimeout(resolve, 50))
+  await new Promise((resolve) => setTimeout(resolve, 100))
   const renamed = await window.eidosLite.renamePath(
     fileCreated.relativePath,
     "Renamed.eidos"

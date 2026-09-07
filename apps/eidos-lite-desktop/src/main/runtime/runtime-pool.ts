@@ -278,7 +278,8 @@ export class RuntimePool {
   }
 
   async closeSession(sessionId: string): Promise<void> {
-    const entry = this.requireEntry(sessionId)
+    const entry = this.entriesBySession.get(sessionId)
+    if (!entry) return
     try {
       await this.closeEntry(entry)
     } finally {
@@ -458,13 +459,50 @@ export class RuntimePool {
   }
 
   async closeSessionsForPath(relativePath: string): Promise<string[]> {
-    const normalized = relativePath.replace(/\/$/, "")
-    const entries = [...this.entriesBySession.values()].filter(
-      (entry) =>
-        entry.relativePath === normalized ||
-        entry.relativePath.startsWith(`${normalized}/`)
-    )
-    for (const entry of entries) await this.closeSession(entry.sessionId)
+    const normalized = relativePath.split("\\").join("/").replace(/\/+$/, "")
+    const lowerNormalized = normalized.toLowerCase()
+    let targetCanonical: string | null = null
+    try {
+      const targetAbsolute = resolveSpacePath(this.spaceRoot, relativePath)
+      targetCanonical = await fs.realpath(targetAbsolute)
+    } catch {
+      // Target path missing on disk; fall back to relative matching.
+    }
+
+    const entries = [...this.entriesBySession.values()].filter((entry) => {
+      const entryRel = entry.relativePath
+        .split("\\")
+        .join("/")
+        .replace(/\/+$/, "")
+      const lowerEntryRel = entryRel.toLowerCase()
+      if (
+        entryRel === normalized ||
+        entryRel.startsWith(`${normalized}/`) ||
+        lowerEntryRel === lowerNormalized ||
+        lowerEntryRel.startsWith(`${lowerNormalized}/`)
+      ) {
+        return true
+      }
+      if (targetCanonical) {
+        const lowerTarget = targetCanonical.toLowerCase()
+        const lowerFile = path.resolve(entry.filePath).toLowerCase()
+        const lowerCanonical = path.resolve(entry.canonicalPath).toLowerCase()
+        if (
+          lowerFile === lowerTarget ||
+          lowerFile.startsWith(`${lowerTarget}${path.sep}`) ||
+          lowerFile.startsWith(`${lowerTarget}/`) ||
+          lowerCanonical === lowerTarget ||
+          lowerCanonical.startsWith(`${lowerTarget}${path.sep}`) ||
+          lowerCanonical.startsWith(`${lowerTarget}/`)
+        ) {
+          return true
+        }
+      }
+      return false
+    })
+    for (const entry of entries) {
+      await this.closeSession(entry.sessionId).catch(() => undefined)
+    }
     return entries.map((entry) => entry.sessionId)
   }
 
@@ -736,7 +774,10 @@ export class RuntimePool {
       )
     } finally {
       child.kill()
-      await childExited
+      await Promise.race([
+        childExited,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ])
     }
   }
 

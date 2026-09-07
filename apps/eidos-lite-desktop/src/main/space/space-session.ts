@@ -159,7 +159,7 @@ function isEidosDatabaseSidecar(value: string): boolean {
 async function renameWithRetry(
   sourcePath: string,
   targetPath: string,
-  maxRetries = 15,
+  maxRetries = 20,
   initialDelayMs = 50
 ): Promise<void> {
   let delay = initialDelayMs
@@ -390,10 +390,45 @@ export class SpaceSession {
   >()
   private readonly runtimeSessionByPath = new Map<string, string>()
 
+  private async closeAndEvictRuntimeSessions(
+    source: string
+  ): Promise<string[]> {
+    const closed = new Set<string>(
+      await this.runtimePool.closeSessionsForPath(source)
+    )
+    const normalized = source.split("\\").join("/").replace(/\/+$/, "")
+    const lowerNormalized = normalized.toLowerCase()
+    for (const [key, sessionId] of this.runtimeSessionByPath.entries()) {
+      const keyNorm = key.split("\\").join("/").replace(/\/+$/, "")
+      const lowerKey = keyNorm.toLowerCase()
+      if (
+        keyNorm === normalized ||
+        keyNorm.startsWith(`${normalized}/`) ||
+        lowerKey === lowerNormalized ||
+        lowerKey.startsWith(`${lowerNormalized}/`)
+      ) {
+        if (!closed.has(sessionId)) {
+          await this.runtimePool.closeSession(sessionId).catch(() => undefined)
+          closed.add(sessionId)
+        }
+        this.runtimeSessionByPath.delete(key)
+      }
+    }
+    return [...closed]
+  }
+
   private evictRuntimeSessionByPath(source: string): void {
-    const normalized = source.replace(/\/$/, "")
+    const normalized = source.split("\\").join("/").replace(/\/+$/, "")
+    const lowerNormalized = normalized.toLowerCase()
     for (const key of this.runtimeSessionByPath.keys()) {
-      if (key === normalized || key.startsWith(`${normalized}/`)) {
+      const keyNorm = key.split("\\").join("/").replace(/\/+$/, "")
+      const lowerKey = keyNorm.toLowerCase()
+      if (
+        keyNorm === normalized ||
+        keyNorm.startsWith(`${normalized}/`) ||
+        lowerKey === lowerNormalized ||
+        lowerKey.startsWith(`${lowerNormalized}/`)
+      ) {
         this.runtimeSessionByPath.delete(key)
       }
     }
@@ -845,9 +880,7 @@ export class SpaceSession {
     let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
       const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds =
-        await this.runtimePool.closeSessionsForPath(source)
-      this.evictRuntimeSessionByPath(source)
+      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
       await renameWithRetry(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
@@ -891,9 +924,7 @@ export class SpaceSession {
     let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
       const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds =
-        await this.runtimePool.closeSessionsForPath(source)
-      this.evictRuntimeSessionByPath(source)
+      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
       await renameWithRetry(
         this.resolveUserPath(source),
         this.resolveUserPath(target)
@@ -970,9 +1001,7 @@ export class SpaceSession {
     await fs.lstat(this.resolveUserPath(source))
     let invalidatedSessionIds: string[] = []
     await this.gate.withMutation(async () => {
-      invalidatedSessionIds =
-        await this.runtimePool.closeSessionsForPath(source)
-      this.evictRuntimeSessionByPath(source)
+      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
       await trash(this.resolveUserPath(source))
     })
     this.noteLocalChange()

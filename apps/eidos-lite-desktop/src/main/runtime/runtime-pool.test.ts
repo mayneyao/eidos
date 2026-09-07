@@ -1,5 +1,12 @@
 import { EventEmitter } from "node:events"
-import { mkdtemp, realpath, rename, rm, writeFile } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { utilityProcess, type UtilityProcess } from "electron"
@@ -309,5 +316,30 @@ describe("RuntimePool LRU policy", () => {
 
     expect(isCurrentRuntimeChild(replacementChild, previousChild)).toBe(false)
     expect(isCurrentRuntimeChild(replacementChild, replacementChild)).toBe(true)
+  })
+
+  it("closes sessions for matching paths with normalized slashes and prefixes", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-close-path-"))
+    )
+    const filePath = path.join(root, "folder", "data.eidos")
+    await mkdir(path.dirname(filePath), { recursive: true })
+    await writeFile(filePath, "fixture")
+    const child = new FakeRuntimeUtilityProcess()
+    vi.mocked(utilityProcess.fork).mockReturnValue(
+      child as unknown as UtilityProcess
+    )
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      const opened = await pool.open("folder/data.eidos")
+      expect(pool.openRelativePaths()).toEqual(["folder/data.eidos"])
+
+      const closed = await pool.closeSessionsForPath("folder\\")
+      expect(closed).toEqual([opened.sessionId])
+      expect(pool.openRelativePaths()).toEqual([])
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
