@@ -763,7 +763,6 @@ export class RuntimePool {
   }
 
   private async closeEntryInternal(entry: RuntimeEntry): Promise<void> {
-    entry.closed = true
     const child = entry.child
     if (!child) return
     const childExited = new Promise<void>((resolve) => {

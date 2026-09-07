@@ -342,4 +342,37 @@ describe("RuntimePool LRU policy", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  it("suspends handles with closeHandles and reopens them with reopenHandles", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-suspend-"))
+    )
+    const filePath = path.join(root, "file.eidos")
+    await writeFile(filePath, "fixture")
+    const child1 = new FakeRuntimeUtilityProcess()
+    const child2 = new FakeRuntimeUtilityProcess()
+    vi.mocked(utilityProcess.fork)
+      .mockReturnValueOnce(child1 as unknown as UtilityProcess)
+      .mockReturnValueOnce(child2 as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      const opened = await pool.open("file.eidos")
+      expect(pool.residentRelativePaths()).toEqual(["file.eidos"])
+
+      await pool.closeHandles()
+      expect(pool.residentRelativePaths()).toEqual([])
+      expect(pool.openRelativePaths()).toEqual(["file.eidos"])
+
+      await pool.reopenHandles()
+      expect(pool.residentRelativePaths()).toEqual(["file.eidos"])
+
+      await pool.closeSession(opened.sessionId)
+      await expect(
+        pool.call(opened.sessionId, "getSnapshot", [])
+      ).rejects.toThrow("Unknown or closed Eidos File session")
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
