@@ -9199,18 +9199,40 @@ body {
   font-size: 12px;
   overflow: auto;
 }
-.workspace-search-open {
+.workspace-sidebar-tabs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   margin: 4px 8px;
-  padding: 6px;
+  padding: 2px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+}
+.workspace-sidebar-tabs button {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
   color: var(--ink-muted);
   background: transparent;
-  border: 1px solid var(--control-border);
+  border: 0;
   border-radius: 4px;
   font-size: 12px;
-  text-align: left;
+  cursor: pointer;
+}
+.workspace-sidebar-tabs button[aria-selected="true"] {
+  color: var(--ink);
+  background: var(--control-fill);
+}
+.workspace-sidebar-tabs button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.workspace-text-search[hidden] {
+  display: none;
 }
 .workspace-search-input {
   display: flex;

@@ -838,6 +838,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
   const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
+  const filesTabRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
@@ -3015,29 +3016,83 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             </button>
           </div>
         </div>
-        <button
-          type="button"
-          className="workspace-search-open"
-          title={`${t("Search Space text")} (${workspaceShortcutLabel("search-space-text", macos, keyboardShortcuts)})`}
-          aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
-            "search-space-text",
-            macos,
-            keyboardShortcuts
-          )}
-          aria-pressed={textSearchVisible}
-          onClick={() => setTextSearchVisible((open) => !open)}
+        <div
+          className="workspace-sidebar-tabs"
+          role="tablist"
+          aria-label={t("Workspace navigation")}
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+              return
+            event.preventDefault()
+            const tabs = Array.from(
+              event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                '[role="tab"]'
+              )
+            )
+            const current = tabs.indexOf(
+              document.activeElement as HTMLButtonElement
+            )
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? tabs.length - 1
+                  : (current +
+                      (event.key === "ArrowRight" ? 1 : -1) +
+                      tabs.length) %
+                    tabs.length
+            tabs[next]?.focus({ preventScroll: true })
+          }}
         >
-          <Search size={14} />
-          {t("Search Space text")}
-        </button>
-        {textSearchVisible ? (
-          <WorkspaceTextSearch
-            focusToken={textSearchFocusToken}
-            onOpen={openTextSearchHit}
-            onClose={() => setTextSearchVisible(false)}
-          />
-        ) : null}
+          <button
+            ref={filesTabRef}
+            id="workspace-files-tab"
+            type="button"
+            role="tab"
+            aria-selected={!textSearchVisible}
+            aria-controls="workspace-files-panel"
+            tabIndex={textSearchVisible ? -1 : 0}
+            onClick={() => setTextSearchVisible(false)}
+          >
+            <FolderOpen size={14} aria-hidden="true" />
+            {t("Files")}
+          </button>
+          <button
+            id="workspace-search-tab"
+            type="button"
+            role="tab"
+            aria-selected={textSearchVisible}
+            aria-controls="workspace-search-panel"
+            tabIndex={textSearchVisible ? 0 : -1}
+            title={`${t("Search Space text")} (${workspaceShortcutLabel("search-space-text", macos, keyboardShortcuts)})`}
+            aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+              "search-space-text",
+              macos,
+              keyboardShortcuts
+            )}
+            onClick={() => {
+              setTextSearchVisible(true)
+              setTextSearchFocusToken((current) => current + 1)
+            }}
+          >
+            <Search size={14} aria-hidden="true" />
+            {t("Search")}
+          </button>
+        </div>
+        <WorkspaceTextSearch
+          key={space.id}
+          hidden={!textSearchVisible}
+          focusToken={textSearchFocusToken}
+          onOpen={openTextSearchHit}
+          onClose={() => {
+            setTextSearchVisible(false)
+            filesTabRef.current?.focus({ preventScroll: true })
+          }}
+        />
         <nav
+          id="workspace-files-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-files-tab"
           className="explorer"
           hidden={textSearchVisible}
           aria-label={`${space.name} files`}

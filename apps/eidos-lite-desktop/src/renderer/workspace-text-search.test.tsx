@@ -93,6 +93,36 @@ it("ignores old query results and cancels before a debounced scan begins", async
     expect(search).toHaveBeenCalledTimes(1)
     expect(cancel).toHaveBeenCalledWith(firstId)
     expect(host.textContent).toContain("Search stopped. Results are partial.")
+    const panel = host.querySelector<HTMLElement>('[role="tabpanel"]')!
+    panel.scrollTop = 120
+    const other = document.createElement("button")
+    host.append(other)
+    other.focus()
+    await act(async () =>
+      root.render(
+        <WorkspaceTextSearch
+          hidden
+          onOpen={async () => undefined}
+          onClose={() => undefined}
+        />
+      )
+    )
+    expect(panel.hidden).toBe(true)
+    expect(document.activeElement).toBe(other)
+    await act(async () =>
+      root.render(
+        <WorkspaceTextSearch
+          onOpen={async () => undefined}
+          onClose={() => undefined}
+        />
+      )
+    )
+    expect(panel.hidden).toBe(false)
+    expect(panel.scrollTop).toBe(120)
+    expect(host.querySelector("input")!.value).toBe("second")
+    expect(document.activeElement).toBe(host.querySelector("input"))
+    expect(host.textContent).toContain("Search stopped. Results are partial.")
+    expect(search).toHaveBeenCalledTimes(1)
   } finally {
     await act(async () => root.unmount())
     host.remove()

@@ -4,6 +4,9 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  Files: "文件",
+  Search: "搜索",
+  "Workspace navigation": "工作区导航",
   "Recover one file": "恢复单个文件",
   "Save before as a copy": "将更改前的内容另存为副本",
   "Save after as a copy": "将更改后的内容另存为副本",

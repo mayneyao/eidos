@@ -7,10 +7,12 @@ export function WorkspaceTextSearch({
   onOpen,
   onClose,
   focusToken = 0,
+  hidden = false,
 }: {
   onOpen(hit: TextSearchHit): Promise<void>
   onClose(): void
   focusToken?: number
+  hidden?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const [query, setQuery] = useState("")
@@ -22,9 +24,10 @@ export function WorkspaceTextSearch({
   const pendingTimer = useRef<number | null>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
+    if (hidden) return
     input.current?.focus({ preventScroll: true })
     input.current?.select()
-  }, [focusToken])
+  }, [focusToken, hidden])
   useEffect(() => {
     setProgress(null)
     setError(null)
@@ -54,6 +57,10 @@ export function WorkspaceTextSearch({
   }, [query, generation])
   return (
     <section
+      id="workspace-search-panel"
+      role="tabpanel"
+      aria-labelledby="workspace-search-tab"
+      hidden={hidden}
       className="workspace-text-search"
       aria-label={t("Search Space text")}
     >
