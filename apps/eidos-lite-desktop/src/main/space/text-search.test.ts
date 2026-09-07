@@ -16,6 +16,35 @@ const search = (
   signal = new AbortController().signal
 ) => searchSpaceText(root, "test", query, signal, () => undefined, limits)
 
+it("propagates matching modes and exact regex highlights through a real file scan", async () => {
+  await fs.writeFile(
+    path.join(root, "note.md"),
+    "work12 Work7 workspace 中文 中文字符"
+  )
+  const run = (
+    query: string,
+    options: import("../../shared/text-search").TextSearchOptions
+  ) =>
+    searchSpaceText(
+      root,
+      "modes",
+      query,
+      new AbortController().signal,
+      () => undefined,
+      TEXT_SEARCH_LIMITS,
+      options
+    )
+  const result = await run("work\\d+", { regex: true, caseSensitive: true })
+  expect(result.hits).toHaveLength(1)
+  expect(result.hits[0]).toMatchObject({
+    matchedText: "work12",
+    highlightRanges: [{ start: 0, end: 6 }],
+    options: { regex: true, caseSensitive: true },
+  })
+  expect((await run("中文", { wholeWord: true })).hits).toHaveLength(1)
+  await expect(run("[", { regex: true })).rejects.toThrow()
+})
+
 it("finds Chinese and literal punctuation with distinct paths and UTF-16 source offsets", async () => {
   await fs.mkdir(path.join(root, "sub"))
   await fs.writeFile(path.join(root, "note.md"), "# note\n中文 [a]+ 中文\n")

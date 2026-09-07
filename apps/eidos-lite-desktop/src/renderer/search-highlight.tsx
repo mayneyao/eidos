@@ -4,11 +4,13 @@ import { literalTextMatches } from "../shared/text-search"
 export function SearchHighlight({
   text,
   query,
+  ranges,
 }: {
   text: string
   query: string
+  ranges?: { start: number; end: number }[]
 }) {
-  const matches = literalTextMatches(text, query)
+  const matches = ranges ?? literalTextMatches(text, query)
   let offset = 0
   return (
     <>

@@ -4,6 +4,16 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Match case": "区分大小写",
+  "Match whole word": "全词匹配",
+  "Use regular expression": "使用正则表达式",
+  "Invalid regular expression.": "正则表达式无效。",
+  "Content changed since this regular-expression search. Search again.":
+    "正则搜索后内容已改变，请重新搜索。",
+  "Whole word treats consecutive Unicode letters, numbers, marks and underscores as one word, including Chinese text. Regular expressions use JavaScript syntax; empty matches are ignored.":
+    "全词匹配将连续的 Unicode 字母、数字、组合标记和下划线视为一个词，包括连续中文。正则使用 JavaScript 语法，忽略空匹配。",
+  "Opened source to locate this match precisely; it could not be mapped to rendered text.":
+    "此匹配无法准确对应到渲染后的正文，已打开源码定位。",
   "{matches} matches in {files} files": "{files} 个文件中有 {matches} 个匹配",
   "{scanned} scanned · {skipped} skipped · {errors} errors":
     "已扫描 {scanned} 个文件 · 跳过 {skipped} 个 · {errors} 个错误",

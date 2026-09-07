@@ -91,8 +91,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   searchSpacePaths: (query, limit) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
-  searchSpaceText: (requestId, query) =>
-    ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query),
+  searchSpaceText: (requestId, query, options) =>
+    ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query, options),
   cancelTextSearch: (requestId) =>
     ipcRenderer.invoke(IPC_CHANNELS.cancelTextSearch, requestId),
   onTextSearchProgress: (listener) => {

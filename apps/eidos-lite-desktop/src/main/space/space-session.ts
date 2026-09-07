@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto"
 import { searchSpaceText } from "./text-search"
-import type { TextSearchProgress } from "../../shared/text-search"
+import type {
+  TextSearchProgress,
+  TextSearchOptions,
+} from "../../shared/text-search"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -517,7 +520,8 @@ export class SpaceSession {
   async searchText(
     requestId: string,
     query: string,
-    onProgress: (progress: TextSearchProgress) => void
+    onProgress: (progress: TextSearchProgress) => void,
+    options: TextSearchOptions = {}
   ): Promise<TextSearchProgress> {
     if (this.closed || this.closeInFlight) throw new Error("Space is closed")
     this.textSearch?.controller.abort()
@@ -529,7 +533,9 @@ export class SpaceSession {
         requestId,
         query,
         search.controller.signal,
-        onProgress
+        onProgress,
+        undefined,
+        options
       )
     } finally {
       if (this.textSearch === search) this.textSearch = null

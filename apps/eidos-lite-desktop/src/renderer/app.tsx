@@ -43,6 +43,7 @@ import { WorkspaceHeading } from "./workspace-heading"
 import {
   resolveTextSearchTarget,
   type TextSearchHit,
+  type TextSearchOptions,
   type TextSearchTarget,
 } from "../shared/text-search"
 
@@ -833,6 +834,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
   const [textSearchQuery, setTextSearchQuery] = useState("")
+  const [textSearchOptions, setTextSearchOptions] = useState<TextSearchOptions>(
+    {}
+  )
   useEffect(() => setTextSearchQuery(""), [space?.id])
   const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
   const searchEntryRef = useRef<HTMLButtonElement>(null)
@@ -2089,9 +2093,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         throw new Error(t("This file is no longer available as editable text."))
       const content =
         textFileDrafts[hit.relativePath]?.content ?? preview.content
+      if (
+        hit.options?.regex &&
+        (textFileDrafts[hit.relativePath] || preview.revision !== hit.revision)
+      )
+        throw new Error(
+          t(
+            "Content changed since this regular-expression search. Search again."
+          )
+        )
       const target = resolveTextSearchTarget(content, {
         requestId: crypto.randomUUID(),
-        query: hit.query,
+        query: hit.matchedText ?? hit.query,
+        options: {
+          caseSensitive: hit.options?.caseSensitive,
+          wholeWord: hit.options?.wholeWord,
+        },
         start: hit.start,
         end: hit.end,
       })
@@ -2970,6 +2987,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           path={space.displayPath}
           searching={textSearchVisible}
           query={textSearchQuery}
+          options={textSearchOptions}
+          onOptionsChange={setTextSearchOptions}
           onQueryChange={setTextSearchQuery}
           focusToken={textSearchFocusToken}
           searchRef={searchEntryRef}
@@ -2994,6 +3013,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           actions={[
             {
               label: t("New File"),
+              shortcut: workspaceShortcutLabel(
+                "new-file",
+                macos,
+                keyboardShortcuts
+              ),
+              ariaShortcut: workspaceShortcutAriaKeyShortcuts(
+                "new-file",
+                macos,
+                keyboardShortcuts
+              ),
               icon: <FilePlus2 />,
               disabled: pathMutationBusy || localInteractionBlocked,
               run: () =>
@@ -3033,6 +3062,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           key={space.id}
           hidden={!textSearchVisible || !textSearchQuery}
           query={textSearchQuery}
+          options={textSearchOptions}
           onOpen={openTextSearchHit}
           onClose={() => {
             flushSync(() => setTextSearchVisible(false))

@@ -7,6 +7,7 @@ import {
 } from "react"
 import { X, MoreHorizontal, Search } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
+import type { TextSearchOptions } from "../shared/text-search"
 
 export function WorkspaceHeading({
   name,
@@ -20,6 +21,8 @@ export function WorkspaceHeading({
   query,
   onQueryChange,
   focusToken,
+  options = {},
+  onOptionsChange,
   actions,
 }: {
   name: string
@@ -33,7 +36,16 @@ export function WorkspaceHeading({
   query: string
   onQueryChange(query: string): void
   focusToken: number
-  actions: { label: string; icon: ReactNode; disabled?: boolean; run(): void }[]
+  options?: TextSearchOptions
+  onOptionsChange?: (options: TextSearchOptions) => void
+  actions: {
+    label: string
+    icon: ReactNode
+    disabled?: boolean
+    shortcut?: string
+    ariaShortcut?: string
+    run(): void
+  }[]
 }) {
   const { t } = useEidosLiteI18n()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -79,7 +91,29 @@ export function WorkspaceHeading({
               placeholder={t("Search saved text")}
               onChange={(event) => onQueryChange(event.target.value)}
             />
-            <Search size={14} aria-hidden="true" />
+            <div className="workspace-search-modes">
+              {(
+                [
+                  ["caseSensitive", "Aa", "Match case"],
+                  ["wholeWord", "ab", "Match whole word"],
+                  ["regex", ".*", "Use regular expression"],
+                ] as const
+              ).map(([key, label, title]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-label={t(title)}
+                  title={t(title)}
+                  aria-pressed={!!options[key]}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    onOptionsChange?.({ ...options, [key]: !options[key] })
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             type="button"
@@ -147,6 +181,12 @@ export function WorkspaceHeading({
                     type="button"
                     key={action.label}
                     disabled={action.disabled}
+                    aria-keyshortcuts={action.ariaShortcut}
+                    title={
+                      action.shortcut
+                        ? `${action.label} (${action.shortcut})`
+                        : action.label
+                    }
                     onClick={() => {
                       setMenuOpen(false)
                       trigger.current?.focus({ preventScroll: true })

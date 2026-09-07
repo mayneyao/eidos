@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { normalizeTextSearchOptions } from "../shared/text-search"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
@@ -1084,7 +1085,7 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.searchText,
-    (event, requestId: unknown, query: unknown) => {
+    (event, requestId: unknown, query: unknown, options: unknown) => {
       if (
         typeof requestId !== "string" ||
         requestId.length > 100 ||
@@ -1093,12 +1094,15 @@ export function registerIpc(
         query.length > 512
       )
         throw new Error("Invalid text search")
-      return controller
-        .requireSession(event.sender)
-        .searchText(requestId, query, (progress) => {
+      return controller.requireSession(event.sender).searchText(
+        requestId,
+        query,
+        (progress) => {
           if (!event.sender.isDestroyed())
             event.sender.send(IPC_CHANNELS.searchTextProgress, progress)
-        })
+        },
+        normalizeTextSearchOptions(options)
+      )
     }
   )
   ipcMain.handle(IPC_CHANNELS.cancelTextSearch, (event, requestId: unknown) => {

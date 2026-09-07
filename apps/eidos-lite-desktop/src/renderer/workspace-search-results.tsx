@@ -58,7 +58,11 @@ function FileMatches({
             >
               <span className="workspace-search-line">{hit.line}</span>
               <span className="workspace-search-snippet">
-                <SearchHighlight text={hit.snippet} query={hit.query} />
+                <SearchHighlight
+                  text={hit.snippet}
+                  query={hit.query}
+                  ranges={hit.highlightRanges}
+                />
               </span>
             </button>
           </li>

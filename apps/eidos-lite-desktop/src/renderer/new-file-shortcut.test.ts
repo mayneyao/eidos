@@ -22,8 +22,13 @@ describe("New file shortcut", () => {
     expect(appSource).toContain(
       'setPathDialog({ action: "create-file", entry: selectedEntry })'
     )
-    expect(appSource).toContain(
-      'workspaceShortcutAriaKeyShortcuts(\n                "new-file"'
+    expect(appSource).toMatch(
+      /ariaShortcut:\s*workspaceShortcutAriaKeyShortcuts\(\s*"new-file"/
     )
+    const headingSource = readFileSync(
+      new URL("./workspace-heading.tsx", import.meta.url),
+      "utf8"
+    )
+    expect(headingSource).toContain("aria-keyshortcuts={action.ariaShortcut}")
   })
 })

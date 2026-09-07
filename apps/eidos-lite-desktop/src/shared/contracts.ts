@@ -1,4 +1,4 @@
-import type { TextSearchProgress } from "./text-search"
+import type { TextSearchProgress, TextSearchOptions } from "./text-search"
 import type {
   AssetLease,
   EidosFileCsvImportOptions,
@@ -1708,7 +1708,11 @@ export interface EidosLiteApi {
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
-  searchSpaceText(requestId: string, query: string): Promise<TextSearchProgress>
+  searchSpaceText(
+    requestId: string,
+    query: string,
+    options?: TextSearchOptions
+  ): Promise<TextSearchProgress>
   cancelTextSearch(requestId: string): Promise<void>
   onTextSearchProgress(
     listener: (progress: TextSearchProgress) => void

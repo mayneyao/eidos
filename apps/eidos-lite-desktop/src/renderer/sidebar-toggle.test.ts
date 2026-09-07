@@ -46,8 +46,8 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource).toContain('data-sidebar-action="settings"')
   expect(appSource).not.toContain('data-titlebar-action="settings"')
   expect(appSource.match(/onToggle=\{toggleSidebar\}/g)).toHaveLength(2)
-  expect(appSource.match(/workspaceShortcutAriaKeyShortcuts\(/g)).toHaveLength(
-    5
+  expect(appSource).toMatch(
+    /workspaceShortcutAriaKeyShortcuts\(\s*"search-space-text"/
   )
   expect(appSource).toContain(
     'workspaceShortcut === "toggle-terminal-position"'
@@ -76,7 +76,11 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
     /\.resizing-space-sidebar \.workbench,[\s\S]*?\.resizing-space-sidebar \.sidebar-resizer\s*\{\s*transition:\s*none;/
   )
   expect(styles).toMatch(
-    /\.sidebar-resizer\s*\{[\s\S]*?z-index:\s*50;[\s\S]*?left:\s*calc\(var\(--effective-space-sidebar-width\) - 12px\);[\s\S]*?width:\s*12px;/
+    /\.sidebar-resizer\s*\{[\s\S]*?z-index:\s*50;[\s\S]*?left:\s*calc\(\s*var\(--effective-space-sidebar-width\) - var\(--space-sidebar-resize-hit-width\)\s*\);[\s\S]*?width:\s*var\(--space-sidebar-resize-hit-width\);/
+  )
+  expect(styles).toContain("--space-sidebar-resize-hit-width: 12px;")
+  expect(styles).toMatch(
+    /\.workspace-text-search\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
   )
   expect(styles).toMatch(
     /\.sidebar-resizer::after\s*\{[\s\S]*?right:\s*0;[\s\S]*?width:\s*1px;/

@@ -4,9 +4,11 @@ import {
   literalTextMatches,
   textOffsetPosition,
   type TextSearchProgress,
+  type TextSearchOptions,
 } from "../../shared/text-search"
 import { readTextFilePreview } from "./text-file-preview"
 import { isHiddenImplementationEntry } from "./space-paths"
+import { regexTextMatches } from "./regex-text-search"
 
 const EXCLUDED = new Set([
   ".git",
@@ -61,10 +63,12 @@ export async function searchSpaceText(
   query: string,
   signal: AbortSignal,
   onProgress: (progress: TextSearchProgress) => void,
-  limits = TEXT_SEARCH_LIMITS
+  limits = TEXT_SEARCH_LIMITS,
+  options: TextSearchOptions = {}
 ): Promise<TextSearchProgress> {
   if (!query || query.length > 512 || /[\r\n\0]/u.test(query))
     throw new Error("Use a single-line search query of 1–512 characters")
+  if (options.regex) new RegExp(query, options.caseSensitive ? "gu" : "giu")
   const progress: TextSearchProgress = {
     requestId,
     hits: [],
@@ -155,11 +159,19 @@ export async function searchSpaceText(
         }
         bytes += preview.size
         progress.scanned++
-        for (const match of literalTextMatches(
-          preview.content,
-          query,
-          limits.hits - progress.hits.length
-        )) {
+        const remaining = limits.hits - progress.hits.length
+        const matches = options.regex
+          ? await regexTextMatches(
+              preview.content,
+              query,
+              remaining,
+              !!options.caseSensitive,
+              !!options.wholeWord,
+              signal
+            )
+          : literalTextMatches(preview.content, query, remaining, options)
+        if (stop()) break
+        for (const match of matches) {
           const position = textOffsetPosition(preview.content, match.start)
           const lineStart =
             preview.content.lastIndexOf("\n", match.start - 1) + 1
@@ -177,9 +189,16 @@ export async function searchSpaceText(
             column: position.character + 1,
             snippet: preview.content.slice(start, end),
             query,
+            options,
+            matchedText: preview.content.slice(match.start, match.end),
+            highlightRanges: matches
+              .filter((m) => m.start >= start && m.end <= end)
+              .map((m) => ({ start: m.start - start, end: m.end - start })),
           })
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.name === "RegexSearchError")
+          throw error
         progress.errors++
       }
     }

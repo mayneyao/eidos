@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react"
-import type { TextSearchHit, TextSearchProgress } from "../shared/text-search"
+import type {
+  TextSearchHit,
+  TextSearchProgress,
+  TextSearchOptions,
+} from "../shared/text-search"
 import { useEidosLiteI18n } from "./i18n"
 import { WorkspaceSearchResults } from "./workspace-search-results"
 
@@ -8,11 +12,13 @@ export function WorkspaceTextSearch({
   onClose,
   query,
   hidden = false,
+  options,
 }: {
   onOpen(hit: TextSearchHit): Promise<void>
   onClose(): void
   query: string
   hidden?: boolean
+  options?: TextSearchOptions
 }) {
   const { t } = useEidosLiteI18n()
   const [progress, setProgress] = useState<TextSearchProgress | null>(null)
@@ -25,6 +31,14 @@ export function WorkspaceTextSearch({
     setProgress(null)
     setError(null)
     if (!query) return
+    if (options?.regex) {
+      try {
+        new RegExp(query, options.caseSensitive ? "gu" : "giu")
+      } catch {
+        setError(t("Invalid regular expression."))
+        return
+      }
+    }
     const id = crypto.randomUUID()
     active.current = id
     const accept = (next: TextSearchProgress) => {
@@ -34,7 +48,7 @@ export function WorkspaceTextSearch({
     const timer = window.setTimeout(() => {
       pendingTimer.current = null
       void window.eidosLite
-        .searchSpaceText(id, query)
+        .searchSpaceText(id, query, options)
         .then(accept)
         .catch((cause) => {
           if (active.current === id) setError(String(cause))
@@ -47,7 +61,7 @@ export function WorkspaceTextSearch({
       unsubscribe()
       void window.eidosLite.cancelTextSearch(id).catch(() => undefined)
     }
-  }, [query, generation])
+  }, [query, generation, options])
   return (
     <section
       id="workspace-search-panel"
@@ -65,6 +79,11 @@ export function WorkspaceTextSearch({
     >
       <details>
         <summary>{t("Search scope and limits")}</summary>
+        <p>
+          {t(
+            "Whole word treats consecutive Unicode letters, numbers, marks and underscores as one word, including Chinese text. Regular expressions use JavaScript syntax; empty matches are ignored."
+          )}
+        </p>
         <p>
           {t(
             "Saved Markdown and text files only. Unsaved drafts and Eidos tables are not searched."
