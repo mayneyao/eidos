@@ -1,4 +1,5 @@
 import { tokenizeMarkdownLightweight } from "./markdown-highlight-tokenizer"
+import { tokenizeHtml } from "./html-highlight-tokenizer"
 
 export const CODE_HIGHLIGHT_KINDS = [
   "comment",
@@ -710,6 +711,9 @@ export const tokenizeCodeLightweight: CodeHighlightTokenizer = (
 
   if (normalizeLanguage(language) === "markdown") {
     return tokenizeMarkdownLightweight(code)
+  }
+  if (["html", "xml", "svg"].includes(normalizeLanguage(language))) {
+    return tokenizeHtml(code)
   }
 
   const rules = rulesForLanguage(language)

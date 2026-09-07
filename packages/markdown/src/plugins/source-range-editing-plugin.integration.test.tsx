@@ -84,6 +84,26 @@ async function flushEditor() {
 }
 
 describe("SourceRangeEditingPlugin integration", () => {
+  it("uses HTML highlighting for an HTML block source editor", async () => {
+    await renderEditor('<div align="center">Plain text</div>')
+    await act(async () => {
+      selectBlocks(0)
+      openSourceEditor()
+    })
+    await flushEditor()
+    expect(
+      container.querySelector('[data-code-highlight-kind="tag"]')?.textContent
+    ).toBe("<div")
+    expect(
+      container.querySelector('[data-code-highlight-kind="property"]')
+        ?.textContent
+    ).toBe("align")
+    expect(
+      container.querySelector('[data-code-highlight-kind="string"]')
+        ?.textContent
+    ).toBe('"center"')
+    expect(onMarkdownChange).not.toHaveBeenCalled()
+  })
   let container: HTMLDivElement
   let root: Root
   let onMarkdownChange: ReturnType<typeof vi.fn>

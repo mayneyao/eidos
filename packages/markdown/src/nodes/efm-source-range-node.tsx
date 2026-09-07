@@ -30,6 +30,7 @@ import {
   tokenizeCodeLightweight,
   type CodeHighlightToken,
 } from "../highlighting/code-highlight-tokenizer"
+import { sourceRangeLanguage } from "../highlighting/html-highlight-tokenizer"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import type { EfmInputProfile } from "../types"
 import {
@@ -207,7 +208,7 @@ function SourceRangeEditor({
       return
     }
     try {
-      void Promise.resolve(tokenizer(draft, "markdown"))
+      void Promise.resolve(tokenizer(draft, sourceRangeLanguage(data.source)))
         .then((nextTokens) => {
           if (active) setTokens(nextTokens)
         })
@@ -223,7 +224,7 @@ function SourceRangeEditor({
     return () => {
       active = false
     }
-  }, [codeHighlightTokenizer, draft, onError])
+  }, [codeHighlightTokenizer, draft, onError, data.source])
 
   const cancel = () => {
     clearSourceRangeCommit()
