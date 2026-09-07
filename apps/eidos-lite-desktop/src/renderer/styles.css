@@ -9305,6 +9305,12 @@ body {
 .workspace-search-results button:hover {
   background: var(--surface-hover);
 }
+.workspace-search-results mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--focus) 24%, transparent);
+  border-radius: 2px;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--focus) 65%, transparent);
+}
 .explorer[hidden] {
   display: none;
 }

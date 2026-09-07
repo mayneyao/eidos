@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { TextSearchHit, TextSearchProgress } from "../shared/text-search"
 import { useEidosLiteI18n } from "./i18n"
+import { SearchHighlight } from "./search-highlight"
 
 export function WorkspaceTextSearch({
   onOpen,
@@ -153,7 +154,9 @@ export function WorkspaceTextSearch({
               <span>
                 {hit.line}:{hit.column}
               </span>
-              <pre>{hit.snippet}</pre>
+              <pre>
+                <SearchHighlight text={hit.snippet} query={hit.query} />
+              </pre>
             </button>
           </li>
         ))}
