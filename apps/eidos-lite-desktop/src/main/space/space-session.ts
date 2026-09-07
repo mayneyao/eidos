@@ -611,7 +611,7 @@ export class SpaceSession {
           : classifyEidosFileIssue(relativePath, error)
       this.fileIssuesByPath.set(relativePath, issue)
       this.scheduleGraftStatusRefresh()
-      throw new EidosFileRuntimeError(issue)
+      throw new EidosFileRuntimeError(issue, { cause: error })
     }
   }
 
@@ -690,9 +690,20 @@ export class SpaceSession {
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
-    await this.gate.withMutation(async () => {
-      await this.runtimePool.create(relativePath, path.basename(name, ".eidos"))
+    const created = await this.gate.withMutation(async () => {
+      return await this.runtimePool.create(
+        relativePath,
+        path.basename(name, ".eidos")
+      )
     })
+    this.runtimeSessionByPath.set(relativePath, created.sessionId)
+    await this.rememberRuntimeExternalChangeState(
+      created.sessionId,
+      created.snapshot.metadata.revision
+    ).catch(() => {
+      this.runtimeExternalChangeState.delete(created.sessionId)
+    })
+    this.fileIssuesByPath.delete(relativePath)
     this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),

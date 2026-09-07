@@ -129,8 +129,11 @@ export function classifyEidosFileIssue(
 }
 
 export class EidosFileRuntimeError extends Error {
-  constructor(readonly issue: EidosFileIssue) {
-    super(issue.message)
+  constructor(
+    readonly issue: EidosFileIssue,
+    options?: ErrorOptions
+  ) {
+    super(issue.message, options)
     this.name = "EidosFileRuntimeError"
   }
 }
