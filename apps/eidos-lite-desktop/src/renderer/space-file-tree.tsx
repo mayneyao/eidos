@@ -361,6 +361,7 @@ export function SpaceFileTree({
     },
   })
   const selectedPaths = useFileTreeSelection(model)
+  const activeRevealRef = useRef({ model, path: activePath, revealed: false })
 
   useEffect(() => {
     const signature = sortedPathsSignature(tree.paths)
@@ -381,6 +382,15 @@ export function SpaceFileTree({
   }, [model, renameRequest])
 
   useEffect(() => {
+    if (
+      activeRevealRef.current.model !== model ||
+      activeRevealRef.current.path !== activePath
+    ) {
+      activeRevealRef.current = { model, path: activePath, revealed: false }
+    }
+    // Directory hydration also changes treeSignature. Reveal once per document
+    // navigation, so browsing folders cannot pull the viewport back to the editor.
+    if (activeRevealRef.current.revealed) return
     if (!activePath) return
     for (const parentPath of parentTreePaths(activePath)) {
       const parent = model.getItem(parentPath)
@@ -393,6 +403,7 @@ export function SpaceFileTree({
     }
     if (!item.isSelected()) item.select()
     model.scrollToPath(activePath, { offset: "nearest", focus: false })
+    activeRevealRef.current.revealed = true
   }, [activePath, model, treeSignature])
 
   const openTreePath = (treePath: string | null) => {
