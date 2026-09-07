@@ -320,6 +320,10 @@
 }
 .eme-document-find [role="status"] {
   flex: none;
+  width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
   padding-inline: 0.25rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

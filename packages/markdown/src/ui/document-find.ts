@@ -87,6 +87,13 @@ export function revealTextMatch(range: Range): void {
   const rectangle = range.getBoundingClientRect()
   if (scroll && rectangle.height) {
     const bounds = scroll.getBoundingClientRect()
-    scroll.scrollTop += rectangle.top - bounds.top - bounds.height / 2
-  } else element?.scrollIntoView({ block: "center", inline: "nearest" })
+    const find = scroll.parentElement?.querySelector(".eme-document-find")
+    const top =
+      Math.max(bounds.top, find?.getBoundingClientRect().bottom ?? bounds.top) +
+      8
+    const bottom = bounds.bottom - 8
+    if (rectangle.top < top || rectangle.bottom > bottom) {
+      scroll.scrollTop += rectangle.top - (top + bottom - rectangle.height) / 2
+    }
+  } else element?.scrollIntoView({ block: "nearest", inline: "nearest" })
 }

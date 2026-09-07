@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import type { MarkdownEditorLabels } from "../types"
 import { findDocumentRanges, revealTextMatch } from "../ui/document-find"
 
@@ -20,10 +20,13 @@ export function DocumentFindPlugin({
   const [query, setQuery] = useState("")
   const [index, setIndex] = useState(0)
   const [revision, setRevision] = useState(0)
-  const [result, setResult] = useState<{ ranges: Range[]; limited: boolean }>({
-    ranges: [],
-    limited: false,
-  })
+  const result = useMemo(() => {
+    const root = editor.getRootElement()
+    return open && root
+      ? findDocumentRanges(root, query)
+      : { ranges: [], limited: false }
+  }, [editor, open, query, revision])
+  const activeIndex = Math.min(index, Math.max(0, result.ranges.length - 1))
   const input = useRef<HTMLInputElement>(null)
   const id = `eme-find-${useId().replace(/[^a-z0-9]/gi, "")}`
 
@@ -39,7 +42,7 @@ export function DocumentFindPlugin({
         event.stopPropagation()
         setOpen(true)
         requestAnimationFrame(() => {
-          input.current?.focus()
+          input.current?.focus({ preventScroll: true })
           input.current?.select()
         })
       }
@@ -52,7 +55,7 @@ export function DocumentFindPlugin({
 
   useEffect(() => {
     if (!open) return
-    input.current?.focus()
+    input.current?.focus({ preventScroll: true })
     const root = editor.getRootElement()
     if (!root) return
     let frame = 0
@@ -74,20 +77,8 @@ export function DocumentFindPlugin({
   }, [editor, open])
 
   useEffect(() => {
-    const root = editor.getRootElement()
-    const next =
-      open && root
-        ? findDocumentRanges(root, query)
-        : { ranges: [], limited: false }
-    setResult(next)
-    setIndex((current) =>
-      Math.min(current, Math.max(0, next.ranges.length - 1))
-    )
-  }, [editor, open, query, revision])
-
-  useEffect(() => {
     const highlights = globalThis.CSS?.highlights
-    const active = result.ranges[index]
+    const active = result.ranges[activeIndex]
     if (active && typeof active.getBoundingClientRect === "function")
       revealTextMatch(active)
     if (!highlights || typeof Highlight === "undefined") return
@@ -97,7 +88,7 @@ export function DocumentFindPlugin({
       highlights.delete(id)
       highlights.delete(`${id}-active`)
     }
-  }, [id, index, result])
+  }, [id, activeIndex, result])
 
   const close = () => {
     setOpen(false)
@@ -106,7 +97,10 @@ export function DocumentFindPlugin({
   const navigate = (direction: number) =>
     setIndex((current) =>
       result.ranges.length
-        ? (current + direction + result.ranges.length) % result.ranges.length
+        ? (Math.min(current, result.ranges.length - 1) +
+            direction +
+            result.ranges.length) %
+          result.ranges.length
         : 0
     )
   if (!open) return null
@@ -126,7 +120,7 @@ export function DocumentFindPlugin({
           event.key.toLowerCase() === "f"
         ) {
           event.preventDefault()
-          input.current?.focus()
+          input.current?.focus({ preventScroll: true })
           input.current?.select()
         }
         event.stopPropagation()
@@ -149,9 +143,15 @@ export function DocumentFindPlugin({
           }
         }}
       />
-      <span role="status" aria-live="polite">
+      <span
+        role="status"
+        aria-live="polite"
+        title={
+          query && !result.ranges.length ? labels.noTextMatches : undefined
+        }
+      >
         {result.ranges.length
-          ? `${index + 1} / ${result.ranges.length}${result.limited ? "+" : ""}`
+          ? `${activeIndex + 1} / ${result.ranges.length}${result.limited ? "+" : ""}`
           : query
             ? labels.noTextMatches
             : "0 / 0"}
@@ -161,6 +161,7 @@ export function DocumentFindPlugin({
         aria-label={labels.previousMatch}
         title={`${labels.previousMatch} (Shift+Enter)`}
         disabled={!result.ranges.length}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => navigate(-1)}
       >
         <svg
@@ -178,6 +179,7 @@ export function DocumentFindPlugin({
         aria-label={labels.nextMatch}
         title={`${labels.nextMatch} (Enter)`}
         disabled={!result.ranges.length}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => navigate(1)}
       >
         <svg
