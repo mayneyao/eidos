@@ -38,6 +38,7 @@ interface RuntimeEntry {
   pending: Map<number, PendingRequest>
   nextRequestId: number
   crashed: boolean
+  closed?: boolean
   lastAccess: number
 }
 
@@ -257,6 +258,9 @@ export class RuntimePool {
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
     const entry = this.requireEntry(sessionId)
+    if (entry.closed || this.closingEntries.has(entry)) {
+      throw new Error("Unknown or closed Eidos File session")
+    }
     const issue = await this.entryIssue(entry)
     if (issue) {
       await this.invalidateSession(sessionId)
@@ -280,6 +284,7 @@ export class RuntimePool {
   async closeSession(sessionId: string): Promise<void> {
     const entry = this.entriesBySession.get(sessionId)
     if (!entry) return
+    entry.closed = true
     try {
       await this.closeEntry(entry)
     } finally {
@@ -646,6 +651,9 @@ export class RuntimePool {
     createTitle?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     await this.closingEntries.get(entry)
+    if (entry.closed || !this.entriesBySession.has(entry.sessionId)) {
+      throw new Error("Unknown or closed Eidos File session")
+    }
     if (entry.child) return null
     while (this.residentCount() >= this.maxResidentRuntimes) {
       const sessionId = selectLruRuntimeToEvict(
@@ -755,6 +763,7 @@ export class RuntimePool {
   }
 
   private async closeEntryInternal(entry: RuntimeEntry): Promise<void> {
+    entry.closed = true
     const child = entry.child
     if (!child) return
     const childExited = new Promise<void>((resolve) => {
@@ -779,7 +788,7 @@ export class RuntimePool {
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ])
       if (process.platform === "win32") {
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }
   }
@@ -864,7 +873,9 @@ export class RuntimePool {
 
   private requireEntry(sessionId: string): RuntimeEntry {
     const entry = this.entriesBySession.get(sessionId)
-    if (!entry) throw new Error("Unknown or closed Eidos File session")
+    if (!entry || entry.closed) {
+      throw new Error("Unknown or closed Eidos File session")
+    }
     return entry
   }
 }

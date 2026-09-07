@@ -491,13 +491,14 @@ export class SpaceSession {
     this.watcher = new SpaceWatcher(
       canonical.root,
       (relativePaths) => {
+        if (this.closed || this.gate.hasActiveMutations()) return
         this.watcherRefreshTail = this.watcherRefreshTail
           .then(() => this.handleStableWatcherChange(relativePaths))
           .catch(() => undefined)
       },
       150,
       async (relativePaths) => {
-        if (this.gate.hasActiveMutations()) return new Set()
+        if (this.gate.hasActiveMutations()) return new Set(relativePaths)
         const ignored = await this.inspectIgnores(relativePaths, "background")
         return new Set(
           [...ignored.entries()]
@@ -3770,27 +3771,18 @@ export class SpaceSession {
     relativePaths: readonly string[]
   ): Promise<string[]> {
     if (relativePaths.length === 0) return []
-    const openPaths = new Set(this.runtimePool.openRelativePaths())
     const changed: string[] = []
     for (const relativePath of relativePaths) {
-      if (!openPaths.has(relativePath)) continue
-      let sessionId: string | undefined
+      const sessionId = this.runtimeSessionByPath.get(relativePath)
+      if (!sessionId) continue
       try {
-        sessionId = this.runtimeSessionByPath.get(relativePath)
-        let openedRevision: number | bigint | null = null
-        if (!sessionId) {
-          const opened = await this.runtimePool.open(relativePath)
-          sessionId = opened.sessionId
-          openedRevision = opened.snapshot.metadata.revision
-          this.runtimeSessionByPath.set(relativePath, sessionId)
-        }
         const probe = await this.runtimePool.call(
           sessionId,
           "getExternalChangeProbe",
           []
         )
         const previous = this.runtimeExternalChangeState.get(sessionId)
-        let revision = openedRevision ?? previous?.revision ?? null
+        let revision = previous?.revision ?? null
         if (previous && previous.connectionId !== probe.connectionId) {
           const snapshot = await this.runtimePool.call(
             sessionId,
@@ -3816,7 +3808,7 @@ export class SpaceSession {
           changed.push(relativePath)
         }
       } catch (error) {
-        if (sessionId) this.runtimeExternalChangeState.delete(sessionId)
+        this.runtimeExternalChangeState.delete(sessionId)
         this.runtimeSessionByPath.delete(relativePath)
         if (error instanceof EidosFileRuntimeError) {
           this.fileIssuesByPath.set(relativePath, error.issue)
