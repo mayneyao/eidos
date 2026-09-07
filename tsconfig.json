@@ -26,6 +26,14 @@
       "@eidos.space/eidos-file-ui": ["./packages/eidos-file-ui/src/index.ts"],
       "@eidos.space/eidos-file-ui/*": ["./packages/eidos-file-ui/src/*"],
       "@eidos.space/markdown": ["./packages/markdown/src/index.ts"],
+      "@eidos.space/markdown/plugins": [
+        "./packages/markdown/src/builtin-plugins.ts"
+      ],
+      "@eidos.space/markdown/plugin-api": [
+        "./packages/markdown/src/plugin-api.ts"
+      ],
+      "@eidos.space/markdown/presets": ["./packages/markdown/src/presets.ts"],
+      "@eidos.space/markdown/source": ["./packages/markdown/src/source.ts"],
       "@eidos.space/markdown/*": ["./packages/markdown/src/*"],
       "@/*": ["./*"]
     },
