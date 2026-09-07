@@ -116,6 +116,7 @@ export function DocumentFindPlugin({
       role="search"
       aria-label={labels.findInDocument}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return
         if (event.key === "Escape") {
           event.preventDefault()
           close()
@@ -142,7 +143,7 @@ export function DocumentFindPlugin({
           setIndex(0)
         }}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
             event.preventDefault()
             navigate(event.shiftKey ? -1 : 1)
           }
@@ -158,28 +159,52 @@ export function DocumentFindPlugin({
       <button
         type="button"
         aria-label={labels.previousMatch}
-        title={labels.previousMatch}
+        title={`${labels.previousMatch} (Shift+Enter)`}
         disabled={!result.ranges.length}
         onClick={() => navigate(-1)}
       >
-        ↑
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <path d="M8 13V3m-4 4 4-4 4 4" />
+        </svg>
       </button>
       <button
         type="button"
         aria-label={labels.nextMatch}
-        title={labels.nextMatch}
+        title={`${labels.nextMatch} (Enter)`}
         disabled={!result.ranges.length}
         onClick={() => navigate(1)}
       >
-        ↓
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <path d="M8 3v10m-4-4 4 4 4-4" />
+        </svg>
       </button>
       <button
         type="button"
         aria-label={labels.closeFind}
-        title={labels.closeFind}
+        title={`${labels.closeFind} (Esc)`}
         onClick={close}
       >
-        ×
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <path d="m4 4 8 8m0-8-8 8" />
+        </svg>
       </button>
     </div>
   )
