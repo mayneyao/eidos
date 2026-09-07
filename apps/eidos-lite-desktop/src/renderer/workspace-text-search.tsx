@@ -24,6 +24,7 @@ export function WorkspaceTextSearch({
   const [progress, setProgress] = useState<TextSearchProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
+  const openingRef = useRef(false)
   const [generation, setGeneration] = useState(0)
   const active = useRef<string | null>(null)
   const pendingTimer = useRef<number | null>(null)
@@ -166,12 +167,15 @@ export function WorkspaceTextSearch({
         query={query}
         opening={opening}
         onOpen={async (hit) => {
+          if (openingRef.current) return
+          openingRef.current = true
           setOpening(true)
           try {
             await onOpen(hit)
           } catch (cause) {
             setError(String(cause))
           } finally {
+            openingRef.current = false
             setOpening(false)
           }
         }}

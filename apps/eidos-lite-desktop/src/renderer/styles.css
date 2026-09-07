@@ -9406,7 +9406,7 @@ body {
 .workspace-search-match[aria-current="true"] {
   background: var(--surface-selected);
 }
-.workspace-search-match:disabled {
+.workspace-search-match[aria-disabled="true"] {
   cursor: default;
 }
 .workspace-search-results mark {

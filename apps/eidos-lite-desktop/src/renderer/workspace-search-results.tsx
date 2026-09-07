@@ -49,12 +49,14 @@ function FileMatches({
             <button
               type="button"
               className="workspace-search-match"
-              disabled={opening}
+              aria-disabled={opening || undefined}
               aria-current={
                 selected === `${path}:${hit.start}` ? "true" : undefined
               }
               title={`${path}:${hit.line}:${hit.column}\n${hit.snippet}`}
-              onClick={() => onOpen(hit)}
+              onClick={() => {
+                if (!opening) onOpen(hit)
+              }}
             >
               <span className="workspace-search-line">{hit.line}</span>
               <span className="workspace-search-snippet">

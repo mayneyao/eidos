@@ -27,13 +27,13 @@ it("groups by full path, preserves collapse during progress, and opens the exact
   const host = document.createElement("div")
   document.body.append(host)
   const root = createRoot(host)
-  const render = (items: TextSearchHit[], query = "work") =>
+  const render = (items: TextSearchHit[], query = "work", opening = false) =>
     act(async () =>
       root.render(
         <WorkspaceSearchResults
           hits={items}
           query={query}
-          opening={false}
+          opening={opening}
           onOpen={open}
         />
       )
@@ -65,6 +65,17 @@ it("groups by full path, preserves collapse during progress, and opens the exact
     await act(async () => matches[1]!.click())
     expect(open).toHaveBeenCalledWith(hits[2])
     expect(matches[1]!.getAttribute("aria-current")).toBe("true")
+    matches[1]!.focus()
+    const opened = open.mock.calls.length
+    await render([...hits, hit("one/note.md", 20)], "work", true)
+    expect(matches[1]!.disabled).toBe(false)
+    expect(matches[1]!.getAttribute("aria-disabled")).toBe("true")
+    expect(document.activeElement).toBe(matches[1])
+    await act(async () => matches[0]!.click())
+    expect(open).toHaveBeenCalledTimes(opened)
+    expect(matches[1]!.getAttribute("aria-current")).toBe("true")
+    await render([...hits, hit("one/note.md", 20)])
+    expect(matches[1]!.hasAttribute("aria-disabled")).toBe(false)
     expect(matches[1]!.querySelector("mark")!.textContent).toBe("work")
     await act(async () => heading.click())
     await render(hits, "new query")
