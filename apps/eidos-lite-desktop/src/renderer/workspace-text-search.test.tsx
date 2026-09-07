@@ -35,18 +35,20 @@ it("ignores old query results and cancels before a debounced scan begins", async
   document.body.append(host)
   const root = createRoot(host)
   const change = async (query: string) =>
-    act(async () => {
-      const input = host.querySelector("input")!
-      Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value"
-      )!.set!.call(input, query)
-      input.dispatchEvent(new Event("input", { bubbles: true }))
-    })
+    act(async () =>
+      root.render(
+        <WorkspaceTextSearch
+          query={query}
+          onOpen={async () => undefined}
+          onClose={() => undefined}
+        />
+      )
+    )
   try {
     await act(async () =>
       root.render(
         <WorkspaceTextSearch
+          query="second"
           onOpen={async () => undefined}
           onClose={() => undefined}
         />
@@ -101,6 +103,7 @@ it("ignores old query results and cancels before a debounced scan begins", async
     await act(async () =>
       root.render(
         <WorkspaceTextSearch
+          query="second"
           hidden
           onOpen={async () => undefined}
           onClose={() => undefined}
@@ -112,6 +115,7 @@ it("ignores old query results and cancels before a debounced scan begins", async
     await act(async () =>
       root.render(
         <WorkspaceTextSearch
+          query="second"
           onOpen={async () => undefined}
           onClose={() => undefined}
         />
@@ -119,8 +123,7 @@ it("ignores old query results and cancels before a debounced scan begins", async
     )
     expect(panel.hidden).toBe(false)
     expect(panel.scrollTop).toBe(120)
-    expect(host.querySelector("input")!.value).toBe("second")
-    expect(document.activeElement).toBe(host.querySelector("input"))
+    expect(document.activeElement).toBe(other)
     expect(host.textContent).toContain("Search stopped. Results are partial.")
     expect(search).toHaveBeenCalledTimes(1)
   } finally {

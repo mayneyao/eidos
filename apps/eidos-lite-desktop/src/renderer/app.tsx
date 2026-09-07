@@ -832,6 +832,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
+  const [textSearchQuery, setTextSearchQuery] = useState("")
+  useEffect(() => setTextSearchQuery(""), [space?.id])
   const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
   const searchEntryRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
@@ -2935,7 +2937,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         } as CSSProperties
       }
     >
-      <aside className="space-sidebar" aria-hidden={sidebarCollapsed}>
+      <aside
+        className="space-sidebar"
+        aria-hidden={sidebarCollapsed}
+        onKeyDown={(event) => {
+          if (
+            textSearchVisible &&
+            event.key === "Escape" &&
+            !event.nativeEvent.isComposing
+          ) {
+            event.preventDefault()
+            event.stopPropagation()
+            flushSync(() => setTextSearchVisible(false))
+            searchEntryRef.current?.focus({ preventScroll: true })
+          }
+        }}
+      >
         <header className="sidebar-header">
           <TitlebarNavigation
             collapsed={false}
@@ -2952,6 +2969,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           name={space.name}
           path={space.displayPath}
           searching={textSearchVisible}
+          query={textSearchQuery}
+          onQueryChange={setTextSearchQuery}
+          focusToken={textSearchFocusToken}
           searchRef={searchEntryRef}
           shortcut={workspaceShortcutLabel(
             "search-space-text",
@@ -3011,8 +3031,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         />
         <WorkspaceTextSearch
           key={space.id}
-          hidden={!textSearchVisible}
-          focusToken={textSearchFocusToken}
+          hidden={!textSearchVisible || !textSearchQuery}
+          query={textSearchQuery}
           onOpen={openTextSearchHit}
           onClose={() => {
             flushSync(() => setTextSearchVisible(false))
@@ -3022,7 +3042,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <nav
           id="workspace-files-panel"
           className="explorer"
-          hidden={textSearchVisible}
+          hidden={textSearchVisible && !!textSearchQuery}
           aria-label={`${space.name} files`}
         >
           <Suspense

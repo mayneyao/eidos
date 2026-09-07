@@ -18,6 +18,9 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
   const back = vi.fn()
   const run = vi.fn()
   const props = {
+    query: "saved query",
+    onQueryChange: vi.fn(),
+    focusToken: 0,
     name: "Space",
     path: "/Space",
     searching: false,
@@ -70,8 +73,27 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
       root.render(<WorkspaceHeading {...props} searching />)
     )
     expect(host.querySelector('[aria-label="Search Space text"]')).toBeNull()
-    expect(host.textContent).toContain("Space")
-    await click("Back to files")
+    const input = host.querySelector("input")!
+    expect(document.activeElement).toBe(input)
+    expect(input.value).toBe("saved query")
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          isComposing: true,
+        })
+      )
+    )
+    expect(back).not.toHaveBeenCalled()
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    )
+    expect(back).toHaveBeenCalledOnce()
+    back.mockClear()
+    await click("Close search")
     expect(back).toHaveBeenCalledOnce()
   } finally {
     await act(async () => root.unmount())

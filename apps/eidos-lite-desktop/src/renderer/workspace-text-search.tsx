@@ -1,33 +1,25 @@
 import { useEffect, useRef, useState } from "react"
-import { Search, X } from "lucide-react"
 import type { TextSearchHit, TextSearchProgress } from "../shared/text-search"
 import { useEidosLiteI18n } from "./i18n"
 
 export function WorkspaceTextSearch({
   onOpen,
   onClose,
-  focusToken = 0,
+  query,
   hidden = false,
 }: {
   onOpen(hit: TextSearchHit): Promise<void>
   onClose(): void
-  focusToken?: number
+  query: string
   hidden?: boolean
 }) {
   const { t } = useEidosLiteI18n()
-  const [query, setQuery] = useState("")
   const [progress, setProgress] = useState<TextSearchProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
   const [generation, setGeneration] = useState(0)
   const active = useRef<string | null>(null)
   const pendingTimer = useRef<number | null>(null)
-  const input = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (hidden) return
-    input.current?.focus({ preventScroll: true })
-    input.current?.select()
-  }, [focusToken, hidden])
   useEffect(() => {
     setProgress(null)
     setError(null)
@@ -62,39 +54,21 @@ export function WorkspaceTextSearch({
       hidden={hidden}
       className="workspace-text-search"
       aria-label={t("Search Space text")}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+          event.preventDefault()
+          event.stopPropagation()
+          onClose()
+        }
+      }}
     >
-      <div className="workspace-search-input">
-        <Search size={16} aria-hidden="true" />
-        <input
-          ref={input}
-          type="search"
-          value={query}
-          maxLength={512}
-          aria-label={t("Search saved text")}
-          placeholder={t("Search saved text")}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault()
-              onClose()
-            }
-          }}
-        />
-        <button
-          className="icon-button"
-          onClick={onClose}
-          aria-label={t("Close search")}
-        >
-          <X size={16} />
-        </button>
-      </div>
-      <p>
-        {t(
-          "Saved Markdown and text files only. Unsaved drafts and Eidos tables are not searched."
-        )}
-      </p>
       <details>
         <summary>{t("Search scope and limits")}</summary>
+        <p>
+          {t(
+            "Saved Markdown and text files only. Unsaved drafts and Eidos tables are not searched."
+          )}
+        </p>
         <p>
           {t(
             "Skips symlinks, binaries, unsupported types, implementation and build folders. Up to 2 MB per file, 64 MB, 2,000 files, 10,000 entries, 10 seconds and 500 matches per search."

@@ -5,7 +5,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react"
-import { ArrowLeft, MoreHorizontal, Search } from "lucide-react"
+import { X, MoreHorizontal, Search } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 
 export function WorkspaceHeading({
@@ -17,6 +17,9 @@ export function WorkspaceHeading({
   ariaShortcut,
   onSearch,
   onBack,
+  query,
+  onQueryChange,
+  focusToken,
   actions,
 }: {
   name: string
@@ -27,12 +30,21 @@ export function WorkspaceHeading({
   ariaShortcut?: string
   onSearch(): void
   onBack(): void
+  query: string
+  onQueryChange(query: string): void
+  focusToken: number
   actions: { label: string; icon: ReactNode; disabled?: boolean; run(): void }[]
 }) {
   const { t } = useEidosLiteI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const menu = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!searching) return
+    input.current?.focus({ preventScroll: true })
+    input.current?.select()
+  }, [searching, focusToken])
   useEffect(() => {
     if (!menuOpen) return
     const closeOutside = (event: PointerEvent) => {
@@ -46,21 +58,39 @@ export function WorkspaceHeading({
   return (
     <div className="space-heading">
       {searching ? (
-        <>
+        <div
+          className="workspace-heading-search"
+          role="search"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              event.stopPropagation()
+              onBack()
+            }
+          }}
+        >
+          <div className="workspace-heading-search-field">
+            <input
+              ref={input}
+              type="text"
+              value={query}
+              maxLength={512}
+              aria-label={t("Search saved text")}
+              placeholder={t("Search saved text")}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+            <Search size={14} aria-hidden="true" />
+          </div>
           <button
             type="button"
             className="icon-button"
             onClick={onBack}
-            aria-label={t("Back to files")}
-            title={t("Back to files")}
+            aria-label={t("Close search")}
+            title={`${t("Close search")} (Esc)`}
           >
-            <ArrowLeft size={14} />
+            <X size={14} />
           </button>
-          <strong>{t("Search")}</strong>
-          <span className="workspace-search-space-name" title={path}>
-            {name}
-          </span>
-        </>
+        </div>
       ) : (
         <>
           <strong title={path}>{name}</strong>
