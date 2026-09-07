@@ -32,7 +32,6 @@ import {
   PanelLeft,
   Pencil,
   RefreshCw,
-  Search,
   Settings,
   SquareTerminal,
   Trash2,
@@ -40,6 +39,7 @@ import {
   X,
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
+import { WorkspaceHeading } from "./workspace-heading"
 import {
   resolveTextSearchTarget,
   type TextSearchHit,
@@ -787,11 +787,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     macos,
     keyboardShortcuts
   )
-  const newFileShortcutLabel = workspaceShortcutLabel(
-    "new-file",
-    macos,
-    keyboardShortcuts
-  )
   const terminalShortcutLabel = workspaceShortcutLabel(
     "toggle-terminal",
     macos,
@@ -838,7 +833,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
   const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
-  const filesTabRef = useRef<HTMLButtonElement>(null)
+  const searchEntryRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
@@ -2953,146 +2948,79 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             onForward={() => navigateHistory(1)}
           />
         </header>
-        <div className="space-heading">
-          <strong title={space.displayPath}>{space.name}</strong>
-          <span>
-            {space.eidosFileCount} Eidos{" "}
-            {spaceTreeIncomplete ? "loaded" : "Files"}
-          </span>
-          <div
-            className="space-heading-actions"
-            role="toolbar"
-            aria-label={t("Space file actions")}
-          >
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() =>
-                setPathDialog({ action: "create-file", entry: selectedEntry })
-              }
-              aria-label={t("New File")}
-              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
-                "new-file",
-                macos,
-                keyboardShortcuts
-              )}
-              title={shortcutTitle(t("New File"), newFileShortcutLabel)}
-              disabled={pathMutationBusy || localInteractionBlocked}
-            >
-              <FilePlus2 />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() =>
-                setPathDialog({ action: "create-folder", entry: selectedEntry })
-              }
-              aria-label={t("New folder")}
-              title={t("New folder")}
-              disabled={pathMutationBusy || localInteractionBlocked}
-            >
-              <FolderPlus />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => void importFiles()}
-              aria-label={t("Import files")}
-              title={t("Import files")}
-              disabled={pathMutationBusy || localInteractionBlocked}
-            >
-              <Upload />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() =>
-                void window.eidosLite.refreshExplorer().then(setSpace)
-              }
-              aria-label={t("Refresh Space Explorer")}
-              title={t("Refresh Space Explorer")}
-            >
-              <RefreshCw />
-            </button>
-          </div>
-        </div>
-        <div
-          className="workspace-sidebar-tabs"
-          role="tablist"
-          aria-label={t("Workspace navigation")}
-          onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
-              return
-            event.preventDefault()
-            const tabs = Array.from(
-              event.currentTarget.querySelectorAll<HTMLButtonElement>(
-                '[role="tab"]'
-              )
-            )
-            const current = tabs.indexOf(
-              document.activeElement as HTMLButtonElement
-            )
-            const next =
-              event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? tabs.length - 1
-                  : (current +
-                      (event.key === "ArrowRight" ? 1 : -1) +
-                      tabs.length) %
-                    tabs.length
-            tabs[next]?.focus({ preventScroll: true })
+        <WorkspaceHeading
+          name={space.name}
+          path={space.displayPath}
+          searching={textSearchVisible}
+          searchRef={searchEntryRef}
+          shortcut={workspaceShortcutLabel(
+            "search-space-text",
+            macos,
+            keyboardShortcuts
+          )}
+          ariaShortcut={workspaceShortcutAriaKeyShortcuts(
+            "search-space-text",
+            macos,
+            keyboardShortcuts
+          )}
+          onSearch={() => {
+            setTextSearchVisible(true)
+            setTextSearchFocusToken((current) => current + 1)
           }}
-        >
-          <button
-            ref={filesTabRef}
-            id="workspace-files-tab"
-            type="button"
-            role="tab"
-            aria-selected={!textSearchVisible}
-            aria-controls="workspace-files-panel"
-            tabIndex={textSearchVisible ? -1 : 0}
-            onClick={() => setTextSearchVisible(false)}
-          >
-            <FolderOpen size={14} aria-hidden="true" />
-            {t("Files")}
-          </button>
-          <button
-            id="workspace-search-tab"
-            type="button"
-            role="tab"
-            aria-selected={textSearchVisible}
-            aria-controls="workspace-search-panel"
-            tabIndex={textSearchVisible ? 0 : -1}
-            title={`${t("Search Space text")} (${workspaceShortcutLabel("search-space-text", macos, keyboardShortcuts)})`}
-            aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
-              "search-space-text",
-              macos,
-              keyboardShortcuts
-            )}
-            onClick={() => {
-              setTextSearchVisible(true)
-              setTextSearchFocusToken((current) => current + 1)
-            }}
-          >
-            <Search size={14} aria-hidden="true" />
-            {t("Search")}
-          </button>
-        </div>
+          onBack={() => {
+            flushSync(() => setTextSearchVisible(false))
+            searchEntryRef.current?.focus({ preventScroll: true })
+          }}
+          actions={[
+            {
+              label: t("New File"),
+              icon: <FilePlus2 />,
+              disabled: pathMutationBusy || localInteractionBlocked,
+              run: () =>
+                setPathDialog({ action: "create-file", entry: selectedEntry }),
+            },
+            {
+              label: t("New folder"),
+              icon: <FolderPlus />,
+              disabled: pathMutationBusy || localInteractionBlocked,
+              run: () =>
+                setPathDialog({
+                  action: "create-folder",
+                  entry: selectedEntry,
+                }),
+            },
+            {
+              label: t("Import files"),
+              icon: <Upload />,
+              disabled: pathMutationBusy || localInteractionBlocked,
+              run: () => {
+                void importFiles()
+              },
+            },
+            {
+              label: t("Refresh Space Explorer"),
+              icon: <RefreshCw />,
+              run: () => {
+                void window.eidosLite
+                  .refreshExplorer()
+                  .then(setSpace)
+                  .catch((cause) => setError(errorMessage(cause)))
+              },
+            },
+          ]}
+        />
         <WorkspaceTextSearch
           key={space.id}
           hidden={!textSearchVisible}
           focusToken={textSearchFocusToken}
           onOpen={openTextSearchHit}
           onClose={() => {
-            setTextSearchVisible(false)
-            filesTabRef.current?.focus({ preventScroll: true })
+            flushSync(() => setTextSearchVisible(false))
+            searchEntryRef.current?.focus({ preventScroll: true })
           }}
         />
         <nav
           id="workspace-files-panel"
-          role="tabpanel"
-          aria-labelledby="workspace-files-tab"
           className="explorer"
           hidden={textSearchVisible}
           aria-label={`${space.name} files`}

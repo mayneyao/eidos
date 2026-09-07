@@ -1262,7 +1262,7 @@ body {
   grid-column: 1;
   width: 100%;
   grid-template-rows:
-    var(--workbench-titlebar-height) 1.75rem auto minmax(0, 1fr)
+    var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr)
     auto;
   min-width: 0;
   min-height: 0;
@@ -1384,43 +1384,65 @@ body {
   white-space: nowrap;
 }
 
-.space-heading span {
-  flex: 0 0 auto;
-  color: var(--ink-muted);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  text-transform: none;
-  transition: opacity 120ms ease-out;
-}
-
-.space-heading-actions {
-  position: absolute;
-  right: 0.375rem;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.0625rem;
-  background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
-}
-
-.space-heading-actions .icon-button {
+.space-heading > .icon-button,
+.workspace-heading-menu > .icon-button {
+  flex: none;
   width: 1.5rem;
   height: 1.5rem;
 }
-
-.space-heading:hover > span,
-.space-heading:focus-within > span {
-  opacity: 0;
+.space-heading .workspace-search-space-name {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  letter-spacing: 0;
+  text-transform: none;
 }
-
-.space-heading:hover .space-heading-actions,
-.space-heading:focus-within .space-heading-actions {
-  opacity: 1;
-  pointer-events: auto;
+.workspace-heading-menu {
+  position: relative;
+  flex: none;
+}
+.workspace-heading-menu-content {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 60;
+  width: 184px;
+  padding: 4px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--lite-sidebar);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 15%);
+}
+.workspace-heading-menu-content button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.workspace-heading-menu-content button:hover:not(:disabled),
+.workspace-heading-menu-content button:focus-visible {
+  background: var(--control-fill);
+}
+.workspace-heading-menu-content button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.workspace-heading-menu-content svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }
 
 .explorer {
@@ -8966,8 +8988,7 @@ body {
   background: var(--danger);
 }
 
-.path-dialog footer button:disabled,
-.space-heading-actions .icon-button:disabled {
+.path-dialog footer button:disabled {
   cursor: wait;
   opacity: 0.5;
 }
@@ -9198,38 +9219,6 @@ body {
   padding: 8px;
   font-size: 12px;
   overflow: auto;
-}
-.workspace-sidebar-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 4px 8px;
-  padding: 2px;
-  border: 1px solid var(--control-border);
-  border-radius: 6px;
-}
-.workspace-sidebar-tabs button {
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  color: var(--ink-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.workspace-sidebar-tabs button[aria-selected="true"] {
-  color: var(--ink);
-  background: var(--control-fill);
-}
-.workspace-sidebar-tabs button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
 }
 .workspace-text-search[hidden] {
   display: none;

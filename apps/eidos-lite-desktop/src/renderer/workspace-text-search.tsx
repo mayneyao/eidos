@@ -58,8 +58,7 @@ export function WorkspaceTextSearch({
   return (
     <section
       id="workspace-search-panel"
-      role="tabpanel"
-      aria-labelledby="workspace-search-tab"
+      role="region"
       hidden={hidden}
       className="workspace-text-search"
       aria-label={t("Search Space text")}

@@ -5,6 +5,7 @@ export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
   Files: "文件",
+  "Back to files": "返回文件",
   Search: "搜索",
   "Workspace navigation": "工作区导航",
   "Recover one file": "恢复单个文件",

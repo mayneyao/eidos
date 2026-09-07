@@ -93,7 +93,7 @@ it("ignores old query results and cancels before a debounced scan begins", async
     expect(search).toHaveBeenCalledTimes(1)
     expect(cancel).toHaveBeenCalledWith(firstId)
     expect(host.textContent).toContain("Search stopped. Results are partial.")
-    const panel = host.querySelector<HTMLElement>('[role="tabpanel"]')!
+    const panel = host.querySelector<HTMLElement>('[role="region"]')!
     panel.scrollTop = 120
     const other = document.createElement("button")
     host.append(other)
