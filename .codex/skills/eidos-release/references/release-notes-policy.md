@@ -26,6 +26,12 @@ version. The Chinese file is a translation, not a separate changelog. The app
 uses its resolved interface language, including the system-language setting;
 GitHub Release `body_path` continues to use the English manifest.
 
+The inline Chinese/English selector overrides the language for the current
+document only; it must not change global preferences. During preparation,
+compare both bodies item by item and preview each in the app. The existing
+audit script validates English structure and history, not cross-language
+equivalence; an agent must check translation completeness and accuracy.
+
 ## Structure and categories
 
 Release notes organize user-visible changes into standard, focused sections:
@@ -114,9 +120,15 @@ Writing release notes is a collaborative pipeline between deterministic tooling 
    - Fold the absorbed iterative fixes into the feature narrative (e.g., highlighting that search handles scrollbars, focus, and layout smoothly);
    - Polish the items under `## Improvements` and `## Bug fixes` into concise, readable summaries;
    - Write the finalized Markdown to `apps/<surface>/RELEASE_NOTES.md`.
+   - For Lite, translate it into `RELEASE_NOTES.zh-CN.md` in the same directory
+     and commit both files together. Use `新功能`, `改进`, and `问题修复` for
+     the corresponding section headings, with matching item order and meaning.
+     Preserve exact identifiers, commands, URLs, and version numbers.
 
 3. **Step 3: Quality Gate Audit (Script)**
    Run `audit-release-notes.mjs` to verify the Agent's written notes against historical releases and formatting invariants.
+   For Lite, also perform the translation review and bilingual UI checks above;
+   the script passing alone does not satisfy the multilingual release gate.
 
 ## Compare history before tagging
 

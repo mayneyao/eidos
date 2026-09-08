@@ -10,6 +10,10 @@ Use this runbook for `apps/eidos-lite-desktop` and `lite-v*` tags.
 - The tag triggers `.github/workflows/build-and-release-eidos-lite.yml`.
 - `apps/eidos-lite-desktop/RELEASE_NOTES.md` is the exact body for one Lite
   version. It is a single-release manifest, not a cumulative changelog.
+- `apps/eidos-lite-desktop/RELEASE_NOTES.zh-CN.md` is its Simplified Chinese
+  translation. Both are bundled offline for What's New and must be prepared
+  and committed together. The app defaults to its resolved interface language
+  and offers a document-local Chinese/English switch.
 - The workflow audits that manifest and uses it when the GitHub Release is first
   created. GitHub-generated monorepo notes and post-publication body repair are
   forbidden.
@@ -76,6 +80,13 @@ based on the script's evidence dossier, crafting user-centric product copy:
 - **<Area>**: <Concise bug fix for pre-existing behavior>
 ```
 
+Translate the finalized English body into
+`apps/eidos-lite-desktop/RELEASE_NOTES.zh-CN.md` using `## 新功能`, `## 改进`,
+and `## 问题修复` for the corresponding categories. Preserve item order,
+capabilities, limitations, and required actions. Translate prose naturally;
+keep version numbers, commands, paths, URLs, and product identifiers exact.
+Do not add claims or retain previous-release items in either language.
+
 Add further improvement or fix sections only when supported by the scoped diff.
 For a maintenance release, describe concrete reliability or compatibility
 fixes; never publish an empty section or say only "bug fixes and
@@ -89,11 +100,20 @@ Before tagging, require a substantive body and run the audit:
 
 ```bash
 test -s apps/eidos-lite-desktop/RELEASE_NOTES.md
-git diff --check -- apps/eidos-lite-desktop/RELEASE_NOTES.md
+test -s apps/eidos-lite-desktop/RELEASE_NOTES.zh-CN.md
+git diff --check -- apps/eidos-lite-desktop/RELEASE_NOTES.md apps/eidos-lite-desktop/RELEASE_NOTES.zh-CN.md
 node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
   --surface lite \
   --tag lite-v<version>
 ```
+
+The audit script checks the English publication body; it does not verify
+translation accuracy. Review the two files side by side, checking every item,
+category, version reference, link, and migration/access instruction. A missing
+or stale Chinese translation is a release blocker even when the script passes.
+Preview both languages in the app's read-only Markdown view and exercise the
+inline language switch. Confirm that switching notes does not change the app's
+language preference. Record these checks with the release proof.
 
 When a prior immutable tag has build artifacts but no GitHub Release, retain the
 tag, prepare a new version, and pass that prior tag with `--unpublished-tag`.

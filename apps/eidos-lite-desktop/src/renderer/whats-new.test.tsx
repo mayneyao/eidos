@@ -8,6 +8,14 @@ import type { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { EidosLiteI18nProvider } from "./i18n"
 import type { EidosLitePreferences } from "../shared/contracts"
 
+// Release copy changes independently of the viewer behavior tested here.
+vi.mock("../../RELEASE_NOTES.md?raw", () => ({
+  default: "## English release fixture\n\nEnglish fixture body.",
+}))
+vi.mock("../../RELEASE_NOTES.zh-CN.md?raw", () => ({
+  default: "## 中文日志测试标题\n\n中文测试正文。",
+}))
+
 vi.mock("./markdown-editor-surface", () => ({
   MarkdownEditorSurface: (
     props: ComponentProps<typeof MarkdownEditorSurface>
@@ -68,30 +76,30 @@ it("switches bundled notes with the current interface language", async () => {
         </EidosLiteI18nProvider>
       )
     )
-    expect(host.textContent).toContain("Save selected files as a version")
+    expect(host.textContent).toContain("English fixture body.")
     await act(async () => changePreferences({ ...preferences, language: "zh" }))
-    expect(host.textContent).toContain("将选中的文件保存为版本")
-    expect(host.textContent).not.toContain("Save selected files as a version")
+    expect(host.textContent).toContain("中文测试正文。")
+    expect(host.textContent).not.toContain("English fixture body.")
     expect(
       host
         .querySelector("[data-document-key]")
         ?.getAttribute("data-document-key")
     ).toBe(`whats-new:${releaseVersion}:zh`)
     await act(async () => changePreferences({ ...preferences, language: "en" }))
-    expect(host.textContent).toContain("Save selected files as a version")
+    expect(host.textContent).toContain("English fixture body.")
     await act(async () =>
       changePreferences({ ...preferences, language: "system" })
     )
-    expect(host.textContent).toContain("将选中的文件保存为版本")
+    expect(host.textContent).toContain("中文测试正文。")
     await act(async () =>
       host.querySelector<HTMLAnchorElement>('a[href="#whats-new-en"]')!.click()
     )
-    expect(host.textContent).toContain("Save selected files as a version")
+    expect(host.textContent).toContain("English fixture body.")
     expect(document.documentElement.lang).toBe("zh-CN")
     await act(async () =>
       host.querySelector<HTMLAnchorElement>('a[href="#whats-new-zh"]')!.click()
     )
-    expect(host.textContent).toContain("将选中的文件保存为版本")
+    expect(host.textContent).toContain("中文测试正文。")
   } finally {
     act(() => root.unmount())
   }
@@ -139,7 +147,7 @@ it("acknowledges upgrades when opened and preserves a permanent reopening path",
     expect(host.querySelector(".whats-new-page header")).toBeNull()
     expect(host.querySelector(".whats-new-scroll")).toBeNull()
     expect(host.querySelector(".whats-new-page")?.textContent).toContain(
-      "Save selected files"
+      "English fixture body."
     )
     await act(async () =>
       host

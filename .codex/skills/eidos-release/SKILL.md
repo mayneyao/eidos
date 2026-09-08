@@ -64,6 +64,11 @@ Do not conflate version namespaces or publishers:
   generated commit list is a release blocker.
 - Treat each checked-in `RELEASE_NOTES.md` as the body for one version, not as
   an accumulating changelog. Replace it completely during release preparation.
+- For Lite, author and commit `RELEASE_NOTES.md` and `RELEASE_NOTES.zh-CN.md`
+  together. They describe the same release in English and Simplified Chinese.
+  Missing, stale, or semantically inconsistent translations block tagging.
+  Verify both in the read-only What's New page, including its language switch.
+  Keep the GitHub Release body in English.
 - Publish that committed body when the GitHub Release is first created. Never
   create a generated body and repair it later.
 - Compare the candidate with the previous three same-surface releases. Reused
