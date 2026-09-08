@@ -341,6 +341,83 @@ export class RuntimePool {
     await this.validatePaths(this.openRelativePaths())
   }
 
+  async inspectMergeTables(
+    relativePaths: readonly string[],
+    signal: AbortSignal
+  ): Promise<string[]> {
+    signal.throwIfAborted()
+    const filePaths: string[] = []
+    for (const relativePath of relativePaths) {
+      signal.throwIfAborted()
+      const canonical = await fs.realpath(
+        resolveSpacePath(this.spaceRoot, relativePath)
+      )
+      const relative = path.relative(this.spaceRoot, canonical)
+      if (
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative)
+      ) {
+        throw new Error("Eidos File symlink escapes the Space")
+      }
+      if (path.extname(relativePath).toLowerCase() !== ".eidos")
+        throw new Error("Only .eidos files use the Eidos File runtime")
+      filePaths.push(canonical)
+    }
+    signal.throwIfAborted()
+    if (filePaths.length === 0) return []
+    const child = utilityProcess.fork(this.workerPath, [], {
+      serviceName: "Eidos File · Merge table inspection",
+      stdio: "pipe",
+    })
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (action: () => void) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener("abort", abort)
+        action()
+        child.kill()
+      }
+      const abort = () => finish(() => reject(signal.reason))
+      signal.addEventListener("abort", abort, { once: true })
+      child.on("message", (message) => {
+        if (!isWorkerResponse(message) || message.requestId !== 1) return
+        if (!message.ok) {
+          const error = new Error(message.error.message)
+          error.name = message.error.name
+          if (message.error.code)
+            Object.assign(error, { code: message.error.code })
+          finish(() => reject(error))
+        } else if (
+          Array.isArray(message.result) &&
+          message.result.every((name) => typeof name === "string")
+        ) {
+          finish(() => resolve(message.result as string[]))
+        } else
+          finish(() =>
+            reject(new Error("Invalid merge table inspection response"))
+          )
+      })
+      child.once("exit", (code) =>
+        finish(() =>
+          reject(
+            new Error(`Merge table inspection worker exited with code ${code}`)
+          )
+        )
+      )
+      if (signal.aborted) {
+        abort()
+        return
+      }
+      child.postMessage({
+        type: "inspectMergeTables",
+        requestId: 1,
+        filePaths,
+      } satisfies RuntimeWorkerRequest)
+    })
+  }
+
   async validatePaths(relativePaths: readonly string[]): Promise<void> {
     for (const relativePath of relativePaths) {
       const filePath = resolveSpacePath(this.spaceRoot, relativePath)

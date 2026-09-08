@@ -24,6 +24,8 @@ import {
   GitBranch,
   GitCommitHorizontal,
   LoaderCircle,
+  List,
+  ListTree,
   RefreshCw,
   RotateCcw,
   Table2,
@@ -44,6 +46,7 @@ import { useFileContentFocusRequest } from "./file-content-focus"
 import type { VersionDiffNavigationLocation } from "./navigation-history"
 import {
   VersionChangeTree,
+  VersionChangeList,
   type VersionChangeDiscardTarget,
   type VersionInspection,
 } from "./version-change-tree"
@@ -359,7 +362,7 @@ export function historySyncPresentation(
       return {
         tone: sync.state,
         title: `${sync.ahead.toLocaleString()} local saved ${sync.ahead === 1 ? "version" : "versions"} waiting to upload`,
-        detail: `Cloud is saved through an earlier version. ${checked}`,
+        detail: checked,
       }
     case "behind":
       return {
@@ -628,11 +631,58 @@ export function VersionDiffPreview({
   const [recordSelection, setRecordSelection] =
     useState<VersionTableRecordSelection | null>(null)
   useEffect(() => {
+    let active = true
     setPagedTable(inspectionTable)
     setRowLoadState({ phase: "idle" })
     setRecordSelection(null)
-  }, [inspection.key, inspectionTable])
+    if (
+      inspection.type === "table" &&
+      inspectionTable?.rowChangesLoaded === false &&
+      !inspection.loadingDetails &&
+      !inspection.detailsError
+    ) {
+      setRowLoadState({ phase: "loading" })
+      void window.eidosLite
+        .getVersionPathDiff(
+          inspection.change.path,
+          inspection.mode === "history"
+            ? (inspection.commit?.id ?? null)
+            : null,
+          inspection.mode === "history"
+            ? (inspection.diff.from ?? inspection.commit?.parent ?? null)
+            : null,
+          inspectionTable.name
+        )
+        .then((detail) => {
+          if (!active) return
+          const table = detail.files
+            .find((file) => file.path === inspection.change.path)
+            ?.tables.find((table) => table.name === inspectionTable.name)
+          if (!table || table.rowChangesLoaded === false) {
+            throw new Error(
+              "The selected table's row details were not returned."
+            )
+          }
+          setPagedTable(table)
+          setRowLoadState({ phase: "idle" })
+        })
+        .catch((cause) => {
+          if (active)
+            setRowLoadState({ phase: "error", message: errorMessage(cause) })
+        })
+    }
+    return () => {
+      active = false
+    }
+  }, [
+    inspection.key,
+    inspectionTable,
+    inspection.loadingDetails,
+    inspection.detailsError,
+  ])
   const activeTable = inspection.type === "table" ? pagedTable : null
+  const needsInitialRows =
+    (activeTable ?? inspectionTable)?.rowChangesLoaded === false
   const title =
     inspection.type === "table"
       ? inspection.table.name
@@ -795,7 +845,10 @@ export function VersionDiffPreview({
       >
         {inspection.type === "table" ? (
           <>
-            {inspection.loadingDetails ? (
+            {inspection.loadingDetails ||
+            (needsInitialRows &&
+              rowLoadState.phase !== "error" &&
+              !inspection.detailsError) ? (
               <div
                 className="version-inspector-loading"
                 data-version-details-loading="true"
@@ -809,12 +862,18 @@ export function VersionDiffPreview({
                   </p>
                 </div>
               </div>
-            ) : inspection.detailsError ? (
+            ) : inspection.detailsError ||
+              (needsInitialRows && rowLoadState.phase === "error") ? (
               <div className="version-inspector-loading" role="alert">
                 <CircleAlert aria-hidden="true" />
                 <div>
                   <strong>Row details could not be loaded</strong>
-                  <p>{inspection.detailsError}</p>
+                  <p>
+                    {inspection.detailsError ??
+                      (rowLoadState.phase === "error"
+                        ? rowLoadState.message
+                        : "")}
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1142,6 +1201,17 @@ export function VersionPanel({
 }) {
   const { t } = useEidosLiteI18n()
   const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
+  const [changesLayout, setChangesLayout] = useState<"tree" | "list">(() => {
+    try {
+      return localStorage.getItem("eidos-lite:changes-layout") === "list"
+        ? "list"
+        : "tree"
+    } catch {
+      return "tree"
+    }
+  })
+  const ChangesView =
+    changesLayout === "list" ? VersionChangeList : VersionChangeTree
   const historyPath = historyScope === "current" ? currentDocumentPath : null
   const [mode, setMode] = useState<PanelMode>(
     space.graft.clean === false ? "changes" : "history"
@@ -1183,6 +1253,27 @@ export function VersionPanel({
     "enable" | "checkpoint" | "restore" | "discard" | null
   >(null)
   const [checkpointMessage, setCheckpointMessage] = useState("")
+  const [checkpointPaths, setCheckpointPaths] = useState<Set<string> | null>(
+    null
+  )
+  const checkedCheckpointPaths = useMemo(
+    () =>
+      checkpointPaths ??
+      new Set(changes?.paths.map((change) => change.path) ?? []),
+    [checkpointPaths, changes]
+  )
+  const checkpointCount =
+    checkpointPaths === null
+      ? (changes?.totalPaths ?? changes?.paths.length ?? 0)
+      : checkpointPaths.size
+  useEffect(() => {
+    void window.eidosLite
+      .reviewCheckpoint?.(mode === "changes")
+      .catch((cause) => setError(errorMessage(cause)))
+    return () => {
+      void window.eidosLite.reviewCheckpoint?.(false).catch(() => undefined)
+    }
+  }, [mode, space.id])
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [discardConfirmation, setDiscardConfirmation] = useState<{
     target: VersionChangeDiscardTarget
@@ -1642,12 +1733,14 @@ export function VersionPanel({
   }
 
   const createCheckpoint = async () => {
+    if (checkpointCount === 0) return
     checkpointInFlightRef.current = true
     setBusy("checkpoint")
     setError(null)
     try {
       const snapshot = await window.eidosLite.createCheckpoint(
-        checkpointMessage.trim() || undefined
+        checkpointMessage.trim() || undefined,
+        checkpointPaths === null ? undefined : [...checkpointPaths]
       )
       // The saved snapshot changes the working-tree identity. Drop the old selection before
       // publishing it so the change-token effect cannot replay an obsolete table diff that will
@@ -1656,6 +1749,11 @@ export function VersionPanel({
       clearInspection()
       onSpaceChange(snapshot)
       setCheckpointMessage("")
+      if (checkpointPaths !== null) {
+        setCheckpointPaths(new Set())
+        setChanges(await window.eidosLite.getVersionChanges(100))
+        return
+      }
       // The checkpoint is durable when IPC resolves. Show the saved history
       // immediately while post-commit worktree classification continues in the
       // background; reloading Changes here would put that expensive status read
@@ -2048,23 +2146,22 @@ export function VersionPanel({
       <div className={`version-panel-body version-panel-${mode}`}>
         {mode === "history" ? (
           <div className="version-history-scope">
-            <label>
-              <span title={historyPath ?? undefined}>
-                {historyPath ?? t("History scope")}
-              </span>
-              <select
-                aria-label={t("History scope")}
-                value={historyScope}
-                onChange={(event) =>
-                  setHistoryScope(event.target.value as "all" | "current")
-                }
-              >
-                <option value="all">{t("All versions")}</option>
-                <option value="current" disabled={!currentDocumentPath}>
-                  {t("Current document")}
-                </option>
-              </select>
-            </label>
+            <span title={historyPath ?? t("All versions")}>
+              {historyPath ?? t("History scope")}
+            </span>
+            <select
+              className="version-mode-select"
+              aria-label={t("History scope")}
+              value={historyScope}
+              onChange={(event) =>
+                setHistoryScope(event.target.value as "all" | "current")
+              }
+            >
+              <option value="all">{t("All versions")}</option>
+              <option value="current" disabled={!currentDocumentPath}>
+                {t("Current document")}
+              </option>
+            </select>
           </div>
         ) : null}
         {modeLoading && !changes && commits.length === 0 ? (
@@ -2083,17 +2180,50 @@ export function VersionPanel({
                 </strong>
                 <p>
                   {hasLocalChanges
-                    ? "Select to review. Hover a file or folder for actions."
+                    ? t("Click to review; check files to save separately.")
                     : "The Space matches its latest saved version."}
                 </p>
               </div>
+              <button
+                className="icon-button version-layout-toggle"
+                title={t(
+                  changesLayout === "tree" ? "Show as list" : "Show as tree"
+                )}
+                aria-label={t(
+                  changesLayout === "tree" ? "Show as list" : "Show as tree"
+                )}
+                onClick={() => {
+                  const next = changesLayout === "tree" ? "list" : "tree"
+                  setChangesLayout(next)
+                  try {
+                    localStorage.setItem("eidos-lite:changes-layout", next)
+                  } catch {
+                    /* Keep the in-memory preference when storage is unavailable. */
+                  }
+                }}
+              >
+                {changesLayout === "tree" ? <List /> : <ListTree />}
+              </button>
             </section>
             {changes && changes.paths.length ? (
               <div className="version-change-tree-shell">
-                <VersionChangeTree
+                <ChangesView
                   diff={changes}
+                  checkedPaths={checkedCheckpointPaths}
+                  onTogglePaths={(paths) =>
+                    setCheckpointPaths((current) => {
+                      const next = new Set(current ?? checkedCheckpointPaths)
+                      const remove = paths.every((path) => next.has(path))
+                      for (const path of paths) {
+                        if (remove) next.delete(path)
+                        else next.add(path)
+                      }
+                      return next
+                    })
+                  }
                   selectedKey={selectedInspectionKey}
                   mode="changes"
+                  selectionDisabled={busy !== null}
                   onSelect={(inspection) => void inspect(inspection)}
                   onRequestDiscard={requestDiscard}
                   discardDisabled={
@@ -2116,6 +2246,29 @@ export function VersionPanel({
             ) : null}
             {hasLocalChanges ? (
               <section className="checkpoint-form">
+                <div className="version-pick-controls">
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      setCheckpointPaths(
+                        new Set(
+                          changes?.paths.map((change) => change.path) ?? []
+                        )
+                      )
+                    }
+                  >
+                    {t("Select loaded files")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy !== null || checkpointCount === 0}
+                    onClick={() => setCheckpointPaths(new Set())}
+                  >
+                    {t("Clear selection")}
+                  </button>
+                  <span>{`${checkpointCount} ${t("selected")}`}</span>
+                </div>
                 <label htmlFor="checkpoint-message">Version note</label>
                 <input
                   id="checkpoint-message"
@@ -2128,7 +2281,14 @@ export function VersionPanel({
                 <button
                   type="button"
                   className="panel-primary-action"
-                  disabled={busy !== null || space.operation.phase !== "ready"}
+                  title={t(
+                    "Saves current file contents. Include new attachments with Markdown files."
+                  )}
+                  disabled={
+                    busy !== null ||
+                    space.operation.phase !== "ready" ||
+                    checkpointCount === 0
+                  }
                   onClick={() => void createCheckpoint()}
                 >
                   {busy === "checkpoint" ? (
@@ -2136,7 +2296,9 @@ export function VersionPanel({
                   ) : (
                     <GitCommitHorizontal />
                   )}
-                  {busy === "checkpoint" ? "Saving…" : "Save version"}
+                  {busy === "checkpoint"
+                    ? "Saving…"
+                    : `${t("Save selected files")} (${checkpointCount})`}
                 </button>
               </section>
             ) : null}
@@ -2149,24 +2311,13 @@ export function VersionPanel({
             {commits.map((commit) => {
               const expanded = selectedCommit?.id === commit.id
               const cloudCheckpoint = space.graft.sync?.remoteHead === commit.id
-              const showCloudBoundary =
-                cloudCheckpoint && space.graft.sync?.state === "ahead"
+              const localCheckpoint = space.graft.currentHead === commit.id
               return (
                 <Fragment key={commit.id}>
-                  {showCloudBoundary ? (
-                    <li
-                      className="history-cloud-boundary"
-                      data-history-cloud-boundary
-                    >
-                      <span />
-                      <Cloud aria-hidden="true" />
-                      <small>Cloud is saved through this version</small>
-                      <span />
-                    </li>
-                  ) : null}
                   <li
                     className={expanded ? "expanded" : ""}
                     data-cloud-checkpoint={cloudCheckpoint ? "true" : undefined}
+                    data-local-checkpoint={localCheckpoint ? "true" : undefined}
                   >
                     <button
                       type="button"
@@ -2179,12 +2330,21 @@ export function VersionPanel({
                       <span>
                         <span className="commit-title-line">
                           <strong>{commit.message}</strong>
+                          {localCheckpoint ? (
+                            <span
+                              className="commit-cloud-marker"
+                              title={t("Current local version")}
+                            >
+                              {t("Current local version")}
+                            </span>
+                          ) : null}
                           {cloudCheckpoint ? (
                             <span
                               className="commit-cloud-marker"
-                              title="Latest version known in the cloud"
+                              title={t("Remote version at the last check")}
                             >
-                              <Cloud aria-hidden="true" /> Cloud
+                              <Cloud aria-hidden="true" />{" "}
+                              {t("Current remote version")}
                             </span>
                           ) : null}
                         </span>

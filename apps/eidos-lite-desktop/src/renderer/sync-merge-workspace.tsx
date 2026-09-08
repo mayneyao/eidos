@@ -41,6 +41,7 @@ import {
 } from "./merge-change-tree"
 import { MergeTableDiff } from "./merge-table-diff"
 import { InlineTextDiff } from "./version-text-diff"
+import { useEidosLiteI18n } from "./i18n"
 
 const PierreTextEditorSurface = lazy(
   () => import("./pierre-text-editor-surface")
@@ -69,20 +70,100 @@ interface MergeConflictPageState {
 
 /**
  * The Sync inspector owns the safe, guarded transition into a merge. Once a
- * merge exists, conflict review moves to Changes and the main editor.
+ * merge exists, Sync keeps navigation while the main editor resolves conflicts.
  */
 export function SyncMergeWorkspace({
+  compact = false,
+  externalStatus,
   onStatusChange,
   onReviewMerge,
   onSpaceChange,
+  onFilesMaterialized,
 }: {
+  compact?: boolean
+  externalStatus?: EidosSyncMergeStatus
   onStatusChange?(status: EidosSyncMergeStatus): void
-  onReviewMerge?(): void
+  onReviewMerge?(path?: string, table?: string): void
   onSpaceChange?(snapshot: SpaceSnapshot): void
+  onFilesMaterialized?(
+    snapshot: SpaceSnapshot,
+    paths: readonly string[] | null
+  ): void | Promise<void>
 }) {
   const [status, setStatus] = useState<EidosSyncMergeStatus>({ state: "none" })
+  const { t } = useEidosLiteI18n()
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
   const [busy, setBusy] = useState<MergeBusy>("status")
+  const [message, setMessage] = useState("")
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [pathsCursor, setPathsCursor] = useState<string | null>(null)
+  const [summaryPaths, setSummaryPaths] = useState<EidosSyncMergePath[]>([])
+  const [summarySelection, setSummarySelection] =
+    useState<MergeChangeTreeTarget | null>(null)
+  const [summaryConflicts, setSummaryConflicts] = useState(
+    new Map<string, EidosSyncMergeConflict[]>()
+  )
+  const summaryToken = status.state === "merging" ? status.stateToken : null
+  useEffect(() => {
+    let active = true
+    setSummaryPaths([])
+    if (summaryToken && window.eidosLite.listSyncMergePaths) {
+      void window.eidosLite
+        .listSyncMergePaths({
+          stateToken: summaryToken,
+          filter: "all",
+          limit: 50,
+        })
+        .then((response) => {
+          if (!active) return
+          if (response.ok) {
+            setSummaryPaths(response.value.items)
+            setPathsCursor(response.value.nextCursor)
+          } else setFailure(response.failure)
+        })
+        .catch((cause) => {
+          if (active) setOperationError(String(cause))
+        })
+    }
+    return () => {
+      active = false
+    }
+  }, [summaryToken])
+  useEffect(() => {
+    setSummaryConflicts(new Map())
+  }, [summaryToken])
+  useEffect(() => {
+    if (!summaryToken || summarySelection?.path.kind !== "sqlite_database")
+      return
+    let active = true
+    const path = summarySelection.path.path
+    const load = async () => {
+      const items: EidosSyncMergeConflict[] = []
+      let cursor: string | undefined
+      do {
+        const response = await window.eidosLite.listSyncMergeConflicts({
+          stateToken: summaryToken,
+          path,
+          limit: 100,
+          ...(cursor ? { after: cursor } : {}),
+        })
+        if (!active) return
+        if (!response.ok) {
+          setFailure(response.failure)
+          return
+        }
+        items.push(...response.value.items)
+        setSummaryConflicts((current) => new Map(current).set(path, [...items]))
+        cursor = response.value.nextCursor ?? undefined
+      } while (cursor && active)
+    }
+    void load().catch((cause) => {
+      if (active) setOperationError(String(cause))
+    })
+    return () => {
+      active = false
+    }
+  }, [summaryToken, summarySelection?.path.path, summarySelection?.path.kind])
 
   const accept = <T,>(response: EidosSyncMergeResponse<T>): T | null => {
     if (!response.ok) {
@@ -104,10 +185,19 @@ export function SyncMergeWorkspace({
       setBusy(null)
       return
     }
-    const next = accept(await window.eidosLite.getSyncMergeStatus())
-    if (next) publishStatus(next)
-    setBusy(null)
+    try {
+      const next = accept(await window.eidosLite.getSyncMergeStatus())
+      if (next) publishStatus(next)
+    } catch (cause) {
+      setOperationError(String(cause))
+    } finally {
+      setBusy(null)
+    }
   }
+
+  useEffect(() => {
+    if (externalStatus) setStatus(externalStatus)
+  }, [externalStatus])
 
   useEffect(() => {
     void refreshStatus()
@@ -117,83 +207,196 @@ export function SyncMergeWorkspace({
 
   const refreshRepository = async () => {
     const snapshot = await window.eidosLite.refreshSpace()
-    if (snapshot) onSpaceChange?.(snapshot)
+    if (snapshot) {
+      onSpaceChange?.(snapshot)
+      if (compact) await onFilesMaterialized?.(snapshot, null)
+    }
   }
 
   const startMerge = async () => {
     setBusy("plan")
-    const plan = accept(await window.eidosLite.planSyncMerge())
-    if (!plan) {
+    setOperationError(null)
+    try {
+      const plan = accept(await window.eidosLite.planSyncMerge())
+      if (!plan) {
+        setBusy(null)
+        return
+      }
+      if (plan.kind === "up_to_date") {
+        await refreshRepository()
+        setBusy(null)
+        return
+      }
+      setBusy("apply")
+      const next = accept(
+        await window.eidosLite.applySyncMerge({
+          expectedHead: plan.expectedHead,
+          planToken: plan.planToken,
+        })
+      )
+      if (next) {
+        publishStatus(next)
+        if (next.state === "merging" && !compact) {
+          onReviewMerge?.()
+        } else {
+          await refreshRepository()
+        }
+      }
+    } catch (cause) {
+      setOperationError(String(cause))
+    } finally {
       setBusy(null)
-      return
     }
-    if (plan.kind === "up_to_date") {
-      await refreshRepository()
-      setBusy(null)
-      return
-    }
-    setBusy("apply")
-    const next = accept(
-      await window.eidosLite.applySyncMerge({
-        expectedHead: plan.expectedHead,
-        planToken: plan.planToken,
-      })
-    )
-    if (next) {
-      publishStatus(next)
-      if (next.state === "merging") {
-        onReviewMerge?.()
-      } else {
+  }
+
+  const finish = async (abort: boolean) => {
+    if (status.state !== "merging") return
+    setBusy(abort ? "abort" : "continue")
+    setOperationError(null)
+    try {
+      const next = accept(
+        await (abort
+          ? window.eidosLite.abortSyncMerge(status.stateToken)
+          : window.eidosLite.continueSyncMerge({
+              stateToken: status.stateToken,
+              message: message.trim() || "Merge remote updates",
+            }))
+      )
+      if (next) {
+        publishStatus(next)
         await refreshRepository()
       }
+    } catch (cause) {
+      setOperationError(String(cause))
+    } finally {
+      setBusy(null)
     }
-    setBusy(null)
+  }
+  const loadSummaryPage = async () => {
+    if (status.state !== "merging" || !pathsCursor) return
+    setBusy("path")
+    try {
+      const page = accept(
+        await window.eidosLite.listSyncMergePaths({
+          stateToken: status.stateToken,
+          filter: "all",
+          limit: 50,
+          after: pathsCursor,
+        })
+      )
+      if (page) {
+        setSummaryPaths((current) => [...current, ...page.items])
+        setPathsCursor(page.nextCursor)
+      }
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
-    <section className="sync-merge-workspace" data-sync-merge-workspace>
-      <header className="sync-merge-header">
-        <span className="sync-merge-icon">
-          <GitMerge />
-        </span>
-        <div>
-          <strong>Review and merge changes</strong>
-          <p>
-            Start here, then resolve conflicting files and tables in Changes.
-          </p>
-        </div>
-      </header>
+    <section
+      className={`sync-merge-workspace${compact ? " sync-merge-workspace-compact" : ""}`}
+      data-sync-merge-workspace
+    >
+      {!compact ? (
+        <header className="sync-merge-header">
+          <span className="sync-merge-icon">
+            <GitMerge />
+          </span>
+          <div>
+            <strong>Review and merge changes</strong>
+            <p>
+              Start here, then resolve conflicting files and tables in Changes.
+            </p>
+          </div>
+        </header>
+      ) : null}
 
       {failure ? (
         <MergeAlert failure={failure} onReload={() => void refreshStatus()} />
       ) : null}
+      {operationError ? <p role="alert">{operationError}</p> : null}
 
       {status.state === "none" ? (
-        <MergeStart busy={busy} onStart={() => void startMerge()} />
+        <MergeStart
+          compact={compact}
+          busy={busy}
+          onStart={() => void startMerge()}
+        />
       ) : (
         <div className="sync-merge-active-summary">
-          <MergeIdentitySummary status={status} />
-          <div className="sync-merge-active-copy">
-            <div>
-              <strong>
-                {status.unmergedCount === 0
-                  ? "Ready to complete"
-                  : `${status.unmergedCount} ${status.unmergedCount === 1 ? "conflict" : "conflicts"} to resolve`}
-              </strong>
-              <p>
-                Conflict files now appear in Changes. Select one there to use
-                the full editor area.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="primary-action"
-              data-sync-merge-review
-              onClick={onReviewMerge}
-            >
-              <FileCode2 /> Review in Changes
-            </button>
+          {!compact ? <MergeIdentitySummary status={status} /> : null}
+          <div className="sync-conflict-summary">
+            <MergeChangeTree
+              paths={summaryPaths}
+              conflictsByPath={summaryConflicts}
+              selectedPath={summarySelection?.path.path ?? null}
+              selectedTable={summarySelection?.table ?? null}
+              selectedScope={summarySelection?.scope ?? "file"}
+              onSelect={(target) => {
+                setSummarySelection(target)
+                onReviewMerge?.(target.path.path, target.table ?? undefined)
+              }}
+            />
+            {pathsCursor ? (
+              <button
+                className="sync-inspector-link"
+                disabled={busy !== null}
+                onClick={() => void loadSummaryPage()}
+              >
+                {t("Load more files")}
+              </button>
+            ) : null}
           </div>
+          {compact ? (
+            <footer className="sync-merge-completion">
+              <label>
+                <span>{t("Merge message (optional)")}</span>
+                <input
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  maxLength={200}
+                />
+              </label>
+              <button
+                className="primary-action"
+                data-sync-merge-continue
+                disabled={busy !== null || status.unmergedCount > 0}
+                onClick={() => void finish(false)}
+              >
+                {t("Complete Merge")}
+              </button>
+              <button
+                className="sync-inspector-link"
+                disabled={busy !== null}
+                onClick={() => void finish(true)}
+              >
+                {t("Abort merge")}
+              </button>
+            </footer>
+          ) : (
+            <div className="sync-merge-active-copy">
+              <div>
+                <strong>
+                  {status.unmergedCount === 0
+                    ? "Ready to complete"
+                    : `${status.unmergedCount} ${status.unmergedCount === 1 ? "conflict" : "conflicts"} to resolve`}
+                </strong>
+                <p>
+                  Conflict files now appear in Changes. Select one there to use
+                  the full editor area.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="primary-action"
+                data-sync-merge-review
+                onClick={() => onReviewMerge?.()}
+              >
+                <FileCode2 /> Review in Changes
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -205,7 +408,10 @@ export function SyncMergeWorkspace({
  * editor-work-area: a main editor and a Changes-style right inspector.
  */
 export function SyncMergeWorkbench({
+  mainOnly = false,
   initialStatus,
+  initialPath,
+  initialTable,
   onClose,
   onStatusChange,
   onFilesMaterialized,
@@ -213,6 +419,9 @@ export function SyncMergeWorkbench({
   titlebarNavigation,
 }: {
   initialStatus: ActiveMergeStatus
+  mainOnly?: boolean
+  initialPath?: string
+  initialTable?: string
   theme: ResolvedAppearance
   titlebarNavigation?: ReactNode
   onClose(): void
@@ -320,7 +529,12 @@ export function SyncMergeWorkbench({
 
   useEffect(() => {
     publishStatus(initialStatus)
-    void loadPaths(initialStatus)
+    void loadPaths(initialStatus, initialPath).then(() => {
+      if (initialTable) {
+        setSelectedTable(initialTable)
+        setSelectedScope("table")
+      }
+    })
     setBusy(null)
     // Initial durable state is supplied by App and loaded once on entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -711,7 +925,10 @@ export function SyncMergeWorkbench({
               </span>
             </div>
           </div>
-          <MergeIdentitySummary status={status} compact />
+          <details className="merge-secondary-details">
+            <summary>Version details</summary>
+            <MergeIdentitySummary status={status} compact />
+          </details>
           <div className="sync-merge-editor-actions">
             <button
               type="button"
@@ -819,114 +1036,116 @@ export function SyncMergeWorkbench({
             <div className="sync-merge-editor-empty">
               <GitMerge />
               <strong>No conflict selected</strong>
-              <p>Select a file from Changes to review its versions.</p>
+              <p>Select a file from Sync to review its versions.</p>
             </div>
           )}
         </div>
       </main>
 
-      <aside
-        className="version-panel sync-merge-changes-panel"
-        aria-label="Merge changes"
-      >
-        <header>
-          <div>
-            <GitMerge />
-            <strong>Changes</strong>
-            {status.unmergedCount > 0 ? (
-              <span className="sync-merge-count">{status.unmergedCount}</span>
+      {!mainOnly ? (
+        <aside
+          className="version-panel sync-merge-changes-panel"
+          aria-label="Merge changes"
+        >
+          <header>
+            <div>
+              <GitMerge />
+              <strong>Sync</strong>
+              {status.unmergedCount > 0 ? (
+                <span className="sync-merge-count">{status.unmergedCount}</span>
+              ) : null}
+            </div>
+            <div className="version-header-actions">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Reload merge state"
+                disabled={loading}
+                onClick={() => void refreshStatus(selectedPath?.path)}
+              >
+                <RotateCcw />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close Changes"
+                onClick={onClose}
+              >
+                <X />
+              </button>
+            </div>
+          </header>
+
+          <div className="sync-merge-changes-summary">
+            <span>MERGE</span>
+            <strong>
+              {status.unmergedCount === 0
+                ? "All conflicts resolved"
+                : `${status.unmergedCount} unresolved`}
+            </strong>
+          </div>
+
+          <div className="version-panel-body sync-merge-changes-body">
+            <MergeChangeTree
+              paths={paths}
+              conflictsByPath={conflictsByPath}
+              selectedPath={selectedPath?.path ?? null}
+              selectedTable={selectedTable}
+              selectedScope={selectedScope}
+              onSelect={selectTarget}
+            />
+            {pathsCursor ? (
+              <button
+                type="button"
+                className="sync-merge-load-more"
+                disabled={loading}
+                onClick={() => void loadMorePaths()}
+              >
+                Load more files
+              </button>
             ) : null}
           </div>
-          <div className="version-header-actions">
+
+          <footer className="sync-merge-completion">
+            <label>
+              <span>Merge message</span>
+              <input
+                value={message}
+                maxLength={200}
+                onChange={(event) => setMessage(event.target.value)}
+              />
+            </label>
+            <p>
+              {status.unmergedCount > 0
+                ? `Resolve ${status.unmergedCount} ${status.unmergedCount === 1 ? "conflict" : "conflicts"} to complete the merge.`
+                : "All conflicts are staged and ready."}
+            </p>
             <button
               type="button"
-              className="icon-button"
-              aria-label="Reload merge state"
+              className="primary-action"
+              data-sync-merge-continue
+              disabled={loading || status.unmergedCount > 0 || !message.trim()}
+              onClick={() => void continueMerge()}
+            >
+              {busy === "continue" ? (
+                <LoaderCircle className="spin" />
+              ) : (
+                <GitMerge />
+              )}
+              Complete Merge
+            </button>
+            <button
+              type="button"
+              className="sync-merge-abort"
               disabled={loading}
-              onClick={() => void refreshStatus(selectedPath?.path)}
+              onClick={() => void abortMerge()}
             >
-              <RotateCcw />
+              {busy === "abort" ? <LoaderCircle className="spin" /> : null}
+              Abort Merge
             </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Close Changes"
-              onClick={onClose}
-            >
-              <X />
-            </button>
-          </div>
-        </header>
-
-        <div className="sync-merge-changes-summary">
-          <span>MERGE</span>
-          <strong>
-            {status.unmergedCount === 0
-              ? "All conflicts resolved"
-              : `${status.unmergedCount} unresolved`}
-          </strong>
-        </div>
-
-        <div className="version-panel-body sync-merge-changes-body">
-          <MergeChangeTree
-            paths={paths}
-            conflictsByPath={conflictsByPath}
-            selectedPath={selectedPath?.path ?? null}
-            selectedTable={selectedTable}
-            selectedScope={selectedScope}
-            onSelect={selectTarget}
-          />
-          {pathsCursor ? (
-            <button
-              type="button"
-              className="sync-merge-load-more"
-              disabled={loading}
-              onClick={() => void loadMorePaths()}
-            >
-              Load more files
-            </button>
-          ) : null}
-        </div>
-
-        <footer className="sync-merge-completion">
-          <label>
-            <span>Merge message</span>
-            <input
-              value={message}
-              maxLength={200}
-              onChange={(event) => setMessage(event.target.value)}
-            />
-          </label>
-          <p>
-            {status.unmergedCount > 0
-              ? `Resolve ${status.unmergedCount} ${status.unmergedCount === 1 ? "conflict" : "conflicts"} to complete the merge.`
-              : "All conflicts are staged and ready."}
-          </p>
-          <button
-            type="button"
-            className="primary-action"
-            data-sync-merge-continue
-            disabled={loading || status.unmergedCount > 0 || !message.trim()}
-            onClick={() => void continueMerge()}
-          >
-            {busy === "continue" ? (
-              <LoaderCircle className="spin" />
-            ) : (
-              <GitMerge />
-            )}
-            Complete Merge
-          </button>
-          <button
-            type="button"
-            className="sync-merge-abort"
-            disabled={loading}
-            onClick={() => void abortMerge()}
-          >
-            {busy === "abort" ? <LoaderCircle className="spin" /> : null}
-            Abort Merge
-          </button>
-        </footer>
-      </aside>
+          </footer>
+        </aside>
+      ) : null}
     </>
   )
 }
@@ -958,14 +1177,25 @@ function MergeAlert({
   )
 }
 
-function MergeStart({ busy, onStart }: { busy: MergeBusy; onStart(): void }) {
+function MergeStart({
+  busy,
+  onStart,
+  compact = false,
+}: {
+  busy: MergeBusy
+  onStart(): void
+  compact?: boolean
+}) {
+  const { t } = useEidosLiteI18n()
   return (
     <div className="sync-merge-empty">
-      <p>
-        Eidos first creates a guarded plan, then opens the conflict list in the
-        main work area. Base, Local, and Hosted stay recoverable until you
-        complete or abort.
-      </p>
+      {compact ? null : (
+        <p>
+          Eidos first creates a guarded plan, then opens the conflict list in
+          the main work area. Base, Local, and Hosted stay recoverable until you
+          complete or abort.
+        </p>
+      )}
       <button
         type="button"
         className="primary-action"
@@ -979,10 +1209,10 @@ function MergeStart({ busy, onStart }: { busy: MergeBusy; onStart(): void }) {
           <GitMerge />
         )}
         {busy === "plan"
-          ? "Checking histories…"
+          ? t("Checking histories…")
           : busy === "apply"
-            ? "Starting merge…"
-            : "Start merge"}
+            ? t("Receiving and merging…")
+            : t("Receive and merge")}
       </button>
     </div>
   )
@@ -1492,37 +1722,44 @@ function SqliteMergeResolution({
       data-sync-merge-eidos={path.path}
       data-sync-merge-path-state={path.state}
     >
-      {path.state === "resolved" ? (
+      {path.state === "resolved" && rows.length === 0 ? (
         <ResolvedPathNotice title="Eidos File resolved" />
       ) : null}
       {path.state === "unmerged" &&
       (selectedScope !== "table" || nonRows.length > 0) ? (
-        <div className="sync-merge-file-resolution-actions">
-          <span>
-            {recommendedResult === "merged"
-              ? "A combined result needs validation support unavailable in this build. Choose one complete file."
-              : recommendedResult
-                ? `Recommended: keep ${recommendedResult === "ours" ? "Local" : "Hosted"}`
-                : nonRows.length > 0
-                  ? "Choose after reviewing the structure conflict"
-                  : "Use one complete Eidos File"}
-          </span>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onResolvePath("ours")}
-          >
-            Use Local File{recommendedResult === "ours" ? " · Recommended" : ""}
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onResolvePath("theirs")}
-          >
-            Use Hosted File
-            {recommendedResult === "theirs" ? " · Recommended" : ""}
-          </button>
-        </div>
+        <details
+          className="merge-file-options"
+          open={nonRows.length > 0 || undefined}
+        >
+          <summary>Whole file options</summary>
+          <div className="sync-merge-file-resolution-actions">
+            <span>
+              {recommendedResult === "merged"
+                ? "A combined result needs validation support unavailable in this build. Choose one complete file."
+                : recommendedResult
+                  ? `Recommended: keep ${recommendedResult === "ours" ? "Local" : "Hosted"}`
+                  : nonRows.length > 0
+                    ? "Choose after reviewing the structure conflict"
+                    : "Use one complete Eidos File"}
+            </span>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onResolvePath("ours")}
+            >
+              Use Local File
+              {recommendedResult === "ours" ? " · Recommended" : ""}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onResolvePath("theirs")}
+            >
+              Use Hosted File
+              {recommendedResult === "theirs" ? " · Recommended" : ""}
+            </button>
+          </div>
+        </details>
       ) : null}
       {rows.length > 0 || (selectedScope === "table" && nonRows.length > 0) ? (
         <MergeTableDiff

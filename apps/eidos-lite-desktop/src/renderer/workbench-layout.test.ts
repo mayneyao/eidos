@@ -60,7 +60,7 @@ describe("resolveWorkbenchSurfaces", () => {
     ).toEqual({ content: "file", right: "sync", terminal: null })
   })
 
-  it("gives an active merge the main surface and Changes sidebar", () => {
+  it("keeps an active merge in the Sync sidebar", () => {
     expect(
       resolveWorkbenchSurfaces({
         terminalLayout: "bottom",
@@ -69,7 +69,7 @@ describe("resolveWorkbenchSurfaces", () => {
         diffOpen: true,
         mergeOpen: true,
       })
-    ).toEqual({ content: "merge", right: "history", terminal: "bottom" })
+    ).toEqual({ content: "merge", right: "sync", terminal: "bottom" })
   })
 
   it("routes a selected diff into the main surface while keeping Versions on the right", () => {

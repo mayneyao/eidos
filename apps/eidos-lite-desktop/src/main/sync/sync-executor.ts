@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import type {
+  EidosSyncAction,
   EidosSyncPhase,
   EidosSyncProgress,
   EidosSyncRunResponse,
@@ -27,7 +28,8 @@ export class SyncExecutor {
 
   async run(
     session: SpaceSession,
-    emitProgress: (progress: EidosSyncProgress) => void
+    emitProgress: (progress: EidosSyncProgress) => void,
+    action: EidosSyncAction = "fetch"
   ): Promise<EidosSyncRunResponse> {
     const tracker = new SyncRunTracker(randomUUID(), emitProgress)
     const logger = eidosLiteLogger()
@@ -67,7 +69,8 @@ export class SyncExecutor {
         access.accessToken,
         access.access,
         transition,
-        (progress) => tracker.transfer(progress)
+        (progress) => tracker.transfer(progress),
+        action
       )
       const telemetry = tracker.complete(outcome.message)
       logger?.info("sync.run.completed", {

@@ -2,9 +2,19 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type SyntheticEvent,
 } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import {
+  ChevronRight,
+  Database,
+  FileText,
+  RotateCcw,
+  Table2,
+} from "lucide-react"
+import { useEidosLiteI18n } from "./i18n"
 import type { GitStatus, GitStatusEntry } from "@pierre/trees"
 import {
   FileTree,
@@ -334,6 +344,15 @@ const TREE_CSS = `
     border-radius: 3px;
   }
 
+  input[data-tree-checkbox] {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    margin: 0 3px 0 0;
+    accent-color: var(--lite-accent, #007284);
+    cursor: pointer;
+  }
+
   button[data-type="item"]:focus-visible {
     outline-offset: -1px;
   }
@@ -368,6 +387,9 @@ export function VersionChangeTree({
   onSelect,
   onRequestDiscard,
   discardDisabled = false,
+  selectionDisabled = false,
+  checkedPaths,
+  onTogglePaths,
 }: {
   diff: SpaceVersionDiff
   selectedKey: string | null
@@ -376,6 +398,9 @@ export function VersionChangeTree({
   onSelect(inspection: VersionInspection): void
   onRequestDiscard?(target: VersionChangeDiscardTarget): void
   discardDisabled?: boolean
+  selectionDisabled?: boolean
+  checkedPaths?: ReadonlySet<string>
+  onTogglePaths?(paths: string[]): void
 }) {
   const tree = useMemo(() => buildVersionChangeTreeModel(diff), [diff])
   const treeRef = useRef(tree)
@@ -437,6 +462,43 @@ export function VersionChangeTree({
     },
   })
   const selectedPaths = useFileTreeSelection(model)
+  useEffect(() => {
+    model.setRowDecoration(({ item }) => {
+      const text = tree.decorationByPath.get(item.path) ?? ""
+      const target = tree.targetByTreePath.get(item.path)
+      if (
+        mode !== "changes" ||
+        !checkedPaths ||
+        !onTogglePaths ||
+        target?.table
+      )
+        return text ? { text, title: text } : null
+      const paths = [
+        ...new Set(
+          [...tree.targetByTreePath.entries()]
+            .filter(
+              ([path, entry]) =>
+                !entry.table &&
+                (path === item.path ||
+                  (item.path.endsWith("/") && path.startsWith(item.path)))
+            )
+            .map(([, entry]) => entry.change.path)
+        ),
+      ]
+      if (!paths.length) return text ? { text, title: text } : null
+      const count = paths.filter((path) => checkedPaths.has(path)).length
+      return {
+        text,
+        checkbox: {
+          label: `Include ${item.path.replace(/\/$/, "").split("/").at(-1)}`,
+          checked:
+            count === paths.length ? true : count === 0 ? false : "mixed",
+          disabled: selectionDisabled,
+          onChange: () => onTogglePaths(paths),
+        },
+      }
+    })
+  }, [model, tree, checkedPaths, onTogglePaths, mode, selectionDisabled])
 
   useEffect(() => {
     const currentTree = treeRef.current
@@ -518,5 +580,184 @@ export function VersionChangeTree({
         inspectTreePath(treePath)
       }}
     />
+  )
+}
+
+/** Flat file projection keeps the same inspection keys and filesystem targets. */
+export function VersionChangeList({
+  diff,
+  selectedKey,
+  onSelect,
+  checkedPaths,
+  onTogglePaths,
+  onRequestDiscard,
+  discardDisabled = false,
+  selectionDisabled = false,
+}: {
+  diff: SpaceVersionDiff
+  selectedKey: string | null
+  onSelect(inspection: VersionInspection): void
+  checkedPaths: ReadonlySet<string>
+  onTogglePaths(paths: string[]): void
+  onRequestDiscard(target: VersionChangeDiscardTarget): void
+  discardDisabled?: boolean
+  selectionDisabled?: boolean
+}) {
+  const { t } = useEidosLiteI18n()
+  const tree = useMemo(() => buildVersionChangeTreeModel(diff), [diff])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    const target = selectedKey ? tree.targetByTreePath.get(selectedKey) : null
+    if (target?.table) {
+      setExpanded((current) => new Set(current).add(target.change.path))
+    }
+  }, [selectedKey, tree])
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const rows = useMemo(() => {
+    const targets = [...tree.targetByTreePath.values()]
+    const files = targets
+      .filter((target) => !target.table)
+      .sort(
+        (a, b) =>
+          (a.change.path.split("/").at(-1) ?? "").localeCompare(
+            b.change.path.split("/").at(-1) ?? ""
+          ) || a.change.path.localeCompare(b.change.path)
+      )
+    const tables = new Map<string, VersionTreeTarget[]>()
+    for (const target of targets) {
+      if (!target.table) continue
+      const entries = tables.get(target.change.path) ?? []
+      entries.push(target)
+      tables.set(target.change.path, entries)
+    }
+    return files.flatMap((file) => [
+      file,
+      ...(expanded.has(file.change.path)
+        ? (tables.get(file.change.path) ?? [])
+        : []),
+    ])
+  }, [tree, expanded])
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 26,
+    getItemKey: (index) => rows[index].key,
+    overscan: 8,
+  })
+  return (
+    <div
+      className="version-change-list"
+      ref={scrollRef}
+      aria-label={t("Changed Space files")}
+    >
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const target = rows[item.index]
+          const { change, table, file } = target
+          const name = table?.name ?? change.path.split("/").at(-1)
+          const directory = change.path.includes("/")
+            ? change.path.slice(0, change.path.lastIndexOf("/"))
+            : ""
+          const Icon = table
+            ? Table2
+            : isEidosPath(change.path)
+              ? Database
+              : FileText
+          return (
+            <div
+              key={target.key}
+              className="version-change-list-row"
+              data-selected={selectedKey === target.key}
+              data-table={Boolean(table)}
+              style={{
+                position: "absolute",
+                top: item.start,
+                height: item.size,
+                width: "100%",
+              }}
+            >
+              {!table && isEidosPath(change.path) ? (
+                <button
+                  className="icon-button"
+                  aria-label={`${t("Toggle tables")}: ${name}`}
+                  aria-expanded={expanded.has(change.path)}
+                  onClick={() => {
+                    setExpanded((current) => {
+                      const next = new Set(current)
+                      if (next.has(change.path)) next.delete(change.path)
+                      else next.add(change.path)
+                      return next
+                    })
+                    if (!file)
+                      onSelect(
+                        versionInspectionFromTarget(
+                          target,
+                          diff,
+                          "changes",
+                          null
+                        )
+                      )
+                  }}
+                >
+                  <ChevronRight
+                    style={{
+                      transform: expanded.has(change.path)
+                        ? "rotate(90deg)"
+                        : undefined,
+                    }}
+                  />
+                </button>
+              ) : null}
+              {!table ? (
+                <input
+                  type="checkbox"
+                  aria-label={`${t("Include file")}: ${change.path}`}
+                  checked={checkedPaths.has(change.path)}
+                  disabled={selectionDisabled}
+                  onChange={() => onTogglePaths([change.path])}
+                />
+              ) : null}
+              <button
+                className="version-list-open"
+                title={change.path}
+                onClick={() =>
+                  onSelect(
+                    versionInspectionFromTarget(target, diff, "changes", null)
+                  )
+                }
+              >
+                <Icon />
+                <span>{name}</span>
+                <small>
+                  {table ? tree.decorationByPath.get(target.key) : directory}
+                </small>
+              </button>
+              {!table ? (
+                <>
+                  <small className="version-list-status" title={change.change}>
+                    {treeGitStatus(change.change).slice(0, 1).toUpperCase()}
+                  </small>
+                  <button
+                    className="icon-button version-list-discard"
+                    title={t("Discard changes")}
+                    aria-label={`${t("Discard changes")}: ${change.path}`}
+                    disabled={discardDisabled}
+                    onClick={() =>
+                      onRequestDiscard({
+                        kind: "file",
+                        path: change.path,
+                        fileCount: 1,
+                      })
+                    }
+                  >
+                    <RotateCcw />
+                  </button>
+                </>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

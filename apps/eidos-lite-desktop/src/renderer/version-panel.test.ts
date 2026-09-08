@@ -215,6 +215,88 @@ async function changeTreeDiscardAction(
 }
 
 describe("VersionPanel table diff", () => {
+  it("saves checked files, keeps remaining changes visible, and pauses automatic checkpoints during review", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const space = {
+      ...unversionedSpace,
+      graft: { ...unversionedSpace.graft, initialized: true, clean: false },
+    }
+    const remaining = { ...versionDiff, paths: versionDiff.paths.slice(1) }
+    const save = vi.fn().mockResolvedValue(space)
+    const review = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        createCheckpoint: save,
+        reviewCheckpoint: review,
+        getVersionChanges: vi
+          .fn()
+          .mockResolvedValueOnce(versionDiff)
+          .mockResolvedValue(remaining),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    try {
+      await act(async () => {
+        root.render(
+          createElement(VersionPanel, {
+            space,
+            refreshKey: 0,
+            onClose: vi.fn(),
+            onSpaceChange: vi.fn(),
+            onFilesMaterialized: vi.fn(),
+            onRefresh: vi.fn(),
+            onInspectionChange: vi.fn(),
+          })
+        )
+      })
+      expect(review).toHaveBeenCalledWith(true)
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      const tree = host.querySelector<HTMLElement>(
+        "[data-version-change-tree]"
+      )!.shadowRoot!
+      const checkbox = tree.querySelector<HTMLInputElement>(
+        'input[aria-label="Include readme.md"]'
+      )
+      expect(checkbox).not.toBeNull()
+      expect(checkbox!.checked).toBe(true)
+      await act(async () => {
+        ;[...host.querySelectorAll("button")]
+          .find((button) => button.textContent === "Clear selection")!
+          .click()
+      })
+      expect(
+        host.querySelector<HTMLButtonElement>(".panel-primary-action")!.disabled
+      ).toBe(true)
+      expect(save).not.toHaveBeenCalled()
+      await act(async () => checkbox!.click())
+      expect(
+        tree.querySelector<HTMLInputElement>(
+          'input[aria-label="Include Changes"]'
+        )?.indeterminate
+      ).toBe(true)
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>(".panel-primary-action")!.click()
+      )
+      expect(save).toHaveBeenCalledWith(undefined, ["notes/readme.md"])
+      expect(
+        tree.querySelector('input[aria-label="Include readme.md"]')
+      ).toBeNull()
+      expect(
+        tree.querySelector('input[aria-label="Include crm.eidos"]')
+      ).not.toBeNull()
+      expect(host.querySelector(".version-panel-changes")).not.toBeNull()
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
+    expect(review).toHaveBeenLastCalledWith(false)
+  })
   afterEach(() => vi.unstubAllGlobals())
 
   it("falls back to the other merge parent when the first-parent SQLite diff is physical only", async () => {
@@ -777,10 +859,14 @@ describe("VersionPanel table diff", () => {
     expect(
       host.querySelector('[data-history-sync-state="ahead"]')?.textContent
     ).toContain("1 local saved version waiting to upload")
-    expect(host.querySelector("[data-history-cloud-boundary]")).not.toBeNull()
+    expect(host.querySelector("[data-history-cloud-boundary]")).toBeNull()
     expect(
       host.querySelector('[data-cloud-checkpoint="true"]')?.textContent
-    ).toContain("Cloud")
+    ).toContain("Current remote version")
+    expect(
+      host.querySelector('[data-local-checkpoint="true"]')?.textContent
+    ).toContain("Current local version")
+    expect(host.textContent).not.toContain("Cloud is saved through")
 
     await act(async () => root.unmount())
     host.remove()
@@ -1638,6 +1724,137 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("Updated")
     expect(markup).toContain(">2</small>")
     expect(markup).toContain("100 of 3,169 changed rows")
+  })
+
+  it.each(["changes", "history"] as const)(
+    "loads row details when opening a summary table from the %s main preview",
+    async (mode) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+      const host = document.createElement("div")
+      document.body.append(host)
+      const root = createRoot(host)
+      const summaryTable = {
+        ...customersTable,
+        columns: [],
+        changes: [],
+        rowChangesLoaded: false,
+      }
+      const file = { ...versionDiff.files[0]!, tables: [summaryTable] }
+      let resolveDetail!: (value: SpaceVersionDiff) => void
+      const getVersionPathDiff = vi.fn(
+        () =>
+          new Promise<SpaceVersionDiff>((resolve) => {
+            resolveDetail = resolve
+          })
+      )
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: { getVersionPathDiff },
+      })
+      const inspection: VersionInspection = {
+        type: "file",
+        key: `${mode}:crm`,
+        mode,
+        diff: versionDiff,
+        change: versionDiff.paths[1]!,
+        file,
+        commit:
+          mode === "history"
+            ? {
+                id: "saved-head",
+                parent: "first-parent",
+                message: "",
+                timestampMs: 0,
+                files: 1,
+                changes: [],
+                tables: [],
+                changedTables: 1,
+              }
+            : null,
+      }
+      const render = (next: VersionInspection) =>
+        root.render(
+          createElement(VersionDiffPreview, {
+            inspection: next,
+            theme: "light",
+            onClose: () => undefined,
+            onNavigate: render,
+          })
+        )
+      await act(async () => render(inspection))
+      expect(getVersionPathDiff).not.toHaveBeenCalled()
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>(
+            '[aria-label="Open Customers table changes"]'
+          )!
+          .click()
+      )
+      expect(getVersionPathDiff).toHaveBeenCalledWith(
+        "data/crm.eidos",
+        mode === "history" ? "saved-head" : null,
+        mode === "history" ? "head-1" : null,
+        "Customers"
+      )
+      expect(
+        host.querySelector("[data-version-details-loading]")
+      ).not.toBeNull()
+      expect(host.textContent).not.toContain("No row-level changes")
+      await act(async () => resolveDetail(versionDiff))
+      expect(host.querySelector("[data-version-details-loading]")).toBeNull()
+      expect(host.textContent).toContain("Mei Lin")
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  )
+
+  it("ignores summary row results after leaving the table preview", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    let resolveDetail!: (value: SpaceVersionDiff) => void
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionPathDiff: vi.fn(
+          () =>
+            new Promise<SpaceVersionDiff>((resolve) => {
+              resolveDetail = resolve
+            })
+        ),
+      },
+    })
+    const fileInspection: VersionInspection = {
+      type: "file",
+      key: "file",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file: versionDiff.files[0]!,
+      commit: null,
+    }
+    const render = (inspection: VersionInspection) =>
+      root.render(
+        createElement(VersionDiffPreview, {
+          inspection,
+          theme: "light",
+          onClose: () => undefined,
+        })
+      )
+    await act(async () =>
+      render({
+        ...fileInspection,
+        type: "table",
+        key: "table",
+        file: versionDiff.files[0]!,
+        table: { ...customersTable, changes: [], rowChangesLoaded: false },
+      })
+    )
+    await act(async () => render(fileInspection))
+    await act(async () => resolveDetail(versionDiff))
+    expect(host.querySelector('[data-version-inspector="file"]')).not.toBeNull()
+    expect(host.querySelector(".version-inspector-table")).toBeNull()
+    await act(async () => root.unmount())
   })
 
   it("loads the next cursor batch when the virtual list nears its end", async () => {
@@ -2849,7 +3066,7 @@ describe("VersionPanel table diff", () => {
     expect(changesRow?.className).toBe(folderRow?.className)
     expect(changesRow?.dataset.itemPath).toBe(VERSION_CHANGES_ROOT_PATH)
     expect(changesRow?.getAttribute("aria-expanded")).toBe("true")
-    expect(tree?.shadowRoot?.textContent).toContain("2")
+    expect((tree?.shadowRoot ?? tree)?.textContent).toContain("2")
     expect(host.querySelector(".version-change-tree-group")).toBeNull()
 
     await act(async () => {
@@ -3171,9 +3388,13 @@ describe("VersionPanel table diff", () => {
       )
       await Promise.resolve()
     })
-    const action = tree?.shadowRoot?.querySelector<HTMLButtonElement>(
-      'button[data-type="context-menu-trigger"][data-visible="true"]'
-    )
+    const action =
+      folderRow?.querySelector<HTMLButtonElement>(
+        'button[aria-label^="Discard "]'
+      ) ??
+      tree?.shadowRoot?.querySelector<HTMLButtonElement>(
+        'button[data-type="context-menu-trigger"][data-visible="true"]'
+      )
     expect(action).not.toBeNull()
     await act(async () => {
       action?.dispatchEvent(

@@ -35,6 +35,7 @@ import type {
   EidosSyncMergeSqliteVersion,
   EidosSyncMergeStatus,
   EidosSyncOutcome,
+  EidosSyncAction,
   EidosSyncPhase,
   EidosSyncPreflight,
   EidosSyncPreflightApproval,
@@ -1327,12 +1328,28 @@ export class SpaceSession {
     return this.freshSnapshotAndEmit(true)
   }
 
-  async createCheckpoint(message?: string): Promise<SpaceSnapshot> {
+  private checkpointReview = false
+
+  setCheckpointReview(active: boolean): void {
+    this.checkpointReview = active
+  }
+
+  async createCheckpoint(
+    message?: string,
+    paths?: string[]
+  ): Promise<SpaceSnapshot> {
+    const selected = paths?.map((path) => normalizeMutableRelativePath(path))
+    if (selected && selected.length === 0)
+      throw new Error("Select at least one file")
     const normalizedMessage = message?.trim() || "Eidos Lite local checkpoint"
     if (normalizedMessage.length > 200) {
       throw new Error("Checkpoint message must be 200 characters or fewer")
     }
-    const checkpoint = await this.commitCheckpoint(normalizedMessage, false)
+    const checkpoint = await this.commitCheckpoint(
+      normalizedMessage,
+      false,
+      selected
+    )
     if (!checkpoint) throw new Error("There are no local changes to checkpoint")
     this.versioningEnabled = true
     return this.checkpointSnapshotAndEmit(checkpoint)
@@ -1422,7 +1439,8 @@ export class SpaceSession {
     accessToken: string,
     access: "read_only" | "read_write",
     reportProgress: SyncProgressReporter = () => undefined,
-    reportTransfer: SyncTransferProgressReporter = () => undefined
+    reportTransfer: SyncTransferProgressReporter = () => undefined,
+    action: EidosSyncAction = "fetch"
   ): Promise<EidosSyncOutcome> {
     const remoteUrl = await this.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
@@ -1449,8 +1467,10 @@ export class SpaceSession {
           : Promise.resolve({ state: "none" as const }),
       { preemptible: true }
     )
-    activeMerge = await this.completeResolvedMerge(activeMerge)
-    if (activeMerge.state === "merging") {
+    if (action === "pull") {
+      activeMerge = await this.completeResolvedMerge(activeMerge)
+    }
+    if (activeMerge.state === "merging" && action !== "fetch") {
       const relation = await this.repository.runForeground((signal) =>
         this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
       )
@@ -1472,7 +1492,7 @@ export class SpaceSession {
           this.graftStatusOptions(signal)
         )
         this.assertGraftPathsSafeForMerge(before)
-        if (before.dirty) {
+        if (before.dirty && action === "pull") {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
         await this.graft.fetch(this.canonical.root, {
@@ -1488,6 +1508,15 @@ export class SpaceSession {
       { preemptible: true }
     )
     reportProgress("analyze", "Comparing Local and Hosted checkpoints")
+    if (action === "fetch") {
+      return this.syncResult(
+        "checked",
+        "Remote history checked. Local files and saved versions were not changed.",
+        false,
+        false,
+        relation
+      )
+    }
     if (relation.hasConflicts || repositorySyncState(relation) === "diverged") {
       return this.syncResult(
         "conflict",
@@ -1500,7 +1529,7 @@ export class SpaceSession {
 
     let pulled = false
     let materializedPaths: string[] | null = null
-    if (repositorySyncState(relation) === "behind") {
+    if (repositorySyncState(relation) === "behind" && action !== "push") {
       if (
         !(await this.repository.runForeground(() =>
           this.graft.operationMaterializesWorktree("applyMerge")
@@ -1603,7 +1632,7 @@ export class SpaceSession {
     }
 
     let pushed = false
-    if (repositorySyncState(relation) === "ahead") {
+    if (repositorySyncState(relation) === "ahead" && action !== "pull") {
       if (access === "read_only") {
         return this.syncResult(
           "read-only",
@@ -1622,7 +1651,7 @@ export class SpaceSession {
             this.canonical.root,
             this.graftStatusOptions(signal)
           )
-          if (current.dirty) {
+          if (current.dirty && action !== "push") {
             throw new Error(
               "Space changed before push. Create a checkpoint and Sync again."
             )
@@ -1651,10 +1680,16 @@ export class SpaceSession {
     }
 
     return this.syncResult(
-      access === "read_only" ? "read-only" : "synced",
-      access === "read_only"
-        ? "This Space is up to date in read-only mode."
-        : "Local and Hosted Space history are up to date.",
+      relation.ahead > 0 || relation.behind > 0
+        ? "checked"
+        : access === "read_only"
+          ? "read-only"
+          : "synced",
+      relation.ahead > 0 || relation.behind > 0
+        ? "Saved versions still need to be received or uploaded."
+        : access === "read_only"
+          ? "This Space is up to date in read-only mode."
+          : "Local and Hosted Space history are up to date.",
       pulled,
       pushed,
       relation,
@@ -3007,7 +3042,11 @@ export class SpaceSession {
   }
 
   private async createAutomaticCheckpoint(): Promise<void> {
-    if (!this.automaticCheckpointsEnabled || this.gate.hasActiveMutations()) {
+    if (
+      this.checkpointReview ||
+      !this.automaticCheckpointsEnabled ||
+      this.gate.hasActiveMutations()
+    ) {
       return
     }
     const checkpoint = await this.commitCheckpoint(
@@ -3021,7 +3060,8 @@ export class SpaceSession {
 
   private async commitCheckpoint(
     message: string,
-    automatic: boolean
+    automatic: boolean,
+    paths?: string[]
   ): Promise<CompletedCheckpoint | null> {
     let completed: CompletedCheckpoint | null = null
     try {
@@ -3033,6 +3073,8 @@ export class SpaceSession {
       // so edits that arrive while the checkpoint is being created safely remain as newer local
       // changes instead of freezing the editor for the duration of a large diff.
       await this.gate.withRepositoryOperation(detail, async () => {
+        if (automatic && this.checkpointReview)
+          throw new AutomaticCheckpointSkipped()
         const status = await this.graft.inspectSpace(
           this.canonical.root,
           this.graftStatusOptions()
@@ -3053,10 +3095,17 @@ export class SpaceSession {
           if (automatic) throw new AutomaticCheckpointSkipped()
           throw new Error("There are no local changes to checkpoint")
         }
-        await this.graft.stageAll(
-          this.canonical.root,
-          this.graftStatusOptions()
-        )
+        if (paths)
+          await this.graft.stageSelected(
+            this.canonical.root,
+            paths,
+            this.graftStatusOptions()
+          )
+        else
+          await this.graft.stageAll(
+            this.canonical.root,
+            this.graftStatusOptions()
+          )
         const commit = await this.graft.commit(this.canonical.root, message)
         completed = {
           currentHead: commit.id,
@@ -4022,17 +4071,13 @@ export class SpaceSession {
 
     const entries = flattenSpaceTree(await listSpaceTree(this.canonical.root))
     const tableNames = new Set<string>(EIDOS_FILE_METADATA_TABLES)
-    for (const entry of entries) {
-      if (entry.kind !== "eidos") continue
-      const opened = await this.runtimePool.open(entry.relativePath)
-      for (const table of opened.snapshot.tables) {
-        tableNames.add(
-          table.table.physicalName ??
-            table.table.rawTableName ??
-            table.table.name
-        )
-      }
-    }
+    const inspected = await this.runtimePool.inspectMergeTables(
+      entries
+        .filter((entry) => entry.kind === "eidos")
+        .map((entry) => entry.relativePath),
+      signal
+    )
+    for (const name of inspected) tableNames.add(name)
 
     const columnResolvers: NonNullable<GraftMergePolicy["column_resolvers"]> = {
       ...(current.policy.column_resolvers ?? {}),

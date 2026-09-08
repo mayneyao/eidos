@@ -141,6 +141,7 @@ export const IPC_CHANNELS = {
   runtimeCall: "eidos-lite:runtime-call",
   enableVersioning: "eidos-lite:versioning-enable",
   createCheckpoint: "eidos-lite:checkpoint-create",
+  reviewCheckpoint: "eidos-lite:checkpoint-review",
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
   fileHistory: "eidos-lite:file-history",
@@ -1011,8 +1012,10 @@ export type EidosSyncCloneResponse =
       telemetry: EidosSyncTelemetry
     }
 
+export type EidosSyncAction = "fetch" | "pull" | "push"
+
 export interface EidosSyncOutcome {
-  state: "synced" | "conflict" | "read-only"
+  state: "synced" | "conflict" | "read-only" | "checked"
   message: string
   pulled: boolean
   pushed: boolean
@@ -1614,6 +1617,11 @@ export function isEidosLiteSchemaImpactRequiredResult(
 
 export type RuntimeWorkerRequest =
   | {
+      type: "inspectMergeTables"
+      requestId: number
+      filePaths: string[]
+    }
+  | {
       type: "create"
       requestId: number
       filePath: string
@@ -1830,7 +1838,8 @@ export interface EidosLiteApi {
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
-  createCheckpoint(message?: string): Promise<SpaceSnapshot>
+  createCheckpoint(message?: string, paths?: string[]): Promise<SpaceSnapshot>
+  reviewCheckpoint(active: boolean): Promise<void>
   getVersionChanges(limit?: number, after?: string): Promise<SpaceVersionDiff>
   getVersionHistory(
     limit?: number,
@@ -1891,7 +1900,7 @@ export interface EidosLiteApi {
     remoteUrl: string,
     displayName?: string
   ): Promise<EidosSyncCloneResponse>
-  runSync(): Promise<EidosSyncRunResponse>
+  runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
   onSyncProgress(listener: (progress: EidosSyncProgress) => void): () => void
   getSyncQueueStatus(): Promise<EidosSyncQueueStatus | null>
   onSyncQueueChanged(

@@ -842,6 +842,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const searchEntryRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
+  const [mergeInitialPath, setMergeInitialPath] = useState<string | undefined>()
+  const [mergeInitialTable, setMergeInitialTable] = useState<
+    string | undefined
+  >()
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
     null
   )
@@ -1380,13 +1384,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     }
     let active = true
     setSyncMergeStatus({ state: "none" })
+    setMergeInitialPath(undefined)
     void window.eidosLite.getSyncMergeStatus().then(
       (response) => {
         if (!active || !response.ok) return
         setSyncMergeStatus(response.value)
         if (response.value.state === "merging") {
-          setSyncPanelMode(null)
-          setVersionPanelOpen(true)
+          setSyncPanelMode("enable")
+          setVersionPanelOpen(false)
         }
       },
       () => undefined
@@ -1479,7 +1484,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       ? ("sync" as const)
       : null
   const mergeWorkbenchOpen =
-    versionPanelOpen && syncMergeStatus.state === "merging"
+    syncPanelMode === "enable" &&
+    mergeInitialPath !== undefined &&
+    syncMergeStatus.state === "merging"
   const versionDiffRouteOpen = isVersionDiffNavigationLocation(
     navigationSnapshot?.location ?? null
   )
@@ -2915,11 +2922,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const mergeConflictCount =
     syncMergeStatus.state === "merging" ? syncMergeStatus.unmergedCount : 0
   const versionChangeCount =
-    mergeConflictCount > 0
-      ? mergeConflictCount
-      : space.graft.initialized && space.graft.clean === false
-        ? Math.max(1, space.graft.changedPaths ?? 1)
-        : 0
+    syncMergeStatus.state !== "merging" &&
+    space.graft.initialized &&
+    space.graft.clean === false
+      ? Math.max(1, space.graft.changedPaths ?? 1)
+      : 0
   const versionChangeLabel =
     versionChangeCount > 99 ? "99+" : String(versionChangeCount)
   const localInteractionBlocked = blocksLocalInteraction(space.operation.phase)
@@ -3357,13 +3364,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   ? "Checking version history"
                   : !space.graft.available
                     ? "Version history unavailable"
-                    : mergeConflictCount > 0
-                      ? `Changes, ${mergeConflictCount} unresolved merge ${mergeConflictCount === 1 ? "conflict" : "conflicts"}`
-                      : versionChangeCount > 0
-                        ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                        : space.graft.initialized
-                          ? "Version history"
-                          : "Set up version history"
+                    : versionChangeCount > 0
+                      ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history"
               }
               onClick={toggleVersionPanel}
               title={shortcutTitle(
@@ -3371,17 +3376,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   ? "Checking version history"
                   : !space.graft.available
                     ? (space.graft.error ?? "Version history unavailable")
-                    : mergeConflictCount > 0
-                      ? `${mergeConflictCount} unresolved merge ${mergeConflictCount === 1 ? "conflict" : "conflicts"}`
-                      : versionChangeCount > 0
-                        ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                        : space.graft.initialized
-                          ? "Version history"
-                          : "Set up version history",
+                    : versionChangeCount > 0
+                      ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history",
                 versionShortcutLabel
               )}
             >
-              {syncMergeStatus.state === "merging" ? <GitMerge /> : <History />}
+              <History />
               {versionChangeCount > 0 ? (
                 <span className="version-change-badge" aria-hidden="true">
                   {versionChangeLabel}
@@ -3394,7 +3397,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               data-titlebar-action="sync"
               data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
               aria-pressed={syncPanelMode === "enable"}
-              aria-label={syncQueueLabel(syncQueueStatus)}
+              aria-label={
+                mergeConflictCount > 0
+                  ? `Sync, ${mergeConflictCount} unresolved conflicts`
+                  : syncQueueLabel(syncQueueStatus)
+              }
               aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
                 "toggle-sync",
                 macos,
@@ -3406,11 +3413,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 syncShortcutLabel
               )}
             >
-              {syncQueueStatus?.state === "running" ? (
+              {mergeConflictCount > 0 ? (
+                <GitMerge />
+              ) : syncQueueStatus?.state === "running" ? (
                 <LoaderCircle className="spin" />
               ) : (
                 <Cloud />
               )}
+              {mergeConflictCount > 0 ? (
+                <span className="version-change-badge" aria-hidden="true">
+                  {mergeConflictCount > 99 ? "99+" : mergeConflictCount}
+                </span>
+              ) : null}
             </button>
           </div>
         </header>
@@ -3706,6 +3720,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           }
         >
           <SyncMergeWorkbench
+            key={`${mergeInitialPath}:${mergeInitialTable ?? ""}`}
+            mainOnly
+            initialPath={mergeInitialPath}
+            initialTable={mergeInitialTable}
             initialStatus={syncMergeStatus}
             theme={theme}
             titlebarNavigation={
@@ -3713,12 +3731,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 ? collapsedTitlebarNavigation
                 : null
             }
-            onClose={() => setVersionPanelOpen(false)}
+            onClose={() => setMergeInitialPath(undefined)}
             onStatusChange={(merge) => {
               setSyncMergeStatus(merge)
               if (merge.state === "none") {
                 setVersionRefreshKey((current) => current + 1)
                 reloadVersionDiffRoute()
+                setVersionPanelOpen(false)
+                setMergeInitialPath(undefined)
+                setSyncPanelMode("enable")
               }
             }}
             onFilesMaterialized={refreshMaterializedFiles}
@@ -3758,9 +3779,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setVersionPanelOpen(true)
             }}
             onMergeStatusChange={setSyncMergeStatus}
-            onReviewMerge={() => {
-              setSyncPanelMode(null)
-              setVersionPanelOpen(true)
+            mergeStatus={syncMergeStatus}
+            onReviewMerge={(path, table) => {
+              setMergeInitialTable(table)
+              setMergeInitialPath(path ?? "")
+              setSyncPanelMode("enable")
+              setVersionPanelOpen(false)
             }}
             onSpaceChange={acceptSpaceSnapshot}
             onFilesMaterialized={refreshMaterializedFiles}

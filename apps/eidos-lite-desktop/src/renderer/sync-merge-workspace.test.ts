@@ -263,6 +263,128 @@ describe("SyncMergeWorkbench", () => {
     host.remove()
   })
 
+  it("loads paginated table conflicts from the Sync tree and navigates to a table", async () => {
+    const onReviewMerge = vi.fn()
+    const listSyncMergeConflicts = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [rowConflict("First", "1")], nextCursor: "next" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [rowConflict("Second", "2")], nextCursor: null },
+      })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncMergeStatus: vi
+          .fn()
+          .mockResolvedValue({ ok: true, value: merging() }),
+        listSyncMergePaths: vi.fn().mockResolvedValue({
+          ok: true,
+          value: {
+            items: [mergePath("records.eidos", "unmerged")],
+            nextCursor: null,
+          },
+        }),
+        listSyncMergeConflicts,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkspace, { compact: true, onReviewMerge })
+      )
+    )
+    await flush()
+    await act(async () =>
+      mergeTreeButton(host, "Merge Conflicts/records.eidos/").click()
+    )
+    await flush()
+    expect(listSyncMergeConflicts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ after: "next" })
+    )
+    await act(async () =>
+      mergeTreeButton(host, "Merge Conflicts/records.eidos/Second").click()
+    )
+    expect(onReviewMerge).toHaveBeenLastCalledWith("records.eidos", "Second")
+  })
+
+  it("renders only the editor when Sync owns the sidebar", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listSyncMergePaths: vi.fn().mockResolvedValue({
+          ok: true,
+          value: { items: [], nextCursor: null },
+        }),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          mainOnly: true,
+          initialStatus: merging(),
+          theme: "light",
+          onClose: vi.fn(),
+          onStatusChange: vi.fn(),
+          onFilesMaterialized: vi.fn(),
+        })
+      )
+    )
+    await flush()
+    expect(host.querySelector("[data-sync-merge-workbench]")).not.toBeNull()
+    expect(host.querySelector(".sync-merge-changes-panel")).toBeNull()
+    expect(host.textContent).toContain("Select a file from Sync")
+  })
+
+  it.each([1, 0])(
+    "keeps compact merge completion guarded with %s unresolved files",
+    async (unresolved) => {
+      const continueSyncMerge = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { state: "none" } })
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncMergeStatus: vi.fn().mockResolvedValue({
+            ok: true,
+            value: merging(firstToken, unresolved),
+          }),
+          listSyncMergePaths: vi.fn().mockResolvedValue({
+            ok: true,
+            value: {
+              items: [
+                mergePath(
+                  "notes.txt",
+                  unresolved ? "unmerged" : "resolved",
+                  "text_file"
+                ),
+              ],
+              nextCursor: null,
+            },
+          }),
+          continueSyncMerge,
+          refreshSpace: vi.fn().mockResolvedValue(null),
+        },
+      })
+      await act(async () =>
+        root.render(createElement(SyncMergeWorkspace, { compact: true }))
+      )
+      const complete = host.querySelector<HTMLButtonElement>(
+        "[data-sync-merge-continue]"
+      )!
+      expect(complete.disabled).toBe(unresolved > 0)
+      await act(async () => complete.click())
+      if (unresolved) expect(continueSyncMerge).not.toHaveBeenCalled()
+      else
+        expect(continueSyncMerge).toHaveBeenCalledWith({
+          stateToken: firstToken,
+          message: "Merge remote updates",
+        })
+    }
+  )
+
   it("keeps the Sync inspector as the merge entry point and sends review to Changes", async () => {
     const onReviewMerge = vi.fn()
     const onStatusChange = vi.fn()
@@ -335,7 +457,7 @@ describe("SyncMergeWorkbench", () => {
     )
     await flush()
 
-    await act(async () => button(host, "Start merge").click())
+    await act(async () => button(host, "Receive and merge").click())
     await flush()
 
     expect(planSyncMerge).toHaveBeenCalledOnce()
@@ -393,7 +515,7 @@ describe("SyncMergeWorkbench", () => {
       root.render(createElement(SyncMergeWorkspace, { onSpaceChange }))
     )
     await flush()
-    await act(async () => button(host, "Start merge").click())
+    await act(async () => button(host, "Receive and merge").click())
     await flush()
 
     expect(applySyncMerge).not.toHaveBeenCalled()
@@ -501,7 +623,9 @@ describe("SyncMergeWorkbench", () => {
       host.querySelector(".sync-merge-editor > .sync-merge-identities")
     ).toBeNull()
     expect(host.querySelectorAll("[data-inline-text-diff]")).toHaveLength(2)
-    expect(host.textContent).toContain("Changes")
+    expect(
+      host.querySelector(".sync-merge-changes-panel header")?.textContent
+    ).toContain("Sync")
     expect(
       host.querySelector<HTMLElement>("[data-merge-change-tree]")?.shadowRoot
         ?.textContent
@@ -706,7 +830,7 @@ describe("SyncMergeWorkbench", () => {
       result: "ours",
     })
     expect(host.textContent).toContain("Using Local Table")
-    expect(host.textContent).toContain("Eidos File resolved")
+    expect(host.textContent).not.toContain("Eidos File resolved")
   })
 
   it("loads conflicts only for the active Eidos File and reuses the materialized Space snapshot", async () => {
@@ -1222,7 +1346,7 @@ describe("SyncMergeWorkbench", () => {
       "[data-sync-merge-path-state='resolved']"
     )
     expect(resolved).not.toBeNull()
-    expect(resolved?.textContent).toContain("Eidos File resolved")
+    expect(resolved?.textContent).not.toContain("Eidos File resolved")
     expect(host.querySelector("[data-merge-table='Projects']")).not.toBeNull()
     expect(
       mergeTreeButton(host, "Resolved/records.eidos/Projects")

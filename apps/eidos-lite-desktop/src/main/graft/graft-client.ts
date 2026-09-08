@@ -53,6 +53,7 @@ export interface GraftClientOptions {
 }
 
 export interface GraftRepositoryStatus {
+  stagedPaths?: string[]
   dirty: boolean
   currentHead: string | null
   currentBranch: string | null
@@ -1121,6 +1122,55 @@ export class GraftClient {
     return { batches: results }
   }
 
+  async stageSelected(
+    root: string,
+    selected: string[],
+    options: GraftStatusOptions = {}
+  ): Promise<void> {
+    const status = await this.status(root, options)
+    const paths = new Set(selected)
+    if (status.hasConflicts)
+      throw new Error("Resolve conflicts before saving selected files.")
+    if (selected.some((path) => !status.paths.includes(path)))
+      throw new Error(
+        "A selected file no longer has changes. Refresh and select again."
+      )
+    for (const change of status.changes) {
+      if (paths.has(change.path) && change.previousPath)
+        paths.add(change.previousPath)
+    }
+    if (status.stagedPaths?.some((path) => !paths.has(path))) {
+      throw new Error(
+        "Other files are already staged. Save all changes or resolve the existing staging before saving a selection."
+      )
+    }
+    if (!status.paths.some((path) => paths.has(path)))
+      throw new Error(
+        "The selected files no longer have changes. Refresh and select again."
+      )
+    if (status.verifiedPaths?.length)
+      await this.clearStaleWorktreeMarkers(
+        root,
+        status.verifiedPaths.filter((path) => paths.has(path))
+      )
+    await this.runSdk(
+      root,
+      "stagePaths",
+      [
+        {
+          paths: [...paths],
+          ...(status.currentHead ? { expectedHead: status.currentHead } : {}),
+        },
+      ],
+      options
+    )
+    const staged = await this.status(root, options)
+    if (staged.stagedPaths?.some((path) => !paths.has(path)))
+      throw new Error(
+        "Staging changed while saving. No version was created; review the staged files and retry."
+      )
+  }
+
   async recordPathMove(
     root: string,
     previousPath: string,
@@ -1305,6 +1355,9 @@ export class GraftClient {
     const commonAncestor = stringValue(upstream.common_ancestor)
     const hasUpstreamStatus = Object.keys(upstream).length > 0
     const status: GraftRepositoryStatus = {
+      stagedPaths: changedEntries
+        .filter((entry) => typeof entry.staged_change === "string")
+        .map((entry) => String(entry.path)),
       dirty: value.dirty === true || changes.length > 0,
       currentHead:
         stringValue(value.current_head) ??

@@ -1,4 +1,5 @@
 import type {
+  EidosSyncAction,
   EidosSyncFailureCode,
   EidosSyncQueueStatus,
   EidosSyncQueueTrigger,
@@ -13,7 +14,7 @@ export const SYNC_RETRY_MAX_ATTEMPTS = 5
 
 interface SyncQueueBinding {
   spaceId: string
-  execute(): Promise<EidosSyncRunResponse>
+  execute(action: EidosSyncAction): Promise<EidosSyncRunResponse>
   emit(status: EidosSyncQueueStatus): void
 }
 
@@ -138,9 +139,12 @@ export class BackgroundSyncQueue {
     return entry.status
   }
 
-  runNow(spaceId: string): Promise<EidosSyncRunResponse> {
+  async runNow(
+    spaceId: string,
+    action: EidosSyncAction = "fetch"
+  ): Promise<EidosSyncRunResponse> {
     const entry = this.requireEntry(spaceId)
-    if (entry.inFlight) return entry.inFlight
+    while (entry.inFlight) await entry.inFlight
     this.clearTimer(entry)
     entry.status = {
       spaceId,
@@ -150,7 +154,7 @@ export class BackgroundSyncQueue {
       maxAttempts: this.maxAttempts,
       queuedAtMs: this.now(),
     }
-    return this.run(entry)
+    return this.run(entry, action)
   }
 
   async clearResolvedFailure(
@@ -228,7 +232,10 @@ export class BackgroundSyncQueue {
     this.entries.clear()
   }
 
-  private run(entry: QueueEntry): Promise<EidosSyncRunResponse> {
+  private run(
+    entry: QueueEntry,
+    action: EidosSyncAction = "fetch"
+  ): Promise<EidosSyncRunResponse> {
     if (entry.inFlight) return entry.inFlight
     this.clearTimer(entry)
     entry.status = {
@@ -237,7 +244,7 @@ export class BackgroundSyncQueue {
       nextAttemptAtMs: undefined,
     }
     const scheduled = this.persistAndEmit(entry)
-      .then(() => entry.binding.execute())
+      .then(() => entry.binding.execute(action))
       .then(async (response) => {
         if (response.ok) {
           if (entry.rerunRequested) {
@@ -259,7 +266,13 @@ export class BackgroundSyncQueue {
           return response
         }
         const attempt = entry.status.attempt + 1
-        if (response.failure.retryable && attempt < this.maxAttempts) {
+        // Background retries may only check remote history. Receiving and
+        // uploading need another explicit user action after a failure.
+        if (
+          action === "fetch" &&
+          response.failure.retryable &&
+          attempt < this.maxAttempts
+        ) {
           const nextAttemptAtMs =
             this.now() + retryDelay(attempt, response.failure.retryAfterMs)
           entry.status = {

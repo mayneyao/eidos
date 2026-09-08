@@ -2631,11 +2631,12 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const policyToken = "d".repeat(64)
     const calls: string[] = []
     let applied = false
+    let dirty = true
     await fs.mkdir(path.join(root, ".graft"))
     await fs.writeFile(path.join(root, "note.txt"), "hosted\n")
 
     const relation = () => ({
-      dirty: false,
+      dirty,
       currentHead: applied ? hostedHead : localHead,
       currentBranch: "main",
       ahead: 0,
@@ -2752,7 +2753,31 @@ describe("SpaceSession Graft-backed snapshots", () => {
           "access-token",
           "read_write",
           () => undefined,
-          reportTransfer
+          reportTransfer,
+          "fetch"
+        )
+      ).resolves.toMatchObject({
+        state: "checked",
+        pulled: false,
+        pushed: false,
+        behind: 1,
+      })
+      expect(planMerge).not.toHaveBeenCalled()
+      expect(applyMerge).not.toHaveBeenCalled()
+      expect(await fs.readFile(path.join(root, "note.txt"), "utf8")).toBe(
+        "hosted\n"
+      )
+      dirty = false
+      calls.length = 0
+      fetch.mockClear()
+
+      await expect(
+        session.syncHostedRemote(
+          "access-token",
+          "read_write",
+          () => undefined,
+          reportTransfer,
+          "pull"
         )
       ).resolves.toMatchObject({
         state: "synced",
@@ -3005,6 +3030,9 @@ describe("SpaceSession Graft-backed snapshots", () => {
       session = await SpaceSession.createCanonical(canonical, userData, {
         graft,
       })
+      vi.spyOn(session.runtimePool, "inspectMergeTables").mockResolvedValue([
+        "Docs",
+      ])
       vi.spyOn(session.runtimePool, "open").mockResolvedValue({
         snapshot: {
           tables: [

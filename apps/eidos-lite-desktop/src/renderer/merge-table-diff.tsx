@@ -532,60 +532,65 @@ export function MergeTableDiff({
                   {visibleColumns.length.toLocaleString()} of{" "}
                   {group.columns.length.toLocaleString()} fields
                 </span>
-                <button
-                  type="button"
-                  disabled={
-                    disabled || unsafeTable || groupResolution === "ours"
-                  }
-                  aria-busy={
-                    pendingTableResolution?.table === group.name &&
-                    pendingTableResolution.result === "ours"
-                  }
-                  aria-pressed={groupResolution === "ours"}
-                  title={
-                    unsafeTable
-                      ? "Resolve the schema or opaque conflict at the File level"
-                      : undefined
-                  }
-                  onClick={() => onResolveTable(group.name, "ours")}
-                >
-                  {pendingTableResolution?.table === group.name &&
-                  pendingTableResolution.result === "ours" ? (
-                    <LoaderCircle className="spin" />
-                  ) : groupResolution === "ours" ? (
-                    <Check />
-                  ) : null}
-                  {groupResolution === "ours"
-                    ? "Using Local Table"
-                    : "Use Local Table"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    disabled || unsafeTable || groupResolution === "theirs"
-                  }
-                  aria-busy={
-                    pendingTableResolution?.table === group.name &&
-                    pendingTableResolution.result === "theirs"
-                  }
-                  aria-pressed={groupResolution === "theirs"}
-                  title={
-                    unsafeTable
-                      ? "Resolve the schema or opaque conflict at the File level"
-                      : undefined
-                  }
-                  onClick={() => onResolveTable(group.name, "theirs")}
-                >
-                  {pendingTableResolution?.table === group.name &&
-                  pendingTableResolution.result === "theirs" ? (
-                    <LoaderCircle className="spin" />
-                  ) : groupResolution === "theirs" ? (
-                    <Check />
-                  ) : null}
-                  {groupResolution === "theirs"
-                    ? "Using Hosted Table"
-                    : "Use Hosted Table"}
-                </button>
+                <details className="merge-secondary-details">
+                  <summary>Table options</summary>
+                  <div className="merge-secondary-actions">
+                    <button
+                      type="button"
+                      disabled={
+                        disabled || unsafeTable || groupResolution === "ours"
+                      }
+                      aria-busy={
+                        pendingTableResolution?.table === group.name &&
+                        pendingTableResolution.result === "ours"
+                      }
+                      aria-pressed={groupResolution === "ours"}
+                      title={
+                        unsafeTable
+                          ? "Resolve the schema or opaque conflict at the File level"
+                          : undefined
+                      }
+                      onClick={() => onResolveTable(group.name, "ours")}
+                    >
+                      {pendingTableResolution?.table === group.name &&
+                      pendingTableResolution.result === "ours" ? (
+                        <LoaderCircle className="spin" />
+                      ) : groupResolution === "ours" ? (
+                        <Check />
+                      ) : null}
+                      {groupResolution === "ours"
+                        ? "Using Local Table"
+                        : "Use Local Table"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        disabled || unsafeTable || groupResolution === "theirs"
+                      }
+                      aria-busy={
+                        pendingTableResolution?.table === group.name &&
+                        pendingTableResolution.result === "theirs"
+                      }
+                      aria-pressed={groupResolution === "theirs"}
+                      title={
+                        unsafeTable
+                          ? "Resolve the schema or opaque conflict at the File level"
+                          : undefined
+                      }
+                      onClick={() => onResolveTable(group.name, "theirs")}
+                    >
+                      {pendingTableResolution?.table === group.name &&
+                      pendingTableResolution.result === "theirs" ? (
+                        <LoaderCircle className="spin" />
+                      ) : groupResolution === "theirs" ? (
+                        <Check />
+                      ) : null}
+                      {groupResolution === "theirs"
+                        ? "Using Hosted Table"
+                        : "Use Hosted Table"}
+                    </button>
+                  </div>
+                </details>
               </div>
             </header>
             <TableSchemaConflicts conflicts={group.schemaConflicts} />

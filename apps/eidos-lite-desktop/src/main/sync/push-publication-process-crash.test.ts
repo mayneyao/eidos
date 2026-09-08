@@ -179,7 +179,7 @@ describe("push publication process crash recovery", () => {
         const executor = new SyncExecutor(control)
         const recovered = await queue.attach({
           spaceId: canonical.id,
-          execute: () => executor.run(session!, () => undefined),
+          execute: (action) => executor.run(session!, () => undefined, action),
           emit: () => undefined,
         })
 
@@ -198,6 +198,10 @@ describe("push publication process crash recovery", () => {
 
         await scheduled[0]!()
 
+        // Crash recovery checks publication without replaying a write. A user
+        // can explicitly resume upload if the remote did not receive it.
+        expect(push).not.toHaveBeenCalled()
+        await queue.runNow(canonical.id, "push")
         expect(push).toHaveBeenCalledTimes(expectedPushes)
         expect(queue.status(canonical.id).state).toBe("idle")
         await expect(store.read(canonical.id)).resolves.toBeNull()

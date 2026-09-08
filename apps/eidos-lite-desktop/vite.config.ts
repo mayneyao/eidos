@@ -2,7 +2,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig, type Plugin } from "vite"
+import { defineConfig, loadEnv, type Plugin } from "vite"
 import electron from "vite-plugin-electron/simple"
 
 import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
@@ -54,7 +54,17 @@ const aliases = [
   },
 ]
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
+  // Forward an explicit local SDK choice to Electron and its utility workers.
+  // Keep local development configuration out of packaged builds.
+  if (command === "serve") {
+    const sdkPath = loadEnv(
+      mode,
+      appRoot,
+      "EIDOS_LITE_GRAFT_SDK_PATH"
+    ).EIDOS_LITE_GRAFT_SDK_PATH?.trim()
+    if (sdkPath) process.env.EIDOS_LITE_GRAFT_SDK_PATH = sdkPath
+  }
   const defaultEnvironment: EidosLiteEnvironmentName =
     mode === "eidos-production" || mode === "eidos-release"
       ? "production"

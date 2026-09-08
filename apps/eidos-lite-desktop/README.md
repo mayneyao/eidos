@@ -27,6 +27,16 @@ package contract test prevents builds from silently falling back to a generic
 Electron icon, changing the Lite brand color, or losing the
 `space.eidos.lite` identity.
 
+In **Versions → Changes**, click a file to inspect its diff and check files to
+save them as a separate version. All changes are selected initially. Folder
+checkboxes include loaded descendants; load more results before selecting
+additional files individually. Clearing the selection disables saving. Selected saves
+capture current disk contents, leave other edits pending, and stay in Changes.
+An `.eidos` file is selected as a whole; table and row staging is not exposed.
+Include newly added attachments when saving Markdown that references them.
+Automatic checkpoints pause while Changes is open. Existing staged files outside
+the selection block a selected save; failed saves retain staging for retry.
+
 The **Versions → History** sidebar defaults to **All versions**. Open a document
 and select **Current document** to filter history in the same panel. History
 follows the current exact path along first parents; renames are not followed.
@@ -81,10 +91,15 @@ independent Lite OAuth client and device contract, and the disposable real
 OAuth + Hosted Remote acceptance is part of the operational verification
 ladder. Clone now lists only account-owned Hosted Spaces, materializes into a
 journaled hidden sibling, validates every Eidos File, and atomically publishes
-the selected ordinary folder. Connected Spaces expose explicit Sync Now:
+the selected ordinary folder. Connected Spaces expose separate **Check remote
+updates** (Fetch), **Receive updates** (Pull), and **Upload versions** (Push):
 fetch remains handle-safe, the structured Local/Hosted/common-ancestor
 relation is checked before materialization, pull runs behind full handle
-close/validate/reopen, and push is allowed only for `read_write`. Divergence
+close/validate/reopen, and push is allowed only for `read_write`. Upload sends
+saved versions without saving or staging working-file changes; receiving
+requires local changes to be saved first and never uploads afterward. The panel
+separates local file changes from pending version counts and shows the last
+remote check time. An unchecked or offline Space is not reported as synced. Divergence
 opens an explicit reviewed merge workspace: text results are editable,
 `.eidos` row choices use stable identities and Runtime validation, and binary
 paths require a side choice or the existing two-Recovery-Space exit. The merge
@@ -132,6 +147,13 @@ EIDOS_LITE_GRAFT_SDK_PATH=/absolute/path/to/graft/packages/graft-sdk \
   pnpm dev:eidos-lite
 ```
 
+For repeated local development, put the same `EIDOS_LITE_GRAFT_SDK_PATH`
+setting in `apps/eidos-lite-desktop/.env.development.local` (gitignored), then
+run `pnpm dev:eidos-lite` normally. Build the SDK in that checkout first with
+`pnpm --dir packages/graft-sdk build:native`. Restart the development app after
+rebuilding its native SDK. An explicit shell setting takes precedence over the
+local environment file.
+
 Packaged production builds reject this development override and always resolve
 the pinned published SDK.
 
@@ -143,9 +165,9 @@ states that Local files are safe and offers the matching retry, sign-in,
 account, update, re-clone, History, or work-locally action. Credentials and raw
 Remote diagnostics never enter renderer state.
 
-A connected Space now has one main-owned background Sync item. Creating a
-Local checkpoint coalesces the current whole-Space repository into that item;
-the same executor serves background attempts and manual **Sync Now**. Retryable
+A connected Space has one main-owned background remote-check item. Creating a
+local checkpoint schedules Fetch only. Receiving and uploading require explicit
+user actions, including after a failed attempt. Retryable remote-check
 failures use a five-attempt bounded exponential schedule and honor a bounded
 `Retry-After` floor, while account, entitlement, quota, protocol, repository,
 and local-change gates pause for explicit action. Crash-safe queue state lives

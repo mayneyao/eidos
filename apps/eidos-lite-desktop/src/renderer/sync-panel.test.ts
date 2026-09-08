@@ -111,6 +111,61 @@ describe("SyncPanel failure states", () => {
   let root: Root
   let host: HTMLDivElement
 
+  it("keeps remote checks and uploads available with unsaved local changes", async () => {
+    const runSync = vi.fn().mockResolvedValue({
+      ...conflictResponse,
+      result: { ...conflictResponse.result, state: "checked" },
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue(status),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        runSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          hasUncheckpointedChanges: true,
+          syncHistory: {
+            state: "ahead",
+            ahead: 2,
+            behind: 0,
+            checkedAtMs: Date.now(),
+          },
+          onClose: () => undefined,
+        })
+      )
+    )
+    const upload = host.querySelector<HTMLButtonElement>("[data-sync-push]")!
+    expect(upload.disabled).toBe(false)
+    expect(upload.hidden).toBe(false)
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-pull]")?.hidden
+    ).toBe(true)
+    expect(
+      host.querySelector<HTMLDetailsElement>("[data-sync-version-summary]")
+        ?.open
+    ).toBe(false)
+    expect(
+      host.querySelector<HTMLDetailsElement>(".sync-account-details")?.open
+    ).toBe(false)
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-pull]")?.disabled
+    ).toBe(true)
+    await act(async () => upload.click())
+    expect(runSync).toHaveBeenLastCalledWith("push")
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-run]")!.click()
+    )
+    expect(runSync).toHaveBeenLastCalledWith("fetch")
+    expect(host.textContent).not.toContain("Everything is up to date")
+  })
+
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     window.localStorage.clear()
@@ -192,7 +247,8 @@ describe("SyncPanel failure states", () => {
 
     expect(host.textContent).toContain("person@example.com")
     expect(host.textContent).toContain("Checking this Space")
-    expect(host.textContent).toContain("Last synced 2m ago")
+    expect(host.textContent).not.toContain("Last synced 2m ago")
+    expect(host.textContent).toContain("Remote history has not been checked.")
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
     expect(storage?.textContent).toContain("2 GiB of 10 GiB")
     expect(storage?.textContent).toContain("Cloud used")
@@ -302,9 +358,11 @@ describe("SyncPanel failure states", () => {
       "complementary"
     )
     expect(host.querySelector("aside")?.hasAttribute("aria-modal")).toBe(false)
-    const checkNow = host.querySelector<HTMLButtonElement>("[data-sync-run]")
-    expect(checkNow?.textContent).toContain("Check now")
-    expect(checkNow?.classList.contains("secondary-action")).toBe(true)
+    const checkNow = host.querySelector<HTMLButtonElement>(
+      '[data-sync-next="fetch"]'
+    )
+    expect(checkNow?.textContent).toContain("Check remote updates")
+    expect(checkNow?.classList.contains("primary-action")).toBe(true)
     expect(host.querySelector(".sync-hero-copy p")).toBeNull()
     expect(host.querySelector(".sync-hero-meta")).toBeNull()
   })
@@ -960,7 +1018,7 @@ describe("SyncPanel failure states", () => {
 
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
     expect(overview?.textContent).toContain("Unsaved changes")
-    expect(overview?.textContent).toContain("Only saved versions sync")
+    expect(overview?.textContent).toContain("Local edits stay on this device")
     expect(overview?.textContent).not.toMatch(
       /checkpoint|repository|remote|transport|segment/i
     )
@@ -1192,7 +1250,7 @@ describe("SyncPanel failure states", () => {
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
       "Review conflicting files and tables in Changes"
     )
-    expect(host.querySelector("[data-sync-run]")).toBeNull()
+    expect(host.querySelector("[data-sync-run]")).not.toBeNull()
     expect(host.querySelector("[data-sync-merge-start]")).not.toBeNull()
     expect(recovery?.textContent).toContain("will not merge or overwrite")
     expect(
@@ -1567,8 +1625,8 @@ describe("SyncPanel failure states", () => {
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
       "Download only"
     )
-    expect(host.querySelector("[data-sync-run]")?.textContent).toContain(
-      "Get cloud updates"
+    expect(host.querySelector("[data-sync-pull]")?.textContent).toContain(
+      "Receive updates"
     )
   })
 
@@ -1816,8 +1874,8 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    expect(host.querySelector("[data-sync-run]")?.textContent).toContain(
-      "Download 2 updates"
+    expect(host.querySelector("[data-sync-pull]")?.textContent).toContain(
+      "Receive updates"
     )
     expect(
       host.querySelector("[data-sync-direction='download']")?.textContent
@@ -1853,7 +1911,7 @@ describe("SyncPanel failure states", () => {
 
     expect(host.querySelector("[data-sync-direction]")).toBeNull()
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Everything is up to date"
+      "Sync is on"
     )
   })
 

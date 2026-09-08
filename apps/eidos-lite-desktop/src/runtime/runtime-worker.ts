@@ -290,6 +290,26 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       source = openedRuntime.source
       return openedRuntime.initialSnapshot
     }
+    case "inspectMergeTables": {
+      if (openedRuntime)
+        throw new Error("Table inspection requires a private Runtime worker")
+      const names = new Set<string>()
+      for (const filePath of request.filePaths) {
+        if (!path.isAbsolute(filePath))
+          throw new Error("Runtime file path must be absolute")
+        const opened = await openEidosLiteFileRuntime(filePath, {
+          readOnly: true,
+        })
+        try {
+          for (const { table } of opened.initialSnapshot.tables) {
+            names.add(table.physicalName ?? table.rawTableName ?? table.name)
+          }
+        } finally {
+          await opened.close()
+        }
+      }
+      return [...names]
+    }
     case "open": {
       if (!path.isAbsolute(request.filePath)) {
         throw new Error("Runtime file path must be absolute")

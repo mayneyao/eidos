@@ -302,8 +302,10 @@ const api: EidosLiteApi = {
     args: RuntimeCalls[M]["args"]
   ) => ipcRenderer.invoke(IPC_CHANNELS.runtimeCall, sessionId, method, args),
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
-  createCheckpoint: (message) =>
-    ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message),
+  createCheckpoint: (message, paths) =>
+    ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message, paths),
+  reviewCheckpoint: (active) =>
+    ipcRenderer.invoke(IPC_CHANNELS.reviewCheckpoint, active),
   getVersionChanges: (limit, after) =>
     ipcRenderer.invoke(IPC_CHANNELS.versionChanges, limit, after),
   getFileHistory: (path, cursor) =>
@@ -372,7 +374,8 @@ const api: EidosLiteApi = {
   listSyncRepositories: () => ipcRenderer.invoke(IPC_CHANNELS.syncRepositories),
   cloneSyncRepository: (remoteUrl, displayName) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncClone, remoteUrl, displayName),
-  runSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncRun),
+  runSync: (action = "fetch") =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncRun, action),
   onSyncProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

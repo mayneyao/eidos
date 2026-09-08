@@ -157,8 +157,31 @@ describe("BackgroundSyncQueue", () => {
 
     expect(result.ok).toBe(true)
     expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith("fetch")
     expect(syncQueue.status(spaceId).state).toBe("idle")
     expect(await store.read(spaceId)).toBeNull()
+    await syncQueue.close()
+  })
+
+  it("does not retry an upload without another explicit request", async () => {
+    const execute = vi.fn().mockResolvedValue(failed())
+    const syncQueue = queue()
+    await syncQueue.attach({ spaceId, execute, emit: () => undefined })
+    await syncQueue.runNow(spaceId, "push")
+    expect(execute).toHaveBeenCalledWith("push")
+    expect(syncQueue.status(spaceId).state).toBe("paused")
+    await scheduler.advanceBy(120_000)
+    expect(execute).toHaveBeenCalledTimes(1)
+    await syncQueue.close()
+  })
+
+  it("only fetches after saving a local version", async () => {
+    const execute = vi.fn().mockResolvedValue(succeeded())
+    const syncQueue = queue()
+    await syncQueue.attach({ spaceId, execute, emit: () => undefined })
+    await syncQueue.enqueue(spaceId, "local-checkpoint")
+    await scheduler.advanceBy(120_000)
+    expect(execute).toHaveBeenCalledWith("fetch")
     await syncQueue.close()
   })
 

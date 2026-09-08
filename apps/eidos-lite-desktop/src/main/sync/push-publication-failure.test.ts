@@ -17,7 +17,7 @@ const accessToken = "memory-only-push-token"
 const localHead = "a".repeat(64)
 
 describe("push publication failure", () => {
-  it("keeps local state and queues one retry when ref publication fails", async () => {
+  it("keeps local state and waits for an explicit retry when ref publication fails", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-push-failure-")
     )
@@ -98,11 +98,11 @@ describe("push publication failure", () => {
       const executor = new SyncExecutor(control)
       await queue.attach({
         spaceId: canonical.id,
-        execute: () => executor.run(session!, () => undefined),
+        execute: (action) => executor.run(session!, () => undefined, action),
         emit: () => undefined,
       })
 
-      const response = await queue.runNow(canonical.id)
+      const response = await queue.runNow(canonical.id, "push")
 
       expect(response).toMatchObject({
         ok: false,
@@ -114,11 +114,11 @@ describe("push publication failure", () => {
         },
       })
       expect(queue.status(canonical.id)).toMatchObject({
-        state: "retry-wait",
+        state: "paused",
         attempt: 1,
         lastFailure: { code: "remote-persistence-failed" },
       })
-      expect(scheduled).toHaveLength(1)
+      expect(scheduled).toHaveLength(0)
       expect(graft.push).toHaveBeenCalledTimes(1)
       expect(graft.status).toHaveBeenCalledTimes(3)
       expect(closeHandles).not.toHaveBeenCalled()

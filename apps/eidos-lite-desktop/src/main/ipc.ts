@@ -810,12 +810,16 @@ export function registerIpc(
     }
     const status = await syncQueue.attach({
       spaceId: session.canonical.id,
-      execute: () =>
-        syncExecutor.run(session, (progress) => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send(IPC_CHANNELS.syncProgress, progress)
-          }
-        }),
+      execute: (action) =>
+        syncExecutor.run(
+          session,
+          (progress) => {
+            if (!event.sender.isDestroyed()) {
+              event.sender.send(IPC_CHANNELS.syncProgress, progress)
+            }
+          },
+          action
+        ),
       emit: emitStatus,
     })
     if (!attachedSenders.has(event.sender.id)) {
@@ -1633,9 +1637,21 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.enableVersioning, (event) =>
     controller.requireSession(event.sender).enableVersioning()
   )
+  ipcMain.handle(IPC_CHANNELS.reviewCheckpoint, (event, active: unknown) => {
+    if (typeof active !== "boolean") throw new Error("Invalid review state")
+    controller.requireSession(event.sender).setCheckpointReview(active)
+  })
   ipcMain.handle(
     IPC_CHANNELS.createCheckpoint,
-    async (event, message: unknown) => {
+    async (event, message: unknown, paths: unknown) => {
+      if (
+        paths !== undefined &&
+        (!Array.isArray(paths) ||
+          paths.length === 0 ||
+          paths.length > 10000 ||
+          paths.some((path) => typeof path !== "string"))
+      )
+        throw new Error("Invalid checkpoint files")
       if (message !== undefined && typeof message !== "string") {
         throw new Error("Invalid checkpoint message")
       }
@@ -1649,7 +1665,10 @@ export function registerIpc(
       })
       let snapshot
       try {
-        snapshot = await session.createCheckpoint(message)
+        snapshot = await session.createCheckpoint(
+          message,
+          paths as string[] | undefined
+        )
       } catch (error) {
         eidosLiteLogger()?.error(
           "version.checkpoint.failed",
@@ -2177,10 +2196,16 @@ export function registerIpc(
       }
     }
   )
-  ipcMain.handle(IPC_CHANNELS.syncRun, async (event) => {
-    const { session } = await attachSyncQueue(event)
-    return syncQueue.runNow(session.canonical.id)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.syncRun,
+    async (event, action: unknown = "fetch") => {
+      if (action !== "fetch" && action !== "pull" && action !== "push") {
+        throw new Error("Invalid Sync action")
+      }
+      const { session } = await attachSyncQueue(event)
+      return syncQueue.runNow(session.canonical.id, action)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.syncQueueStatus, async (event) => {
     const session = controller.sessionFor(event.sender)
     if (!session) return null

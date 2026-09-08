@@ -32,7 +32,7 @@ export function resolveWorkbenchSurfaces({
 }: WorkbenchLayoutState): WorkbenchSurfaces {
   return {
     content: mergeOpen ? "merge" : diffOpen ? "diff" : "file",
-    right: mergeOpen ? "history" : auxiliaryView,
+    right: mergeOpen ? "sync" : auxiliaryView,
     terminal: terminalVisible ? terminalLayout : null,
   }
 }

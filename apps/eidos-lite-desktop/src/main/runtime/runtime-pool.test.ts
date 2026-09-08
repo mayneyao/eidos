@@ -60,6 +60,79 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("inspects tables privately without replacing resident editor runtimes", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-inspect-"))
+    )
+    await writeFile(path.join(root, "note.eidos"), "fixture")
+    const editor = new FakeRuntimeUtilityProcess()
+    class Inspector extends FakeRuntimeUtilityProcess {
+      postMessage(request: RuntimeWorkerRequest): void {
+        this.requests.push(request)
+        queueMicrotask(() =>
+          this.emit("message", {
+            requestId: request.requestId,
+            ok: true,
+            result: ["Docs"],
+          })
+        )
+      }
+    }
+    const inspector = new Inspector()
+    vi.mocked(utilityProcess.fork)
+      .mockReturnValueOnce(editor as unknown as UtilityProcess)
+      .mockReturnValueOnce(inspector as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      await pool.open("note.eidos")
+      const before = pool.residentRelativePaths()
+      await expect(
+        pool.inspectMergeTables(["note.eidos"], new AbortController().signal)
+      ).resolves.toEqual(["Docs"])
+      expect(pool.residentRelativePaths()).toEqual(before)
+      expect(inspector.requests).toEqual([
+        {
+          type: "inspectMergeTables",
+          requestId: 1,
+          filePaths: [path.join(root, "note.eidos")],
+        },
+      ])
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("cancels a private table inspection and rejects unsafe paths before spawning", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-inspect-abort-"))
+    )
+    await writeFile(path.join(root, "note.eidos"), "fixture")
+    const child = new FakeRuntimeUtilityProcess()
+    const controller = new AbortController()
+    const killed = vi.spyOn(child, "kill")
+    vi.spyOn(child, "postMessage").mockImplementation(() =>
+      controller.abort(new Error("cancel inspection"))
+    )
+    vi.mocked(utilityProcess.fork).mockReturnValue(
+      child as unknown as UtilityProcess
+    )
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      await expect(
+        pool.inspectMergeTables(["../escape.eidos"], controller.signal)
+      ).rejects.toThrow()
+      await expect(
+        pool.inspectMergeTables(["note.eidos"], controller.signal)
+      ).rejects.toThrow("cancel inspection")
+      expect(killed).toHaveBeenCalledOnce()
+      expect(pool.residentRelativePaths()).toEqual([])
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("invalidates a renamed file even when graceful close fails, after the child exits", async () => {
     const root = await realpath(
       await mkdtemp(path.join(tmpdir(), "lite-pool-invalid-close-"))

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import { SyncInspector } from "./sync-inspector"
+import { useEidosLiteI18n } from "./i18n"
 import {
   AlertTriangle,
   ArrowDown,
@@ -6,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   Clock,
   Cloud,
   CloudDownload,
@@ -25,6 +28,7 @@ import {
 } from "lucide-react"
 
 import type {
+  EidosSyncAction,
   EidosSyncFailure,
   EidosSyncOperation,
   EidosSyncPhase,
@@ -110,12 +114,13 @@ export function SyncPanel({
   platform = "unknown",
   cacheKey = mode === "clone" ? "welcome" : "current-space",
   hasUncheckpointedChanges = false,
-  syncHistory,
+  syncHistory: initialSyncHistory,
   onClose,
   onClone,
   onRequestClone,
   onReviewLocal,
   onMergeStatusChange,
+  mergeStatus,
   onReviewMerge,
   onSpaceChange,
   onFilesMaterialized,
@@ -131,13 +136,15 @@ export function SyncPanel({
   onRequestClone?(): void
   onReviewLocal?(): void
   onMergeStatusChange?(status: EidosSyncMergeStatus): void
-  onReviewMerge?(): void
+  mergeStatus?: EidosSyncMergeStatus
+  onReviewMerge?(path?: string, table?: string): void
   onSpaceChange?(snapshot: SpaceSnapshot): void
   onFilesMaterialized?(
     snapshot: SpaceSnapshot,
     materializedPaths: readonly string[] | null
   ): void | Promise<void>
 }) {
+  const { t } = useEidosLiteI18n()
   const [initialSnapshot] = useState(() => readSyncStatusSnapshot(cacheKey))
   const [initialAccountContext] = useState(() => readSyncAccountContext())
   const [status, setStatus] = useState<EidosSyncStatus>(
@@ -182,6 +189,46 @@ export function SyncPanel({
   const [lastSyncedAtMs, setLastSyncedAtMs] = useState(
     initialSnapshot?.lastSyncedAtMs
   )
+  const resultHistory = syncResult?.snapshot.graft?.sync
+  const syncHistory =
+    resultHistory &&
+    (!initialSyncHistory?.localHead ||
+      initialSyncHistory.localHead === resultHistory.localHead) &&
+    (resultHistory.checkedAtMs ?? 0) >= (initialSyncHistory?.checkedAtMs ?? 0)
+      ? resultHistory
+      : initialSyncHistory
+  const [refreshingSpace, setRefreshingSpace] = useState(false)
+  useEffect(() => {
+    if (
+      variant !== "inspector" ||
+      mode !== "enable" ||
+      !window.eidosLite.refreshSpace
+    )
+      return
+    let active = true
+    setRefreshingSpace(true)
+    void window.eidosLite
+      .refreshSpace()
+      .then((snapshot) => {
+        if (active && snapshot) onSpaceChange?.(snapshot)
+      })
+      .catch((cause) => {
+        if (active)
+          setLoadError({
+            kind: "unavailable",
+            title: "Could not refresh local status",
+            message: String(cause),
+          })
+      })
+      .finally(() => {
+        if (active) setRefreshingSpace(false)
+      })
+    return () => {
+      active = false
+    }
+    // Reconcile once per opened Space; callbacks change with each snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey, variant, mode])
   const [repositoriesCheckedAtMs, setRepositoriesCheckedAtMs] = useState(
     initialSnapshot?.repositoriesCheckedAtMs
   )
@@ -189,6 +236,7 @@ export function SyncPanel({
   const [reloadKey, setReloadKey] = useState(0)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const [mergeActive, setMergeActive] = useState(false)
+  const [lastAction, setLastAction] = useState<EidosSyncAction>("fetch")
 
   const loadResources = async (value: EidosSyncStatus) => {
     if (mode === "clone" && value.canClone) {
@@ -340,20 +388,6 @@ export function SyncPanel({
       window.eidosLite.onSyncProgress((progress) => {
         setSyncProgress(progress)
         setSyncElapsedMs(progress.elapsedMs)
-        if (
-          progress.state === "completed" &&
-          progress.operation !== "recovery"
-        ) {
-          const completedAtMs = Date.now()
-          setLastSyncedAtMs(completedAtMs)
-          const current = readSyncStatusSnapshot(cacheKey)
-          if (current) {
-            writeSyncStatusSnapshot(cacheKey, {
-              ...current,
-              lastSyncedAtMs: completedAtMs,
-            })
-          }
-        }
         setSyncProgressHistory((current) => {
           const sameRun = current.filter(
             (entry) => entry.runId === progress.runId
@@ -557,12 +591,13 @@ export function SyncPanel({
     }
   }
 
-  const syncNow = async () => {
+  const syncNow = async (action: EidosSyncAction = "fetch") => {
+    setLastAction(action)
     resetOperation()
     setFailureContext("sync")
     setBusy("sync")
     try {
-      const response = await window.eidosLite.runSync()
+      const response = await window.eidosLite.runSync(action)
       if (response.ok) {
         setSyncResult(response.result)
         onSpaceChange?.(response.result.snapshot)
@@ -573,7 +608,7 @@ export function SyncPanel({
           )
         }
         rememberStatus(await window.eidosLite.getSyncStatus(), {
-          synced: true,
+          synced: response.result.state === "synced",
         })
         setPreflightRefreshKey((current) => current + 1)
       } else {
@@ -647,7 +682,7 @@ export function SyncPanel({
     if (failureContext === "connect") await enableSync()
     else if (failureContext === "clone" && selectedRepository) {
       await cloneRepository(selectedRepository)
-    } else await syncNow()
+    } else await syncNow(lastAction)
   }
 
   const runFailureAction = async () => {
@@ -723,18 +758,104 @@ export function SyncPanel({
     loadError !== null || (checking && initialSnapshot === null)
   const spaceStatusPending =
     checking && initialSnapshot === null && status.account.state === "signed-in"
-  const syncAction = syncPrimaryAction({
-    status,
-    syncHistory,
-    hasUncheckpointedChanges,
-    syncResult,
-  })
-  const syncActionIsPrimary =
-    status.entitlement.state === "read-only" ||
-    syncHistory?.state === "ahead" ||
-    syncHistory?.state === "behind"
-  const mergeReviewNeeded =
-    syncResult?.state === "conflict" || syncHistory?.state === "diverged"
+  if (
+    variant === "inspector" &&
+    mode === "enable" &&
+    status.remote.state === "connected"
+  ) {
+    return (
+      <SyncInspector
+        spaceKey={cacheKey}
+        account={({ buttonRef, expanded, onToggle }) => (
+          <button
+            ref={buttonRef}
+            className="sync-account-meter"
+            data-storage-state={storageState}
+            onClick={onToggle}
+            aria-label={`${t("Account menu")}: ${accountName}`}
+            aria-expanded={expanded}
+            title={
+              storage
+                ? `${accountName}\n${formatBytes(storage.usedBytes)} / ${formatBytes(storage.quotaBytes)}${storage.reservedBytes ? ` (+${formatBytes(storage.reservedBytes)})` : ""}`
+                : accountName
+            }
+          >
+            {storage ? (
+              <span
+                className="sync-account-meter-fill"
+                role="meter"
+                aria-label="Cloud storage"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    storage.quotaBytes > 0
+                      ? ((storage.usedBytes + storage.reservedBytes) /
+                          storage.quotaBytes) *
+                          100
+                      : 100
+                  )
+                )}
+                aria-valuetext={`${formatBytes(storage.usedBytes)} / ${formatBytes(storage.quotaBytes)}`}
+                style={{
+                  width: `${Math.min(100, Math.max(0, storage.quotaBytes > 0 ? ((storage.usedBytes + storage.reservedBytes) / storage.quotaBytes) * 100 : 100))}%`,
+                }}
+              />
+            ) : null}
+            <SyncIdentityChip user={status.account.user} checking={checking} />
+            <ChevronDown className="sync-account-chevron" aria-hidden="true" />
+          </button>
+        )}
+        state={{
+          history: syncHistory,
+          dirty: hasUncheckpointedChanges,
+          busy: busy !== null,
+          checking: spaceStatusPending || refreshingSpace,
+          progress: syncProgress,
+          failure:
+            syncFailure ??
+            (loadError
+              ? {
+                  code:
+                    loadError.kind === "offline"
+                      ? "offline"
+                      : "authentication-required",
+                  state:
+                    loadError.kind === "offline"
+                      ? "offline"
+                      : "needs-attention",
+                  title: loadError.title,
+                  message: loadError.message,
+                  action: "retry-now",
+                  actionLabel: "Try again",
+                  retryable: true,
+                  localSafe: true,
+                }
+              : null),
+          readOnly: status.entitlement.state !== "read-write",
+          storageBlocked: storageBlocksCurrentUpload,
+        }}
+        onClose={onClose}
+        onAction={(action) => void syncNow(action)}
+        onReview={onReviewLocal}
+        onAccount={() => void openHelp("account")}
+        onRetry={() => {
+          if (loadError) setReloadKey((key) => key + 1)
+          else if (syncFailure?.action === "retry-now") void retryFailure()
+          else void runFailureAction()
+        }}
+        onMergeStatusChange={onMergeStatusChange}
+        mergeStatus={mergeStatus}
+        onReviewMerge={onReviewMerge}
+        onSpaceChange={onSpaceChange}
+        onFilesMaterialized={onFilesMaterialized}
+        onLocalRecovery={() => void recoverLocal()}
+        onRemoteRecovery={() => void recoverHosted()}
+      />
+    )
+  }
   if (shouldRenderSyncAccessGate(status)) {
     return (
       <SyncAccessGate
@@ -760,13 +881,13 @@ export function SyncPanel({
   const signedIn = status.account.state === "signed-in"
   const heroMeta =
     signedIn &&
-    (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
+    (mode === "clone" ? repositoriesCheckedAtMs : syncHistory?.checkedAtMs) &&
     !syncFailure &&
     syncProgress?.state !== "active"
-      ? `${mode === "clone" ? "List updated" : "Last synced"} ${formatRelativeTime(
+      ? `${mode === "clone" ? "List updated" : "Last checked"} ${formatRelativeTime(
           mode === "clone"
             ? (repositoriesCheckedAtMs ?? 0)
-            : (lastSyncedAtMs ?? 0)
+            : (syncHistory?.checkedAtMs ?? 0)
         )}`
       : null
   const direction =
@@ -1063,13 +1184,74 @@ export function SyncPanel({
 
               {mode === "enable" &&
               signedIn &&
-              status.remote.state === "connected" &&
-              (!mergeReviewNeeded || hasUncheckpointedChanges) ? (
-                <div className="sync-actions">
+              status.remote.state === "connected" ? (
+                <div className="sync-actions sync-explicit-actions">
+                  <button
+                    type="button"
+                    className="secondary-action sync-check-remote"
+                    data-sync-run
+                    disabled={busy !== null || operationsBlocked}
+                    title="Fetch remote history without changing local files."
+                    onClick={() => void syncNow("fetch")}
+                  >
+                    <RefreshCw /> Check remote updates
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      syncHistory?.state === "behind"
+                        ? "primary-action"
+                        : "secondary-action"
+                    }
+                    data-sync-pull
+                    hidden={!syncHistory?.behind}
+                    disabled={
+                      busy !== null ||
+                      operationsBlocked ||
+                      hasUncheckpointedChanges ||
+                      !syncHistory?.behind ||
+                      mergeActive
+                    }
+                    title="Receive remote versions. Review and save local changes first."
+                    onClick={() => void syncNow("pull")}
+                  >
+                    <CloudDownload /> Receive updates
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      syncHistory?.state === "ahead"
+                        ? "primary-action"
+                        : "secondary-action"
+                    }
+                    data-sync-push
+                    hidden={
+                      !syncHistory?.ahead ||
+                      !!syncHistory.behind ||
+                      status.entitlement.state !== "read-write" ||
+                      storageBlocksCurrentUpload
+                    }
+                    disabled={
+                      busy !== null ||
+                      operationsBlocked ||
+                      storageBlocksCurrentUpload ||
+                      status.entitlement.state !== "read-write" ||
+                      !syncHistory?.ahead ||
+                      !!syncHistory.behind
+                    }
+                    title="Upload saved versions only. Local file changes will not be saved as a version."
+                    onClick={() => void syncNow("push")}
+                  >
+                    <CloudUpload /> Upload versions
+                  </button>
                   {hasUncheckpointedChanges ? (
                     <button
                       type="button"
-                      className="primary-action"
+                      className={
+                        syncHistory?.behind
+                          ? "primary-action"
+                          : "secondary-action"
+                      }
                       data-sync-review-local
                       disabled={
                         busy !== null || operationsBlocked || !onReviewLocal
@@ -1078,7 +1260,8 @@ export function SyncPanel({
                     >
                       <FileWarning /> Review changes
                     </button>
-                  ) : storageBlocksCurrentUpload ? (
+                  ) : null}
+                  {storageBlocksCurrentUpload ? (
                     <button
                       type="button"
                       className="primary-action"
@@ -1088,32 +1271,7 @@ export function SyncPanel({
                     >
                       <UserRound /> Manage storage
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className={`${
-                        syncActionIsPrimary
-                          ? "primary-action"
-                          : "secondary-action"
-                      } sync-run`}
-                      data-sync-run
-                      disabled={busy !== null || operationsBlocked}
-                      onClick={() => void syncNow()}
-                    >
-                      {busy === "sync" ? (
-                        <LoaderCircle className="spin" />
-                      ) : status.entitlement.state === "read-only" ? (
-                        <CloudDownload />
-                      ) : syncHistory?.state === "ahead" ? (
-                        <CloudUpload />
-                      ) : syncHistory?.state === "behind" ? (
-                        <CloudDownload />
-                      ) : (
-                        <RefreshCw />
-                      )}
-                      {busy === "sync" ? "Syncing…" : syncAction}
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1127,6 +1285,55 @@ export function SyncPanel({
                 />
               ) : null}
             </>
+          ) : null}
+
+          {mode === "enable" &&
+          signedIn &&
+          status.remote.state === "connected" ? (
+            <details className="sync-more" data-sync-version-summary>
+              <summary>
+                <ChevronRight /> Version details
+              </summary>
+              <p className="sync-caption">
+                {hasUncheckpointedChanges
+                  ? "Local file changes have not been saved as a version."
+                  : "No local file changes waiting to be saved."}
+              </p>
+              <div className="sync-stat-grid">
+                <div>
+                  <strong>
+                    {syncHistory && syncHistory.state !== "unknown"
+                      ? syncHistory.ahead
+                      : "—"}
+                  </strong>
+                  <span>Versions to upload</span>
+                </div>
+                <div>
+                  <strong>
+                    {syncHistory?.checkedAtMs && syncHistory.state !== "unknown"
+                      ? syncHistory.behind
+                      : "—"}
+                  </strong>
+                  <span>Versions to receive</span>
+                </div>
+              </div>
+              <p className="sync-caption">
+                {syncHistory?.checkedAtMs ? (
+                  <>
+                    <span>Last checked</span>:{" "}
+                    {new Date(syncHistory.checkedAtMs).toLocaleString()}
+                  </>
+                ) : (
+                  "Remote history has not been checked."
+                )}
+              </p>
+              {syncHistory?.state === "diverged" ? (
+                <p className="sync-caption">
+                  Receive and merge remote updates below before uploading local
+                  versions.
+                </p>
+              ) : null}
+            </details>
           ) : null}
 
           {(syncResult?.state === "conflict" ||
@@ -1144,10 +1351,10 @@ export function SyncPanel({
 
           {syncResult?.state === "conflict" ||
           syncHistory?.state === "diverged" ? (
-            <section className="sync-section" data-sync-recovery>
-              <div className="sync-section-head">
-                <h3>Recovery copies</h3>
-              </div>
+            <details className="sync-more sync-section" data-sync-recovery>
+              <summary>
+                <ChevronRight /> Recovery copies
+              </summary>
               <p className="sync-caption">
                 {mergeActive
                   ? "Abort the active merge before creating Recovery Spaces."
@@ -1201,7 +1408,7 @@ export function SyncPanel({
                     : "Open a cloud copy"}
                 </button>
               </div>
-            </section>
+            </details>
           ) : null}
 
           {recoveryResult ? (
@@ -1225,129 +1432,137 @@ export function SyncPanel({
             </section>
           ) : null}
 
-          {mode === "enable" && signedIn ? (
-            <SyncStorageSection
-              storage={storage}
-              storageState={storageState}
-              spaceBytes={preflight?.totalBytes ?? spaceBytes}
-              spaceSizeState={spaceSizeState}
-              blocksUpload={storageBlocksCurrentUpload}
-              managing={busy === "help"}
-              onManageStorage={
-                storageNeedsAttention || storageBlocksCurrentUpload
-                  ? () => void openHelp("account")
-                  : undefined
-              }
-            />
-          ) : null}
-
           {signedIn ? (
-            <section className="sync-section sync-about" data-sync-details>
-              <div className="sync-section-head">
-                <h3>Connection</h3>
-              </div>
-              <dl className="sync-kv">
-                <div>
-                  <dt>Account</dt>
-                  <dd>{accountName}</dd>
-                </div>
-                <div>
-                  <dt>Access</dt>
-                  <dd>{accessLabel(status)}</dd>
-                </div>
-                <div>
-                  <dt>Cloud</dt>
-                  <dd>
-                    {status.remote.state === "connected"
-                      ? "Connected"
-                      : "Not connected"}
-                  </dd>
-                </div>
-                {!storage && status.entitlement.quotaBytes !== undefined ? (
-                  <div>
-                    <dt>Cloud storage</dt>
-                    <dd>Usage temporarily unavailable</dd>
-                  </div>
-                ) : null}
-              </dl>
-
-              {visiblePhases.length > 0 ? (
-                <details className="sync-more sync-diagnostics">
-                  <summary>
-                    <ChevronRight /> Last operation
-                    <span>
-                      {formatDuration(
-                        runTelemetry?.durationMs ?? syncElapsedMs
-                      )}
-                    </span>
-                  </summary>
-                  <ol>
-                    {visiblePhases.map((phase, index) => (
-                      <li
-                        data-sync-phase={phase.phase}
-                        key={`${phase.phase}-${index}`}
-                      >
-                        <span>
-                          <Check /> {technicalPhaseLabel(phase.phase)}
-                        </span>
-                        <small>
-                          {phase.detail}
-                          {runTelemetry
-                            ? ` · ${formatDuration(phase.durationMs)}`
-                            : ""}
-                        </small>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
+            <details
+              className="sync-more sync-account-details"
+              open={storageNeedsAttention || undefined}
+            >
+              <summary>
+                <ChevronRight /> Account and storage
+              </summary>
+              {mode === "enable" ? (
+                <SyncStorageSection
+                  storage={storage}
+                  storageState={storageState}
+                  spaceBytes={preflight?.totalBytes ?? spaceBytes}
+                  spaceSizeState={spaceSizeState}
+                  blocksUpload={storageBlocksCurrentUpload}
+                  managing={busy === "help"}
+                  onManageStorage={
+                    storageNeedsAttention || storageBlocksCurrentUpload
+                      ? () => void openHelp("account")
+                      : undefined
+                  }
+                />
               ) : null}
 
-              <div className="sync-ghost-row">
-                <button
-                  type="button"
-                  className="sync-ghost"
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setBusy("diagnostics")
-                    void window.eidosLite
-                      .copyDiagnostics()
-                      .then(() => setDiagnosticsCopied(true))
-                      .catch((cause) =>
-                        showUnexpectedError(
-                          cause,
-                          "Could not copy diagnostics",
-                          "Open the logs folder and try again."
+              <section className="sync-section sync-about" data-sync-details>
+                <div className="sync-section-head">
+                  <h3>Connection</h3>
+                </div>
+                <dl className="sync-kv">
+                  <div>
+                    <dt>Account</dt>
+                    <dd>{accountName}</dd>
+                  </div>
+                  <div>
+                    <dt>Access</dt>
+                    <dd>{accessLabel(status)}</dd>
+                  </div>
+                  <div>
+                    <dt>Cloud</dt>
+                    <dd>
+                      {status.remote.state === "connected"
+                        ? "Connected"
+                        : "Not connected"}
+                    </dd>
+                  </div>
+                  {!storage && status.entitlement.quotaBytes !== undefined ? (
+                    <div>
+                      <dt>Cloud storage</dt>
+                      <dd>Usage temporarily unavailable</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                {visiblePhases.length > 0 ? (
+                  <details className="sync-more sync-diagnostics">
+                    <summary>
+                      <ChevronRight /> Last operation
+                      <span>
+                        {formatDuration(
+                          runTelemetry?.durationMs ?? syncElapsedMs
+                        )}
+                      </span>
+                    </summary>
+                    <ol>
+                      {visiblePhases.map((phase, index) => (
+                        <li
+                          data-sync-phase={phase.phase}
+                          key={`${phase.phase}-${index}`}
+                        >
+                          <span>
+                            <Check /> {technicalPhaseLabel(phase.phase)}
+                          </span>
+                          <small>
+                            {phase.detail}
+                            {runTelemetry
+                              ? ` · ${formatDuration(phase.durationMs)}`
+                              : ""}
+                          </small>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ) : null}
+
+                <div className="sync-ghost-row">
+                  <button
+                    type="button"
+                    className="sync-ghost"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setBusy("diagnostics")
+                      void window.eidosLite
+                        .copyDiagnostics()
+                        .then(() => setDiagnosticsCopied(true))
+                        .catch((cause) =>
+                          showUnexpectedError(
+                            cause,
+                            "Could not copy diagnostics",
+                            "Open the logs folder and try again."
+                          )
                         )
-                      )
-                      .finally(() => setBusy(null))
-                  }}
-                >
-                  <Copy />{" "}
-                  {diagnosticsCopied
-                    ? "Diagnostics copied"
-                    : "Copy diagnostics"}
-                </button>
-                <button
-                  type="button"
-                  className="sync-ghost"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    void window.eidosLite.openSettingsDestination("logs")
-                  }
-                >
-                  <FolderDown /> Open logs
-                </button>
-                <button
-                  type="button"
-                  className="sync-ghost sync-sign-out"
-                  disabled={busy !== null}
-                  onClick={() => void signOut()}
-                >
-                  <UserRound />
-                  {busy === "sign-out" ? "Signing out…" : "Sign out"}
-                </button>
-              </div>
-            </section>
+                        .finally(() => setBusy(null))
+                    }}
+                  >
+                    <Copy />{" "}
+                    {diagnosticsCopied
+                      ? "Diagnostics copied"
+                      : "Copy diagnostics"}
+                  </button>
+                  <button
+                    type="button"
+                    className="sync-ghost"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void window.eidosLite.openSettingsDestination("logs")
+                    }
+                  >
+                    <FolderDown /> Open logs
+                  </button>
+                  <button
+                    type="button"
+                    className="sync-ghost sync-sign-out"
+                    disabled={busy !== null}
+                    onClick={() => void signOut()}
+                  >
+                    <UserRound />
+                    {busy === "sign-out" ? "Signing out…" : "Sign out"}
+                  </button>
+                </div>
+              </section>
+            </details>
           ) : null}
         </div>
       </aside>
@@ -1693,7 +1908,7 @@ function syncOverview({
     return {
       icon: FileWarning,
       title: "Unsaved changes",
-      message: "Only saved versions sync. Review and save a version first.",
+      message: "Local edits stay on this device until saved as a version.",
       tone: "active",
     }
   }
@@ -1803,10 +2018,10 @@ function syncOverview({
       tone: "active",
     }
   }
-  if (syncHistory?.state === "up_to_date") {
+  if (syncHistory?.state === "up_to_date" && syncHistory.checkedAtMs) {
     return {
       icon: CheckCircle2,
-      title: "Everything is up to date",
+      title: "Saved versions matched at the last check",
       tone: "success",
     }
   }
@@ -1815,30 +2030,6 @@ function syncOverview({
     title: "Sync is on",
     tone: "neutral",
   }
-}
-
-function syncPrimaryAction({
-  status,
-  syncHistory,
-  hasUncheckpointedChanges,
-  syncResult,
-}: {
-  status: EidosSyncStatus
-  syncHistory?: SpaceSyncHistoryStatus
-  hasUncheckpointedChanges: boolean
-  syncResult: EidosSyncRunResult | null
-}): string {
-  if (hasUncheckpointedChanges) return "Review changes"
-  if (status.entitlement.state === "read-only") return "Get cloud updates"
-  if (syncHistory?.state === "ahead") {
-    return `Upload ${syncHistory.ahead} ${syncHistory.ahead === 1 ? "version" : "versions"}`
-  }
-  if (syncHistory?.state === "behind") {
-    return `Download ${syncHistory.behind} ${syncHistory.behind === 1 ? "update" : "updates"}`
-  }
-  if (syncHistory?.state === "diverged") return "Check cloud status"
-  if (syncResult) return "Check again"
-  return "Check now"
 }
 
 function syncDirection(
