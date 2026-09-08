@@ -1,9 +1,9 @@
-import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import {
-  $getNodeByKey,
+  $createNodeSelection,
   $getSelection,
   $isNodeSelection,
   $isRangeSelection,
+  $setSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
   getComposedEventTarget,
@@ -40,13 +40,10 @@ export function EfmBlockSelection({
   editor: LexicalEditor
   nodeKey: NodeKey
 }) {
-  const [, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [selectionKind, setSelectionKind] =
     useState<EfmBlockSelectionKind>(null)
 
   const readSelectionKind = useCallback((): EfmBlockSelectionKind => {
-    const node = $getNodeByKey(nodeKey)
-    if (!node?.isSelected()) return null
     const selection = $getSelection()
     if ($isNodeSelection(selection) && selection.has(nodeKey)) return "node"
     return null
@@ -94,13 +91,14 @@ export function EfmBlockSelection({
 
         event.preventDefault()
         editor.getRootElement()?.focus({ preventScroll: true })
-        clearSelection()
-        setSelected(true)
+        const nextSelection = $createNodeSelection()
+        nextSelection.add(nodeKey)
+        $setSelection(nextSelection)
         return true
       },
       COMMAND_PRIORITY_LOW
     )
-  }, [clearSelection, editor, nodeKey, setSelected])
+  }, [editor, nodeKey])
 
   return null
 }
