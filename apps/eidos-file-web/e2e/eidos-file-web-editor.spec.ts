@@ -1198,12 +1198,13 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
   await summary.press("Control+Enter")
   await expect(summary).toHaveValue("Edited in the Feature Lab")
 
-  const progress = inspector.getByRole("spinbutton", { name: "Progress" })
+  const progress = inspector.getByRole("textbox", { name: "Progress" })
+  await expect(progress).toHaveAttribute("inputmode", "decimal")
   await progress.fill("0.5")
   await progress.press("Enter")
-  const weightedBudget = inspector
-    .getByText("Weighted budget", { exact: true })
-    .locator("..")
+  const weightedBudget = inspector.locator(".eidos-file-record-field").filter({
+    has: page.getByText("Weighted budget", { exact: true }),
+  })
   await expect(weightedBudget).toContainText("62500.25")
 
   await page.getByRole("button", { name: "Close record details" }).click()
@@ -1249,8 +1250,8 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
   await page.getByRole("option", { name: "Mina Park", exact: true }).click()
   await expect(owner).toHaveText(/Mina Park/)
   const relationBackedLoad = inspector
-    .getByText("Relation-backed load", { exact: true })
-    .locator("..")
+    .locator(".eidos-file-record-field")
+    .filter({ has: page.getByText("Relation-backed load", { exact: true }) })
   await expect(relationBackedLoad).toContainText("34")
   await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
 })
@@ -1939,7 +1940,7 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   await expect(formulaExpression).toHaveText('"Estimate" * 2')
   await expect(
     formulaCreator.locator('[data-eidos-file-formula-status="valid"]')
-  ).toContainText("Preview · Ship Eidos File Web Editor: 4")
+  ).toHaveText("4")
   await formulaExpression.press("ControlOrMeta+s")
   await expect(formulaCreator).toBeHidden()
 
@@ -2188,7 +2189,7 @@ test("keeps the Formula editor focused and reachable in a dark touch viewport", 
     await expression.pressSequentially('"Estimate" * 2')
     await expect(
       creator.locator('[data-eidos-file-formula-status="valid"]')
-    ).toContainText("Preview")
+    ).toHaveText("4")
 
     const layout = await creator.evaluate((element) => {
       const bounds = element.getBoundingClientRect()

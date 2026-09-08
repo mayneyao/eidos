@@ -39,7 +39,9 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
 async function fieldRow(inspector: Locator, name: string): Promise<Locator> {
   const label = inspector.getByText(name, { exact: true })
   await expect(label).toBeVisible()
-  return label.locator("..")
+  return inspector.locator(".eidos-file-record-field").filter({
+    has: inspector.page().getByText(name, { exact: true }),
+  })
 }
 
 async function toggleMultiSelectOption(
@@ -196,12 +198,14 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   await summary.press("Control+Enter")
   await expect(summary).toHaveValue("Text edit with 中文 and emoji ✅")
 
-  const budget = inspector.getByRole("spinbutton", { name: "Budget" })
+  const budget = inspector.getByRole("textbox", { name: "Budget" })
+  await expect(budget).toHaveAttribute("inputmode", "decimal")
   await budget.fill("1000.5")
   await budget.press("Enter")
   await expect(budget).toHaveValue("1000.5")
 
-  const progress = inspector.getByRole("spinbutton", { name: "Progress" })
+  const progress = inspector.getByRole("textbox", { name: "Progress" })
+  await expect(progress).toHaveAttribute("inputmode", "decimal")
   await progress.fill("")
   await progress.press("Enter")
   await expect(progress).toHaveValue("")
@@ -236,15 +240,15 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   await toggleMultiSelectOption(page, signals, "Speed")
   await expect(signals).toContainText("Speed")
 
-  const approved = inspector.getByRole("switch", { name: "Approved" })
-  const approvedBefore = await approved.isChecked()
+  const approved = inspector.getByRole("combobox", { name: "Approved" })
+  const approvedBefore = (await approved.textContent())?.trim() === "Checked"
   await approved.click()
-  await expect(approved).toHaveAttribute(
-    "data-state",
-    approvedBefore ? "unchecked" : "checked"
-  )
+  const approvedAfter = approvedBefore ? "Unchecked" : "Checked"
+  await page.getByRole("option", { name: approvedAfter, exact: true }).click()
+  await expect(approved).toHaveText(approvedAfter)
 
-  const confidence = inspector.getByRole("spinbutton", { name: "Confidence" })
+  const confidence = inspector.getByRole("textbox", { name: "Confidence" })
+  await expect(confidence).toHaveAttribute("inputmode", "numeric")
   await confidence.fill("4")
   await confidence.press("Enter")
   await expect(confidence).toHaveValue("4")
@@ -460,5 +464,5 @@ test("replaces a Formula expression after inserting a function", async ({
   await expect(expression).toHaveText('"Estimate" * 2')
   await expect(
     creator.locator('[data-eidos-file-formula-status="valid"]')
-  ).toContainText("Preview · Ship Eidos File Web Editor: 4")
+  ).toHaveText("4")
 })
