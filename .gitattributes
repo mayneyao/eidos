@@ -1,2 +1,5 @@
 # Mark compiled UI components as generated to exclude from GitHub language stats
 **/tailwind-raw.js linguist-vendored
+
+# Package-manager patches must retain LF headers on Windows checkouts.
+*.patch text eol=lf

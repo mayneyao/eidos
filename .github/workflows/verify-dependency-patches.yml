@@ -1,0 +1,47 @@
+name: Verify dependency patches
+
+on:
+  push:
+    paths:
+      - ".gitattributes"
+      - "patches/**"
+      - ".github/workflows/verify-dependency-patches.yml"
+  pull_request:
+    paths:
+      - ".gitattributes"
+      - "patches/**"
+      - ".github/workflows/verify-dependency-patches.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Install patched dependencies on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - uses: pnpm/setup@v2
+        with:
+          install: false
+      - name: Verify patch line endings
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for (const name of fs.readdirSync('patches').filter(name => name.endsWith('.patch'))) {
+            if (fs.readFileSync(`patches/${name}`).includes(13)) {
+              throw new Error(`${name} contains CR line endings`);
+            }
+          }
+          NODE
+      - name: Apply dependency patches
+        run: pnpm install --frozen-lockfile
