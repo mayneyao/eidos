@@ -1,29 +1,25 @@
 ## What's new
 
-### Find text across your Space
+### Save selected files as a version
 
-Press **Cmd/Ctrl+Shift+F** to search saved text without leaving the sidebar. Results are grouped by file with highlighted matches, case sensitivity, whole-word matching, and regular expressions. **Cmd/Ctrl+F** opens a compact Find bar inside the current document to highlight and navigate matches in real time.
+Select files in Changes to save related work together while leaving other edits for a later version. Choose a folder tree or a flat file list, with expandable tables inside Eidos Files, and keep reviewing differences without losing your selection.
 
-### Recover one document from History
+### A clearer Sync workflow
 
-The Versions sidebar now lets you switch between all saved versions and the current document's history. Sparse history pages load automatically within a bounded scan, and selected versions open in the main diff area. Restore a text version or save either side as a safe copy from one compact toolbar. Before restoring, Lite keeps sibling copies of the current file and any unsaved draft.
+Sync now shows how many versions are waiting to upload or receive, with separate actions to check, upload, and receive changes. Compatible changes merge automatically; conflicts stay in one workspace where you can review choices before completing the merge. Account management and logs are available from the account menu, with storage usage behind your account identity.
 
-### Complete note links and unified Markdown editing
+### Remember your interface size
 
-Autocompletion now supports note titles, wikilinks, and block references with seamless navigation across documents. Source and rich text modes share unified link and block handling without losing untouched formatting.
+Interface scaling is saved across windows so your preferred reading size follows you when opening another Space.
 
 ## Improvements
 
-- **Record Properties**: Expanded record titles occupy a consistent single line with aligned property labels. Hover over read-only fields to copy complete multiline values and metadata.
-- **Draft Protection**: Closing a document or quitting checks outstanding text drafts and prompts to save, discard, or cancel. External disk changes keep the draft available for recovery.
-- **Quick Open**: Excludes dependency trees and common build output so large repositories remain responsive, reporting indexing failures gracefully instead of empty results.
-- **Explorer Navigation**: Expanding folders in the sidebar explorer no longer unexpectedly scrolls back to the open document.
+- **Sync performance**: Reduce repeated repository scans and object validation when checking upstream history and preparing merges. Table discovery runs in a private Runtime worker without evicting open editors.
+- **Compact sidebars**: Sync controls remain accessible at narrow widths, and expanded tables align clearly beneath their files in the flat Changes list.
+- **Markdown selection**: Avoid repeated scans when updating text selections.
 
 ## Bug fixes
 
-- **Runtime Cleanup**: Finalize invalidated runtime cleanup reliably after close errors to prevent lingering process handles.
-- **Session Concurrency**: Register newly created file sessions immediately in SpaceSession to avoid concurrent open collisions.
-- **Diff View**: Keep the diff close button positioned stably beside the file title.
-- **Markdown Rendering**: Preserve HTML image presentation and expand embedded block selection canvas.
+- **Ignored folders**: Show ignored folders with muted styling and load their contents when expanded, while keeping them excluded from Sync.
 
 No file-format migration is required.

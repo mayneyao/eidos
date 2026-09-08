@@ -75,7 +75,7 @@ release proof. The earlier local audit passed:
   reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
   full validation -> two-parent continue -> push/fetch equality. The same test
   covers partial resolution, reopen, abort, cancellation, idempotent status,
-  and a transient filesystem Remote failure. Graft SDK 0.3.26 is pinned in the
+  and a transient filesystem Remote failure. Graft SDK 0.3.27 is pinned in the
   lockfile, and the real merge flow passed against the published registry
   package.
 

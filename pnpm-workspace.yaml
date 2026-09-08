@@ -8,12 +8,12 @@ packages:
 pmOnFail: ignore
 
 minimumReleaseAgeExclude:
-  - "@eidos.space/graft@0.3.26"
-  - "@eidos.space/graft-darwin-arm64@0.3.26"
-  - "@eidos.space/graft-darwin-x64@0.3.26"
-  - "@eidos.space/graft-linux-arm64-gnu@0.3.26"
-  - "@eidos.space/graft-linux-x64-gnu@0.3.26"
-  - "@eidos.space/graft-win32-x64-msvc@0.3.26"
+  - "@eidos.space/graft@0.3.26 || 0.3.27"
+  - "@eidos.space/graft-darwin-arm64@0.3.26 || 0.3.27"
+  - "@eidos.space/graft-darwin-x64@0.3.26 || 0.3.27"
+  - "@eidos.space/graft-linux-arm64-gnu@0.3.26 || 0.3.27"
+  - "@eidos.space/graft-linux-x64-gnu@0.3.26 || 0.3.27"
+  - "@eidos.space/graft-win32-x64-msvc@0.3.26 || 0.3.27"
   - "@lexical/a11y@0.50.0"
   - "@lexical/clipboard@0.50.0"
   - "@lexical/code-core@0.50.0"
