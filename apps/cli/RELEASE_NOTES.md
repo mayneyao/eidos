@@ -1,23 +1,26 @@
 ## What's new
 
-### Use standard SQLite functions in Formula fields
+### Automate File-field attachments
 
-Formula fields now use a fixed SQLite 3.45 profile of 41 deterministic scalar
-functions. The Runtime and the editor opened by `eidos serve` share the same
-allowlist, validation, type inference, and autocomplete, so Formula expressions
-remain portable across supported SQLite hosts.
+Use `eidos attachment import`, `attach`, `detach`, and `verify` to manage attachments from scripts and agents. Revision checks protect writes, and verification checks referenced files before you share or publish a file.
 
-This release removes the earlier Eidos-only function names. Before upgrading a
-file that uses them, replace `IF` with `IIF`, `IS_NULL(value)` with
-`value IS NULL`, and `LOWER_ASCII` / `UPPER_ASCII` with `LOWER` / `UPPER`.
-Rewrite the old date and datetime helper functions with SQLite `DATE`,
-`DATETIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, or `TIMEDIFF` expressions;
-date/time modifiers must be string literals.
+### Apply richer schema changes with an agent
+
+Update tables, fields, and relations through revision-checked schema operations. Conversion preflight reports the planned impact, while schema batches resolve logical names so agents can build related structures without manually stitching together IDs.
+
+## Improvements
+
+- **Serve editor**: Refine record pages, add side-panel record navigation, support copying read-only field values, and simplify Formula result previews.
+- **Structured fields**: Use field-specific search and filter capabilities, preserve Integer values during CSV handling, and support pasting Relation values.
+
+## Bug fixes
+
+- **Relation lookups**: Preserve relation result types, display linked record labels, and navigate to the correct target record in Serve.
+- **Validation**: Detect invalid reserved field indexes and validate optional Markdown content fields.
 
 ## Use with an Agent
 
-The CLI now bundles the matching Eidos Skill. Initialize it in the current
-Space/project or install it for the current user without Node.js or `npx`:
+Initialize the Skill bundled with this CLI version in the current project or install it for your user:
 
 ```sh
 eidos skills init
@@ -38,5 +41,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.0.0 and verify the downloaded archive against the
-release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.1.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
