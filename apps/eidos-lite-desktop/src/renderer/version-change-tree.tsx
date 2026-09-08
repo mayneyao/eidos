@@ -707,6 +707,11 @@ export function VersionChangeList({
                     }}
                   />
                 </button>
+              ) : !table ? (
+                <span
+                  className="version-list-disclosure-spacer"
+                  aria-hidden="true"
+                />
               ) : null}
               {!table ? (
                 <input

@@ -7456,7 +7456,8 @@ body {
      checkbox and file icon columns. Keep the selection surface full width. */
   padding-left: calc(4px + 16px + 4px + 12px + 3px + 4px + 14px + 5px);
 }
-.version-change-list-row .icon-button {
+.version-change-list-row .icon-button,
+.version-list-disclosure-spacer {
   width: 16px;
   height: 22px;
   flex: none;
