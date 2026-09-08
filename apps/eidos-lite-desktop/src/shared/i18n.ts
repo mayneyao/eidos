@@ -97,6 +97,9 @@ const zh: Record<string, string> = {
   "Settings sections": "设置分类",
   Preferences: "偏好设置",
   Theme: "主题",
+  "UI scale": "界面缩放",
+  "Resize the entire interface. Saved for all windows.":
+    "调整整个界面的大小，保存并应用到所有窗口。",
   "Follow the system or keep one appearance.": "跟随系统，或始终使用指定外观。",
   System: "跟随系统",
   Light: "浅色",

@@ -14,6 +14,16 @@ export function eidosLitePreferencesPatch(
   }
   const candidate = value as Record<string, unknown>
   const patch: Partial<EidosLitePreferences> = {}
+  if ("uiZoom" in candidate) {
+    if (
+      typeof candidate.uiZoom !== "number" ||
+      !Number.isFinite(candidate.uiZoom) ||
+      candidate.uiZoom < 0.75 ||
+      candidate.uiZoom > 2
+    )
+      throw new Error("Invalid UI zoom preference")
+    patch.uiZoom = candidate.uiZoom
+  }
   if ("appearance" in candidate) {
     if (
       candidate.appearance !== "system" &&

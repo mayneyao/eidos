@@ -826,6 +826,7 @@ export class WindowController {
   private broadcastPreferences(preferences: EidosLitePreferences): void {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {
+        window.webContents.setZoomFactor(preferences.uiZoom)
         window.webContents.send(IPC_CHANNELS.preferencesChanged, preferences)
       }
     }
@@ -1000,7 +1001,13 @@ export class WindowController {
     window.webContents.on("before-input-event", (event, input) =>
       this.handleWorkspaceShortcutInput(window.webContents, event, input)
     )
-    void this.getPreferences()
+    const windowPreferences = this.getPreferences()
+    window.webContents.on("did-finish-load", () => {
+      void windowPreferences.then((preferences) => {
+        if (!window.isDestroyed())
+          window.webContents.setZoomFactor(preferences.uiZoom)
+      })
+    })
     window.on("app-command", (_event, command) => {
       if (command === "browser-backward") {
         window.webContents.send(IPC_CHANNELS.navigationCommand, "back")
@@ -1009,7 +1016,14 @@ export class WindowController {
       }
     })
     this.trackWindowState(window, kind)
-    if (showWhenReady) window.once("ready-to-show", () => window.show())
+    if (showWhenReady)
+      window.once("ready-to-show", () => {
+        void windowPreferences.then((preferences) => {
+          if (window.isDestroyed()) return
+          window.webContents.setZoomFactor(preferences.uiZoom)
+          window.show()
+        })
+      })
     return window
   }
 

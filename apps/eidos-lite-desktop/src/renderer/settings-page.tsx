@@ -366,6 +366,29 @@ export function SettingsPage() {
             >
               <h2 id="settings-preferences">{t("Preferences")}</h2>
               <div className="settings-group">
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("UI scale")}</strong>
+                    <small>
+                      {t("Resize the entire interface. Saved for all windows.")}
+                    </small>
+                  </div>
+                  <select
+                    aria-label={t("UI scale")}
+                    value={preferences.uiZoom ?? 1}
+                    onChange={(event) =>
+                      void updatePreferences({
+                        uiZoom: Number(event.target.value),
+                      })
+                    }
+                  >
+                    {[0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2].map((value) => (
+                      <option key={value} value={value}>
+                        {Math.round(value * 100)}%
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="settings-row settings-row-stacked">
                   <div className="settings-row-copy">
                     <strong>{t("Theme")}</strong>

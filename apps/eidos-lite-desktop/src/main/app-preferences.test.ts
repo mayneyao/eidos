@@ -33,6 +33,7 @@ describe("Eidos Lite preferences", () => {
     await expect(store.get()).resolves.toEqual(DEFAULT_EIDOS_LITE_PREFERENCES)
     await expect(
       store.update({
+        uiZoom: 1.5,
         appearance: "dark",
         language: "zh",
         markdownFileEditingMode: "wysiwyg",
@@ -51,6 +52,7 @@ describe("Eidos Lite preferences", () => {
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
+      uiZoom: 1.5,
       appearance: "dark",
       language: "zh",
       markdownFileEditingMode: "wysiwyg",
@@ -72,6 +74,7 @@ describe("Eidos Lite preferences", () => {
     await expect(
       new EidosLitePreferencesStore(filePath).get()
     ).resolves.toEqual({
+      uiZoom: 1.5,
       appearance: "dark",
       language: "zh",
       markdownFileEditingMode: "wysiwyg",

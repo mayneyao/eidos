@@ -2,6 +2,14 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts bounded UI scales and rejects invalid values", () => {
+    expect(eidosLitePreferencesPatch({ uiZoom: 1.5 })).toEqual({ uiZoom: 1.5 })
+    for (const uiZoom of [0, -1, 3, NaN, Infinity, "1.5", null]) {
+      expect(() => eidosLitePreferencesPatch({ uiZoom })).toThrow(
+        "Invalid UI zoom"
+      )
+    }
+  })
   it("keeps every supported preference, including a fixed time zone", () => {
     const patch = {
       appearance: "dark" as const,

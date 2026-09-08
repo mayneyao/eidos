@@ -19,6 +19,7 @@ import {
 } from "../shared/keyboard-shortcuts"
 
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
+  uiZoom: 1,
   appearance: "system",
   language: "system",
   markdownFileEditingMode: "source",
@@ -109,6 +110,13 @@ export function normalizeEidosLitePreferences(
   const defaultSpaceLocation = candidate.defaultSpaceLocation
   return {
     appearance: appearance(candidate.appearance),
+    uiZoom:
+      typeof candidate.uiZoom === "number" &&
+      Number.isFinite(candidate.uiZoom) &&
+      candidate.uiZoom >= 0.75 &&
+      candidate.uiZoom <= 2
+        ? candidate.uiZoom
+        : 1,
     language: language(candidate.language),
     markdownFileEditingMode: markdownFileEditingMode(
       candidate.markdownFileEditingMode

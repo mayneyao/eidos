@@ -740,6 +740,7 @@ export type EidosLiteMarkdownCompatibilityProfile = "eidos" | "obsidian"
 export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
+  uiZoom: number
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
   /** Default editor for ordinary `.md` and `.markdown` files. */
