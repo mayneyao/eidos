@@ -120,7 +120,8 @@ describe("push publication failure", () => {
       })
       expect(scheduled).toHaveLength(0)
       expect(graft.push).toHaveBeenCalledTimes(1)
-      expect(graft.status).toHaveBeenCalledTimes(3)
+      expect(graft.status).toHaveBeenCalledTimes(2)
+      expect(graft.fetch).not.toHaveBeenCalled()
       expect(closeHandles).not.toHaveBeenCalled()
       expect(session.gate.current()).toMatchObject({
         phase: "ready",

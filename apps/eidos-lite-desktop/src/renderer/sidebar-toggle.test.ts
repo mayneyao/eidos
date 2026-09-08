@@ -15,9 +15,15 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   const sidebarHeader = appSource.match(
     /<header className="sidebar-header">([\s\S]*?)<\/header>/
   )?.[1]
-  const fileTitlebar = appSource.match(
-    /<header className="file-titlebar">([\s\S]*?)<\/header>/
-  )?.[1]
+  const fileTitlebars = Array.from(
+    appSource.matchAll(
+      /<header className="file-titlebar">([\s\S]*?)<\/header>/g
+    ),
+    (match) => match[1]
+  )
+  const fileTitlebar = fileTitlebars.find((header) =>
+    header.includes("file-titlebar-identity")
+  )
 
   expect(sidebarHeader).toContain("<TitlebarNavigation")
   expect(fileTitlebar).toContain("collapsedTitlebarNavigation")

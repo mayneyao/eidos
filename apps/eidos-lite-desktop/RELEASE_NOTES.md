@@ -1,25 +1,17 @@
 ## What's new
 
-### Save selected files as a version
+### Read What's New inside Lite
 
-Select files in Changes to save related work together while leaving other edits for a later version. Choose a folder tree or a flat file list, with expandable tables inside Eidos Files, and keep reviewing differences without losing your selection.
-
-### A clearer Sync workflow
-
-Sync now shows how many versions are waiting to upload or receive, with separate actions to check, upload, and receive changes. Compatible changes merge automatically; conflicts stay in one workspace where you can review choices before completing the merge. Account management and logs are available from the account menu, with storage usage behind your account identity.
-
-### Remember your interface size
-
-Interface scaling is saved across windows so your preferred reading size follows you when opening another Space.
+Open What's New from Settings or the Help menu to read the current version's release notes without leaving the app. Notes are available offline in English and Simplified Chinese, with an inline language switch that keeps your interface language unchanged.
 
 ## Improvements
 
-- **Sync performance**: Reduce repeated repository scans and object validation when checking upstream history and preparing merges. Table discovery runs in a private Runtime worker without evicting open editors.
-- **Compact sidebars**: Sync controls remain accessible at narrow widths, and expanded tables align clearly beneath their files in the flat Changes list.
-- **Markdown selection**: Avoid repeated scans when updating text selections.
+- **File opening**: Open HTML files as source or choose Open with > Preview. Embedded previews stay within the document area as panels and windows change size.
+- **Formula preview**: See formula results in a simpler layout with less surrounding clutter.
 
 ## Bug fixes
 
-- **Ignored folders**: Show ignored folders with muted styling and load their contents when expanded, while keeping them excluded from Sync.
-
-No file-format migration is required.
+- **Sync actions**: Saving a local version no longer starts an automatic upload. Explicit uploads use the known remote state without an extra fetch; checking and receiving updates remain separate actions.
+- **Interface scaling**: Keep the latest saved zoom level after reloading a window.
+- **Relation lookups**: Display linked record labels and open the correct target record when a lookup returns relation values.
+- **Changes layout**: Align file rows in the flat Changes list and correct spacing around window panels.
