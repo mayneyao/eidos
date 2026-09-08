@@ -12,7 +12,10 @@ import {
   EIDOS_FILE_VIEWS_TABLE,
 } from "./constants"
 import { EidosFileError } from "./errors"
-import { eidosFileFieldValueType } from "./field-query-capabilities"
+import {
+  configuredTypeRef,
+  eidosFileFieldValueType,
+} from "./field-query-capabilities"
 import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import { registerEidosFormulaFunctions } from "./formula-functions"
 import {
@@ -6026,6 +6029,8 @@ function fieldValueTypeForScan(
   ) {
     return "datetime"
   }
+  const configured = configuredTypeRef(field.property?.valueType)
+  if (configured) return configured
   if (field.type === "lookup" && field.property?.aggregate === "values") {
     const display = String(field.property?.displayType ?? "text")
     return {

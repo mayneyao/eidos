@@ -1763,6 +1763,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     if (field.kind === "lookup") {
       const definition = field.definition as LookupDefinition
+      const targetTableId = this.lookupRowIdTargetTable(field)
       return {
         ...field.settings,
         relationField: definition.relationFieldId,
@@ -1771,6 +1772,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         distinct: definition.distinctValues,
         displayType: this.displayType(field.valueType),
         valueType: field.valueType,
+        ...(targetTableId ? { targetTableId } : {}),
       }
     }
     if (field.kind === "relation") {

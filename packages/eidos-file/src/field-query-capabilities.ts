@@ -103,7 +103,7 @@ const LIST_ATOMS = new Set<string>([
   "file-entry",
 ])
 
-function configuredTypeRef(value: unknown): TypeRef | null {
+export function configuredTypeRef(value: unknown): TypeRef | null {
   if (typeof value === "string" && TYPE_REF_ATOMS.has(value)) {
     return value as TypeRef
   }

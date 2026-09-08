@@ -74,7 +74,8 @@ export function eidosFileLookupListText(
   )
   if (elementType === "row-id") {
     const display = decodeEidosFileRelationDisplay(
-      row[`${field.tableColumnName}__display`]
+      row[`${field.tableColumnName}__display`] ??
+        (field.id ? row[`${field.id}__display`] : undefined)
     )
     const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
     return values
@@ -131,7 +132,8 @@ export function eidosFileRecordFieldText(
   }
   if (field.type === "relation") {
     const display = decodeEidosFileRelationDisplay(
-      row[`${field.tableColumnName}__display`]
+      row[`${field.tableColumnName}__display`] ??
+        (field.id ? row[`${field.id}__display`] : undefined)
     )
     return display.length > 0
       ? display.map((entry) => entry.title).join(", ")

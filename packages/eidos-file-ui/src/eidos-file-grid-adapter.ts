@@ -129,7 +129,8 @@ function relationGridCell(
   allowOverlay = true
 ): EidosFileRelationCell {
   const display = decodeEidosFileRelationDisplay(
-    row?.[`${field.tableColumnName}__display`]
+    row?.[`${field.tableColumnName}__display`] ??
+      (field.id ? row?.[`${field.id}__display`] : undefined)
   )
   const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
   return {

@@ -526,6 +526,44 @@ describe("Eidos File Grid adapter", () => {
       "Ada Lovelace, Grace Hopper"
     )
 
+    const ownerRowWithFieldIdDisplay = {
+      _id: "row_1",
+      project_owners: JSON.stringify([ADA_ID, GRACE_ID]),
+      [`${owners.id}__display`]: JSON.stringify([
+        { id: ADA_ID, title: "Ada Lovelace" },
+        { id: GRACE_ID, title: "Grace Hopper" },
+      ]),
+    }
+    expect(
+      eidosFileValueToGridCell(
+        {
+          ...owners,
+          property: {
+            ...owners.property,
+            targetTableId: "0198c72d-82b5-7000-8000-000000000099",
+          },
+        },
+        ownerRowWithFieldIdDisplay.project_owners,
+        false,
+        ownerRowWithFieldIdDisplay
+      )
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      allowOverlay: false,
+      readonly: true,
+      data: {
+        kind: "eidos-file-relation-cell",
+        values: [
+          { id: ADA_ID, title: "Ada Lovelace" },
+          { id: GRACE_ID, title: "Grace Hopper" },
+        ],
+        targetTableId: "0198c72d-82b5-7000-8000-000000000099",
+      },
+    })
+    expect(eidosFileRecordFieldText(ownerRowWithFieldIdDisplay, owners)).toBe(
+      "Ada Lovelace, Grace Hopper"
+    )
+
     const statuses = {
       ...field("lookup", {
         relationField: "projects",
