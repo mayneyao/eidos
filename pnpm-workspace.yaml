@@ -37,7 +37,10 @@ minimumReleaseAgeExclude:
   - "@lexical/text@0.50.0"
   - "@lexical/utils@0.50.0"
   - "@lexical/yjs@0.50.0"
-  - "lexical@0.50.0"
+  - lexical@0.50.0
+  - "@eidos.space/graft-remote-cloudflare@0.2.4"
+  - "@eidos.space/graft-remote-hono@0.2.4"
+  - "@eidos.space/graft-remote@0.2.4"
 minimumReleaseAgeExcludePrune: true
 
 peerDependencyRules:
@@ -99,4 +102,4 @@ overrides:
   "@tootallnate/once": "^3.0.1"
   "node-abi": "^4.28.0"
 patchedDependencies:
-  '@pierre/trees@1.0.0-beta.5': patches/@pierre__trees@1.0.0-beta.5.patch
+  "@pierre/trees@1.0.0-beta.5": patches/@pierre__trees@1.0.0-beta.5.patch
