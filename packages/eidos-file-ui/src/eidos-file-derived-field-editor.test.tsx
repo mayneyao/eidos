@@ -230,6 +230,9 @@ describe("EidosFileFormulaEditorPopover", () => {
     expect(onPreview).toHaveBeenCalledWith(
       expect.objectContaining({ rowIds: [previewRowId] })
     )
-    expect(document.body.textContent).toContain("Preview · Current row: 8")
+    expect(
+      document.body.querySelector('[data-eidos-file-formula-status="valid"]')
+        ?.textContent
+    ).toBe("8")
   })
 })

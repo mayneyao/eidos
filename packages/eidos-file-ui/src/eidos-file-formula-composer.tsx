@@ -313,77 +313,74 @@ export function EidosFileFormulaComposer({
             placeholder={t("Enter a Formula expression")}
           />
         </div>
-        <div
-          className={cn(
-            "flex min-h-10 items-start gap-2 border-t px-3 py-2 text-xs",
-            status === "error" && "text-destructive"
-          )}
-          aria-live="polite"
-          data-eidos-file-formula-status={status}
-        >
-          {status === "checking" ? (
-            <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
-          ) : status === "valid" ? (
-            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          ) : status === "error" ? (
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <span className="min-w-0 leading-5">
-            {status === "checking"
-              ? t("Checking against this Eidos File…")
-              : status === "error"
-                ? error
-                : status === "valid"
-                  ? preview?.samples[0]
-                    ? t("Preview · {title}: {value}", {
-                        title: preview.samples[0].title || t("Untitled"),
-                        value: displayValue(preview.samples[0].value),
-                      })
-                    : `${t("Formula is valid.")}${
-                        preview?.dependencies.length
-                          ? ` ${t("Uses {fields}.", {
-                              fields: preview.dependencies
-                                .map((item) => item.name)
-                                .join(", "),
-                            })}`
-                          : ""
-                      }`
-                  : t("Start typing to validate and preview this formula.")}
-          </span>
-        </div>
-        <div className="eidos-file-formula-display-row flex items-center justify-between gap-3 border-t px-3 py-2.5">
-          <div className="text-left">
-            <p className="text-xs font-medium">{t("Display as")}</p>
-            <p className="text-[10px] leading-4 text-muted-foreground">
-              {t("Controls the read-only cell format.")}
-            </p>
-          </div>
-          <Select
-            value={displayType}
-            disabled={disabled}
-            onValueChange={(value) =>
-              onDisplayTypeChange(value as EidosFileFormulaResultType)
-            }
+        <div className="flex items-start gap-4 border-t px-3 py-2">
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-start gap-2 py-1 text-xs",
+              status === "error" && "text-destructive"
+            )}
+            aria-live="polite"
+            data-eidos-file-formula-status={status}
           >
-            <SelectTrigger className="eidos-file-formula-display-select h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DISPLAY_TYPES.map((type) => (
-                <SelectItem key={type.value} value={type.value}>
-                  <span className="flex items-center gap-2">
-                    <EidosFileFieldTypeIcon
-                      type={type.value}
-                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span>{t(type.label)}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {status === "checking" ? (
+              <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+            ) : status === "valid" ? (
+              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : status === "error" ? (
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="eidos-file-formula-preview-value min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words leading-5">
+              {status === "checking"
+                ? t("Checking against this Eidos File…")
+                : status === "error"
+                  ? error
+                  : status === "valid"
+                    ? preview?.samples[0]
+                      ? displayValue(preview.samples[0].value)
+                      : `${t("Formula is valid.")}${
+                          preview?.dependencies.length
+                            ? ` ${t("Uses {fields}.", {
+                                fields: preview.dependencies
+                                  .map((item) => item.name)
+                                  .join(", "),
+                              })}`
+                            : ""
+                        }`
+                    : t("Start typing to validate and preview this formula.")}
+            </span>
+          </div>
+          <div className="eidos-file-formula-display-row flex shrink-0 items-center gap-2">
+            <Select
+              value={displayType}
+              disabled={disabled}
+              onValueChange={(value) =>
+                onDisplayTypeChange(value as EidosFileFormulaResultType)
+              }
+            >
+              <SelectTrigger
+                aria-label={t("Display as")}
+                title={t("Display as")}
+                className="eidos-file-formula-display-select h-7 whitespace-nowrap text-xs"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISPLAY_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    <span className="flex items-center gap-2">
+                      <EidosFileFieldTypeIcon
+                        type={type.value}
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      />
+                      <span>{t(type.label)}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </section>
 

@@ -209,7 +209,14 @@
   }
 
   .eidos-file-formula-display-select {
-    width: 9rem;
+    width: 7rem;
+    flex-shrink: 0;
+  }
+
+  .eidos-file-formula-preview-value {
+    max-height: 7.5rem;
+    overflow-wrap: anywhere;
+    scrollbar-gutter: stable;
   }
 
   @container eidos-file-formula-composer (max-width: 480px) {
@@ -232,13 +239,8 @@
   }
 
   @container eidos-file-formula-composer (max-width: 420px) {
-    .eidos-file-formula-display-row {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
     .eidos-file-formula-display-select {
-      width: 100%;
+      width: 6rem;
     }
   }
 
