@@ -1,0 +1,64 @@
+diff --git a/dist/model/publicTypes.d.ts b/dist/model/publicTypes.d.ts
+index 0d75f14780eb033fdbc8fde76e6f4c080e1d096a..d085439eb3994d821d3c20fbbd4debda1c9c6f04 100644
+--- a/dist/model/publicTypes.d.ts
++++ b/dist/model/publicTypes.d.ts
+@@ -291,6 +291,7 @@ interface FileTreeCompositionOptions {
+   header?: FileTreeHeaderCompositionOptions;
+ }
+ interface FileTreeRowDecorationText {
++  checkbox?: { checked: boolean | 'mixed'; disabled?: boolean; label: string; onChange(): void };
+   text: string;
+   title?: string;
+ }
+diff --git a/dist/render/FileTree.d.ts b/dist/render/FileTree.d.ts
+index b86b9865272df83225a6b0330117ddb9c83a8ee0..eb79d19c28ac73814dedcee0b7b9696cfe1b3392 100644
+--- a/dist/render/FileTree.d.ts
++++ b/dist/render/FileTree.d.ts
+@@ -42,6 +42,7 @@ declare class FileTree implements FileTreeMutationHandle, FileTreeSearchSessionH
+   setComposition(composition?: FileTreeCompositionOptions): void;
+   setGitStatus(gitStatus?: FileTreeOptions['gitStatus']): void;
+   setIcons(icons?: FileTreeOptions['icons']): void;
++  setRowDecoration(renderer?: FileTreeOptions['renderRowDecoration']): void;
+   hydrate({
+     fileTreeContainer
+   }: FileTreeHydrationProps): void;
+diff --git a/dist/render/FileTree.js b/dist/render/FileTree.js
+index a3acb5917de61ee8283f12fe5a73282437cfcfab..b9e04eabb7ce9c2128d156746e9b321a61a2c4a6 100644
+--- a/dist/render/FileTree.js
++++ b/dist/render/FileTree.js
+@@ -253,6 +253,11 @@ var FileTree = class {
+ 		this.#syncIconSurface(mountedTree.host, mountedTree.wrapper);
+ 		renderFileTreeRoot(mountedTree.wrapper, this.#getViewProps());
+ 	}
++	setRowDecoration(renderer) {
++		this.#renderRowDecoration = renderer;
++		const mountedTree = this.#getMountedTreeElements();
++		if (mountedTree != null) renderFileTreeRoot(mountedTree.wrapper, this.#getViewProps());
++	}
+ 	hydrate({ fileTreeContainer }) {
+ 		const host = this.#prepareHost(fileTreeContainer);
+ 		const wrapper = this.#getOrCreateWrapper(host);
+diff --git a/dist/render/FileTreeView.js b/dist/render/FileTreeView.js
+index 3d02080ad553347e7fe95e261c993b607b4134c2..3e00b8d83ac97e547fbd38c191ce963ca62651c1 100644
+--- a/dist/render/FileTreeView.js
++++ b/dist/render/FileTreeView.js
+@@ -365,6 +365,19 @@ function renderFileTreeRowContent(row, resolveIcon, { actionLaneEnabled = false,
+ 			"data-item-section": "icon",
+ 			children: row.kind === "directory" ? /* @__PURE__ */ jsx(Icon, { ...resolveIcon("file-tree-icon-chevron") }) : /* @__PURE__ */ jsx(Icon, { ...resolveIcon("file-tree-icon-file", targetPath) })
+ 		}),
++		customDecoration?.checkbox ? jsx("input", {
++			"data-tree-checkbox": "true",
++			type: "checkbox",
++			"aria-label": customDecoration.checkbox.label,
++			"aria-checked": customDecoration.checkbox.checked,
++			checked: customDecoration.checkbox.checked === true,
++			disabled: customDecoration.checkbox.disabled,
++			ref: (element) => { if (element) element.indeterminate = customDecoration.checkbox.checked === "mixed"; },
++			onMouseDown: (event) => event.stopPropagation(),
++			onClick: (event) => event.stopPropagation(),
++			onKeyDown: (event) => event.stopPropagation(),
++			onChange: () => customDecoration.checkbox.onChange()
++		}) : null,
+ 		/* @__PURE__ */ jsx("div", {
+ 			"data-item-section": "content",
+ 			children: row.isFlattened ? formatFlattenedSegments(row, renameInput, dragTargetFlattenedSegmentPath) : renameInput ?? /* @__PURE__ */ jsx(MiddleTruncate, {
