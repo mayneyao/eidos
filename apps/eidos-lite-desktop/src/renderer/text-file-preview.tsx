@@ -10,14 +10,10 @@ import {
 } from "react"
 import {
   CircleAlert,
-  Eye,
   FileText,
   FileWarning,
   FolderOpen,
   LoaderCircle,
-  PencilLine,
-  RefreshCw,
-  ShieldCheck,
 } from "lucide-react"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
@@ -25,7 +21,6 @@ import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from 
 import type {
   EidosLiteMarkdownCompatibilityProfile,
   EidosLiteMarkdownEditingMode,
-  HtmlPreviewBounds,
   TextFilePreviewResult,
 } from "../shared/contracts"
 import { fileManagerMessage } from "../shared/platform-copy"
@@ -351,111 +346,66 @@ type BrowserTextPreview = TextPreview & {
   browserPreview: NonNullable<TextPreview["browserPreview"]>
 }
 
-function previewBounds(element: HTMLElement): HtmlPreviewBounds | null {
-  const rectangle = element.getBoundingClientRect()
-  if (rectangle.width < 1 || rectangle.height < 1) return null
-  return {
-    x: rectangle.left,
-    y: rectangle.top,
-    width: rectangle.width,
-    height: rectangle.height,
-  }
-}
-
 function HtmlPreviewSurface({
   previewId,
   url,
-  visible,
   focusRequestToken,
 }: {
   previewId: string
   url: string
-  visible: boolean
   focusRequestToken: number
 }) {
   const { t } = useEidosLiteI18n()
   const hostRef = useRef<HTMLDivElement>(null)
   useFileContentFocusRequest(focusRequestToken, () =>
-    hostRef.current?.focus({ preventScroll: true })
+    hostRef.current?.querySelector<HTMLElement>("webview")?.focus()
   )
-  const visibleRef = useRef(visible)
   const [state, setState] = useState<"loading" | "ready" | "error">("loading")
   const [error, setError] = useState<string | null>(null)
-
   useEffect(() => {
-    visibleRef.current = visible
-  }, [visible])
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
     let active = true
-    let animationFrame = 0
-
-    const syncLayout = () => {
-      window.cancelAnimationFrame(animationFrame)
-      animationFrame = window.requestAnimationFrame(() => {
-        const bounds = previewBounds(host)
-        if (!bounds || !active) return
-        void window.eidosLite
-          .layoutHtmlPreview({
-            previewId,
-            bounds,
-            visible: visibleRef.current,
-          })
-          .catch((cause) => {
-            if (!active) return
-            setState("error")
-            setError(cause instanceof Error ? cause.message : String(cause))
-          })
-      })
-    }
-    const bounds = previewBounds(host)
-    if (!bounds) return
-    const observer = new ResizeObserver(syncLayout)
-    observer.observe(host)
-    window.addEventListener("resize", syncLayout)
-    window.addEventListener("scroll", syncLayout, true)
+    let guest: Electron.WebviewTag | undefined
     setState("loading")
     setError(null)
     void window.eidosLite
-      .openHtmlPreview({
-        previewId,
-        url,
-        bounds,
-        visible: visibleRef.current,
-      })
-      .then(() => {
-        if (active) setState("ready")
+      .openHtmlPreview({ previewId, url })
+      .then((partition) => {
+        if (!active || !hostRef.current) return
+        guest = document.createElement("webview") as Electron.WebviewTag
+        guest.className = "html-preview-webview"
+        guest.setAttribute("partition", partition)
+        guest.setAttribute("src", url)
+        guest.setAttribute("aria-label", "HTML preview")
+        guest.addEventListener("dom-ready", () => {
+          if (active) setState("ready")
+        })
+        guest.addEventListener("did-fail-load", (event) => {
+          if (active && event.isMainFrame && event.errorCode !== -3) {
+            setError(event.errorDescription)
+            setState("error")
+          }
+        })
+        guest.addEventListener("render-process-gone", () => {
+          if (active) setState("error")
+        })
+        hostRef.current.appendChild(guest)
       })
       .catch((cause) => {
-        if (!active) return
-        setState("error")
-        setError(cause instanceof Error ? cause.message : String(cause))
+        if (active) {
+          setError(String(cause))
+          setState("error")
+        }
       })
-
     return () => {
       active = false
-      observer.disconnect()
-      window.cancelAnimationFrame(animationFrame)
-      window.removeEventListener("resize", syncLayout)
-      window.removeEventListener("scroll", syncLayout, true)
+      guest?.remove()
       void window.eidosLite.closeHtmlPreview(previewId)
     }
   }, [previewId, url])
-
-  useRendererLayoutEffect(() => {
-    const host = hostRef.current
-    const bounds = host ? previewBounds(host) : null
-    if (!bounds) return
-    void window.eidosLite.layoutHtmlPreview({ previewId, bounds, visible })
-  }, [previewId, visible])
-
   return (
     <div
       ref={hostRef}
-      tabIndex={-1}
-      className="html-preview-native-host"
+      className="html-preview-host"
       data-html-preview-state={state}
     >
       {state === "loading" ? (
@@ -519,13 +469,11 @@ function DocumentFilePreview({
   draft,
   theme,
   markdownFileEditingMode,
+  htmlFileOpenMode,
   markdownCompatibilityProfile,
   navigationTarget,
   onOpenInternalLink,
-  platform,
-  nativePreviewSuppressed,
   focusRequestToken,
-  onReveal,
   onSaved,
   onReload,
   onDraftChange,
@@ -534,6 +482,7 @@ function DocumentFilePreview({
   draft?: TextFileDraft
   theme: ResolvedAppearance
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
+  htmlFileOpenMode: "preview" | "source"
   markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -541,7 +490,6 @@ function DocumentFilePreview({
     request: MarkdownEditorInternalLinkRequest
   ): void | Promise<void>
   platform: string
-  nativePreviewSuppressed: boolean
   focusRequestToken: number
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -549,13 +497,12 @@ function DocumentFilePreview({
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
 }) {
   const { t } = useEidosLiteI18n()
-  const [mode, setMode] = useState<"preview" | "edit">("preview")
+  const mode = htmlFileOpenMode === "source" ? "edit" : "preview"
   const reactId = useId()
   const previewId = useMemo(
     () => `html-preview-${reactId.replace(/[^\w:-]/gu, "")}`,
     [reactId]
   )
-  const hasUnsavedChanges = Boolean(draft && draft.content !== preview.content)
   const kindLabel = preview.browserPreview.kind === "html" ? "HTML" : "Markdown"
   const previewLabel = t("{kind} preview of {path}", {
     kind: kindLabel,
@@ -594,69 +541,12 @@ function DocumentFilePreview({
       data-document-file-preview-kind={preview.browserPreview.kind}
       data-document-file-preview-mode={mode}
     >
-      <header className="document-preview-toolbar">
-        <div
-          className="document-preview-mode"
-          role="tablist"
-          aria-label={t("Document view mode")}
-        >
-          <button
-            type="button"
-            role="tab"
-            data-document-preview-mode="preview"
-            aria-selected={mode === "preview"}
-            className="document-preview-mode-button"
-            onClick={() => setMode("preview")}
-          >
-            <Eye aria-hidden="true" /> {t("Preview")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            data-document-preview-mode="edit"
-            aria-selected={mode === "edit"}
-            className="document-preview-mode-button"
-            onClick={() => setMode("edit")}
-          >
-            <PencilLine aria-hidden="true" /> {t("Edit")}
-          </button>
-        </div>
-        <span className="document-preview-security">
-          <ShieldCheck aria-hidden="true" /> {t("Sandboxed")}
-        </span>
-        {hasUnsavedChanges ? (
-          <span className="document-preview-unsaved">
-            {t("Preview shows the saved file")}
-          </span>
-        ) : null}
-        <div className="document-preview-actions">
-          {mode === "preview" && htmlPreview ? (
-            <button
-              type="button"
-              className="document-preview-icon-button"
-              aria-label={t("Refresh document preview")}
-              title={t("Refresh document preview")}
-              onClick={() => void window.eidosLite.reloadHtmlPreview(previewId)}
-            >
-              <RefreshCw aria-hidden="true" />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="editor-empty-action media-preview-reveal"
-            onClick={onReveal}
-          >
-            <FolderOpen aria-hidden="true" /> {t(fileManagerMessage(platform))}
-          </button>
-        </div>
-      </header>
       <div className="document-preview-body">
         {mode === "preview" ? (
           htmlPreview ? (
             <HtmlPreviewSurface
               previewId={previewId}
               url={htmlPreview.url}
-              visible={!nativePreviewSuppressed}
               focusRequestToken={focusRequestToken}
             />
           ) : (
@@ -689,11 +579,11 @@ export function TextFilePreview({
   draft,
   theme,
   markdownFileEditingMode = "source",
+  htmlFileOpenMode = "preview",
   markdownCompatibilityProfile = "eidos",
   navigationTarget,
   onOpenInternalLink,
   platform,
-  nativePreviewSuppressed = false,
   focusRequestToken = 0,
   onReveal,
   onSaved,
@@ -704,6 +594,7 @@ export function TextFilePreview({
   draft?: TextFileDraft
   theme: ResolvedAppearance
   markdownFileEditingMode?: EidosLiteMarkdownEditingMode
+  htmlFileOpenMode?: "preview" | "source"
   markdownCompatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -711,7 +602,6 @@ export function TextFilePreview({
     request: MarkdownEditorInternalLinkRequest
   ): void | Promise<void>
   platform: string
-  nativePreviewSuppressed?: boolean
   focusRequestToken?: number
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -756,11 +646,11 @@ export function TextFilePreview({
           draft={draft}
           theme={theme}
           markdownFileEditingMode={markdownFileEditingMode}
+          htmlFileOpenMode={htmlFileOpenMode}
           markdownCompatibilityProfile={markdownCompatibilityProfile}
           navigationTarget={navigationTarget}
           onOpenInternalLink={onOpenInternalLink}
           platform={platform}
-          nativePreviewSuppressed={nativePreviewSuppressed}
           focusRequestToken={focusRequestToken}
           onReveal={onReveal}
           onSaved={onSaved}

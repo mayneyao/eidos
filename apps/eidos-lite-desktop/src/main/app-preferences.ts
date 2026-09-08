@@ -23,6 +23,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
   markdownFileEditingMode: "source",
+  htmlFileOpenMode: "preview",
   markdownCompatibilityProfile: "eidos",
   terminalLayout: "bottom",
   timeZone: "system",
@@ -118,6 +119,8 @@ export function normalizeEidosLitePreferences(
         ? candidate.uiZoom
         : 1,
     language: language(candidate.language),
+    htmlFileOpenMode:
+      candidate.htmlFileOpenMode === "source" ? "source" : "preview",
     markdownFileEditingMode: markdownFileEditingMode(
       candidate.markdownFileEditingMode
     ),

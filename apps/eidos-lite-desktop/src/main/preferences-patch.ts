@@ -53,6 +53,15 @@ export function eidosLitePreferencesPatch(
     }
     patch.markdownFileEditingMode = candidate.markdownFileEditingMode
   }
+  if ("htmlFileOpenMode" in candidate) {
+    if (
+      candidate.htmlFileOpenMode !== "source" &&
+      candidate.htmlFileOpenMode !== "preview"
+    ) {
+      throw new Error("Invalid HTML file open mode")
+    }
+    patch.htmlFileOpenMode = candidate.htmlFileOpenMode
+  }
   if ("markdownCompatibilityProfile" in candidate) {
     if (
       candidate.markdownCompatibilityProfile !== "eidos" &&

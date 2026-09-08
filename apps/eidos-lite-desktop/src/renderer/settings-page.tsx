@@ -5,6 +5,7 @@ import {
   Copy,
   ExternalLink,
   FolderOpen,
+  FileText,
   Info,
   Keyboard,
   LogIn,
@@ -63,6 +64,7 @@ const TERMINAL_LAYOUT_OPTIONS: Array<{
 
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
+  { id: "files", label: "Files", icon: FileText },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "spaces", label: "Spaces", icon: FolderOpen },
   { id: "plugins", label: "Built-in Plugins", icon: Blocks },
@@ -459,6 +461,55 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("Time zone")}</strong>
+                    <small>
+                      {t(
+                        "Follow the system time zone or choose a fixed zone for date and time displays."
+                      )}
+                    </small>
+                  </div>
+                  <TimeZonePicker
+                    value={preferences.timeZone}
+                    label={t("Time zone")}
+                    t={t}
+                    onChange={(timeZone) =>
+                      void updatePreferences({ timeZone })
+                    }
+                  />
+                </div>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("Start week on Monday")}</strong>
+                    <small>
+                      {t("Show Monday as the first day in Calendar views.")}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    className="settings-switch"
+                    aria-label={t("Start week on Monday")}
+                    aria-checked={preferences.weekStartsOnMonday}
+                    onClick={() =>
+                      void updatePreferences({
+                        weekStartsOnMonday: !preferences.weekStartsOnMonday,
+                      })
+                    }
+                  >
+                    <span />
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="settings-files"
+              hidden={activePage !== "files"}
+            >
+              <h2 id="settings-files">{t("Files")}</h2>
+              <div className="settings-group">
                 <div
                   className="settings-row settings-row-stacked"
                   data-markdown-file-editing-mode
@@ -499,43 +550,34 @@ export function SettingsPage() {
                 </div>
                 <div className="settings-row">
                   <div className="settings-row-copy">
-                    <strong>{t("Time zone")}</strong>
+                    <strong>{t("HTML default open mode")}</strong>
                     <small>
                       {t(
-                        "Follow the system time zone or choose a fixed zone for date and time displays."
+                        "Choose how .html and .htm files open. Preview runs in a sandbox."
                       )}
                     </small>
                   </div>
-                  <TimeZonePicker
-                    value={preferences.timeZone}
-                    label={t("Time zone")}
-                    t={t}
-                    onChange={(timeZone) =>
-                      void updatePreferences({ timeZone })
-                    }
-                  />
-                </div>
-                <div className="settings-row">
-                  <div className="settings-row-copy">
-                    <strong>{t("Start week on Monday")}</strong>
-                    <small>
-                      {t("Show Monday as the first day in Calendar views.")}
-                    </small>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    className="settings-switch"
-                    aria-label={t("Start week on Monday")}
-                    aria-checked={preferences.weekStartsOnMonday}
-                    onClick={() =>
-                      void updatePreferences({
-                        weekStartsOnMonday: !preferences.weekStartsOnMonday,
-                      })
-                    }
+                  <div
+                    className="settings-segmented-control"
+                    data-segment-count={2}
+                    role="radiogroup"
+                    aria-label={t("HTML default open mode")}
                   >
-                    <span />
-                  </button>
+                    {(["source", "preview"] as const).map((mode) => (
+                      <button
+                        type="button"
+                        role="radio"
+                        key={mode}
+                        data-html-file-open-mode={mode}
+                        aria-checked={preferences.htmlFileOpenMode === mode}
+                        onClick={() =>
+                          void updatePreferences({ htmlFileOpenMode: mode })
+                        }
+                      >
+                        {t(mode === "preview" ? "Preview" : "Source")}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </section>

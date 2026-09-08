@@ -5602,7 +5602,7 @@ body {
 
 .document-file-preview {
   display: grid;
-  grid-template-rows: 2rem minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--canvas);
@@ -5723,7 +5723,7 @@ body {
 
 .document-preview-body,
 .document-preview-body > .text-file-preview,
-.document-preview-body > .html-preview-native-host,
+.document-preview-body > .html-preview-host,
 .document-preview-body > .markdown-preview-scroll {
   height: 100%;
   min-width: 0;
@@ -5736,7 +5736,7 @@ body {
   background: var(--canvas);
 }
 
-.html-preview-native-host {
+.html-preview-host {
   position: relative;
   width: 100%;
   height: 100%;
@@ -10070,4 +10070,23 @@ body {
 }
 .version-pick-controls span {
   margin-left: auto;
+}
+
+.html-preview-host {
+  display: grid;
+}
+.html-preview-host > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+.html-preview-webview {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.html-preview-host[data-html-preview-state="loading"] .html-preview-webview,
+.html-preview-host[data-html-preview-state="error"] .html-preview-webview {
+  visibility: hidden;
 }

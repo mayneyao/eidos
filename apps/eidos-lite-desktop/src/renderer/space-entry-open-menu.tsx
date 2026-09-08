@@ -4,6 +4,7 @@ import {
   FileText,
   FolderOpen,
   PencilLine,
+  Eye,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -19,10 +20,11 @@ export function SpaceEntryOpenMenuItems({
   onOpen,
 }: {
   entry: SpaceTreeEntry
-  onOpen(markdownEditingMode?: EidosLiteMarkdownEditingMode): void
+  onOpen(mode?: EidosLiteMarkdownEditingMode | "preview"): void
 }) {
   const { t } = useEidosLiteI18n()
   const [openWithVisible, setOpenWithVisible] = useState(false)
+  const html = /\.html?$/iu.test(entry.relativePath)
 
   if (entry.kind === "directory") return null
 
@@ -32,7 +34,7 @@ export function SpaceEntryOpenMenuItems({
         <FolderOpen aria-hidden="true" />
         {t("Open")}
       </button>
-      {isMarkdownTextFile(entry.relativePath) ? (
+      {isMarkdownTextFile(entry.relativePath) || html ? (
         <div
           className="space-context-menu-submenu-trigger"
           role="none"
@@ -76,10 +78,14 @@ export function SpaceEntryOpenMenuItems({
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => onOpen("wysiwyg")}
+                onClick={() => onOpen(html ? "preview" : "wysiwyg")}
               >
-                <PencilLine aria-hidden="true" />
-                {t("Rich text")}
+                {html ? (
+                  <Eye aria-hidden="true" />
+                ) : (
+                  <PencilLine aria-hidden="true" />
+                )}
+                {t(html ? "Preview" : "Rich text")}
               </button>
             </div>
           ) : null}

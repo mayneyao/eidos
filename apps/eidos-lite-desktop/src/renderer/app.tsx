@@ -765,6 +765,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteMarkdownEditingMode>(
       DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
     )
+  const [htmlFileOpenMode, setHtmlFileOpenMode] = useState<
+    "preview" | "source"
+  >("preview")
+  const [textPreviewHtmlMode, setTextPreviewHtmlMode] = useState<
+    "preview" | "source"
+  >("preview")
   const [markdownCompatibilityProfile, setMarkdownCompatibilityProfile] =
     useState<EidosLiteMarkdownCompatibilityProfile>(
       DEFAULT_RENDERER_PREFERENCES.markdownCompatibilityProfile
@@ -1100,6 +1106,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
       setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
+      setHtmlFileOpenMode(preferences.htmlFileOpenMode ?? "preview")
       setMarkdownCompatibilityProfile(preferences.markdownCompatibilityProfile)
       setTerminalLayout(resolvedTerminalLayout)
       setBuiltInPlugins(preferences.builtInPlugins)
@@ -1419,6 +1426,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   useEffect(() => {
     if (!contextMenu) return
     const close = () => setContextMenu(null)
+    const unsubscribePreviewPointer =
+      window.eidosLite.onHtmlPreviewPointerDown(close)
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") close()
     }
@@ -1427,6 +1436,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     return () => {
       window.removeEventListener("pointerdown", close)
       window.removeEventListener("keydown", closeOnEscape)
+      unsubscribePreviewPointer()
     }
   }, [contextMenu])
 
@@ -1923,7 +1933,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       entry: SpaceTreeEntry,
       options: {
         recordHistory?: boolean
-        markdownEditingMode?: EidosLiteMarkdownEditingMode
+        fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
@@ -1935,13 +1945,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setFileIssue(null)
         try {
           const editingMode =
-            options.markdownEditingMode ?? markdownFileEditingMode
+            options.fileOpenMode === "preview"
+              ? markdownFileEditingMode
+              : (options.fileOpenMode ?? markdownFileEditingMode)
+          const htmlMode =
+            options.fileOpenMode === "source"
+              ? "source"
+              : options.fileOpenMode === "preview"
+                ? "preview"
+                : htmlFileOpenMode
           const preview = await window.eidosLite.previewTextFile(
             entry.relativePath
           )
           await prepareTextFilePreview(preview, editingMode)
           setActiveSession(null)
           setTextPreviewEditingMode(editingMode)
+          setTextPreviewHtmlMode(htmlMode)
           setTextPreview(preview)
           rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
@@ -2066,6 +2085,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     [
       cachedFiles,
       markdownFileEditingMode,
+      htmlFileOpenMode,
       recordNavigationLocation,
       rememberOpenedEntry,
     ]
@@ -2155,7 +2175,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           size: preview.size,
           modifiedAtMs: preview.modifiedAtMs,
         },
-        { markdownEditingMode: "wysiwyg" }
+        { fileOpenMode: "wysiwyg" }
       )
       if (opened) {
         setMarkdownNavigationTarget({
@@ -3506,6 +3526,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
                     markdownFileEditingMode={textPreviewEditingMode}
+                    htmlFileOpenMode={textPreviewHtmlMode}
                     markdownCompatibilityProfile={markdownCompatibilityProfile}
                     navigationTarget={
                       markdownNavigationTarget?.relativePath ===
@@ -3515,13 +3536,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     }
                     onOpenInternalLink={openMarkdownInternalLink}
                     platform={platform}
-                    nativePreviewSuppressed={
-                      quickOpenVisible ||
-                      Boolean(pathDialog) ||
-                      sidebarResizing ||
-                      rightSidebarResizing ||
-                      terminalPanelResizing
-                    }
                     focusRequestToken={fileSurfaceFocusRequestToken}
                     onSaved={(file) =>
                       setTextPreview((current) =>
@@ -3945,8 +3959,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <SpaceEntryOpenMenuItems
             key={contextMenu.entry.relativePath}
             entry={contextMenu.entry}
-            onOpen={(markdownEditingMode) => {
-              void openEntry(contextMenu.entry, { markdownEditingMode })
+            onOpen={(fileOpenMode) => {
+              void openEntry(contextMenu.entry, { fileOpenMode })
               setContextMenu(null)
             }}
           />

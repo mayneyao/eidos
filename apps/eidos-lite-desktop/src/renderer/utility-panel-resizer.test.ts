@@ -33,9 +33,7 @@ it("resizes every auxiliary view through one persistent right boundary", async (
   expect(appSource).toContain("startWidth + startX - pointerEvent.clientX")
   expect(appSource).toContain("resizer.setPointerCapture(pointerId)")
   expect(appSource).toContain("resizer.releasePointerCapture(pointerId)")
-  expect(appSource).toMatch(
-    /nativePreviewSuppressed=\{[\s\S]*?sidebarResizing \|\|[\s\S]*?rightSidebarResizing/
-  )
+  expect(appSource).not.toContain("nativePreviewSuppressed")
 
   expect(styles).not.toContain("--utility-panel-width")
   expect(styles).toMatch(

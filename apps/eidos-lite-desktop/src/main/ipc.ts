@@ -15,8 +15,6 @@ import {
   type EidosLiteMarkdownImageImportRequest,
   type EidosLitePathClipboardMode,
   type EidosLiteSettingsDestination,
-  type HtmlPreviewBounds,
-  type HtmlPreviewLayoutRequest,
   type HtmlPreviewOpenRequest,
   type TextFileSaveRequest,
   type EidosSyncHelpDestination,
@@ -457,27 +455,6 @@ function markdownImageImportRequest(
   }
 }
 
-function htmlPreviewBounds(value: unknown): HtmlPreviewBounds {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Invalid HTML preview bounds")
-  }
-  const candidate = value as Record<string, unknown>
-  const values = [candidate.x, candidate.y, candidate.width, candidate.height]
-  if (
-    values.some((item) => typeof item !== "number" || !Number.isFinite(item)) ||
-    (candidate.width as number) <= 0 ||
-    (candidate.height as number) <= 0
-  ) {
-    throw new Error("Invalid HTML preview bounds")
-  }
-  return {
-    x: candidate.x as number,
-    y: candidate.y as number,
-    width: candidate.width as number,
-    height: candidate.height as number,
-  }
-}
-
 function htmlPreviewIdentity(value: unknown): string {
   if (typeof value !== "string" || !/^[\w:-]{1,128}$/u.test(value)) {
     throw new Error("Invalid HTML preview identity")
@@ -490,32 +467,12 @@ function htmlPreviewOpenRequest(value: unknown): HtmlPreviewOpenRequest {
     throw new Error("Invalid HTML preview")
   }
   const candidate = value as Record<string, unknown>
-  if (
-    typeof candidate.url !== "string" ||
-    typeof candidate.visible !== "boolean"
-  ) {
+  if (typeof candidate.url !== "string") {
     throw new Error("Invalid HTML preview")
   }
   return {
     previewId: htmlPreviewIdentity(candidate.previewId),
     url: candidate.url,
-    bounds: htmlPreviewBounds(candidate.bounds),
-    visible: candidate.visible,
-  }
-}
-
-function htmlPreviewLayoutRequest(value: unknown): HtmlPreviewLayoutRequest {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Invalid HTML preview layout")
-  }
-  const candidate = value as Record<string, unknown>
-  if (typeof candidate.visible !== "boolean") {
-    throw new Error("Invalid HTML preview layout")
-  }
-  return {
-    previewId: htmlPreviewIdentity(candidate.previewId),
-    bounds: htmlPreviewBounds(candidate.bounds),
-    visible: candidate.visible,
   }
 }
 
@@ -1127,10 +1084,6 @@ export function registerIpc(
       space.canonical.root,
       htmlPreviewOpenRequest(value)
     )
-  })
-  ipcMain.handle(IPC_CHANNELS.htmlPreviewLayout, (event, value: unknown) => {
-    controller.requireSession(event.sender)
-    htmlPreviewViews.layout(event.sender, htmlPreviewLayoutRequest(value))
   })
   ipcMain.handle(IPC_CHANNELS.htmlPreviewReload, (event, value: unknown) => {
     controller.requireSession(event.sender)

@@ -91,12 +91,8 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource).toContain(
     'resizer.addEventListener("lostpointercapture", cleanup)'
   )
-  expect(appSource).toMatch(
-    /nativePreviewSuppressed=\{[\s\S]*?sidebarResizing[\s\S]*?\}/
-  )
-  expect(textFilePreviewSource).toMatch(
-    /useRendererLayoutEffect\(\(\) => \{[\s\S]*?layoutHtmlPreview\(\{ previewId, bounds, visible \}\)[\s\S]*?\}, \[previewId, visible\]\)/
-  )
+  expect(appSource).not.toContain("nativePreviewSuppressed")
+  expect(textFilePreviewSource).not.toContain("layoutHtmlPreview")
   expect(styles).toMatch(
     /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?transition-delay:\s*0s !important;[\s\S]*?transition-duration:\s*0\.01ms !important;/
   )

@@ -2,6 +2,16 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts HTML opening modes and rejects unsupported editors", () => {
+    for (const htmlFileOpenMode of ["preview", "source"]) {
+      expect(eidosLitePreferencesPatch({ htmlFileOpenMode })).toEqual({
+        htmlFileOpenMode,
+      })
+    }
+    expect(() =>
+      eidosLitePreferencesPatch({ htmlFileOpenMode: "wysiwyg" })
+    ).toThrow("Invalid HTML file open mode")
+  })
   it("accepts bounded UI scales and rejects invalid values", () => {
     expect(eidosLitePreferencesPatch({ uiZoom: 1.5 })).toEqual({ uiZoom: 1.5 })
     for (const uiZoom of [0, -1, 3, NaN, Infinity, "1.5", null]) {

@@ -111,7 +111,7 @@ export const IPC_CHANNELS = {
   openFile: "eidos-lite:file-open",
   previewTextFile: "eidos-lite:text-file-preview",
   htmlPreviewOpen: "eidos-lite:html-preview-open",
-  htmlPreviewLayout: "eidos-lite:html-preview-layout",
+  htmlPreviewPointerDown: "eidos-lite:html-preview-pointer-down",
   htmlPreviewReload: "eidos-lite:html-preview-reload",
   htmlPreviewClose: "eidos-lite:html-preview-close",
   saveTextFile: "eidos-lite:text-file-save",
@@ -375,24 +375,9 @@ export type TextFileBrowserPreview =
   | { kind: "html"; url: string }
   | { kind: "markdown" }
 
-export interface HtmlPreviewBounds {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 export interface HtmlPreviewOpenRequest {
   previewId: string
   url: string
-  bounds: HtmlPreviewBounds
-  visible: boolean
-}
-
-export interface HtmlPreviewLayoutRequest {
-  previewId: string
-  bounds: HtmlPreviewBounds
-  visible: boolean
 }
 
 export type TextFilePreviewResult =
@@ -747,6 +732,8 @@ export interface EidosLitePreferences {
   language: EidosLiteLanguage
   /** Default editor for ordinary `.md` and `.markdown` files. */
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
+  /** Default opening mode for .html and .htm files. */
+  htmlFileOpenMode: "preview" | "source"
   /** @deprecated Accepted for old preferences; all values use Eidos Markdown. */
   markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   terminalLayout: EidosLiteTerminalLayout
@@ -1759,8 +1746,8 @@ export interface EidosLiteApi {
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
   previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
-  openHtmlPreview(request: HtmlPreviewOpenRequest): Promise<void>
-  layoutHtmlPreview(request: HtmlPreviewLayoutRequest): Promise<void>
+  openHtmlPreview(request: HtmlPreviewOpenRequest): Promise<string>
+  onHtmlPreviewPointerDown(listener: () => void): () => void
   reloadHtmlPreview(previewId: string): Promise<void>
   closeHtmlPreview(previewId: string): Promise<void>
   saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>

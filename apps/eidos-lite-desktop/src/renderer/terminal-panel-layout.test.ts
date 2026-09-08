@@ -89,9 +89,7 @@ it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench g
   expect(appSource).toContain(
     'document.documentElement.classList.add("resizing-right-sidebar")'
   )
-  expect(appSource).toMatch(
-    /nativePreviewSuppressed=\{[\s\S]*?rightSidebarResizing[\s\S]*?terminalPanelResizing/
-  )
+  expect(appSource).not.toContain("nativePreviewSuppressed")
 
   expect(panelSource).toContain('import { FitAddon } from "@xterm/addon-fit"')
   expect(panelSource).toContain(

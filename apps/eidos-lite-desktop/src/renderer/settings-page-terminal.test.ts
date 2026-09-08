@@ -55,6 +55,25 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   const wysiwygEditor = host.querySelector<HTMLButtonElement>(
     'button[data-markdown-file-editing-mode="wysiwyg"]'
   )
+  const filesPage = [
+    ...host.querySelectorAll<HTMLButtonElement>("nav button"),
+  ].find((button) => button.textContent === "Files")
+  await act(async () => filesPage?.click())
+  expect(
+    host.querySelector<HTMLElement>('[aria-labelledby="settings-files"]')
+      ?.hidden
+  ).toBe(false)
+  expect(
+    wysiwygEditor?.closest("section")?.getAttribute("aria-labelledby")
+  ).toBe("settings-files")
+  const htmlSource = host.querySelector<HTMLButtonElement>(
+    '[data-html-file-open-mode="source"]'
+  )
+  await act(async () => {
+    htmlSource?.click()
+    await Promise.resolve()
+  })
+  expect(updatePreferences).toHaveBeenCalledWith({ htmlFileOpenMode: "source" })
   expect(host.textContent).toContain(
     "Choose the default editor for .md and .markdown files."
   )

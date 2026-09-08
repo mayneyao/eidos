@@ -121,47 +121,56 @@ describe("TextFilePreview", () => {
     expect(saveTextFile).not.toHaveBeenCalled()
   })
 
-  it("opens HTML in an isolated browser preview before loading its source editor", async () => {
-    const preview = {
-      type: "text",
-      relativePath: "dashboard.html",
-      content: "<!doctype html><title>Dashboard</title>",
-      encoding: "utf-8",
-      bom: false,
-      revision: "a".repeat(64),
-      browserPreview: {
-        kind: "html",
-        url: "eidos-space-document://preview/example-ticket",
-      },
-      size: 40,
-      modifiedAtMs: 0,
-      truncated: false,
-    } as const
+  it.each(["preview", "source"] as const)(
+    "opens HTML in %s mode without a toolbar",
+    async (htmlFileOpenMode) => {
+      const preview = {
+        type: "text",
+        relativePath: "dashboard.html",
+        content: "<!doctype html><title>Dashboard</title>",
+        encoding: "utf-8",
+        bom: false,
+        revision: "a".repeat(64),
+        browserPreview: {
+          kind: "html",
+          url: "eidos-space-document://preview/example-ticket",
+        },
+        size: 40,
+        modifiedAtMs: 0,
+        truncated: false,
+      } as const
 
-    await prepareTextFilePreview(preview)
-    const markup = renderToStaticMarkup(
-      createElement(TextFilePreview, {
-        preview,
-        theme: "light",
-        platform: "darwin",
-        onReveal: () => undefined,
-        onSaved: () => undefined,
-        onReload: () => undefined,
-        onDraftChange: () => undefined,
-      })
-    )
+      await prepareTextFilePreview(preview)
+      const markup = renderToStaticMarkup(
+        createElement(TextFilePreview, {
+          preview,
+          htmlFileOpenMode,
+          theme: "light",
+          platform: "darwin",
+          onReveal: () => undefined,
+          onSaved: () => undefined,
+          onReload: () => undefined,
+          onDraftChange: () => undefined,
+        })
+      )
 
-    expect(markup).toContain('data-document-file-preview="dashboard.html"')
-    expect(markup).toContain('data-document-file-preview-kind="html"')
-    expect(markup).toContain('data-document-file-preview-mode="preview"')
-    expect(markup).toContain('class="html-preview-native-host"')
-    expect(markup).not.toContain("<iframe")
-    expect(markup).not.toContain('src="eidos-space-document:')
-    expect(markup).toContain("Sandboxed")
-    expect(markup).toContain("Edit")
-    expect(editorModuleLoaded).not.toHaveBeenCalled()
-    expect(editorSurfaceRendered).not.toHaveBeenCalled()
-  })
+      expect(markup).toContain('data-document-file-preview="dashboard.html"')
+      expect(markup).toContain('data-document-file-preview-kind="html"')
+      expect(markup).toContain(
+        `data-document-file-preview-mode="${htmlFileOpenMode === "source" ? "edit" : "preview"}"`
+      )
+      if (htmlFileOpenMode === "preview")
+        expect(markup).toContain('class="html-preview-host"')
+      else expect(markup).not.toContain('class="html-preview-host"')
+      expect(markup).not.toContain("<iframe")
+      expect(markup).not.toContain('src="eidos-space-document:')
+      expect(markup).not.toContain("document-preview-toolbar")
+      if (htmlFileOpenMode === "preview") {
+        expect(editorModuleLoaded).not.toHaveBeenCalled()
+        expect(editorSurfaceRendered).not.toHaveBeenCalled()
+      }
+    }
+  )
 
   it("opens Markdown directly in the source editor by default", async () => {
     const preview = {

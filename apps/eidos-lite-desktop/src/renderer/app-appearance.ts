@@ -37,6 +37,7 @@ export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
   language: "system",
   markdownFileEditingMode: "source",
+  htmlFileOpenMode: "preview",
   markdownCompatibilityProfile: "eidos",
   terminalLayout: "bottom",
   timeZone: "system",

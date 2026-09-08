@@ -1,3 +1,4 @@
+import { installHtmlPreviewGuestGuard } from "./html-preview-view"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -995,8 +996,10 @@ export class WindowController {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        webviewTag: true,
       },
     })
+    installHtmlPreviewGuestGuard(window.webContents)
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
     window.webContents.on("before-input-event", (event, input) =>

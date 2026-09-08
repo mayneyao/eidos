@@ -171,8 +171,12 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.previewTextFile, relativePath),
   openHtmlPreview: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewOpen, request),
-  layoutHtmlPreview: (request) =>
-    ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewLayout, request),
+  onHtmlPreviewPointerDown: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.htmlPreviewPointerDown, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.htmlPreviewPointerDown, handler)
+  },
   reloadHtmlPreview: (previewId) =>
     ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewReload, previewId),
   closeHtmlPreview: (previewId) =>

@@ -73,7 +73,26 @@ describe("SpaceEntryOpenMenuItems", () => {
     expect(onOpen).toHaveBeenNthCalledWith(2, "wysiwyg")
   })
 
-  it("does not offer editor choices for non-Markdown files", async () => {
+  it.each(["page.html", "page.HTM"])(
+    "offers Preview and Source for %s",
+    async (name) => {
+      const onOpen = await render({
+        ...markdownEntry,
+        name,
+        relativePath: name,
+      })
+      await act(async () => button("Open").click())
+      expect(onOpen).toHaveBeenLastCalledWith()
+      await act(async () => button("Open with").click())
+      await act(async () => button("Preview").click())
+      expect(onOpen).toHaveBeenLastCalledWith("preview")
+      await act(async () => button("Source").click())
+      expect(onOpen).toHaveBeenLastCalledWith("source")
+      expect(host?.textContent).not.toContain("Rich text")
+    }
+  )
+
+  it("does not offer editor choices for plain text files", async () => {
     await render({
       ...markdownEntry,
       name: "notes.txt",

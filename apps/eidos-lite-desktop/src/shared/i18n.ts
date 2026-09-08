@@ -4,6 +4,9 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "HTML default open mode": "HTML 默认打开方式",
+  "Choose how .html and .htm files open. Preview runs in a sandbox.":
+    "选择 .html 和 .htm 文件的默认打开方式。预览在沙箱中运行。",
   "Changes layout": "变更显示方式",
   "Tree view": "树形",
   "List view": "平铺",
