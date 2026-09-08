@@ -353,6 +353,7 @@ export interface SpacePathSearchHit {
 }
 
 export interface SpaceTreeEntry {
+  ignored?: boolean
   name: string
   relativePath: string
   kind: SpaceEntryKind

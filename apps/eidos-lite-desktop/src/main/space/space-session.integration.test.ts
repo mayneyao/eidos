@@ -2197,7 +2197,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   }, 15_000)
 
-  it("prunes ignored untracked trees while keeping tracked descendants visible", async () => {
+  it("shows ignored trees lazily while excluding them from sync", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-space-ignore-session-")
     )
@@ -2239,7 +2239,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
       const reconciled = await session.refresh()
       expect(
         flattenSpaceTree(reconciled.entries).map((entry) => entry.relativePath)
-      ).toEqual(["generated", ".gitignore"])
+      ).toEqual(["generated", "node_modules", ".gitignore"])
+      await vi.waitFor(async () => {
+        const latest = await session!.snapshot()
+        expect(
+          latest.entries.find((entry) => entry.name === "node_modules")
+        ).toMatchObject({ ignored: true, childrenLoaded: false })
+      })
       const snapshot = await session.loadDirectory("generated")
       const visible = flattenSpaceTree(snapshot.entries).map(
         (entry) => entry.relativePath
@@ -2247,7 +2253,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
       expect(visible).toContain("generated")
       expect(visible).toContain("generated/tracked.txt")
-      expect(visible).not.toContain("node_modules")
+      expect(visible).toContain("node_modules")
       expect(
         visible.some((relativePath) => relativePath.startsWith("node_modules/"))
       ).toBe(false)
@@ -2258,6 +2264,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
         reason: "graft-ignore",
       })
       expect(preflight.fileCount).toBe(2)
+
+      const expandedIgnored = await session.loadDirectory("node_modules")
+      expect(
+        flattenSpaceTree(expandedIgnored.entries).map(
+          (entry) => entry.relativePath
+        )
+      ).toContain("node_modules/package")
 
       const sourcePath = path.join(userData, "local-change.txt")
       await fs.writeFile(sourcePath, "changed\n")

@@ -320,7 +320,8 @@ wait for a real repository read.
 
 Explorer directories load only when expanded and cache direct children by
 canonical relative path. Each directory request submits at most 1,000 entries
-per SDK batch-ignore query. The watcher coalesces filesystem events, invalidates
+per SDK batch-ignore query. Ignored entries remain browsable with muted styling;
+their children are loaded only on expansion. The watcher coalesces filesystem events, invalidates
 only affected parent/prefix caches, and reloads only parents that were already
 visible. Sync preflight still scans the complete Space in breadth-first waves,
 with bounded batch ignore queries, because its approval contract requires exact

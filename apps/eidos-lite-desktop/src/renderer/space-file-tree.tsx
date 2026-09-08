@@ -363,6 +363,13 @@ export function SpaceFileTree({
     },
   })
   const selectedPaths = useFileTreeSelection(model)
+  useEffect(() => {
+    model.setGitStatus(
+      [...tree.entryByTreePath.entries()]
+        .filter(([, entry]) => entry.ignored)
+        .map(([path]) => ({ path, status: "ignored" as const }))
+    )
+  }, [model, tree])
   const activeRevealRef = useRef({
     model,
     path: activePath,

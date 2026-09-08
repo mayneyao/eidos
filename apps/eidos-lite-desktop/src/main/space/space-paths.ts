@@ -152,6 +152,7 @@ export async function listSpaceDirectory(
   relativeDirectory: string | null,
   options: {
     maxEntries?: number
+    includeIgnored?: boolean
     ignoredPaths?(
       relativePaths: readonly string[]
     ): Promise<ReadonlySet<string>>
@@ -194,7 +195,8 @@ export async function listSpaceDirectory(
     }
   }
   const visible = candidates.filter(
-    (candidate) => !ignored.has(candidate.relativePath)
+    (candidate) =>
+      options.includeIgnored || !ignored.has(candidate.relativePath)
   )
   const result: SpaceTreeEntry[] = []
   for (let offset = 0; offset < visible.length; offset += 256) {
@@ -207,6 +209,7 @@ export async function listSpaceDirectory(
     for (const { candidate, stats } of resolved) {
       const kind = entryKind(candidate.entry.name, stats)
       result.push({
+        ...(ignored.has(candidate.relativePath) ? { ignored: true } : {}),
         name: candidate.entry.name,
         relativePath: candidate.relativePath,
         kind,

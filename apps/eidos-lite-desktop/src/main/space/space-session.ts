@@ -3354,6 +3354,7 @@ export class SpaceSession {
         key || null,
         respectIgnores
           ? {
+              includeIgnored: true,
               ignoredPaths: async (relativePaths) => {
                 const ignored = await this.inspectIgnores(relativePaths)
                 return new Set(
@@ -3389,11 +3390,22 @@ export class SpaceSession {
           if (this.closed) return
           const current = this.directoryEntriesCache.get(relativePath)
           if (!current) return
-          const filtered = current.filter((entry) => {
+          const filtered = current.map((entry) => {
             const inspection = inspections.get(entry.relativePath)
-            return !inspection || !this.shouldPruneIgnored(inspection)
+            return {
+              ...entry,
+              ignored: inspection
+                ? this.shouldPruneIgnored(inspection)
+                : entry.ignored,
+            }
           })
-          if (filtered.length === current.length) return
+          if (
+            filtered.every(
+              (entry, index) =>
+                Boolean(entry.ignored) === Boolean(current[index].ignored)
+            )
+          )
+            return
           this.directoryEntriesCache.set(relativePath, filtered)
           this.emitCachedOperationSnapshot()
         })
