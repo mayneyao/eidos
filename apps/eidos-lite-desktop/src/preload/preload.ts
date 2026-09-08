@@ -69,6 +69,13 @@ const api: EidosLiteApi = {
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateDownload),
   restartToInstallUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateInstall),
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsOpen),
+  openWhatsNew: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewOpen),
+  openWhatsNewRelease: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewRelease),
+  onWhatsNew: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.whatsNewShow, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.whatsNewShow, handler)
+  },
   openSettingsDestination: (destination) =>
     ipcRenderer.invoke(IPC_CHANNELS.settingsOpenDestination, destination),
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),

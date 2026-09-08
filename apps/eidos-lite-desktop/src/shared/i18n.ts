@@ -4,6 +4,11 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "What's new": "更新内容",
+  "Current version": "当前版本",
+  "Updated to {version}": "已更新至 {version}",
+  "See what's new": "查看变化",
+  "View full release notes": "查看完整发布说明",
   "HTML default open mode": "HTML 默认打开方式",
   "Choose how .html and .htm files open. Preview runs in a sandbox.":
     "选择 .html 和 .htm 文件的默认打开方式。预览在沙箱中运行。",

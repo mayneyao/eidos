@@ -880,6 +880,18 @@ export function SettingsPage() {
               <div className="settings-group">
                 <div className="settings-row">
                   <div className="settings-row-copy">
+                    <strong>{t("Current version")}</strong>
+                    <small>{appInfo?.version ?? "…"}</small>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void window.eidosLite.openWhatsNew()}
+                  >
+                    {t("What's new")} →
+                  </button>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
                     <strong>{t("Automatically download updates")}</strong>
                     <small>
                       {t(

@@ -100,6 +100,7 @@ export class WindowController {
   >()
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
   private settingsWindow: BrowserWindow | null = null
+  private settingsOwnerWindow: BrowserWindow | null = null
   private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
   private readonly windowState = new LiteWindowStateStore(
     app.getPath("userData")
@@ -122,6 +123,8 @@ export class WindowController {
   }
 
   showSettingsWindow(): BrowserWindow {
+    const owner = BrowserWindow.getFocusedWindow()
+    if (owner && owner !== this.settingsWindow) this.settingsOwnerWindow = owner
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.focusWindow(this.settingsWindow)
       return this.settingsWindow
@@ -136,6 +139,27 @@ export class WindowController {
     })
     void this.loadRenderer(window, "/settings")
     return window
+  }
+
+  showWhatsNew(): void {
+    const owner = this.settingsOwnerWindow
+    const target =
+      (owner && !owner.isDestroyed() ? owner : null) ??
+      BrowserWindow.getAllWindows().find(
+        (window) =>
+          !window.isDestroyed() && this.windowKind.get(window) === "space"
+      ) ??
+      BrowserWindow.getAllWindows().find(
+        (window) =>
+          !window.isDestroyed() && this.windowKind.get(window) === "welcome"
+      )
+    if (target) {
+      this.focusWindow(target)
+      target.webContents.send(IPC_CHANNELS.whatsNewShow)
+    } else {
+      const window = this.createWindow(true, "welcome")
+      void this.loadRenderer(window, "/whats-new")
+    }
   }
 
   async createSpaceWindow(

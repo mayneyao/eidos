@@ -75,6 +75,9 @@ export const IPC_CHANNELS = {
   updateDownload: "eidos-lite:update-download",
   updateInstall: "eidos-lite:update-install",
   settingsOpen: "eidos-lite:settings-open",
+  whatsNewOpen: "eidos-lite:whats-new-open",
+  whatsNewShow: "eidos-lite:whats-new-show",
+  whatsNewRelease: "eidos-lite:whats-new-release",
   settingsOpenDestination: "eidos-lite:settings-open-destination",
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
@@ -1694,6 +1697,9 @@ export interface EidosLiteApi {
   downloadUpdate(): Promise<EidosLiteUpdateStatus>
   restartToInstallUpdate(): Promise<void>
   openSettings(): Promise<void>
+  openWhatsNew(): Promise<void>
+  openWhatsNewRelease(): Promise<void>
+  onWhatsNew(listener: () => void): () => void
   openSettingsDestination(
     destination: EidosLiteSettingsDestination
   ): Promise<void>

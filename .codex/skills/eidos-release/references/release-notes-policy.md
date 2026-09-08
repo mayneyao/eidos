@@ -16,6 +16,16 @@ Apply this policy to every tagged Eidos Lite or standalone CLI release.
 - Do not publish a generated body temporarily and edit it after subscribers may
   have received a notification.
 
+### Lite translations
+
+Lite bundles `apps/eidos-lite-desktop/RELEASE_NOTES.md` (English) and
+`apps/eidos-lite-desktop/RELEASE_NOTES.zh-CN.md` (Simplified Chinese) for the
+in-app What's New page. Replace both together during release preparation and
+verify that their changes, categories, and required actions match the same
+version. The Chinese file is a translation, not a separate changelog. The app
+uses its resolved interface language, including the system-language setting;
+GitHub Release `body_path` continues to use the English manifest.
+
 ## Structure and categories
 
 Release notes organize user-visible changes into standard, focused sections:

@@ -139,6 +139,7 @@ import {
   type TextFileDraft,
 } from "./text-file-preview"
 import { SettingsPage } from "./settings-page"
+import { useWhatsNew, WhatsNewPage, releaseVersion } from "./whats-new"
 import type { VersionInspection } from "./version-change-tree"
 import {
   workspaceShortcutAriaKeyShortcuts,
@@ -747,6 +748,7 @@ function Welcome({
 }
 
 function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
+  const whatsNew = useWhatsNew()
   const { t } = useEidosLiteI18n()
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const platform = appInfo?.platform ?? rendererPlatform()
@@ -2898,6 +2900,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
+    if (whatsNew.open)
+      return (
+        <main className="whats-new-welcome">
+          <header className="file-titlebar">
+            <strong>RELEASE_NOTES.md</strong>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close RELEASE_NOTES.md"
+              onClick={whatsNew.close}
+            >
+              <X />
+            </button>
+          </header>
+          <WhatsNewPage theme={theme} />
+        </main>
+      )
     return (
       <>
         <Welcome
@@ -3022,6 +3041,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     <div
       ref={workbenchRef}
       className="workbench"
+      data-whats-new-open={whatsNew.open ? "true" : "false"}
       data-platform={platform}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
@@ -3209,6 +3229,24 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ) : null}
         </nav>
         <footer className="sidebar-footer">
+          {whatsNew.unread && (
+            <div className="whats-new-notice">
+              <button type="button" onClick={whatsNew.show}>
+                <span>
+                  {t("Updated to {version}", { version: releaseVersion })}
+                </span>
+                <small>{t("See what's new")} →</small>
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={whatsNew.dismiss}
+                aria-label={t("Dismiss")}
+              >
+                <X />
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="sidebar-settings-button"
@@ -3279,7 +3317,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       <main
         className="editor-region"
         id="main-content"
-        hidden={!editorSurfaceVisible}
+        hidden={!editorSurfaceVisible && !whatsNew.open}
+        data-whats-new-open={whatsNew.open ? "true" : "false"}
       >
         <header className="file-titlebar">
           {sidebarCollapsed && !terminalOwnsTitlebarNavigation
@@ -3287,7 +3326,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             : null}
           <div className="file-titlebar-identity">
             <div>
-              {activeDocumentPath && !titlebarPresentation.pending ? (
+              {whatsNew.open ? (
+                <strong>RELEASE_NOTES.md</strong>
+              ) : activeDocumentPath && !titlebarPresentation.pending ? (
                 <button
                   type="button"
                   className="file-titlebar-document"
@@ -3321,7 +3362,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               ) : (
                 <strong>{titlebarPresentation.title}</strong>
               )}
-              {activeDocumentDirty && !titlebarPresentation.pending ? (
+              {!whatsNew.open &&
+              activeDocumentDirty &&
+              !titlebarPresentation.pending ? (
                 <span
                   className="file-titlebar-dirty"
                   aria-label={t("Unsaved changes")}
@@ -3329,7 +3372,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 />
               ) : null}
             </div>
-            {activeDocumentPath && !titlebarPresentation.pending ? (
+            {whatsNew.open ? (
+              <button
+                type="button"
+                className="icon-button active-file-close"
+                aria-label="Close RELEASE_NOTES.md"
+                onClick={whatsNew.close}
+              >
+                <X />
+              </button>
+            ) : activeDocumentPath && !titlebarPresentation.pending ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
@@ -3647,6 +3699,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             </div>
           </div>
         </div>
+        {whatsNew.open && <WhatsNewPage theme={theme} />}
       </main>
       {workbenchSurfaces.content === "diff" ? (
         versionInspection ? (

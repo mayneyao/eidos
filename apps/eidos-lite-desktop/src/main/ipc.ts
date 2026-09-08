@@ -956,6 +956,12 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.settingsOpen, () => {
     controller.showSettingsWindow()
   })
+  ipcMain.handle(IPC_CHANNELS.whatsNewOpen, () => controller.showWhatsNew())
+  ipcMain.handle(IPC_CHANNELS.whatsNewRelease, () =>
+    shell.openExternal(
+      `https://github.com/mayneyao/eidos/releases/tag/lite-v${app.getVersion()}`
+    )
+  )
   ipcMain.handle(
     IPC_CHANNELS.settingsOpenDestination,
     (_event, value: unknown) => {
