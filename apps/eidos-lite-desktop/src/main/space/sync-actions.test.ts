@@ -72,6 +72,7 @@ describe("explicit Sync actions", () => {
     const { graft, invoke } = sessionFixture(2, 0, true)
     expect(await invoke("push")).toMatchObject({ pushed: true, pulled: false })
     expect(graft.push).toHaveBeenCalledOnce()
+    expect(graft.fetch).not.toHaveBeenCalled()
     expect(graft.stageAll).not.toHaveBeenCalled()
     expect(graft.commit).not.toHaveBeenCalled()
     expect(graft.applyMerge).not.toHaveBeenCalled()
@@ -85,6 +86,15 @@ describe("explicit Sync actions", () => {
       pulled: false,
     })
     expect(graft.push).not.toHaveBeenCalled()
+  })
+
+  it("surfaces a rejected optimistic upload without fetching or applying remote files", async () => {
+    const { graft, invoke } = sessionFixture(2, 0, false)
+    graft.push.mockRejectedValueOnce(new Error("Remote head changed (CAS)"))
+    await expect(invoke("push")).rejects.toThrow("Remote head changed")
+    expect(graft.fetch).not.toHaveBeenCalled()
+    expect(graft.applyMerge).not.toHaveBeenCalled()
+    expect(graft.commit).not.toHaveBeenCalled()
   })
 
   it("does not receive remote files when upload discovers newer remote versions", async () => {

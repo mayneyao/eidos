@@ -1839,7 +1839,7 @@ body {
     [data-platform="other"]
   )[data-right-sidebar-open="true"]
   > .sync-inspector-host
-  .sync-dialog
+  :is(.sync-dialog, .sync-inspector-b)
   > header {
   padding-right: calc(var(--window-controls-overlay-width) + 0.5rem);
 }

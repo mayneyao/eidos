@@ -78,15 +78,15 @@ The downloaded folder works like any other local Space. You can edit it offline 
 
 ## Everyday Sync
 
-After you save a Version in a connected Space, Eidos Lite automatically adds a Sync task to the background queue. This applies to both manual and automatic Versions.
+Saving a Version stays local, for both manual and automatic Versions. It does not fetch or upload remote history. The cloud button shows how many local Versions are waiting to upload.
 
 A useful routine is:
 
 1. Before starting on another device, open Sync and select **Check now** or download the available updates.
 2. When local work is ready, open Versions and save it from **Changes**.
-3. Watch the cloud button in the top-right corner; the upload can finish in the background.
+3. Open Sync from the cloud button and choose to upload the saved Versions.
 
-If several Versions are waiting, Eidos Lite combines the pending work. You do not need to upload each Version separately.
+One upload sends all waiting Versions. It does not fetch first. If the remote has incompatible changes, the upload is rejected; check remote updates and review them before retrying. Local files remain unchanged.
 
 ### Common states
 
@@ -94,7 +94,7 @@ If several Versions are waiting, Eidos Lite combines the pending work. You do no
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Everything is up to date** | Local and Hosted match. Continue working.                                                        |
 | **Unsaved changes**          | The current work is not a Version yet. Open **Changes** and save it.                             |
-| **Saved versions to upload** | Local Versions are waiting to upload. Upload now or leave the background task to finish.         |
+| **Saved versions to upload** | Local Versions are waiting to upload. Open Sync and upload when ready.                          |
 | **Updates are available**    | Hosted has newer Versions. Download them before editing further.                                 |
 | **Sync queued**              | The background task is waiting to run. Do not click repeatedly.                                  |
 | **Sync will try again soon** | The network or service is temporarily unavailable. Eidos will retry and local files remain safe. |

@@ -55,7 +55,6 @@ import {
   type EidosFileAttachmentDataSource,
 } from "./space/eidos-file-attachments"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
-import { scheduleCheckpointSyncAfterLocalSave } from "./sync/checkpoint-sync-scheduler"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
 import { classifyMergeFailure } from "./sync/merge-failure"
 import { requiredMergeStateToken } from "./sync/merge-token"
@@ -668,7 +667,6 @@ export function registerIpc(
     store: new SyncQueueStore(path.join(app.getPath("userData"))),
   })
   const attachedSenders = new Set<number>()
-  const automaticCheckpointUnsubscribers = new Map<number, () => void>()
   const spaceChangeUnsubscribers = new Map<number, () => void>()
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
   const csvSourceCleanupSenders = new Set<number>()
@@ -824,26 +822,6 @@ export function registerIpc(
     })
     if (!attachedSenders.has(event.sender.id)) {
       attachedSenders.add(event.sender.id)
-      automaticCheckpointUnsubscribers.set(
-        event.sender.id,
-        session.onAutomaticCheckpoint(() => {
-          void (async () => {
-            try {
-              if (await session.officialSyncRemoteUrl()) {
-                await syncQueue.enqueue(
-                  session.canonical.id,
-                  "local-checkpoint"
-                )
-              }
-            } catch (error) {
-              console.warn(
-                "Could not queue the automatic checkpoint for Eidos Sync",
-                error
-              )
-            }
-          })()
-        })
-      )
       spaceChangeUnsubscribers.set(
         event.sender.id,
         session.onChanged((snapshot) => {
@@ -860,8 +838,6 @@ export function registerIpc(
       )
       event.sender.once("destroyed", () => {
         attachedSenders.delete(event.sender.id)
-        automaticCheckpointUnsubscribers.get(event.sender.id)?.()
-        automaticCheckpointUnsubscribers.delete(event.sender.id)
         spaceChangeUnsubscribers.get(event.sender.id)?.()
         spaceChangeUnsubscribers.delete(event.sender.id)
         void syncQueue.detach(session.canonical.id)
@@ -1687,44 +1663,8 @@ export function registerIpc(
         spaceKey,
         durationMs: Math.max(0, localCompletedAtMs - checkpointStartedAtMs),
       })
-      // The local checkpoint is already durable. Account lookup, queue-store I/O,
-      // and Hosted Sync scheduling must not extend the Save version interaction.
-      // The scheduler deliberately returns void so future callers cannot await
-      // this cloud-only tail by accident.
-      scheduleCheckpointSyncAfterLocalSave({
-        run: async () => {
-          if (await session.officialSyncRemoteUrl()) {
-            await attachSyncQueue(event)
-            await syncQueue.enqueue(session.canonical.id, "local-checkpoint")
-            eidosLiteLogger()?.info("version.checkpoint.sync-queued", {
-              checkpointRunId,
-              spaceKey,
-              delayMs: Math.max(0, Date.now() - localCompletedAtMs),
-            })
-          } else {
-            eidosLiteLogger()?.debug("version.checkpoint.sync-skipped", {
-              checkpointRunId,
-              spaceKey,
-              reason: "not-connected",
-            })
-          }
-        },
-        onError: (error) => {
-          eidosLiteLogger()?.warn(
-            "version.checkpoint.sync-queue-failed",
-            {
-              checkpointRunId,
-              spaceKey,
-              delayMs: Math.max(0, Date.now() - localCompletedAtMs),
-            },
-            error
-          )
-          console.warn(
-            "Could not queue the new checkpoint for Eidos Sync",
-            error
-          )
-        },
-      })
+      // Saving a local version only updates the snapshot (including ahead count).
+      // Remote checks and uploads are explicit user actions in the Sync panel.
       return snapshot
     }
   )

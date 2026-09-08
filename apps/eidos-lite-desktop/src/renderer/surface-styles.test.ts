@@ -139,7 +139,8 @@ describe("Eidos Lite surface hierarchy", () => {
         (actionRule) =>
           actionRule.includes('[data-right-sidebar-open="true"]') &&
           actionRule.includes(".version-panel") &&
-          actionRule.includes(".sync-inspector-host")
+          actionRule.includes(".sync-inspector-host") &&
+          actionRule.includes(".sync-inspector-b")
       )
     ).toBe(true)
     expect(styles).not.toContain('[data-main-surface="terminal"]')

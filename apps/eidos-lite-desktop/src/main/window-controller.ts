@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { installWindowZoom } from "./window-zoom"
 import {
   app,
   BrowserWindow,
@@ -1001,13 +1002,7 @@ export class WindowController {
     window.webContents.on("before-input-event", (event, input) =>
       this.handleWorkspaceShortcutInput(window.webContents, event, input)
     )
-    const windowPreferences = this.getPreferences()
-    window.webContents.on("did-finish-load", () => {
-      void windowPreferences.then((preferences) => {
-        if (!window.isDestroyed())
-          window.webContents.setZoomFactor(preferences.uiZoom)
-      })
-    })
+    installWindowZoom(window, async () => (await this.getPreferences()).uiZoom)
     window.on("app-command", (_event, command) => {
       if (command === "browser-backward") {
         window.webContents.send(IPC_CHANNELS.navigationCommand, "back")
@@ -1018,7 +1013,7 @@ export class WindowController {
     this.trackWindowState(window, kind)
     if (showWhenReady)
       window.once("ready-to-show", () => {
-        void windowPreferences.then((preferences) => {
+        void this.getPreferences().then((preferences) => {
           if (window.isDestroyed()) return
           window.webContents.setZoomFactor(preferences.uiZoom)
           window.show()

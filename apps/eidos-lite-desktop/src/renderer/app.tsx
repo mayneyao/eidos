@@ -2921,6 +2921,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   const mergeConflictCount =
     syncMergeStatus.state === "merging" ? syncMergeStatus.unmergedCount : 0
+  const syncBadgeCount = mergeConflictCount || space.graft.sync?.ahead || 0
   const versionChangeCount =
     syncMergeStatus.state !== "merging" &&
     space.graft.initialized &&
@@ -3400,7 +3401,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               aria-label={
                 mergeConflictCount > 0
                   ? `Sync, ${mergeConflictCount} unresolved conflicts`
-                  : syncQueueLabel(syncQueueStatus)
+                  : syncBadgeCount > 0
+                    ? t("{count} versions to upload", { count: syncBadgeCount })
+                    : syncQueueLabel(syncQueueStatus)
               }
               aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
                 "toggle-sync",
@@ -3409,7 +3412,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               )}
               onClick={toggleSyncPanel}
               title={shortcutTitle(
-                syncQueueLabel(syncQueueStatus),
+                syncBadgeCount > 0 && mergeConflictCount === 0
+                  ? t("{count} versions to upload", { count: syncBadgeCount })
+                  : syncQueueLabel(syncQueueStatus),
                 syncShortcutLabel
               )}
             >
@@ -3420,9 +3425,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               ) : (
                 <Cloud />
               )}
-              {mergeConflictCount > 0 ? (
+              {syncBadgeCount > 0 ? (
                 <span className="version-change-badge" aria-hidden="true">
-                  {mergeConflictCount > 99 ? "99+" : mergeConflictCount}
+                  {syncBadgeCount > 99 ? "99+" : syncBadgeCount}
                 </span>
               ) : null}
             </button>

@@ -57,11 +57,19 @@ function finiteCoordinate(value: number): number {
   return Math.round(value)
 }
 
-function fittedBounds(
+export function fittedBounds(
   window: BrowserWindow,
   bounds: HtmlPreviewBounds
 ): Electron.Rectangle {
   const [contentWidth, contentHeight] = window.getContentSize()
+  // Renderer rectangles use CSS pixels; child views use device-independent pixels.
+  const zoom = window.webContents.getZoomFactor()
+  bounds = {
+    x: bounds.x * zoom,
+    y: bounds.y * zoom,
+    width: bounds.width * zoom,
+    height: bounds.height * zoom,
+  }
   const x = Math.max(0, Math.min(finiteCoordinate(bounds.x), contentWidth - 1))
   const y = Math.max(0, Math.min(finiteCoordinate(bounds.y), contentHeight - 1))
   const width = Math.max(
@@ -141,6 +149,7 @@ export class HtmlPreviewViewManager {
     }
     if (this.records.get(owner.id) !== record) return
     record.loaded = true
+    view.webContents.setZoomFactor(owner.getZoomFactor())
     view.setVisible(record.visible)
   }
 
@@ -149,6 +158,7 @@ export class HtmlPreviewViewManager {
     if (!record || record.previewId !== request.previewId) return
     record.visible = request.visible
     record.view.setBounds(fittedBounds(record.window, request.bounds))
+    record.view.webContents.setZoomFactor(owner.getZoomFactor())
     record.view.setVisible(record.loaded && request.visible)
     if (!request.visible && !record.owner.isDestroyed()) {
       record.owner.focus()
@@ -212,6 +222,10 @@ export class HtmlPreviewViewManager {
 
   private configureWebContents(record: HtmlPreviewRecord): void {
     const contents = record.view.webContents
+    contents.on("did-finish-load", () => {
+      if (!record.owner.isDestroyed())
+        contents.setZoomFactor(record.owner.getZoomFactor())
+    })
     contents.setWindowOpenHandler(() => ({ action: "deny" }))
     contents.on("will-navigate", (event, url) => {
       if (url !== record.url) event.preventDefault()

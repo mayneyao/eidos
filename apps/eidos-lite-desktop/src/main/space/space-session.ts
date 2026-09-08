@@ -1483,9 +1483,12 @@ export class SpaceSession {
       )
     }
 
-    reportProgress("fetch", "Fetching Hosted Space history")
+    if (action !== "push")
+      reportProgress("fetch", "Fetching Hosted Space history")
     let relation = await this.gate.withRepositoryOperation(
-      "Fetching Eidos Sync",
+      action === "push"
+        ? "Checking local versions for upload"
+        : "Fetching Eidos Sync",
       async (signal) => {
         const before = await this.graft.status(
           this.canonical.root,
@@ -1495,6 +1498,9 @@ export class SpaceSession {
         if (before.dirty && action === "pull") {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
+        // Explicit uploads use the known remote head. The server still enforces
+        // ancestry/CAS; rejection leaves local files untouched for a manual fetch.
+        if (action === "push") return before
         await this.graft.fetch(this.canonical.root, {
           signal,
           onProgress: reportTransfer,
