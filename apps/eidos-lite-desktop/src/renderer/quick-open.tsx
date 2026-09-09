@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { Database, FileText, LoaderCircle, Table2 } from "lucide-react"
 
@@ -72,6 +72,7 @@ export function QuickOpen({
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const dialogRef = useRef<HTMLDialogElement | null>(null)
   const requestIdRef = useRef(0)
 
   const tableItems = useMemo<QuickOpenItem[]>(
@@ -102,8 +103,14 @@ export function QuickOpen({
     ? [...tableItems, ...results]
     : [...tableItems, ...recentItems]
 
-  useEffect(() => {
-    inputRef.current?.focus()
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    // A modal dialog makes the background inert, including delayed editor
+    // selection updates that would otherwise reclaim keyboard focus.
+    dialog.showModal()
+    inputRef.current?.focus({ preventScroll: true })
+    return () => dialog.close()
   }, [])
 
   useEffect(() => {
@@ -159,14 +166,19 @@ export function QuickOpen({
   }
 
   return (
-    <div
+    <dialog
+      ref={dialogRef}
       className="quick-open-backdrop"
-      role="presentation"
+      aria-label="Quick Open"
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="quick-open-panel" role="dialog" aria-label="Quick Open">
+      <div className="quick-open-panel">
         <div className="quick-open-input-row">
           <input
             ref={inputRef}
@@ -278,6 +290,6 @@ export function QuickOpen({
           )}
         </ul>
       </div>
-    </div>
+    </dialog>
   )
 }

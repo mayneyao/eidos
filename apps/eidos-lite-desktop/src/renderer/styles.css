@@ -9878,14 +9878,25 @@ body {
 }
 
 .quick-open-backdrop {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 12vh 0 0;
   position: fixed;
   z-index: 95;
   display: flex;
   justify-content: center;
   align-items: flex-start;
   inset: 0;
-  padding-top: 12vh;
   background: var(--backdrop);
+}
+
+.quick-open-backdrop::backdrop {
+  background: transparent;
 }
 
 .quick-open-panel {

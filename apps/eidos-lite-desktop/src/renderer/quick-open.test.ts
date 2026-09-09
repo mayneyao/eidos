@@ -2,7 +2,7 @@
 
 import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { EidosLiteApi } from "../shared/contracts"
 import { QuickOpen } from "./quick-open"
@@ -30,6 +30,44 @@ function setInputValue(input: HTMLInputElement, value: string) {
 describe("QuickOpen", () => {
   let host: HTMLDivElement | null = null
   let root: Root | null = null
+
+  // jsdom does not implement the browser's modal top layer.
+  beforeEach(() => {
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      showModal: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.open = true
+        }),
+      },
+      close: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.open = false
+        }),
+      },
+    })
+  })
+
+  it("opens a native modal, focuses search, and handles native dismissal", async () => {
+    const onClose = vi.fn()
+    await renderQuickOpen({ onClose })
+    const dialog = host!.querySelector("dialog")!
+    expect(dialog.showModal).toHaveBeenCalledOnce()
+    expect(dialog.open).toBe(true)
+    expect(document.activeElement).toBe(host!.querySelector("input"))
+    const cancel = new Event("cancel", { cancelable: true })
+    await act(async () => {
+      dialog.dispatchEvent(cancel)
+    })
+    expect(cancel.defaultPrevented).toBe(true)
+    expect(onClose).toHaveBeenCalledOnce()
+    await act(async () => {
+      root!.unmount()
+    })
+    root = null
+    expect(dialog.close).toHaveBeenCalledOnce()
+  })
 
   afterEach(async () => {
     if (root) await act(async () => root?.unmount())
