@@ -486,7 +486,9 @@ function MarkdownEditorImplementation({
                 transformers={registry.transformers}
               />
             ))}
-            {autoFocus && !readOnly ? <AutoFocusPlugin /> : null}
+            {autoFocus && !readOnly ? (
+              <AutoFocusPlugin defaultSelection="rootStart" />
+            ) : null}
           </div>
         </div>
       </LexicalComposer>

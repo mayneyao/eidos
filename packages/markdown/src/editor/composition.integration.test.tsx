@@ -15,6 +15,57 @@ import { minimalPreset, createMarkdownPreset } from "../presets"
 import { emphasisPlugin, headingPlugin } from "../features/commonmark/plugin"
 import { defineMarkdownPlugin } from "../plugin-system/plugin-api"
 
+it("autofocuses the start of a multiline document", async () => {
+  let capturedEditor: LexicalEditor | undefined
+  function CaptureFocus() {
+    ;[capturedEditor] = useLexicalComposerContext()
+    return null
+  }
+  const preset = createMarkdownPreset({
+    id: "test.autofocus",
+    extends: minimalPreset,
+    plugins: [
+      defineMarkdownPlugin({
+        apiVersion: 1,
+        id: "test.capture-focus",
+        version: "1",
+        behaviors: [{ id: "test.capture-focus", component: CaptureFocus }],
+      }),
+    ],
+  })
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () => {
+      root.render(
+        <MarkdownEditor
+          documentKey="autofocus"
+          preset={preset}
+          markdown={"First line\n\nLast line"}
+          autoFocus
+          onMarkdownChange={() => {}}
+        />
+      )
+    })
+    const editor = host.querySelector('[contenteditable="true"]')
+    expect(document.activeElement).toBe(editor)
+    capturedEditor!.getEditorState().read(() => {
+      const selection = $getSelection()
+      expect($isRangeSelection(selection)).toBe(true)
+      if (!$isRangeSelection(selection)) return
+      expect(selection.anchor.getNode().getTextContent()).toBe("First line")
+      expect(selection.anchor.offset).toBe(0)
+    })
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 it("mounts a minimal editor without optional nodes and blocks disabled emphasis shortcuts", async () => {
   vi.stubGlobal("DragEvent", class extends MouseEvent {})
   vi.stubGlobal("ClipboardEvent", class extends Event {})
