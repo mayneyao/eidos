@@ -137,7 +137,7 @@ export class WindowController {
     window.once("closed", () => {
       if (this.settingsWindow === window) this.settingsWindow = null
     })
-    void this.loadRenderer(window, "/settings")
+    void this.loadRenderer(window, "/settings/preferences")
     return window
   }
 

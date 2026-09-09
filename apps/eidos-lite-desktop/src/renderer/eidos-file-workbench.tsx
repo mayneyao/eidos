@@ -82,6 +82,11 @@ export interface EidosFileWorkbenchProps {
   refreshToken?: number
   focusRequestToken?: number
   activeTableId: string
+  activeViewId?: string
+  onViewSelect?: (viewId: string) => void
+  onRecordNavigate?: (tableId: string, rowId: string) => void
+  inspectedRowId?: string | null
+  onInspectedRowChange?: (rowId: string | null) => void
   disabled: boolean
   theme: "light" | "dark"
   weekStartsOnMonday?: boolean
@@ -100,6 +105,11 @@ export function EidosFileWorkbench({
   refreshToken = 0,
   focusRequestToken = 0,
   activeTableId,
+  activeViewId,
+  onViewSelect,
+  onRecordNavigate,
+  inspectedRowId,
+  onInspectedRowChange,
   disabled,
   theme,
   weekStartsOnMonday = true,
@@ -284,9 +294,10 @@ export function EidosFileWorkbench({
         onError(new Error("Linked record table is unavailable"))
         return
       }
-      setRelatedRecordTarget(target)
+      if (onRecordNavigate) onRecordNavigate(target.tableId, target.rowId)
+      else setRelatedRecordTarget(target)
     },
-    [onError, snapshot.tables]
+    [onError, snapshot.tables, onRecordNavigate]
   )
 
   useEffect(() => {
@@ -304,13 +315,15 @@ export function EidosFileWorkbench({
   }, [propertyField, snapshot.tables])
   const activeView = useMemo(() => {
     if (!activeTable) return undefined
-    const requested = activeViews[activeTable.table.id]
+    const requested = onViewSelect
+      ? activeViewId
+      : activeViews[activeTable.table.id]
     return (
       activeTable.views.find((view) => view.id === requested) ??
       activeTable.views.find((view) => view.type === "grid") ??
       activeTable.views[0]
     )
-  }, [activeTable, activeViews])
+  }, [activeTable, activeViews, activeViewId, onViewSelect])
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
@@ -421,6 +434,7 @@ export function EidosFileWorkbench({
       .find((table) => table.table.id === activeTable.table.id)
       ?.views.find((view) => !previousIds.has(view.id))
     if (created) {
+      onViewSelect?.(created.id)
       setActiveViews((current) => ({
         ...current,
         [activeTable.table.id]: created.id,
@@ -435,6 +449,7 @@ export function EidosFileWorkbench({
       .find((table) => table.table.id === activeTable.table.id)
       ?.views.find((view) => !previousIds.has(view.id))
     if (duplicate) {
+      onViewSelect?.(duplicate.id)
       setActiveViews((current) => ({
         ...current,
         [activeTable.table.id]: duplicate.id,
@@ -448,6 +463,7 @@ export function EidosFileWorkbench({
       (table) => table.table.id === activeTable.table.id
     )?.views
     if (activeView?.id === viewId && remaining?.[0]) {
+      onViewSelect?.(remaining[0].id)
       setActiveViews((current) => ({
         ...current,
         [activeTable.table.id]: remaining[0].id,
@@ -514,12 +530,13 @@ export function EidosFileWorkbench({
             fields={activeTable.fields}
             activeView={activeView}
             disabled={disabled}
-            onSelect={(viewId) =>
+            onSelect={(viewId) => {
+              onViewSelect?.(viewId)
               setActiveViews((current) => ({
                 ...current,
                 [activeTable.table.id]: viewId,
               }))
-            }
+            }}
             onCreate={createView}
             onRename={async (viewId, name) => {
               await source.updateView(viewId, { name })
@@ -708,6 +725,8 @@ export function EidosFileWorkbench({
       >
         <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
           <EidosFileEditorView
+            inspectedRowId={inspectedRowId}
+            onInspectedRowChange={onInspectedRowChange}
             key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
             plugins={editorPlugins}
             source={source}
@@ -743,7 +762,20 @@ export function EidosFileWorkbench({
             onImportFiles={importFiles}
             onImportDroppedFiles={importDroppedFiles}
           />
-          {relatedRecordTarget && relatedRecordTable ? (
+          {inspectedRowId && activeView?.type !== "grid" ? (
+            <EidosFileRelatedRecordPanel
+              source={source}
+              table={activeTable}
+              target={{
+                tableId: activeTable.table.id,
+                rowId: inspectedRowId,
+                title: "",
+              }}
+              onClose={() => onInspectedRowChange?.(null)}
+              onError={onError}
+              disabled={disabled}
+            />
+          ) : relatedRecordTarget && relatedRecordTable ? (
             <EidosFileRelatedRecordPanel
               key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
               source={source}

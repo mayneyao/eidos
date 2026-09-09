@@ -95,7 +95,27 @@ function platformLabel(appInfo: EidosLiteAppInfo): string {
 
 export function SettingsPage() {
   const { t } = useEidosLiteI18n()
-  const [activePage, setActivePage] = useState<SettingsPageId>("preferences")
+  const readPage = (): SettingsPageId => {
+    const section = window.location.hash.split("/")[2]
+    return (
+      SETTINGS_PAGES.find((page) => page.id === section)?.id ?? "preferences"
+    )
+  }
+  const [activePage, setActivePage] = useState<SettingsPageId>(readPage)
+  useEffect(() => {
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `#/settings/${readPage()}`
+    )
+    const restore = () => setActivePage(readPage())
+    window.addEventListener("popstate", restore)
+    window.addEventListener("hashchange", restore)
+    return () => {
+      window.removeEventListener("popstate", restore)
+      window.removeEventListener("hashchange", restore)
+    }
+  }, [])
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
@@ -351,6 +371,12 @@ export function SettingsPage() {
                   onClick={() => {
                     setError(null)
                     setActivePage(page.id)
+                    if (readPage() !== page.id)
+                      window.history.pushState(
+                        null,
+                        "",
+                        `#/settings/${page.id}`
+                      )
                   }}
                 >
                   <Icon aria-hidden="true" />

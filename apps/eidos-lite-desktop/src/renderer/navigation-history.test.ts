@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 
 import {
   canNavigateHistory,
+  closeRecordLocation,
   initializeNavigationHistory,
   navigationHash,
   parseNavigationHash,
@@ -19,15 +20,116 @@ describe("Eidos Lite browser navigation history", () => {
     window.sessionStorage.clear()
   })
 
+  it("round-trips canonical record, file, merge and release-note routes", () => {
+    const locations = [
+      {
+        type: "record" as const,
+        path: "目录/a?#.eidos",
+        tableId: "table/1",
+        rowId: "row/?",
+        viewId: "this week",
+      },
+      {
+        type: "file" as const,
+        path: "docs/a.html",
+        openWith: "source" as const,
+      },
+      { type: "merge" as const, path: "a.eidos", tableName: "dev" },
+      { type: "whats-new" as const, lang: "zh-CN" as const },
+    ]
+    for (const location of locations) {
+      expect(
+        parseNavigationHash(navigationHash("space", location))?.location
+      ).toEqual(location)
+    }
+    expect(
+      parseNavigationHash("#/spaces/s/files/a/tables/t/records")
+    ).toBeNull()
+    expect(parseNavigationHash("#/spaces/%ZZ")).toBeNull()
+  })
+
+  it("migrates old routes without adding a history entry", () => {
+    for (const hash of [
+      "#/space/s/file/docs%2Fa.md",
+      "#/space/s/record/a.eidos?table=t&row=r",
+      "#/space/s/diff/history/a.eidos?commit=c&compare=b&table=dev",
+    ]) {
+      window.history.replaceState(null, "", hash)
+      const expected = parseNavigationHash(hash)!.location
+      const length = window.history.length
+      const snapshot = initializeNavigationHistory("s")
+      expect(snapshot.location).toEqual(expected)
+      expect(window.location.hash).toBe(navigationHash("s", expected))
+      expect(window.history.length).toBe(length)
+    }
+  })
+
+  it("restores a direct record link and closes it to its table without adding history", () => {
+    const location = {
+      type: "record" as const,
+      path: "a.eidos",
+      tableId: "t",
+      rowId: "r",
+      viewId: "v",
+    }
+    window.history.replaceState(null, "", navigationHash("s", location))
+    expect(initializeNavigationHistory("s").location).toEqual(location)
+    const length = window.history.length
+    closeRecordLocation("s", location)
+    expect(readNavigationHistory("s").location).toEqual({
+      ...location,
+      rowId: null,
+    })
+    expect(window.history.length).toBe(length)
+  })
+
+  it("keeps release notes in the Space history across refresh", () => {
+    let snapshot = initializeNavigationHistory("s")
+    snapshot = pushNavigationLocation(snapshot, "s", "a.md")
+    snapshot = pushNavigationLocation(snapshot, "s", {
+      type: "whats-new",
+      lang: "en",
+    })
+    expect(initializeNavigationHistory("s")).toEqual(snapshot)
+    expect(readNavigationHistory("s")).toEqual(snapshot)
+  })
+
   it("encodes the active Space and file in the URL", () => {
     const hash = navigationHash("space/一", "notes/road map.md")
 
-    expect(hash).toBe("#/space/space%2F%E4%B8%80/file/notes%2Froad%20map.md")
+    expect(hash).toBe("#/spaces/space%2F%E4%B8%80/files/notes%2Froad%20map.md")
     expect(parseNavigationHash(hash)).toEqual({
       spaceId: "space/一",
       location: "notes/road map.md",
     })
     expect(parseNavigationHash("#invalid")).toBeNull()
+  })
+
+  it("round-trips table and record locations and restores them through browser history", async () => {
+    const spaceId = "space/一"
+    const table = {
+      type: "record" as const,
+      path: "资料/test.eidos",
+      tableId: "table/1",
+      rowId: null,
+    }
+    const record = { ...table, rowId: "row/?一" }
+    let snapshot = initializeNavigationHistory(spaceId)
+    snapshot = pushNavigationLocation(snapshot, spaceId, table)
+    snapshot = pushNavigationLocation(snapshot, spaceId, record)
+    expect(parseNavigationHash(window.location.hash)?.location).toEqual(record)
+    const back = new Promise<void>((resolve) =>
+      window.addEventListener("popstate", () => resolve(), { once: true })
+    )
+    window.history.back()
+    await back
+    expect(readNavigationHistory(spaceId)?.location).toEqual(table)
+    const forward = new Promise<void>((resolve) =>
+      window.addEventListener("popstate", () => resolve(), { once: true })
+    )
+    window.history.forward()
+    await forward
+    expect(readNavigationHistory(spaceId)?.location).toEqual(record)
   })
 
   it("round-trips working and historical diff routes", () => {

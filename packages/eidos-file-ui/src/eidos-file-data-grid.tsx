@@ -46,6 +46,8 @@ export interface EidosFileDataGridProps {
   search?: string
   searchResultIndex?: number | null
   showRowMarkers?: boolean
+  inspectedRowId?: string | null
+  onInspectedRowChange?: (rowId: string | null) => void
   disabled?: boolean
   reloadToken?: number
   focusRequestToken?: number
@@ -166,6 +168,8 @@ export function EidosFileDataGrid({
   search = "",
   searchResultIndex = null,
   showRowMarkers = true,
+  inspectedRowId,
+  onInspectedRowChange,
   disabled = false,
   reloadToken = 0,
   focusRequestToken = 0,
@@ -218,6 +222,13 @@ export function EidosFileDataGrid({
         ? source.getRowIndex(table.table.id, rowId, query)
         : Promise.resolve(null),
     [query, source, table.table.id]
+  )
+  const loadInspectorRow = useCallback(
+    (rowId: string) =>
+      source.getRow
+        ? source.getRow(table.table.id, rowId)
+        : Promise.resolve(null),
+    [source, table.table.id]
   )
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
@@ -390,6 +401,9 @@ export function EidosFileDataGrid({
         showRowMarkers={showRowMarkers}
         loadPage={loadPage}
         locateRow={locateRow}
+        loadInspectorRow={loadInspectorRow}
+        inspectedRowId={inspectedRowId}
+        onInspectedRowChange={onInspectedRowChange}
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
         onCellEdit={editCell}

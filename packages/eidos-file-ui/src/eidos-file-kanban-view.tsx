@@ -904,6 +904,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   onImportDroppedFiles,
   onSearchRelation,
   onOpenRecordInTab,
+  onOpenRecord,
   onRowCountChange,
   onError,
   sidePanel,
@@ -946,6 +947,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onOpenRecordInTab?: (row: EidosFileRow) => void
+  onOpenRecord?: (row: EidosFileRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -1001,11 +1003,12 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     inspectedRow,
     inspectorLoading,
     inspectorLoadError,
-    openInspectorRow,
+    openInspectorRow: openLocalInspectorRow,
     closeInspectorRow,
     replaceInspectorRow,
     retryInspectorRow,
   } = useEidosFileRecordInspectorRow(loadRow)
+  const openInspectorRow = onOpenRecord ?? openLocalInspectorRow
   const inspectorRows = useMemo(
     () => boardGroups.flatMap((group) => group.rows),
     [boardGroups]

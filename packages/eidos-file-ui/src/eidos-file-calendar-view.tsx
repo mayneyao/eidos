@@ -296,6 +296,7 @@ export function EidosFileCalendarView({
   loadDayTotals,
   loadRow,
   onCellEdit,
+  onOpenRecord,
   onAddRow,
   onDeleteRow,
   onImportFiles,
@@ -320,6 +321,7 @@ export function EidosFileCalendarView({
     range: EidosFileCalendarRange
   ) => Promise<Map<string, number> | null>
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>
+  onOpenRecord?: (row: EidosFileRow) => void
   onCellEdit?: (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -390,11 +392,12 @@ export function EidosFileCalendarView({
     inspectedRow,
     inspectorLoading,
     inspectorLoadError,
-    openInspectorRow,
+    openInspectorRow: openLocalInspectorRow,
     closeInspectorRow,
     replaceInspectorRow,
     retryInspectorRow,
   } = useEidosFileRecordInspectorRow(loadRow)
+  const openInspectorRow = onOpenRecord ?? openLocalInspectorRow
   const inspectorRows = useMemo(
     () => days.flatMap((day) => dayPages.get(localDateKey(day))?.rows ?? []),
     [dayPages, days]

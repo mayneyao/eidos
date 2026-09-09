@@ -1,10 +1,16 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import notes from "../../RELEASE_NOTES.md?raw"
 import chineseNotes from "../../RELEASE_NOTES.zh-CN.md?raw"
 import metadata from "../../package.json"
 import { useEidosLiteI18n } from "./i18n"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
 import type { ResolvedAppearance } from "./app-appearance"
+import {
+  closeCurrentPage,
+  navigateCurrentWindow,
+  NAVIGATION_EVENT,
+  parseNavigationHash,
+} from "./navigation-history"
 
 const storageKey = "eidos-lite:whats-new:acknowledged"
 export const releaseVersion = metadata.version
@@ -17,8 +23,22 @@ export function hasUnseenRelease(
 }
 
 export function useWhatsNew() {
-  const [open, setOpen] = useState(window.location.hash === "#/whats-new")
+  const isOpen = () => {
+    const location = parseNavigationHash(window.location.hash)?.location
+    return typeof location === "object" && location?.type === "whats-new"
+  }
+  const [open, setOpen] = useState(isOpen)
   const [unread, setUnread] = useState(false)
+  const close = useCallback(closeCurrentPage, [])
+  useEffect(() => {
+    const refresh = () => setOpen(isOpen())
+    window.addEventListener("popstate", refresh)
+    window.addEventListener(NAVIGATION_EVENT, refresh)
+    return () => {
+      window.removeEventListener("popstate", refresh)
+      window.removeEventListener(NAVIGATION_EVENT, refresh)
+    }
+  }, [])
   const acknowledge = () => {
     try {
       localStorage.setItem(storageKey, releaseVersion)
@@ -41,7 +61,7 @@ export function useWhatsNew() {
     window.addEventListener("storage", refresh)
     const unsubscribe = window.eidosLite.onWhatsNew(() => {
       acknowledge()
-      setOpen(true)
+      navigateCurrentWindow({ type: "whats-new" })
     })
     return () => {
       window.removeEventListener("storage", refresh)
@@ -51,11 +71,11 @@ export function useWhatsNew() {
   return {
     open,
     unread,
-    close: () => setOpen(false),
+    close,
     dismiss: acknowledge,
     show: () => {
       acknowledge()
-      setOpen(true)
+      navigateCurrentWindow({ type: "whats-new" })
     },
   }
 }
@@ -66,7 +86,26 @@ export function WhatsNewPage({
   theme?: ResolvedAppearance
 }) {
   const { t, locale } = useEidosLiteI18n()
-  const [selectedLocale, setSelectedLocale] = useState<"en" | "zh" | null>(null)
+  const readLocale = (): "en" | "zh" | null => {
+    const location = parseNavigationHash(window.location.hash)?.location
+    return typeof location === "object" &&
+      location?.type === "whats-new" &&
+      location.lang
+      ? location.lang === "zh-CN"
+        ? "zh"
+        : "en"
+      : null
+  }
+  const [selectedLocale, setSelectedLocale] = useState(readLocale)
+  useEffect(() => {
+    const refresh = () => setSelectedLocale(readLocale())
+    window.addEventListener("popstate", refresh)
+    window.addEventListener(NAVIGATION_EVENT, refresh)
+    return () => {
+      window.removeEventListener("popstate", refresh)
+      window.removeEventListener(NAVIGATION_EVENT, refresh)
+    }
+  }, [])
   const notesLocale = selectedLocale ?? locale
   const languages =
     notesLocale === "zh"
@@ -84,6 +123,13 @@ export function WhatsNewPage({
         event.preventDefault()
         event.stopPropagation()
         setSelectedLocale(href === "#whats-new-zh" ? "zh" : "en")
+        navigateCurrentWindow(
+          {
+            type: "whats-new",
+            lang: href === "#whats-new-zh" ? "zh-CN" : "en",
+          },
+          true
+        )
       }}
     >
       <MarkdownEditorSurface

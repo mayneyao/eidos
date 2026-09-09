@@ -27,6 +27,42 @@ package contract test prevents builds from silently falling back to a generic
 Electron icon, changing the Lite brand color, or losing the
 `space.eidos.lite` identity.
 
+### Navigation
+
+The renderer uses typed hash routes in `src/renderer/navigation-history.ts`.
+File paths are Space-relative and encoded as one URL segment. Tables, views,
+and records use stable IDs:
+
+| Content            | Route                                                          |
+| ------------------ | -------------------------------------------------------------- |
+| Home               | `#/`                                                           |
+| Space              | `#/spaces/:spaceId`                                            |
+| File               | `#/spaces/:spaceId/files/:path`                                |
+| Table              | `#/spaces/:spaceId/files/:path/tables/:tableId`                |
+| Record             | `#/spaces/:spaceId/files/:path/tables/:tableId/records/:rowId` |
+| Working changes    | `#/spaces/:spaceId/changes/:path`                              |
+| Historical changes | `#/spaces/:spaceId/history/:commitId/files/:path`              |
+| Merge file         | `#/spaces/:spaceId/merge/files/:path`                          |
+| Release notes      | `#/whats-new`                                                  |
+| Settings section   | `#/settings/:section`                                          |
+
+Table and record routes accept `view`; file routes accept `openWith` (`source`,
+`wysiwyg`, or `preview`); historical comparisons accept `base`; release notes
+accept `lang` (`en` or `zh-CN`). Diff and merge routes accept `table` for a table
+name because Graft conflict/diff data identifies tables by name. Settings sections
+are `preferences`, `files`, `account-sync`, `spaces`, `plugins`, `shortcuts`,
+`updates`, and `about`.
+
+Main-content navigation participates in browser history. Restoring a route reuses
+open file sessions and does not push another history entry. Closing a record goes
+back when its immediate predecessor is its table; otherwise it replaces the route
+with that table. Records outside a saved view's filter can still be loaded by ID.
+Sync/Versions panels, terminal visibility, menus, and selections remain UI state.
+Saved view filters and sorting remain view metadata, rather than separate history
+steps. Legacy `#/space/...` routes are accepted and canonicalized with replaceState.
+Space routes are resolved within the Space attached to the Electron window; they
+are not filesystem permissions or cross-Space launch requests.
+
 In **Versions → Changes**, click a file to inspect its diff and check files to
 save them as a separate version. All changes are selected initially. Folder
 checkboxes include loaded descendants; load more results before selecting

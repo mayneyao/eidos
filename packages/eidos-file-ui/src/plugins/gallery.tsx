@@ -70,6 +70,11 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
   if (!view) return null
   return (
     <EidosFileGalleryView
+      onOpenRecord={
+        props.onInspectedRowChange
+          ? (row) => props.onInspectedRowChange?.(String(row._id))
+          : undefined
+      }
       table={table}
       view={view}
       disabled={disabled}

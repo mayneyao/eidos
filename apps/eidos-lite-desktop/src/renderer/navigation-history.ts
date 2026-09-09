@@ -16,7 +16,22 @@ export type VersionDiffNavigationLocation =
       commitParents?: string[]
     }
 
-export type NavigationLocation = string | VersionDiffNavigationLocation | null
+export interface RecordNavigationLocation {
+  type: "record"
+  path: string
+  tableId: string
+  rowId: string | null
+  viewId?: string
+}
+
+export type NavigationLocation =
+  | string
+  | VersionDiffNavigationLocation
+  | RecordNavigationLocation
+  | { type: "file"; path: string; openWith: "source" | "wysiwyg" | "preview" }
+  | { type: "whats-new"; lang?: "en" | "zh-CN" }
+  | { type: "merge"; path: string; tableName?: string }
+  | null
 
 export interface NavigationSnapshot {
   stackId: string
@@ -30,10 +45,44 @@ interface NavigationState {
   stackId: string
   spaceId: string
   index: number
+  previousHash?: string
 }
 
 const NAVIGATION_LENGTH_STORAGE_PREFIX = "eidos-lite:navigation-length:"
 const navigationLengths = new Map<string, number>()
+export const NAVIGATION_EVENT = "eidos-lite:navigation"
+
+export function navigateCurrentWindow(
+  location: NavigationLocation,
+  replace = false
+): void {
+  const spaceId =
+    navigationState(window.history.state)?.spaceId ??
+    parseNavigationHash(window.location.hash)?.spaceId ??
+    ""
+  const current = readNavigationHistory(spaceId)
+  if (replace) replaceNavigationLocation(current, spaceId, location)
+  else pushNavigationLocation(current, spaceId, location)
+  window.dispatchEvent(new Event(NAVIGATION_EVENT))
+}
+
+export function closeCurrentPage(): void {
+  const spaceId = navigationState(window.history.state)?.spaceId ?? ""
+  const current = readNavigationHistory(spaceId)
+  if (canNavigateHistory(current, -1)) window.history.back()
+  else navigateCurrentWindow(null, true)
+}
+
+export function closeRecordLocation(
+  spaceId: string,
+  location: RecordNavigationLocation
+): void {
+  const table = { ...location, rowId: null }
+  const state = navigationState(window.history.state)
+  if (state?.previousHash === navigationHash(spaceId, table) && state.index > 0)
+    window.history.back()
+  else navigateCurrentWindow(table, true)
+}
 
 function createStackId(): string {
   return typeof crypto.randomUUID === "function"
@@ -87,19 +136,30 @@ export function navigationHash(
   location: NavigationLocation
 ): string {
   const space = encodeURIComponent(spaceId)
-  if (location === null) return `#/space/${space}`
+  if (location === null) return spaceId ? `#/spaces/${space}` : "#/"
   if (typeof location === "string") {
-    return `#/space/${space}/file/${encodeURIComponent(location)}`
+    return `#/spaces/${space}/files/${encodeURIComponent(location)}`
   }
-
-  const route = `#/space/${space}/diff/${location.mode}/${encodeURIComponent(location.path)}`
+  if (location.type === "whats-new")
+    return `#/whats-new${location.lang ? `?lang=${location.lang}` : ""}`
+  if (location.type === "file")
+    return `#/spaces/${space}/files/${encodeURIComponent(location.path)}?openWith=${location.openWith}`
+  if (location.type === "merge")
+    return `#/spaces/${space}/merge/files/${encodeURIComponent(location.path)}${location.tableName ? `?table=${encodeURIComponent(location.tableName)}` : ""}`
+  if (location.type === "record") {
+    const base = `#/spaces/${space}/files/${encodeURIComponent(location.path)}/tables/${encodeURIComponent(location.tableId)}`
+    return `${base}${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${location.viewId ? `?view=${encodeURIComponent(location.viewId)}` : ""}`
+  }
+  const route =
+    location.mode === "changes"
+      ? `#/spaces/${space}/changes/${encodeURIComponent(location.path)}`
+      : `#/spaces/${space}/history/${encodeURIComponent(location.commitId)}/files/${encodeURIComponent(location.path)}`
   const params = new URLSearchParams()
   if (location.tableName) params.set("table", location.tableName)
   if (location.mode === "history") {
-    params.set("commit", location.commitId)
     if (location.commitParent) params.set("parent", location.commitParent)
     if (location.comparisonParent) {
-      params.set("compare", location.comparisonParent)
+      params.set("base", location.comparisonParent)
     }
     for (const parent of location.commitParents ?? []) {
       params.append("mergeParent", parent)
@@ -112,10 +172,123 @@ export function navigationHash(
 export function parseNavigationHash(
   hash: string
 ): { spaceId: string; location: NavigationLocation } | null {
+  const [pathname, query = ""] = hash.split("?")
+  const params = new URLSearchParams(query)
+  if (pathname === "#/" || pathname === "#" || pathname === "")
+    return { spaceId: "", location: null }
+  if (pathname === "#/whats-new") {
+    const lang = params.get("lang")
+    return {
+      spaceId: "",
+      location: {
+        type: "whats-new",
+        ...(lang === "en" || lang === "zh-CN" ? { lang } : {}),
+      },
+    }
+  }
+  try {
+    const match = pathname.match(/^#\/spaces\/([^/]+)(?:\/(.*))?$/)
+    if (match) {
+      const spaceId = decodeURIComponent(match[1])
+      if (!match[2]) return { spaceId, location: null }
+      const parts = match[2].split("/").map(decodeURIComponent)
+      if (parts[0] === "files" && parts[1]) {
+        if (parts.length === 2) {
+          const openWith = params.get("openWith")
+          return {
+            spaceId,
+            location:
+              openWith === "source" ||
+              openWith === "wysiwyg" ||
+              openWith === "preview"
+                ? { type: "file", path: parts[1], openWith }
+                : parts[1],
+          }
+        }
+        if (
+          parts[2] === "tables" &&
+          parts[3] &&
+          (parts.length === 4 ||
+            (parts.length === 6 && parts[4] === "records" && parts[5]))
+        ) {
+          const viewId = params.get("view")
+          return {
+            spaceId,
+            location: {
+              type: "record",
+              path: parts[1],
+              tableId: parts[3],
+              rowId: parts[5] ?? null,
+              ...(viewId ? { viewId } : {}),
+            },
+          }
+        }
+      }
+      if (parts[0] === "changes" && parts.length === 2 && parts[1])
+        return {
+          spaceId,
+          location: {
+            type: "version-diff",
+            mode: "changes",
+            path: parts[1],
+            ...(params.get("table") ? { tableName: params.get("table")! } : {}),
+          },
+        }
+      if (
+        parts[0] === "history" &&
+        parts[1] &&
+        parts[2] === "files" &&
+        parts[3] &&
+        parts.length === 4
+      )
+        return {
+          spaceId,
+          location: {
+            type: "version-diff",
+            mode: "history",
+            path: parts[3],
+            commitId: parts[1],
+            commitParent: params.get("parent"),
+            comparisonParent: params.get("base"),
+            ...(params.getAll("mergeParent").length
+              ? { commitParents: params.getAll("mergeParent") }
+              : {}),
+            ...(params.get("table") ? { tableName: params.get("table")! } : {}),
+          },
+        }
+      if (parts[0] === "merge" && parts[1] === "files" && parts.length === 3)
+        return {
+          spaceId,
+          location: {
+            type: "merge",
+            path: parts[2],
+            ...(params.get("table") ? { tableName: params.get("table")! } : {}),
+          },
+        }
+      return null
+    }
+  } catch {
+    return null
+  }
   const diffMatch = hash.match(
     /^#\/space\/([^/]+)\/diff\/(changes|history)\/([^?]+)(?:\?(.*))?$/
   )
   try {
+    const recordMatch = hash.match(/^#\/space\/([^/]+)\/record\/([^?]+)\?(.*)$/)
+    if (recordMatch) {
+      const params = new URLSearchParams(recordMatch[3])
+      const tableId = params.get("table")
+      if (!tableId) return null
+      return {
+        spaceId: decodeURIComponent(recordMatch[1]),
+        location: {
+          type: "record",
+          path: decodeURIComponent(recordMatch[2]),
+          tableId,
+          rowId: params.get("row"),
+        },
+      }
+    }
     if (diffMatch) {
       const spaceId = decodeURIComponent(diffMatch[1])
       const mode = diffMatch[2] as "changes" | "history"
@@ -173,8 +346,19 @@ export function initializeNavigationHistory(
 ): NavigationSnapshot {
   const state = navigationState(window.history.state)
   const route = parseNavigationHash(window.location.hash)
-  if (state?.spaceId === spaceId && route?.spaceId === spaceId) {
+  if (
+    state?.spaceId === spaceId &&
+    (route?.spaceId === spaceId ||
+      (route?.location &&
+        typeof route.location === "object" &&
+        route.location.type === "whats-new"))
+  ) {
     const length = storedNavigationLength(state.stackId, state.index + 1)
+    window.history.replaceState(
+      state,
+      "",
+      navigationHash(spaceId, route.location)
+    )
     return {
       stackId: state.stackId,
       index: state.index,
@@ -184,7 +368,13 @@ export function initializeNavigationHistory(
   }
 
   const stackId = createStackId()
-  const location = route?.spaceId === spaceId ? route.location : null
+  const location =
+    route?.spaceId === spaceId ||
+    (route?.location &&
+      typeof route.location === "object" &&
+      route.location.type === "whats-new")
+      ? route.location
+      : null
   const nextState: NavigationState = {
     namespace: "eidos-lite",
     stackId,
@@ -199,10 +389,24 @@ export function initializeNavigationHistory(
 export function readNavigationHistory(spaceId: string): NavigationSnapshot {
   const state = navigationState(window.history.state)
   const route = parseNavigationHash(window.location.hash)
-  if (!state || state.spaceId !== spaceId || route?.spaceId !== spaceId) {
+  if (
+    !state ||
+    state.spaceId !== spaceId ||
+    !route ||
+    (route.spaceId !== spaceId &&
+      !(
+        typeof route.location === "object" &&
+        route.location?.type === "whats-new"
+      ))
+  ) {
     return initializeNavigationHistory(spaceId)
   }
   const length = storedNavigationLength(state.stackId, state.index + 1)
+  window.history.replaceState(
+    state,
+    "",
+    navigationHash(spaceId, route.location)
+  )
   return {
     stackId: state.stackId,
     index: state.index,
@@ -229,6 +433,7 @@ export function pushNavigationLocation(
     stackId: snapshot.stackId,
     spaceId,
     index,
+    previousHash: navigationHash(spaceId, snapshot.location),
   }
   window.history.pushState(state, "", navigationHash(spaceId, location))
   storeNavigationLength(snapshot.stackId, length)
@@ -245,6 +450,7 @@ export function replaceNavigationLocation(
     stackId: snapshot.stackId,
     spaceId,
     index: snapshot.index,
+    previousHash: navigationState(window.history.state)?.previousHash,
   }
   window.history.replaceState(state, "", navigationHash(spaceId, location))
   return { ...snapshot, location }

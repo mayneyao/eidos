@@ -230,6 +230,9 @@ export interface EidosFileGridProps {
   historyScopeKey?: string
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
   locateRow?: (rowId: string) => Promise<number | null>
+  loadInspectorRow?: (rowId: string) => Promise<EidosFileRow | null>
+  inspectedRowId?: string | null
+  onInspectedRowChange?: (rowId: string | null) => void
   loadColumnStats?: (
     configs: EidosFileColumnStatConfig[]
   ) => Promise<EidosFileColumnStatResult[]>
@@ -486,6 +489,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   historyScopeKey,
   loadPage,
   locateRow,
+  loadInspectorRow,
+  inspectedRowId,
+  onInspectedRowChange,
   loadColumnStats,
   onAddRow,
   onCellEdit,
@@ -628,7 +634,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     null
   )
   const inspectedRowIndexRef = useRef<number | null>(null)
+  const [detachedInspectorRow, setDetachedInspectorRow] =
+    useState<EidosFileRow | null>(null)
   inspectedRowIndexRef.current = inspectedRowIndex
+  const inspectionErrorRef = useRef(onError)
+  inspectionErrorRef.current = onError
   const availableFields = useMemo(
     () => orderedEidosFileFields(table.fields, view),
     [table.fields, view?.hiddenFields, view?.orderMap]
@@ -693,27 +703,90 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const freezeColumns = eidosFileViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
-      ? undefined
+      ? (detachedInspectorRow ?? undefined)
       : rowsRef.current.get(inspectedRowIndex)
-  const navigateInspectedRow = useCallback(async (offset: -1 | 1) => {
-    const currentIndex = inspectedRowIndexRef.current
-    if (currentIndex === null) return
-    const targetIndex = currentIndex + offset
-    if (targetIndex < 0 || targetIndex >= rowCountRef.current) return
-    if (!rowsRef.current.has(targetIndex)) {
-      const loaded = await loadPageIndexRef.current(
-        Math.floor(targetIndex / PAGE_SIZE)
-      )
-      if (
-        !loaded ||
-        inspectedRowIndexRef.current !== currentIndex ||
-        !rowsRef.current.has(targetIndex)
-      ) {
+  const navigateInspectedRow = useCallback(
+    async (offset: -1 | 1) => {
+      const currentIndex = inspectedRowIndexRef.current
+      if (currentIndex === null) return
+      const targetIndex = currentIndex + offset
+      if (targetIndex < 0 || targetIndex >= rowCountRef.current) return
+      if (!rowsRef.current.has(targetIndex)) {
+        const loaded = await loadPageIndexRef.current(
+          Math.floor(targetIndex / PAGE_SIZE)
+        )
+        if (
+          !loaded ||
+          inspectedRowIndexRef.current !== currentIndex ||
+          !rowsRef.current.has(targetIndex)
+        ) {
+          return
+        }
+      }
+      setInspectedRowIndex(targetIndex)
+      const row = rowsRef.current.get(targetIndex)
+      if (row?._id != null) onInspectedRowChange?.(String(row._id))
+    },
+    [onInspectedRowChange]
+  )
+
+  useEffect(() => {
+    if (inspectedRowId === undefined) return
+    if (inspectedRowId === null) {
+      setInspectedRowIndex(null)
+      setDetachedInspectorRow(null)
+      return
+    }
+    // Local previous/next navigation has already selected a cached row.
+    // Reconcile the route without unmounting the inspector or refetching it.
+    for (const [index, row] of rowsRef.current) {
+      if (String(row._id) === inspectedRowId) {
+        setInspectedRowIndex(index)
         return
       }
     }
-    setInspectedRowIndex(targetIndex)
-  }, [])
+    if (!locateRow) return
+    if (
+      detachedInspectorRow &&
+      String(detachedInspectorRow._id) === inspectedRowId
+    )
+      return
+    let active = true
+    void (async () => {
+      const index = await locateRow(inspectedRowId)
+      if (!active) return
+      if (index === null && loadInspectorRow) {
+        const row = await loadInspectorRow(inspectedRowId)
+        if (!active) return
+        if (!row) throw new Error("This record is no longer available.")
+        setInspectedRowIndex(null)
+        setDetachedInspectorRow(row)
+        return
+      }
+      if (index === null)
+        throw new Error(
+          "This record is no longer available in the current view."
+        )
+      const loaded = await loadPageIndexRef.current(
+        Math.floor(index / PAGE_SIZE)
+      )
+      if (active && loaded && rowsRef.current.has(index))
+        setInspectedRowIndex(index)
+    })().catch((error) => {
+      if (active) inspectionErrorRef.current?.(error)
+    })
+    return () => {
+      active = false
+    }
+    // Initial paging may already be in flight when the route is restored.
+    // Reconcile again when those rows arrive, rather than losing the target.
+  }, [
+    inspectedRowId,
+    locateRow,
+    loadInspectorRow,
+    cacheRevision,
+    detachedInspectorRow,
+  ])
 
   const touchPage = useCallback((pageIndex: number) => {
     pageAccessClockRef.current += 1
@@ -1740,6 +1813,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       value: EidosFileSqlPrimitive
     ) => {
       if (inspectedRowIndex === null) {
+        if (detachedInspectorRow) {
+          const result = await (onInspectorCellEdit ?? onCellEdit)(
+            row,
+            field,
+            value
+          )
+          setDetachedInspectorRow(result.row)
+          return result
+        }
         throw new Error("No inspected Eidos File row")
       }
       const previous = rowsRef.current.get(inspectedRowIndex) ?? row
@@ -1765,7 +1847,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         throw error
       }
     },
-    [inspectedRowIndex, onCellEdit, onInspectorCellEdit, refreshColumnStats]
+    [
+      inspectedRowIndex,
+      detachedInspectorRow,
+      onCellEdit,
+      onInspectorCellEdit,
+      refreshColumnStats,
+    ]
   )
 
   const appendRow = useCallback(async () => {
@@ -2817,6 +2905,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             onPropertyFieldOpen
               ? (field) => {
                   setInspectedRowIndex(null)
+                  onInspectedRowChange?.(null)
                   onPropertyFieldOpen(field)
                 }
               : undefined
@@ -2891,6 +2980,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onOpenRecord={(state) => {
             onPropertyFieldClose?.()
             setInspectedRowIndex(state.rowIndex)
+            const row = rowsRef.current.get(state.rowIndex)
+            if (row?._id != null) onInspectedRowChange?.(String(row._id))
           }}
           onCopyCell={copyText}
           onCopyRecordId={copyText}
@@ -2918,7 +3009,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           fields={fields}
           variant={eidosFileContentField(table) ? "page" : "panel"}
           contentField={eidosFileContentField(table)}
-          onClose={() => setInspectedRowIndex(null)}
+          onClose={() => {
+            setInspectedRowIndex(null)
+            setDetachedInspectorRow(null)
+            onInspectedRowChange?.(null)
+          }}
           onPreviousRecord={
             inspectedRowIndex !== null && inspectedRowIndex > 0
               ? () => navigateInspectedRow(-1)

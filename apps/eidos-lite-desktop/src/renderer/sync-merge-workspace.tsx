@@ -412,6 +412,7 @@ export function SyncMergeWorkbench({
   initialStatus,
   initialPath,
   initialTable,
+  onNavigate,
   onClose,
   onStatusChange,
   onFilesMaterialized,
@@ -422,6 +423,7 @@ export function SyncMergeWorkbench({
   mainOnly?: boolean
   initialPath?: string
   initialTable?: string
+  onNavigate?: (path: string, table?: string) => void
   theme: ResolvedAppearance
   titlebarNavigation?: ReactNode
   onClose(): void
@@ -894,12 +896,14 @@ export function SyncMergeWorkbench({
   }, [selectedConflictPage, selectedTable, status.stateToken])
 
   const selectTarget = (target: MergeChangeTreeTarget) => {
+    onNavigate?.(target.path.path, target.table ?? undefined)
     setSelectedPath(target.path)
     setSelectedTable(target.table)
     setSelectedScope(target.scope)
   }
 
   const selectPath = (path: EidosSyncMergePath | null) => {
+    if (path) onNavigate?.(path.path)
     setSelectedPath(path)
     setSelectedTable(null)
     setSelectedScope("file")

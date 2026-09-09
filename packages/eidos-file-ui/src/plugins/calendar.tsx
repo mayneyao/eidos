@@ -214,6 +214,11 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
   if (!view) return null
   return (
     <EidosFileCalendarView
+      onOpenRecord={
+        props.onInspectedRowChange
+          ? (row) => props.onInspectedRowChange?.(String(row._id))
+          : undefined
+      }
       table={table}
       view={view}
       disabled={disabled}

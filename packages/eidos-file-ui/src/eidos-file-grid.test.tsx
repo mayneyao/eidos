@@ -3059,6 +3059,126 @@ describe("EidosFileGrid", () => {
     )
   })
 
+  it("restores and closes record details from host navigation without adding history", async () => {
+    const loadPage = createLoadPage()
+    const locateRow = vi.fn(async (id: string) => Number(id.slice(4)))
+    const onInspectedRowChange = vi.fn()
+    const render = async (rowId: string | null) => {
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={locateRow}
+            inspectedRowId={rowId}
+            onInspectedRowChange={onInspectedRowChange}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+          />
+        )
+      })
+    }
+    await render("row_0")
+    const inspector = container.querySelector(
+      '[aria-label="Record details for Write RFC"]'
+    )
+    expect(inspector).toBeTruthy()
+    locateRow.mockClear()
+    loadPage.mockClear()
+    await render("row_1")
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBe(inspector)
+    await render("row_0")
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(locateRow).not.toHaveBeenCalled()
+    expect(loadPage).not.toHaveBeenCalled()
+    await render(null)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBeNull()
+    await render("row_1")
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBeTruthy()
+    expect(onInspectedRowChange).not.toHaveBeenCalled()
+  })
+
+  it("restores a record on cold load when initial paging is already in flight", async () => {
+    let finishPage!: (page: EidosFileRowPage) => void
+    const loadPage = vi.fn(
+      () =>
+        new Promise<EidosFileRowPage>((resolve) => {
+          finishPage = resolve
+        })
+    )
+    const locateRow = vi.fn(async () => 1)
+    const onInspectedRowChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={loadPage}
+          locateRow={locateRow}
+          inspectedRowId="row_1"
+          onInspectedRowChange={onInspectedRowChange}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+    })
+    expect(loadPage).toHaveBeenCalledOnce()
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBeNull()
+    await act(async () => {
+      finishPage({
+        tableId: table.table.id,
+        offset: 0,
+        limit: 100,
+        total: table.rowCount,
+        rows: [rowAt(0), rowAt(1)],
+      })
+    })
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBeTruthy()
+    expect(loadPage).toHaveBeenCalledOnce()
+    expect(onInspectedRowChange).not.toHaveBeenCalled()
+  })
+
+  it("opens a routed record by ID even when it is outside the current filtered view", async () => {
+    const loadInspectorRow = vi.fn(async () => ({
+      _id: "outside",
+      title: "Outside filter",
+      done: 0,
+    }))
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          locateRow={async () => null}
+          loadInspectorRow={loadInspectorRow}
+          inspectedRowId="outside"
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+    })
+    expect(
+      container.querySelector(
+        '[aria-label="Record details for Outside filter"]'
+      )
+    ).toBeTruthy()
+    expect(loadInspectorRow).toHaveBeenCalledWith("outside")
+  })
+
   it("opens record details and deletes the right-clicked record", async () => {
     const onRequestDeleteRows = vi.fn()
     const onOpenRecordInTab = vi.fn()

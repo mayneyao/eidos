@@ -87,6 +87,8 @@ import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { useEidosLiteI18n } from "./i18n"
 import {
   canNavigateHistory,
+  NAVIGATION_EVENT,
+  closeRecordLocation,
   initializeNavigationHistory,
   isVersionDiffNavigationLocation,
   pathMatchesPrefix,
@@ -850,10 +852,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const searchEntryRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
-  const [mergeInitialPath, setMergeInitialPath] = useState<string | undefined>()
-  const [mergeInitialTable, setMergeInitialTable] = useState<
-    string | undefined
-  >()
   const [versionRouteError, setVersionRouteError] = useState<string | null>(
     null
   )
@@ -1151,13 +1149,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   }, [])
 
   const recordNavigationLocation = useCallback(
-    (location: NavigationLocation) => {
+    (location: NavigationLocation, restore = true) => {
       const current = navigationSnapshotRef.current
       const spaceId = space?.id
       if (!current || !spaceId) return
       const next = pushNavigationLocation(current, spaceId, location)
       navigationSnapshotRef.current = next
       setNavigationSnapshot(next)
+      window.dispatchEvent(
+        new CustomEvent(NAVIGATION_EVENT, { detail: { restore } })
+      )
     },
     [space?.id]
   )
@@ -1393,7 +1394,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     }
     let active = true
     setSyncMergeStatus({ state: "none" })
-    setMergeInitialPath(undefined)
     void window.eidosLite.getSyncMergeStatus().then(
       (response) => {
         if (!active || !response.ok) return
@@ -1495,10 +1495,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     : syncPanelMode
       ? ("sync" as const)
       : null
+  const mergeLocation = navigationSnapshot?.location
+  const recordLocation =
+    typeof mergeLocation === "object" && mergeLocation?.type === "record"
+      ? mergeLocation
+      : null
+  const mergeInitialPath =
+    typeof mergeLocation === "object" && mergeLocation?.type === "merge"
+      ? mergeLocation.path
+      : undefined
+  const mergeInitialTable =
+    typeof mergeLocation === "object" && mergeLocation?.type === "merge"
+      ? mergeLocation.tableName
+      : undefined
   const mergeWorkbenchOpen =
-    syncPanelMode === "enable" &&
-    mergeInitialPath !== undefined &&
-    syncMergeStatus.state === "merging"
+    mergeInitialPath !== undefined && syncMergeStatus.state === "merging"
   const versionDiffRouteOpen = isVersionDiffNavigationLocation(
     navigationSnapshot?.location ?? null
   )
@@ -1935,12 +1946,43 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       entry: SpaceTreeEntry,
       options: {
         recordHistory?: boolean
+        tableId?: string
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
+      if (fileOpenInFlight.current) return false
+      // History navigation inside an open Eidos File only changes the table
+      // or record. Reuse its live session instead of reopening the file.
+      const historyFile =
+        options.recordHistory === false && entry.kind === "eidos"
+          ? cachedFiles.find((file) => file.relativePath === entry.relativePath)
+          : undefined
+      if (historyFile) {
+        if (options.tableId) {
+          if (
+            !historyFile.snapshot.tables.some(
+              (table) => table.table.id === options.tableId
+            )
+          ) {
+            setError("This table is no longer available in the file.")
+            return false
+          }
+          setCachedFiles((current) =>
+            current.map((file) =>
+              file.sessionId === historyFile.sessionId
+                ? { ...file, tableId: options.tableId! }
+                : file
+            )
+          )
+        }
+        setVersionInspection(null)
+        setFileIssue(null)
+        setTextPreview(null)
+        setActiveSession(historyFile.sessionId)
+        return true
+      }
       if (entry.kind !== "eidos") {
-        if (fileOpenInFlight.current) return false
         fileOpenInFlight.current = true
         setBusyFile(entry.relativePath)
         setError(null)
@@ -1966,7 +2008,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           setTextPreview(preview)
           rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
-            recordNavigationLocation(entry.relativePath)
+            recordNavigationLocation(
+              options.fileOpenMode
+                ? {
+                    type: "file",
+                    path: entry.relativePath,
+                    openWith: options.fileOpenMode,
+                  }
+                : entry.relativePath,
+              false
+            )
           }
           return true
         } catch (cause) {
@@ -1977,7 +2028,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           setBusyFile(null)
         }
       }
-      if (fileOpenInFlight.current) return false
       fileOpenInFlight.current = true
       setBusyFile(entry.relativePath)
       setError(null)
@@ -1999,8 +2049,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           }
         }
         const opened = await window.eidosLite.openEidosFile(entry.relativePath)
-        const tableId = opened.snapshot.tables[0]?.table.id
+        const tableId = options.tableId ?? opened.snapshot.tables[0]?.table.id
         if (!tableId) throw new Error("This Eidos File has no tables")
+        if (!opened.snapshot.tables.some((table) => table.table.id === tableId))
+          throw new Error("This table is no longer available in the file.")
         await loadEidosFileWorkbench()
         const existing = availableCachedFiles.find(
           (file) => file.sessionId === opened.sessionId
@@ -2016,11 +2068,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               {
                 ...next,
                 snapshot: opened.snapshot,
-                tableId: opened.snapshot.tables.some(
-                  (table) => table.table.id === next.tableId
-                )
-                  ? next.tableId
-                  : tableId,
+                tableId:
+                  options.tableId ??
+                  (opened.snapshot.tables.some(
+                    (table) => table.table.id === next.tableId
+                  )
+                    ? next.tableId
+                    : tableId),
               },
             ]
           })
@@ -2028,7 +2082,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           setActiveSession(opened.sessionId)
           rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
-            recordNavigationLocation(entry.relativePath)
+            recordNavigationLocation(entry.relativePath, false)
           }
           return true
         }
@@ -2069,7 +2123,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setActiveSession(opened.sessionId)
         rememberOpenedEntry(entry)
         if (options.recordHistory !== false) {
-          recordNavigationLocation(entry.relativePath)
+          recordNavigationLocation(entry.relativePath, false)
         }
         return true
       } catch (cause) {
@@ -2328,6 +2382,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
             let currentSpace = launchSpace.current
             if (!currentSpace) continue
+            if (typeof target === "object" && target?.type === "whats-new")
+              continue
+            if (typeof target === "object" && target?.type === "merge") {
+              setSyncPanelMode("enable")
+              setVersionPanelOpen(false)
+              continue
+            }
             if (target === null) {
               setVersionRouteError(null)
               setVersionInspection(null)
@@ -2359,8 +2420,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
             setVersionRouteError(null)
 
+            const targetPath = typeof target === "string" ? target : target.path
             let directoryPath = ""
-            for (const segment of target.split("/").slice(0, -1)) {
+            for (const segment of targetPath.split("/").slice(0, -1)) {
               directoryPath = directoryPath
                 ? `${directoryPath}/${segment}`
                 : segment
@@ -2377,7 +2439,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               launchAcceptSpaceSnapshot.current(currentSpace)
             }
 
-            const entry = findSpaceEntry(currentSpace.entries, target)
+            const entry = findSpaceEntry(currentSpace.entries, targetPath)
             if (!entry || entry.kind === "directory") {
               setError(`${target} is no longer available in this Space.`)
               const current = navigationSnapshotRef.current
@@ -2399,7 +2461,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             }
 
             setSelectedEntry(entry)
-            await launchOpenEntry.current(entry, { recordHistory: false })
+            await launchOpenEntry.current(entry, {
+              recordHistory: false,
+              ...(typeof target !== "string" && target.type === "record"
+                ? { tableId: target.tableId }
+                : {}),
+              ...(typeof target !== "string" && target.type === "file"
+                ? { fileOpenMode: target.openWith }
+                : {}),
+            })
           }
         } catch (cause) {
           setError(`Could not follow browser history. ${errorMessage(cause)}`)
@@ -2424,14 +2494,19 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setNavigationSnapshot(initial)
     applyNavigationLocation(initial.location)
 
-    const handlePopState = () => {
+    const handlePopState = (event: Event) => {
       const next = readNavigationHistory(space.id)
       navigationSnapshotRef.current = next
       setNavigationSnapshot(next)
-      applyNavigationLocation(next.location)
+      if (!(event instanceof CustomEvent && event.detail?.restore === false))
+        applyNavigationLocation(next.location)
     }
     window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
+    window.addEventListener(NAVIGATION_EVENT, handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener(NAVIGATION_EVENT, handlePopState)
+    }
   }, [applyNavigationLocation, space?.id])
 
   const navigateHistory = useCallback(
@@ -3634,13 +3709,80 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       refreshToken={externalFileRefreshToken}
                       focusRequestToken={fileSurfaceFocusRequestToken}
                       activeTableId={activeFile.tableId}
+                      activeViewId={
+                        recordLocation?.path === activeFile.relativePath &&
+                        recordLocation.tableId === activeFile.tableId
+                          ? recordLocation.viewId
+                          : undefined
+                      }
+                      onViewSelect={(viewId) =>
+                        recordNavigationLocation({
+                          type: "record",
+                          path: activeFile.relativePath,
+                          tableId: activeFile.tableId,
+                          rowId: null,
+                          viewId,
+                        })
+                      }
+                      onRecordNavigate={(tableId, rowId) =>
+                        recordNavigationLocation({
+                          type: "record",
+                          path: activeFile.relativePath,
+                          tableId,
+                          rowId,
+                        })
+                      }
+                      inspectedRowId={
+                        navigationSnapshot?.location &&
+                        typeof navigationSnapshot.location === "object" &&
+                        navigationSnapshot.location.type === "record" &&
+                        navigationSnapshot.location.path ===
+                          activeFile.relativePath &&
+                        navigationSnapshot.location.tableId ===
+                          activeFile.tableId
+                          ? navigationSnapshot.location.rowId
+                          : null
+                      }
+                      onInspectedRowChange={(rowId) => {
+                        const current = navigationSnapshotRef.current
+                        if (!current || !space) return
+                        const location = {
+                          type: "record" as const,
+                          path: activeFile.relativePath,
+                          tableId: activeFile.tableId,
+                          rowId,
+                          ...(recordLocation?.viewId
+                            ? { viewId: recordLocation.viewId }
+                            : {}),
+                        }
+                        if (rowId === null) {
+                          closeRecordLocation(space.id, location)
+                          return
+                        }
+                        if (typeof current.location === "string") {
+                          const base = replaceNavigationLocation(
+                            current,
+                            space.id,
+                            { ...location, rowId: null }
+                          )
+                          navigationSnapshotRef.current = base
+                          setNavigationSnapshot(base)
+                        }
+                        recordNavigationLocation(location)
+                      }}
                       disabled={localInteractionBlocked}
                       theme={theme}
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
                       macos={macos}
-                      onTableSelect={(tableId) =>
+                      onTableSelect={(tableId) => {
+                        recordNavigationLocation({
+                          type: "record",
+                          path: activeFile.relativePath,
+                          tableId,
+                          rowId: null,
+                        })
                         setCachedFiles((current) =>
                           current.map((file) =>
                             file.sessionId === activeFile.sessionId
@@ -3648,7 +3790,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                               : file
                           )
                         )
-                      }
+                      }}
                       onSnapshot={(snapshot) =>
                         setCachedFiles((current) =>
                           current.map((file) =>
@@ -3796,6 +3938,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             mainOnly
             initialPath={mergeInitialPath}
             initialTable={mergeInitialTable}
+            onNavigate={(path, tableName) =>
+              recordNavigationLocation({ type: "merge", path, tableName })
+            }
             initialStatus={syncMergeStatus}
             theme={theme}
             titlebarNavigation={
@@ -3803,14 +3948,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 ? collapsedTitlebarNavigation
                 : null
             }
-            onClose={() => setMergeInitialPath(undefined)}
+            onClose={() => recordNavigationLocation(activeDocumentPath)}
             onStatusChange={(merge) => {
               setSyncMergeStatus(merge)
               if (merge.state === "none") {
                 setVersionRefreshKey((current) => current + 1)
                 reloadVersionDiffRoute()
                 setVersionPanelOpen(false)
-                setMergeInitialPath(undefined)
+                recordNavigationLocation(activeDocumentPath)
                 setSyncPanelMode("enable")
               }
             }}
@@ -3853,8 +3998,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             onMergeStatusChange={setSyncMergeStatus}
             mergeStatus={syncMergeStatus}
             onReviewMerge={(path, table) => {
-              setMergeInitialTable(table)
-              setMergeInitialPath(path ?? "")
+              recordNavigationLocation({
+                type: "merge",
+                path: path ?? "",
+                tableName: table,
+              })
               setSyncPanelMode("enable")
               setVersionPanelOpen(false)
             }}
@@ -4262,7 +4410,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
 export function App() {
   const theme = useAppTheme()
-  return window.location.hash === "#/settings" ? (
+  return /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
     <SettingsPage />
   ) : (
     <WorkspaceApp theme={theme} />

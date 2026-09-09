@@ -8,6 +8,7 @@ import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { SettingsPage } from "./settings-page"
 
 it("saves the Terminal workspace layout and shell preferences", async () => {
+  window.history.replaceState(null, "", "#/settings/preferences")
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   let preferences: EidosLitePreferences = {
     ...DEFAULT_RENDERER_PREFERENCES,
@@ -97,6 +98,7 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
   ].find((button) => button.textContent === "Built-in Plugins")
   await act(async () => pluginsPage?.click())
+  expect(window.location.hash).toBe("#/settings/plugins")
 
   const terminalSide = host.querySelector<HTMLButtonElement>(
     'button[data-terminal-layout="side"]'
@@ -154,5 +156,17 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   expect(select?.disabled).toBe(true)
 
   await act(async () => root.unmount())
+  const restoredRoot = createRoot(host)
+  await act(async () => restoredRoot.render(createElement(SettingsPage)))
+  expect(host.querySelector('[data-settings-page="plugins"]')).toBeTruthy()
+  const back = new Promise<void>((resolve) =>
+    window.addEventListener("popstate", () => resolve(), { once: true })
+  )
+  await act(async () => {
+    window.history.back()
+    await back
+  })
+  expect(host.querySelector('[data-settings-page="files"]')).toBeTruthy()
+  await act(async () => restoredRoot.unmount())
   host.remove()
 })

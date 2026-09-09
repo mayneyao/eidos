@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { afterEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
 import type { MarkdownEditorSurface } from "./markdown-editor-surface"
@@ -41,6 +41,7 @@ import {
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 const key = "eidos-lite:whats-new:acknowledged"
+beforeEach(() => window.history.replaceState(null, "", "/#/"))
 afterEach(() => {
   localStorage.clear()
   vi.unstubAllGlobals()
@@ -149,11 +150,15 @@ it("acknowledges upgrades when opened and preserves a permanent reopening path",
     expect(host.querySelector(".whats-new-page")?.textContent).toContain(
       "English fixture body."
     )
-    await act(async () =>
+    const closed = new Promise<void>((resolve) =>
+      window.addEventListener("popstate", () => resolve(), { once: true })
+    )
+    await act(async () => {
       host
         .querySelector<HTMLButtonElement>('button[aria-label="Close"]')!
         .click()
-    )
+      await closed
+    })
     expect(host.querySelector(".whats-new-page")).toBeNull()
     await act(async () => showFromSettings())
     expect(host.querySelector(".whats-new-page")).not.toBeNull()

@@ -210,6 +210,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onSearchRelation,
   onDeleteRow,
   onOpenRecordInTab,
+  onOpenRecord,
   onRowCountChange,
   onError,
   sidePanel,
@@ -242,6 +243,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   ) => Promise<EidosFileRelationValue[]>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
   onOpenRecordInTab?: (row: EidosFileRow) => void
+  onOpenRecord?: (row: EidosFileRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -281,11 +283,12 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     inspectedRow,
     inspectorLoading,
     inspectorLoadError,
-    openInspectorRow,
+    openInspectorRow: openLocalInspectorRow,
     closeInspectorRow,
     replaceInspectorRow,
     retryInspectorRow,
   } = useEidosFileRecordInspectorRow(loadRow)
+  const openInspectorRow = onOpenRecord ?? openLocalInspectorRow
   const fields = useMemo(
     () => orderedEidosFileFields(table.fields, view),
     [table.fields, view]

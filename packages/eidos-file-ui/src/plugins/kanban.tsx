@@ -119,6 +119,11 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
   }
   return (
     <EidosFileKanbanView
+      onOpenRecord={
+        props.onInspectedRowChange
+          ? (row) => props.onInspectedRowChange?.(String(row._id))
+          : undefined
+      }
       table={table}
       view={view}
       disabled={disabled}

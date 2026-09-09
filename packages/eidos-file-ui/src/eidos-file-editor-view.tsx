@@ -33,6 +33,8 @@ export interface EidosFileViewRendererProps {
   onSearchResultCountChange?: (rowCount: number | null) => void
   /** Host display policy for the Grid's leading row-number/selection gutter. */
   showRowMarkers?: boolean
+  inspectedRowId?: string | null
+  onInspectedRowChange?: (rowId: string | null) => void
   disabled: boolean
   reloadToken: number
   /** Monotonic Host request for the active view to reclaim keyboard focus. */
@@ -147,6 +149,8 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       search={props.search}
       searchResultIndex={props.searchResultIndex}
       showRowMarkers={props.showRowMarkers}
+      inspectedRowId={props.inspectedRowId}
+      onInspectedRowChange={props.onInspectedRowChange}
       disabled={props.disabled}
       reloadToken={props.reloadToken}
       focusRequestToken={props.focusRequestToken}
