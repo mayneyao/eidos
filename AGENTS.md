@@ -133,6 +133,8 @@ pnpm --filter @eidos.space/eidos-file-serve build
 
 ## Code style
 
+- Follow [.impeccable.md](.impeccable.md) for UI design, including loading,
+  navigation continuity, and focus behavior that avoids flicker.
 - Use strict TypeScript and avoid `any` in new code.
 - Use React functional components and hooks.
 - Use Tailwind and semantic CSS variables; do not fork Eidos File UI theme
