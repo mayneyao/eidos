@@ -1487,7 +1487,12 @@ body {
   right: 0;
   top: calc(100% + 4px);
   z-index: 60;
-  width: 184px;
+  width: max-content;
+  min-width: 184px;
+  max-width: calc(100vw - 24px);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
   padding: 4px;
   border: 1px solid var(--control-border);
   border-radius: 6px;
@@ -1506,6 +1511,8 @@ body {
   color: var(--ink);
   background: transparent;
   font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
   text-align: left;
   cursor: pointer;
 }
