@@ -10,11 +10,11 @@ import {
   Keyboard,
   LogIn,
   LogOut,
-  MonitorCog,
   RefreshCw,
   RotateCcw,
   SlidersHorizontal,
 } from "lucide-react"
+import appLogo from "../../assets/logo.svg"
 
 import type {
   EidosLiteAppearance,
@@ -961,7 +961,7 @@ export function SettingsPage() {
               <h2 id="settings-about">{t("About")}</h2>
               <div className="settings-identity">
                 <div className="settings-app-mark" aria-hidden="true">
-                  <MonitorCog />
+                  <img src={appLogo} alt="" />
                 </div>
                 <div className="settings-identity-copy">
                   <strong>Eidos Lite</strong>
@@ -993,6 +993,14 @@ export function SettingsPage() {
                   onClick={() => void openDestination("website")}
                 >
                   <span>{t("Eidos website")}</span>
+                  <ExternalLink />
+                </button>
+                <button
+                  type="button"
+                  className="settings-row"
+                  onClick={() => void openDestination("github")}
+                >
+                  <span>{t("Source code on GitHub")}</span>
                   <ExternalLink />
                 </button>
                 <button

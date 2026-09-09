@@ -434,10 +434,6 @@ body {
   padding: 1.75rem 1.5rem 3rem;
 }
 
-.settings-page > section + section {
-  margin-top: 1.75rem;
-}
-
 .settings-page section > h2 {
   margin: 0 0 0.5rem 0.15rem;
   color: var(--ink-muted);
@@ -1056,15 +1052,12 @@ body {
   height: 2.4rem;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid color-mix(in oklab, var(--lite-accent) 42%, var(--line));
-  border-radius: 0.65rem;
-  color: var(--lite-accent);
-  background: var(--surface-selected);
 }
 
-.settings-app-mark svg {
-  width: 1.15rem;
-  height: 1.15rem;
+.settings-app-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .settings-identity-copy {

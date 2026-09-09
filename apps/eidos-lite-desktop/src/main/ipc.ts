@@ -968,6 +968,7 @@ export function registerIpc(
       if (
         value !== "documentation" &&
         value !== "website" &&
+        value !== "github" &&
         value !== "logs"
       ) {
         throw new Error("Invalid Settings destination")

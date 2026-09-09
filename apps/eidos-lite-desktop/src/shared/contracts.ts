@@ -750,7 +750,11 @@ export interface EidosLitePreferences {
   defaultSpaceLocation: string | null
 }
 
-export type EidosLiteSettingsDestination = "documentation" | "website" | "logs"
+export type EidosLiteSettingsDestination =
+  | "documentation"
+  | "website"
+  | "github"
+  | "logs"
 
 export type EidosLiteUpdateState =
   | "unavailable"

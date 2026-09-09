@@ -555,7 +555,9 @@ export class WindowController {
     await shell.openExternal(
       destination === "documentation"
         ? "https://docs.eidos.space"
-        : "https://eidos.space"
+        : destination === "github"
+          ? "https://github.com/mayneyao/eidos"
+          : "https://eidos.space"
     )
   }
 

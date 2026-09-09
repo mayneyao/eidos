@@ -333,6 +333,7 @@ const zh: Record<string, string> = {
   "Local-first work for Eidos Files.": "本地优先的 Eidos File 工作方式。",
   Documentation: "文档",
   "Eidos website": "Eidos 官网",
+  "Source code on GitHub": "GitHub 开源代码",
   "Diagnostics copied": "诊断信息已复制",
   "Copy diagnostics": "复制诊断信息",
   "Show logs folder": "显示日志文件夹",
