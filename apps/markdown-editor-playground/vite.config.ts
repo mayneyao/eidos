@@ -3,15 +3,11 @@ import { fileURLToPath } from "node:url"
 
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import { siteDocuments } from "./site-documents"
 
 const directory = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ command }) => ({
-  plugins: [
-    react(),
-    siteDocuments(path.resolve(directory, "../../packages/markdown")),
-  ],
+  plugins: [react()],
   resolve: {
     // Production is an integration test of the public package artifact.
     // Source aliases are only for the development server's live updates.

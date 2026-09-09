@@ -7,11 +7,11 @@ import {
   type ShortcutDisplayPlatform,
 } from "@eidos.space/markdown"
 import { useMemo, useRef } from "react"
-import { useSiteLocale } from "./site/locale"
+import { useSiteLocale } from "./locale"
 import {
   chineseShortcutDescriptions,
   chineseShortcutScopes,
-} from "./site/shortcut-translations"
+} from "./shortcut-translations"
 
 const SCOPE_LABELS: Record<MarkdownShortcutScope, string> = {
   "block-handle": "Block",

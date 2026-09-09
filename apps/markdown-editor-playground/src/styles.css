@@ -14,21 +14,70 @@ body,
 }
 
 .playground-shell {
+  --background: oklch(0.985 0.004 255);
+  --foreground: oklch(0.25 0.018 255);
+  --muted-foreground: oklch(0.52 0.018 255);
+  --border: oklch(0.88 0.01 255);
+  --muted: oklch(0.95 0.008 255);
+  --accent: oklch(0.92 0.016 255);
+  --primary: oklch(0.48 0.11 255);
+  --ring: oklch(0.56 0.1 255);
+  color-scheme: normal;
   display: grid;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   color: var(--foreground);
   background: var(--background);
 }
 
+.playground-shell[data-theme="dark"] {
+  --accent: var(--muted);
+  --background: oklch(0.2 0.009 75);
+  --foreground: oklch(0.93 0.008 85);
+  --muted-foreground: oklch(0.73 0.012 80);
+  --border: oklch(0.35 0.012 75);
+  --muted: oklch(0.26 0.01 75);
+  --primary: oklch(0.78 0.07 190);
+  --ring: oklch(0.76 0.09 230);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.playground-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.playground-identity img {
+  flex-shrink: 0;
+}
+.playground-shell[data-theme="dark"] .playground-identity img {
+  filter: invert(1);
+}
+.playground-shell:focus {
+  outline: none;
+}
+.playground-mode-trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .playground-header {
+  min-height: 48px;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 24px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -44,6 +93,7 @@ body,
 }
 
 .playground-actions {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -329,7 +379,7 @@ body,
 
 @media (max-width: 620px) {
   .playground-header {
-    padding: 0 16px;
+    padding: 10px 16px;
   }
 
   .playground-shortcuts-dialog {
@@ -344,7 +394,7 @@ body,
 @media (max-width: 420px) {
   .playground-header {
     gap: 8px;
-    padding: 0 10px;
+    padding: 10px;
   }
 
   .playground-actions {

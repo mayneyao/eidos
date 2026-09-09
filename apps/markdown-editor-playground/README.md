@@ -5,6 +5,17 @@ center, with a read-only toggle and a whole-document source view. Visual blocks
 can also enter an in-place, selection-driven source mode for precise Markdown
 editing without leaving the document flow.
 
+`md.eidos.space` serves only this playground: `/` opens English and `/zh`
+opens Chinese. Previous documentation, syntax and builder URLs also open the
+playground through the static SPA fallback. The toolbar contains shortcuts,
+source mode, read-only and theme controls. Theme changes preserve the current
+draft; document text is not persisted across reloads.
+
+Package API documentation and specifications remain in `packages/markdown`.
+There is no documentation-site generator, preset builder or downloadable package
+archive in this app. Production builds the Markdown package and then Vite's
+static assets; Wrangler deploys `dist` directly using the existing domain config.
+
 Pasted clipboard images demonstrate the editor's host callback boundary. The
 playground writes each image into its origin-private file system (OPFS), stores
 an `opfs://markdown-editor-playground/images/...` URL in canonical Markdown,

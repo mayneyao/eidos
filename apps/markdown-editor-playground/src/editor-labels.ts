@@ -1,6 +1,6 @@
 import type { MarkdownEditorLabels } from "@eidos.space/markdown"
 
-/** Site-owned translations through the public component API. */
+/** Playground translations through the public component API. */
 export const chineseEditorLabels = {
   findInDocument: "在文档中查找",
   noTextMatches: "无匹配项",

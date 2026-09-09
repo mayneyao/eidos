@@ -492,12 +492,6 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5)
-      micromark:
-        specifier: 4.0.2
-        version: 4.0.2(supports-color@10.2.2)
-      micromark-extension-gfm:
-        specifier: 3.0.0
-        version: 3.0.0
       supports-color:
         specifier: 10.2.2
         version: 10.2.2

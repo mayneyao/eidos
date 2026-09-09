@@ -19,10 +19,10 @@ import {
 import { PlaygroundOpfsImageStore } from "./opfs-image-store"
 import { ShortcutReference } from "./shortcut-reference"
 import "@eidos.space/markdown/styles.css"
-import { useSiteLocale } from "./site/locale"
-import { chineseEditorLabels } from "./site/editor-labels"
-import { presetFromSearch, presets } from "./site/presets"
-import { presetSample } from "./site/preset-samples"
+import { useSiteLocale } from "./locale"
+import { chineseEditorLabels } from "./editor-labels"
+import { PLAYGROUND_MARKDOWN } from "./sample-markdown"
+import logo from "../../../packages/markdown/assets/markdown-logo.svg?url&no-inline"
 
 type TestablePlaygroundWindow = Window & {
   __EIDOS_MARKDOWN_TEST_DOCUMENT__?: string
@@ -59,19 +59,36 @@ function initialMarkdown(): string {
     isLocalTestHost &&
     typeof testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__ === "string"
       ? testWindow.__EIDOS_MARKDOWN_TEST_DOCUMENT__
-      : presetSample(presetFromSearch())
+      : PLAYGROUND_MARKDOWN
 
   if (isLocalTestHost) testWindow.__EIDOS_MARKDOWN_TEST_VALUE__ = value
   return value
 }
 
-export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
+export function App() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      const saved = localStorage.getItem("markdown-site-theme")
+      if (saved === "light" || saved === "dark") return saved
+    } catch {
+      /* Storage is optional. */
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light"
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem("markdown-site-theme", theme)
+    } catch {
+      /* Storage is optional. */
+    }
+  }, [theme])
   const embedded =
     new URLSearchParams(window.location.search).get("layout") === "embedded"
-  const { locale, t, href } = useSiteLocale()
+  const { locale, t } = useSiteLocale()
   const preset = "eidos" as const
   const [markdown, setMarkdown] = useState(initialMarkdown)
-  const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const [readOnly, setReadOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"visual" | "source">("visual")
   const sourceRef = useRef<HTMLTextAreaElement>(null)
@@ -109,12 +126,10 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      void imageStore
-        .sweepUnusedImages(`${markdown}\n${previousDraft ?? ""}`)
-        .catch(console.error)
+      void imageStore.sweepUnusedImages(markdown).catch(console.error)
     }, 1_000)
     return () => window.clearTimeout(handle)
-  }, [imageStore, markdown, previousDraft])
+  }, [imageStore, markdown])
 
   const persistPastedImage = useCallback(
     async (
@@ -151,43 +166,11 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
     >
       <header className="playground-header">
         <div className="playground-identity">
+          <img src={logo} alt="" width="24" height="24" />
           <h1>{t("Markdown Editor Playground", "Markdown 编辑器交互体验")}</h1>
-          <p className="playground-preset-description">
-            {presets.find((entry) => entry.id === preset)?.[locale]}
-          </p>
         </div>
         <div className="playground-actions">
-          <a
-            className="playground-mode-trigger"
-            href={`${href("/spec")}?preset=${preset}`}
-          >
-            {t("Syntax reference", "语法对照")}
-          </a>
           <ShortcutReference />
-          <button
-            type="button"
-            className="playground-mode-trigger"
-            disabled={readOnly}
-            onClick={() => {
-              setPreviousDraft(markdown)
-              handleMarkdownChange(presetSample(preset))
-            }}
-          >
-            {t("Load example", "载入示例")}
-          </button>
-          {previousDraft !== null && (
-            <button
-              type="button"
-              className="playground-mode-trigger"
-              disabled={readOnly}
-              onClick={() => {
-                handleMarkdownChange(previousDraft)
-                setPreviousDraft(null)
-              }}
-            >
-              {t("Restore previous draft", "恢复之前的草稿")}
-            </button>
-          )}
           <button
             type="button"
             className="playground-mode-trigger"
@@ -212,6 +195,18 @@ export function App({ theme = "light" }: { theme?: "light" | "dark" }) {
             />
             <span className="playground-switch-track" aria-hidden="true" />
           </label>
+          <button
+            type="button"
+            className="playground-mode-trigger"
+            aria-label={
+              theme === "light"
+                ? t("Switch to dark theme", "切换到深色主题")
+                : t("Switch to light theme", "切换到浅色主题")
+            }
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          >
+            {theme === "light" ? t("Dark", "深色") : t("Light", "浅色")}
+          </button>
         </div>
       </header>
       <div

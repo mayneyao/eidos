@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm --filter @eidos.space/markdown build && vite build && node scripts/package-download.mjs",
+    "build": "pnpm --filter @eidos.space/markdown build && vite build",
     "deploy": "pnpm run build && wrangler deploy",
     "dry-run": "pnpm run build && wrangler deploy --dry-run",
     "test": "vitest run",
@@ -24,8 +24,6 @@
     "@types/react-dom": "^18.2.6",
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^26.1.0",
-    "micromark": "4.0.2",
-    "micromark-extension-gfm": "3.0.0",
     "supports-color": "10.2.2",
     "typescript": "^5.8.3",
     "vite": "^8.1.5",
