@@ -1,6 +1,6 @@
 import { HIGHLIGHT } from "@lexical/markdown"
-import { gfmFootnote, gfmFootnoteHtml } from "micromark-extension-gfm-footnote"
-import { gfmFootnoteFromMarkdown } from "mdast-util-gfm-footnote"
+import { HIGHLIGHT_DELIMITER } from "../features/highlight/syntax"
+import { footnoteGrammar } from "../features/footnote/grammar"
 import { EfmBlockNode, EfmInlineNode } from "../nodes/efm-semantic-node"
 import { EfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { SourceRangeEditingPlugin } from "../plugins/source-range-editing-plugin"
@@ -46,7 +46,9 @@ export const highlightPlugin = defineMarkdownPlugin({
   id: "eidos.highlight",
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.highlight],
-  transformers: [{ order: 170, transformer: HIGHLIGHT }],
+  transformers: [
+    { order: 170, transformer: { ...HIGHLIGHT, tag: HIGHLIGHT_DELIMITER } },
+  ],
   toolbar: [
     {
       id: "format.highlight",
@@ -78,11 +80,7 @@ export const imagePlugin = defineMarkdownPlugin({
 })
 
 export const footnotePlugin = defineMarkdownPlugin({
-  grammar: {
-    extensions: [gfmFootnote()],
-    mdastExtensions: [gfmFootnoteFromMarkdown()],
-    htmlExtensions: [gfmFootnoteHtml()],
-  },
+  grammar: footnoteGrammar,
   blockBoundaries: [footnoteBoundary],
   apiVersion: 1,
   id: "eidos.footnote",
@@ -166,7 +164,9 @@ export const obsidianSyntaxPlugin = defineMarkdownPlugin({
     { id: "obsidian.wikilink-completion", component: WikiLinkCompletion },
     { id: "obsidian.wikilink-paste", component: WikiLinkPaste },
   ],
-  transformers: [{ order: 170, transformer: HIGHLIGHT }],
+  transformers: [
+    { order: 170, transformer: { ...HIGHLIGHT, tag: HIGHLIGHT_DELIMITER } },
+  ],
   toolbar: [
     {
       id: "obsidian.format.highlight",

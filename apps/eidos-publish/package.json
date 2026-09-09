@@ -28,10 +28,9 @@
     "wrangler": "4.124.0"
   },
   "dependencies": {
+    "@eidos.space/markdown": "workspace:*",
     "@cloudflare/containers": "^0.3.7",
     "@noble/hashes": "2.3.0",
-    "mdast-util-from-markdown": "2.0.3",
-    "micromark": "4.0.2",
-    "micromark-extension-gfm": "3.0.0"
+    "mdast-util-from-markdown": "2.0.3"
   }
 }

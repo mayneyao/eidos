@@ -59,6 +59,7 @@ import type { MarkdownGrammar } from "../core/markdown-grammar"
 import { importBlockSyntax, scanBlockSyntax } from "../core/block-syntax"
 import { importInlineSyntax, scanInlineSyntax } from "../core/inline-syntax"
 import { ACTIVE_HTML } from "../core/html-safety"
+import { frontmatterRange } from "../features/frontmatter/syntax"
 import { htmlBlockSyntax } from "../features/html/plugin"
 import type {
   MarkdownAnalysisOptions,
@@ -169,70 +170,56 @@ function readFrontmatter(
   source: string,
   profile: EfmInputProfile
 ): FrontmatterEnvelope | null {
-  if (profile !== "document" || source.slice(0, lineEnd(source, 0)) !== "---") {
-    return null
-  }
+  const range = profile === "document" ? frontmatterRange(source) : null
+  if (!range) return null
+  const openingEnd = 3
+  const { closingStart, end: closingEnd } = range
+  const yamlSource = source.slice(openingEnd + 1, closingStart)
+  const lineCounter = new LineCounter()
+  const document = parseDocument(yamlSource, {
+    lineCounter,
+    prettyErrors: false,
+    strict: true,
+    uniqueKeys: true,
+    version: "1.2",
+  })
+  const diagnostics = document.errors.map((error) =>
+    diagnosticAt(
+      source,
+      error.code === "DUPLICATE_KEY"
+        ? "efm-frontmatter-duplicate-key"
+        : "efm-frontmatter-invalid",
+      "error",
+      error.code === "DUPLICATE_KEY"
+        ? "YAML frontmatter contains a duplicate mapping key."
+        : error.message,
+      openingEnd + 1 + error.pos[0],
+      openingEnd + 1 + error.pos[1]
+    )
+  )
 
-  const openingEnd = lineEnd(source, 0)
-  if (openingEnd === source.length) return null
-
-  let closingStart = openingEnd + 1
-  while (closingStart <= source.length) {
-    const closingEnd = lineEnd(source, closingStart)
-    if (source.slice(closingStart, closingEnd) === "---") {
-      const yamlSource = source.slice(openingEnd + 1, closingStart)
-      const lineCounter = new LineCounter()
-      const document = parseDocument(yamlSource, {
-        lineCounter,
-        prettyErrors: false,
-        strict: true,
-        uniqueKeys: true,
-        version: "1.2",
-      })
-      const diagnostics = document.errors.map((error) =>
-        diagnosticAt(
-          source,
-          error.code === "DUPLICATE_KEY"
-            ? "efm-frontmatter-duplicate-key"
-            : "efm-frontmatter-invalid",
-          "error",
-          error.code === "DUPLICATE_KEY"
-            ? "YAML frontmatter contains a duplicate mapping key."
-            : error.message,
-          openingEnd + 1 + error.pos[0],
-          openingEnd + 1 + error.pos[1]
-        )
+  if (
+    diagnostics.length === 0 &&
+    document.contents !== null &&
+    !isMap(document.contents)
+  ) {
+    diagnostics.push(
+      diagnosticAt(
+        source,
+        "efm-frontmatter-not-mapping",
+        "error",
+        "YAML frontmatter must contain a mapping or be empty.",
+        openingEnd + 1,
+        closingStart
       )
-
-      if (
-        diagnostics.length === 0 &&
-        document.contents !== null &&
-        !isMap(document.contents)
-      ) {
-        diagnostics.push(
-          diagnosticAt(
-            source,
-            "efm-frontmatter-not-mapping",
-            "error",
-            "YAML frontmatter must contain a mapping or be empty.",
-            openingEnd + 1,
-            closingStart
-          )
-        )
-      }
-
-      return {
-        end: closingEnd,
-        source: source.slice(0, closingEnd),
-        diagnostics,
-      }
-    }
-    if (closingEnd === source.length) break
-    closingStart = closingEnd + 1
+    )
   }
 
-  // EFM treats an unmatched opening delimiter as ordinary Markdown.
-  return null
+  return {
+    end: closingEnd,
+    source: source.slice(0, closingEnd),
+    diagnostics,
+  }
 }
 
 function parseMarkdown(source: string, grammar?: MarkdownGrammar): MdastNode {

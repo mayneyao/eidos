@@ -1,7 +1,7 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 import { fromMarkdown } from "mdast-util-from-markdown"
-import { micromark } from "micromark"
-import { gfm, gfmHtml } from "micromark-extension-gfm"
+import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
+import markdownStyles from "@eidos.space/markdown/static.css"
 
 import {
   MARKDOWN_DRIVER,
@@ -65,12 +65,7 @@ export async function prepareMarkdownVersion(
       .filter((reference) => reference.kind === "markdown-link")
       .map((reference) => [reference.uri, reference.fileSha256] as const)
   )
-  const rendered = micromark(markdown, {
-    allowDangerousHtml: false,
-    allowDangerousProtocol: false,
-    extensions: [gfm()],
-    htmlExtensions: [gfmHtml()],
-  })
+  const rendered = renderMarkdownToHtml(markdown)
   const document = await rewriteMarkdownAssets(
     markdownDocument(rendered),
     localAssets,
@@ -295,14 +290,11 @@ function markdownDocument(body: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Published Markdown</title>
   <style>
-    :root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.65}
-    body{margin:0;color:#24292f;background:#fff}main{max-width:760px;margin:0 auto;padding:48px 24px 96px}
-    h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.5em 0 .6em}h1{font-size:2.25rem}h2{font-size:1.7rem;border-bottom:1px solid #d0d7de;padding-bottom:.3em}
-    a{color:#0969da}img{max-width:100%;height:auto;border-radius:6px}pre{overflow:auto;padding:16px;border-radius:6px;background:#f6f8fa}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}blockquote{margin-left:0;padding-left:1em;border-left:4px solid #d0d7de;color:#57606a}table{display:block;overflow:auto;border-collapse:collapse}th,td{padding:6px 13px;border:1px solid #d0d7de}
-    @media(prefers-color-scheme:dark){body{color:#e6edf3;background:#0d1117}a{color:#58a6ff}h2,th,td{border-color:#30363d}pre{background:#161b22}blockquote{color:#8b949e;border-color:#30363d}}
+    ${markdownStyles}
+    body{margin:0}main{max-width:52rem;margin:0 auto;padding:48px 24px 96px}
   </style>
 </head>
-<body><main>${body}</main></body>
+<body class="eme-static"><main>${body}</main></body>
 </html>`
 }
 

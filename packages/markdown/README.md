@@ -12,6 +12,51 @@ workflow. See the [refactor scope](./architecture/DELIVERY.md).
 
 ## Getting started
 
+### Static HTML (no editor runtime)
+
+```ts
+import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
+
+const html = renderMarkdownToHtml("# Notes\n\n- [x] Published")
+```
+
+This synchronous entry returns an HTML fragment and runs in Node, Workers, or a
+browser without React, Lexical, or DOM globals. Wrap the result in an element
+with `class="eme-static"` and include `@eidos.space/markdown/static.css`. That
+standalone stylesheet shares theme variables and core typography with the editor;
+it requires no JavaScript or additional CSS imports. Hosts own the page shell,
+title, language, attachment URL rewriting, and serving policy.
+
+The default `eidosSyntax` uses the same extension manifest as `eidosPreset`:
+CommonMark/GFM, footnotes, inline/display math, highlights, YAML properties,
+callouts, wikilinks, tags, comments, block IDs, inline notes and image dimensions.
+Pass `{ syntax: gfmSyntax }` for an explicit GFM-only document. Both profiles are
+exported from `/static` without importing editor code.
+
+Syntax ownership lives in `src/syntax`; feature scanners and semantic parsers
+live alongside their features, separately from Lexical node adapters. The editor
+and static renderer share GFM/footnote grammar, vault-inline scanning and precedence,
+math scanning/MathML rendering, callout parsing, frontmatter boundaries and values,
+image dimensions, heading matching and the HTML element policy. Contract tests
+compare the composed grammars and require coverage for every extension owner.
+Add a syntax owner to the shared manifest and supply both adapters; never add a
+second list of enabled syntax in a host.
+
+Static presentation intentionally omits editing controls. Comments are hidden,
+callout folding uses native `details`, and code blocks need no client JavaScript.
+Wiki embeds remain literal, matching the editor's unsupported-source behavior.
+Same-document heading/block links work locally. Cross-document wikilinks display
+their labels and require `resolveInternalLink(target)` to return a published URL;
+without a mapping they are non-interactive. No local document is implicitly
+published or fetched. Safe raw HTML is sanitized, while active HTML falls back to
+escaped source. No source CSS, event handlers or executable URL schemes survive.
+
+The low-level `grammar` option retains grammar-only rendering for existing
+consumers; it does not enable Eidos semantics. Grammar implementations and HTML
+extensions are trusted application code, never untrusted document input.
+
+### Interactive editor
+
 The component requires React 18 or 19 and a browser DOM. TypeScript consumers
 need TypeScript 5.2 or newer and `ESNext.Disposable` in `compilerOptions.lib`
 (alongside their DOM and ECMAScript libraries) for Lexical's public types.

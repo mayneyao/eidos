@@ -3,24 +3,7 @@ import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 import { STRIKETHROUGH } from "@lexical/markdown"
-import { gfmTable, gfmTableHtml } from "micromark-extension-gfm-table"
-import { gfmTableFromMarkdown } from "mdast-util-gfm-table"
-import {
-  gfmTaskListItem,
-  gfmTaskListItemHtml,
-} from "micromark-extension-gfm-task-list-item"
-import { gfmTaskListItemFromMarkdown } from "mdast-util-gfm-task-list-item"
-import {
-  gfmStrikethrough,
-  gfmStrikethroughHtml,
-} from "micromark-extension-gfm-strikethrough"
-import { gfmStrikethroughFromMarkdown } from "mdast-util-gfm-strikethrough"
-import {
-  gfmAutolinkLiteral,
-  gfmAutolinkLiteralHtml,
-} from "micromark-extension-gfm-autolink-literal"
-import { gfmAutolinkLiteralFromMarkdown } from "mdast-util-gfm-autolink-literal"
-import { gfmTagfilterHtml } from "micromark-extension-gfm-tagfilter"
+import { GFM_GRAMMARS } from "./grammar"
 import { EfmInlineNode } from "../../nodes/efm-semantic-node"
 import { defineMarkdownPlugin } from "../../plugin-system/plugin-api"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
@@ -41,11 +24,7 @@ export const tablePlugin = defineMarkdownPlugin({
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.gfmTable],
   nodes: [TableNode, TableRowNode, TableCellNode],
-  grammar: {
-    extensions: [gfmTable()],
-    mdastExtensions: [gfmTableFromMarkdown()],
-    htmlExtensions: [gfmTableHtml()],
-  },
+  grammar: GFM_GRAMMARS.table,
   transformers: [
     { order: 10, transformer: TABLE, configure: createTableTransformer },
   ],
@@ -60,11 +39,7 @@ export const taskListPlugin = defineMarkdownPlugin({
   requires: ["markdown.list"],
   features: [MARKDOWN_FEATURES.gfmTaskList],
   nodes: [ListNode, ListItemNode],
-  grammar: {
-    extensions: [gfmTaskListItem()],
-    mdastExtensions: [gfmTaskListItemFromMarkdown()],
-    htmlExtensions: [gfmTaskListItemHtml()],
-  },
+  grammar: GFM_GRAMMARS.taskList,
   transformers: [{ order: 20, transformer: RICH_CHECK_LIST }],
   insertions: gfmInsertions.filter((entry) => entry.labelKey === "checkList"),
   behaviors: [
@@ -77,11 +52,7 @@ export const strikethroughPlugin = defineMarkdownPlugin({
   id: "markdown.strikethrough",
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.gfmStrikethrough],
-  grammar: {
-    extensions: [gfmStrikethrough()],
-    mdastExtensions: [gfmStrikethroughFromMarkdown()],
-    htmlExtensions: [gfmStrikethroughHtml()],
-  },
+  grammar: GFM_GRAMMARS.strikethrough,
   transformers: [{ order: 160, transformer: STRIKETHROUGH }],
   toolbar: [
     {
@@ -100,11 +71,7 @@ export const autolinkPlugin = defineMarkdownPlugin({
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.gfmAutolink],
   nodes: [EfmInlineNode],
-  grammar: {
-    extensions: [gfmAutolinkLiteral()],
-    mdastExtensions: [gfmAutolinkLiteralFromMarkdown()],
-    htmlExtensions: [gfmAutolinkLiteralHtml()],
-  },
+  grammar: GFM_GRAMMARS.autolink,
 })
 
 /** GFM tag filtering is additive; core HTML sanitization cannot be disabled. */
@@ -113,7 +80,7 @@ export const tagFilterPlugin = defineMarkdownPlugin({
   id: "markdown.tag-filter",
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.gfmTagFilter],
-  grammar: { htmlExtensions: [gfmTagfilterHtml()] },
+  grammar: GFM_GRAMMARS.tagFilter,
 })
 
 export const gfmSyntaxPlugins = [

@@ -1040,7 +1040,7 @@ describe("Eidos Publish control plane", () => {
       mutation("create-markdown")
     )
     const markdown = new TextEncoder().encode(
-      "# Release notes\n\n![Diagram](assets/diagram.png)\n\n[Download](files/guide.pdf)\n\n<script>alert('unsafe')</script>"
+      "# Release notes\n\n![Diagram](assets/diagram.png)\n\n[Download](files/guide.pdf)\n\n> [!note]\n> Equation $x^2$ and ==highlight==.\n\n[[Private note|Reference]]\n\n<script>alert('unsafe')</script>"
     )
     const diagram = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
     const guide = new TextEncoder().encode("published guide")
@@ -1183,11 +1183,18 @@ describe("Eidos Publish control plane", () => {
       "default-src 'none'"
     )
     const html = await page.text()
-    expect(html).toContain("<h1>Release notes</h1>")
+    expect(html).toMatch(/<h1[^>]*>Release notes<\/h1>/)
+    expect(html).toMatch(/<body class="[^"]*\beme-static\b/)
+    expect(html).toContain("--eme-content-max-width")
+    expect(html).not.toContain('@import "./content')
     expect(html).not.toContain("<script>")
+    expect(html).toContain('class="eme-obsidian-callout"')
+    expect(html).toContain("<math ")
+    expect(html).toContain("<mark>highlight</mark>")
+    expect(html).toContain('aria-disabled="true">Reference</span>')
     expect(html).toContain('class="eidos-publish-brand-footer"')
     expect(html).toContain('class="eidos-publish-brand"')
-    expect(html).toContain('class="eidos-publish-brand-page"')
+    expect(html).toMatch(/<body class="[^"]*\beidos-publish-brand-page\b/)
     expect(html).toContain("Built with <strong>Eidos</strong>")
     expect(html).toContain('href="/_eidos/publish-brand.v4.css"')
     expect(html).toContain(
@@ -1209,7 +1216,7 @@ describe("Eidos Publish control plane", () => {
     )
     expect(unbrandedPage.status).toBe(200)
     const unbrandedHtml = await unbrandedPage.text()
-    expect(unbrandedHtml).toContain("<h1>Release notes</h1>")
+    expect(unbrandedHtml).toMatch(/<h1[^>]*>Release notes<\/h1>/)
     expect(unbrandedHtml).not.toContain('class="eidos-publish-brand"')
     expect(unbrandedHtml).not.toContain("publish-brand.v4.css")
 

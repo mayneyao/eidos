@@ -9,6 +9,17 @@ complete test families have shipped.
 
 ## Architecture
 
+Markdown publications use `@eidos.space/markdown/static` and its standalone
+`static.css`. The package owns the shared Eidos syntax preset and editor
+typography; Publish owns bundle validation, immutable attachment rewriting,
+document wrapping, CSP, branding, and static storage. Published pages do not
+load React or Lexical. Math, callouts, properties and other Eidos extensions use
+the same feature parsers as the editor. Cross-document wikilinks remain
+non-interactive unless the host supplies a public URL mapping; attachment
+manifest validation and URL rewriting remain mandatory.
+Wrangler builds the Markdown package before bundling and imports CSS as a Text
+module so published documents need no extra stylesheet request for content.
+
 ```text
 eidos publish
   -> authenticated control Worker

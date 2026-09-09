@@ -1,0 +1,175 @@
+.eme-paragraph,
+.eme-static p {
+  margin: 0 0 1.1em;
+}
+
+.eme-heading,
+.eme-static :is(h1,h2,h3,h4,h5,h6) {
+  margin: 1.8em 0 0.65em;
+  font-family: inherit;
+  font-weight: 680;
+  letter-spacing: -0.018em;
+  line-height: 1.22;
+}
+
+.eme-heading-h1,
+.eme-static h1 {
+  padding-bottom: 0.42em;
+  border-bottom: 1px solid var(--eme-border);
+  font-size: 1.8rem;
+}
+
+.eme-heading-h2,
+.eme-static h2 {
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid var(--eme-border);
+  font-size: 1.38rem;
+}
+
+.eme-heading-h3,
+.eme-static h3 {
+  font-size: 1.08rem;
+}
+
+.eme-heading-h4,
+.eme-static h4,
+.eme-heading-h5,
+.eme-static h5,
+.eme-heading-h6,
+.eme-static h6 {
+  font-size: 1rem;
+}
+
+.eme-text-bold,
+.eme-static strong {
+  font-weight: 700;
+}
+
+.eme-text-italic,
+.eme-static em {
+  font-style: italic;
+}
+
+.eme-text-strikethrough,
+.eme-static del {
+  text-decoration: line-through;
+}
+
+.eme-text-highlight,
+.eme-static mark {
+  padding: 0.04em 0.12em;
+  border-radius: 0.16em;
+  background: var(--eme-highlight);
+  box-decoration-break: clone;
+}
+
+.eme-inline-code,
+.eme-static :not(pre) > code {
+  padding: 0.12em 0.3em;
+  border-radius: 0.24rem;
+  background: var(--eme-code);
+  font-family: var(--eme-code-font);
+  font-size: 0.88em;
+  font-variant-ligatures: none;
+}
+
+.eme-code-block,
+.eme-static pre {
+  display: block;
+  overflow-x: auto;
+  margin: 0 0 1.1em;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--eme-border);
+  border-radius: 0.42rem;
+  background: var(--eme-code);
+  font-family: var(--eme-code-font);
+  font-size: 0.78rem;
+  font-variant-ligatures: none;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* Shared semantic presentation; interaction-only styles stay in styles.css. */
+.eme-efm-math-inline {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  margin-inline: 0.08em;
+  vertical-align: -0.08em;
+}
+
+.eme-efm-math-display {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  width: 100%;
+  padding: 0.5rem 2.5rem;
+  font-size: 1.08em;
+}
+
+.eme-efm-math-inline math,
+.eme-efm-math-display math {
+  font-family: "STIX Two Math", "Cambria Math", math;
+}
+
+.eme-obsidian-tag {
+  padding: 0.08em 0.32em;
+  border-radius: 999px;
+  color: var(--accent-strong, var(--primary, oklch(0.48 0.12 255)));
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.eme-obsidian-callout {
+  --eme-callout-color: var(
+    --accent-strong,
+    var(--primary, oklch(0.55 0.12 255))
+  );
+
+  margin: 0 0 1.1em;
+  overflow: hidden;
+  border: 1px solid
+    color-mix(in srgb, var(--eme-callout-color) 30%, var(--eme-border));
+  border-inline-start: 0.22rem solid var(--eme-callout-color);
+  border-radius: 0.35rem;
+  background: color-mix(
+    in srgb,
+    var(--eme-callout-color) 7%,
+    var(--eme-background)
+  );
+}
+
+.eme-obsidian-callout-title {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.48rem 0.7rem;
+  color: var(--eme-callout-color);
+  font-weight: 650;
+}
+
+.eme-obsidian-callout-title > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.eme-obsidian-callout-body {
+  padding: 0 0.75rem 0.65rem;
+}
+
+.eme-obsidian-callout-body > :first-child {
+  margin-top: 0;
+}
+
+.eme-obsidian-callout-body > :last-child {
+  margin-bottom: 0;
+}

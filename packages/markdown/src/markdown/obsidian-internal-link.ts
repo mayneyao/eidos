@@ -94,48 +94,60 @@ function normalizedHeading(value: string): string {
   return value.trim().replace(/\s+/gu, " ").toLocaleLowerCase()
 }
 
-/** Finds an Obsidian heading target, including `#Parent#Child` paths. */
-export function findObsidianHeadingTarget(
-  root: ParentNode,
+/** Pure heading matching shared by DOM navigation and static anchors. */
+export function findHeadingIndex(
+  headings: readonly { text: string; level: number }[],
   headingPath: string
-): HTMLElement | null {
+): number | null {
   const requested = headingPath
     .split("#")
     .map(normalizedHeading)
     .filter(Boolean)
   if (requested.length === 0) return null
 
-  const headings = Array.from(
-    root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")
-  )
   const finalHeading = requested.at(-1)
   for (let index = 0; index < headings.length; index += 1) {
     const candidate = headings[index]!
-    if (normalizedHeading(candidate.textContent ?? "") !== finalHeading) {
+    if (normalizedHeading(candidate.text) !== finalHeading) {
       continue
     }
-    if (requested.length === 1) return candidate
+    if (requested.length === 1) return index
 
     let requestedIndex = requested.length - 2
-    let childLevel = Number(candidate.tagName.slice(1))
+    let childLevel = candidate.level
     for (
       let ancestorIndex = index - 1;
       ancestorIndex >= 0 && requestedIndex >= 0;
       ancestorIndex -= 1
     ) {
       const ancestor = headings[ancestorIndex]!
-      const ancestorLevel = Number(ancestor.tagName.slice(1))
+      const ancestorLevel = ancestor.level
       if (ancestorLevel >= childLevel) continue
-      if (
-        normalizedHeading(ancestor.textContent ?? "") !==
-        requested[requestedIndex]
-      ) {
+      if (normalizedHeading(ancestor.text) !== requested[requestedIndex]) {
         continue
       }
       requestedIndex -= 1
       childLevel = ancestorLevel
     }
-    if (requestedIndex < 0) return candidate
+    if (requestedIndex < 0) return index
   }
   return null
+}
+
+/** Finds an Obsidian heading target, including parent/child heading paths. */
+export function findObsidianHeadingTarget(
+  root: ParentNode,
+  headingPath: string
+): HTMLElement | null {
+  const headings = Array.from(
+    root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")
+  )
+  const index = findHeadingIndex(
+    headings.map((node) => ({
+      text: node.textContent ?? "",
+      level: Number(node.tagName.slice(1)),
+    })),
+    headingPath
+  )
+  return index === null ? null : headings[index]!
 }

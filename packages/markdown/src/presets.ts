@@ -1,4 +1,6 @@
 import { createMarkdownPreset } from "./profile-system/create-preset"
+import { EIDOS_EXTENSION_IDS, type EidosExtensionId } from "./syntax/presets"
+import type { MarkdownPlugin } from "./plugin-system/plugin-api"
 import {
   sourceEditingPlugin,
   imagePlugin,
@@ -50,23 +52,25 @@ export const gfmPreset = createMarkdownPreset({
   extends: commonmarkPreset,
   plugins: gfmSyntaxPlugins,
 })
+const eidosEditorAdapters = {
+  "eidos.math": mathPlugin,
+  "eidos.footnote": footnotePlugin,
+  "eidos.frontmatter": frontmatterPlugin,
+  "eidos.highlight": highlightPlugin,
+  "markdown.wikilink": wikilinkPlugin,
+  "markdown.tag": tagPlugin,
+  "markdown.comment": commentPlugin,
+  "markdown.block-id": blockIdPlugin,
+  "markdown.inline-footnote": inlineFootnotePlugin,
+  "markdown.callout": calloutPlugin,
+  "markdown.attachment": attachmentPlugin,
+  "markdown.vault-link": vaultLinkPlugin,
+} satisfies Record<EidosExtensionId, MarkdownPlugin>
+
 export const eidosPreset = createMarkdownPreset({
   id: "eidos.composable",
   extends: gfmPreset,
-  plugins: [
-    mathPlugin,
-    footnotePlugin,
-    frontmatterPlugin,
-    highlightPlugin,
-    wikilinkPlugin,
-    tagPlugin,
-    commentPlugin,
-    blockIdPlugin,
-    inlineFootnotePlugin,
-    calloutPlugin,
-    attachmentPlugin,
-    vaultLinkPlugin,
-  ],
+  plugins: EIDOS_EXTENSION_IDS.map((id) => eidosEditorAdapters[id]),
 })
 
 /** @deprecated Eidos Markdown includes these extensions by default. */

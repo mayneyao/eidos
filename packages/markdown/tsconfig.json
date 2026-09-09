@@ -7,6 +7,11 @@
     "jsx": "react-jsx",
     "types": ["vitest/globals"]
   },
-  "include": ["src/**/*", "vitest.config.ts", "tsdown.config.ts"],
+  "include": [
+    "src/**/*",
+    "vitest.config.ts",
+    "tsdown.config.ts",
+    "tsdown.static.config.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

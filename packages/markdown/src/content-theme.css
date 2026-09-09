@@ -1,0 +1,58 @@
+.eme-static,
+.eme-editor {
+  --eme-background: var(
+    --background,
+    light-dark(oklch(0.982 0.006 255), oklch(0.21 0.014 255))
+  );
+  --eme-foreground: var(
+    --foreground,
+    light-dark(oklch(0.25 0.018 255), oklch(0.92 0.01 255))
+  );
+  --eme-muted: var(
+    --muted,
+    light-dark(oklch(0.95 0.009 255), oklch(0.275 0.016 255))
+  );
+  --eme-muted-foreground: var(
+    --muted-foreground,
+    light-dark(oklch(0.52 0.02 255), oklch(0.69 0.02 255))
+  );
+  --eme-accent: var(
+    --accent,
+    light-dark(oklch(0.92 0.022 255), oklch(0.31 0.025 255))
+  );
+  --eme-highlight: var(--highlight, oklch(0.9 0.1 92 / 0.68));
+  --eme-border: var(
+    --border,
+    light-dark(oklch(0.88 0.012 255), oklch(0.34 0.017 255))
+  );
+  --eme-ring: var(
+    --ring,
+    light-dark(oklch(0.56 0.12 255), oklch(0.69 0.1 255))
+  );
+  --eme-selection: color-mix(in srgb, var(--eme-ring) 24%, transparent);
+  --eme-content-padding-top: clamp(1.6rem, 4vw, 3.2rem);
+  --eme-content-padding-inline: clamp(1.25rem, 5vw, 4rem);
+  --eme-content-padding-bottom: 5rem;
+  --eme-content-max-width: 52rem;
+  --eme-code-font: var(
+    --font-code,
+    var(--font-mono, ui-monospace, SFMono-Regular, monospace)
+  );
+  --eme-code: var(
+    --control-fill,
+    color-mix(in srgb, var(--eme-foreground) 6%, var(--eme-background))
+  );
+  --eme-code-comment: oklch(0.5 0.025 255);
+  --eme-code-keyword: oklch(0.49 0.16 285);
+  --eme-code-operator: oklch(0.43 0.035 255);
+  --eme-code-string: oklch(0.48 0.115 155);
+  --eme-code-number: oklch(0.52 0.14 55);
+  --eme-code-function: oklch(0.47 0.13 245);
+  --eme-code-type: oklch(0.49 0.12 210);
+  --eme-code-variable: oklch(0.46 0.08 25);
+  --eme-code-property: oklch(0.47 0.11 245);
+  --eme-code-tag: oklch(0.46 0.13 145);
+  --eme-code-selector: oklch(0.49 0.14 310);
+  --eme-code-inserted: oklch(0.48 0.12 145);
+  --eme-code-deleted: oklch(0.5 0.16 25);
+}

@@ -1,0 +1,40 @@
+@import "./content-theme.css";
+@import "./content.css";
+
+.eme-static {
+  box-sizing: border-box;
+  color-scheme: light dark;
+  color: var(--eme-foreground);
+  background: var(--eme-background);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.eme-static > :first-child { margin-top: 0; }
+.eme-static > :last-child { margin-bottom: 0; }
+.eme-static a { color: var(--eme-ring); text-underline-offset: 0.15em; }
+.eme-static img { max-width: 100%; height: auto; }
+.eme-static blockquote {
+  margin-inline: 0;
+  padding-inline-start: 1em;
+  border-inline-start: 3px solid var(--eme-border);
+  color: var(--eme-muted-foreground);
+}
+.eme-static table { display: block; overflow-x: auto; border-collapse: collapse; }
+.eme-static th, .eme-static td { padding: 0.4em 0.8em; border: 1px solid var(--eme-border); }
+.eme-static ul, .eme-static ol { padding-inline-start: 1.5em; }
+.eme-static input[type="checkbox"] { accent-color: var(--eme-ring); }
+.eme-static pre { overflow-wrap: normal; }
+.eme-static pre code { font: inherit; }
+.eme-static .eme-obsidian-callout > summary { display: list-item; cursor: pointer; }
+.eme-static .eme-efm-frontmatter {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.1em;
+  border: 1px solid var(--eme-border);
+  border-radius: 0.35rem;
+  background: var(--eme-muted);
+}
+.eme-static .eme-efm-frontmatter dl { display: grid; grid-template-columns: minmax(6em, 1fr) 3fr; gap: 0.5em 1em; margin: 0; }
+.eme-static .eme-efm-frontmatter dt { color: var(--eme-muted-foreground); }
+.eme-static .eme-efm-frontmatter dd { margin: 0; min-width: 0; }
+.eme-static .eme-obsidian-link[aria-disabled="true"] { color: var(--eme-muted-foreground); }

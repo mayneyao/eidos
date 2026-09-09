@@ -1,4 +1,4 @@
-import katex from "katex"
+import { renderMath } from "./render"
 import { useMemo, useEffect, useRef, useState } from "react"
 import { useMarkdownShortcuts } from "../../shortcuts/shortcut-context"
 
@@ -9,17 +9,7 @@ export function MathPreview({
   display: boolean
   value: string
 }) {
-  const rendered = useMemo(
-    () =>
-      katex.renderToString(value, {
-        displayMode: display,
-        output: "mathml",
-        strict: "ignore",
-        throwOnError: false,
-        trust: false,
-      }),
-    [display, value]
-  )
+  const rendered = useMemo(() => renderMath(value, display), [display, value])
   return (
     <span
       className={display ? "eme-efm-math-display" : "eme-efm-math-inline"}

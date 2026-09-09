@@ -1,4 +1,6 @@
 import assert from "node:assert/strict"
+import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
+assert.match(renderMarkdownToHtml("# Static"), /<h1[^>]*>Static<\/h1>/)
 import { $createTextNode, $getRoot, createEditor } from "lexical"
 import { $isCodeNode } from "@lexical/code-core"
 import { EfmSourceBlockNode, eidosMarkdownProfile } from "@eidos.space/markdown"

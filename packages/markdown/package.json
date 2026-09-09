@@ -8,6 +8,12 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
+    "./static": {
+      "types": "./dist/static.d.mts",
+      "import": "./dist/static.mjs",
+      "default": "./dist/static.mjs"
+    },
+    "./static.css": "./dist/static.css",
     "./source": {
       "types": "./dist/source.d.mts",
       "import": "./dist/source.mjs",
@@ -49,8 +55,9 @@
     "**/*.css"
   ],
   "scripts": {
-    "build": "tsdown && node scripts/copy-css.mjs",
+    "build": "tsdown && tsdown --config tsdown.static.config.ts && node scripts/copy-css.mjs",
     "test": "vitest run",
+    "test:static": "pnpm run build && node scripts/check-static.mjs",
     "benchmark:codec": "pnpm run build && node scripts/benchmark-codec.mjs",
     "test:package": "pnpm run build && node scripts/test-package.mjs",
     "typecheck": "tsc --noEmit",
@@ -71,6 +78,9 @@
     "@lexical/table": "0.50.0",
     "@lexical/utils": "0.50.0",
     "diff": "8.0.4",
+    "hast-util-from-html": "2.0.3",
+    "hast-util-raw": "9.1.0",
+    "hast-util-to-html": "9.0.5",
     "katex": "0.18.5",
     "lexical": "0.50.0",
     "mdast-util-from-markdown": "2.0.3",
@@ -80,8 +90,8 @@
     "mdast-util-gfm-strikethrough": "2.0.0",
     "mdast-util-gfm-table": "2.0.0",
     "mdast-util-gfm-task-list-item": "2.0.0",
+    "mdast-util-to-hast": "13.2.1",
     "micromark": "4.0.2",
-    "micromark-util-types": "2.0.2",
     "micromark-extension-gfm": "3.0.0",
     "micromark-extension-gfm-autolink-literal": "2.1.0",
     "micromark-extension-gfm-footnote": "2.1.0",
@@ -89,10 +99,12 @@
     "micromark-extension-gfm-table": "2.1.1",
     "micromark-extension-gfm-tagfilter": "2.0.0",
     "micromark-extension-gfm-task-list-item": "2.1.0",
+    "micromark-util-types": "2.0.2",
     "supports-color": "10.2.2",
     "yaml": "2.9.0"
   },
   "devDependencies": {
+    "@types/hast": "3.0.4",
     "@types/mdast": "4.0.4",
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
