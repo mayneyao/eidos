@@ -469,6 +469,12 @@ export function EidosFileViewFieldsPopover({
                         }
                       >
                         {fieldSummary}
+                        {onFieldOpen ? (
+                          <span
+                            aria-hidden="true"
+                            className="h-3.5 w-3.5 shrink-0"
+                          />
+                        ) : null}
                       </div>
                     )}
                   </SortableFieldRow>
