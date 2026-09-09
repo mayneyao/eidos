@@ -144,6 +144,13 @@ images are limited to `http:` and `https:` and use the same base resolution.
 `javascript:`, `vbscript:`, `data:`, and `file:` remain inactive. This is the
 package's EFM resource policy.
 
+Hover a loaded standalone image to reveal its left and right width handles.
+Drag to resize proportionally; release to save or press Escape to cancel.
+Focused handles also accept Left/Right (8px, or 32px with Shift). Width is saved
+as `![alt|320](url)` in the default Eidos dialect, and one drag is one undo step.
+Read-only mode hides the handles; HTML and inline images retain their source-based
+dimension editing.
+
 Clipboard image storage is host-owned. Pass `onPasteImage` to persist each
 clipboard `File` and return a stable `markdownUrl`; the editor captures the
 original selection, waits for the callback, and inserts all successful images

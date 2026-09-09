@@ -1302,9 +1302,67 @@
 }
 
 .eme-efm-image-block figcaption {
+  justify-self: center;
   margin-top: 0.35rem;
   color: var(--eme-muted-foreground);
   font-size: 0.72rem;
+}
+
+.eme-image-resize-frame {
+  position: relative;
+  display: block;
+  justify-self: center;
+  max-width: 100%;
+}
+
+.eme-image-resize-frame img {
+  max-width: 100%;
+  height: auto;
+}
+
+.eme-image-resize-handle {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+  touch-action: none;
+  opacity: 0;
+}
+
+.eme-image-resize-handle[data-side="left"] {
+  left: 0;
+}
+.eme-image-resize-handle[data-side="right"] {
+  right: 0;
+}
+
+.eme-image-resize-handle::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 28px;
+  margin: auto;
+  border: 1px solid var(--eme-background);
+  border-radius: 3px;
+  background: var(--eme-foreground);
+  box-shadow: 0 0 2px var(--eme-foreground);
+}
+
+.eme-image-resize-frame:hover .eme-image-resize-handle,
+.eme-image-resize-frame:focus-within .eme-image-resize-handle,
+.eme-image-resize-frame[data-resizing] .eme-image-resize-handle {
+  opacity: 1;
+}
+
+.eme-image-resize-handle:focus-visible {
+  outline: 2px solid var(--eme-ring);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 .eme-efm-image img {

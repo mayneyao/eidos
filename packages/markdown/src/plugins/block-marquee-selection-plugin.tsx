@@ -22,6 +22,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { $isEfmSourceRangeNode } from "../nodes/efm-source-range-node"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import { editorScrollSurface } from "../ui/editor-scroll-surface"
+import { useEfmSourceBlockContext } from "../ui/efm-source-block-context"
 
 interface Point {
   x: number
@@ -206,6 +207,7 @@ function marqueeStartZone(
 
 export function BlockMarqueeSelectionPlugin() {
   const [editor] = useLexicalComposerContext()
+  const { readOnly } = useEfmSourceBlockContext()
   const { label, matches } = useMarkdownShortcuts()
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null)
   const [rectangle, setRectangle] = useState<MarqueeRect | null>(null)
@@ -963,7 +965,10 @@ export function BlockMarqueeSelectionPlugin() {
           style={rectangle satisfies CSSProperties}
         />
       ) : null}
-      {!rectangle && selectionHintPosition && editSourceShortcut ? (
+      {!readOnly &&
+      !rectangle &&
+      selectionHintPosition &&
+      editSourceShortcut ? (
         <div
           className="eme-selection-shortcut-hint"
           data-selection-shortcut-hint="true"

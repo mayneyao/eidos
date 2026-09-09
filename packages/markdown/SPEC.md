@@ -80,6 +80,15 @@ source sets fall back to the picture's image. HTML formatting whitespace collaps
 normally, except in preformatted content. Arbitrary styles and event handlers
 remain excluded from the preview.
 
+Standalone images in the default Eidos dialect expose left/right resize handles
+on hover or keyboard focus once the image has loaded. Resizing preserves aspect
+ratio, stays within the content column, and writes the existing `![alt|width](url)`
+size suffix in CSS pixels without changing the destination or title. A completed
+pointer drag is one undo step; Escape or pointer cancellation discards its preview.
+Arrow keys adjust width by 8px (32px with Shift). Read-only editors, inline images,
+HTML previews and empty/unavailable images do not expose these handles. Dialects
+without the attachment-size extension do not generate this syntax.
+
 Changing preset MUST retain host-controlled Markdown unless the host explicitly
 replaces it. It creates a new editor session; undo history and selection do not
 cross dialect boundaries. A syntax demo MUST use the real profile and disclose
@@ -944,7 +953,8 @@ document.
 
 - **HST-001**: Web, Lite, and Serve use the same package behavior and fixtures.
 - **HST-002**: Read-only mode preserves selection and copy while preventing
-  mutation.
+  mutation. Selection MUST NOT display the `E` / Edit source hint in read-only
+  mode, including when the host switches an existing selection to read-only.
 - **HST-003**: Document and fragment profiles differ only where EFM specifies.
 
 ## 16. Test organization

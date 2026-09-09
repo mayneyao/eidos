@@ -577,9 +577,16 @@ test("HST-002 keeps read-only content selectable without mutation controls", asy
     "data-efm-selection-kind",
     "node"
   )
+  await expect(page.locator("[data-selection-shortcut-hint]")).toHaveCount(0)
+  await canvas.press("e")
+  await expect(page.locator("[data-source-range-textarea]")).toHaveCount(0)
 
   await readOnly.click()
   await expect(canvas).toHaveAttribute("contenteditable", "true")
+  await readOnlyImage.click()
+  await expect(page.locator("[data-selection-shortcut-hint]")).toBeVisible()
+  await readOnly.click()
+  await expect(page.locator("[data-selection-shortcut-hint]")).toHaveCount(0)
 })
 
 test("highlights fenced code without changing the Lexical DOM", async ({

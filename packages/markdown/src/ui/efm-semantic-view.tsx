@@ -1,4 +1,5 @@
 import { InlineMathView, MathPreview } from "../features/math/view"
+import { ResizableImage } from "./resizable-image"
 import { ACTIVE_HTML } from "../core/html-safety"
 import {
   createElement,
@@ -729,7 +730,13 @@ function referenceDefinitionPreview(source: string): {
   }
 }
 
-export function EfmBlockView({ data }: { data: EfmBlockData }) {
+export function EfmBlockView({
+  data,
+  onResizeImage,
+}: {
+  data: EfmBlockData
+  onResizeImage?: (width: number) => void
+}) {
   const { emptyImageBlockLabel, emptyMathBlockLabel } =
     useEfmSourceBlockContext()
   const [calloutCollapsed, setCalloutCollapsed] = useState(
@@ -774,13 +781,10 @@ export function EfmBlockView({ data }: { data: EfmBlockData }) {
               <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
             </div>
           ) : imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={data.alt ?? ""}
-              title={data.title}
-              width={data.width}
-              height={data.height}
-              loading="lazy"
+            <ResizableImage
+              data={data}
+              url={imageUrl}
+              onResize={onResizeImage}
             />
           ) : (
             <span className="eme-efm-image-unavailable" role="img">

@@ -6,6 +6,8 @@ import { inlineMathSourceFromValue } from "../features/math/syntax"
 import {
   $applyNodeReplacement,
   $getNodeByKey,
+  HISTORY_PUSH_TAG,
+  SKIP_DOM_SELECTION_TAG,
   DecoratorNode,
   type EditorConfig,
   type ElementFormatType,
@@ -19,6 +21,7 @@ import type { JSX } from "react"
 import type { EfmInlineData, EfmBlockData } from "./efm-semantic-data"
 import { EfmInlineView, EfmBlockView } from "../ui/efm-semantic-view"
 import { EfmBlockSelection } from "../ui/efm-block-selection"
+import { resizeImageSource } from "../markdown/resize-image-source"
 
 export type {
   EfmInlineKind,
@@ -166,7 +169,28 @@ export class EfmBlockNode extends DecoratorBlockNode {
     return (
       <>
         <EfmBlockSelection editor={editor} nodeKey={nodeKey} />
-        <EfmBlockView data={this.getData()} />
+        <EfmBlockView
+          data={this.getData()}
+          onResizeImage={(width) => {
+            if (!editor.isEditable()) return
+            editor.update(
+              () => {
+                const node = $getNodeByKey(nodeKey)
+                if (!$isEfmBlockNode(node)) return
+                const current = node.getData()
+                if (current.kind !== "image") return
+                node.setData({
+                  ...current,
+                  width,
+                  obsidian: true,
+                  height: undefined,
+                  source: resizeImageSource(current.source, width),
+                })
+              },
+              { tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] }
+            )
+          }}
+        />
       </>
     )
   }
