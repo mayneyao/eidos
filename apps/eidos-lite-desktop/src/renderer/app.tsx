@@ -2656,6 +2656,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         requestFileContentFocus()
         return
       }
+      if (workspaceShortcut === "toggle-markdown-editing-mode") {
+        if (
+          textPreview &&
+          !whatsNew.open &&
+          !versionInspection &&
+          !mergeWorkbenchOpen &&
+          !pathDialog
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("eidos-lite:toggle-markdown-editing-mode", {
+              detail: { relativePath: textPreview.relativePath },
+            })
+          )
+        }
+        return
+      }
       if (workspaceShortcut === "toggle-theme") {
         toggleTheme()
         return
@@ -2691,6 +2707,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     pathDialog,
     pathMutationBusy,
     requestFileContentFocus,
+    textPreview,
+    whatsNew.open,
+    versionInspection,
+    mergeWorkbenchOpen,
     selectedEntry,
     space,
     toggleSidebar,
@@ -4160,6 +4180,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <SpaceEntryOpenMenuItems
             key={contextMenu.entry.relativePath}
             entry={contextMenu.entry}
+            editingModeShortcut={workspaceShortcutLabel(
+              "toggle-markdown-editing-mode",
+              macos,
+              keyboardShortcuts
+            )}
             onOpen={(fileOpenMode) => {
               void openEntry(contextMenu.entry, { fileOpenMode })
               setContextMenu(null)

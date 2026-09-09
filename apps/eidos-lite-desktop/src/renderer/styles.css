@@ -8817,6 +8817,18 @@ body {
   margin-left: auto;
 }
 
+.space-context-menu-shortcut {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.space-context-menu button .space-context-menu-shortcut + .space-context-menu-submenu-chevron {
+  margin-left: 0;
+}
+
 .space-context-menu .danger-menu-item {
   color: var(--danger);
 }

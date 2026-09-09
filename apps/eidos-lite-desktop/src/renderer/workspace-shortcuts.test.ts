@@ -22,6 +22,20 @@ function shortcutEvent(
 }
 
 describe("Eidos Lite workspace shortcuts", () => {
+  it("maps the platform modifier and 2 to Markdown mode switching", () => {
+    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
+      expect(
+        workspaceShortcutForKeyboardEvent(
+          shortcutEvent({ key: "2", ...modifier })
+        )
+      ).toBe("toggle-markdown-editing-mode")
+      expect(
+        workspaceShortcutForKeyboardEvent(
+          shortcutEvent({ key: "2", shiftKey: true, ...modifier })
+        )
+      ).toBeNull()
+    }
+  })
   it("opens workspace search with the platform modifier without taking document Find", () => {
     for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
       expect(

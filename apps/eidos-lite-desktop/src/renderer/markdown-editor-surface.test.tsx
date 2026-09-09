@@ -312,6 +312,78 @@ describe("MarkdownEditorSurface", () => {
   })
 
   it.each(["source", "wysiwyg"] as const)(
+    "toggles %s mode while preserving the current draft",
+    async (editingMode) => {
+      const onChange = vi.fn()
+      await act(async () => {
+        root.render(
+          createElement(MarkdownEditorSurface, {
+            documentKey: "readme.md",
+            relativePath: "readme.md",
+            assetDocumentPath: "readme.md",
+            content: "# Unsaved draft",
+            editingMode,
+            theme: "light",
+            onChange,
+          })
+        )
+      })
+      await act(async () => {
+        window.dispatchEvent(
+          new CustomEvent("eidos-lite:toggle-markdown-editing-mode", {
+            detail: { relativePath: "readme.md" },
+          })
+        )
+      })
+      const next = editingMode === "source" ? "wysiwyg" : "source"
+      expect(
+        container
+          .querySelector("[data-markdown-editing-mode]")
+          ?.getAttribute("data-markdown-editing-mode")
+      ).toBe(next)
+      const props = (
+        next === "source" ? sourceEditor : wysiwygEditor
+      ).mock.calls.at(-1)?.[0]
+      expect(next === "source" ? props.content : props.markdown).toBe(
+        "# Unsaved draft"
+      )
+      expect(props.autoFocus).toBe(true)
+      expect(onChange).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(["example.html", "example.txt"])(
+    "does not toggle %s",
+    async (relativePath) => {
+      await act(async () => {
+        root.render(
+          createElement(MarkdownEditorSurface, {
+            documentKey: relativePath,
+            relativePath,
+            assetDocumentPath: relativePath,
+            content: "Draft",
+            editingMode: "source",
+            theme: "light",
+            onChange: vi.fn(),
+          })
+        )
+      })
+      await act(async () => {
+        window.dispatchEvent(
+          new CustomEvent("eidos-lite:toggle-markdown-editing-mode", {
+            detail: { relativePath },
+          })
+        )
+      })
+      expect(
+        container
+          .querySelector("[data-markdown-editing-mode]")
+          ?.getAttribute("data-markdown-editing-mode")
+      ).toBe("source")
+    }
+  )
+
+  it.each(["source", "wysiwyg"] as const)(
     "enables document-local image services in %s mode",
     async (editingMode) => {
       await act(async () => {

@@ -108,6 +108,7 @@ export function MarkdownEditorSurface({
 }) {
   const [sessionMode, setSessionMode] =
     useState<EidosLiteMarkdownEditingMode>(editingMode)
+  const [focusAfterModeSwitch, setFocusAfterModeSwitch] = useState(false)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const acceptedFocusTokenRef = useRef(focusRequestToken)
@@ -198,7 +199,33 @@ export function MarkdownEditorSurface({
     [relativePath, content, t]
   )
 
-  useEffect(() => setSessionMode(editingMode), [documentKey, editingMode])
+  useEffect(() => {
+    setSessionMode(editingMode)
+    setFocusAfterModeSwitch(false)
+  }, [documentKey, editingMode])
+  useEffect(() => {
+    if (
+      disabled ||
+      !assetDocumentPath ||
+      !/\.(md|markdown)$/i.test(relativePath)
+    )
+      return
+    const toggle = (event: Event) => {
+      if (
+        !(event instanceof CustomEvent) ||
+        event.detail?.relativePath !== relativePath
+      )
+        return
+      setFocusAfterModeSwitch(true)
+      setSessionMode((mode) => (mode === "source" ? "wysiwyg" : "source"))
+    }
+    window.addEventListener("eidos-lite:toggle-markdown-editing-mode", toggle)
+    return () =>
+      window.removeEventListener(
+        "eidos-lite:toggle-markdown-editing-mode",
+        toggle
+      )
+  }, [disabled, assetDocumentPath, relativePath])
   const [searchFallback, setSearchFallback] = useState(false)
   useEffect(() => {
     setSearchFallback(false)
@@ -247,7 +274,7 @@ export function MarkdownEditorSurface({
             content={content}
             theme={theme}
             persistEditorState={persistSourceEditorState}
-            autoFocus={autoFocus}
+            autoFocus={autoFocus || focusAfterModeSwitch}
             focusRequestToken={focusRequestToken}
             onPasteImage={imageAttachments?.onPasteImage}
             onPasteImageError={(error) =>
@@ -287,7 +314,7 @@ export function MarkdownEditorSurface({
             onOpenInternalLink={onOpenInternalLink}
             searchNotes={searchNotes}
             readOnly={disabled}
-            autoFocus={autoFocus}
+            autoFocus={autoFocus || focusAfterModeSwitch}
             ariaLabel={`Markdown content for ${relativePath}`}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}

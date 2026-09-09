@@ -256,6 +256,7 @@ const zh: Record<string, string> = {
   "Keyboard Shortcuts": "键盘快捷键",
   Workspace: "工作区",
   "Focus file content": "聚焦文件内容",
+  "Toggle Markdown editing mode": "切换 Markdown 编辑模式",
   "Toggle Space Explorer": "切换空间资源管理器",
   "Toggle theme": "切换主题",
   "Toggle version history": "切换版本历史",

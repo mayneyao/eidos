@@ -17,9 +17,11 @@ import { isMarkdownTextFile } from "./text-editor-options"
 
 export function SpaceEntryOpenMenuItems({
   entry,
+  editingModeShortcut,
   onOpen,
 }: {
   entry: SpaceTreeEntry
+  editingModeShortcut?: string
   onOpen(mode?: EidosLiteMarkdownEditingMode | "preview"): void
 }) {
   const { t } = useEidosLiteI18n()
@@ -56,6 +58,11 @@ export function SpaceEntryOpenMenuItems({
           >
             <FileText aria-hidden="true" />
             {t("Open with")}
+            {!html && editingModeShortcut && editingModeShortcut !== "—" ? (
+              <kbd className="space-context-menu-shortcut" aria-hidden="true">
+                {editingModeShortcut}
+              </kbd>
+            ) : null}
             <ChevronRight
               className="space-context-menu-submenu-chevron"
               aria-hidden="true"
