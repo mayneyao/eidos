@@ -157,6 +157,24 @@ export class BackgroundSyncQueue {
     return this.run(entry, action)
   }
 
+  async reconcileAuthentication(
+    spaceId: string,
+    authorize: () => Promise<unknown>
+  ): Promise<EidosSyncQueueStatus> {
+    const entry = this.requireEntry(spaceId)
+    const paused = entry.status
+    if (
+      paused.state !== "paused" ||
+      paused.lastFailure?.code !== "authentication-required"
+    )
+      return entry.status
+    // A saved failure belongs to an earlier attempt, not necessarily the
+    // current account session. Validate access without starting a transfer.
+    await authorize()
+    if (entry.status !== paused) return entry.status
+    return this.clearResolvedFailure(spaceId, "authentication-required")
+  }
+
   async clearResolvedFailure(
     spaceId: string,
     code: EidosSyncFailureCode

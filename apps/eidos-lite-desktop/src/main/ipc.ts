@@ -2110,6 +2110,20 @@ export function registerIpc(
     const session = controller.sessionFor(event.sender)
     if (!session) return null
     await attachSyncQueue(event)
+    try {
+      await syncQueue.reconcileAuthentication(
+        session.canonical.id,
+        async () => {
+          const remoteUrl = await session.officialSyncRemoteUrl()
+          if (!remoteUrl)
+            throw new Error("This Space is not connected to Eidos Sync")
+          await syncControl.repositoryAccess(remoteUrl)
+        }
+      )
+    } catch (error) {
+      // Preserve the saved failure if access still cannot be verified.
+      eidosLiteLogger()?.warn("sync.authentication.reconcile-failed", {}, error)
+    }
     return syncQueue.status(session.canonical.id)
   })
   ipcMain.handle(IPC_CHANNELS.syncRecoverLocal, async (event) => {

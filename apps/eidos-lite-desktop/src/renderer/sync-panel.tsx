@@ -262,6 +262,14 @@ export function SyncPanel({
     }
   }
 
+  useEffect(
+    () =>
+      window.eidosLite.onAccountChanged?.(() => {
+        setReloadKey((key) => key + 1)
+      }),
+    []
+  )
+
   useEffect(() => {
     let active = true
     const load = async () => {
@@ -411,19 +419,22 @@ export function SyncPanel({
       return
     }
     let active = true
+    let receivedEvent = false
     void window.eidosLite.getSyncQueueStatus().then(
       (queue) => {
-        if (!active) return
+        if (!active || receivedEvent) return
         setSyncQueueStatus(queue)
         if (queue?.lastFailure) {
           setSyncFailure(queue.lastFailure)
           setFailureContext("sync")
         }
+        if (queue?.state === "idle") setSyncFailure(null)
       },
       (cause) => console.error("Could not read the Sync queue", cause)
     )
     const unsubscribe = window.eidosLite.onSyncQueueChanged((queue) => {
       if (!active) return
+      receivedEvent = true
       setSyncQueueStatus(queue)
       if (queue.lastFailure) {
         setSyncFailure(queue.lastFailure)
@@ -435,7 +446,7 @@ export function SyncPanel({
       active = false
       unsubscribe()
     }
-  }, [status.entitlement.state])
+  }, [status, cacheKey])
 
   useEffect(() => {
     if (!syncProgress || syncProgress.state !== "active") return

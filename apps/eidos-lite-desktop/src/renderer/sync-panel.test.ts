@@ -1915,6 +1915,65 @@ describe("SyncPanel failure states", () => {
     )
   })
 
+  it("refreshes the queue after an account change even when entitlement stays the same", async () => {
+    let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+    const getSyncQueueStatus = vi.fn().mockResolvedValue({
+      spaceId: "space-1",
+      state: "paused",
+      attempt: 1,
+      maxAttempts: 5,
+      lastFailure: {
+        code: "authentication-required",
+        state: "paused-sign-in",
+        title: "Sign in again to resume Sync",
+        message: "Session expired",
+        action: "sign-in",
+        actionLabel: "Sign in again",
+        retryable: false,
+        localSafe: true,
+      },
+    })
+    const getSyncStatus = vi
+      .fn()
+      .mockImplementation(async () => ({ ...status }))
+    const runSync = vi.fn()
+    const unsubscribe = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus,
+        getSyncQueueStatus,
+        runSync,
+        onAccountChanged: (listener: typeof accountChanged) => {
+          accountChanged = listener
+          return unsubscribe
+        },
+        onSyncProgress: () => () => undefined,
+        onSyncQueueChanged: () => () => undefined,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, { mode: "enable", onClose: () => undefined })
+      )
+    )
+    expect(host.textContent).toContain("Sign in again to resume Sync")
+    getSyncQueueStatus.mockResolvedValue({
+      spaceId: "space-1",
+      state: "idle",
+      attempt: 0,
+      maxAttempts: 5,
+    })
+    await act(async () => accountChanged(status.account))
+    expect(getSyncStatus).toHaveBeenCalledTimes(2)
+    expect(getSyncQueueStatus).toHaveBeenCalledTimes(2)
+    expect(host.textContent).not.toContain("Sign in again to resume Sync")
+    expect(runSync).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    root = createRoot(host)
+  })
+
   it("turns an expired session into a direct sign-in recovery", async () => {
     const beginSyncSignIn = vi.fn().mockResolvedValue(status)
     const authenticationFailure = {
