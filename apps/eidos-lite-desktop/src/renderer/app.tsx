@@ -2546,7 +2546,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       if (!location) return
       setVersionRouteError(null)
       setVersionInspection(inspection)
-      recordNavigationLocation(location)
+      // The panel owns loading this inspection. Only record its route here;
+      // restoring it again would clear the preview and duplicate the read.
+      recordNavigationLocation(location, false)
     },
     [closeVersionDiffRoute, recordNavigationLocation]
   )
