@@ -149,6 +149,43 @@ function registerObjectUrl(
   resourcesByLease.set(lease.leaseId, lease.resourceToken)
 }
 
+function loadImageElement(
+  url: string,
+  altText: string
+): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.alt = altText
+    image.onload = () => resolve(image)
+    image.onerror = () =>
+      reject(new Error("Attachment thumbnail failed to load"))
+    image.src = url
+  })
+}
+
+// Decode through the object URL and re-encode as PNG so any image the renderer
+// can display can also be copied, without a blob: fetch (blocked by CSP).
+async function imageBytesForClipboard(
+  url: string,
+  altText: string
+): Promise<Uint8Array> {
+  const image = await loadImageElement(url, altText)
+  const width = image.naturalWidth || image.width
+  const height = image.naturalHeight || image.height
+  if (!width || !height) throw new Error("Attachment image has no dimensions")
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("Attachment image cannot be copied")
+  context.drawImage(image, 0, 0, width, height)
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png")
+  )
+  if (!blob) throw new Error("Attachment image cannot be encoded")
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
 export const eidosLiteAssetPresenter: AssetPresenter<ReactNode> = {
   renderImage({ lease, altText }) {
     return createElement("img", {
@@ -158,20 +195,16 @@ export const eidosLiteAssetPresenter: AssetPresenter<ReactNode> = {
     })
   },
   loadImage({ lease, altText }) {
-    return new Promise((resolve, reject) => {
-      const image = new Image()
-      image.alt = altText
-      image.onload = () => resolve(image)
-      image.onerror = () =>
-        reject(new Error("Attachment thumbnail failed to load"))
-      image.src = objectUrl(lease)
-    })
+    return loadImageElement(objectUrl(lease), altText)
   },
-  async copyImage({ lease }) {
-    const response = await fetch(objectUrl(lease))
-    if (!response.ok) throw new Error("Attachment image is unavailable")
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    await window.eidosLite.writeClipboardImage(bytes)
+  async copyImage({ lease, altText }) {
+    const bytes = await imageBytesForClipboard(objectUrl(lease), altText)
+    if (typeof window.eidosLite.writeClipboardImage === "function") {
+      await window.eidosLite.writeClipboardImage(bytes)
+      return
+    }
+    const blob = new Blob([bytes], { type: "image/png" })
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
   },
   activate({ sessionId, lease, action }) {
     return window.eidosLite.activateEidosFileAsset(
