@@ -391,12 +391,43 @@ async function publishEnginePath(): Promise<string> {
   )
 }
 
-function cliArguments(
+export function defaultClientEnvironmentMetadata(): {
+  name: string
+  version: string
+  platform: string
+  arch: string
+  osRelease: string
+} {
+  let appVersion = "0.0.0"
+  try {
+    if (typeof app?.getVersion === "function") {
+      appVersion = app.getVersion() || "0.0.0"
+    }
+  } catch {
+    // In headless test environments app.getVersion may throw or not be initialized
+  }
+  return {
+    name: "Eidos Lite",
+    version: appVersion,
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: os.release(),
+  }
+}
+
+export function publishCliArguments(
   request: EidosPublishRequest,
   snapshotPath: string,
   attachmentRoot: string,
   publishOrigin: string,
-  incrementalSource?: IncrementalPublishSource
+  incrementalSource?: IncrementalPublishSource,
+  clientMetadata?: {
+    name?: string
+    version?: string
+    platform?: string
+    arch?: string
+    osRelease?: string
+  }
 ): string[] {
   const args = [
     "--json",
@@ -410,6 +441,8 @@ function cliArguments(
     attachmentRoot,
     "--progress-json",
   ]
+  const metadata = clientMetadata ?? defaultClientEnvironmentMetadata()
+  args.push("--client-metadata-json", JSON.stringify(metadata))
   if (request.accessMode === "public") args.push("--remove-password")
   if (request.accessMode === "password") args.push("--password")
   if (request.accessMode === "private") {
@@ -437,6 +470,8 @@ function cliArguments(
   }
   return args
 }
+
+const cliArguments = publishCliArguments
 
 export function collectCliArguments(
   filePath: string,

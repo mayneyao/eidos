@@ -25,6 +25,7 @@ import {
 import { withRequestId } from "./response"
 import { validPublicationPassword } from "./passwords"
 import type {
+  ClientEnvironmentMetadata,
   ContentObjectRecord,
   DurableResult,
   PublicationVersionRecord,
@@ -94,6 +95,7 @@ interface BeginVersionBody {
     | { id: "org.eidos.driver.form"; version: "1.0" }
   manifest: SourceBundleManifest
   activate: boolean
+  client?: ClientEnvironmentMetadata
 }
 
 interface PublicationAccessBody {
@@ -1038,7 +1040,8 @@ async function beginVersion(
     crypto.randomUUID(),
     body.activate,
     idempotencyKey,
-    inputSha256
+    inputSha256,
+    body.client
   )
   if (!begun.ok) return durableResponse(begun)
 
@@ -2284,13 +2287,37 @@ async function beginVersionBody(request: Request): Promise<BeginVersionBody> {
   const record = value as Record<string, unknown>
   if (
     Object.keys(record).some(
-      (key) => !["driver", "manifest", "activate"].includes(key)
+      (key) => !["driver", "manifest", "activate", "client"].includes(key)
     )
   ) {
     throw badRequest(
       "invalid_version_request",
       "Version request body is invalid"
     )
+  }
+  let client: ClientEnvironmentMetadata | undefined
+  if (record.client !== undefined) {
+    if (
+      typeof record.client !== "object" ||
+      record.client === null ||
+      Array.isArray(record.client)
+    ) {
+      throw badRequest("invalid_version_request", "client must be an object")
+    }
+    const c = record.client as Record<string, unknown>
+    client = {
+      ...(typeof c.name === "string" ? { name: c.name.slice(0, 128) } : {}),
+      ...(typeof c.version === "string"
+        ? { version: c.version.slice(0, 64) }
+        : {}),
+      ...(typeof c.platform === "string"
+        ? { platform: c.platform.slice(0, 64) }
+        : {}),
+      ...(typeof c.arch === "string" ? { arch: c.arch.slice(0, 64) } : {}),
+      ...(typeof c.osRelease === "string"
+        ? { osRelease: c.osRelease.slice(0, 128) }
+        : {}),
+    }
   }
   const driver = record.driver
   const driverRecord =
@@ -2322,6 +2349,7 @@ async function beginVersionBody(request: Request): Promise<BeginVersionBody> {
           : { id: EIDOS_DRIVER.id, version: EIDOS_DRIVER.version },
     manifest: record.manifest as SourceBundleManifest,
     activate: record.activate ?? true,
+    ...(client !== undefined ? { client } : {}),
   }
 }
 

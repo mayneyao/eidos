@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 
 import type {
   ActivationResult,
+  ClientEnvironmentMetadata,
   ContentObjectRecord,
   DurableResult,
   FormPublicationPolicy,
@@ -118,6 +119,7 @@ interface VersionRow extends Record<string, SqlStorageValue> {
   target_health_reason: string | null
   failure_step: string | null
   failure_code: string | null
+  client_metadata_json: string | null
   created_at: string
 }
 
@@ -576,6 +578,7 @@ export class PublishTenant extends DurableObject<Env> {
           target_health_reason TEXT,
           failure_step TEXT,
           failure_code TEXT,
+          client_metadata_json TEXT,
           created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS activation_event (
@@ -721,6 +724,17 @@ export class PublishTenant extends DurableObject<Env> {
       this.ctx.storage.sql.exec(
         `INSERT OR IGNORE INTO publish_schema_migrations (version, applied_at)
          VALUES (10, datetime('now'))`
+      )
+      try {
+        this.ctx.storage.sql.exec(`
+          ALTER TABLE publication_version ADD COLUMN client_metadata_json TEXT;
+        `)
+      } catch {
+        // Column may already exist
+      }
+      this.ctx.storage.sql.exec(
+        `INSERT OR IGNORE INTO publish_schema_migrations (version, applied_at)
+         VALUES (11, datetime('now'))`
       )
     })
   }
@@ -1665,7 +1679,8 @@ export class PublishTenant extends DurableObject<Env> {
     versionId: string,
     activateOnReady: boolean,
     idempotencyKey: string,
-    inputSha256: string
+    inputSha256: string,
+    clientMetadata?: ClientEnvironmentMetadata
   ): Promise<DurableResult<VersionUploadPlan>> {
     await this.ready
     const result = this.idempotent<VersionUploadPlan>(
@@ -1742,8 +1757,8 @@ export class PublishTenant extends DurableObject<Env> {
           `INSERT INTO publication_version (
            version_id, publication_id, state, job_id, activate_on_ready, source_manifest_key,
            source_manifest_sha256, source_bytes, entrypoint_json,
-           entrypoint_object_key, driver_id, driver_version, created_at
-         ) VALUES (?, ?, 'uploading', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           entrypoint_object_key, driver_id, driver_version, client_metadata_json, created_at
+         ) VALUES (?, ?, 'uploading', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           versionId,
           publication.publication_id,
           jobId,
@@ -1755,6 +1770,7 @@ export class PublishTenant extends DurableObject<Env> {
           entrypointObjectKey,
           bundle.driver.id,
           bundle.driver.version,
+          clientMetadata ? JSON.stringify(clientMetadata) : null,
           createdAt
         )
         for (const file of uniqueFiles.values()) {
@@ -3686,7 +3702,7 @@ const VERSION_SELECT = `
          versions.serving_target_json, versions.serving_target_sha256,
          versions.validation_receipt_json, versions.ready_receipt_json,
          versions.target_health, versions.target_health_reason,
-         versions.failure_step, versions.failure_code, versions.created_at
+         versions.failure_step, versions.failure_code, versions.client_metadata_json, versions.created_at
     FROM publication_version AS versions
     JOIN publication ON publication.publication_id = versions.publication_id`
 
@@ -3739,6 +3755,9 @@ function versionRecord(row: VersionRow): PublicationVersionRecord {
     targetHealthReason: row.target_health_reason,
     failureStep: row.failure_step,
     failureCode: row.failure_code,
+    clientMetadata: nullableJson<ClientEnvironmentMetadata>(
+      row.client_metadata_json
+    ),
     createdAt: row.created_at,
   }
 }

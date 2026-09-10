@@ -15,6 +15,7 @@ import {
 } from "./collect"
 
 import type {
+  ClientEnvironmentMetadata,
   DurableResult,
   PublicationVersionRecord,
   RuntimeServingTarget,
@@ -436,7 +437,8 @@ async function servePublicationDocument(
     "/index.html",
     slug,
     resolved.value.publication.accessMode !== "public",
-    resolved.value.publication.showBranding
+    resolved.value.publication.showBranding,
+    resolved.value.version.clientMetadata
   )
 }
 
@@ -873,7 +875,12 @@ async function serveStaticDocument(
     return publicNotFound()
   }
   const document = new Response(object.body, { headers })
-  return showBranding ? brandPublishedDocument(document) : document
+  return brandPublishedDocument(
+    document,
+    undefined,
+    showBranding,
+    version.clientMetadata
+  )
 }
 
 function validStoredAsset(
@@ -1052,7 +1059,8 @@ async function publicAsset(
   pathname: string,
   publishSlug?: string,
   privateShell = false,
-  showBranding = true
+  showBranding = true,
+  clientMetadata?: ClientEnvironmentMetadata | null
 ): Promise<Response> {
   const assetUrl = new URL(request.url)
   assetUrl.hostname = env.CONTROL_HOST
@@ -1092,7 +1100,12 @@ async function publicAsset(
     })
     return request.method === "HEAD"
       ? new Response(null, { headers: brandedDocumentHeaders(headers) })
-      : brandPublishedDocument(document, publishSlug, showBranding)
+      : brandPublishedDocument(
+          document,
+          publishSlug,
+          showBranding,
+          clientMetadata
+        )
   }
   return new Response(response.body, { status: response.status, headers })
 }

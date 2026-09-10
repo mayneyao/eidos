@@ -1,3 +1,5 @@
+import type { ClientEnvironmentMetadata } from "./contracts"
+
 const BRAND_STYLESHEET_PATH = "/_eidos/publish-brand.v4.css"
 const BRAND_DESTINATION =
   "https://eidos.space/publish?utm_source=published_site&utm_medium=badge&utm_campaign=publish_branding"
@@ -94,10 +96,20 @@ export function brandedDocumentHeaders(source: Headers): Headers {
   return headers
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
 export function brandPublishedDocument(
   response: Response,
   publishSlug?: string,
-  showBranding = true
+  showBranding = true,
+  clientMetadata?: ClientEnvironmentMetadata | null
 ): Response {
   const headers = brandedDocumentHeaders(response.headers)
   const document = new Response(response.body, {
@@ -123,6 +135,56 @@ export function brandPublishedDocument(
             `<meta name="eidos-publish-branding" content="${showBranding ? "show" : "hide"}">`,
             { html: true }
           )
+        }
+        if (clientMetadata) {
+          const clientName = clientMetadata.name?.trim() || "Eidos Lite"
+          const clientVersion = clientMetadata.version?.trim()
+          const platform = clientMetadata.platform?.trim()
+          const arch = clientMetadata.arch?.trim()
+          const osRelease = clientMetadata.osRelease?.trim()
+
+          const generatorHeader = [clientName]
+          if (clientVersion) generatorHeader.push(clientVersion)
+          const envTokens = [platform, arch, osRelease].filter(Boolean)
+          const generator =
+            envTokens.length > 0
+              ? `${generatorHeader.join(" ")} (${envTokens.join("-")})`
+              : generatorHeader.join(" ")
+
+          element.append(
+            `<meta name="generator" content="${escapeHtml(generator)}">`,
+            { html: true }
+          )
+          if (clientName) {
+            element.append(
+              `<meta name="eidos-client-name" content="${escapeHtml(clientName)}">`,
+              { html: true }
+            )
+          }
+          if (clientVersion) {
+            element.append(
+              `<meta name="eidos-client-version" content="${escapeHtml(clientVersion)}">`,
+              { html: true }
+            )
+          }
+          if (platform) {
+            element.append(
+              `<meta name="eidos-os-platform" content="${escapeHtml(platform)}">`,
+              { html: true }
+            )
+          }
+          if (arch) {
+            element.append(
+              `<meta name="eidos-os-arch" content="${escapeHtml(arch)}">`,
+              { html: true }
+            )
+          }
+          if (osRelease) {
+            element.append(
+              `<meta name="eidos-os-release" content="${escapeHtml(osRelease)}">`,
+              { html: true }
+            )
+          }
         }
       },
     })

@@ -9,6 +9,7 @@ import {
   collectCliArguments,
   observePublishSource,
   parsePublishProgress,
+  publishCliArguments,
   requiredPublicationBindingsRequest,
   requiredPublishCollectRequest,
   requiredPublishRequest,
@@ -209,6 +210,62 @@ describe("Eidos Publish engine boundary", () => {
       "--collector-generation",
       "7",
     ])
+  })
+
+  it("includes client environment metadata in publish CLI arguments", () => {
+    const args = publishCliArguments(
+      {
+        requestId: "019abcde-1234-7abc-8abc-123456789abc",
+        relativePath: "notes.md",
+        slug: "my-notes",
+        accessMode: "public",
+        branding: "unchanged",
+      },
+      "/tmp/snapshot.md",
+      "/tmp",
+      "https://publish.eidos.space",
+      undefined,
+      {
+        name: "Eidos Lite",
+        version: "0.11.0",
+        platform: "darwin",
+        arch: "arm64",
+        osRelease: "24.1.0",
+      }
+    )
+    expect(args).toContain("--client-metadata-json")
+    const metadataIndex = args.indexOf("--client-metadata-json")
+    expect(metadataIndex).toBeGreaterThan(-1)
+    expect(JSON.parse(args[metadataIndex + 1]!)).toEqual({
+      name: "Eidos Lite",
+      version: "0.11.0",
+      platform: "darwin",
+      arch: "arm64",
+      osRelease: "24.1.0",
+    })
+  })
+
+  it("defaults client environment metadata if not explicitly provided", () => {
+    const args = publishCliArguments(
+      {
+        requestId: "019abcde-1234-7abc-8abc-123456789abc",
+        relativePath: "notes.md",
+        slug: "my-notes",
+        accessMode: "public",
+        branding: "unchanged",
+      },
+      "/tmp/snapshot.md",
+      "/tmp",
+      "https://publish.eidos.space"
+    )
+    expect(args).toContain("--client-metadata-json")
+    const metadataIndex = args.indexOf("--client-metadata-json")
+    const parsed = JSON.parse(args[metadataIndex + 1]!)
+    expect(parsed.name).toBe("Eidos Lite")
+    expect(typeof parsed.version).toBe("string")
+    expect(parsed.platform).toBe(process.platform)
+    expect(parsed.arch).toBe(process.arch)
+    expect(parsed.osRelease).toBe(os.release())
   })
 
   it("observes source and attachment metadata without reading their contents", async () => {

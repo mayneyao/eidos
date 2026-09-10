@@ -233,6 +233,9 @@ pub struct PublishArgs {
     /// Emit newline-delimited Publish progress events to stderr.
     #[arg(long, hide = true)]
     pub progress_json: bool,
+    /// Optional client environment metadata JSON (e.g. from Eidos Lite).
+    #[arg(long, value_name = "JSON", hide = true)]
+    pub client_metadata_json: Option<String>,
 }
 
 #[derive(Debug, Args)]

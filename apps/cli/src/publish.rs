@@ -1346,6 +1346,16 @@ pub fn run(
         return Ok(publish_result(&version_id, &ready, false));
     }
     progress.stage("creating immutable Version");
+    let client_metadata = match &args.client_metadata_json {
+        Some(raw) => serde_json::from_str::<Value>(raw)
+            .map_err(|e| AppError::invalid_request(format!("Invalid clientMetadata JSON: {e}")))?,
+        None => json!({
+            "name": "Eidos CLI",
+            "version": env!("CARGO_PKG_VERSION"),
+            "platform": std::env::consts::OS,
+            "arch": std::env::consts::ARCH,
+        }),
+    };
     let version = send_json(
         client
             .post(endpoint(
@@ -1358,6 +1368,7 @@ pub fn run(
                 "driver": { "id": source_kind.driver_id(), "version": DRIVER_VERSION },
                 "manifest": manifest,
                 "activate": !args.no_activate,
+                "client": client_metadata,
             })),
     )?;
     let version_id = string_member(&version, "versionId")?;

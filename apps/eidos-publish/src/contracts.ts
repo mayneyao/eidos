@@ -79,6 +79,14 @@ export type SourceBundleAssetReference =
       fileSha256: string
     }
 
+export interface ClientEnvironmentMetadata {
+  name?: string
+  version?: string
+  platform?: string
+  arch?: string
+  osRelease?: string
+}
+
 export interface SourceBundleManifest {
   spec: "eidos.publish/source-bundle@1"
   mediaType: string
@@ -351,6 +359,7 @@ export interface PublicationVersionRecord {
   targetHealthReason: string | null
   failureStep: string | null
   failureCode: string | null
+  clientMetadata?: ClientEnvironmentMetadata | null
   createdAt: string
 }
 

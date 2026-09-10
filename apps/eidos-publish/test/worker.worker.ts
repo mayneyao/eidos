@@ -78,6 +78,38 @@ describe("Publish branding", () => {
     expect(html).not.toContain('class="eidos-publish-brand"')
     expect(html).not.toContain("publish-brand.v4.css")
   })
+
+  it("injects client environment metadata tags into head", async () => {
+    const response = brandPublishedDocument(
+      new Response(
+        '<html><head></head><body><div id="root"></div></body></html>',
+        {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }
+      ),
+      "feedback",
+      true,
+      {
+        name: "Eidos Lite",
+        version: "1.0.0",
+        platform: "darwin",
+        arch: "arm64",
+        osRelease: "15.1.0",
+      }
+    )
+    const html = await response.text()
+
+    expect(html).toContain(
+      '<meta name="generator" content="Eidos Lite 1.0.0 (darwin-arm64-15.1.0)">'
+    )
+    expect(html).toContain(
+      '<meta name="eidos-client-name" content="Eidos Lite">'
+    )
+    expect(html).toContain('<meta name="eidos-client-version" content="1.0.0">')
+    expect(html).toContain('<meta name="eidos-os-platform" content="darwin">')
+    expect(html).toContain('<meta name="eidos-os-arch" content="arm64">')
+    expect(html).toContain('<meta name="eidos-os-release" content="15.1.0">')
+  })
 })
 
 describe("Publish runtime sizing", () => {
