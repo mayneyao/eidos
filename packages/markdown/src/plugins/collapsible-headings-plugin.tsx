@@ -119,6 +119,27 @@ export function $computeHiddenBlockKeys(
   return { foldableHeadingKeys, hiddenKeys }
 }
 
+/**
+ * Picks the heading level that fold-all should collapse. It prefers the
+ * shallowest level with at least two headings so repeated sections fold. When
+ * every level is unique it skips a lone shallowest heading, which is usually a
+ * document title, and uses the next level that exists.
+ */
+export function $dominantFoldLevel(
+  headings: readonly HeadingNode[]
+): number | null {
+  if (headings.length === 0) return null
+  const counts = new Map<number, number>()
+  for (const heading of headings) {
+    const level = parseInt(heading.getTag().slice(1), 10)
+    counts.set(level, (counts.get(level) ?? 0) + 1)
+  }
+  const levels = [...counts.keys()].sort((left, right) => left - right)
+  const repeated = levels.find((level) => (counts.get(level) ?? 0) >= 2)
+  if (repeated !== undefined) return repeated
+  return levels[1] ?? levels[0] ?? null
+}
+
 function topLevelBlockNode(node: LexicalNode): LexicalNode | null {
   let current: LexicalNode | null = node
   const root = $getRoot()
@@ -243,13 +264,22 @@ export function CollapsibleHeadingsPlugin({
       }
       if (headings.length === 0) return
 
-      const next = new Set<NodeKey>()
+      const dominantLevel = $dominantFoldLevel(headings)
+      if (dominantLevel === null) return
+
       const { foldableHeadingKeys } = $computeHiddenBlockKeys(
         rootChildren,
         new Set(headings.map((h) => h.getKey()))
       )
-      for (const key of foldableHeadingKeys) {
-        next.add(key)
+      const next = new Set<NodeKey>()
+      for (const heading of headings) {
+        const level = parseInt(heading.getTag().slice(1), 10)
+        if (
+          level === dominantLevel &&
+          foldableHeadingKeys.has(heading.getKey())
+        ) {
+          next.add(heading.getKey())
+        }
       }
 
       const firstHeading = headings[0]

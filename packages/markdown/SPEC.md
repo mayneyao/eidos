@@ -574,6 +574,19 @@ When the caret or a text selection is contained by one task-list item,
 The same shortcut inside an ordinary bullet or ordered item MUST NOT convert
 the list or mutate its content.
 
+### 8.5 Heading folding
+
+A heading that owns following content or a deeper heading section SHOULD expose
+a fold control. Folding a heading hides its section — the blocks after it up to
+the next heading of equal or higher rank — without changing canonical Markdown.
+`heading.toggle-fold` toggles the heading enclosing the caret.
+
+`heading.fold-all` MUST collapse the document's dominant fold level: the
+shallowest heading rank that occurs at least twice. When every rank occurs once,
+it MUST skip a lone shallowest heading, which is usually a document title, and
+use the next rank, falling back to the shallowest rank when no deeper rank
+exists. `heading.unfold-all` MUST clear every folded section.
+
 ## 9. Scoped source editing
 
 Complex top-level syntax uses the selected-block source interaction from

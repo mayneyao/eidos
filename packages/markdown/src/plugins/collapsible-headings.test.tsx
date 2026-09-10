@@ -11,6 +11,7 @@ import { $createHeadingNode, HeadingNode } from "@lexical/rich-text"
 import { MarkdownEditor } from "../editor/markdown-editor"
 import {
   $computeHiddenBlockKeys,
+  $dominantFoldLevel,
   $getFoldedHeadingEnclosing,
   $getHeadingSectionChildren,
   $getSectionEndNode,
@@ -107,6 +108,40 @@ describe("Collapsible headings logic ($computeHiddenBlockKeys)", () => {
       },
       { discrete: true }
     )
+  })
+})
+
+describe("Dominant fold level", () => {
+  function dominant(levels: number[]): number | null {
+    const editor = createEditor({ nodes: [HeadingNode] })
+    let result: number | null = null
+    editor.update(
+      () => {
+        const root = $getRoot()
+        root.clear()
+        const headings = levels.map((level) =>
+          $createHeadingNode(`h${level}` as "h1")
+        )
+        root.append(...headings)
+        result = $dominantFoldLevel(headings)
+      },
+      { discrete: true }
+    )
+    return result
+  }
+
+  it("prefers the shallowest repeated level", () => {
+    expect(dominant([])).toBeNull()
+    expect(dominant([1])).toBe(1)
+    expect(dominant([1, 1, 2])).toBe(1)
+    expect(dominant([1, 2, 2])).toBe(2)
+    expect(dominant([2, 2, 2])).toBe(2)
+  })
+
+  it("skips a lone shallowest heading and uses the next level", () => {
+    expect(dominant([1, 2])).toBe(2)
+    expect(dominant([1, 2, 3])).toBe(2)
+    expect(dominant([1, 3])).toBe(3)
   })
 })
 
@@ -318,6 +353,61 @@ describe("Collapsible headings in MarkdownEditor", () => {
 
     expect(container.querySelectorAll(".eme-heading-folded").length).toBe(0)
     expect(container.querySelectorAll(".eme-block-folded").length).toBe(0)
+
+    reactRoot.unmount()
+    container.remove()
+  })
+
+  it("fold-all collapses the dominant level instead of a lone title", async () => {
+    const container = document.createElement("div")
+    document.body.append(container)
+    const reactRoot = createRoot(container)
+    const markdown = [
+      "# Guide",
+      "",
+      "Intro paragraph.",
+      "",
+      "## First",
+      "",
+      "First body.",
+      "",
+      "## Second",
+      "",
+      "Second body.",
+    ].join("\n")
+
+    await act(async () => {
+      reactRoot.render(
+        <MarkdownEditor
+          documentKey="test-fold-dominant"
+          markdown={markdown}
+          onMarkdownChange={() => {}}
+        />
+      )
+    })
+
+    const editorEl = container.querySelector(
+      ".eme-content-editable"
+    ) as HTMLElement
+
+    await act(async () => {
+      editorEl.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "0",
+          altKey: true,
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      await new Promise((r) => setTimeout(r, 10))
+    })
+
+    const headings = container.querySelectorAll(".eme-heading")
+    expect(headings.length).toBe(3)
+    expect(headings[0].classList.contains("eme-heading-folded")).toBe(false)
+    expect(headings[1].classList.contains("eme-heading-folded")).toBe(true)
+    expect(headings[2].classList.contains("eme-heading-folded")).toBe(true)
 
     reactRoot.unmount()
     container.remove()

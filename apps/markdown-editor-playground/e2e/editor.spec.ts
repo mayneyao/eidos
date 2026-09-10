@@ -188,6 +188,31 @@ test("shows every default shortcut in an accessible reference dialog", async ({
   await expect(trigger).toBeFocused()
 })
 
+test("fold-all collapses the dominant heading level, not a lone document title", async ({
+  page,
+}) => {
+  await openMarkdown(
+    page,
+    "# Guide\n\nIntro.\n\n## First\n\nFirst body.\n\n## Second\n\nSecond body."
+  )
+
+  const editor = page.getByLabel("Markdown playground editor")
+  await editor.click()
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+Alt+0" : "Control+Alt+0"
+  )
+
+  const headings = editor.locator(".eme-heading")
+  await expect(headings.nth(0)).not.toHaveClass(/eme-heading-folded/)
+  await expect(headings.nth(1)).toHaveClass(/eme-heading-folded/)
+  await expect(headings.nth(2)).toHaveClass(/eme-heading-folded/)
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+Alt+Shift+0" : "Control+Alt+Shift+0"
+  )
+  await expect(editor.locator(".eme-heading-folded")).toHaveCount(0)
+})
+
 test("edits a consecutive block selection as one in-place source range", async ({
   page,
 }) => {
