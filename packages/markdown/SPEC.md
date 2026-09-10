@@ -764,40 +764,43 @@ top-level block while its gutter handle is focused.
 
 ### 12.2 Default shortcuts
 
-| Stable ID                      | Default binding        | Scope         | Behavior                                                                           |
-| ------------------------------ | ---------------------- | ------------- | ---------------------------------------------------------------------------------- |
-| `document.save`                | `Mod+S`                | document      | Requests host persistence when a save callback exists.                             |
-| `history.undo`                 | `Mod+Z`                | editor        | Undoes one editor transaction.                                                     |
-| `history.redo`                 | `Mod+Shift+Z`, `Mod+Y` | editor        | Redoes one editor transaction.                                                     |
-| `format.bold`                  | `Mod+B`                | selection     | Toggles bold on rich text or `**` markers around a source selection.               |
-| `format.italic`                | `Mod+I`                | selection     | Toggles italic on rich text or `*` markers around a source selection.              |
-| `insert.open-menu`             | `/`                    | editor        | Opens block insertion on an empty line or inline insertion at a command boundary.  |
-| `menu.previous`                | `ArrowUp`              | menu          | Moves to the previous command.                                                     |
-| `menu.next`                    | `ArrowDown`            | menu          | Moves to the next command.                                                         |
-| `menu.choose`                  | `Enter`                | menu          | Chooses the active command.                                                        |
-| `overlay.dismiss`              | `Escape`               | overlay       | Closes the active menu or composer without a content edit.                         |
-| `selection.clear`              | `Escape`               | selection     | Clears the active block selection.                                                 |
-| `selection.enter-block`        | `Escape`               | editor        | Selects the top-level block containing the caret.                                  |
-| `selection.extend-up`          | `Shift+ArrowUp`        | selection     | Extends or shrinks the block selection upward.                                     |
-| `selection.extend-down`        | `Shift+ArrowDown`      | selection     | Extends or shrinks the block selection downward.                                   |
-| `selection.edit-source`        | `E`                    | selection     | Opens consecutive selected top-level blocks as one in-place Markdown source range. |
-| `selection.select-all-blocks`  | `Mod+A`                | selection     | Selects every top-level block.                                                     |
-| `source-editor.copy-line-down` | `Shift+Alt+ArrowDown`  | source editor | Copies selected/current source lines downward.                                     |
-| `source-editor.copy-line-up`   | `Shift+Alt+ArrowUp`    | source editor | Copies selected/current source lines upward.                                       |
-| `source-editor.delete-line`    | `Mod+Shift+K`          | source editor | Deletes selected/current source lines.                                             |
-| `source-editor.indent`         | `Tab`, `Mod+]`         | source editor | Inserts two spaces or indents selected source lines.                               |
-| `source-editor.move-line-down` | `Alt+ArrowDown`        | source editor | Moves selected/current source lines downward.                                      |
-| `source-editor.move-line-up`   | `Alt+ArrowUp`          | source editor | Moves selected/current source lines upward.                                        |
-| `source-editor.outdent`        | `Shift+Tab`, `Mod+[`   | source editor | Removes a tab or up to two leading spaces.                                         |
-| `source-editor.select-line`    | `Mod+L`                | source editor | Selects the current logical source line.                                           |
-| `block.move-up`                | `Alt+ArrowUp`          | block handle  | Moves the handled top-level block up one position.                                 |
-| `block.move-down`              | `Alt+ArrowDown`        | block handle  | Moves the handled top-level block down one position.                               |
-| `list-item.move-up`            | `Alt+ArrowUp`          | list item     | Moves the current list item before its previous sibling.                           |
-| `list-item.move-down`          | `Alt+ArrowDown`        | list item     | Moves the current list item after its next sibling.                                |
-| `list-item.toggle-checked`     | `Mod+Enter`            | list item     | Toggles the current task-list item's checked state.                                |
-| `block-editor.commit`          | `Mod+Enter`            | composer      | Commits a multiline source or insertion draft.                                     |
-| `composer.confirm`             | `Enter`                | composer      | Confirms a single-line block composer.                                             |
-| `inline-atom.activate`         | `Enter`, `Space`       | editor        | Opens the focused inline semantic atom.                                            |
+| Stable ID                      | Default binding          | Scope         | Behavior                                                                           |
+| ------------------------------ | ------------------------ | ------------- | ---------------------------------------------------------------------------------- |
+| `document.save`                | `Mod+S`                  | document      | Requests host persistence when a save callback exists.                             |
+| `history.undo`                 | `Mod+Z`                  | editor        | Undoes one editor transaction.                                                     |
+| `history.redo`                 | `Mod+Shift+Z`, `Mod+Y`   | editor        | Redoes one editor transaction.                                                     |
+| `format.bold`                  | `Mod+B`                  | selection     | Toggles bold on rich text or `**` markers around a source selection.               |
+| `format.italic`                | `Mod+I`                  | selection     | Toggles italic on rich text or `*` markers around a source selection.              |
+| `heading.toggle-fold`          | `Mod+Alt+[`, `Mod+Alt+T` | editor        | Toggles folding for the heading enclosing the caret.                               |
+| `heading.fold-all`             | `Mod+Alt+0`              | editor        | Folds every section at the document's dominant heading level.                      |
+| `heading.unfold-all`           | `Mod+Alt+Shift+0`        | editor        | Unfolds every folded heading section.                                              |
+| `insert.open-menu`             | `/`                      | editor        | Opens block insertion on an empty line or inline insertion at a command boundary.  |
+| `menu.previous`                | `ArrowUp`                | menu          | Moves to the previous command.                                                     |
+| `menu.next`                    | `ArrowDown`              | menu          | Moves to the next command.                                                         |
+| `menu.choose`                  | `Enter`                  | menu          | Chooses the active command.                                                        |
+| `overlay.dismiss`              | `Escape`                 | overlay       | Closes the active menu or composer without a content edit.                         |
+| `selection.clear`              | `Escape`                 | selection     | Clears the active block selection.                                                 |
+| `selection.enter-block`        | `Escape`                 | editor        | Selects the top-level block containing the caret.                                  |
+| `selection.extend-up`          | `Shift+ArrowUp`          | selection     | Extends or shrinks the block selection upward.                                     |
+| `selection.extend-down`        | `Shift+ArrowDown`        | selection     | Extends or shrinks the block selection downward.                                   |
+| `selection.edit-source`        | `E`                      | selection     | Opens consecutive selected top-level blocks as one in-place Markdown source range. |
+| `selection.select-all-blocks`  | `Mod+A`                  | selection     | Selects every top-level block.                                                     |
+| `source-editor.copy-line-down` | `Shift+Alt+ArrowDown`    | source editor | Copies selected/current source lines downward.                                     |
+| `source-editor.copy-line-up`   | `Shift+Alt+ArrowUp`      | source editor | Copies selected/current source lines upward.                                       |
+| `source-editor.delete-line`    | `Mod+Shift+K`            | source editor | Deletes selected/current source lines.                                             |
+| `source-editor.indent`         | `Tab`, `Mod+]`           | source editor | Inserts two spaces or indents selected source lines.                               |
+| `source-editor.move-line-down` | `Alt+ArrowDown`          | source editor | Moves selected/current source lines downward.                                      |
+| `source-editor.move-line-up`   | `Alt+ArrowUp`            | source editor | Moves selected/current source lines upward.                                        |
+| `source-editor.outdent`        | `Shift+Tab`, `Mod+[`     | source editor | Removes a tab or up to two leading spaces.                                         |
+| `source-editor.select-line`    | `Mod+L`                  | source editor | Selects the current logical source line.                                           |
+| `block.move-up`                | `Alt+ArrowUp`            | block handle  | Moves the handled top-level block up one position.                                 |
+| `block.move-down`              | `Alt+ArrowDown`          | block handle  | Moves the handled top-level block down one position.                               |
+| `list-item.move-up`            | `Alt+ArrowUp`            | list item     | Moves the current list item before its previous sibling.                           |
+| `list-item.move-down`          | `Alt+ArrowDown`          | list item     | Moves the current list item after its next sibling.                                |
+| `list-item.toggle-checked`     | `Mod+Enter`              | list item     | Toggles the current task-list item's checked state.                                |
+| `block-editor.commit`          | `Mod+Enter`              | composer      | Commits a multiline source or insertion draft.                                     |
+| `composer.confirm`             | `Enter`                  | composer      | Confirms a single-line block composer.                                             |
+| `inline-atom.activate`         | `Enter`, `Space`         | editor        | Opens the focused inline semantic atom.                                            |
 
 ## 13. Safety and resource behavior
 

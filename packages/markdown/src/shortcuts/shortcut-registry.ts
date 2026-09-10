@@ -60,7 +60,7 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
   },
   "heading.fold-all": {
     bindings: [{ alt: true, key: "0", primary: true }],
-    description: "Fold every heading section in the document",
+    description: "Fold sections at the document's dominant heading level",
     scope: "editor",
   },
   "heading.toggle-fold": {
@@ -73,7 +73,7 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
   },
   "heading.unfold-all": {
     bindings: [{ alt: true, key: "0", primary: true, shift: true }],
-    description: "Unfold every heading section in the document",
+    description: "Unfold every folded heading section",
     scope: "editor",
   },
   "history.redo": {

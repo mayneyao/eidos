@@ -128,13 +128,13 @@ test("shows every default shortcut in an accessible reference dialog", async ({
 
   const foldAllRow = dialog.locator('[data-shortcut-id="heading.fold-all"]')
   await expect(foldAllRow).toContainText(
-    "Fold every heading section in the document"
+    "Fold sections at the document's dominant heading level"
   )
   await expect(foldAllRow.locator("kbd")).toHaveCount(1)
 
   const unfoldAllRow = dialog.locator('[data-shortcut-id="heading.unfold-all"]')
   await expect(unfoldAllRow).toContainText(
-    "Unfold every heading section in the document"
+    "Unfold every folded heading section"
   )
   await expect(unfoldAllRow.locator("kbd")).toHaveCount(1)
 
