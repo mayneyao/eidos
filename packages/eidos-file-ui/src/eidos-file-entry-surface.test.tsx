@@ -475,6 +475,7 @@ describe("EidosFileEntrySurface", () => {
       preview?.querySelectorAll("button") ?? []
     ).find((button) => button.textContent?.includes("Copy image"))
     expect(copyButton).toBeTruthy()
+    expect(copyButton?.closest('[role="group"]')).not.toBeNull()
 
     await act(async () => {
       copyButton?.click()

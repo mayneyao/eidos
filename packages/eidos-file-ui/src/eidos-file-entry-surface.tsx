@@ -305,49 +305,55 @@ function EidosFileEntryPreviewDialog({
             ) : (
               <span className="min-w-0 flex-1" />
             )}
-            {canCopyImage ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs"
-                disabled={copyState === "copying"}
-                onClick={copyImage}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copyState === "copied"
-                  ? t("Copied")
-                  : copyState === "error"
-                    ? t("Copy failed")
-                    : t("Copy image")}
-              </Button>
-            ) : null}
-            {canOpen ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs"
-                disabled={activating !== null}
-                onClick={() => onActivate("open")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("Open {file}", { file: entry.name })}
-              </Button>
-            ) : null}
-            {canDownload ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs"
-                disabled={activating !== null}
-                onClick={() => onActivate("download")}
-              >
-                <Download className="h-3.5 w-3.5" />
-                {t("Download {file}", { file: entry.name })}
-              </Button>
-            ) : null}
+            <div
+              role="group"
+              aria-label={t("Attachment actions")}
+              className="flex shrink-0 items-center gap-2"
+            >
+              {canCopyImage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 min-w-[7rem] justify-center gap-1.5 px-2.5 text-xs"
+                  disabled={copyState === "copying"}
+                  onClick={copyImage}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copyState === "copied"
+                    ? t("Copied")
+                    : copyState === "error"
+                      ? t("Copy failed")
+                      : t("Copy image")}
+                </Button>
+              ) : null}
+              {canOpen ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                  disabled={activating !== null}
+                  onClick={() => onActivate("open")}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {t("Open {file}", { file: entry.name })}
+                </Button>
+              ) : null}
+              {canDownload ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                  disabled={activating !== null}
+                  onClick={() => onActivate("download")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {t("Download {file}", { file: entry.name })}
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </DialogContent>

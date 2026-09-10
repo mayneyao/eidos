@@ -8,6 +8,7 @@ const zh: EidosFileUIMessageOverrides = {
   Copied: "已复制",
   "Copy image": "复制图片",
   "Copy failed": "复制失败",
+  "Attachment actions": "附件操作",
   "Copy {field}": "复制 {field}",
   Search: "搜索",
   "Search rows": "搜索记录",
