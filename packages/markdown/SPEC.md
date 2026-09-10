@@ -547,9 +547,11 @@ unchanged and MUST NOT leave an empty semantic placeholder.
 
 ### 8.4 Movement
 
-Top-level blocks SHOULD expose a top-aligned gutter group on hover or keyboard
-focus, ordered as `+` followed by a Notion-like drag handle. Moving a block MUST
-preserve its Markdown semantics and be undoable as one transaction. Pointer
+Top-level blocks SHOULD expose a gutter group on hover or keyboard focus,
+ordered as `+` followed by a Notion-like drag handle. The group is top-aligned
+for ordinary blocks and vertically centered on the first line for headings.
+Moving a block MUST preserve its Markdown semantics and be undoable as one
+transaction. Pointer
 dragging MUST show the pending insertion boundary and SHOULD auto-scroll at the
 viewport edges. The focused handle SHOULD support `Alt+ArrowUp` and
 `Alt+ArrowDown` for one-step movement. Frontmatter remains pinned to source

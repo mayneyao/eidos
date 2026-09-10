@@ -110,13 +110,33 @@ test("shows every default shortcut in an accessible reference dialog", async ({
   await trigger.click()
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" })
   await expect(dialog).toBeVisible()
-  await expect(dialog.locator("[data-shortcut-id]")).toHaveCount(32)
+  await expect(dialog.locator("[data-shortcut-id]")).toHaveCount(35)
 
   const enterBlockRow = dialog.locator(
     '[data-shortcut-id="selection.enter-block"]'
   )
   await expect(enterBlockRow).toContainText("Select the top-level block")
   await expect(enterBlockRow.locator("kbd")).toHaveText(["Esc"])
+
+  const toggleFoldRow = dialog.locator(
+    '[data-shortcut-id="heading.toggle-fold"]'
+  )
+  await expect(toggleFoldRow).toContainText(
+    "Toggle folding for the current heading section"
+  )
+  await expect(toggleFoldRow.locator("kbd")).toHaveCount(2)
+
+  const foldAllRow = dialog.locator('[data-shortcut-id="heading.fold-all"]')
+  await expect(foldAllRow).toContainText(
+    "Fold every heading section in the document"
+  )
+  await expect(foldAllRow.locator("kbd")).toHaveCount(1)
+
+  const unfoldAllRow = dialog.locator('[data-shortcut-id="heading.unfold-all"]')
+  await expect(unfoldAllRow).toContainText(
+    "Unfold every heading section in the document"
+  )
+  await expect(unfoldAllRow.locator("kbd")).toHaveCount(1)
 
   const extendUpRow = dialog.locator('[data-shortcut-id="selection.extend-up"]')
   await expect(extendUpRow.locator("kbd")).toHaveText([
@@ -1565,8 +1585,27 @@ test("CRT-001 keeps the gutter plus beside the block and inserts below", async (
   if (!headingBox || !triggerBox || !handleBox) {
     throw new Error("Gutter insertion geometry is unavailable")
   }
-  expect(Math.abs(triggerBox.y - headingBox.y)).toBeLessThan(1)
-  expect(Math.abs(handleBox.y - headingBox.y)).toBeLessThan(1)
+  const headingLine = await heading.evaluate((element) => {
+    const style = window.getComputedStyle(element)
+    const paddingTop = Number.parseFloat(style.paddingTop || "0") || 0
+    const fontSize = Number.parseFloat(style.fontSize || "16") || 16
+    const rawLineHeight = Number.parseFloat(style.lineHeight || "")
+    const lineHeight =
+      Number.isFinite(rawLineHeight) && rawLineHeight > 5
+        ? rawLineHeight
+        : Number.isFinite(rawLineHeight) && rawLineHeight > 0
+          ? fontSize * rawLineHeight
+          : fontSize * 1.22
+    return { paddingTop, lineHeight }
+  })
+  const gutterCenterY =
+    headingBox.y + headingLine.paddingTop + headingLine.lineHeight / 2
+  expect(
+    Math.abs(triggerBox.y + triggerBox.height / 2 - gutterCenterY)
+  ).toBeLessThan(1)
+  expect(
+    Math.abs(handleBox.y + handleBox.height / 2 - gutterCenterY)
+  ).toBeLessThan(1)
   expect(handleBox.x).toBeGreaterThan(triggerBox.x)
   expect(handleBox.x - (triggerBox.x + triggerBox.width)).toBeLessThanOrEqual(3)
   const gutterGap = headingBox.x - (handleBox.x + handleBox.width)
