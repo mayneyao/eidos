@@ -152,6 +152,7 @@ export interface MarkdownEditorLabels {
   extendedBlocks: string
   mathBlock: string
   inlineMath: string
+  callout: string
   frontmatter: string
   image: string
   footnote: string
@@ -172,6 +173,10 @@ export interface MarkdownEditorLabels {
   noMatchingInlineCommands: string
   insertMenuHint: string
   inlineMenuHint: string
+  foldSection: string
+  unfoldSection: string
+  foldAllSections: string
+  unfoldAllSections: string
 }
 
 export interface MarkdownEditorInteractions {
@@ -183,6 +188,8 @@ export interface MarkdownEditorInteractions {
   blockDrag?: boolean
   /** Block marquee and block selection shortcuts; native text selection remains. */
   blockSelection?: boolean
+  /** Heading folding shortcuts and indicators. */
+  collapsibleHeadings?: boolean
 }
 
 export interface MarkdownEditorProps {

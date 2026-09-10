@@ -33,6 +33,7 @@ import type {
 } from "../profile-system/profile-api"
 import { BlockMarqueeSelectionPlugin } from "../plugins/block-marquee-selection-plugin"
 import { ClipboardImagePlugin } from "../plugins/clipboard-image-plugin"
+import { CollapsibleHeadingsPlugin } from "../plugins/collapsible-headings-plugin"
 import { EditorShortcutsPlugin } from "../plugins/editor-shortcuts-plugin"
 import { TextFormatPolicyPlugin } from "../plugins/text-format-policy-plugin"
 import { InsertBlockPlugin } from "../plugins/insert-block-plugin"
@@ -87,6 +88,7 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   extendedBlocks: "Rich content",
   mathBlock: "Block equation",
   inlineMath: "Inline equation",
+  callout: "Callout",
   frontmatter: "Document properties",
   image: "Image",
   footnote: "Footnote",
@@ -107,6 +109,10 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   noMatchingInlineCommands: "No matching inline commands",
   insertMenuHint: "Type / on an empty line to open this menu",
   inlineMenuHint: "Type / after a space to open this menu",
+  foldSection: "Fold section",
+  unfoldSection: "Unfold section",
+  foldAllSections: "Fold all sections",
+  unfoldAllSections: "Unfold all sections",
 }
 
 function resolveActiveLink(url: string, baseUri?: string): string | null {
@@ -391,12 +397,17 @@ function MarkdownEditorImplementation({
                         "list-item.move-up",
                         "list-item.move-down",
                         "list-item.toggle-checked",
+                        "heading.toggle-fold",
+                        "heading.fold-all",
+                        "heading.unfold-all",
                       ] as const
                     ).filter(
                       (id) =>
                         (id !== "insert.open-menu" || controls.insertMenu) &&
                         (!id.startsWith("selection.") ||
-                          controls.blockSelection)
+                          controls.blockSelection) &&
+                        (!id.startsWith("heading.") ||
+                          controls.collapsibleHeadings)
                     )
                   )}
                 />
@@ -446,19 +457,24 @@ function MarkdownEditorImplementation({
               />
             ) : null}
             <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
-            {!readOnly && (controls.insertMenu || controls.blockDrag) ? (
-              <InsertBlockPlugin
-                documentPath={documentPath}
-                key={`${controls.insertMenu}:${controls.blockDrag}`}
-                enableMenu={controls.insertMenu}
-                enableDrag={controls.blockDrag}
-                inputProfile={inputProfile}
-                insertions={registry.insertions}
-                blockBoundaries={registry.blockBoundaries}
-                labels={resolvedLabels}
-                onError={handleError}
-              />
-            ) : null}
+            <CollapsibleHeadingsPlugin enabled={controls.collapsibleHeadings}>
+              {!readOnly &&
+              (controls.insertMenu ||
+                controls.blockDrag ||
+                controls.collapsibleHeadings) ? (
+                <InsertBlockPlugin
+                  documentPath={documentPath}
+                  key={`${controls.insertMenu}:${controls.blockDrag}`}
+                  enableMenu={controls.insertMenu}
+                  enableDrag={controls.blockDrag}
+                  inputProfile={inputProfile}
+                  insertions={registry.insertions}
+                  blockBoundaries={registry.blockBoundaries}
+                  labels={resolvedLabels}
+                  onError={handleError}
+                />
+              ) : null}
+            </CollapsibleHeadingsPlugin>
             <MarkdownStatePlugin
               markdown={markdown}
               readOnly={readOnly}

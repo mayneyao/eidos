@@ -16,6 +16,7 @@ import { rawHtmlPlugin } from "../features/html/plugin"
 import { mathInsertions } from "../features/math/insertions"
 import { mathBlockSyntax } from "../features/math/block-syntax"
 import { calloutBlockSyntax } from "../features/vault-blocks/callout-syntax"
+import { calloutInsertions } from "../features/vault-blocks/insertions"
 import { mathInlineSyntax } from "../features/math/inline-syntax"
 import { frontmatterBoundary } from "../features/frontmatter/boundary"
 import { footnoteBoundary } from "../features/footnote/boundary"
@@ -178,6 +179,7 @@ export const obsidianSyntaxPlugin = defineMarkdownPlugin({
   ],
   insertions: [
     ...mathInsertions,
+    ...calloutInsertions,
     {
       id: "image",
       order: 220,

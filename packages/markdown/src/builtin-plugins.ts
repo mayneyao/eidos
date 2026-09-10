@@ -39,6 +39,7 @@ export {
 export { wikilinkPlugin } from "./features/wikilink/plugin"
 export {
   calloutPlugin,
+  calloutInsertions,
   attachmentPlugin,
   vaultLinkPlugin,
 } from "./features/vault-blocks/plugins"

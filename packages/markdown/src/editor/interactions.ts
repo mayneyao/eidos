@@ -10,5 +10,6 @@ export function resolveEditorInteractions(
     insertMenu: interactions?.insertMenu ?? showToolbar,
     blockDrag: interactions?.blockDrag ?? showToolbar,
     blockSelection: interactions?.blockSelection ?? true,
+    collapsibleHeadings: interactions?.collapsibleHeadings ?? true,
   }
 }

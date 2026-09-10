@@ -58,6 +58,13 @@ import {
   $isEfmBlockNode,
 } from "../nodes/efm-semantic-node"
 import { $isEfmSourceBlockNode } from "../nodes/efm-source-block-node"
+import { $isHeadingNode } from "@lexical/rich-text"
+import {
+  $getFoldedHeadingEnclosing,
+  $getHeadingSectionChildren,
+  $getSectionEndNode,
+  useCollapsibleHeadings,
+} from "./collapsible-headings-plugin"
 import { useMarkdownShortcuts } from "../shortcuts/shortcut-context"
 import { editorScrollSurface } from "../ui/editor-scroll-surface"
 import {
@@ -135,6 +142,39 @@ const BLOCK_DRAG_SCROLL_EDGE = 56
 const BLOCK_DRAG_MAX_SCROLL_SPEED = 18
 const BLOCK_GUTTER_WIDTH = 50
 const BLOCK_GUTTER_CONTENT_GAP = 4
+export const BLOCK_GUTTER_HEIGHT = 24
+
+export function getBlockGutterVerticalOffset(
+  block: HTMLElement,
+  editor?: LexicalEditor,
+  key?: NodeKey
+): number {
+  const isHeading =
+    /^h[1-6]$/i.test(block.tagName) ||
+    block.classList.contains("eme-heading") ||
+    (Boolean(editor && key) &&
+      editor!.getEditorState().read(() => {
+        const node = $getNodeByKey(key!)
+        return $isHeadingNode(node)
+      }))
+
+  if (!isHeading) {
+    return 0
+  }
+
+  const style = window.getComputedStyle(block)
+  const paddingTop = Number.parseFloat(style.paddingTop || "0") || 0
+  const fontSize = Number.parseFloat(style.fontSize || "16") || 16
+  const lineHeightRaw = Number.parseFloat(style.lineHeight || "")
+  const lineHeight =
+    Number.isFinite(lineHeightRaw) && lineHeightRaw > 5
+      ? lineHeightRaw
+      : Number.isFinite(lineHeightRaw) && lineHeightRaw > 0
+        ? fontSize * lineHeightRaw
+        : fontSize * 1.22
+
+  return Math.max(0, paddingTop + (lineHeight - BLOCK_GUTTER_HEIGHT) / 2)
+}
 const INSERT_MENU_WIDTH = 296
 const VIEWPORT_INSET = 8
 
@@ -404,6 +444,7 @@ export function InsertBlockPlugin({
     [blockBoundaries]
   )
   const { ariaKeys, matches } = useMarkdownShortcuts()
+  const { isFoldable, isFolded, toggleFold } = useCollapsibleHeadings()
   const { externalMarkdownConflict, registerDraft, syntaxFeatures } =
     useEfmSourceBlockContext()
   const [blockActions, setBlockActions] = useState<{
@@ -600,12 +641,15 @@ export function InsertBlockPlugin({
       const rootStyle = window.getComputedStyle(root)
       const contentLeft =
         rootRect.left + Number.parseFloat(rootStyle.paddingInlineStart || "0")
+      const hasFold = isFoldable(key) || isFolded(key)
+      const currentGutterWidth = hasFold ? 76 : BLOCK_GUTTER_WIDTH
       const gutterLeft = Math.max(
         VIEWPORT_INSET,
-        contentLeft - BLOCK_GUTTER_WIDTH - BLOCK_GUTTER_CONTENT_GAP
+        contentLeft - currentGutterWidth - BLOCK_GUTTER_CONTENT_GAP
       )
+      const verticalOffset = getBlockGutterVerticalOffset(block, editor, key)
       const gutterTop = Math.min(
-        Math.max(VIEWPORT_INSET, blockRect.top),
+        Math.max(VIEWPORT_INSET, blockRect.top + verticalOffset),
         window.innerHeight - 32
       )
       const blockMenuLeft = Math.max(
@@ -651,7 +695,7 @@ export function InsertBlockPlugin({
         menuTop,
       })
     },
-    [editor]
+    [editor, isFoldable, isFolded]
   )
 
   const updatePosition = useCallback(() => {
@@ -950,22 +994,51 @@ export function InsertBlockPlugin({
         ) {
           return
         }
+
+        const nodesToMove: LexicalNode[] = [source]
+        if ($isHeadingNode(source) && isFolded(source.getKey())) {
+          nodesToMove.push(
+            ...$getHeadingSectionChildren(source, isTrailingBoundary)
+          )
+        }
+
+        if (
+          nodesToMove.some((node) => node.getKey() === destination.getKey())
+        ) {
+          return
+        }
+
         if (target.position === "before") {
           if (
-            source.getNextSibling() === destination ||
+            nodesToMove[nodesToMove.length - 1].getNextSibling() ===
+              destination ||
             isLeadingBoundary(destination)
           ) {
             return
           }
           destination.insertBefore(source)
+          let lastInserted = source
+          for (let i = 1; i < nodesToMove.length; i++) {
+            lastInserted.insertAfter(nodesToMove[i])
+            lastInserted = nodesToMove[i]
+          }
         } else {
+          const insertAnchor = $getSectionEndNode(
+            destination,
+            isFolded,
+            isTrailingBoundary
+          )
           if (
-            source.getPreviousSibling() === destination ||
-            isTrailingBoundary(destination)
+            source.getPreviousSibling() === insertAnchor ||
+            isTrailingBoundary(insertAnchor)
           ) {
             return
           }
-          destination.insertAfter(source)
+          let lastInserted = insertAnchor
+          for (const node of nodesToMove) {
+            lastInserted.insertAfter(node)
+            lastInserted = node
+          }
         }
         selectMovedBlock(source)
       },
@@ -1059,19 +1132,48 @@ export function InsertBlockPlugin({
         ) {
           return
         }
-        const sibling =
-          direction === "up"
-            ? source.getPreviousSibling()
-            : source.getNextSibling()
-        if (
-          !sibling ||
-          isLeadingBoundary(sibling) ||
-          isTrailingBoundary(sibling)
-        ) {
-          return
+
+        const nodesToMove: LexicalNode[] = [source]
+        if ($isHeadingNode(source) && isFolded(source.getKey())) {
+          nodesToMove.push(
+            ...$getHeadingSectionChildren(source, isTrailingBoundary)
+          )
         }
-        if (direction === "up") sibling.insertBefore(source)
-        else sibling.insertAfter(source)
+        const lastNode = nodesToMove[nodesToMove.length - 1]
+
+        if (direction === "up") {
+          const prevSibling = source.getPreviousSibling()
+          if (!prevSibling || isLeadingBoundary(prevSibling)) {
+            return
+          }
+          const enclosing = $getFoldedHeadingEnclosing(
+            prevSibling,
+            isFolded,
+            isTrailingBoundary
+          )
+          const targetAnchor = enclosing ?? prevSibling
+          targetAnchor.insertBefore(source)
+          let lastInserted = source
+          for (let i = 1; i < nodesToMove.length; i++) {
+            lastInserted.insertAfter(nodesToMove[i])
+            lastInserted = nodesToMove[i]
+          }
+        } else {
+          const nextSibling = lastNode.getNextSibling()
+          if (!nextSibling || isTrailingBoundary(nextSibling)) {
+            return
+          }
+          const targetAnchor = $getSectionEndNode(
+            nextSibling,
+            isFolded,
+            isTrailingBoundary
+          )
+          let lastInserted = targetAnchor
+          for (const node of nodesToMove) {
+            lastInserted.insertAfter(node)
+            lastInserted = node
+          }
+        }
         selectMovedBlock(source)
       },
       { tag: HISTORY_PUSH_TAG }
@@ -1462,6 +1564,60 @@ export function InsertBlockPlugin({
         data-block-gutter="true"
         style={{ left: position.gutterLeft, top: position.gutterTop }}
       >
+        {anchorKeyRef.current &&
+        (isFoldable(anchorKeyRef.current) || isFolded(anchorKeyRef.current)) ? (
+          <button
+            type="button"
+            className="eme-fold-trigger"
+            aria-label={
+              isFolded(anchorKeyRef.current)
+                ? labels.unfoldSection
+                : labels.foldSection
+            }
+            title={
+              isFolded(anchorKeyRef.current)
+                ? labels.unfoldSection
+                : labels.foldSection
+            }
+            data-folded={isFolded(anchorKeyRef.current)}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (anchorKeyRef.current) {
+                toggleFold(anchorKeyRef.current)
+              }
+            }}
+          >
+            {isFolded(anchorKeyRef.current) ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 4l4 4-4 4" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 6l4 4 4-4" />
+              </svg>
+            )}
+          </button>
+        ) : null}
         {enableMenu ? (
           <button
             type="button"

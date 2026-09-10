@@ -7,12 +7,14 @@ describe("editor interaction defaults", () => {
       insertMenu: true,
       blockDrag: true,
       blockSelection: true,
+      collapsibleHeadings: true,
     })
     expect(resolveEditorInteractions(undefined, false)).toEqual({
       toolbar: false,
       insertMenu: false,
       blockDrag: false,
       blockSelection: true,
+      collapsibleHeadings: true,
     })
   })
   it("lets explicit switches override legacy values independently", () => {
@@ -26,6 +28,7 @@ describe("editor interaction defaults", () => {
       insertMenu: true,
       blockDrag: false,
       blockSelection: false,
+      collapsibleHeadings: true,
     })
     expect(
       resolveEditorInteractions({ toolbar: false, blockDrag: false })
@@ -34,6 +37,7 @@ describe("editor interaction defaults", () => {
       insertMenu: true,
       blockDrag: false,
       blockSelection: true,
+      collapsibleHeadings: true,
     })
   })
 })

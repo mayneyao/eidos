@@ -40,6 +40,7 @@ export const chineseEditorLabels = {
   extendedBlocks: "扩展内容",
   mathBlock: "块级公式",
   inlineMath: "行内公式",
+  callout: "提示框",
   frontmatter: "文档属性",
   image: "图片",
   footnote: "脚注",
@@ -60,4 +61,8 @@ export const chineseEditorLabels = {
   noMatchingInlineCommands: "没有匹配的行内命令",
   insertMenuHint: "在空行输入 / 打开此菜单",
   inlineMenuHint: "在光标处插入行内内容",
+  foldSection: "折叠标题",
+  unfoldSection: "展开标题",
+  foldAllSections: "折叠所有标题",
+  unfoldAllSections: "展开所有标题",
 } satisfies MarkdownEditorLabels

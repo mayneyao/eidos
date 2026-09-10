@@ -3,6 +3,10 @@
   margin: 0 0 1.1em;
 }
 
+.eme-block-folded {
+  display: none !important;
+}
+
 .eme-heading,
 .eme-static :is(h1,h2,h3,h4,h5,h6) {
   margin: 1.8em 0 0.65em;
@@ -10,6 +14,41 @@
   font-weight: 680;
   letter-spacing: -0.018em;
   line-height: 1.22;
+}
+
+.eme-heading-folded {
+  position: relative;
+}
+
+.eme-heading-folded::after {
+  content: "…";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 0.5rem;
+  padding: 0 0.35rem;
+  font-size: 0.65em;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: normal;
+  border-radius: 0.25rem;
+  color: var(--eme-muted-foreground);
+  background: var(--eme-muted);
+  border: 1px solid var(--eme-border);
+  vertical-align: middle;
+  user-select: none;
+  cursor: pointer;
+  opacity: 0.85;
+  transition:
+    opacity 100ms ease,
+    background 100ms ease,
+    color 100ms ease;
+}
+
+.eme-heading-folded:hover::after {
+  opacity: 1;
+  color: var(--eme-foreground);
+  background: color-mix(in srgb, var(--eme-muted) 80%, var(--eme-foreground));
 }
 
 .eme-heading-h1,
