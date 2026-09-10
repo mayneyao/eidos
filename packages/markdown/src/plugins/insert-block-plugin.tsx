@@ -178,6 +178,46 @@ export function getBlockGutterVerticalOffset(
 const INSERT_MENU_WIDTH = 296
 const VIEWPORT_INSET = 8
 
+export interface BlockGutterBounds {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum)
+}
+
+/**
+ * Places the fixed block gutter inside the editor's visible bounds. Clamping to
+ * the window instead makes the handle drift over the titlebar and side panels
+ * once its block scrolls out of the editor; the editor surface keeps it in the
+ * document, matching where the block is shown.
+ */
+export function clampBlockGutterPosition(input: {
+  blockTop: number
+  blockBottom: number
+  contentLeft: number
+  gutterWidth: number
+  verticalOffset: number
+  bounds: BlockGutterBounds
+}): { gutterLeft: number; gutterTop: number } {
+  const { bounds, blockTop, contentLeft, gutterWidth, verticalOffset } = input
+  return {
+    gutterLeft: clamp(
+      contentLeft - gutterWidth - BLOCK_GUTTER_CONTENT_GAP,
+      bounds.left + VIEWPORT_INSET,
+      bounds.right - gutterWidth - VIEWPORT_INSET
+    ),
+    gutterTop: clamp(
+      blockTop + verticalOffset,
+      bounds.top + VIEWPORT_INSET,
+      bounds.bottom - BLOCK_GUTTER_HEIGHT - VIEWPORT_INSET
+    ),
+  }
+}
+
 const COMPOSER_KINDS = new Set<string>(["footnote", "frontmatter", "html"])
 const PLACEHOLDER_KINDS = new Set<string>(["image"])
 
@@ -641,17 +681,24 @@ export function InsertBlockPlugin({
       const rootStyle = window.getComputedStyle(root)
       const contentLeft =
         rootRect.left + Number.parseFloat(rootStyle.paddingInlineStart || "0")
+      const surface = editorScrollSurface(root)
+      const surfaceRect = (surface ?? root).getBoundingClientRect()
+      const bounds: BlockGutterBounds = {
+        top: Math.max(surfaceRect.top, 0),
+        bottom: Math.min(surfaceRect.bottom, window.innerHeight),
+        left: Math.max(surfaceRect.left, 0),
+        right: Math.min(surfaceRect.right, window.innerWidth),
+      }
       const hasFold = isFoldable(key) || isFolded(key)
       const currentGutterWidth = hasFold ? 76 : BLOCK_GUTTER_WIDTH
-      const gutterLeft = Math.max(
-        VIEWPORT_INSET,
-        contentLeft - currentGutterWidth - BLOCK_GUTTER_CONTENT_GAP
-      )
-      const verticalOffset = getBlockGutterVerticalOffset(block, editor, key)
-      const gutterTop = Math.min(
-        Math.max(VIEWPORT_INSET, blockRect.top + verticalOffset),
-        window.innerHeight - 32
-      )
+      const { gutterLeft, gutterTop } = clampBlockGutterPosition({
+        blockTop: blockRect.top,
+        blockBottom: blockRect.bottom,
+        contentLeft,
+        gutterWidth: currentGutterWidth,
+        verticalOffset: getBlockGutterVerticalOffset(block, editor, key),
+        bounds,
+      })
       const blockMenuLeft = Math.max(
         VIEWPORT_INSET,
         Math.min(

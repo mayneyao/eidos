@@ -3,8 +3,72 @@ import { $getRoot, createEditor } from "lexical"
 import { $createHeadingNode, HeadingNode } from "@lexical/rich-text"
 import {
   BLOCK_GUTTER_HEIGHT,
+  clampBlockGutterPosition,
   getBlockGutterVerticalOffset,
 } from "./insert-block-plugin"
+
+describe("clampBlockGutterPosition", () => {
+  const bounds = { top: 40, bottom: 600, left: 100, right: 800 }
+  const base = {
+    contentLeft: 200,
+    gutterWidth: 50,
+    verticalOffset: 0,
+    bounds,
+  }
+
+  it("clamps a block near the editor top to the editor inset, not the window", () => {
+    const placement = clampBlockGutterPosition({
+      ...base,
+      blockTop: 30,
+      blockBottom: 60,
+    })
+    expect(placement?.gutterTop).toBe(bounds.top + 8)
+  })
+
+  it("clamps a block near the editor bottom to the editor inset", () => {
+    const placement = clampBlockGutterPosition({
+      ...base,
+      blockTop: 580,
+      blockBottom: 620,
+    })
+    expect(placement?.gutterTop).toBe(bounds.bottom - BLOCK_GUTTER_HEIGHT - 8)
+  })
+
+  it("clamps a block outside the editor to the nearest editor edge", () => {
+    expect(
+      clampBlockGutterPosition({ ...base, blockTop: 640, blockBottom: 700 })
+        .gutterTop
+    ).toBe(bounds.bottom - BLOCK_GUTTER_HEIGHT - 8)
+    expect(
+      clampBlockGutterPosition({ ...base, blockTop: -40, blockBottom: 10 })
+        .gutterTop
+    ).toBe(bounds.top + 8)
+  })
+
+  it("keeps the gutter in the editor's left margin", () => {
+    const placement = clampBlockGutterPosition({
+      ...base,
+      blockTop: 200,
+      blockBottom: 240,
+    })
+    expect(placement).toEqual({
+      gutterLeft: base.contentLeft - base.gutterWidth - 4,
+      gutterTop: 200,
+    })
+  })
+
+  it("reserves the wider fold gutter and vertical offset", () => {
+    const placement = clampBlockGutterPosition({
+      ...base,
+      contentLeft: 180,
+      gutterWidth: 76,
+      verticalOffset: 5,
+      blockTop: 200,
+      blockBottom: 240,
+    })
+    expect(placement).toEqual({ gutterLeft: bounds.left + 8, gutterTop: 205 })
+  })
+})
 
 describe("getBlockGutterVerticalOffset", () => {
   it("returns 0 for non-heading elements like paragraphs", () => {
