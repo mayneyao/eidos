@@ -83,6 +83,7 @@ export const IPC_CHANNELS = {
   copyDiagnostics: "eidos-lite:diagnostics-copy",
   clipboardReadText: "eidos-lite:clipboard-read-text",
   clipboardWriteText: "eidos-lite:clipboard-write-text",
+  clipboardWriteImage: "eidos-lite:clipboard-write-image",
   openExternalUrl: "eidos-lite:url-open-external",
   openSpace: "eidos-lite:space-open",
   newSpace: "eidos-lite:space-new",
@@ -1711,6 +1712,7 @@ export interface EidosLiteApi {
   copyDiagnostics(): Promise<EidosLiteDiagnostics>
   readClipboardText(): Promise<string>
   writeClipboardText(text: string): Promise<void>
+  writeClipboardImage(bytes: Uint8Array): Promise<void>
   openExternalUrl(uri: string): Promise<void>
   openSpace(): Promise<SpaceSnapshot | null>
   newSpace(): Promise<SpaceSnapshot | null>

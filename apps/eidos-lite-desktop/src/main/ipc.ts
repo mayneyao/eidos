@@ -2,7 +2,15 @@ import { randomUUID } from "node:crypto"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+} from "electron"
 import type { AssetLease, UrlImageLease } from "@eidos.space/eidos-file"
 
 import {
@@ -857,6 +865,14 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.clipboardReadText, () => clipboard.readText())
   ipcMain.handle(IPC_CHANNELS.clipboardWriteText, (_event, value: unknown) => {
     clipboard.writeText(requiredString(value, "clipboard text"))
+  })
+  ipcMain.handle(IPC_CHANNELS.clipboardWriteImage, (_event, value: unknown) => {
+    if (!(value instanceof Uint8Array)) {
+      throw new Error("clipboard image must be a byte array")
+    }
+    const image = nativeImage.createFromBuffer(Buffer.from(value))
+    if (image.isEmpty()) throw new Error("clipboard image is not decodable")
+    clipboard.writeImage(image)
   })
   ipcMain.handle(
     IPC_CHANNELS.terminalStart,

@@ -83,6 +83,8 @@ const api: EidosLiteApi = {
   readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
   writeClipboardText: (text) =>
     ipcRenderer.invoke(IPC_CHANNELS.clipboardWriteText, text),
+  writeClipboardImage: (bytes) =>
+    ipcRenderer.invoke(IPC_CHANNELS.clipboardWriteImage, bytes),
   openExternalUrl: (uri) =>
     ipcRenderer.invoke(IPC_CHANNELS.openExternalUrl, uri),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),

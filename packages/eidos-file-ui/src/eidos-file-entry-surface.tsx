@@ -205,6 +205,26 @@ function EidosFileEntryPreviewDialog({
 }) {
   const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
   const isImage = entry.mediaType.toLowerCase().startsWith("image/")
+  const [copyState, setCopyState] = useState<
+    "idle" | "copying" | "copied" | "error"
+  >("idle")
+  useEffect(() => {
+    setCopyState("idle")
+  }, [entry.id, open])
+  const canCopyImage =
+    isImage && thumbnail.lease !== null && Boolean(assetPresenter?.copyImage)
+  const copyImage = useCallback(() => {
+    if (!thumbnail.lease || !assetPresenter?.copyImage || !assetSession) return
+    setCopyState("copying")
+    void assetPresenter
+      .copyImage({
+        sessionId: assetSession.state.sessionId,
+        lease: thumbnail.lease,
+        altText: entry.name,
+      })
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("error"))
+  }, [assetPresenter, assetSession, entry.name, thumbnail.lease])
   let image: ReactNode = null
   if (isImage && thumbnail.lease && assetPresenter && assetSession) {
     try {
@@ -273,7 +293,7 @@ function EidosFileEntryPreviewDialog({
               </span>
             ))}
         </div>
-        {canOpen || canDownload ? (
+        {canOpen || canDownload || canCopyImage ? (
           <div className="flex items-center gap-2 border-t px-3 py-2">
             {activationError ? (
               <p
@@ -285,6 +305,23 @@ function EidosFileEntryPreviewDialog({
             ) : (
               <span className="min-w-0 flex-1" />
             )}
+            {canCopyImage ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                disabled={copyState === "copying"}
+                onClick={copyImage}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {copyState === "copied"
+                  ? t("Copied")
+                  : copyState === "error"
+                    ? t("Copy failed")
+                    : t("Copy image")}
+              </Button>
+            ) : null}
             {canOpen ? (
               <Button
                 type="button"

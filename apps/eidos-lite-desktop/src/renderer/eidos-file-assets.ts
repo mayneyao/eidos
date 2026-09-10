@@ -167,6 +167,12 @@ export const eidosLiteAssetPresenter: AssetPresenter<ReactNode> = {
       image.src = objectUrl(lease)
     })
   },
+  async copyImage({ lease }) {
+    const response = await fetch(objectUrl(lease))
+    if (!response.ok) throw new Error("Attachment image is unavailable")
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    await window.eidosLite.writeClipboardImage(bytes)
+  },
   activate({ sessionId, lease, action }) {
     return window.eidosLite.activateEidosFileAsset(
       sessionId,

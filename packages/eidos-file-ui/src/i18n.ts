@@ -6,6 +6,8 @@ export type EidosFileUIMessageOverrides = Record<string, string>
 const zh: EidosFileUIMessageOverrides = {
   Copy: "复制",
   Copied: "已复制",
+  "Copy image": "复制图片",
+  "Copy failed": "复制失败",
   "Copy {field}": "复制 {field}",
   Search: "搜索",
   "Search rows": "搜索记录",

@@ -427,6 +427,70 @@ describe("EidosFileEntrySurface", () => {
     expect(preview?.textContent).toContain("photo.png")
   })
 
+  it("copies an image attachment through the Host presenter", async () => {
+    const file = entry("photo-copy", "assets/photo.png", "photo-copy.png")
+    const services = {
+      resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const copyImage = vi.fn(async () => undefined)
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ lease, altText }) => (
+        <img src={lease.resourceToken} alt={altText} />
+      ),
+      activate: vi.fn(async () => undefined),
+      copyImage,
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface entry={file} />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Preview photo-copy.png"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const preview = document.body.querySelector(
+      "[data-eidos-file-attachment-preview]"
+    )
+    const copyButton = Array.from(
+      preview?.querySelectorAll("button") ?? []
+    ).find((button) => button.textContent?.includes("Copy image"))
+    expect(copyButton).toBeTruthy()
+
+    await act(async () => {
+      copyButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(copyImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "session-1",
+        altText: "photo-copy.png",
+        lease: expect.objectContaining({ entryId: file.id }),
+      })
+    )
+    expect(preview?.textContent).toContain("Copied")
+  })
+
   it("previews a non-image attachment as trusted metadata with explicit actions", async () => {
     const file = entry(
       "document",

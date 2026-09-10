@@ -31,6 +31,12 @@ export interface AssetPresenter<Surface> {
     lease: EidosFileImagePresentationLease
     altText: string
   }): Promise<CanvasImageSource>
+  /** Optional copy-to-clipboard for image leases. Absent hides the action. */
+  copyImage?(request: {
+    sessionId: string
+    lease: EidosFileImagePresentationLease
+    altText: string
+  }): Promise<void>
   activate(
     request: {
       sessionId: string
