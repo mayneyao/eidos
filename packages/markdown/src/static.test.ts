@@ -164,4 +164,19 @@ describe("static Markdown rendering", () => {
     expect(html).not.toContain("<math")
     expect(html).toContain("$$")
   })
+
+  it("highlights fenced code with the editor's shared tokenizer", () => {
+    const html = renderMarkdownToHtml("```ts\nconst answer = 42\n```")
+    expect(html).toContain('<span class="eme-code-keyword">const</span>')
+    expect(html).toContain('<span class="eme-code-number">42</span>')
+  })
+
+  it("leaves unlabelled or plain fenced code unhighlighted", () => {
+    expect(renderMarkdownToHtml("```\nplain text\n```")).not.toContain(
+      "eme-code-"
+    )
+    expect(renderMarkdownToHtml("```text\na = 1\n```")).not.toContain(
+      "eme-code-"
+    )
+  })
 })

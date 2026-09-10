@@ -8,7 +8,7 @@
 }
 
 .eme-heading,
-.eme-static :is(h1,h2,h3,h4,h5,h6) {
+.eme-static :is(h1, h2, h3, h4, h5, h6) {
   margin: 1.8em 0 0.65em;
   font-family: inherit;
   font-weight: 680;
@@ -127,6 +127,58 @@
   line-height: 1.55;
   tab-size: 2;
   white-space: pre;
+}
+
+.eme-static .eme-code-comment {
+  color: var(--eme-code-comment);
+}
+
+.eme-static .eme-code-keyword {
+  color: var(--eme-code-keyword);
+}
+
+.eme-static .eme-code-operator {
+  color: var(--eme-code-operator);
+}
+
+.eme-static .eme-code-string {
+  color: var(--eme-code-string);
+}
+
+.eme-static .eme-code-number {
+  color: var(--eme-code-number);
+}
+
+.eme-static .eme-code-function {
+  color: var(--eme-code-function);
+}
+
+.eme-static .eme-code-type {
+  color: var(--eme-code-type);
+}
+
+.eme-static .eme-code-variable {
+  color: var(--eme-code-variable);
+}
+
+.eme-static .eme-code-property {
+  color: var(--eme-code-property);
+}
+
+.eme-static .eme-code-tag {
+  color: var(--eme-code-tag);
+}
+
+.eme-static .eme-code-selector {
+  color: var(--eme-code-selector);
+}
+
+.eme-static .eme-code-inserted {
+  color: var(--eme-code-inserted);
+}
+
+.eme-static .eme-code-deleted {
+  color: var(--eme-code-deleted);
 }
 
 /* Shared semantic presentation; interaction-only styles stay in styles.css. */

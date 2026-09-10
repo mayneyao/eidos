@@ -42,17 +42,17 @@
     --control-fill,
     color-mix(in srgb, var(--eme-foreground) 6%, var(--eme-background))
   );
-  --eme-code-comment: oklch(0.5 0.025 255);
-  --eme-code-keyword: oklch(0.49 0.16 285);
-  --eme-code-operator: oklch(0.43 0.035 255);
-  --eme-code-string: oklch(0.48 0.115 155);
-  --eme-code-number: oklch(0.52 0.14 55);
-  --eme-code-function: oklch(0.47 0.13 245);
-  --eme-code-type: oklch(0.49 0.12 210);
-  --eme-code-variable: oklch(0.46 0.08 25);
-  --eme-code-property: oklch(0.47 0.11 245);
-  --eme-code-tag: oklch(0.46 0.13 145);
-  --eme-code-selector: oklch(0.49 0.14 310);
-  --eme-code-inserted: oklch(0.48 0.12 145);
-  --eme-code-deleted: oklch(0.5 0.16 25);
+  --eme-code-comment: light-dark(oklch(0.5 0.025 255), oklch(0.7 0.025 255));
+  --eme-code-keyword: light-dark(oklch(0.49 0.16 285), oklch(0.75 0.14 300));
+  --eme-code-operator: light-dark(oklch(0.43 0.035 255), oklch(0.78 0.025 255));
+  --eme-code-string: light-dark(oklch(0.48 0.115 155), oklch(0.76 0.105 155));
+  --eme-code-number: light-dark(oklch(0.52 0.14 55), oklch(0.76 0.12 70));
+  --eme-code-function: light-dark(oklch(0.47 0.13 245), oklch(0.78 0.11 245));
+  --eme-code-type: light-dark(oklch(0.49 0.12 210), oklch(0.78 0.1 210));
+  --eme-code-variable: light-dark(oklch(0.46 0.08 25), oklch(0.78 0.08 35));
+  --eme-code-property: light-dark(oklch(0.47 0.11 245), oklch(0.78 0.11 245));
+  --eme-code-tag: light-dark(oklch(0.46 0.13 145), oklch(0.77 0.11 145));
+  --eme-code-selector: light-dark(oklch(0.49 0.14 310), oklch(0.78 0.12 315));
+  --eme-code-inserted: light-dark(oklch(0.48 0.12 145), oklch(0.76 0.1 145));
+  --eme-code-deleted: light-dark(oklch(0.5 0.16 25), oklch(0.74 0.14 25));
 }

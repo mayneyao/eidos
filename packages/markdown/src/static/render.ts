@@ -6,12 +6,19 @@ import { sanitizeDocument } from "./html"
 import { safeUrl } from "./url"
 import { ACTIVE_HTML } from "../core/html-safety"
 import { findHeadingIndex } from "../markdown/obsidian-internal-link"
-import type { Element, ElementContent, Properties } from "hast"
+import type {
+  Element,
+  ElementContent,
+  Properties,
+  Root as HastRoot,
+} from "hast"
 import type { Root, Nodes } from "mdast"
 import { renderMath } from "../features/math/render"
 import { parseCallout } from "../features/vault-blocks/callout"
 import { vaultInlineMatches } from "../features/vault-inline/semantics"
 import { obsidianImagePresentation } from "../markdown/obsidian-image-presentation"
+import { tokenizeCodeLightweight } from "../highlighting/code-highlight-tokenizer"
+import type { CodeHighlightToken } from "../highlighting/code-highlight-tokenizer"
 import {
   parseFrontmatterPresentation,
   type FrontmatterPresentationValue,
@@ -102,6 +109,64 @@ function fragment(html: string): ElementContent[] {
   return fromHtml(html, { fragment: true }).children.filter(
     (node): node is ElementContent => node.type !== "doctype"
   )
+}
+
+function fencedCodeLanguage(properties: Properties): string {
+  const className = properties.className
+  const names = Array.isArray(className)
+    ? className
+    : typeof className === "string"
+      ? [className]
+      : []
+  for (const name of names) {
+    const match = /^(?:language-|lang-)(.+)$/u.exec(String(name))
+    if (match) return match[1] ?? ""
+  }
+  return ""
+}
+
+/**
+ * Highlight fenced code with the editor's semantic tokenizer so published pages
+ * match the editor. Ranges are flattened and non-overlapping, so each token
+ * becomes one span that carries the shared `eme-code-*` class.
+ */
+function highlightFencedCodeElement(code: Element): void {
+  const source = code.children
+    .map((child) => (child.type === "text" ? child.value : ""))
+    .join("")
+  const tokens = tokenizeCodeLightweight(
+    source,
+    fencedCodeLanguage(code.properties)
+  ) as readonly CodeHighlightToken[]
+  if (tokens.length === 0) return
+
+  const children: ElementContent[] = []
+  let cursor = 0
+  for (const token of tokens) {
+    if (token.start > cursor)
+      children.push(text(source.slice(cursor, token.start)))
+    children.push(
+      el("span", [text(source.slice(token.start, token.end))], {
+        className: [`eme-code-${token.kind}`],
+      })
+    )
+    cursor = token.end
+  }
+  if (cursor < source.length) children.push(text(source.slice(cursor)))
+  code.children = children
+}
+
+function highlightFencedCode(node: HastRoot | ElementContent): void {
+  if (node.type === "element" && node.tagName === "pre") {
+    const code = node.children.find(
+      (child): child is Element =>
+        child.type === "element" && child.tagName === "code"
+    )
+    if (code) highlightFencedCodeElement(code)
+  }
+  if ("children" in node)
+    for (const child of node.children)
+      if (child.type !== "doctype") highlightFencedCode(child)
 }
 function semantic(node: SemanticToken, context: RenderContext): ElementContent {
   const source = node.value
@@ -369,5 +434,6 @@ export function renderDocument(tree: Root, context: RenderContext): string {
       }) as typeof node.children
   }
   materialize(safe)
+  highlightFencedCode(safe)
   return toHtml(safe, { characterReferences: { useNamedReferences: true } })
 }
