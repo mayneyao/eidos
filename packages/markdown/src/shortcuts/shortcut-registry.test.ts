@@ -5,18 +5,10 @@ import {
   markdownShortcutLabels,
   matchesMarkdownShortcut,
   resolveMarkdownShortcuts,
+  type KeyboardShortcutEvent,
 } from "./shortcut-registry"
 
-function keyboardEvent(
-  overrides: Partial<{
-    altKey: boolean
-    ctrlKey: boolean
-    isComposing: boolean
-    key: string
-    metaKey: boolean
-    shiftKey: boolean
-  }> = {}
-) {
+function keyboardEvent(overrides: Partial<KeyboardShortcutEvent> = {}) {
   return {
     altKey: false,
     ctrlKey: false,
@@ -125,6 +117,81 @@ describe("Markdown shortcut registry", () => {
     ).toBe(true)
     expect(
       matchesMarkdownShortcut(
+        keyboardEvent({ altKey: true, key: "[", metaKey: true }),
+        "heading.toggle-fold"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ altKey: true, key: "t", metaKey: true }),
+        "heading.toggle-fold"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({ altKey: true, key: "0", metaKey: true }),
+        "heading.fold-all"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          key: "0",
+          metaKey: true,
+          shiftKey: true,
+        }),
+        "heading.unfold-all"
+      )
+    ).toBe(true)
+    // macOS Option key character replacements and code match
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          code: "BracketLeft",
+          key: "“",
+          metaKey: true,
+        }),
+        "heading.toggle-fold"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          code: "KeyT",
+          key: "†",
+          metaKey: true,
+        }),
+        "heading.toggle-fold"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          code: "Digit0",
+          key: "º",
+          metaKey: true,
+        }),
+        "heading.fold-all"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
+        keyboardEvent({
+          altKey: true,
+          code: "Digit0",
+          key: "‚",
+          metaKey: true,
+          shiftKey: true,
+        }),
+        "heading.unfold-all"
+      )
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(
         keyboardEvent({
           altKey: true,
           isComposing: true,
@@ -173,6 +240,17 @@ describe("Markdown shortcut registry", () => {
       "Tab",
       "⌘]",
     ])
+    expect(markdownShortcutLabels("heading.toggle-fold", "mac")).toEqual([
+      "⌘⌥[",
+      "⌘⌥T",
+    ])
+    expect(markdownShortcutLabels("heading.fold-all", "mac")).toEqual(["⌘⌥0"])
+    expect(markdownShortcutLabels("heading.unfold-all", "mac")).toEqual([
+      "⌘⌥⇧0",
+    ])
+    expect(markdownShortcutAriaKeys("heading.toggle-fold")).toBe(
+      "Meta+Alt+[ Control+Alt+[ Meta+Alt+t Control+Alt+t"
+    )
   })
 
   it("merges namespaced plugin shortcuts before host overrides", () => {
@@ -197,5 +275,54 @@ describe("Markdown shortcut registry", () => {
     expect(markdownShortcutLabel("acme.callout.toggle", "mac", shortcuts)).toBe(
       "⌥C"
     )
+  })
+
+  it("distinguishes Option + [ and Option + ] accurately on macOS", () => {
+    const shortcuts = resolveMarkdownShortcuts({
+      "list-item.move-up": [{ alt: true, key: "[" }],
+      "list-item.move-down": [{ alt: true, key: "]" }],
+    })
+
+    // User presses Option + [ (generates “ on Mac)
+    const optOpen = keyboardEvent({
+      altKey: true,
+      code: "BracketLeft",
+      key: "“",
+    })
+    expect(
+      matchesMarkdownShortcut(optOpen, "list-item.move-up", shortcuts)
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(optOpen, "list-item.move-down", shortcuts)
+    ).toBe(false)
+
+    // User presses Option + ] (generates ‘ on Mac)
+    const optClose = keyboardEvent({
+      altKey: true,
+      code: "BracketRight",
+      key: "‘",
+    })
+    expect(
+      matchesMarkdownShortcut(optClose, "list-item.move-up", shortcuts)
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(optClose, "list-item.move-down", shortcuts)
+    ).toBe(true)
+
+    // Fallback without event.code (e.g. synthetic event with only Mac key characters)
+    const noCodeOpen = keyboardEvent({ altKey: true, key: "“" })
+    const noCodeClose = keyboardEvent({ altKey: true, key: "‘" })
+    expect(
+      matchesMarkdownShortcut(noCodeOpen, "list-item.move-up", shortcuts)
+    ).toBe(true)
+    expect(
+      matchesMarkdownShortcut(noCodeOpen, "list-item.move-down", shortcuts)
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(noCodeClose, "list-item.move-up", shortcuts)
+    ).toBe(false)
+    expect(
+      matchesMarkdownShortcut(noCodeClose, "list-item.move-down", shortcuts)
+    ).toBe(true)
   })
 })

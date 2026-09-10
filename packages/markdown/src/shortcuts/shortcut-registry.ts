@@ -58,6 +58,24 @@ export const DEFAULT_MARKDOWN_SHORTCUTS = {
     description: "Toggle italic formatting in rich text or Markdown source",
     scope: "selection",
   },
+  "heading.fold-all": {
+    bindings: [{ alt: true, key: "0", primary: true }],
+    description: "Fold every heading section in the document",
+    scope: "editor",
+  },
+  "heading.toggle-fold": {
+    bindings: [
+      { alt: true, key: "[", primary: true },
+      { alt: true, key: "t", primary: true },
+    ],
+    description: "Toggle folding for the current heading section",
+    scope: "editor",
+  },
+  "heading.unfold-all": {
+    bindings: [{ alt: true, key: "0", primary: true, shift: true }],
+    description: "Unfold every heading section in the document",
+    scope: "editor",
+  },
   "history.redo": {
     bindings: [
       { key: "z", primary: true, shift: true },
@@ -208,6 +226,7 @@ export type ResolvedMarkdownShortcuts = Record<
 
 export interface KeyboardShortcutEvent {
   altKey: boolean
+  code?: string
   ctrlKey: boolean
   isComposing?: boolean
   key: string
@@ -221,6 +240,80 @@ function normalizedKey(key: string): string {
   return key.length === 1 ? key.toLocaleLowerCase() : key
 }
 
+const PHYSICAL_CODE_TO_KEY: Record<string, string> = {
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  Slash: "/",
+  Backquote: "`",
+  Equal: "=",
+  Minus: "-",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Space: " ",
+  Enter: "Enter",
+  NumpadEnter: "Enter",
+  Escape: "Escape",
+  Tab: "Tab",
+  ArrowUp: "ArrowUp",
+  ArrowDown: "ArrowDown",
+  ArrowLeft: "ArrowLeft",
+  ArrowRight: "ArrowRight",
+  Delete: "Delete",
+  Backspace: "Backspace",
+  Home: "Home",
+  End: "End",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
+}
+
+function canonicalPhysicalKey(code?: string): string | null {
+  if (!code) return null
+  const digitMatch = /^(?:Digit|Numpad)([0-9])$/iu.exec(code)
+  if (digitMatch) return digitMatch[1]
+  const letterMatch = /^Key([a-z])$/iu.exec(code)
+  if (letterMatch) return letterMatch[1].toLowerCase()
+  return PHYSICAL_CODE_TO_KEY[code] ?? null
+}
+
+function keyMatches(event: KeyboardShortcutEvent, bindingKey: string): boolean {
+  const targetKey = normalizedKey(bindingKey)
+
+  // 1. Primary: W3C Standard physical code matching (immutable against layout/modifiers/Option)
+  const physicalKey = canonicalPhysicalKey(event.code)
+  if (physicalKey) {
+    return physicalKey === targetKey
+  }
+
+  // 2. Fallback: match by event.key when event.code is not available (e.g. synthetic test events)
+  const normKey = normalizedKey(event.key)
+  if (normKey === targetKey) return true
+
+  // Fallback Mac Option substitutions when synthetic events lack event.code
+  if (
+    targetKey === "[" &&
+    (normKey === "“" || normKey === "”" || normKey === "【" || normKey === "「")
+  ) {
+    return true
+  }
+  if (
+    targetKey === "]" &&
+    (normKey === "‘" || normKey === "’" || normKey === "】" || normKey === "」")
+  ) {
+    return true
+  }
+  if (targetKey === "t" && (normKey === "†" || normKey === "ˇ")) {
+    return true
+  }
+  if (targetKey === "0" && (normKey === "º" || normKey === "‚")) {
+    return true
+  }
+
+  return false
+}
+
 function bindingMatches(
   event: KeyboardShortcutEvent,
   binding: MarkdownShortcutBinding
@@ -230,7 +323,7 @@ function bindingMatches(
     ? event.metaKey !== event.ctrlKey
     : !event.metaKey && !event.ctrlKey
   return (
-    normalizedKey(event.key) === normalizedKey(binding.key) &&
+    keyMatches(event, binding.key) &&
     event.altKey === Boolean(binding.alt) &&
     primaryMatches &&
     event.shiftKey === Boolean(binding.shift)

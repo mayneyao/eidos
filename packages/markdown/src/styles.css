@@ -296,7 +296,8 @@
 }
 
 .eme-insert-trigger,
-.eme-block-drag-handle {
+.eme-block-drag-handle,
+.eme-fold-trigger {
   display: grid;
   width: 24px;
   height: 24px;
@@ -320,17 +321,30 @@
   line-height: 1;
 }
 
+.eme-fold-trigger {
+  cursor: pointer;
+}
+
+.eme-fold-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
 .eme-insert-trigger:hover,
 .eme-insert-trigger[aria-expanded="true"],
 .eme-block-drag-handle:hover,
-.eme-block-drag-handle:focus-visible {
+.eme-block-drag-handle:focus-visible,
+.eme-fold-trigger:hover,
+.eme-fold-trigger:focus-visible,
+.eme-fold-trigger[data-folded="true"] {
   color: var(--eme-foreground);
   opacity: 1;
   background: var(--eme-muted);
 }
 
 .eme-insert-trigger:focus-visible,
-.eme-block-drag-handle:focus-visible {
+.eme-block-drag-handle:focus-visible,
+.eme-fold-trigger:focus-visible {
   outline: 2px solid var(--eme-ring);
   outline-offset: 1px;
 }
@@ -1508,6 +1522,11 @@
   padding-inline-start: var(--eme-list-marker-slot);
 }
 
+.eme-nested-list-item > :is(.eme-list, .eme-check-list),
+.eme-list :is(.eme-list, .eme-check-list) {
+  margin: 0;
+}
+
 .eme-list-unordered {
   list-style-type: disc;
 }
@@ -1568,6 +1587,8 @@
 }
 
 .eme-nested-list-item {
+  margin: 0;
+  padding-inline-start: 0;
   padding-left: 0;
   list-style: none;
 }
