@@ -538,6 +538,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Open {file}": "打开{file}",
   "Preview {file}": "预览{file}",
   "Download {file}": "下载{file}",
+  Open: "打开",
+  Download: "下载",
   "Loading preview": "正在加载预览",
   Close: "关闭",
   "Reveal {file}": "在文件管理器中显示{file}",

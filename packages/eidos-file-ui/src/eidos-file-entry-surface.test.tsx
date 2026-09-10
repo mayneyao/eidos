@@ -545,7 +545,9 @@ describe("EidosFileEntrySurface", () => {
     await act(async () => {
       const openButton = Array.from(
         preview?.querySelectorAll<HTMLButtonElement>("button") ?? []
-      ).find((button) => button.textContent?.includes("Open report.pdf"))
+      ).find(
+        (button) => button.getAttribute("aria-label") === "Open report.pdf"
+      )
       openButton?.click()
       await Promise.resolve()
       await Promise.resolve()
@@ -604,7 +606,7 @@ describe("EidosFileEntrySurface", () => {
     )
     const openButton = Array.from(
       preview?.querySelectorAll<HTMLButtonElement>("button") ?? []
-    ).find((button) => button.textContent?.includes("Open report.pdf"))
+    ).find((button) => button.getAttribute("aria-label") === "Open report.pdf")
 
     await act(async () => {
       openButton?.click()

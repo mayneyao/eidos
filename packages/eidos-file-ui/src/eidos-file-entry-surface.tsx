@@ -333,11 +333,12 @@ function EidosFileEntryPreviewDialog({
                   variant="outline"
                   size="sm"
                   className="h-7 gap-1.5 px-2.5 text-xs"
+                  aria-label={t("Open {file}", { file: entry.name })}
                   disabled={activating !== null}
                   onClick={() => onActivate("open")}
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  {t("Open {file}", { file: entry.name })}
+                  {t("Open")}
                 </Button>
               ) : null}
               {canDownload ? (
@@ -346,11 +347,12 @@ function EidosFileEntryPreviewDialog({
                   variant="outline"
                   size="sm"
                   className="h-7 gap-1.5 px-2.5 text-xs"
+                  aria-label={t("Download {file}", { file: entry.name })}
                   disabled={activating !== null}
                   onClick={() => onActivate("download")}
                 >
                   <Download className="h-3.5 w-3.5" />
-                  {t("Download {file}", { file: entry.name })}
+                  {t("Download")}
                 </Button>
               ) : null}
             </div>
