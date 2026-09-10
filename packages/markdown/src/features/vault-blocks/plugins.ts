@@ -2,6 +2,9 @@ import { EfmBlockNode } from "../../nodes/efm-semantic-node"
 import { defineMarkdownPlugin } from "../../plugin-system/plugin-api"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
 import { calloutBlockSyntax } from "./callout-syntax"
+import { calloutInsertions } from "./insertions"
+
+export { calloutInsertions } from "./insertions"
 
 export const calloutPlugin = defineMarkdownPlugin({
   apiVersion: 1,
@@ -12,6 +15,7 @@ export const calloutPlugin = defineMarkdownPlugin({
   features: [MARKDOWN_FEATURES.obsidianCallout],
   nodes: [EfmBlockNode],
   blockSyntax: [calloutBlockSyntax],
+  insertions: calloutInsertions,
 })
 
 /** Presentation modifier for Markdown images, not a storage adapter. */
