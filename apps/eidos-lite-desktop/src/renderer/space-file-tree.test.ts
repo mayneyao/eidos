@@ -7,11 +7,36 @@ import {
   buildSpaceFileTreeModel,
   canMoveTreeDrop,
   dropTargetDirectory,
+  isTreeMultiSelectClick,
   parentTreePaths,
   preservedExpandedTreePaths,
   relativePathFromTreePath,
   remappedTreePaths,
 } from "./space-file-tree"
+
+describe("isTreeMultiSelectClick", () => {
+  it("treats shift and command/control clicks as tree multi-selection", () => {
+    expect(
+      isTreeMultiSelectClick({ shiftKey: true, metaKey: false, ctrlKey: false })
+    ).toBe(true)
+    expect(
+      isTreeMultiSelectClick({ shiftKey: false, metaKey: true, ctrlKey: false })
+    ).toBe(true)
+    expect(
+      isTreeMultiSelectClick({ shiftKey: false, metaKey: false, ctrlKey: true })
+    ).toBe(true)
+  })
+
+  it("treats a plain click as an open action", () => {
+    expect(
+      isTreeMultiSelectClick({
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+      })
+    ).toBe(false)
+  })
+})
 
 describe("Space file tree theme", () => {
   it("inherits the resolved app color scheme inside the Pierre shadow root", () => {

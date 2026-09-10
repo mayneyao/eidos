@@ -59,6 +59,19 @@ export function relativePathFromTreePath(treePath: string): string {
   return treePath.endsWith("/") ? treePath.slice(0, -1) : treePath
 }
 
+/**
+ * Shift and Command/Control clicks drive the tree's own range/toggle
+ * multi-selection. They must not also open the clicked file, because changing
+ * the active document reveals that path and clears the multi-selection.
+ */
+export function isTreeMultiSelectClick(event: {
+  shiftKey: boolean
+  metaKey: boolean
+  ctrlKey: boolean
+}): boolean {
+  return event.shiftKey || event.metaKey || event.ctrlKey
+}
+
 export function dropTargetDirectory(target: FileTreeDropTarget): string | null {
   return target.kind === "root" || target.directoryPath === null
     ? null
@@ -459,7 +472,10 @@ export function SpaceFileTree({
         if (!entry) return
         setSpacePathDragData(event.dataTransfer, entry.relativePath)
       }}
-      onClick={(event) => openTreePath(eventTreePath(event))}
+      onClick={(event) => {
+        if (isTreeMultiSelectClick(event)) return
+        openTreePath(eventTreePath(event))
+      }}
       onContextMenu={(event) => {
         const treePath = eventTreePath(event)
         if (!treePath || disabled) return
