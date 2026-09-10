@@ -269,4 +269,25 @@ describe("Eidos Lite surface hierarchy", () => {
       )
     ).toContain("font-variant-numeric: tabular-nums")
   })
+
+  it("aligns the sidebar Settings entry and toggle with the file tree inset", () => {
+    const tree = readFileSync(
+      new URL("./space-file-tree.tsx", import.meta.url),
+      "utf8"
+    )
+    const footer = rule(".sidebar-footer")
+    const settings = rule(".sidebar-settings-button")
+    const navigation = rule(".titlebar-navigation")
+
+    // Tree item content starts at 1px container + 4px margin + 5px padding.
+    expect(tree).toContain('"--trees-padding-inline-override": "5px"')
+    expect(tree).toContain('"--trees-item-margin-x-override": "4px"')
+    expect(tree).toContain('"--trees-item-padding-x-override": "5px"')
+    // Settings icon: 4px footer padding + 6px button padding = the same 10px.
+    expect(footer).toContain("padding: 0.375rem 0.25rem 0.5rem")
+    expect(settings).toContain("padding: 0 0.375rem")
+    expect(settings).toContain("gap: 0.3125rem")
+    // Toggle: 5px plus the 7px centered-icon inset lands on the 12px heading.
+    expect(navigation).toContain("left: 0.3125rem")
+  })
 })
