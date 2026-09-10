@@ -35,6 +35,20 @@ describe("Keyboard shortcut row actions", () => {
     ])
   })
 
+  it("shows every document command in Settings", () => {
+    expect(
+      SHORTCUT_GROUPS.find((group) => group.label === "Document")?.commands
+    ).toEqual([
+      "toggle-heading-fold",
+      "fold-all-headings",
+      "unfold-all-headings",
+      "move-list-item-up",
+      "move-list-item-down",
+      "format-bold",
+      "format-italic",
+    ])
+  })
+
   it("reveals terminal shortcuts only while its built-in plugin is enabled", () => {
     const workspaceCommands = (terminal: boolean) =>
       enabledShortcutGroups({ terminal }).find(

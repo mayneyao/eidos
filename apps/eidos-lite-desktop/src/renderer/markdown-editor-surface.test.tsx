@@ -28,6 +28,7 @@ vi.mock("@eidos.space/markdown", () => ({
   },
 }))
 
+import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
 
 ;(
@@ -455,5 +456,31 @@ describe("MarkdownEditorSurface", () => {
       })
     ).resolves.toMatchObject({ markdownUrl: "assets/pasted.png" })
     expect(window.eidosLite.importMarkdownImage).toHaveBeenCalledOnce()
+  })
+
+  it("translates and passes keyboardShortcuts to MarkdownEditor", async () => {
+    const customShortcuts = {
+      ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+      "toggle-heading-fold": "Mod+Alt+H",
+      "fold-all-headings": null,
+    }
+    await act(async () => {
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="index.md"
+          relativePath="index.md"
+          content=""
+          editingMode="wysiwyg"
+          theme="light"
+          keyboardShortcuts={customShortcuts}
+          onChange={vi.fn()}
+        />
+      )
+    })
+    const passedShortcuts = wysiwygEditor.mock.calls.at(-1)![0].shortcuts
+    expect(passedShortcuts["heading.toggle-fold"]).toEqual([
+      { alt: true, key: "h", primary: true },
+    ])
+    expect(passedShortcuts["heading.fold-all"]).toBe(false)
   })
 })

@@ -53,6 +53,18 @@ export const SHORTCUT_GROUPS: Array<{
       "open-cell-actions",
     ],
   },
+  {
+    label: "Document",
+    commands: [
+      "toggle-heading-fold",
+      "fold-all-headings",
+      "unfold-all-headings",
+      "move-list-item-up",
+      "move-list-item-down",
+      "format-bold",
+      "format-italic",
+    ],
+  },
 ]
 
 const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
@@ -73,6 +85,13 @@ const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "previous-table": "Previous table",
   "next-table": "Next table",
   "open-cell-actions": "Open cell actions",
+  "toggle-heading-fold": "Toggle heading fold",
+  "fold-all-headings": "Fold all headings",
+  "unfold-all-headings": "Unfold all headings",
+  "move-list-item-up": "Move list item up",
+  "move-list-item-down": "Move list item down",
+  "format-bold": "Bold",
+  "format-italic": "Italic",
 }
 
 type ShortcutIssue =

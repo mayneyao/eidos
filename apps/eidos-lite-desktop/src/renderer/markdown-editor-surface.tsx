@@ -3,6 +3,7 @@ import {
   Suspense,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -10,6 +11,7 @@ import {
 
 import type { EidosLiteMarkdownEditingMode } from "../shared/contracts"
 import type { EidosLiteMarkdownCompatibilityProfile } from "../shared/contracts"
+import type { EidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import type {
   MarkdownEditorInternalLinkHandler,
   MarkdownNoteSearchHandler,
@@ -23,6 +25,7 @@ import {
 import type { ResolvedAppearance } from "./app-appearance"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
 import { useMarkdownImageAttachments } from "./markdown-image-attachments"
+import { markdownKeyboardShortcuts } from "./markdown-keyboard-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
 
 let pierreModule:
@@ -86,6 +89,7 @@ export function MarkdownEditorSurface({
   persistSourceEditorState = false,
   autoFocus = false,
   focusRequestToken = 0,
+  keyboardShortcuts,
   onChange,
 }: {
   documentKey: string
@@ -104,6 +108,7 @@ export function MarkdownEditorSurface({
   persistSourceEditorState?: boolean
   autoFocus?: boolean
   focusRequestToken?: number
+  keyboardShortcuts?: EidosLiteKeyboardShortcuts
   onChange(content: string): void
 }) {
   const [sessionMode, setSessionMode] =
@@ -114,6 +119,13 @@ export function MarkdownEditorSurface({
   const acceptedFocusTokenRef = useRef(focusRequestToken)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
   const { t } = useEidosLiteI18n()
+  const markdownShortcuts = useMemo(
+    () =>
+      keyboardShortcuts
+        ? markdownKeyboardShortcuts(keyboardShortcuts)
+        : undefined,
+    [keyboardShortcuts]
+  )
   const searchNotes = useCallback<MarkdownNoteSearchHandler>(
     async ({ query, signal }) => {
       const hash = query.indexOf("#")
@@ -288,6 +300,7 @@ export function MarkdownEditorSurface({
             documentPath={
               inputProfile === "document" ? relativePath : undefined
             }
+            shortcuts={markdownShortcuts}
             labels={{
               findInDocument: t("Find in document"),
               noTextMatches: t("No matches"),

@@ -195,5 +195,57 @@ describe("Eidos Lite keyboard shortcuts", () => {
     expect(eidosLiteShortcutLabel("Mod+N", true)).toBe("⌘N")
     expect(eidosLiteShortcutLabel("Ctrl+Backquote", false)).toBe("Ctrl+`")
     expect(eidosLiteShortcutLabel("Ctrl+Shift+Backquote", true)).toBe("⌃⇧`")
+    expect(eidosLiteShortcutLabel("Alt+Shift+0", true)).toBe("⌥⇧0")
+  })
+
+  it("captures physical digit codes and Mac Option/Shift+Option character events", () => {
+    // Normal Digit0 code with Shift and Alt on Mac
+    expect(
+      shortcutBindingForKeyboardEvent(
+        event({
+          code: "Digit0",
+          key: "‚",
+          altKey: true,
+          shiftKey: true,
+        }),
+        true
+      )
+    ).toBe("Alt+Shift+0")
+
+    // Digit0 with Alt on Mac (generates º key)
+    expect(
+      shortcutBindingForKeyboardEvent(
+        event({
+          code: "Digit0",
+          key: "º",
+          altKey: true,
+        }),
+        true
+      )
+    ).toBe("Alt+0")
+
+    // Synthetic event with only special Mac key without code
+    expect(
+      shortcutBindingForKeyboardEvent(
+        event({
+          key: "‚",
+          altKey: true,
+          shiftKey: true,
+        }),
+        true
+      )
+    ).toBe("Alt+Shift+0")
+
+    // Physical KeyA code
+    expect(
+      shortcutBindingForKeyboardEvent(
+        event({
+          code: "KeyA",
+          key: "a",
+          metaKey: true,
+        }),
+        true
+      )
+    ).toBe("Mod+A")
   })
 })

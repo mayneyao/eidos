@@ -3686,6 +3686,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     onOpenInternalLink={openMarkdownInternalLink}
                     platform={platform}
                     focusRequestToken={fileSurfaceFocusRequestToken}
+                    keyboardShortcuts={keyboardShortcuts}
                     onSaved={(file) =>
                       setTextPreview((current) =>
                         current?.relativePath === file.relativePath

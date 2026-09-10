@@ -29,6 +29,16 @@ export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
   "new-record",
 ] as const
 
+export const EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS = [
+  "toggle-heading-fold",
+  "fold-all-headings",
+  "unfold-all-headings",
+  "move-list-item-up",
+  "move-list-item-down",
+  "format-bold",
+  "format-italic",
+] as const
+
 export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   ...EIDOS_LITE_LEGACY_WORKSPACE_SHORTCUT_COMMANDS,
   ...EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS,
@@ -39,12 +49,15 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   "focus-file-content",
   "search-space-text",
   "toggle-markdown-editing-mode",
+  ...EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS,
 ] as const
 
 export type EidosLiteShortcutCommand =
   (typeof EIDOS_LITE_SHORTCUT_COMMANDS)[number]
 export type EidosLiteWorkspaceShortcutCommand =
   (typeof EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS)[number]
+export type EidosLiteDocumentShortcutCommand =
+  (typeof EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS)[number]
 export type EidosLiteShortcutBinding = string | null
 export type EidosLiteKeyboardShortcuts = Record<
   EidosLiteShortcutCommand,
@@ -70,6 +83,13 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
     "focus-file-content": "Mod+1",
     "search-space-text": "Mod+Shift+F",
     "toggle-markdown-editing-mode": "Mod+2",
+    "toggle-heading-fold": "Mod+Alt+BracketLeft",
+    "fold-all-headings": "Mod+Alt+0",
+    "unfold-all-headings": "Mod+Alt+Shift+0",
+    "move-list-item-up": "Alt+ArrowUp",
+    "move-list-item-down": "Alt+ArrowDown",
+    "format-bold": "Mod+B",
+    "format-italic": "Mod+I",
   })
 
 const MODIFIERS = ["Mod", "Ctrl", "Alt", "Shift"] as const
@@ -113,6 +133,16 @@ const KEY_ALIASES: Record<string, string> = {
   "=": "Equal",
   "`": "Backquote",
   "~": "Backquote",
+  º: "0",
+  "‚": "0",
+  "“": "BracketLeft",
+  "”": "BracketLeft",
+  "‘": "BracketRight",
+  "’": "BracketRight",
+  "【": "BracketLeft",
+  "】": "BracketRight",
+  "「": "BracketLeft",
+  "」": "BracketRight",
 }
 
 const KEY_LABELS: Record<string, string> = {
@@ -162,6 +192,11 @@ interface ShortcutKeyboardEvent {
 }
 
 function normalizedKey(key: string): string | null {
+  const digitMatch = /^(?:Digit|Numpad)([0-9])$/iu.exec(key)
+  if (digitMatch) return digitMatch[1]
+  const keyMatch = /^Key([a-z])$/iu.exec(key)
+  if (keyMatch) return keyMatch[1].toUpperCase()
+  if (key === "NumpadEnter") return "Enter"
   const alias = KEY_ALIASES[key]
   if (alias) return alias
   if (/^[a-z0-9]$/iu.test(key)) return key.toUpperCase()
@@ -258,6 +293,14 @@ export function isEidosLiteWorkspaceShortcutCommand(
   value: EidosLiteShortcutCommand
 ): value is EidosLiteWorkspaceShortcutCommand {
   return (EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS as readonly string[]).includes(
+    value
+  )
+}
+
+export function isEidosLiteDocumentShortcutCommand(
+  value: EidosLiteShortcutCommand
+): value is EidosLiteDocumentShortcutCommand {
+  return (EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS as readonly string[]).includes(
     value
   )
 }

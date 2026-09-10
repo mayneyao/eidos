@@ -193,11 +193,12 @@ export function EidosFileWorkbench({
           inputProfile="fragment"
           disabled={disabled}
           persistSourceEditorState={false}
+          keyboardShortcuts={keyboardShortcuts}
           onChange={onChange}
         />
       )
     },
-    [source.sessionId, theme]
+    [keyboardShortcuts, source.sessionId, theme]
   )
 
   useEffect(() => {

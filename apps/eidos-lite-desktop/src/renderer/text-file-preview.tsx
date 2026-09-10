@@ -23,6 +23,7 @@ import type {
   EidosLiteMarkdownEditingMode,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import type { EidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import { fileManagerMessage } from "../shared/platform-copy"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useFileContentFocusRequest } from "./file-content-focus"
@@ -97,6 +98,7 @@ function EditableTextFile({
   markdownCompatibilityProfile = "eidos",
   navigationTarget,
   onOpenInternalLink,
+  keyboardShortcuts,
   onSaved,
   onReload,
   onDraftChange,
@@ -113,6 +115,7 @@ function EditableTextFile({
     sourceRelativePath: string,
     request: MarkdownEditorInternalLinkRequest
   ): void | Promise<void>
+  keyboardShortcuts?: EidosLiteKeyboardShortcuts
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -336,6 +339,7 @@ function EditableTextFile({
         persistSourceEditorState
         autoFocus={autoFocus}
         focusRequestToken={focusRequestToken}
+        keyboardShortcuts={keyboardShortcuts}
         onChange={handleChange}
       />
     </section>
@@ -474,6 +478,7 @@ function DocumentFilePreview({
   navigationTarget,
   onOpenInternalLink,
   focusRequestToken,
+  keyboardShortcuts,
   onSaved,
   onReload,
   onDraftChange,
@@ -492,6 +497,7 @@ function DocumentFilePreview({
   platform: string
   focusRequestToken: number
   onReveal(): void
+  keyboardShortcuts?: EidosLiteKeyboardShortcuts
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -526,6 +532,7 @@ function DocumentFilePreview({
         navigationTarget={navigationTarget}
         onOpenInternalLink={onOpenInternalLink}
         focusRequestToken={focusRequestToken}
+        keyboardShortcuts={keyboardShortcuts}
         onSaved={onSaved}
         onReload={onReload}
         onDraftChange={onDraftChange}
@@ -585,6 +592,7 @@ export function TextFilePreview({
   onOpenInternalLink,
   platform,
   focusRequestToken = 0,
+  keyboardShortcuts,
   onReveal,
   onSaved,
   onReload,
@@ -603,6 +611,7 @@ export function TextFilePreview({
   ): void | Promise<void>
   platform: string
   focusRequestToken?: number
+  keyboardShortcuts?: EidosLiteKeyboardShortcuts
   onReveal(): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -652,6 +661,7 @@ export function TextFilePreview({
           onOpenInternalLink={onOpenInternalLink}
           platform={platform}
           focusRequestToken={focusRequestToken}
+          keyboardShortcuts={keyboardShortcuts}
           onReveal={onReveal}
           onSaved={onSaved}
           onReload={onReload}
@@ -667,6 +677,7 @@ export function TextFilePreview({
         theme={theme}
         navigationTarget={navigationTarget}
         focusRequestToken={focusRequestToken}
+        keyboardShortcuts={keyboardShortcuts}
         onSaved={onSaved}
         onReload={onReload}
         onDraftChange={onDraftChange}
