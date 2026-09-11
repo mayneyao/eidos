@@ -181,11 +181,12 @@ export function EidosFileWorkbench({
       disabled,
       onChange,
     }: EidosFileMarkdownEditorRequest) => {
-      const relativePath = `eidos-content-${cacheKey}.md`
+      const contentEditorPath = `eidos-content-${cacheKey}.md`
       return (
         <MarkdownEditorSurface
           documentKey={`${source.sessionId}:${cacheKey}`}
-          relativePath={relativePath}
+          relativePath={contentEditorPath}
+          assetDocumentPath={relativePath}
           content={content}
           editingMode={CONTENT_FIELD_EDITING_MODE}
           theme={theme}
@@ -198,7 +199,7 @@ export function EidosFileWorkbench({
         />
       )
     },
-    [keyboardShortcuts, source.sessionId, theme]
+    [keyboardShortcuts, relativePath, source.sessionId, theme]
   )
 
   useEffect(() => {

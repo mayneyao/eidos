@@ -94,7 +94,8 @@ export function MarkdownEditorSurface({
 }: {
   documentKey: string
   relativePath: string
-  /** Enables document-local image persistence for an ordinary Markdown file. */
+  /** Enables document-local image persistence and resolution for a Markdown
+   * file or an Eidos File Content field. */
   assetDocumentPath?: string
   content: string
   editingMode: EidosLiteMarkdownEditingMode

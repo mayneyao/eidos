@@ -26,6 +26,7 @@ async function fixture() {
   roots.push(root)
   await fs.mkdir(path.join(root, "notes"))
   await fs.writeFile(path.join(root, "notes", "readme.md"), "# Readme\n")
+  await fs.writeFile(path.join(root, "blog.eidos"), "")
   return fs.realpath(root)
 }
 
@@ -98,6 +99,34 @@ describe("Markdown document images", () => {
         "https://example.com/cover.png"
       )
     ).resolves.toBeNull()
+  })
+
+  it("resolves and imports images for an Eidos File Content field", async () => {
+    const root = await fixture()
+    await fs.mkdir(path.join(root, "assets"))
+    await fs.writeFile(path.join(root, "assets", "cover.png"), PNG)
+
+    await expect(
+      resolveMarkdownDocumentImage(root, "blog.eidos", "assets/cover.png")
+    ).resolves.toMatchObject({
+      relativePath: "assets/cover.png",
+      mediaType: "image/png",
+      previewUrl: expect.stringMatching(/^eidos-space-media:\/\/preview\//u),
+    })
+
+    const imported = await importMarkdownDocumentImage(root, {
+      relativePath: "blog.eidos",
+      name: "diagram.png",
+      data: PNG,
+    })
+    expect(imported).toEqual({
+      markdownUrl: "assets/diagram.png",
+      relativePath: "assets/diagram.png",
+      mediaType: "image/png",
+    })
+    await expect(
+      fs.readFile(path.join(root, "assets", "diagram.png"))
+    ).resolves.toEqual(Buffer.from(PNG))
   })
 
   it("resolves Obsidian vault-root and shortest-name image embeds", async () => {

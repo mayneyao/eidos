@@ -15,7 +15,9 @@ import {
 import { issueMediaPreviewUrl } from "./media-file-preview"
 import { normalizeMutableRelativePath, resolveSpacePath } from "./space-paths"
 
-const MARKDOWN_EXTENSION = /^\.(?:md|markdown)$/iu
+// Markdown documents and Eidos File Content fields share the same document-local
+// `assets/` convention, so both may own imported or resolved local images.
+const IMAGE_DOCUMENT_EXTENSION = /^\.(?:md|markdown|eidos)$/iu
 const URI_SCHEME = /^[a-z][a-z\d+.-]*:/iu
 const GENERIC_PASTED_IMAGE_STEM =
   /^(?:clipboard[-_ ]?image|image|pasted[-_ ]?image)(?:\s*\(\d+\)|[-_ ]+\d+)?$/iu
@@ -98,7 +100,7 @@ function importedImageName(
   return portableEidosFileAssetName(`${stem}${extension}`)
 }
 
-async function requireMarkdownDocument(
+async function requireImageDocument(
   spaceRoot: string,
   relativePath: string
 ): Promise<{ documentPath: string; documentRoot: string }> {
@@ -106,16 +108,18 @@ async function requireMarkdownDocument(
     spaceRoot,
     normalizeMutableRelativePath(relativePath)
   )
-  if (!MARKDOWN_EXTENSION.test(path.extname(documentPath))) {
-    throw new Error("Markdown images can only belong to .md or .markdown files")
+  if (!IMAGE_DOCUMENT_EXTENSION.test(path.extname(documentPath))) {
+    throw new Error(
+      "Local images can only belong to .md, .markdown, or .eidos files"
+    )
   }
   const documentStats = await fs.lstat(documentPath)
   if (documentStats.isSymbolicLink() || !documentStats.isFile()) {
-    throw new Error("The Markdown document must be an ordinary file")
+    throw new Error("The image document must be an ordinary file")
   }
   const documentRoot = path.dirname(documentPath)
   if ((await fs.realpath(documentRoot)) !== path.resolve(documentRoot)) {
-    throw new Error("The Markdown document folder cannot contain symlinks")
+    throw new Error("The image document folder cannot contain symlinks")
   }
   return { documentPath, documentRoot }
 }
@@ -201,7 +205,7 @@ export async function importMarkdownDocumentImage(
   const mediaType = detectMarkdownImageMediaType(request.data, request.name)
   if (!mediaType) throw new Error("The clipboard file is not a supported image")
 
-  const { documentRoot } = await requireMarkdownDocument(
+  const { documentRoot } = await requireImageDocument(
     spaceRoot,
     request.relativePath
   )
@@ -340,10 +344,7 @@ export async function resolveMarkdownDocumentImage(
 ): Promise<EidosLiteMarkdownImageResolution | null> {
   const segments = localMarkdownImageSegments(markdownUrl)
   if (!segments) return null
-  const { documentRoot } = await requireMarkdownDocument(
-    spaceRoot,
-    relativePath
-  )
+  const { documentRoot } = await requireImageDocument(spaceRoot, relativePath)
   const documentRelative = path.resolve(documentRoot, ...segments)
   const vaultRelative = path.resolve(spaceRoot, ...segments)
   for (const candidate of new Set([documentRelative, vaultRelative])) {
