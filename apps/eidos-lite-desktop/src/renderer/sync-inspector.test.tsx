@@ -127,6 +127,54 @@ describe("Sync inspector B", () => {
     ).toEqual(["remote"])
     expect(pendingVersionPreview(commits, "unknown", "shared", 3)).toEqual([])
   })
+  it("makes read-only access prominent and routes to account management", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onAccount = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          commits: [commit("a", "shared")],
+        }),
+      },
+    })
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            readOnly: true,
+            history: {
+              state: "ahead",
+              ahead: 2,
+              behind: 0,
+              localHead: "a",
+              commonAncestor: "shared",
+              checkedAtMs: 1000,
+            },
+          }}
+          spaceKey="read-only"
+          onClose={() => undefined}
+          onAction={() => undefined}
+          onRetry={() => undefined}
+          onAccount={onAccount}
+        />
+      )
+    )
+    expect(host.querySelector("h2")?.textContent).toBe("Sync writes are paused")
+    expect(host.querySelector("[data-sync-readonly]")?.textContent).toContain(
+      "read-only or expired"
+    )
+    const primary = host.querySelector<HTMLButtonElement>(
+      "[data-sync-next='account']"
+    )
+    expect(primary?.textContent).toContain("Manage Sync access")
+    await act(async () => primary!.click())
+    expect(onAccount).toHaveBeenCalledOnce()
+    await act(async () => root.unmount())
+  })
   it("renders a single upload action, real versions and local edits separately", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")

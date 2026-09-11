@@ -2471,6 +2471,45 @@ body {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+.sync-inspector-b-status .sync-readonly-notice {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--warning-border);
+  border-radius: 0.4rem;
+  color: var(--warning);
+  background: var(--warning-surface);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.sync-dialog-body > .sync-readonly-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0 1rem 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--warning-border);
+  border-radius: 0.45rem;
+  color: var(--warning);
+  background: var(--warning-surface);
+}
+.sync-dialog-body > .sync-readonly-notice > svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+}
+.sync-dialog-body > .sync-readonly-notice strong {
+  display: block;
+  font-size: 0.8125rem;
+}
+.sync-dialog-body > .sync-readonly-notice p {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.sync-dialog-body > .sync-readonly-notice .primary-action {
+  margin-left: auto;
+  white-space: nowrap;
+}
 .sync-inspector-b .primary-action {
   min-width: 0;
   white-space: normal;

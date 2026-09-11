@@ -1623,7 +1623,10 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Download only"
+      "Sync writes are paused"
+    )
+    expect(host.querySelector("[data-sync-readonly]")?.textContent).toContain(
+      "read-only or expired"
     )
     expect(host.querySelector("[data-sync-pull]")?.textContent).toContain(
       "Receive updates"

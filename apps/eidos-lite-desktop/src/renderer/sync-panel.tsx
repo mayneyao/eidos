@@ -1023,6 +1023,32 @@ export function SyncPanel({
             </div>
           </section>
 
+          {status.entitlement.state === "read-only" ? (
+            <div
+              className="sync-readonly-notice"
+              data-sync-readonly
+              role="status"
+            >
+              <AlertTriangle aria-hidden="true" />
+              <div>
+                <strong>{t("Sync writes are paused")}</strong>
+                <p>
+                  {t(
+                    "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={busy !== null}
+                onClick={() => void openHelp("account")}
+              >
+                <UserRound /> {t("Manage Sync access")}
+              </button>
+            </div>
+          ) : null}
+
           {loadError ? (
             <div className="sync-actions">
               <button
@@ -1951,11 +1977,11 @@ function syncOverview({
   }
   if (status.entitlement.state === "read-only") {
     return {
-      icon: CloudDownload,
-      title: "Download only",
+      icon: AlertTriangle,
+      title: "Sync writes are paused",
       message:
-        "Cloud updates can be downloaded. Changes you make stay on this device.",
-      tone: "neutral",
+        "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again.",
+      tone: "warning",
     }
   }
   if (progress?.operation === "connect" && progress.state === "completed") {

@@ -47,6 +47,11 @@ const zh: Record<string, string> = {
   "Save local changes before receiving": "接收前先保存本地变更",
   "{count} versions to receive": "{count} 个版本可接收",
   "{count} versions to upload": "{count} 个版本等待上传",
+  "Sync writes are paused": "同步写入已暂停",
+  "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again.":
+    "你的同步服务已到期或为只读。仍可下载与导出；续费后即可继续上传已保存的版本。",
+  "Manage Sync access": "管理同步权限",
+  "Download only": "仅下载",
   "Upload {count} versions": "上传 {count} 个版本",
   "Receive {count} versions": "接收 {count} 个版本",
   "Versions are up to date": "版本已同步",

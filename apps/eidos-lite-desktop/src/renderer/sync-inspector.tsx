@@ -225,7 +225,9 @@ export function SyncInspector({
             : history?.behind
               ? t("{count} versions to receive", { count: history.behind })
               : history?.ahead
-                ? t("{count} versions to upload", { count: history.ahead })
+                ? state.readOnly
+                  ? t("Sync writes are paused")
+                  : t("{count} versions to upload", { count: history.ahead })
                 : history?.checkedAtMs && history.state === "up_to_date"
                   ? t("Versions are up to date")
                   : t("Remote updates have not been checked"))
@@ -384,7 +386,11 @@ export function SyncInspector({
               )}
             </p>
           ) : state.readOnly ? (
-            <p>{t("Download only")}</p>
+            <p className="sync-readonly-notice" data-sync-readonly>
+              {t(
+                "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
+              )}
+            </p>
           ) : null}
           {active ? (
             <div className="sync-inspector-transfer" role="status">
@@ -407,18 +413,21 @@ export function SyncInspector({
           ) : !merging ? (
             <button
               className="primary-action"
-              data-sync-next={action}
+              data-sync-next={state.readOnly ? "account" : action}
               disabled={
                 state.busy ||
                 state.checking ||
-                (action === "review" && !onReview)
+                (!state.readOnly && action === "review" && !onReview)
               }
-              onClick={run}
+              onClick={state.readOnly ? onAccount : run}
             >
-              {label}
+              {state.readOnly ? t("Manage Sync access") : label}
             </button>
           ) : null}
-          {!active && !state.failure && action !== "fetch" && !merging ? (
+          {!active &&
+          !state.failure &&
+          (action !== "fetch" || state.readOnly) &&
+          !merging ? (
             <button
               className="sync-inspector-link"
               onClick={() => onAction("fetch")}
