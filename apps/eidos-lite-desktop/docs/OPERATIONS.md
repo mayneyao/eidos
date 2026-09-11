@@ -127,6 +127,19 @@ After signing in, the Sync inspector and panel show **Sync writes are paused**,
 the read-only notice, and **Manage Sync access** as the primary action. The flag
 is ignored in packaged builds.
 
+### Preview another platform's titlebar
+
+Development builds can make the renderer adopt another platform's chrome so the
+Windows/Linux titlebar layout can be checked on macOS:
+
+```bash
+EIDOS_LITE_FORCE_PLATFORM=win32 pnpm dev:eidos-lite
+```
+
+Only `data-platform` (layout and CSS) changes; the real OS window buttons stay
+in place, so the traffic lights remain on macOS. The flag is ignored in packaged
+builds.
+
 ## File association and launch routing
 
 The package registers only the `.eidos` extension; it deliberately has no

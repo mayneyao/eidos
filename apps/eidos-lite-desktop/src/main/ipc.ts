@@ -839,13 +839,24 @@ export function registerIpc(
       return controller.saveTextDraftCopy(event.sender, relativePath, content)
     }
   )
-  ipcMain.handle(IPC_CHANNELS.appInfo, () => ({
-    name: app.getName(),
-    version: app.getVersion(),
-    platform: process.platform,
-    architecture: process.arch,
-    services,
-  }))
+  ipcMain.handle(IPC_CHANNELS.appInfo, () => {
+    // Dev-only preview: EIDOS_LITE_FORCE_PLATFORM=win32|linux|darwin makes the
+    // renderer adopt another platform's titlebar layout without repackaging.
+    const forced = app.isPackaged
+      ? undefined
+      : process.env.EIDOS_LITE_FORCE_PLATFORM
+    const platform =
+      forced === "darwin" || forced === "win32" || forced === "linux"
+        ? forced
+        : process.platform
+    return {
+      name: app.getName(),
+      version: app.getVersion(),
+      platform,
+      architecture: process.arch,
+      services,
+    }
+  })
   ipcMain.handle(IPC_CHANNELS.preferencesGet, () => controller.getPreferences())
   ipcMain.handle(
     IPC_CHANNELS.preferencesUpdate,
