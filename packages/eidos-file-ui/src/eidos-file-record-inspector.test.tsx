@@ -727,6 +727,37 @@ describe("EidosFileRecordInspector", () => {
     ).toContain("max-w-[760px]")
   })
 
+  it("resolves document-local Content images against the Host base URL", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      name: "Body",
+      tableColumnName: "body",
+      isRecordLabel: false,
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider contentImageBaseUrl="/api/assets/file/">
+          <EidosFileRecordInspector
+            variant="page"
+            row={{
+              _id: "row_image",
+              title: "Images",
+              body: "![Cover](assets/cover.png)",
+            }}
+            fields={[fields[0], contentField]}
+            contentField={contentField}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+
+    expect(
+      container.querySelector<HTMLImageElement>("img")?.getAttribute("src")
+    ).toBe("/api/assets/file/assets/cover.png")
+  })
+
   it("exposes relation search as a keyboard-navigable combobox", async () => {
     const adaId = "0198c72d-82b5-7968-b163-98be4b7477df"
     const graceId = "0198c72d-82b5-7969-8163-98be4b7477df"

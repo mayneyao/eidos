@@ -36,8 +36,45 @@ function imageSource(href: string | null): string | null {
     : null
 }
 
+/**
+ * A document-local image reference such as `assets/diagram.png`. The Host
+ * owns the base URL that maps it to an authorized asset response.
+ */
+function relativeContentImageHref(href: string | null): string | null {
+  if (!href) return null
+  const value = href.trim()
+  if (
+    value !== href ||
+    value.length === 0 ||
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    value.includes("?") ||
+    value.includes("#") ||
+    /^[a-z][a-z\d+.-]*:/iu.test(value)
+  ) {
+    return null
+  }
+  return value.split("/").some((segment) => segment === "..") ? null : value
+}
+
+function contentImageUrl(href: string | null, baseUrl: string): string | null {
+  const relative = relativeContentImageHref(href)
+  if (!relative) return null
+  const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
+  return `${base}${encodeURI(relative)}`
+}
+
+export interface EidosFileMarkdownRenderOptions {
+  /** Host base URL that serves the directory containing the Eidos File. */
+  imageBaseUrl?: string
+}
+
 /** Render Markdown without admitting arbitrary HTML or unsafe URL schemes. */
-export function renderSafeEidosFileMarkdown(markdown: string): string {
+export function renderSafeEidosFileMarkdown(
+  markdown: string,
+  options: EidosFileMarkdownRenderOptions = {}
+): string {
   const renderer = new Renderer()
   renderer.html = (html: string) => escapeHtml(html)
   renderer.link = (href: string | null, title: string | null, text: string) => {
@@ -55,8 +92,14 @@ export function renderSafeEidosFileMarkdown(markdown: string): string {
     text: string
   ) => {
     const source = imageSource(href)
-    return source
-      ? `<img src="${escapeHtml(source)}" alt="${escapeHtml(text)}" loading="lazy" referrerpolicy="no-referrer"${titleAttribute(title)}>`
+    if (source) {
+      return `<img src="${escapeHtml(source)}" alt="${escapeHtml(text)}" loading="lazy" referrerpolicy="no-referrer"${titleAttribute(title)}>`
+    }
+    const resolved = options.imageBaseUrl
+      ? contentImageUrl(href, options.imageBaseUrl)
+      : null
+    return resolved
+      ? `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text)}" loading="lazy" referrerpolicy="no-referrer"${titleAttribute(title)}>`
       : escapeHtml(text)
   }
 

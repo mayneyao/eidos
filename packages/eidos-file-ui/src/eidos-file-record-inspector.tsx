@@ -252,8 +252,17 @@ function MarkdownContentEditor({
   onSaveAndPreview: () => Promise<void>
   onError?: (error: unknown) => void
 }) {
-  const { activateUrl, markdownEditingMode, translate: t } = useEidosFileUI()
-  const html = useMemo(() => renderSafeEidosFileMarkdown(value), [value])
+  const {
+    activateUrl,
+    markdownEditingMode,
+    translate: t,
+    contentImageBaseUrl,
+  } = useEidosFileUI()
+  const html = useMemo(
+    () =>
+      renderSafeEidosFileMarkdown(value, { imageBaseUrl: contentImageBaseUrl }),
+    [contentImageBaseUrl, value]
+  )
 
   if (mode === "edit") {
     return (

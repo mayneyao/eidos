@@ -385,6 +385,10 @@ export function ServeApp() {
     [manifest?.access, manifest?.assets, snapshot?.metadata.fileId]
   )
 
+  const contentImageBaseUrl = manifest?.assets?.mounted
+    ? "/api/assets/file/"
+    : undefined
+
   const importAssetFiles = useCallback(async () => {
     if (!assetSession || !manifest?.assets?.mounted) return []
     const files = await pickCliHostAssetFiles()
@@ -1106,6 +1110,7 @@ export function ServeApp() {
       activateUrl={activateCliHostUrl}
       assetSession={assetSession}
       assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
+      contentImageBaseUrl={contentImageBaseUrl}
     >
       <main className="serve-shell">
         <EidosFileEditorShell

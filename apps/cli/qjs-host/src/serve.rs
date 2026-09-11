@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -1414,6 +1414,80 @@ fn local_asset_content_response(
         ))
 }
 
+fn relative_asset_file_response(
+    assets: &AssetMount,
+    encoded_uri: &str,
+) -> Result<tiny_http::Response<File>, (u16, String)> {
+    let root = assets
+        .root
+        .as_ref()
+        .ok_or_else(|| (404, "no assets folder is mounted".to_string()))?;
+    let relative = decode_asset_uri(encoded_uri)
+        .ok_or_else(|| (404, "Asset path is outside the mounted folder".to_string()))?;
+    let candidate = root.join(relative);
+    let path = std::fs::canonicalize(&candidate)
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    if !path.starts_with(root) || path == *root {
+        return Err((403, "Asset path escapes the mounted folder".to_string()));
+    }
+    let mut file = File::open(&path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    if !metadata.is_file() {
+        return Err((404, "Asset path is not an ordinary file".to_string()));
+    }
+    if metadata.len() > ASSET_PREVIEW_BYTES_MAX {
+        return Err((413, "Asset exceeds the preview size limit".to_string()));
+    }
+    let mut header = [0u8; 32];
+    let read = file
+        .read(&mut header)
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let media_type = detect_url_image_media_type(&header[..read])
+        .ok_or_else(|| (415, "Asset is not a supported raster image".to_string()))?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("asset");
+    Ok(tiny_http::Response::from_file(file)
+        .with_header(
+            format!("Content-Type: {media_type}")
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            format!(
+                "Content-Disposition: inline; filename*=UTF-8''{}",
+                percent_encode_path_segment(name)
+            )
+            .parse::<tiny_http::Header>()
+            .unwrap(),
+        )
+        .with_header(
+            "Cache-Control: private, no-store"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "X-Content-Type-Options: nosniff"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Cross-Origin-Resource-Policy: same-origin"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        ))
+}
+
 fn network_asset_content_response(
     lease: &AssetLeaseRecord,
     bytes: Vec<u8>,
@@ -1905,6 +1979,27 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
             continue;
         }
 
+        if method == "GET" && url_path.starts_with("/api/assets/file/") {
+            let encoded_uri = url_path.trim_start_matches("/api/assets/file/");
+            let responded = if publish {
+                request.respond(error_response(
+                    403,
+                    "asset files are unavailable in Publish mode",
+                ))
+            } else if assets_mounted {
+                match relative_asset_file_response(&assets, encoded_uri) {
+                    Ok(response) => request.respond(response),
+                    Err((status, message)) => request.respond(error_response(status, &message)),
+                }
+            } else {
+                request.respond(error_response(404, "no assets folder is mounted"))
+            };
+            if let Err(error) = responded {
+                eprintln!("respond failed: {error}");
+            }
+            continue;
+        }
+
         if method == "GET" && url_path.starts_with("/api/url-images/content/") {
             let resource_id = url_path.trim_start_matches("/api/url-images/content/");
             let response = match url_images.content(resource_id) {
@@ -2141,9 +2236,9 @@ mod tests {
         allowed_host, allowed_origin, collision_asset_name, decode_asset_uri,
         detect_url_image_media_type, detected_remote_asset_media_type, event_stream_preamble,
         is_lan_address, is_proxy_synthetic_url_image_address, is_public_url_image_address,
-        mutation_event, query_parameter, query_text_parameter, remote_asset_name,
-        validated_remote_asset_url, AssetEntry, AssetLeaseSource, AssetMount, EmbeddedUi, EventHub,
-        RevisionEvent, ServeNetwork,
+        mutation_event, query_parameter, query_text_parameter, relative_asset_file_response,
+        remote_asset_name, validated_remote_asset_url, AssetEntry, AssetLeaseSource, AssetMount,
+        EmbeddedUi, EventHub, RevisionEvent, ServeNetwork,
     };
 
     fn relative_asset_references(source: &str) -> Vec<&str> {
@@ -2514,6 +2609,25 @@ mod tests {
                 .count(),
             0
         );
+    }
+
+    #[test]
+    fn relative_asset_files_serve_only_contained_raster_images() {
+        let root = tempfile::tempdir().unwrap();
+        let mount = AssetMount::new(root.path()).unwrap();
+        std::fs::write(
+            root.path().join("cover.png"),
+            [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00],
+        )
+        .unwrap();
+        assert!(relative_asset_file_response(&mount, "assets/cover.png").is_ok());
+        assert!(relative_asset_file_response(&mount, "assets/%2E%2E/private.png").is_err());
+        assert!(relative_asset_file_response(&mount, "../assets/cover.png").is_err());
+        std::fs::write(root.path().join("notes.txt"), b"not an image").unwrap();
+        match relative_asset_file_response(&mount, "assets/notes.txt") {
+            Ok(_) => panic!("expected a non-image asset to be rejected"),
+            Err((status, _)) => assert_eq!(status, 415),
+        }
     }
 
     #[test]

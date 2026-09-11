@@ -99,6 +99,12 @@ export interface EidosFileUIHost {
   ) => void | Promise<void>
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
+  /**
+   * Host base URL that serves the directory containing the Eidos File. When
+   * set, the Content preview resolves document-local image references such as
+   * `assets/diagram.png` against it.
+   */
+  contentImageBaseUrl?: string
   keyboardShortcuts?: EidosFileUIKeyboardShortcuts
   /** Host preference used to identify the active Content editing surface. */
   markdownEditingMode?: "source" | "wysiwyg"
@@ -133,6 +139,7 @@ export function EidosFileUIProvider({
   openRelationRecord,
   assetSession,
   assetPresenter,
+  contentImageBaseUrl,
   keyboardShortcuts,
   markdownEditingMode,
   renderMarkdownEditor,
@@ -152,6 +159,8 @@ export function EidosFileUIProvider({
     openRelationRecord ?? parent.openRelationRecord
   const resolvedAssetSession = assetSession ?? parent.assetSession
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
+  const resolvedContentImageBaseUrl =
+    contentImageBaseUrl ?? parent.contentImageBaseUrl
   const resolvedKeyboardShortcuts =
     keyboardShortcuts ?? parent.keyboardShortcuts
   const resolvedMarkdownEditingMode =
@@ -180,6 +189,9 @@ export function EidosFileUIProvider({
       ...(resolvedAssetPresenter
         ? { assetPresenter: resolvedAssetPresenter }
         : {}),
+      ...(resolvedContentImageBaseUrl
+        ? { contentImageBaseUrl: resolvedContentImageBaseUrl }
+        : {}),
       ...(resolvedKeyboardShortcuts
         ? { keyboardShortcuts: resolvedKeyboardShortcuts }
         : {}),
@@ -199,6 +211,7 @@ export function EidosFileUIProvider({
       resolvedOpenRelationRecord,
       resolvedAssetPresenter,
       resolvedAssetSession,
+      resolvedContentImageBaseUrl,
       resolvedKeyboardShortcuts,
       resolvedMarkdownEditingMode,
       resolvedRenderMarkdownEditor,

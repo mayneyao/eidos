@@ -15,4 +15,32 @@ describe("renderSafeEidosFileMarkdown", () => {
     expect(html).not.toContain('href="javascript:')
     expect(html).not.toContain("tracker.png")
   })
+
+  it("resolves document-local images against the Host base URL", () => {
+    const html = renderSafeEidosFileMarkdown("![Cover](assets/cover.png)", {
+      imageBaseUrl: "/api/assets/file/",
+    })
+
+    expect(html).toContain('src="/api/assets/file/assets/cover.png"')
+    expect(html).toContain('alt="Cover"')
+  })
+
+  it("escapes document-local references when no base URL is declared", () => {
+    const html = renderSafeEidosFileMarkdown("![Cover](assets/cover.png)")
+
+    expect(html).not.toContain("assets/cover.png")
+    expect(html).toContain("Cover")
+  })
+
+  it("rejects escaping and scheme-relative image references", () => {
+    const html = renderSafeEidosFileMarkdown(
+      "![a](../secret.png) ![b](//evil.example/x.png) ![c](/absolute.png) ![d](assets/ok.png?q=1)",
+      { imageBaseUrl: "/api/assets/file/" }
+    )
+
+    expect(html).not.toContain("secret.png")
+    expect(html).not.toContain("evil.example")
+    expect(html).not.toContain("/absolute.png")
+    expect(html).not.toContain("assets/ok.png")
+  })
 })
