@@ -82,7 +82,7 @@
   },
   "dependencies": {
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
-    "csv-parse": "^5.6.0"
+    "csv-parse": "^7.0.2"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.11",
@@ -93,6 +93,6 @@
     "esbuild": "^0.28.1",
     "tsdown": "^0.21.7",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   }
 }

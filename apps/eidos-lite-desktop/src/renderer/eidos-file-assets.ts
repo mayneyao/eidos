@@ -168,7 +168,7 @@ function loadImageElement(
 async function imageBytesForClipboard(
   url: string,
   altText: string
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const image = await loadImageElement(url, altText)
   const width = image.naturalWidth || image.width
   const height = image.naturalHeight || image.height

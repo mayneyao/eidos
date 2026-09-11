@@ -106,8 +106,9 @@ function parseCsv(content: string, hasHeader = true): ParsedCsv {
       relax_quotes: true,
       skip_empty_lines: true,
       skip_records_with_error: true,
-      on_skip: () => {
+      on_skip: (): undefined => {
         malformedRows += 1
+        return undefined
       },
     }
     records = parse(content, parseOptions) as string[][]

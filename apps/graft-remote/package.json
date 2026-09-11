@@ -20,20 +20,20 @@
     "@eidos.space/graft-remote": "0.2.4",
     "@eidos.space/graft-remote-cloudflare": "0.2.4",
     "@eidos.space/graft-remote-hono": "0.2.4",
-    "hono": "4.12.31"
+    "hono": "4.13.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.18.8",
     "@cloudflare/workers-types": "5.20260727.1",
-    "@vitest/expect": "4.1.10",
-    "@vitest/mocker": "4.1.10",
-    "@vitest/pretty-format": "4.1.10",
-    "@vitest/runner": "4.1.10",
-    "@vitest/snapshot": "4.1.10",
-    "@vitest/spy": "4.1.10",
-    "@vitest/utils": "4.1.10",
+    "@vitest/expect": "4.1.11",
+    "@vitest/mocker": "4.1.11",
+    "@vitest/pretty-format": "4.1.11",
+    "@vitest/runner": "4.1.11",
+    "@vitest/snapshot": "4.1.11",
+    "@vitest/spy": "4.1.11",
+    "@vitest/utils": "4.1.11",
     "typescript": "7.0.2",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "wrangler": "4.114.0"
   }
 }

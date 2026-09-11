@@ -17,6 +17,7 @@ import { eidosMarkdownPlugins } from "../plugin-system/builtins"
 import { defineMarkdownPlugin } from "../plugin-system/plugin-api"
 import { obsidianMarkdownProfile } from "../profile-system/builtins"
 import type { MarkdownProfile } from "../profile-system/profile-api"
+import type { Mock } from "vitest"
 
 let capturedEditor: LexicalEditor | null = null
 
@@ -106,8 +107,8 @@ describe("SourceRangeEditingPlugin integration", () => {
   })
   let container: HTMLDivElement
   let root: Root
-  let onMarkdownChange: ReturnType<typeof vi.fn>
-  let onError: ReturnType<typeof vi.fn>
+  let onMarkdownChange: Mock<(markdown: string) => void>
+  let onError: Mock<(error: Error) => void>
 
   const renderEditor = async (
     markdown: string,
@@ -141,8 +142,8 @@ describe("SourceRangeEditingPlugin integration", () => {
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     capturedEditor = null
-    onMarkdownChange = vi.fn()
-    onError = vi.fn()
+    onMarkdownChange = vi.fn<(markdown: string) => void>()
+    onError = vi.fn<(error: Error) => void>()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)

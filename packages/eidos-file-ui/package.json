@@ -300,6 +300,6 @@
     "tsdown": "^0.21.7",
     "tailwindcss": "4.2.2",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   }
 }

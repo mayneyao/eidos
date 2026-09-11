@@ -113,6 +113,6 @@
     "react-dom": "^18.2.0",
     "tsdown": "^0.21.7",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   }
 }

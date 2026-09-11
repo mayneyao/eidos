@@ -3907,7 +3907,9 @@ describe("EidosFileGrid", () => {
       total: 1,
       rows: [row],
     })
-    const renderGrid = async (loadPage: ReturnType<typeof vi.fn>) => {
+    const renderGrid = async (
+      loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+    ) => {
       await act(async () => {
         root.render(
           <EidosFileUIProvider
