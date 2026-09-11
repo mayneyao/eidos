@@ -7584,7 +7584,9 @@ body {
 .version-panel-changes .version-summary {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.45rem;
-  padding: 0.6rem 0.65rem;
+  /* Keep the layout toggle flush with the change list's right edge instead of
+     inset by the summary padding. */
+  padding: 0.6rem 0.25rem 0.6rem 0.65rem;
 }
 
 .version-layout-toggle {

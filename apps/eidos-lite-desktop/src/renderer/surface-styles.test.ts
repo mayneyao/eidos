@@ -309,4 +309,9 @@ describe("Eidos Lite surface hierarchy", () => {
       "padding-left: calc(4px + 16px + 4px + 12px + 3px + 4px)"
     )
   })
+
+  it("aligns the changes layout toggle with the list right edge", () => {
+    const summary = rule(".version-panel-changes .version-summary")
+    expect(summary).toContain("padding: 0.6rem 0.25rem 0.6rem 0.65rem")
+  })
 })
