@@ -114,6 +114,19 @@ typed IPC. It shows a **Staging** badge for development safety. Local Space open
 and editing do not perform discovery, login, entitlement, Billing, or Remote
 requests.
 
+### Preview an expired Sync entitlement
+
+Development builds can force the Sync projection to an expired/read-only
+entitlement without changing the account service:
+
+```bash
+EIDOS_LITE_FORCE_SYNC_READ_ONLY=1 pnpm dev:eidos-lite
+```
+
+After signing in, the Sync inspector and panel show **Sync writes are paused**,
+the read-only notice, and **Manage Sync access** as the primary action. The flag
+is ignored in packaged builds.
+
 ## File association and launch routing
 
 The package registers only the `.eidos` extension; it deliberately has no

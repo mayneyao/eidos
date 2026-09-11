@@ -58,8 +58,17 @@ export function createSyncControlPlane(
   return new SyncControlPlane(
     environment,
     account,
-    new OfficialSyncClient(environment)
+    new OfficialSyncClient(environment),
+    forceSyncReadOnly()
   )
+}
+
+/**
+ * Dev-only switch to preview an expired Sync entitlement locally:
+ * `EIDOS_LITE_FORCE_SYNC_READ_ONLY=1 pnpm dev:eidos-lite`. Ignored when packaged.
+ */
+function forceSyncReadOnly(): boolean {
+  return !app.isPackaged && process.env.EIDOS_LITE_FORCE_SYNC_READ_ONLY === "1"
 }
 
 function deviceDisplayName(): string {

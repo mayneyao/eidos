@@ -157,6 +157,36 @@ describe("SyncControlPlane", () => {
     })
   })
 
+  it("previews an expired read-only entitlement in development", async () => {
+    const account = accountSession("signed-in") as unknown as {
+      authorization: ReturnType<typeof vi.fn>
+    }
+    account.authorization.mockResolvedValue({
+      subject: "user-1",
+      access: {
+        version: 1,
+        revision: 4,
+        service: "eidos_sync",
+        access: "read_write",
+        quotaBytes: 10_737_418_240,
+        deviceLimit: 0,
+      },
+    })
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account as unknown as AccountSessionService,
+      remote,
+      true
+    )
+
+    await expect(control.status()).resolves.toMatchObject({
+      entitlement: { state: "read-only" },
+      canEnable: false,
+      canClone: true,
+      blocker: { code: "read-only" },
+    })
+  })
+
   it("returns to the signed-out gate after logout", async () => {
     const control = new SyncControlPlane(
       EIDOS_LITE_SERVICE_ENVIRONMENTS.production,

@@ -28,7 +28,12 @@ export class SyncControlPlane {
   constructor(
     private readonly environment: EidosLiteServiceEnvironment,
     private readonly account: AccountSessionService,
-    readonly remote: OfficialSyncClient
+    readonly remote: OfficialSyncClient,
+    /**
+     * Development-only preview of an expired/read-only entitlement. The real
+     * grant is ignored so the desktop UI can render the paused state locally.
+     */
+    private readonly forceReadOnly = false
   ) {}
 
   async status(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
@@ -204,7 +209,7 @@ export class SyncControlPlane {
     }
 
     const grant = authorization?.access ?? null
-    const access = grant?.access
+    const access = this.forceReadOnly ? "read_only" : grant?.access
     const entitlementState =
       access === "read_write"
         ? "read-write"
