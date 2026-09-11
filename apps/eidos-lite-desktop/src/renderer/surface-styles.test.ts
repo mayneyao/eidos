@@ -158,6 +158,18 @@ describe("Eidos Lite surface hierarchy", () => {
     ).toBe(true)
   })
 
+  it("matches titlebar actions to the overlaid system window controls", () => {
+    const shell = ruleContaining("--window-controls-overlay-width")
+    expect(shell).toContain("--window-caption-height")
+    expect(shell).toContain("--window-caption-width")
+    expect(shell).toContain("titlebar-area-height")
+    const captionButton = ruleContaining("var(--window-caption-width)")
+    expect(captionButton).toContain(".file-titlebar-actions")
+    expect(captionButton).toContain("> .icon-button")
+    expect(captionButton).toContain("width: var(--window-caption-width)")
+    expect(captionButton).toContain("height: var(--window-caption-height)")
+  })
+
   it("aligns Linux title rows to the system window controls overlay", () => {
     const linuxChrome = ruleContaining("--window-titlebar-height: env(")
 

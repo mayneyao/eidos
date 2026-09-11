@@ -1227,6 +1227,48 @@ body {
     100vw - env(titlebar-area-x, 0px) -
       env(titlebar-area-width, calc(100vw - 8.625rem))
   );
+  /* Mirror the OS caption-button box. Fractional display scaling (for example
+     Windows at 125%) draws the native controls from these metrics, so sizing
+     the app's own titlebar actions the same way keeps the row consistent. */
+  --window-caption-height: env(
+    titlebar-area-height,
+    var(--chrome-header-height)
+  );
+  --window-caption-width: max(
+    2.25rem,
+    calc(
+      (
+          100vw - env(titlebar-area-x, 0px) -
+            env(titlebar-area-width, calc(100vw - 8.625rem))
+        ) / 3
+    )
+  );
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  .file-titlebar
+  .file-titlebar-actions
+  > .icon-button {
+  width: var(--window-caption-width);
+  height: var(--window-caption-height);
+  border-radius: 0;
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  .file-titlebar
+  .file-titlebar-actions
+  > .icon-button
+  > svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .welcome-shell[data-platform="linux"],
