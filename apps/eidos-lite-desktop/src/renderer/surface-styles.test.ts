@@ -302,4 +302,11 @@ describe("Eidos Lite surface hierarchy", () => {
     // Toggle: 5px plus the 7px centered-icon inset lands on the 12px heading.
     expect(navigation).toContain("left: 0.3125rem")
   })
+
+  it("indents expanded tables to the file icon column in the flat changes list", () => {
+    const tableRow = rule('.version-change-list-row[data-table="true"]')
+    expect(tableRow).toContain(
+      "padding-left: calc(4px + 16px + 4px + 12px + 3px + 4px)"
+    )
+  })
 })

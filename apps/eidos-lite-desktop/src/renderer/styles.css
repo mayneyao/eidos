@@ -7612,9 +7612,10 @@ body {
   background: var(--surface-selected);
 }
 .version-change-list-row[data-table="true"] {
-  /* Align the table icon with its parent file label, after the disclosure,
-     checkbox and file icon columns. Keep the selection surface full width. */
-  padding-left: calc(4px + 16px + 4px + 12px + 3px + 4px + 14px + 5px);
+  /* Align the expanded table's icon and label with its parent file's icon and
+     label columns (after the disclosure and checkbox columns). Keeping the
+     selection surface full width. */
+  padding-left: calc(4px + 16px + 4px + 12px + 3px + 4px);
 }
 .version-change-list-row .icon-button,
 .version-list-disclosure-spacer {
