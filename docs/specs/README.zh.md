@@ -67,8 +67,8 @@ File Format → Runtime → Adapter → UI
 normative companion；companion 仍沿用同一 layer 的 ownership，通常也复用该 layer
 已有的 conformance label。
 
-同一 abstraction 的内建变体必须放在一起。因此 Grid、Gallery、Kanban、Calendar 与
-Form 都是 Eidos 标准视图 1.0 的章节，而不是五份独立 profile。未来新增的内建 View
+同一 abstraction 的内建变体必须放在一起。因此 Grid、Gallery、Kanban、Calendar、
+Form 与 Feed 都是 Eidos 标准视图 1.0 的章节，而不是六份独立 profile。未来新增的内建 View
 也加入这份文档。只有明确位于 standard baseline 之外的第三方或实验性 View 才可以
 使用单独的 optional profile，并自行定义 label 与 prerequisite。
 

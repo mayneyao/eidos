@@ -8,9 +8,9 @@ Canonical language: English
 
 ## Abstract
 
-Eidos Standard Views 1.0 defines the five built-in View types shared by Eidos
-UI implementations: Grid, Gallery, Kanban, Calendar, and Form. It owns their
-persisted layout meaning, defaults, renderer-specific configuration, and
+Eidos Standard Views 1.0 defines the six built-in View types shared by Eidos
+UI implementations: Grid, Gallery, Kanban, Calendar, Form, and Feed. It owns
+their persisted layout meaning, defaults, renderer-specific configuration, and
 View-specific interaction requirements.
 
 This document is a normative companion to
@@ -35,7 +35,7 @@ this document are normative.
 ## 2. Scope, ownership, and conformance
 
 A **standard View** is a View whose saved `type` is exactly `grid`, `gallery`,
-`kanban`, `calendar`, or `form`.
+`kanban`, `calendar`, `form`, or `feed`.
 
 The lower layers retain their existing ownership:
 
@@ -56,11 +56,11 @@ network and storage behavior belongs to a separate service contract.
 No `EU-Views` or per-View conformance label exists. The existing Eidos UI
 labels incorporate this document as follows:
 
-| Label           | Standard Views requirement                                                                                                                                              |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EU-Viewer-1.0` | render all five standard View types, including a read-only Form Preview, and implement the common preservation, bounded-read, accessibility, and compatibility behavior |
-| `EU-Editor-1.0` | all Viewer requirements plus all standard View configuration, Form Builder editing with existing eligible Fields, and revision-checked View mutation                    |
-| `EU-Schema-1.0` | all Editor requirements plus Form question creation through schema preflight and schema mutation                                                                        |
+| Label           | Standard Views requirement                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EU-Viewer-1.0` | render all six standard View types, including a read-only Form Preview, and implement the common preservation, bounded-read, accessibility, and compatibility behavior |
+| `EU-Editor-1.0` | all Viewer requirements plus all standard View configuration, Form Builder editing with existing eligible Fields, and revision-checked View mutation                   |
+| `EU-Schema-1.0` | all Editor requirements plus Form question creation through schema preflight and schema mutation                                                                       |
 
 A headless tool MAY create conforming standard View metadata without claiming
 a UI label, provided it writes through a conforming revision-checked Runtime
@@ -97,11 +97,11 @@ Runtime results or UI state.
 
 ### 3.2 Common Field layout
 
-| Key                   | Type                  | Read default                           | Applies to                      | Meaning                                                     |
-| --------------------- | --------------------- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------- |
-| `fieldOrder`          | unique Field-ID array | metadata Field position, then Field ID | all standard Views              | leading-to-trailing Field or question order                 |
-| `hiddenFields`        | unique Field-ID array | `[]`                                   | all standard Views              | ordinary Fields omitted from the View, never deleted        |
-| `visibleSystemFields` | unique Field-ID array | `[]`                                   | Grid, Gallery, Kanban, Calendar | optional hidden system Fields explicitly shown in that View |
+| Key                   | Type                  | Read default                           | Applies to                            | Meaning                                                     |
+| --------------------- | --------------------- | -------------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
+| `fieldOrder`          | unique Field-ID array | metadata Field position, then Field ID | all standard Views                    | leading-to-trailing Field or question order                 |
+| `hiddenFields`        | unique Field-ID array | `[]`                                   | all standard Views                    | ordinary Fields omitted from the View, never deleted        |
+| `visibleSystemFields` | unique Field-ID array | `[]`                                   | Grid, Gallery, Kanban, Calendar, Feed | optional hidden system Fields explicitly shown in that View |
 
 An ordinary Field's visibility is controlled by `hiddenFields`. An optional
 system Field's visibility is controlled only by `visibleSystemFields`; placing
@@ -418,7 +418,37 @@ An external immutable Form rendering uses the schema captured when its
 artifact was created. Later local schema changes do not modify that artifact
 until an explicit new artifact is produced.
 
-## 10. Executable JSON Schema
+## 10. Feed
+
+### 10.1 Layout
+
+Feed uses the common Field layout in Section 3.2 and adds no version 1 layout
+key. It deliberately derives all presentation from existing schema meaning. A
+later revision MAY define Feed-specific keys; until then UI preserves unknown
+and future-defined members as required by Section 3.1 and never generates them.
+
+### 10.2 Reading
+
+Feed renders Records from the active Runtime query as a single-column,
+reverse-chronological stream ordered by the Record's created-time system Field,
+descending. Feed composes saved filter and search with that order rather than
+replacing either.
+
+Each entry shows the Table's Record Label as the title, the Record's
+created-time system Field as its date, and the Table's declared Content Field,
+when present, as the body. The body is rendered as Eidos Flavored Markdown;
+Records whose Table has no Content Field render without a body. Long bodies are
+collapsed behind a bounded height with a **See more** affordance. Expanding an
+entry, and every scroll, hover, focus, and selection state, are transient UI
+state that MUST NOT be persisted. Content images follow the Eidos UI 1.0 asset
+rules; remote images are admitted only through Host policy.
+
+Feed uses bounded Runtime pages and MUST NOT materialize the entire row set.
+Opening an entry uses the Host's standard Record presentation. That
+presentation, including whether it is a side panel or a content page, is Host
+runtime state and is never stored in View layout.
+
+## 11. Executable JSON Schema
 
 Conformance tools validate an envelope assembled from stored View `type` and
 parsed `layout`. The envelope is not stored. UTF-8 byte limits and duplicate
@@ -432,7 +462,9 @@ parsed `layout`. The envelope is not stored. UTF-8 byte limits and duplicate
   "type": "object",
   "required": ["type", "layout"],
   "properties": {
-    "type": { "enum": ["grid", "gallery", "kanban", "calendar", "form"] },
+    "type": {
+      "enum": ["grid", "gallery", "kanban", "calendar", "form", "feed"]
+    },
     "layout": {
       "type": "object",
       "properties": {
@@ -557,10 +589,10 @@ parsed `layout`. The envelope is not stored. UTF-8 byte limits and duplicate
 ```
 
 Schema annotations such as `default` do not mutate an instance. Reading
-defaults in Sections 3 through 9 apply when keys are absent. Applicability is
+defaults in Sections 3 through 10 apply when keys are absent. Applicability is
 defined by those sections; non-applicable keys remain preserved and ignored.
 
-## 11. Accessibility and security
+## 12. Accessibility and security
 
 All standard Views inherit Eidos UI 1.0 accessibility, localization, reduced
 motion, untrusted-renderer, and asset rules. Every View-specific configuration
@@ -571,13 +603,13 @@ text. They MUST NOT grant HTML, script, URL-navigation, filesystem, or network
 authority. Form File controls expose logical File values only through current
 Host capabilities.
 
-## 12. Conformance tests
+## 13. Conformance tests
 
 Every Eidos UI conformance suite runs the applicable tests in this document.
 
 Common tests cover:
 
-1. all five type registrations and stable navigation;
+1. all six type registrations and stable navigation;
 2. common Field visibility and ordering, including zero-visible-Field recovery;
 3. non-applicable and unknown-key preservation across type changes;
 4. unknown type and unsupported-query behavior; and
@@ -585,12 +617,14 @@ Common tests cover:
 
 Viewer and Editor tests additionally cover:
 
-1. every type-specific key and default in Sections 4 through 9;
-2. bounded Grid, Gallery, Kanban, and Calendar reads;
+1. every type-specific key and default in Sections 4 through 10;
+2. bounded Grid, Gallery, Kanban, Calendar, and Feed reads;
 3. eligible cover handling and lossless fallback;
 4. Kanban grouping, empty groups, writable moves, and rejected read-only moves;
-5. Calendar date mapping, range composition, and eligible creation; and
-6. Form effective-question filtering, stable-ID rename behavior, non-null
+5. Calendar date mapping, range composition, and eligible creation;
+6. Feed Record Label titles, created-time ordering, Content Field body
+   rendering, See more collapse, and bounded pages; and
+7. Form effective-question filtering, stable-ID rename behavior, non-null
    scalar required behavior, array-backed optional behavior, Text-only
    multiline, and read-only Preview.
 
@@ -603,7 +637,7 @@ Schema tests cover Form Field creation, deletion, type conversion, newly
 eligible or ineligible Fields, invalid or duplicate question rejection, and
 stale-revision no-change behavior.
 
-## 13. References
+## 14. References
 
 - [Eidos File Format 1.0](./eidos-file-1.0.md)
 - [Eidos Runtime 1.0](./eidos-runtime-1.0.md)

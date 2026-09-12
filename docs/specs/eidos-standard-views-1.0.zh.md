@@ -8,8 +8,8 @@
 
 ## 摘要
 
-Eidos 标准视图 1.0 定义 Eidos UI 实现共享的五种内建 View：Grid、Gallery、
-Kanban、Calendar 与 Form。本文拥有它们的持久化 layout 含义、默认值、
+Eidos 标准视图 1.0 定义 Eidos UI 实现共享的六种内建 View：Grid、Gallery、
+Kanban、Calendar、Form 与 Feed。本文拥有它们的持久化 layout 含义、默认值、
 renderer 专用配置和 View 专用交互要求。
 
 本文是 [Eidos UI 1.0](./eidos-ui-1.0.zh.md) 的 normative companion，不引入新的
@@ -30,8 +30,8 @@ editing、accessibility 与 renderer isolation 契约；本文把这些契约具
 
 ## 2. 范围、ownership 与 conformance
 
-**标准 View** 是 saved `type` 恰好为 `grid`、`gallery`、`kanban`、`calendar`
-或 `form` 的 View。
+**标准 View** 是 saved `type` 恰好为 `grid`、`gallery`、`kanban`、`calendar`、
+`form` 或 `feed` 的 View。
 
 下层 ownership 保持不变：
 
@@ -49,7 +49,7 @@ editing、accessibility 与 renderer isolation 契约；本文把这些契约具
 
 | Label           | 标准 View 要求                                                                                                          |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `EU-Viewer-1.0` | 渲染全部五种标准 View，包括只读 Form Preview，并实现通用无损保留、bounded read、accessibility 与 compatibility 行为     |
+| `EU-Viewer-1.0` | 渲染全部六种标准 View，包括只读 Form Preview，并实现通用无损保留、bounded read、accessibility 与 compatibility 行为     |
 | `EU-Editor-1.0` | 全部 Viewer 要求，以及全部标准 View 配置、使用已有 eligible Field 的 Form Builder 编辑与 revision-checked View mutation |
 | `EU-Schema-1.0` | 全部 Editor 要求，以及通过 schema preflight/mutation 新建 Form question                                                 |
 
@@ -68,7 +68,7 @@ UI 更新一个 known key 时，必须保留所有 unknown member 和未更新�
 它可以发送 Runtime 支持的 member patch，或在 `expectedRevision` 下 merge 到最新
 object；不得 parse 后 rewrite stale copy。
 
-五种标准 type 共用一个 layout envelope。对当前 type 不适用的已知 key 必须保留并
+六种标准 type 共用一个 layout envelope。对当前 type 不适用的已知 key 必须保留并
 忽略。这样 explicit type change 及 reversal 不会丢失 layout intent。
 
 View 配置有两个独立分类维度。`query.filter` 与 `query.sort` 是通用功能配置，其
@@ -82,11 +82,11 @@ validation error 或 completion state；它们属于 Runtime result 或 UI state
 
 ### 3.2 通用 Field layout
 
-| Key                   | 类型              | 读取默认值                             | 适用 View                       | 含义                                                |
-| --------------------- | ----------------- | -------------------------------------- | ------------------------------- | --------------------------------------------------- |
-| `fieldOrder`          | Field-ID 唯一数组 | metadata Field position，再按 Field ID | 全部标准 View                   | 从前到后的 Field 或 question 顺序                   |
-| `hiddenFields`        | Field-ID 唯一数组 | `[]`                                   | 全部标准 View                   | 从 View 省略的普通 Field，不是删除                  |
-| `visibleSystemFields` | Field-ID 唯一数组 | `[]`                                   | Grid、Gallery、Kanban、Calendar | 在当前 View 明确展示的 optional hidden system Field |
+| Key                   | 类型              | 读取默认值                             | 适用 View                             | 含义                                                |
+| --------------------- | ----------------- | -------------------------------------- | ------------------------------------- | --------------------------------------------------- |
+| `fieldOrder`          | Field-ID 唯一数组 | metadata Field position，再按 Field ID | 全部标准 View                         | 从前到后的 Field 或 question 顺序                   |
+| `hiddenFields`        | Field-ID 唯一数组 | `[]`                                   | 全部标准 View                         | 从 View 省略的普通 Field，不是删除                  |
+| `visibleSystemFields` | Field-ID 唯一数组 | `[]`                                   | Grid、Gallery、Kanban、Calendar、Feed | 在当前 View 明确展示的 optional hidden system Field |
 
 普通 Field 的可见性由 `hiddenFields` 控制；optional system Field 只由
 `visibleSystemFields` 控制，同一个 system Field 即使也在 `hiddenFields` 中也没有
@@ -362,7 +362,31 @@ question edit 时移除该 member。Schema mutation safety 与 revision behavior
 外部 immutable Form renderer 使用 artifact 创建时捕获的 schema。后续本地 schema
 change 不会修改该 artifact，直到 explicit 生成新 artifact。
 
-## 10. 可执行 JSON Schema
+## 10. Feed
+
+### 10.1 Layout
+
+Feed 使用第 3.2 节的通用 Field layout，且不新增任何 version 1 layout key。它刻意全部
+从既有 schema 含义推导 presentation。后续 revision 可以定义 Feed 专用 key；在此之前，
+UI 按第 3.1 节保留 unknown/future member，且永不自行生成。
+
+### 10.2 读取
+
+Feed 把 active Runtime query 的 Record 渲染为单列、按 Record 的 created-time system
+Field 倒序的流。Feed 把 saved filter 与 search 与该顺序组合，而不是替换任一者。
+
+每个 entry 用 Table 的 Record Label 作标题、Record 的 created-time system Field 作
+日期、Table 声明的 Content Field（若存在）作正文。正文按 Eidos Flavored Markdown
+渲染；Table 没有 Content Field 的 Record 不渲染正文。过长正文折叠在受限高度内并提供
+**See more**。展开 entry，以及 scroll、hover、focus、selection 等状态都是 transient
+UI state，不得持久化。Content image 遵循 Eidos UI 1.0 的 asset 规则；远程图片只通过
+Host policy 放行。
+
+Feed 使用 bounded Runtime page，不得 materialize 整个 row set。打开 entry 使用 Host
+的标准 Record presentation；该 presentation（侧边栏或完整页面）属于 Host runtime
+state，绝不写入 View layout。
+
+## 11. 可执行 JSON Schema
 
 Conformance tool 使用 stored View `type` 与解析后的 `layout` 组装 envelope；envelope
 本身不存储。第 9 节的 UTF-8 byte limit 与 `fields[*].fieldId` duplicate detection 是
@@ -376,7 +400,9 @@ Conformance tool 使用 stored View `type` 与解析后的 `layout` 组装 envel
   "type": "object",
   "required": ["type", "layout"],
   "properties": {
-    "type": { "enum": ["grid", "gallery", "kanban", "calendar", "form"] },
+    "type": {
+      "enum": ["grid", "gallery", "kanban", "calendar", "form", "feed"]
+    },
     "layout": {
       "type": "object",
       "properties": {
@@ -497,10 +523,10 @@ Conformance tool 使用 stored View `type` 与解析后的 `layout` 组装 envel
 }
 ```
 
-`default` 等 Schema annotation 不会修改 instance。Key 缺失时使用第 3 至 9 节的读取
+`default` 等 Schema annotation 不会修改 instance。Key 缺失时使用第 3 至 10 节的读取
 默认值。适用性也由这些章节决定；不适用 key 必须保留并忽略。
 
-## 11. 可访问性与安全
+## 12. 可访问性与安全
 
 全部标准 View 继承 Eidos UI 1.0 的 accessibility、localization、reduced motion、
 untrusted-renderer 与 asset 规则。本文每个 View-specific configuration control/state
@@ -510,13 +536,13 @@ Form question label、description、placeholder 与 message 都是不可信文�
 HTML、script、URL navigation、filesystem 或 network 权限。Form File control 只能
 通过当前 Host capability 暴露 logical File value。
 
-## 12. Conformance tests
+## 13. Conformance tests
 
 每个 Eidos UI conformance suite 都必须运行本文中与其 label 对应的测试。
 
 通用测试覆盖：
 
-1. 五种 type registration 与稳定 navigation；
+1. 六种 type registration 与稳定 navigation；
 2. 通用 Field visibility/order，包括 zero-visible-Field recovery；
 3. type change 时 non-applicable/unknown key 无损保留；
 4. unknown type 与 unsupported-query 行为；
@@ -524,12 +550,14 @@ HTML、script、URL navigation、filesystem 或 network 权限。Form File contr
 
 Viewer 与 Editor 测试还覆盖：
 
-1. 第 4 至 9 节的每个 type-specific key 与默认值；
-2. Grid、Gallery、Kanban、Calendar 的 bounded read；
+1. 第 4 至 10 节的每个 type-specific key 与默认值；
+2. Grid、Gallery、Kanban、Calendar、Feed 的 bounded read；
 3. eligible cover 与 lossless fallback；
 4. Kanban group、empty group、writable move 与 read-only move 拒绝；
 5. Calendar date mapping、range composition 与 eligible creation；
-6. Form effective-question filtering、stable-ID rename、non-null scalar required、
+6. Feed 的 Record Label 标题、created-time 排序、Content Field 正文渲染、See more
+   折叠与 bounded page；以及
+7. Form effective-question filtering、stable-ID rename、non-null scalar required、
    array-backed optional、Text-only multiline 与 read-only Preview。
 
 Editor 测试覆盖 pointer/keyboard ordering、Form Fields 的 Show all/Hide all、默认
@@ -539,7 +567,7 @@ revision change，以及新建 Form 时带入全部 eligible Field或从零开�
 Schema 测试覆盖 Form Field 新建、删除、type conversion、Field 新近 eligible/ineligible、
 invalid/duplicate question 拒绝，以及 stale revision 不产生修改。
 
-## 13. 引用
+## 14. 引用
 
 - [Eidos File Format 1.0](./eidos-file-1.0.zh.md)
 - [Eidos Runtime 1.0](./eidos-runtime-1.0.zh.md)

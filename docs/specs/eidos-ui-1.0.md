@@ -99,7 +99,7 @@ The profiles are cumulative: Schema includes Editor, and Editor includes
 Viewer. A UI conformance label does not imply that the same component
 implements Runtime, Adapter, or File Format.
 
-The five standard View types and their requirements are defined together by
+The six standard View types and their requirements are defined together by
 Eidos Standard Views 1.0 and are incorporated into the labels above. An
 extension profile MAY add another understood View type, but it does not change
 the standard View baseline and MUST define its own prerequisites and
@@ -139,7 +139,7 @@ A product MUST publish:
   opaque monotonic concurrency token and never performs binary64 arithmetic
   on it.
 - **standard View**: a View whose type is `grid`, `gallery`, `kanban`,
-  `calendar`, or `form`, as defined by Eidos Standard Views 1.0.
+  `calendar`, `form`, or `feed`, as defined by Eidos Standard Views 1.0.
 - **renderer**: code that turns a View and Runtime results into an interactive
   surface. A renderer can be trusted application code or isolated third-party
   code.
@@ -1107,7 +1107,7 @@ NOT be sent in a Relation or row mutation.
 [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md) is the normative
 companion that defines the persisted layout meaning, defaults, renderer
 configuration, and View-specific interaction for the built-in `grid`,
-`gallery`, `kanban`, `calendar`, and `form` View types.
+`gallery`, `kanban`, `calendar`, `form`, and `feed` View types.
 
 The existing `EU-Viewer-1.0`, `EU-Editor-1.0`, and `EU-Schema-1.0`
 profiles incorporate its applicable requirements. It introduces no additional
@@ -2370,7 +2370,7 @@ complete negotiation/snapshot/schema bootstrap of each returned replacement
 client. Editor tests also cover pointer and keyboard drag completion for
 Table, View, `fieldOrder`, and `cardFields` ordering, with no structural
 up/down controls present. The applicable Eidos Standard Views 1.0 conformance
-tests are also required, including all five built-in types, every type-specific
+tests are also required, including all six built-in types, every type-specific
 key, non-applicable and unknown-key preservation across type changes, and
 generated aggregate or group results never entering layout. Schema tests MUST cover all four conversion classifications,
 dependency paging/display, display-name-only rename, and plan expiry.

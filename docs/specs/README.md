@@ -69,8 +69,8 @@ it keeps the same layer ownership and normally reuses the layer's conformance
 labels.
 
 Built-in variants of the same abstraction belong together. Consequently,
-Grid, Gallery, Kanban, Calendar, and Form are sections of Eidos Standard Views
-1.0 rather than five independent profiles. A future built-in View is added to
+Grid, Gallery, Kanban, Calendar, Form, and Feed are sections of Eidos Standard
+Views 1.0 rather than six independent profiles. A future built-in View is added to
 that document. A third-party or experimental View MAY use a separate optional
 profile only when it is intentionally outside the standard baseline; such a
 profile defines its own label and prerequisites.

@@ -91,7 +91,7 @@ UI 可以为了即时反馈做 advisory parsing。结果必须清楚标为 provi
 Profile 是累积的：Schema 包含 Editor，Editor 包含 Viewer。UI conformance label
 不表示同一组件也实现 Runtime、Adapter 或 File Format。
 
-五种标准 View type 及其要求由 Eidos 标准视图 1.0 统一定义，并包含在上述 label 中。
+六种标准 View type 及其要求由 Eidos 标准视图 1.0 统一定义，并包含在上述 label 中。
 Extension profile 可以增加其他 understood View type，但不会改变 standard View
 baseline，且必须定义自己的 prerequisite 与 conformance test。
 
@@ -123,8 +123,8 @@ capability 缺失而失败的 control。
 - **optimistic overlay**：Runtime mutation 未完成时展示的可撤销、仅 UI projection。
 - **revision**：lossless Runtime revision。UI 把它当作 opaque monotonic
   concurrency token，绝不能对它做 binary64 arithmetic。
-- **standard View**：type 为 `grid`、`gallery`、`kanban`、`calendar` 或 `form` 的
-  View，定义见 Eidos 标准视图 1.0。
+- **standard View**：type 为 `grid`、`gallery`、`kanban`、`calendar`、`form` 或
+  `feed` 的 View，定义见 Eidos 标准视图 1.0。
 - **renderer**：把 View 和 Runtime result 转为 interactive surface 的代码；可能是
   trusted application code，也可能是 isolated third-party code。
 - **asset lease**：用于展示一个 File entry 的、time- and purpose-scoped Host result，
@@ -1030,7 +1030,7 @@ logical value，不能作为 raw data copy，也不得出现在 Relation/row mut
 ## 8. 标准 View
 
 [Eidos 标准视图 1.0](./eidos-standard-views-1.0.zh.md) 是 normative companion，
-定义内建 `grid`、`gallery`、`kanban`、`calendar` 与 `form` View 的持久化
+定义内建 `grid`、`gallery`、`kanban`、`calendar`、`form` 与 `feed` View 的持久化
 layout 含义、默认值、renderer 配置与 View-specific interaction。
 
 现有 `EU-Viewer-1.0`、`EU-Editor-1.0` 与 `EU-Schema-1.0` profile 包含其中
@@ -2131,7 +2131,7 @@ zero direct URI fetch/navigation，以及 isolated-renderer capability revocatio
 replacement client 完整执行 negotiation/snapshot/schema bootstrap。Editor 还须覆盖
 Table、View、`fieldOrder`、`cardFields` 的 pointer 与 keyboard drag completion，并断言
 不存在结构性的 up/down control。还必须执行 Eidos 标准视图 1.0 中适用的
-conformance tests，包括五种内建 type、所有 View 专用 key、type change 时
+conformance tests，包括六种内建 type、所有 View 专用 key、type change 时
 non-applicable/unknown key 的保留，以及 generated aggregate/group result 绝不进入
 layout。Schema 还须覆盖
 四种 conversion classification、dependency paging/display、display-name-only rename、
