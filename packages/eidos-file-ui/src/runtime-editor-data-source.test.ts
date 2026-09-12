@@ -216,6 +216,38 @@ function conversionRuntime(
 }
 
 describe("EidosRuntimeEditorDataSource", () => {
+  it("delegates neighbor resolution with the effective query to Runtime", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const getRecordNeighbors = vi.fn(async () => ({
+      found: true,
+      previousId: null,
+      nextId: TEAM_ROW,
+    }))
+    Object.assign(fixture.runtime, { getRecordNeighbors })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.getSnapshot()
+    await expect(
+      source.getRecordNeighbors(PROJECTS, PROJECT_ROW, {
+        sorts: [{ field: TITLE, direction: "desc" }],
+      })
+    ).resolves.toEqual({ found: true, previousId: null, nextId: TEAM_ROW })
+    expect(getRecordNeighbors).toHaveBeenCalledWith(
+      {
+        tableId: PROJECTS,
+        rowId: PROJECT_ROW,
+        query: expect.objectContaining({
+          sort: [
+            expect.objectContaining({ fieldId: TITLE, direction: "desc" }),
+          ],
+        }),
+      },
+      expect.any(Object)
+    )
+  })
+
   it("preserves Runtime-authoritative Field writability in editor snapshots", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const source = new EidosRuntimeEditorDataSource(

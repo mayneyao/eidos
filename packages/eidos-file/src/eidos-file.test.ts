@@ -445,6 +445,33 @@ describe("Eidos File 1.0 native Runtime", () => {
         )
       ).toEqual([0, 1, 2, 3])
 
+      for (const direction of ["asc", "desc"] as const) {
+        for (const nulls of ["first", "last"] as const) {
+          const navigationQuery = {
+            sorts: [{ field: score.id!, direction, nulls }],
+          }
+          const sequence = runtime.getRowPage(
+            schema.table.id,
+            0,
+            100,
+            navigationQuery
+          ).rows
+          sequence.forEach((row, index) => {
+            expect(
+              runtime.getRecordNeighbors(
+                schema.table.id,
+                String(row._id),
+                navigationQuery
+              )
+            ).toEqual({
+              found: true,
+              previousId: sequence[index - 1]?._id ?? null,
+              nextId: sequence[index + 1]?._id ?? null,
+            })
+          })
+        }
+      }
+
       const filteredQuery = {
         ...query,
         filter: {
@@ -467,6 +494,30 @@ describe("Eidos File 1.0 native Runtime", () => {
           filteredQuery
         )
       ).toBeNull()
+      expect(
+        runtime.getRecordNeighbors(
+          schema.table.id,
+          String(rows[1]!._id),
+          filteredQuery
+        )
+      ).toEqual({ found: false })
+      const filteredRows = runtime.getRowPage(
+        schema.table.id,
+        0,
+        100,
+        filteredQuery
+      ).rows
+      expect(
+        runtime.getRecordNeighbors(
+          schema.table.id,
+          String(filteredRows[0]!._id),
+          filteredQuery
+        )
+      ).toEqual({
+        found: true,
+        previousId: null,
+        nextId: filteredRows[1]!._id,
+      })
       expect(
         runtime.getRowIndex(
           schema.table.id,

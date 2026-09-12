@@ -71,6 +71,7 @@ const SERIALIZABLE_METHODS = new Set([
   "getSnapshot",
   "getSchemaPage",
   "queryRows",
+  "getRecordNeighbors",
   "getRowsById",
   "aggregate",
   "groupRows",

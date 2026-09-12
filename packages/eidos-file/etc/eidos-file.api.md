@@ -121,6 +121,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     exportCsv: RuntimeClient["exportCsv"];
     // (undocumented)
+    getRecordNeighbors(request: Parameters<RuntimeClient["getRecordNeighbors"]>[0], context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]): ReturnType<RuntimeClient["getRecordNeighbors"]>;
+    // (undocumented)
     getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
     // (undocumented)
     getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
@@ -1309,6 +1311,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
     // (undocumented)
+    getRecordNeighbors?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
+    // (undocumented)
     getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
     // (undocumented)
     getRowIndex?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
@@ -2114,6 +2118,8 @@ export class EidosFileRuntime {
         resolveRelations?: boolean;
     }): EidosFileLogicalRow[];
     // (undocumented)
+    getRecordNeighbors(tableId: string, rowId: string, query?: EidosFileRowQuery): RecordNeighbors;
+    // (undocumented)
     getRow(tableId: string, rowId: string): EidosFileRow | null;
     getRowIndex(tableId: string, rowId: string, query?: EidosFileRowQuery): number | null;
     // (undocumented)
@@ -2254,6 +2260,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     getGroupCounts(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
+    // (undocumented)
+    getRecordNeighbors(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
     // (undocumented)
     getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
     // (undocumented)
@@ -2578,6 +2586,8 @@ export class EidosRuntimeService implements RuntimeClient {
     }): Promise<void>;
     // (undocumented)
     close(context: RequestContext): Promise<void>;
+    // (undocumented)
+    getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;
@@ -2996,6 +3006,16 @@ export interface ForwardRelationDefinition {
     onDelete: "restrict" | "detach" | "preserve";
     // (undocumented)
     targetTableId: string;
+}
+
+// @public (undocumented)
+export interface GetRecordNeighborsRequest {
+    // (undocumented)
+    query: RowQuery;
+    // (undocumented)
+    rowId: string;
+    // (undocumented)
+    tableId: string;
 }
 
 // @public (undocumented)
@@ -3649,6 +3669,15 @@ export function quoteIdentifier(identifier: string): string;
 // @public
 export function recommendedEidosFileConversionPolicies(from: StoredFieldType, to: StoredFieldType): ConversionPolicy[];
 
+// @public
+export type RecordNeighbors = {
+    found: false;
+} | {
+    found: true;
+    previousId: string | null;
+    nextId: string | null;
+};
+
 // @public (undocumented)
 export type RelationDefinition = ForwardRelationDefinition | InverseRelationDefinition;
 
@@ -3834,6 +3863,8 @@ export interface RuntimeClient {
     close(context: RequestContext): Promise<void>;
     // (undocumented)
     exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
+    // (undocumented)
+    getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;

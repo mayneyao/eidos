@@ -303,6 +303,19 @@ export async function runSelfTest(): Promise<string> {
     }
     checks.push("mutate-rows-1002")
 
+    const neighbors = await runtime.getRecordNeighbors(
+      { tableId, rowId: firstItemId, query: {} },
+      context("record-neighbors")
+    )
+    if (
+      !neighbors.found ||
+      neighbors.previousId !== null ||
+      neighbors.nextId === null
+    ) {
+      throw new Error("Record neighbors must cross unloaded page boundaries")
+    }
+    checks.push("record-neighbors")
+
     const fileSearch = await runtime.queryRows(
       {
         tableId,

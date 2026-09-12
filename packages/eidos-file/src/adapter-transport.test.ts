@@ -182,6 +182,10 @@ describe("Adapter 1.0 Transport", () => {
         executionOrder.push("snapshot")
         return snapshot
       },
+      async getRecordNeighbors(request: { rowId: string }) {
+        expect(request.rowId).toBe(result.created[0]!.rowId)
+        return { found: true, previousId: null, nextId: null }
+      },
       async cancel() {},
       async close() {},
     } as unknown as RuntimeClient
@@ -222,6 +226,17 @@ describe("Adapter 1.0 Transport", () => {
     expect(retained).toEqual(["receipt-1"])
     expect(clientRetained).toEqual(["receipt-1"])
     expect(settled).toEqual(["receipt-1"])
+
+    await expect(
+      client.getRecordNeighbors(
+        {
+          tableId: result.affectedRows[0]!.tableId,
+          rowId: result.created[0]!.rowId,
+          query: {},
+        },
+        context("neighbors")
+      )
+    ).resolves.toEqual({ found: true, previousId: null, nextId: null })
 
     await client.close(context("close"))
     expect(closed).toBe(true)

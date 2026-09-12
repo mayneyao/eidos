@@ -127,6 +127,9 @@ function runtimeFixture() {
         nextCursor: null,
       }
     },
+    async getRecordNeighbors() {
+      return { found: false }
+    },
     async queryRows(request) {
       queries += 1
       return {

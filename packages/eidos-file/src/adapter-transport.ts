@@ -160,6 +160,7 @@ const RUNTIME_OPERATIONS = new Set([
   "getSnapshot",
   "getSchemaPage",
   "queryRows",
+  "getRecordNeighbors",
   "getRowsById",
   "aggregate",
   "groupRows",
@@ -927,6 +928,15 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
       RuntimeClient["getSchemaPage"]
     >
   }
+  getRecordNeighbors(
+    request: Parameters<RuntimeClient["getRecordNeighbors"]>[0],
+    context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]
+  ): ReturnType<RuntimeClient["getRecordNeighbors"]> {
+    return this.call("getRecordNeighbors", request, context) as ReturnType<
+      RuntimeClient["getRecordNeighbors"]
+    >
+  }
+
   queryRows(
     request: Parameters<RuntimeClient["queryRows"]>[0],
     context: RequestContext

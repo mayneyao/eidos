@@ -2,7 +2,10 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileTableSnapshot } from "@eidos.space/eidos-file"
+import type {
+  EidosFileTableSnapshot,
+  RecordNeighbors,
+} from "@eidos.space/eidos-file"
 
 import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileRelatedRecordPanel } from "./eidos-file-related-record-panel"
@@ -99,12 +102,65 @@ describe("EidosFileRelatedRecordPanel", () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it("invalidates changed queries and ignores late neighbor results", async () => {
+    const pending: Array<(result: RecordNeighbors) => void> = []
+    const getRecordNeighbors = vi.fn(
+      () => new Promise<RecordNeighbors>((resolve) => pending.push(resolve))
+    )
+    const source = {
+      getRow: vi.fn(async () => ({ _id: ADA_ID, name: "Ada" })),
+      getRecordNeighbors,
+    } as unknown as EidosFileEditorDataSource
+    const onNavigate = vi.fn()
+    const render = async (search: string) =>
+      act(async () => {
+        root.render(
+          <EidosFileRelatedRecordPanel
+            source={source}
+            table={table}
+            target={{ tableId: "people", rowId: ADA_ID, title: "Ada" }}
+            query={{ search }}
+            onNavigate={onNavigate}
+            onClose={() => {}}
+          />
+        )
+      })
+    const next = () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Next record"]')!
+    await render("first")
+    await act(async () =>
+      pending[0]!({ found: true, previousId: null, nextId: "old" })
+    )
+    expect(next().disabled).toBe(false)
+    await render("second")
+    expect(next().disabled).toBe(true)
+    await render("third")
+    await act(async () =>
+      pending[2]!({ found: true, previousId: null, nextId: "latest" })
+    )
+    await act(async () =>
+      pending[1]!({ found: true, previousId: null, nextId: "stale" })
+    )
+    await act(async () => next().click())
+    expect(onNavigate).toHaveBeenLastCalledWith("latest")
+    await render("third")
+    expect(getRecordNeighbors).toHaveBeenCalledTimes(3)
+    await render("excluded")
+    await act(async () => pending[3]!({ found: false }))
+    expect(next().disabled).toBe(true)
+  })
+
   it("navigates to neighbours in the active query order", async () => {
     const getRow = vi.fn(async (rowId: string) => ({
       _id: rowId,
       name: `Row ${rowId}`,
     }))
-    const getRowIndex = vi.fn(async () => 1)
+    const getRecordNeighbors = vi.fn(
+      async function (this: EidosFileEditorDataSource) {
+        expect(this).toBe(source)
+        return { found: true, previousId: "previous-id", nextId: "next-id" }
+      }
+    )
     const getPage = vi.fn(async (_tableId: string, offset: number) => ({
       tableId: "people",
       offset,
@@ -117,7 +173,7 @@ describe("EidosFileRelatedRecordPanel", () => {
     const onNavigate = vi.fn()
     const source = {
       getRow,
-      getRowIndex,
+      getRecordNeighbors,
       getPage,
       updateRow: vi.fn(),
     } as unknown as EidosFileEditorDataSource
@@ -146,8 +202,9 @@ describe("EidosFileRelatedRecordPanel", () => {
         ?.click()
     })
     await vi.waitFor(() => {
-      expect(getRowIndex).toHaveBeenCalledWith("people", ADA_ID, {})
+      expect(getRecordNeighbors).toHaveBeenCalledWith("people", ADA_ID, {})
       expect(onNavigate).toHaveBeenCalledWith("next-id")
+      expect(getPage).not.toHaveBeenCalled()
     })
   })
 })

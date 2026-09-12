@@ -1,4 +1,5 @@
 import type { EidosFileRuntime } from "./runtime"
+import type { RecordNeighbors } from "./runtime-contract"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -43,6 +44,11 @@ export interface EidosFileDataSource {
     projection?: EidosFileRowPageProjection
   ): Promise<EidosFileRowPage>
   getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>
+  getRecordNeighbors?(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ): Promise<RecordNeighbors>
   getRowIndex?(
     tableId: string,
     rowId: string,
@@ -177,6 +183,14 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     query: EidosFileRowQuery
   ): Promise<number | null> {
     return this.runtime.getRowIndex(tableId, rowId, query)
+  }
+
+  async getRecordNeighbors(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ) {
+    return this.runtime.getRecordNeighbors(tableId, rowId, query)
   }
 
   async getGroupCounts(

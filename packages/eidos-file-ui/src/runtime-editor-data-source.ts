@@ -321,6 +321,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
   }
 
+  async getRecordNeighbors(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery
+  ) {
+    this.assertTable(tableId)
+    return this.runtime.getRecordNeighbors(
+      { tableId, rowId, query: this.runtimeQuery(tableId, query) },
+      this.context("record-neighbors")
+    )
+  }
+
   async getRowIndex(
     tableId: string,
     rowId: string,

@@ -65,6 +65,8 @@ import type {
   FormulaPreviewResult,
   FormulaResultType,
   GetSchemaPageRequest,
+  GetRecordNeighborsRequest,
+  RecordNeighbors,
   GroupPage,
   GroupRequest,
   GroupRowPage,
@@ -698,6 +700,25 @@ export class EidosRuntimeService implements RuntimeClient {
             previousCursor: hasEarlier ? boundaryCursor(logicalRows[0]) : null,
           }
         }),
+      false,
+      request
+    )
+  }
+
+  getRecordNeighbors(
+    request: GetRecordNeighborsRequest,
+    context: RequestContext
+  ): Promise<RecordNeighbors> {
+    return this.invoke(
+      context,
+      async () =>
+        this.read(async () =>
+          this.core.getRecordNeighbors(
+            request.tableId,
+            request.rowId,
+            this.compatibilityQuery(request.tableId, request.query)
+          )
+        ),
       false,
       request
     )

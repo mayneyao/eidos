@@ -1380,6 +1380,18 @@ sort term.
 
 `queryRows` request is:
 
+`getRecordNeighbors({ tableId, rowId, query }, context)` resolves adjacent
+Record IDs in the effective `RowQuery`, independent of loaded pages. It returns
+`{ found: false }` when the Record is missing or excluded by the query, otherwise
+`{ found: true, previousId: string | null, nextId: string | null }`. Null marks
+a sequence boundary; navigation MUST NOT wrap. Runtime MUST use the same filter,
+search, typed sort, null ordering and stable Row ID tie-break as `queryRows`, in
+one consistent read with one relative-time reference. Resolution MUST use keyset
+boundaries and MUST NOT require a global row index, total count, or a bounded
+client-side scan. Callers supply the effective view query including transient
+filters and search. This operation traverses query order; it does not infer
+visual group order or a calendar range from a saved View ID.
+
 ```ts
 interface QueryRowsRequest {
   tableId: string
@@ -2225,6 +2237,13 @@ interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  getRecordNeighbors(
+    request: { tableId: string; rowId: string; query: RowQuery },
+    context: RequestContext
+  ): Promise<
+    | { found: false }
+    | { found: true; previousId: string | null; nextId: string | null }
+  >
   getRowsById(
     request: { tableId: string; rowIds: string[]; projection: ProjectionSpec },
     context: RequestContext

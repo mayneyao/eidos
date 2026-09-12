@@ -1478,6 +1478,7 @@ export const RUNTIME_READ_METHODS = [
   "getPage",
   "getRow",
   "getRowIndex",
+  "getRecordNeighbors",
   "getGroupCounts",
   "calculateColumnStats",
   "previewFormula",

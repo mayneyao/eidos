@@ -275,11 +275,24 @@ describe.runIf(supportsElectron43NodeSqlite)(
         const firstId = String(
           runtime.getRowPage(table.table.id, 0, 1).rows[0]!._id
         )
+        const sequence = runtime.getRowPage(table.table.id, 0, 3).rows
+        sequence.forEach((row, index) => {
+          expect(
+            runtime.getRecordNeighbors(table.table.id, String(row._id))
+          ).toEqual({
+            found: true,
+            previousId: sequence[index - 1]?._id ?? null,
+            nextId: sequence[index + 1]?._id ?? null,
+          })
+        })
 
         const deleted = runtime.deleteRowRangesReversible(table.table.id, [
           { startIndex: 0, endIndex: 1 },
         ])
         expect(deleted.deleted).toEqual([firstId])
+        expect(runtime.getRecordNeighbors(table.table.id, firstId)).toEqual({
+          found: false,
+        })
         expect(runtime.countRows(table.table.id)).toBe(2)
 
         runtime.revertRowMutation(deleted.undoToken!)

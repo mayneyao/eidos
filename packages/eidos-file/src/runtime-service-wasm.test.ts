@@ -589,6 +589,43 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
         context("relation-filter-query")
       )
       expect(relationFiltered.rows.map((row) => row.id)).toEqual([firstItemId])
+      await expect(
+        runtime.getRecordNeighbors(
+          {
+            tableId,
+            rowId: firstItemId,
+            query: {
+              filter: {
+                op: "relation-has",
+                fieldId: relationFieldId,
+                rowId: targetRowIds[0]!,
+              },
+            },
+          },
+          context("single-neighbor")
+        )
+      ).resolves.toEqual({ found: true, previousId: null, nextId: null })
+      const neighborSequence = await runtime.queryRows(
+        {
+          tableId,
+          query: {},
+          projection: { fields: [], resolveRelations: [] },
+          limit: 3,
+        },
+        context("neighbor-sequence")
+      )
+      for (const [index, row] of neighborSequence.rows.slice(0, 2).entries()) {
+        await expect(
+          runtime.getRecordNeighbors(
+            { tableId, rowId: row.id, query: {} },
+            context(`neighbor-${index}`)
+          )
+        ).resolves.toEqual({
+          found: true,
+          previousId: neighborSequence.rows[index - 1]?.id ?? null,
+          nextId: neighborSequence.rows[index + 1]?.id ?? null,
+        })
+      }
 
       const relationSearched = await runtime.queryRows(
         {

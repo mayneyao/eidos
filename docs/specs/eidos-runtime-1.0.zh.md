@@ -1314,6 +1314,16 @@ numerical order。除非 Row ID 已是最后一个 sort term，否则 Runtime �
 
 `queryRows` request 为：
 
+`getRecordNeighbors({ tableId, rowId, query }, context)` 在有效 `RowQuery` 中
+解析相邻 Record ID，不依赖客户端已加载的分页。记录不存在或被查询排除时返回
+`{ found: false }`，否则返回
+`{ found: true, previousId: string | null, nextId: string | null }`。
+null 表示序列边界，不循环切换。Runtime MUST 在一次一致性读取中使用同一个相对时间
+基准，并复用 `queryRows` 的筛选、搜索、类型排序、空值顺序及稳定 Row ID 决胜规则。
+解析 MUST 使用 keyset 边界，不依赖全局行号、总数或客户端有上限的扫描。
+调用者传入包含临时筛选和搜索的有效视图查询。此操作沿查询顺序遍历，不根据已保存的
+View ID 推断视觉分组顺序或日历范围。
+
 ```ts
 interface QueryRowsRequest {
   tableId: string
@@ -2112,6 +2122,13 @@ interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  getRecordNeighbors(
+    request: { tableId: string; rowId: string; query: RowQuery },
+    context: RequestContext
+  ): Promise<
+    | { found: false }
+    | { found: true; previousId: string | null; nextId: string | null }
+  >
   getRowsById(
     request: { tableId: string; rowIds: string[]; projection: ProjectionSpec },
     context: RequestContext

@@ -468,6 +468,15 @@ export class HttpRuntimeClient implements RuntimeClient {
     >
   }
 
+  async getRecordNeighbors(
+    request: Parameters<RuntimeClient["getRecordNeighbors"]>[0],
+    context: RequestContext
+  ) {
+    return (await this.call("getRecordNeighbors", request, context)) as Awaited<
+      ReturnType<RuntimeClient["getRecordNeighbors"]>
+    >
+  }
+
   async queryRows(
     request: Parameters<RuntimeClient["queryRows"]>[0],
     context: RequestContext

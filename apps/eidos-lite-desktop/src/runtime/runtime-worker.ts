@@ -179,6 +179,12 @@ async function runtimeCall(
         requireString(args[0], "tableId"),
         requireString(args[1], "rowId")
       )
+    case "getRecordNeighbors":
+      return dataSource.getRecordNeighbors(
+        requireString(args[0], "tableId"),
+        requireString(args[1], "rowId"),
+        objectValue(args[2], "query") as EidosFileRowQuery
+      )
     case "getRowIndex":
       return dataSource.getRowIndex(
         requireString(args[0], "tableId"),

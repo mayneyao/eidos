@@ -121,6 +121,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     exportCsv: RuntimeClient["exportCsv"];
     // (undocumented)
+    getRecordNeighbors(request: Parameters<RuntimeClient["getRecordNeighbors"]>[0], context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]): ReturnType<RuntimeClient["getRecordNeighbors"]>;
+    // (undocumented)
     getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
     // (undocumented)
     getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
@@ -968,6 +970,8 @@ export interface EidosFileDataSource {
     getGroupCounts?(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
+    // (undocumented)
+    getRecordNeighbors?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
     // (undocumented)
     getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
     // (undocumented)
@@ -1868,6 +1872,16 @@ export interface ForwardRelationDefinition {
 }
 
 // @public (undocumented)
+export interface GetRecordNeighborsRequest {
+    // (undocumented)
+    query: RowQuery;
+    // (undocumented)
+    rowId: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
 export interface GetSchemaPageRequest {
     // (undocumented)
     cursor?: string;
@@ -2410,6 +2424,15 @@ export interface QueryRowsRequest {
     tableId: string;
 }
 
+// @public
+export type RecordNeighbors = {
+    found: false;
+} | {
+    found: true;
+    previousId: string | null;
+    nextId: string | null;
+};
+
 // @public (undocumented)
 export type RelationDefinition = ForwardRelationDefinition | InverseRelationDefinition;
 
@@ -2583,6 +2606,8 @@ export interface RuntimeClient {
     close(context: RequestContext): Promise<void>;
     // (undocumented)
     exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
+    // (undocumented)
+    getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;

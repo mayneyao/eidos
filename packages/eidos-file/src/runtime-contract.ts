@@ -382,6 +382,17 @@ export interface QueryRowsRequest {
   direction?: "forward" | "backward"
 }
 
+/** Neighbours in the effective query order, independent of loaded pages. */
+export type RecordNeighbors =
+  | { found: false }
+  | { found: true; previousId: string | null; nextId: string | null }
+
+export interface GetRecordNeighborsRequest {
+  tableId: string
+  rowId: string
+  query: RowQuery
+}
+
 export interface AggregateRequest {
   tableId: string
   query?: RowQuery
@@ -983,6 +994,10 @@ export interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  getRecordNeighbors(
+    request: GetRecordNeighborsRequest,
+    context: RequestContext
+  ): Promise<RecordNeighbors>
   getRowsById(
     request: { tableId: string; rowIds: string[]; projection: ProjectionSpec },
     context: RequestContext

@@ -3,11 +3,11 @@ import type {
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowMutationResult,
-  EidosFileRowPageProjection,
   EidosFileRowQuery,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   FileEntry,
+  RecordNeighbors,
 } from "@eidos.space/eidos-file"
 
 import type { EidosFileRelationRecordTarget } from "./context"
@@ -33,6 +33,8 @@ export interface EidosFileRelatedRecordPanelProps {
   onPresentationToggle?: () => void
   /** Active view query used to resolve previous and next Records. */
   query?: EidosFileRowQuery
+  /** Invalidate neighbors after external row mutations. */
+  reloadToken?: number
   /** Ask the Host to open a neighbouring Record in the same query order. */
   onNavigate?: (rowId: string) => void
   disabled?: boolean
@@ -54,6 +56,7 @@ export function EidosFileRelatedRecordPanel({
   presentation,
   onPresentationToggle,
   query,
+  reloadToken,
   onNavigate,
   disabled = false,
   onClose,
@@ -105,80 +108,63 @@ export function EidosFileRelatedRecordPanel({
     [onMutation, replaceInspectorRow, source, table.table.id, target.rowId]
   )
 
-  const labelField =
-    table.fields.find((field) => field.isRecordLabel === true) ?? null
-  const neighborProjection = useMemo<EidosFileRowPageProjection>(
-    () => ({
-      columns: labelField ? [labelField.tableColumnName] : [],
-      includeRecordLabel: true,
-      includeRelationDisplays: false,
-    }),
-    [labelField]
-  )
-  const [recordPosition, setRecordPosition] = useState<{
-    index: number
-    total: number
+  // Key results by query value, row and revision so old neighbors cannot be used
+  // while a new lookup is pending. Equivalent host renders do not restart reads.
+  const queryKey = JSON.stringify(query)
+  const [mutationRevision, setMutationRevision] = useState(0)
+  const navigationKey = JSON.stringify([
+    table.table.id,
+    target.rowId,
+    queryKey,
+    mutationRevision,
+    reloadToken,
+  ])
+  const [navigation, setNavigation] = useState<{
+    key: string
+    source: EidosFileEditorDataSource
+    result: RecordNeighbors
   } | null>(null)
-  // Keep inputs in refs so frequent Host renders, query identity changes, or
-  // table snapshot refreshes do not cancel an in-flight position lookup.
-  const queryRef = useRef(query)
-  queryRef.current = query
   const onNavigateRef = useRef(onNavigate)
   onNavigateRef.current = onNavigate
-  const getRowIndexRef = useRef(source.getRowIndex)
-  getRowIndexRef.current = source.getRowIndex
-
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+  const canNavigate = Boolean(onNavigate)
   useEffect(() => {
     let active = true
-    const getRowIndex = getRowIndexRef.current
-    const currentQuery = queryRef.current
-    if (!currentQuery || !getRowIndex || !onNavigateRef.current) {
-      setRecordPosition(null)
-      return
-    }
+    if (!queryKey || !canNavigate || !source.getRecordNeighbors) return
     void (async () => {
       try {
-        const index = await getRowIndex(
+        const result = await source.getRecordNeighbors!(
           table.table.id,
           target.rowId,
-          currentQuery
+          JSON.parse(queryKey) as EidosFileRowQuery
         )
-        if (!active) return
-        if (index === null) {
-          setRecordPosition(null)
-          return
+        if (active) setNavigation({ key: navigationKey, source, result })
+      } catch (error) {
+        if (active) {
+          setNavigation(null)
+          onErrorRef.current?.(error)
         }
-        const page = await source.getPage(table.table.id, 0, 1, currentQuery)
-        if (!active) return
-        setRecordPosition({ index, total: page.total })
-      } catch {
-        if (active) setRecordPosition(null)
       }
     })()
     return () => {
       active = false
     }
-  }, [source, table.table.id, target.rowId])
-
-  const navigateNeighbor = useCallback(
-    (offset: number) => async () => {
-      const navigate = onNavigateRef.current
-      const currentQuery = queryRef.current
-      if (!currentQuery || !navigate) return
-      const page = await source.getPage(
-        table.table.id,
-        offset,
-        1,
-        currentQuery,
-        undefined,
-        undefined,
-        neighborProjection
-      )
-      const row = page.rows[0]
-      if (row) navigate(String(row._id))
-    },
-    [neighborProjection, source, table.table.id]
-  )
+  }, [
+    source,
+    table.table.id,
+    target.rowId,
+    queryKey,
+    navigationKey,
+    canNavigate,
+  ])
+  const neighbors =
+    canNavigate &&
+    navigation?.source === source &&
+    navigation.key === navigationKey &&
+    navigation.result.found
+      ? navigation.result
+      : null
 
   if (!inspectedRow) return null
 
@@ -204,20 +190,24 @@ export function EidosFileRelatedRecordPanel({
       loadError={inspectorLoadError}
       onRetryLoad={retryInspectorRow}
       onPreviousRecord={
-        recordPosition && recordPosition.index > 0
-          ? navigateNeighbor(recordPosition.index - 1)
+        neighbors?.previousId
+          ? () => onNavigateRef.current?.(neighbors.previousId!)
           : undefined
       }
       onNextRecord={
-        recordPosition && recordPosition.index < recordPosition.total - 1
-          ? navigateNeighbor(recordPosition.index + 1)
+        neighbors?.nextId
+          ? () => onNavigateRef.current?.(neighbors.nextId!)
           : undefined
       }
       onClose={() => {
         closeInspectorRow()
         onClose()
       }}
-      onCellEdit={editRecord}
+      onCellEdit={async (...args) => {
+        const result = await editRecord(...args)
+        setMutationRevision((revision) => revision + 1)
+        return result
+      }}
       onSearchRelation={(field, query) =>
         searchEidosFileRelationRecords(source, field, query)
       }

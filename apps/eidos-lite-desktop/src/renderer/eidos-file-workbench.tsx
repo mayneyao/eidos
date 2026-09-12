@@ -825,7 +825,9 @@ export function EidosFileWorkbench({
               presentation={recordOpenMode}
               onPresentationToggle={toggleRecordPresentation}
               query={recordNavigationQuery}
+              reloadToken={reloadToken}
               onNavigate={(rowId) => onInspectedRowChange?.(rowId)}
+              onMutation={() => setReloadToken((current) => current + 1)}
               onClose={() => onInspectedRowChange?.(null)}
               onError={onError}
               disabled={disabled}

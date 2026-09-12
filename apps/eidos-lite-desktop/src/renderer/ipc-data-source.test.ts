@@ -91,6 +91,24 @@ it("routes sorted Row ID location through the opaque runtime session", async () 
   ])
 })
 
+it("routes record neighbors through the opaque runtime session", async () => {
+  const result = { found: true, previousId: null, nextId: "row-8" }
+  const callRuntime = vi.fn(async () => result)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime } as unknown as EidosLiteApi,
+  })
+  const source = new IpcEidosFileDataSource("session-1", snapshot)
+  await expect(
+    source.getRecordNeighbors("tasks", "row-7", {})
+  ).resolves.toEqual(result)
+  expect(callRuntime).toHaveBeenCalledWith("session-1", "getRecordNeighbors", [
+    "tasks",
+    "row-7",
+    {},
+  ])
+})
+
 it("routes deletion undo through the opaque runtime session", async () => {
   const result = {
     tableId: "tasks",

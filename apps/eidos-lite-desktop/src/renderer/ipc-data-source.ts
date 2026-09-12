@@ -60,6 +60,16 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
   }
 
+  getRecordNeighbors(
+    ...args: Parameters<NonNullable<EidosFileDataSource["getRecordNeighbors"]>>
+  ) {
+    return window.eidosLite.callRuntime(
+      this.sessionId,
+      "getRecordNeighbors",
+      args
+    )
+  }
+
   getRowIndex(
     ...args: Parameters<NonNullable<EidosFileDataSource["getRowIndex"]>>
   ) {

@@ -2,6 +2,7 @@ import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { isEidosFileUriReference } from "./canonical-conversion"
 import { normalizeEidosFileColumnStatConfigs } from "./column-stats"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
+import type { RecordNeighbors } from "./runtime-contract"
 import {
   EIDOS_FILE_FIELDS_TABLE,
   EIDOS_FILE_FORMULA_FIELDS_TABLE,
@@ -4109,6 +4110,59 @@ export class EidosFileRuntime {
       [...compiled.params, ...before.params]
     )
     return Number(result?.count ?? 0)
+  }
+
+  getRecordNeighbors(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery = {}
+  ): RecordNeighbors {
+    const id = assertEidosFileUuid(rowId, "Row ID")
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const source = this.logicalSource(
+      tableId,
+      this.requiredQueryFieldKeys(fields, compatibleQuery),
+      false,
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
+    )
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
+    const targetWhere = compiled.whereSql
+      ? `${compiled.whereSql} AND "__base_rowid" = ?`
+      : 'WHERE "__base_rowid" = ?'
+    const target = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
+      `WITH logical AS (${source.sql}) SELECT * FROM logical ${targetWhere} LIMIT 1`,
+      [...compiled.params, id]
+    )
+    if (!target) return { found: false }
+    const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
+    const values = sorts.map(({ field }) => cursorSortValue(target, field))
+    const reverseOrder = [
+      ...sorts.map(
+        ({ field, sort }) =>
+          `${eidosFileSortExpression(field)} ${sort.direction === "desc" ? "ASC" : "DESC"} NULLS ${sort.nulls === "first" ? "LAST" : "FIRST"}`
+      ),
+      '"__base_rowid" DESC',
+    ].join(", ")
+    const neighbor = (previous: boolean): string | null => {
+      const boundary = (previous ? compileKeysetBefore : compileKeysetAfter)(
+        sorts,
+        values,
+        id
+      )
+      const where = compiled.whereSql
+        ? `${compiled.whereSql} AND ${boundary.sql}`
+        : `WHERE ${boundary.sql}`
+      const row = this.connection.get<{ id: string }>(
+        `WITH logical AS (${source.sql}) SELECT "__base_rowid" AS id FROM logical ${where} ${previous ? `ORDER BY ${reverseOrder}` : compiled.orderSql} LIMIT 1`,
+        [...compiled.params, ...boundary.params]
+      )
+      return row?.id ?? null
+    }
+    return { found: true, previousId: neighbor(true), nextId: neighbor(false) }
   }
 
   getRow(tableId: string, rowId: string): EidosFileRow | null {
