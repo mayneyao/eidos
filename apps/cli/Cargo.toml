@@ -1,6 +1,6 @@
 [package]
 name = "eidos"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2024"
 description = "Agent-first command-line interface for Eidos File"
 authors = ["mayneyao"]

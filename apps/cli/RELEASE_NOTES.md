@@ -1,16 +1,7 @@
-## What's new
-
-### Feed view
-
-`eidos serve` now offers the Feed standard View, which reads a Table as a timeline: newest records come first, titled by the Record Label with the Content Field rendered as Markdown.
-
-### Record navigation
-
-Record Content renders through the shared Eidos Markdown preview, so Eidos syntax, highlighted code, and document-local images resolve through the mounted asset directory. The record panel moves to the previous or next record in the current View's order and switches between the side panel and the full content page.
-
 ## Bug fixes
 
-- **Field conversion**: Converting a JSON string array in a Text field into Multi-select now yields one choice per value, and converted scalar cells can be cleared.
+- **Serve Content editing**: Expanded record pages now use the same rich Markdown editor as Eidos Lite instead of falling back to a plain text box. Editing and preview share Eidos syntax and resolve images through the mounted asset directory.
+- **Record controls**: Fix missing record expansion in Feed and incomplete full-page and previous/next controls outside Grid. Navigation now reaches the Runtime through the browser adapter and follows the current View's filter and order.
 
 ## Use with an Agent
 
@@ -35,4 +26,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.2.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.2.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
