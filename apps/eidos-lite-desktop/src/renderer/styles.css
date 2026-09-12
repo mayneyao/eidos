@@ -2388,6 +2388,27 @@ body {
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
 }
+
+.sync-inspector-b[data-sync-setup="true"] {
+  grid-template-rows: var(--version-header-height, 2.75rem) minmax(0, 1fr);
+}
+
+.sync-inspector-b[data-sync-setup="true"] .sync-dialog-body {
+  padding: 0;
+  overflow: visible;
+}
+
+.sync-inspector-b[data-sync-setup="true"] .sync-section-head {
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.sync-inspector-b[data-sync-setup="true"] .sync-hero-icon {
+  width: 1rem;
+  height: 1.2rem;
+  border-radius: 0;
+  background: none;
+}
 .sync-inspector-b > header > .icon-button {
   flex: none;
 }

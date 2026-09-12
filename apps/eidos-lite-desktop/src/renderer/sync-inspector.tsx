@@ -80,6 +80,7 @@ export function pendingVersionPreview(
 }
 
 export function SyncInspector({
+  setupContent,
   state,
   account,
   spaceKey,
@@ -96,6 +97,7 @@ export function SyncInspector({
   onLocalRecovery,
   onRemoteRecovery,
 }: {
+  setupContent?: ReactNode
   state: SyncInspectorState
   account?(props: {
     buttonRef: RefObject<HTMLButtonElement>
@@ -308,29 +310,34 @@ export function SyncInspector({
         aria-label={t("Sync")}
         data-sync-design="b"
         data-active-merge={merge.state === "merging"}
+        data-sync-setup={setupContent ? "true" : undefined}
       >
         <header>
           <div className="sync-inspector-heading">
             <strong>{t("Sync")}</strong>
-            <small
-              title={`${t("Last checked")}: ${history?.checkedAtMs ? new Date(history.checkedAtMs).toLocaleString() : t("Not checked")}`}
-            >
-              <span className="sync-checked-label">{t("Last checked")}: </span>
-              <span className="sync-checked-full">
-                {history?.checkedAtMs
-                  ? new Date(history.checkedAtMs).toLocaleTimeString()
-                  : t("Not checked")}
-              </span>
-              <span className="sync-checked-compact" aria-hidden="true">
-                {history?.checkedAtMs
-                  ? new Date(history.checkedAtMs).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    })
-                  : "—"}
-              </span>
-            </small>
+            {!setupContent ? (
+              <small
+                title={`${t("Last checked")}: ${history?.checkedAtMs ? new Date(history.checkedAtMs).toLocaleString() : t("Not checked")}`}
+              >
+                <span className="sync-checked-label">
+                  {t("Last checked")}:{" "}
+                </span>
+                <span className="sync-checked-full">
+                  {history?.checkedAtMs
+                    ? new Date(history.checkedAtMs).toLocaleTimeString()
+                    : t("Not checked")}
+                </span>
+                <span className="sync-checked-compact" aria-hidden="true">
+                  {history?.checkedAtMs
+                    ? new Date(history.checkedAtMs).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })
+                    : "—"}
+                </span>
+              </small>
+            ) : null}
           </div>
           {account ? (
             account({
@@ -357,93 +364,97 @@ export function SyncInspector({
             <X />
           </button>
         </header>
-        <div className="sync-inspector-b-status" aria-live="polite">
-          <Icon aria-hidden="true" className={active ? "spin" : undefined} />
-          <h2>{title}</h2>
-          {merge.state === "merging" ? (
-            <p>
-              {t("{count} files remaining", { count: merge.unmergedCount })}
-            </p>
-          ) : history ? (
-            <p className="sync-version-counts" data-sync-version-counts>
-              <span>
-                {t("Local to upload")}: <strong>{history.ahead ?? "—"}</strong>
-              </span>
-              <span>
-                {t("Remote to receive")}:{" "}
-                <strong>{history.behind ?? "—"}</strong>
-              </span>
-            </p>
-          ) : null}
-          {state.failure ? (
-            <p>{state.failure.message}</p>
-          ) : merging ? (
-            <p>
-              {t(
-                merge.state === "merging"
-                  ? "Review the merge before completing."
-                  : "Compatible changes merge automatically. Only conflicts need your attention."
-              )}
-            </p>
-          ) : state.readOnly ? (
-            <p className="sync-readonly-notice" data-sync-readonly>
-              {t(
-                "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
-              )}
-            </p>
-          ) : null}
-          {active ? (
-            <div className="sync-inspector-transfer" role="status">
-              <progress
-                max={transfer?.totalBytes || undefined}
-                value={
-                  transfer?.totalBytes ? transfer.transferredBytes : undefined
+        {!setupContent ? (
+          <div className="sync-inspector-b-status" aria-live="polite">
+            <Icon aria-hidden="true" className={active ? "spin" : undefined} />
+            <h2>{title}</h2>
+            {merge.state === "merging" ? (
+              <p>
+                {t("{count} files remaining", { count: merge.unmergedCount })}
+              </p>
+            ) : history ? (
+              <p className="sync-version-counts" data-sync-version-counts>
+                <span>
+                  {t("Local to upload")}:{" "}
+                  <strong>{history.ahead ?? "—"}</strong>
+                </span>
+                <span>
+                  {t("Remote to receive")}:{" "}
+                  <strong>{history.behind ?? "—"}</strong>
+                </span>
+              </p>
+            ) : null}
+            {state.failure ? (
+              <p>{state.failure.message}</p>
+            ) : merging ? (
+              <p>
+                {t(
+                  merge.state === "merging"
+                    ? "Review the merge before completing."
+                    : "Compatible changes merge automatically. Only conflicts need your attention."
+                )}
+              </p>
+            ) : state.readOnly ? (
+              <p className="sync-readonly-notice" data-sync-readonly>
+                {t(
+                  "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
+                )}
+              </p>
+            ) : null}
+            {active ? (
+              <div className="sync-inspector-transfer" role="status">
+                <progress
+                  max={transfer?.totalBytes || undefined}
+                  value={
+                    transfer?.totalBytes ? transfer.transferredBytes : undefined
+                  }
+                />
+                <small>
+                  {transfer
+                    ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MB` : ""}`
+                    : t("Working…")}
+                </small>
+              </div>
+            ) : state.failure ? (
+              <button className="primary-action" onClick={onRetry}>
+                {state.failure.actionLabel || t("Retry")}
+              </button>
+            ) : !merging ? (
+              <button
+                className="primary-action"
+                data-sync-next={state.readOnly ? "account" : action}
+                disabled={
+                  state.busy ||
+                  state.checking ||
+                  (!state.readOnly && action === "review" && !onReview)
                 }
-              />
-              <small>
-                {transfer
-                  ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MB` : ""}`
-                  : t("Working…")}
-              </small>
-            </div>
-          ) : state.failure ? (
-            <button className="primary-action" onClick={onRetry}>
-              {state.failure.actionLabel || t("Retry")}
-            </button>
-          ) : !merging ? (
-            <button
-              className="primary-action"
-              data-sync-next={state.readOnly ? "account" : action}
-              disabled={
-                state.busy ||
-                state.checking ||
-                (!state.readOnly && action === "review" && !onReview)
-              }
-              onClick={state.readOnly ? onAccount : run}
-            >
-              {state.readOnly ? t("Manage Sync access") : label}
-            </button>
-          ) : null}
-          {!active &&
-          !state.failure &&
-          (action !== "fetch" || state.readOnly) &&
-          !merging ? (
-            <button
-              className="sync-inspector-link"
-              onClick={() => onAction("fetch")}
-            >
-              {t("Check remote updates")}
-            </button>
-          ) : null}
-        </div>
+                onClick={state.readOnly ? onAccount : run}
+              >
+                {state.readOnly ? t("Manage Sync access") : label}
+              </button>
+            ) : null}
+            {!active &&
+            !state.failure &&
+            (action !== "fetch" || state.readOnly) &&
+            !merging ? (
+              <button
+                className="sync-inspector-link"
+                onClick={() => onAction("fetch")}
+              >
+                {t("Check remote updates")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="sync-inspector-b-content">
-          {merging && merge.state !== "merging" ? (
+          {setupContent}
+          {!setupContent && merging && merge.state !== "merging" ? (
             <>
               {renderVersions("receive", history?.behind ?? 0)}
               {renderVersions("upload", history?.ahead ?? 0)}
             </>
           ) : null}
-          {merging ? (
+          {setupContent ? null : merging ? (
             <SyncMergeWorkspace
               externalStatus={mergeStatus}
               compact
@@ -526,7 +537,7 @@ export function SyncInspector({
             </section>
           ) : null}
         </div>
-        {state.dirty && !merging ? (
+        {!setupContent && state.dirty && !merging ? (
           <footer>
             <div className="sync-inspector-local">
               <span>

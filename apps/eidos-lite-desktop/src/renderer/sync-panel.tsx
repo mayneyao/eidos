@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { SyncInspector } from "./sync-inspector"
 import { useEidosLiteI18n } from "./i18n"
 import {
@@ -769,14 +769,11 @@ export function SyncPanel({
     loadError !== null || (checking && initialSnapshot === null)
   const spaceStatusPending =
     checking && initialSnapshot === null && status.account.state === "signed-in"
-  if (
-    variant === "inspector" &&
-    mode === "enable" &&
-    status.remote.state === "connected"
-  ) {
+  const renderInspector = (setupContent?: ReactNode) => {
     return (
       <SyncInspector
         spaceKey={cacheKey}
+        setupContent={setupContent}
         account={({ buttonRef, expanded, onToggle }) => (
           <button
             ref={buttonRef}
@@ -867,6 +864,13 @@ export function SyncPanel({
       />
     )
   }
+  if (
+    variant === "inspector" &&
+    mode === "enable" &&
+    status.remote.state === "connected"
+  ) {
+    return renderInspector()
+  }
   if (shouldRenderSyncAccessGate(status)) {
     return (
       <SyncAccessGate
@@ -908,6 +912,632 @@ export function SyncPanel({
     syncProgress?.state !== "active"
       ? syncDirection(syncHistory)
       : null
+
+  const setupContent = (
+    <div className="sync-dialog-body" data-sync-tone={overview.tone}>
+      <section
+        className="sync-hero"
+        data-sync-overview={overview.tone}
+        data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
+        {...(syncFailure
+          ? {
+              "data-sync-failure": syncFailure.code,
+              "data-sync-failure-state": syncFailure.state,
+              "data-sync-failure-action": syncFailure.action,
+              "data-sync-local-safe": "true",
+            }
+          : {})}
+        aria-live="polite"
+      >
+        <span className="sync-hero-icon" aria-hidden="true">
+          <overview.icon className={overview.spin ? "spin" : undefined} />
+        </span>
+        <div className="sync-hero-copy">
+          <h2>{overview.title}</h2>
+          {overview.message ? <p>{overview.message}</p> : null}
+          {direction ? (
+            <span className="sync-direction">
+              {direction.upload > 0 ? (
+                <span
+                  className="sync-direction-item"
+                  data-sync-direction="upload"
+                >
+                  <ArrowUp /> {direction.upload} to upload
+                </span>
+              ) : null}
+              {direction.download > 0 ? (
+                <span
+                  className="sync-direction-item"
+                  data-sync-direction="download"
+                >
+                  <ArrowDown /> {direction.download} to download
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+          {heroMeta ? (
+            <small className="sync-hero-meta">{heroMeta}</small>
+          ) : null}
+          {syncFailure ? (
+            <small className="sync-local-safe">
+              <HardDrive /> Local files safe
+            </small>
+          ) : null}
+        </div>
+      </section>
+
+      {status.entitlement.state === "read-only" ? (
+        <div className="sync-readonly-notice" data-sync-readonly role="status">
+          <AlertTriangle aria-hidden="true" />
+          <div>
+            <strong>{t("Sync writes are paused")}</strong>
+            <p>
+              {t(
+                "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy !== null}
+            onClick={() => void openHelp("account")}
+          >
+            <UserRound /> {t("Manage Sync access")}
+          </button>
+        </div>
+      ) : null}
+
+      {loadError ? (
+        <div className="sync-actions">
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() =>
+              loadError.kind === "session-expired" ||
+              status.account.state === "signed-out"
+                ? void signIn()
+                : setReloadKey((current) => current + 1)
+            }
+            disabled={busy !== null}
+          >
+            {loadError.kind === "session-expired" ||
+            status.account.state === "signed-out" ? (
+              <LogIn />
+            ) : (
+              <RefreshCw />
+            )}
+            {loadError.kind === "session-expired"
+              ? "Sign in again"
+              : status.account.state === "signed-out"
+                ? "Sign in"
+                : "Try again"}
+          </button>
+        </div>
+      ) : null}
+
+      {syncFailure && !loadError ? (
+        <div className="sync-actions">
+          {syncFailure.action !== "retry-now" &&
+          syncFailure.action !== "work-locally" ? (
+            <button
+              type="button"
+              className="primary-action"
+              data-sync-failure-primary-action
+              disabled={
+                busy !== null ||
+                (syncFailure.action === "clone-hosted" &&
+                  mode !== "clone" &&
+                  !onRequestClone) ||
+                (syncFailure.action === "review-local" && !onReviewLocal)
+              }
+              onClick={() => void runFailureAction()}
+            >
+              {busy === "help" ? (
+                <LoaderCircle className="spin" />
+              ) : (
+                <FailureActionIcon action={syncFailure.action} />
+              )}
+              {syncFailure.actionLabel}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={
+              syncFailure.action !== "retry-now" &&
+              syncFailure.action !== "work-locally"
+                ? "secondary-action"
+                : "primary-action"
+            }
+            data-sync-failure-retry
+            {...(syncFailure.action === "retry-now" ||
+            syncFailure.action === "work-locally"
+              ? { "data-sync-failure-primary-action": "" }
+              : {})}
+            disabled={busy !== null}
+            onClick={() => void retryFailure()}
+          >
+            {busy === "sync" || busy === "enable" || busy === "clone" ? (
+              <LoaderCircle className="spin" />
+            ) : (
+              <RefreshCw />
+            )}
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {syncProgress?.state === "active" ? (
+        <>
+          <OperationProgress
+            progress={syncProgress}
+            elapsedMs={syncElapsedMs}
+          />
+          <div className="sync-actions">
+            <button
+              type="button"
+              className="secondary-action sync-keep-working"
+              data-sync-keep-working
+              onClick={onClose}
+            >
+              {mode === "clone" ? "Continue in background" : "Keep working"}
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {!syncFailure && !loadError && !spaceStatusPending ? (
+        <>
+          {!signedIn ? (
+            <div className="sync-actions">
+              <button
+                type="button"
+                className="primary-action sync-sign-in"
+                data-sync-sign-in
+                disabled={busy !== null || checking}
+                onClick={() => void signIn()}
+              >
+                {busy === "sign-in" ? (
+                  <LoaderCircle className="spin" />
+                ) : (
+                  <LogIn />
+                )}
+                {busy === "sign-in"
+                  ? "Waiting for your browser…"
+                  : "Sign in to continue"}
+              </button>
+            </div>
+          ) : null}
+
+          {mode === "enable" &&
+          signedIn &&
+          status.remote.state === "not-connected" ? (
+            <>
+              {status.canEnable ? (
+                <SyncSafetyReview
+                  preflight={preflight}
+                  confirmWarnings={confirmWarnings}
+                  onConfirmWarnings={setConfirmWarnings}
+                />
+              ) : null}
+              <div className="sync-actions">
+                {status.canEnable ? (
+                  <button
+                    type="button"
+                    className="primary-action sync-enable"
+                    data-sync-enable
+                    disabled={
+                      busy !== null ||
+                      operationsBlocked ||
+                      !preflight ||
+                      preflight.blockerCount > 0 ||
+                      (preflight.warningCount > 0 && !confirmWarnings)
+                    }
+                    onClick={() => void enableSync()}
+                  >
+                    {busy === "enable" ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <CloudUpload />
+                    )}
+                    {busy === "enable"
+                      ? "Connecting this Space…"
+                      : "Connect this Space"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={busy !== null || operationsBlocked}
+                    onClick={() => void openHelp("account")}
+                  >
+                    <UserRound /> Manage account
+                  </button>
+                )}
+              </div>
+            </>
+          ) : null}
+
+          {mode === "enable" &&
+          signedIn &&
+          status.remote.state === "connected" ? (
+            <div className="sync-actions sync-explicit-actions">
+              <button
+                type="button"
+                className="secondary-action sync-check-remote"
+                data-sync-run
+                disabled={busy !== null || operationsBlocked}
+                title="Fetch remote history without changing local files."
+                onClick={() => void syncNow("fetch")}
+              >
+                <RefreshCw /> Check remote updates
+              </button>
+              <button
+                type="button"
+                className={
+                  syncHistory?.state === "behind"
+                    ? "primary-action"
+                    : "secondary-action"
+                }
+                data-sync-pull
+                hidden={!syncHistory?.behind}
+                disabled={
+                  busy !== null ||
+                  operationsBlocked ||
+                  hasUncheckpointedChanges ||
+                  !syncHistory?.behind ||
+                  mergeActive
+                }
+                title="Receive remote versions. Review and save local changes first."
+                onClick={() => void syncNow("pull")}
+              >
+                <CloudDownload /> Receive updates
+              </button>
+              <button
+                type="button"
+                className={
+                  syncHistory?.state === "ahead"
+                    ? "primary-action"
+                    : "secondary-action"
+                }
+                data-sync-push
+                hidden={
+                  !syncHistory?.ahead ||
+                  !!syncHistory.behind ||
+                  status.entitlement.state !== "read-write" ||
+                  storageBlocksCurrentUpload
+                }
+                disabled={
+                  busy !== null ||
+                  operationsBlocked ||
+                  storageBlocksCurrentUpload ||
+                  status.entitlement.state !== "read-write" ||
+                  !syncHistory?.ahead ||
+                  !!syncHistory.behind
+                }
+                title="Upload saved versions only. Local file changes will not be saved as a version."
+                onClick={() => void syncNow("push")}
+              >
+                <CloudUpload /> Upload versions
+              </button>
+              {hasUncheckpointedChanges ? (
+                <button
+                  type="button"
+                  className={
+                    syncHistory?.behind ? "primary-action" : "secondary-action"
+                  }
+                  data-sync-review-local
+                  disabled={
+                    busy !== null || operationsBlocked || !onReviewLocal
+                  }
+                  onClick={onReviewLocal}
+                >
+                  <FileWarning /> Review changes
+                </button>
+              ) : null}
+              {storageBlocksCurrentUpload ? (
+                <button
+                  type="button"
+                  className="primary-action"
+                  data-sync-manage-storage
+                  disabled={busy !== null}
+                  onClick={() => void openHelp("account")}
+                >
+                  <UserRound /> Manage storage
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {mode === "clone" && signedIn && status.canClone ? (
+            <RepositoryPicker
+              repositories={repositories}
+              busy={busy}
+              disabled={operationsBlocked}
+              selectedRepository={selectedRepository}
+              onSelect={(repository) => void cloneRepository(repository)}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {mode === "enable" && signedIn && status.remote.state === "connected" ? (
+        <details className="sync-more" data-sync-version-summary>
+          <summary>
+            <ChevronRight /> Version details
+          </summary>
+          <p className="sync-caption">
+            {hasUncheckpointedChanges
+              ? "Local file changes have not been saved as a version."
+              : "No local file changes waiting to be saved."}
+          </p>
+          <div className="sync-stat-grid">
+            <div>
+              <strong>
+                {syncHistory && syncHistory.state !== "unknown"
+                  ? syncHistory.ahead
+                  : "—"}
+              </strong>
+              <span>Versions to upload</span>
+            </div>
+            <div>
+              <strong>
+                {syncHistory?.checkedAtMs && syncHistory.state !== "unknown"
+                  ? syncHistory.behind
+                  : "—"}
+              </strong>
+              <span>Versions to receive</span>
+            </div>
+          </div>
+          <p className="sync-caption">
+            {syncHistory?.checkedAtMs ? (
+              <>
+                <span>Last checked</span>:{" "}
+                {new Date(syncHistory.checkedAtMs).toLocaleString()}
+              </>
+            ) : (
+              "Remote history has not been checked."
+            )}
+          </p>
+          {syncHistory?.state === "diverged" ? (
+            <p className="sync-caption">
+              Receive and merge remote updates below before uploading local
+              versions.
+            </p>
+          ) : null}
+        </details>
+      ) : null}
+
+      {(syncResult?.state === "conflict" ||
+        syncHistory?.state === "diverged") &&
+      status.remote.state === "connected" ? (
+        <SyncMergeWorkspace
+          onStatusChange={(merge) => {
+            setMergeActive(merge.state === "merging")
+            onMergeStatusChange?.(merge)
+          }}
+          onReviewMerge={onReviewMerge}
+          onSpaceChange={onSpaceChange}
+        />
+      ) : null}
+
+      {syncResult?.state === "conflict" || syncHistory?.state === "diverged" ? (
+        <details className="sync-more sync-section" data-sync-recovery>
+          <summary>
+            <ChevronRight /> Recovery copies
+          </summary>
+          <p className="sync-caption">
+            {mergeActive
+              ? "Abort the active merge before creating Recovery Spaces."
+              : "These copies will not merge or overwrite either side."}
+          </p>
+          <div className="sync-stat-grid">
+            <div>
+              <strong data-sync-local-ahead>
+                {syncResult?.ahead ?? syncHistory?.ahead ?? 0}
+              </strong>
+              <span>Local-only updates</span>
+            </div>
+            <div>
+              <strong data-sync-hosted-ahead>
+                {syncResult?.behind ?? syncHistory?.behind ?? 0}
+              </strong>
+              <span>Cloud-only updates</span>
+            </div>
+          </div>
+          <div className="sync-actions sync-recovery-actions">
+            <button
+              type="button"
+              className="secondary-action"
+              data-sync-recover-local
+              disabled={busy !== null || mergeActive}
+              onClick={() => void recoverLocal()}
+            >
+              {busy === "recover-local" ? (
+                <LoaderCircle className="spin" />
+              ) : (
+                <Copy />
+              )}
+              {busy === "recover-local"
+                ? "Creating local copy…"
+                : "Keep a local copy"}
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              data-sync-recover-hosted
+              disabled={busy !== null || mergeActive}
+              onClick={() => void recoverHosted()}
+            >
+              {busy === "recover-hosted" ? (
+                <LoaderCircle className="spin" />
+              ) : (
+                <FolderDown />
+              )}
+              {busy === "recover-hosted"
+                ? "Creating cloud copy…"
+                : "Open a cloud copy"}
+            </button>
+          </div>
+        </details>
+      ) : null}
+
+      {recoveryResult ? (
+        <section
+          className="sync-inline-result"
+          data-sync-recovery-result={recoveryResult.kind}
+          role="status"
+        >
+          <CheckCircle2 />
+          <div>
+            <strong>
+              {recoveryResult.kind === "local-copy"
+                ? "Local Recovery Space created"
+                : "Cloud Recovery Space opened"}
+            </strong>
+            <p>
+              {recoveryResult.name} opened in a new window. Its folder is{" "}
+              {recoveryResult.displayPath}.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {signedIn && variant !== "inspector" ? (
+        <details
+          className="sync-more sync-account-details"
+          open={storageNeedsAttention || undefined}
+        >
+          <summary>
+            <ChevronRight /> Account and storage
+          </summary>
+          {mode === "enable" ? (
+            <SyncStorageSection
+              storage={storage}
+              storageState={storageState}
+              spaceBytes={preflight?.totalBytes ?? spaceBytes}
+              spaceSizeState={spaceSizeState}
+              blocksUpload={storageBlocksCurrentUpload}
+              managing={busy === "help"}
+              onManageStorage={
+                storageNeedsAttention || storageBlocksCurrentUpload
+                  ? () => void openHelp("account")
+                  : undefined
+              }
+            />
+          ) : null}
+
+          <section className="sync-section sync-about" data-sync-details>
+            <div className="sync-section-head">
+              <h3>Connection</h3>
+            </div>
+            <dl className="sync-kv">
+              <div>
+                <dt>Account</dt>
+                <dd>{accountName}</dd>
+              </div>
+              <div>
+                <dt>Access</dt>
+                <dd>{accessLabel(status)}</dd>
+              </div>
+              <div>
+                <dt>Cloud</dt>
+                <dd>
+                  {status.remote.state === "connected"
+                    ? "Connected"
+                    : "Not connected"}
+                </dd>
+              </div>
+              {!storage && status.entitlement.quotaBytes !== undefined ? (
+                <div>
+                  <dt>Cloud storage</dt>
+                  <dd>Usage temporarily unavailable</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            {visiblePhases.length > 0 ? (
+              <details className="sync-more sync-diagnostics">
+                <summary>
+                  <ChevronRight /> Last operation
+                  <span>
+                    {formatDuration(runTelemetry?.durationMs ?? syncElapsedMs)}
+                  </span>
+                </summary>
+                <ol>
+                  {visiblePhases.map((phase, index) => (
+                    <li
+                      data-sync-phase={phase.phase}
+                      key={`${phase.phase}-${index}`}
+                    >
+                      <span>
+                        <Check /> {technicalPhaseLabel(phase.phase)}
+                      </span>
+                      <small>
+                        {phase.detail}
+                        {runTelemetry
+                          ? ` · ${formatDuration(phase.durationMs)}`
+                          : ""}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ) : null}
+
+            <div className="sync-ghost-row">
+              <button
+                type="button"
+                className="sync-ghost"
+                disabled={busy !== null}
+                onClick={() => {
+                  setBusy("diagnostics")
+                  void window.eidosLite
+                    .copyDiagnostics()
+                    .then(() => setDiagnosticsCopied(true))
+                    .catch((cause) =>
+                      showUnexpectedError(
+                        cause,
+                        "Could not copy diagnostics",
+                        "Open the logs folder and try again."
+                      )
+                    )
+                    .finally(() => setBusy(null))
+                }}
+              >
+                <Copy />{" "}
+                {diagnosticsCopied ? "Diagnostics copied" : "Copy diagnostics"}
+              </button>
+              <button
+                type="button"
+                className="sync-ghost"
+                disabled={busy !== null}
+                onClick={() =>
+                  void window.eidosLite.openSettingsDestination("logs")
+                }
+              >
+                <FolderDown /> Open logs
+              </button>
+              <button
+                type="button"
+                className="sync-ghost sync-sign-out"
+                disabled={busy !== null}
+                onClick={() => void signOut()}
+              >
+                <UserRound />
+                {busy === "sign-out" ? "Signing out…" : "Sign out"}
+              </button>
+            </div>
+          </section>
+        </details>
+      ) : null}
+    </div>
+  )
+  if (variant === "inspector" && mode === "enable") {
+    return renderInspector(
+      status.remote.state === "connected" ? undefined : setupContent
+    )
+  }
 
   return (
     <div
@@ -971,637 +1601,7 @@ export function SyncPanel({
           </div>
         </header>
 
-        <div className="sync-dialog-body" data-sync-tone={overview.tone}>
-          <section
-            className="sync-hero"
-            data-sync-overview={overview.tone}
-            data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
-            {...(syncFailure
-              ? {
-                  "data-sync-failure": syncFailure.code,
-                  "data-sync-failure-state": syncFailure.state,
-                  "data-sync-failure-action": syncFailure.action,
-                  "data-sync-local-safe": "true",
-                }
-              : {})}
-            aria-live="polite"
-          >
-            <span className="sync-hero-icon" aria-hidden="true">
-              <overview.icon className={overview.spin ? "spin" : undefined} />
-            </span>
-            <div className="sync-hero-copy">
-              <h2>{overview.title}</h2>
-              {overview.message ? <p>{overview.message}</p> : null}
-              {direction ? (
-                <span className="sync-direction">
-                  {direction.upload > 0 ? (
-                    <span
-                      className="sync-direction-item"
-                      data-sync-direction="upload"
-                    >
-                      <ArrowUp /> {direction.upload} to upload
-                    </span>
-                  ) : null}
-                  {direction.download > 0 ? (
-                    <span
-                      className="sync-direction-item"
-                      data-sync-direction="download"
-                    >
-                      <ArrowDown /> {direction.download} to download
-                    </span>
-                  ) : null}
-                </span>
-              ) : null}
-              {heroMeta ? (
-                <small className="sync-hero-meta">{heroMeta}</small>
-              ) : null}
-              {syncFailure ? (
-                <small className="sync-local-safe">
-                  <HardDrive /> Local files safe
-                </small>
-              ) : null}
-            </div>
-          </section>
-
-          {status.entitlement.state === "read-only" ? (
-            <div
-              className="sync-readonly-notice"
-              data-sync-readonly
-              role="status"
-            >
-              <AlertTriangle aria-hidden="true" />
-              <div>
-                <strong>{t("Sync writes are paused")}</strong>
-                <p>
-                  {t(
-                    "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="primary-action"
-                disabled={busy !== null}
-                onClick={() => void openHelp("account")}
-              >
-                <UserRound /> {t("Manage Sync access")}
-              </button>
-            </div>
-          ) : null}
-
-          {loadError ? (
-            <div className="sync-actions">
-              <button
-                type="button"
-                className="primary-action"
-                onClick={() =>
-                  loadError.kind === "session-expired" ||
-                  status.account.state === "signed-out"
-                    ? void signIn()
-                    : setReloadKey((current) => current + 1)
-                }
-                disabled={busy !== null}
-              >
-                {loadError.kind === "session-expired" ||
-                status.account.state === "signed-out" ? (
-                  <LogIn />
-                ) : (
-                  <RefreshCw />
-                )}
-                {loadError.kind === "session-expired"
-                  ? "Sign in again"
-                  : status.account.state === "signed-out"
-                    ? "Sign in"
-                    : "Try again"}
-              </button>
-            </div>
-          ) : null}
-
-          {syncFailure && !loadError ? (
-            <div className="sync-actions">
-              {syncFailure.action !== "retry-now" &&
-              syncFailure.action !== "work-locally" ? (
-                <button
-                  type="button"
-                  className="primary-action"
-                  data-sync-failure-primary-action
-                  disabled={
-                    busy !== null ||
-                    (syncFailure.action === "clone-hosted" &&
-                      mode !== "clone" &&
-                      !onRequestClone) ||
-                    (syncFailure.action === "review-local" && !onReviewLocal)
-                  }
-                  onClick={() => void runFailureAction()}
-                >
-                  {busy === "help" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <FailureActionIcon action={syncFailure.action} />
-                  )}
-                  {syncFailure.actionLabel}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className={
-                  syncFailure.action !== "retry-now" &&
-                  syncFailure.action !== "work-locally"
-                    ? "secondary-action"
-                    : "primary-action"
-                }
-                data-sync-failure-retry
-                {...(syncFailure.action === "retry-now" ||
-                syncFailure.action === "work-locally"
-                  ? { "data-sync-failure-primary-action": "" }
-                  : {})}
-                disabled={busy !== null}
-                onClick={() => void retryFailure()}
-              >
-                {busy === "sync" || busy === "enable" || busy === "clone" ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <RefreshCw />
-                )}
-                Try again
-              </button>
-            </div>
-          ) : null}
-
-          {syncProgress?.state === "active" ? (
-            <>
-              <OperationProgress
-                progress={syncProgress}
-                elapsedMs={syncElapsedMs}
-              />
-              <div className="sync-actions">
-                <button
-                  type="button"
-                  className="secondary-action sync-keep-working"
-                  data-sync-keep-working
-                  onClick={onClose}
-                >
-                  {mode === "clone" ? "Continue in background" : "Keep working"}
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {!syncFailure && !loadError && !spaceStatusPending ? (
-            <>
-              {!signedIn ? (
-                <div className="sync-actions">
-                  <button
-                    type="button"
-                    className="primary-action sync-sign-in"
-                    data-sync-sign-in
-                    disabled={busy !== null || checking}
-                    onClick={() => void signIn()}
-                  >
-                    {busy === "sign-in" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <LogIn />
-                    )}
-                    {busy === "sign-in"
-                      ? "Waiting for your browser…"
-                      : "Sign in to continue"}
-                  </button>
-                </div>
-              ) : null}
-
-              {mode === "enable" &&
-              signedIn &&
-              status.remote.state === "not-connected" ? (
-                <>
-                  {status.canEnable ? (
-                    <SyncSafetyReview
-                      preflight={preflight}
-                      confirmWarnings={confirmWarnings}
-                      onConfirmWarnings={setConfirmWarnings}
-                    />
-                  ) : null}
-                  <div className="sync-actions">
-                    {status.canEnable ? (
-                      <button
-                        type="button"
-                        className="primary-action sync-enable"
-                        data-sync-enable
-                        disabled={
-                          busy !== null ||
-                          operationsBlocked ||
-                          !preflight ||
-                          preflight.blockerCount > 0 ||
-                          (preflight.warningCount > 0 && !confirmWarnings)
-                        }
-                        onClick={() => void enableSync()}
-                      >
-                        {busy === "enable" ? (
-                          <LoaderCircle className="spin" />
-                        ) : (
-                          <CloudUpload />
-                        )}
-                        {busy === "enable"
-                          ? "Connecting this Space…"
-                          : "Connect this Space"}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="primary-action"
-                        disabled={busy !== null || operationsBlocked}
-                        onClick={() => void openHelp("account")}
-                      >
-                        <UserRound /> Manage account
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : null}
-
-              {mode === "enable" &&
-              signedIn &&
-              status.remote.state === "connected" ? (
-                <div className="sync-actions sync-explicit-actions">
-                  <button
-                    type="button"
-                    className="secondary-action sync-check-remote"
-                    data-sync-run
-                    disabled={busy !== null || operationsBlocked}
-                    title="Fetch remote history without changing local files."
-                    onClick={() => void syncNow("fetch")}
-                  >
-                    <RefreshCw /> Check remote updates
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      syncHistory?.state === "behind"
-                        ? "primary-action"
-                        : "secondary-action"
-                    }
-                    data-sync-pull
-                    hidden={!syncHistory?.behind}
-                    disabled={
-                      busy !== null ||
-                      operationsBlocked ||
-                      hasUncheckpointedChanges ||
-                      !syncHistory?.behind ||
-                      mergeActive
-                    }
-                    title="Receive remote versions. Review and save local changes first."
-                    onClick={() => void syncNow("pull")}
-                  >
-                    <CloudDownload /> Receive updates
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      syncHistory?.state === "ahead"
-                        ? "primary-action"
-                        : "secondary-action"
-                    }
-                    data-sync-push
-                    hidden={
-                      !syncHistory?.ahead ||
-                      !!syncHistory.behind ||
-                      status.entitlement.state !== "read-write" ||
-                      storageBlocksCurrentUpload
-                    }
-                    disabled={
-                      busy !== null ||
-                      operationsBlocked ||
-                      storageBlocksCurrentUpload ||
-                      status.entitlement.state !== "read-write" ||
-                      !syncHistory?.ahead ||
-                      !!syncHistory.behind
-                    }
-                    title="Upload saved versions only. Local file changes will not be saved as a version."
-                    onClick={() => void syncNow("push")}
-                  >
-                    <CloudUpload /> Upload versions
-                  </button>
-                  {hasUncheckpointedChanges ? (
-                    <button
-                      type="button"
-                      className={
-                        syncHistory?.behind
-                          ? "primary-action"
-                          : "secondary-action"
-                      }
-                      data-sync-review-local
-                      disabled={
-                        busy !== null || operationsBlocked || !onReviewLocal
-                      }
-                      onClick={onReviewLocal}
-                    >
-                      <FileWarning /> Review changes
-                    </button>
-                  ) : null}
-                  {storageBlocksCurrentUpload ? (
-                    <button
-                      type="button"
-                      className="primary-action"
-                      data-sync-manage-storage
-                      disabled={busy !== null}
-                      onClick={() => void openHelp("account")}
-                    >
-                      <UserRound /> Manage storage
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {mode === "clone" && signedIn && status.canClone ? (
-                <RepositoryPicker
-                  repositories={repositories}
-                  busy={busy}
-                  disabled={operationsBlocked}
-                  selectedRepository={selectedRepository}
-                  onSelect={(repository) => void cloneRepository(repository)}
-                />
-              ) : null}
-            </>
-          ) : null}
-
-          {mode === "enable" &&
-          signedIn &&
-          status.remote.state === "connected" ? (
-            <details className="sync-more" data-sync-version-summary>
-              <summary>
-                <ChevronRight /> Version details
-              </summary>
-              <p className="sync-caption">
-                {hasUncheckpointedChanges
-                  ? "Local file changes have not been saved as a version."
-                  : "No local file changes waiting to be saved."}
-              </p>
-              <div className="sync-stat-grid">
-                <div>
-                  <strong>
-                    {syncHistory && syncHistory.state !== "unknown"
-                      ? syncHistory.ahead
-                      : "—"}
-                  </strong>
-                  <span>Versions to upload</span>
-                </div>
-                <div>
-                  <strong>
-                    {syncHistory?.checkedAtMs && syncHistory.state !== "unknown"
-                      ? syncHistory.behind
-                      : "—"}
-                  </strong>
-                  <span>Versions to receive</span>
-                </div>
-              </div>
-              <p className="sync-caption">
-                {syncHistory?.checkedAtMs ? (
-                  <>
-                    <span>Last checked</span>:{" "}
-                    {new Date(syncHistory.checkedAtMs).toLocaleString()}
-                  </>
-                ) : (
-                  "Remote history has not been checked."
-                )}
-              </p>
-              {syncHistory?.state === "diverged" ? (
-                <p className="sync-caption">
-                  Receive and merge remote updates below before uploading local
-                  versions.
-                </p>
-              ) : null}
-            </details>
-          ) : null}
-
-          {(syncResult?.state === "conflict" ||
-            syncHistory?.state === "diverged") &&
-          status.remote.state === "connected" ? (
-            <SyncMergeWorkspace
-              onStatusChange={(merge) => {
-                setMergeActive(merge.state === "merging")
-                onMergeStatusChange?.(merge)
-              }}
-              onReviewMerge={onReviewMerge}
-              onSpaceChange={onSpaceChange}
-            />
-          ) : null}
-
-          {syncResult?.state === "conflict" ||
-          syncHistory?.state === "diverged" ? (
-            <details className="sync-more sync-section" data-sync-recovery>
-              <summary>
-                <ChevronRight /> Recovery copies
-              </summary>
-              <p className="sync-caption">
-                {mergeActive
-                  ? "Abort the active merge before creating Recovery Spaces."
-                  : "These copies will not merge or overwrite either side."}
-              </p>
-              <div className="sync-stat-grid">
-                <div>
-                  <strong data-sync-local-ahead>
-                    {syncResult?.ahead ?? syncHistory?.ahead ?? 0}
-                  </strong>
-                  <span>Local-only updates</span>
-                </div>
-                <div>
-                  <strong data-sync-hosted-ahead>
-                    {syncResult?.behind ?? syncHistory?.behind ?? 0}
-                  </strong>
-                  <span>Cloud-only updates</span>
-                </div>
-              </div>
-              <div className="sync-actions sync-recovery-actions">
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-recover-local
-                  disabled={busy !== null || mergeActive}
-                  onClick={() => void recoverLocal()}
-                >
-                  {busy === "recover-local" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <Copy />
-                  )}
-                  {busy === "recover-local"
-                    ? "Creating local copy…"
-                    : "Keep a local copy"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-recover-hosted
-                  disabled={busy !== null || mergeActive}
-                  onClick={() => void recoverHosted()}
-                >
-                  {busy === "recover-hosted" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <FolderDown />
-                  )}
-                  {busy === "recover-hosted"
-                    ? "Creating cloud copy…"
-                    : "Open a cloud copy"}
-                </button>
-              </div>
-            </details>
-          ) : null}
-
-          {recoveryResult ? (
-            <section
-              className="sync-inline-result"
-              data-sync-recovery-result={recoveryResult.kind}
-              role="status"
-            >
-              <CheckCircle2 />
-              <div>
-                <strong>
-                  {recoveryResult.kind === "local-copy"
-                    ? "Local Recovery Space created"
-                    : "Cloud Recovery Space opened"}
-                </strong>
-                <p>
-                  {recoveryResult.name} opened in a new window. Its folder is{" "}
-                  {recoveryResult.displayPath}.
-                </p>
-              </div>
-            </section>
-          ) : null}
-
-          {signedIn ? (
-            <details
-              className="sync-more sync-account-details"
-              open={storageNeedsAttention || undefined}
-            >
-              <summary>
-                <ChevronRight /> Account and storage
-              </summary>
-              {mode === "enable" ? (
-                <SyncStorageSection
-                  storage={storage}
-                  storageState={storageState}
-                  spaceBytes={preflight?.totalBytes ?? spaceBytes}
-                  spaceSizeState={spaceSizeState}
-                  blocksUpload={storageBlocksCurrentUpload}
-                  managing={busy === "help"}
-                  onManageStorage={
-                    storageNeedsAttention || storageBlocksCurrentUpload
-                      ? () => void openHelp("account")
-                      : undefined
-                  }
-                />
-              ) : null}
-
-              <section className="sync-section sync-about" data-sync-details>
-                <div className="sync-section-head">
-                  <h3>Connection</h3>
-                </div>
-                <dl className="sync-kv">
-                  <div>
-                    <dt>Account</dt>
-                    <dd>{accountName}</dd>
-                  </div>
-                  <div>
-                    <dt>Access</dt>
-                    <dd>{accessLabel(status)}</dd>
-                  </div>
-                  <div>
-                    <dt>Cloud</dt>
-                    <dd>
-                      {status.remote.state === "connected"
-                        ? "Connected"
-                        : "Not connected"}
-                    </dd>
-                  </div>
-                  {!storage && status.entitlement.quotaBytes !== undefined ? (
-                    <div>
-                      <dt>Cloud storage</dt>
-                      <dd>Usage temporarily unavailable</dd>
-                    </div>
-                  ) : null}
-                </dl>
-
-                {visiblePhases.length > 0 ? (
-                  <details className="sync-more sync-diagnostics">
-                    <summary>
-                      <ChevronRight /> Last operation
-                      <span>
-                        {formatDuration(
-                          runTelemetry?.durationMs ?? syncElapsedMs
-                        )}
-                      </span>
-                    </summary>
-                    <ol>
-                      {visiblePhases.map((phase, index) => (
-                        <li
-                          data-sync-phase={phase.phase}
-                          key={`${phase.phase}-${index}`}
-                        >
-                          <span>
-                            <Check /> {technicalPhaseLabel(phase.phase)}
-                          </span>
-                          <small>
-                            {phase.detail}
-                            {runTelemetry
-                              ? ` · ${formatDuration(phase.durationMs)}`
-                              : ""}
-                          </small>
-                        </li>
-                      ))}
-                    </ol>
-                  </details>
-                ) : null}
-
-                <div className="sync-ghost-row">
-                  <button
-                    type="button"
-                    className="sync-ghost"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      setBusy("diagnostics")
-                      void window.eidosLite
-                        .copyDiagnostics()
-                        .then(() => setDiagnosticsCopied(true))
-                        .catch((cause) =>
-                          showUnexpectedError(
-                            cause,
-                            "Could not copy diagnostics",
-                            "Open the logs folder and try again."
-                          )
-                        )
-                        .finally(() => setBusy(null))
-                    }}
-                  >
-                    <Copy />{" "}
-                    {diagnosticsCopied
-                      ? "Diagnostics copied"
-                      : "Copy diagnostics"}
-                  </button>
-                  <button
-                    type="button"
-                    className="sync-ghost"
-                    disabled={busy !== null}
-                    onClick={() =>
-                      void window.eidosLite.openSettingsDestination("logs")
-                    }
-                  >
-                    <FolderDown /> Open logs
-                  </button>
-                  <button
-                    type="button"
-                    className="sync-ghost sync-sign-out"
-                    disabled={busy !== null}
-                    onClick={() => void signOut()}
-                  >
-                    <UserRound />
-                    {busy === "sign-out" ? "Signing out…" : "Sign out"}
-                  </button>
-                </div>
-              </section>
-            </details>
-          ) : null}
-        </div>
+        {setupContent}
       </aside>
     </div>
   )

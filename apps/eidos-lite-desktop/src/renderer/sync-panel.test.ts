@@ -1277,67 +1277,95 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).toContain("Cloud Recovery Space opened")
   })
 
-  it("requires explicit review of the whole-Space manifest before first push", async () => {
-    const enableStatus: EidosSyncStatus = {
-      ...status,
-      remote: { state: "not-connected" },
-      canEnable: true,
-    }
-    const enableSync = vi.fn().mockResolvedValue({
-      ok: true,
-      status,
-      telemetry: {
-        startedAtMs: 100,
-        completedAtMs: 120,
-        durationMs: 20,
-        phases: [],
-      },
-    })
-    const api = {
-      getSyncStatus: vi.fn().mockResolvedValue(enableStatus),
-      getSyncPreflight: vi.fn().mockResolvedValue(preflight),
-      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
-      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
-      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
-      enableSync,
-    } as unknown as EidosLiteApi
-    Object.defineProperty(window, "eidosLite", {
-      configurable: true,
-      value: api,
-    })
+  it.each(["dialog", "inspector"] as const)(
+    "requires explicit review of the whole-Space manifest before first push (%s)",
+    async (variant) => {
+      const enableStatus: EidosSyncStatus = {
+        ...status,
+        remote: { state: "not-connected" },
+        canEnable: true,
+      }
+      const enableSync = vi.fn().mockResolvedValue({
+        ok: true,
+        status,
+        telemetry: {
+          startedAtMs: 100,
+          completedAtMs: 120,
+          durationMs: 20,
+          phases: [],
+        },
+      })
+      const api = {
+        getSyncStatus: vi.fn().mockResolvedValue(enableStatus),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        enableSync,
+      } as unknown as EidosLiteApi
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: api,
+      })
 
-    await act(async () => {
-      root.render(
-        createElement(SyncPanel, {
-          mode: "enable",
-          onClose: () => undefined,
-        })
+      await act(async () => {
+        root.render(
+          createElement(SyncPanel, {
+            mode: "enable",
+            variant,
+            onClose: () => undefined,
+          })
+        )
+      })
+
+      if (variant === "inspector") {
+        expect(host.querySelector('[data-sync-setup="true"]')).not.toBeNull()
+        expect(host.querySelector(".sync-account-details")).toBeNull()
+        expect(host.querySelector(".sync-inspector-empty")).toBeNull()
+        const account = host.querySelector<HTMLButtonElement>(
+          ".sync-account-meter"
+        )
+        await act(async () => account?.click())
+        expect(
+          host.querySelector(".sync-inspector-settings")?.textContent
+        ).toContain("Manage account")
+        await act(async () =>
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+          )
+        )
+      }
+
+      const scope = host.querySelector<HTMLElement>("[data-sync-preflight]")
+      const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
+      expect(scope?.textContent).toContain("4 files")
+      expect(scope?.textContent).toContain("120 MiB")
+      expect(scope?.textContent).toContain(".env.local")
+      expect(enable?.disabled).toBe(true)
+
+      const confirm = host.querySelector<HTMLInputElement>(
+        "[data-sync-preflight-confirm]"
       )
-    })
+      await act(async () => {
+        confirm?.click()
+      })
+      expect(enable?.disabled).toBe(false)
 
-    const scope = host.querySelector<HTMLElement>("[data-sync-preflight]")
-    const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
-    expect(scope?.textContent).toContain("4 files")
-    expect(scope?.textContent).toContain("120 MiB")
-    expect(scope?.textContent).toContain(".env.local")
-    expect(enable?.disabled).toBe(true)
-
-    const confirm = host.querySelector<HTMLInputElement>(
-      "[data-sync-preflight-confirm]"
-    )
-    await act(async () => {
-      confirm?.click()
-    })
-    expect(enable?.disabled).toBe(false)
-
-    await act(async () => {
-      enable?.click()
-    })
-    expect(enableSync).toHaveBeenCalledWith({
-      manifestId: preflight.manifestId,
-      confirmWarnings: true,
-    })
-  })
+      await act(async () => {
+        enable?.click()
+      })
+      expect(enableSync).toHaveBeenCalledWith({
+        manifestId: preflight.manifestId,
+        confirmWarnings: true,
+      })
+      if (variant === "inspector") {
+        expect(host.querySelector('[data-sync-design="b"]')).not.toBeNull()
+        expect(host.querySelector('[data-sync-setup="true"]')).toBeNull()
+        expect(host.querySelector("[data-sync-preflight]")).toBeNull()
+        expect(host.querySelector(".sync-account-meter")).not.toBeNull()
+      }
+    }
+  )
 
   it("shows user-facing progress while connecting a Space", async () => {
     const enableStatus: EidosSyncStatus = {
