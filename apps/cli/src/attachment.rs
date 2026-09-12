@@ -288,12 +288,14 @@ fn attachment_file_context(file: &Path, create_assets: bool) -> Result<Attachmen
         .to_path_buf();
     let asset_root = root.join("assets");
     if create_assets && !asset_root.exists() {
-        let mut builder = fs::DirBuilder::new();
+        let builder = fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use std::os::unix::fs::DirBuilderExt;
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         match builder.create(&asset_root) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
