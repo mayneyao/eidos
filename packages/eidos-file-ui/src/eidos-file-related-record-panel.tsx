@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowMutationResult,
+  EidosFileRowPageProjection,
+  EidosFileRowQuery,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   FileEntry,
@@ -29,6 +31,10 @@ export interface EidosFileRelatedRecordPanelProps {
   presentation?: "panel" | "page"
   /** Switch between the side panel and the full content page. */
   onPresentationToggle?: () => void
+  /** Active view query used to resolve previous and next Records. */
+  query?: EidosFileRowQuery
+  /** Ask the Host to open a neighbouring Record in the same query order. */
+  onNavigate?: (rowId: string) => void
   disabled?: boolean
   onClose: () => void
   onMutation?: (result: EidosFileRowMutationResult) => void
@@ -47,6 +53,8 @@ export function EidosFileRelatedRecordPanel({
   target,
   presentation,
   onPresentationToggle,
+  query,
+  onNavigate,
   disabled = false,
   onClose,
   onMutation,
@@ -97,6 +105,66 @@ export function EidosFileRelatedRecordPanel({
     [onMutation, replaceInspectorRow, source, table.table.id, target.rowId]
   )
 
+  const labelField =
+    table.fields.find((field) => field.isRecordLabel === true) ?? null
+  const neighborProjection = useMemo<EidosFileRowPageProjection>(
+    () => ({
+      columns: labelField ? [labelField.tableColumnName] : [],
+      includeRecordLabel: true,
+      includeRelationDisplays: false,
+    }),
+    [labelField]
+  )
+  const [recordPosition, setRecordPosition] = useState<{
+    index: number
+    total: number
+  } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    const getRowIndex = source.getRowIndex
+    if (!query || !onNavigate || !getRowIndex) {
+      setRecordPosition(null)
+      return
+    }
+    void (async () => {
+      try {
+        const index = await getRowIndex(table.table.id, target.rowId, query)
+        if (!active) return
+        if (index === null) {
+          setRecordPosition(null)
+          return
+        }
+        const page = await source.getPage(table.table.id, 0, 1, query)
+        if (!active) return
+        setRecordPosition({ index, total: page.total })
+      } catch {
+        if (active) setRecordPosition(null)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [onNavigate, query, source, table.table.id, target.rowId])
+
+  const navigateNeighbor = useCallback(
+    (offset: number) => async () => {
+      if (!query || !onNavigate) return
+      const page = await source.getPage(
+        table.table.id,
+        offset,
+        1,
+        query,
+        undefined,
+        undefined,
+        neighborProjection
+      )
+      const row = page.rows[0]
+      if (row) onNavigate(String(row._id))
+    },
+    [neighborProjection, onNavigate, query, source, table.table.id]
+  )
+
   if (!inspectedRow) return null
 
   const contentField = eidosFileContentField(table)
@@ -120,6 +188,16 @@ export function EidosFileRelatedRecordPanel({
       loading={inspectorLoading}
       loadError={inspectorLoadError}
       onRetryLoad={retryInspectorRow}
+      onPreviousRecord={
+        recordPosition && recordPosition.index > 0
+          ? navigateNeighbor(recordPosition.index - 1)
+          : undefined
+      }
+      onNextRecord={
+        recordPosition && recordPosition.index < recordPosition.total - 1
+          ? navigateNeighbor(recordPosition.index + 1)
+          : undefined
+      }
       onClose={() => {
         closeInspectorRow()
         onClose()

@@ -98,4 +98,56 @@ describe("EidosFileRelatedRecordPanel", () => {
     })
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it("navigates to neighbours in the active query order", async () => {
+    const getRow = vi.fn(async (rowId: string) => ({
+      _id: rowId,
+      name: `Row ${rowId}`,
+    }))
+    const getRowIndex = vi.fn(async () => 1)
+    const getPage = vi.fn(async (_tableId: string, offset: number) => ({
+      tableId: "people",
+      offset,
+      limit: 1,
+      total: 3,
+      rows: [
+        { _id: offset === 2 ? "next-id" : "previous-id", name: "Neighbour" },
+      ],
+    }))
+    const onNavigate = vi.fn()
+    const source = {
+      getRow,
+      getRowIndex,
+      getPage,
+      updateRow: vi.fn(),
+    } as unknown as EidosFileEditorDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileRelatedRecordPanel
+          source={source}
+          table={table}
+          target={{ tableId: "people", rowId: ADA_ID, title: "Ada Lovelace" }}
+          query={{}}
+          onNavigate={onNavigate}
+          onClose={vi.fn()}
+        />
+      )
+    })
+
+    await vi.waitFor(() => {
+      expect(
+        container.querySelector('[aria-label="Next record"]')
+      ).not.toBeNull()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Next record"]')
+        ?.click()
+    })
+    await vi.waitFor(() => {
+      expect(getRowIndex).toHaveBeenCalledWith("people", ADA_ID, {})
+      expect(onNavigate).toHaveBeenCalledWith("next-id")
+    })
+  })
 })

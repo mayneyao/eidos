@@ -507,6 +507,10 @@ interface EidosFileRelatedRecordPanelProps {
   presentation?: "panel" | "page";
   /** Switch between the side panel and the full content page. */
   onPresentationToggle?: () => void;
+  /** Active view query used to resolve previous and next Records. */
+  query?: EidosFileRowQuery;
+  /** Ask the Host to open a neighbouring Record in the same query order. */
+  onNavigate?: (rowId: string) => void;
   disabled?: boolean;
   onClose: () => void;
   onMutation?: (result: EidosFileRowMutationResult) => void;
@@ -521,6 +525,8 @@ declare function EidosFileRelatedRecordPanel({
   target,
   presentation,
   onPresentationToggle,
+  query,
+  onNavigate,
   disabled,
   onClose,
   onMutation,
