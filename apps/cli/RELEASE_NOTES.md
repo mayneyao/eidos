@@ -1,22 +1,11 @@
-## What's new
+## Bug fixes
 
-### Automate File-field attachments
-
-Use `eidos attachment import`, `attach`, `detach`, and `verify` to manage attachments from scripts and agents. Revision checks protect writes, and verification checks referenced files before you share or publish a file.
-
-### Apply richer schema changes with an agent
-
-Update tables, fields, and relations through revision-checked schema operations. Conversion preflight reports the planned impact, while schema batches resolve logical names so agents can build related structures without manually stitching together IDs.
+- **Serve Content images**: Record Content pages now resolve relative Markdown and HTML image paths through the mounted asset directory, so local images display in the browser editor opened by `eidos serve`.
+- **Multi-select conversion**: Converting Text containing a JSON string array now preserves its individual choices. Plain text stays a single choice, and duplicate choices are still rejected.
 
 ## Improvements
 
-- **Serve editor**: Refine record pages, add side-panel record navigation, support copying read-only field values, and simplify Formula result previews.
-- **Structured fields**: Use field-specific search and filter capabilities, preserve Integer values during CSV handling, and support pasting Relation values.
-
-## Bug fixes
-
-- **Relation lookups**: Preserve relation result types, display linked record labels, and navigate to the correct target record in Serve.
-- **Validation**: Detect invalid reserved field indexes and validate optional Markdown content fields.
+- **Serve attachment preview**: Copy an image directly from its attachment preview. Open, download, and copy actions use compact labels and keep their layout stable while copying.
 
 ## Use with an Agent
 
@@ -41,4 +30,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.1.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.1.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
