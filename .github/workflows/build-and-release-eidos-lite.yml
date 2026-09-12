@@ -182,8 +182,7 @@ jobs:
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:publish-engine
           pnpm --filter @eidos.space/eidos-lite-desktop exec electron-builder \
             --publish never \
-            --config electron-builder.json \
-            --config.mac.notarize.teamId="$APPLE_TEAM_ID"
+            --config electron-builder.json
 
       - name: Build unsigned Windows release
         if: matrix.platform == 'win'

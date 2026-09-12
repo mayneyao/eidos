@@ -7,8 +7,10 @@
   },
   "linux": {
     "desktop": {
-      "Name": "Eidos Lite",
-      "StartupWMClass": "Eidos Lite"
+      "entry": {
+        "Name": "Eidos Lite",
+        "StartupWMClass": "Eidos Lite"
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -18,6 +19,37 @@ async function readJson(
 }
 
 describe("Eidos Lite package identity", () => {
+  it.each([
+    "electron-builder.json",
+    "electron-builder.dev.json",
+    "electron-builder.linux.json",
+  ])("validates %s with the installed packager schema", async (configPath) => {
+    const packageRequire = createRequire(path.join(appRoot, "package.json"))
+    const builderRequire = createRequire(
+      packageRequire.resolve("electron-builder")
+    )
+    const { getConfig, validateConfiguration } = builderRequire(
+      "app-builder-lib/out/util/config/config.js"
+    ) as {
+      getConfig(
+        projectDir: string,
+        configPath: string,
+        overrides: undefined
+      ): Promise<Record<string, unknown>>
+      validateConfiguration(
+        config: Record<string, unknown>,
+        logger: unknown
+      ): Promise<void>
+    }
+    const { DebugLogger } = builderRequire("builder-util") as {
+      DebugLogger: new () => unknown
+    }
+    const config = await getConfig(appRoot, configPath, undefined)
+    await expect(
+      validateConfiguration(config, new DebugLogger())
+    ).resolves.toBeUndefined()
+  })
+
   it("allows the renderer to fetch tokenized local media previews", async () => {
     const html = await fs.readFile(path.resolve(appRoot, "index.html"), "utf8")
 
@@ -65,8 +97,10 @@ describe("Eidos Lite package identity", () => {
       extraMetadata: { productName: "Eidos Lite" },
       linux: {
         desktop: {
-          Name: "Eidos Lite",
-          StartupWMClass: "Eidos Lite",
+          entry: {
+            Name: "Eidos Lite",
+            StartupWMClass: "Eidos Lite",
+          },
         },
       },
     })
@@ -287,10 +321,13 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain('- "lite-v*"')
     expect(workflow).toContain("pnpm build:eidos-lite:release")
     expect(workflow).toContain("Build signed and notarized macOS release")
-    expect(workflow).toContain('--config.mac.notarize.teamId="$APPLE_TEAM_ID"')
+    expect(workflow).not.toContain("--config.mac.notarize.")
     const macReleaseStep = workflow.match(
       /- name: Build signed and notarized macOS release[\s\S]*?(?=\n\s+- name:)/
     )?.[0]
+    expect(macReleaseStep).toContain(
+      "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}"
+    )
     expect(macReleaseStep).toContain("prepare:publish-engine")
     expect(macReleaseStep?.indexOf("prepare:publish-engine")).toBeLessThan(
       macReleaseStep?.indexOf("electron-builder") ?? -1
