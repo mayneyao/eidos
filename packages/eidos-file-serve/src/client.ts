@@ -692,6 +692,14 @@ export class EidosFileHttpClient {
     return this.requireEditor().getGroupCounts(...args)
   }
 
+  getRecordNeighbors(
+    ...args: Parameters<
+      NonNullable<EidosFileEditorDataSource["getRecordNeighbors"]>
+    >
+  ) {
+    return this.requireEditor().getRecordNeighbors(...args)
+  }
+
   calculateColumnStats(
     ...args: Parameters<EidosFileEditorDataSource["calculateColumnStats"]>
   ) {

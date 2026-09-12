@@ -38,7 +38,7 @@ describe("browser record content integration", () => {
         root.render(
           <EidosFileUIProvider
             themeName="dark"
-            contentImageBaseUrl="http://localhost:8420/api/assets/"
+            contentImageBaseUrl="/api/assets/"
           >
             <RecordContentProvider>
               <Probe />
@@ -59,7 +59,7 @@ describe("browser record content integration", () => {
       editor.props?.onMarkdownChange("edited")
       expect(onChange).toHaveBeenCalledWith("edited")
       expect(await context?.resolveMarkdownImageUrl?.("./photo.png")).toBe(
-        "http://localhost:8420/api/assets/photo.png"
+        new URL("/api/assets/photo.png", window.location.href).href
       )
       expect(
         await context?.resolveMarkdownImageUrl?.("javascript:alert(1)")

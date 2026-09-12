@@ -238,6 +238,14 @@ export class EidosFileWorkerClient {
     return this.requireEditor().calculateColumnStats(...args)
   }
 
+  getRecordNeighbors(
+    ...args: Parameters<
+      NonNullable<EidosFileEditorDataSource["getRecordNeighbors"]>
+    >
+  ) {
+    return this.requireEditor().getRecordNeighbors(...args)
+  }
+
   previewFormula(
     ...args: Parameters<
       NonNullable<EidosFileEditorDataSource["previewFormula"]>

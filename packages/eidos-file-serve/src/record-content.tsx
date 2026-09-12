@@ -61,7 +61,8 @@ export function RecordContentProvider({ children }: { children: ReactNode }) {
       if (resolved) return resolved
       if (!contentImageBaseUrl) return null
       try {
-        const url = new URL(markdownUrl, contentImageBaseUrl)
+        const base = new URL(contentImageBaseUrl, window.location.href)
+        const url = new URL(markdownUrl, base)
         return ["http:", "https:"].includes(url.protocol) ? url.href : null
       } catch {
         return null

@@ -1056,6 +1056,14 @@ test("record content uses rich editing and retains its draft after save and reop
   await editor.press("Control+s")
   await expect(editor).toBeEditable()
   await expect(editor).toContainText("Rich content parity regression")
+  await page.getByRole("button", { name: "Next record", exact: true }).click()
+  await expect(
+    page.locator("[data-eidos-file-record-title]")
+  ).not.toContainText("Feature Lab launch")
+  await page
+    .getByRole("button", { name: "Previous record", exact: true })
+    .click()
+  await expect(editor).toContainText("Rich content parity regression")
   await page
     .getByRole("button", { name: "Open in side panel", exact: true })
     .click()
