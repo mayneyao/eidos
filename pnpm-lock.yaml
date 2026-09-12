@@ -623,6 +623,9 @@ importers:
       '@eidos.space/eidos-file-ui':
         specifier: workspace:*
         version: link:../eidos-file-ui
+      '@eidos.space/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       lucide-react:
         specifier: ^0.471.2
         version: 0.471.2(react@18.3.1)

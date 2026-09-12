@@ -1018,6 +1018,60 @@ test("opens every template with Chinese schema and sample data", async ({
   }
 })
 
+test("record content uses rich editing and retains its draft after save and reopen", async ({
+  page,
+}) => {
+  await installFallbackMode(page)
+  await page.goto("/")
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await page
+    .getByRole("tab", { name: "Experiments", exact: true })
+    .click({ button: "right" })
+  await page
+    .getByRole("menuitem", { name: "Table settings", exact: true })
+    .click()
+  const settings = page.getByRole("dialog", { name: "Table settings" })
+  await settings.getByRole("combobox").nth(1).click()
+  await page.getByRole("option", { name: "Summary", exact: true }).click()
+  await settings.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(settings).not.toBeVisible()
+  await page.getByRole("tab", { name: "Lab gallery", exact: true }).click()
+  const card = page
+    .locator("[data-eidos-file-gallery-scroll]")
+    .getByRole("listitem")
+    .filter({ hasText: "Feature Lab launch" })
+    .first()
+  await card.locator("h3").click()
+  await page
+    .getByRole("button", { name: "Open as full page", exact: true })
+    .click()
+  const editor = page.locator(
+    '[data-eidos-file-record-content] [contenteditable="true"]'
+  )
+  await expect(editor).toBeVisible()
+  await expect(
+    page.locator('[data-eidos-file-markdown-source-editor="fallback"]')
+  ).toHaveCount(0)
+  await editor.fill("Rich content parity regression")
+  await editor.press("Control+s")
+  await expect(editor).toBeEditable()
+  await expect(editor).toContainText("Rich content parity regression")
+  await page
+    .getByRole("button", { name: "Open in side panel", exact: true })
+    .click()
+  await page
+    .getByRole("button", { name: "Close record details", exact: true })
+    .click()
+  await card.locator("h3").click()
+  await expect(
+    page.locator("[data-eidos-file-markdown-preview]")
+  ).toContainText("Rich content parity regression")
+  await page
+    .getByRole("button", { name: "Open as full page", exact: true })
+    .click()
+  await expect(editor).toContainText("Rich content parity regression")
+})
+
 test("loads Feature Lab with readable Relations and editable dependencies", async ({
   page,
   browserName,

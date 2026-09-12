@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
 
 import { eidosFileUiSourceAliases } from "../eidos-file-ui/vite-source-aliases"
+import { markdownEditorSourceAliases } from "../markdown/vite-source-aliases"
 
 function stripEmbeddedChunkTrailingWhitespace(): Plugin {
   const strip = (code: string) => code.replace(/[\t ]+$/gmu, "")
@@ -30,7 +31,7 @@ export default defineConfig({
   plugins: [tailwindcss(), react(), stripEmbeddedChunkTrailingWhitespace()],
   base: "./",
   resolve: {
-    alias: eidosFileUiSourceAliases(),
+    alias: [...eidosFileUiSourceAliases(), ...markdownEditorSourceAliases()],
   },
   build: {
     outDir: "../../apps/cli/qjs-host/ui",

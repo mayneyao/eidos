@@ -5,11 +5,9 @@ import type { EidosFileEditorViewProps } from "@eidos.space/eidos-file-ui/eidos-
 import { useI18n } from "../i18n"
 
 const EidosFileEditorView = lazy(() =>
-  import("@eidos.space/eidos-file-ui/eidos-file-editor-view").then(
-    (module) => ({
-      default: module.EidosFileEditorView,
-    })
-  )
+  import("@eidos.space/eidos-file-serve/record-view").then((module) => ({
+    default: module.BrowserEidosFileEditorView,
+  }))
 )
 
 interface SharedEidosFileEditorViewProps extends EidosFileEditorViewProps {

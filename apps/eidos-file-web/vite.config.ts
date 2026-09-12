@@ -9,6 +9,7 @@ import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
 
 import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
+import { markdownEditorSourceAliases } from "../../packages/markdown/vite-source-aliases"
 
 import {
   EIDOS_FILE_EXTENSION,
@@ -86,6 +87,7 @@ export default defineConfig({
   resolve: {
     alias: [
       ...eidosFileUiSourceAliases(),
+      ...markdownEditorSourceAliases(),
       {
         find: "@eidos.space/eidos-file/csv",
         replacement: path.resolve(

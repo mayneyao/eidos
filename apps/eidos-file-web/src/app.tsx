@@ -27,6 +27,7 @@ import {
   type EidosFileEditorShellProps,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import { RecordContentProvider } from "@eidos.space/eidos-file-serve/record-content"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
@@ -162,7 +163,9 @@ function ThemedEidosFileEditorShell({
 }: EidosFileEditorShellProps & { themeName: Theme }) {
   return (
     <EidosFileUIProvider themeName={themeName}>
-      <EidosFileEditorShell {...props} />
+      <RecordContentProvider>
+        <EidosFileEditorShell {...props} />
+      </RecordContentProvider>
     </EidosFileUIProvider>
   )
 }
