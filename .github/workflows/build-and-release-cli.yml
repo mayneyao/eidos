@@ -60,7 +60,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          audit_args=(--surface cli --tag "$TAG")
+          audit_args=(--surface cli --tag "$TAG" --unpublished-tag cli-v1.1.1)
           if [[ "$TAG" == "cli-v0.37.1" ]]; then
             audit_args+=(--unpublished-tag cli-v0.37.0)
           fi

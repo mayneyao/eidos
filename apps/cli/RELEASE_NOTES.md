@@ -30,4 +30,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.1.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.1.2 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
