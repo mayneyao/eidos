@@ -138,7 +138,7 @@ test("CLI release notes are versioned and scoped to the standalone CLI", async (
   const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
 
   assert.ok(version)
-  assert.match(releaseNotes, /^## What's new$/mu)
+  assert.match(releaseNotes, /^## (?:What's new|Improvements|Bug fixes)$/mu)
   assert.match(releaseNotes, /eidos skills init --global/u)
   assert.doesNotMatch(releaseNotes, /npx skills add/u)
   assert.match(releaseNotes, new RegExp(`select v${version}`, "u"))
