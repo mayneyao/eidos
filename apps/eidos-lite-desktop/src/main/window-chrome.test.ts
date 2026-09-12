@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   applyMacosTrafficLightPosition,
+  applyWindowsTitleBarOverlay,
   liteCompactWindowDefaultSize,
   liteWindowChromeOptions,
   macosTrafficLightPosition,
+  windowsTitleBarOverlay,
 } from "./window-chrome"
 
 describe("Eidos Lite window chrome", () => {
@@ -64,9 +66,40 @@ describe("Eidos Lite window chrome", () => {
       autoHideMenuBar: true,
       titleBarOverlay: {
         color: "#00000000",
+        symbolColor: "#2b3135",
         height: 40,
       },
     })
+  })
+
+  it("gives the Windows caption symbols a color that contrasts with the theme", () => {
+    expect(windowsTitleBarOverlay("light")).toEqual({
+      color: "#00000000",
+      symbolColor: "#2b3135",
+      height: 40,
+    })
+    expect(windowsTitleBarOverlay("dark").symbolColor).not.toBe(
+      windowsTitleBarOverlay("light").symbolColor
+    )
+  })
+
+  it("updates the Windows overlay with the active theme", () => {
+    const setTitleBarOverlay = vi.fn()
+
+    applyWindowsTitleBarOverlay({ setTitleBarOverlay }, "dark", "win32")
+
+    expect(setTitleBarOverlay).toHaveBeenCalledWith(
+      windowsTitleBarOverlay("dark")
+    )
+  })
+
+  it("does not touch the overlay API on macOS or Linux", () => {
+    const setTitleBarOverlay = vi.fn()
+
+    applyWindowsTitleBarOverlay({ setTitleBarOverlay }, "dark", "darwin")
+    applyWindowsTitleBarOverlay({ setTitleBarOverlay }, "dark", "linux")
+
+    expect(setTitleBarOverlay).not.toHaveBeenCalled()
   })
 
   it("uses the system Linux controls with their native layout and states", () => {

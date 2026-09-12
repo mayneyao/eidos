@@ -8,6 +8,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  nativeTheme,
   screen,
   shell,
   type Event,
@@ -17,6 +18,7 @@ import {
 
 import {
   IPC_CHANNELS,
+  type EidosLiteAppearance,
   type EidosLiteDiagnostics,
   type EidosLitePathClipboardMode,
   type EidosLitePreferences,
@@ -24,6 +26,7 @@ import {
   type EidosSyncRecoveryResult,
   type SpaceSnapshot,
 } from "../shared/contracts"
+import { resolveEidosLiteAppearance } from "../shared/appearance"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
 import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
@@ -64,6 +67,7 @@ import {
 } from "./sync/space-clone-coordinator"
 import {
   applyMacosTrafficLightPosition,
+  applyWindowsTitleBarOverlay,
   liteCompactWindowDefaultSize,
   liteWindowChromeOptions,
   macosTrafficLightPosition,
@@ -111,7 +115,11 @@ export class WindowController {
   }
   private closing = false
 
-  constructor(private readonly services: EidosLiteServiceEnvironment) {}
+  constructor(private readonly services: EidosLiteServiceEnvironment) {
+    nativeTheme.on("updated", () => {
+      void this.syncWindowControlsFromPreferences()
+    })
+  }
 
   createWelcomeWindow(
     beforeLoad?: (window: BrowserWindow) => void
@@ -851,11 +859,32 @@ export class WindowController {
     return resolveEidosLiteLocale(preferences.language, app.getLocale())
   }
 
+  private updateWindowControls(
+    window: BrowserWindow,
+    appearance: EidosLiteAppearance
+  ): void {
+    applyWindowsTitleBarOverlay(
+      window,
+      resolveEidosLiteAppearance(appearance, nativeTheme.shouldUseDarkColors)
+    )
+  }
+
+  private async syncWindowControlsFromPreferences(): Promise<void> {
+    if (process.platform !== "win32") return
+    const preferences = await this.getPreferences()
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        this.updateWindowControls(window, preferences.appearance)
+      }
+    }
+  }
+
   private broadcastPreferences(preferences: EidosLitePreferences): void {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {
         window.webContents.setZoomFactor(preferences.uiZoom)
         window.webContents.send(IPC_CHANNELS.preferencesChanged, preferences)
+        this.updateWindowControls(window, preferences.appearance)
       }
     }
   }
@@ -1025,6 +1054,7 @@ export class WindowController {
         webviewTag: true,
       },
     })
+    this.updateWindowControls(window, DEFAULT_EIDOS_LITE_PREFERENCES.appearance)
     installHtmlPreviewGuestGuard(window.webContents)
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
@@ -1045,6 +1075,7 @@ export class WindowController {
         void this.getPreferences().then((preferences) => {
           if (window.isDestroyed()) return
           window.webContents.setZoomFactor(preferences.uiZoom)
+          this.updateWindowControls(window, preferences.appearance)
           window.show()
         })
       })

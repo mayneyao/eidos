@@ -1,5 +1,7 @@
 import type { BrowserWindow } from "electron"
 
+import type { EidosLiteResolvedAppearance } from "../shared/appearance"
+
 export type LiteWindowKind = "welcome" | "space" | "settings"
 export type LiteCompactWindowKind = Exclude<LiteWindowKind, "space">
 
@@ -8,18 +10,28 @@ export interface LiteWindowSize {
   height: number
 }
 
+export interface LiteWindowControlsOverlay {
+  color: string
+  symbolColor: string
+  height: number
+}
+
 export interface LiteWindowChromeOptions {
   titleBarStyle: "default" | "hidden" | "hiddenInset"
   autoHideMenuBar: boolean
-  titleBarOverlay?:
-    | boolean
-    | {
-        color: string
-        height: number
-      }
+  titleBarOverlay?: boolean | LiteWindowControlsOverlay
 }
 
 const WINDOW_CONTROLS_OVERLAY_HEIGHT = 40
+const WINDOW_CONTROLS_OVERLAY_BACKGROUND = "#00000000"
+
+// The Windows overlay background stays transparent so the app titlebar shows
+// through. The caption glyphs must still contrast with it, so match the ink
+// color of the active theme instead of relying on the system default.
+const WINDOW_CONTROLS_SYMBOL_COLOR = {
+  light: "#2b3135",
+  dark: "#e6e8ea",
+} satisfies Record<EidosLiteResolvedAppearance, string>
 
 const COMPACT_WINDOW_DEFAULT_SIZE = {
   welcome: { width: 920, height: 620 },
@@ -58,10 +70,7 @@ export function liteWindowChromeOptions(
     return {
       titleBarStyle: "hidden",
       autoHideMenuBar: true,
-      titleBarOverlay: {
-        color: "#00000000",
-        height: WINDOW_CONTROLS_OVERLAY_HEIGHT,
-      },
+      titleBarOverlay: windowsTitleBarOverlay("light"),
     }
   }
   if (platform === "linux") {
@@ -75,6 +84,25 @@ export function liteWindowChromeOptions(
     titleBarStyle: "default",
     autoHideMenuBar: false,
   }
+}
+
+export function windowsTitleBarOverlay(
+  appearance: EidosLiteResolvedAppearance
+): LiteWindowControlsOverlay {
+  return {
+    color: WINDOW_CONTROLS_OVERLAY_BACKGROUND,
+    symbolColor: WINDOW_CONTROLS_SYMBOL_COLOR[appearance],
+    height: WINDOW_CONTROLS_OVERLAY_HEIGHT,
+  }
+}
+
+export function applyWindowsTitleBarOverlay(
+  window: Pick<BrowserWindow, "setTitleBarOverlay">,
+  appearance: EidosLiteResolvedAppearance,
+  platform: NodeJS.Platform = process.platform
+): void {
+  if (platform !== "win32") return
+  window.setTitleBarOverlay(windowsTitleBarOverlay(appearance))
 }
 
 export function applyMacosTrafficLightPosition(

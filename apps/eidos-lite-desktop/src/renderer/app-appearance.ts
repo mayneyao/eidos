@@ -1,3 +1,7 @@
+import {
+  resolveEidosLiteAppearance,
+  type EidosLiteResolvedAppearance,
+} from "../shared/appearance"
 import type {
   EidosLiteAppearance,
   EidosLitePreferences,
@@ -5,13 +9,13 @@ import type {
 import { DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS } from "../shared/built-in-plugins"
 import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
-export type ResolvedAppearance = "light" | "dark"
+export type ResolvedAppearance = EidosLiteResolvedAppearance
 
 export function resolveAppearance(
   appearance: EidosLiteAppearance,
   systemDark: boolean
 ): ResolvedAppearance {
-  return appearance === "system" ? (systemDark ? "dark" : "light") : appearance
+  return resolveEidosLiteAppearance(appearance, systemDark)
 }
 
 export function toggledAppearance(
