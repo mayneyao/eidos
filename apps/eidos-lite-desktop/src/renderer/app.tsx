@@ -54,6 +54,7 @@ import type {
   EidosLiteMarkdownEditingMode,
   EidosLiteMarkdownCompatibilityProfile,
   EidosLitePreferences,
+  EidosLiteRecordOpenMode,
   EidosLiteTerminalLayout,
   EidosLiteUpdateStatus,
   EidosPublicationBinding,
@@ -779,6 +780,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteMarkdownCompatibilityProfile>(
       DEFAULT_RENDERER_PREFERENCES.markdownCompatibilityProfile
     )
+  const [recordOpenMode, setRecordOpenMode] =
+    useState<EidosLiteRecordOpenMode>("panel")
   const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
     () =>
       storedLegacyTerminalLayout() ??
@@ -3727,6 +3730,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     <EidosFileWorkbench
                       key={`${activeFile.sessionId}:${fileMaterializationKey}`}
                       relativePath={activeFile.relativePath}
+                      recordOpenMode={recordOpenMode}
+                      onRecordOpenModeChange={setRecordOpenMode}
                       snapshot={activeFile.snapshot}
                       source={activeFile.source}
                       refreshToken={externalFileRefreshToken}

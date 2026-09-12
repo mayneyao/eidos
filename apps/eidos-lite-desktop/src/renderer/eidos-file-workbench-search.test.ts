@@ -21,6 +21,9 @@ vi.mock("@eidos.space/eidos-file-ui/plugins/kanban", () => ({
 vi.mock("@eidos.space/eidos-file-ui/plugins/calendar", () => ({
   eidosFileCalendarPlugin: { id: "test.calendar" },
 }))
+vi.mock("@eidos.space/eidos-file-ui/plugins/feed", () => ({
+  eidosFileFeedPlugin: { id: "test.feed" },
+}))
 
 vi.mock("@eidos.space/eidos-file-ui", async () => {
   const React = await import("react")

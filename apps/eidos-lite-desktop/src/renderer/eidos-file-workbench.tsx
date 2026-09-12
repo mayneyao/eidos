@@ -45,12 +45,15 @@ import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/galle
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
 import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
+import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
+import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
 } from "../shared/keyboard-shortcuts"
+import type { EidosLiteRecordOpenMode } from "../shared/contracts"
 import {
   createEidosLiteAssetSession,
   eidosLiteAssetPresenter,
@@ -66,6 +69,7 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileKanbanPlugin,
   eidosFileCalendarPlugin,
   eidosFileFormPlugin,
+  eidosFileFeedPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
 const CONTENT_FIELD_EDITING_MODE = "wysiwyg" as const
@@ -87,6 +91,9 @@ export interface EidosFileWorkbenchProps {
   onRecordNavigate?: (tableId: string, rowId: string) => void
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  /** How the next record opens from a non-grid view or relation. */
+  recordOpenMode?: EidosLiteRecordOpenMode
+  onRecordOpenModeChange?: (mode: EidosLiteRecordOpenMode) => void
   disabled: boolean
   theme: "light" | "dark"
   weekStartsOnMonday?: boolean
@@ -110,6 +117,8 @@ export function EidosFileWorkbench({
   onRecordNavigate,
   inspectedRowId,
   onInspectedRowChange,
+  recordOpenMode = "panel",
+  onRecordOpenModeChange,
   disabled,
   theme,
   weekStartsOnMonday = true,
@@ -144,6 +153,9 @@ export function EidosFileWorkbench({
   const acceptedRefreshTokenRef = useRef(refreshToken)
   const [relatedRecordTarget, setRelatedRecordTarget] =
     useState<EidosFileRelationRecordTarget | null>(null)
+  const toggleRecordPresentation = useCallback(() => {
+    onRecordOpenModeChange?.(recordOpenMode === "panel" ? "page" : "panel")
+  }, [onRecordOpenModeChange, recordOpenMode])
   const editorRef = useRef<HTMLDivElement>(null)
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
 
@@ -200,6 +212,23 @@ export function EidosFileWorkbench({
       )
     },
     [keyboardShortcuts, relativePath, source.sessionId, theme]
+  )
+  const renderMarkdownHtml = useCallback(
+    (markdown: string) => ({
+      html: renderMarkdownToHtml(markdown),
+      className: "eme-static",
+    }),
+    []
+  )
+  const resolveMarkdownImageUrl = useCallback(
+    async (markdownUrl: string) => {
+      const resolution = await window.eidosLite?.resolveMarkdownImage?.(
+        relativePath,
+        markdownUrl
+      )
+      return resolution?.previewUrl ?? null
+    },
+    [relativePath]
   )
 
   useEffect(() => {
@@ -518,6 +547,8 @@ export function EidosFileWorkbench({
       keyboardShortcuts={editorKeyboardShortcuts}
       markdownEditingMode={CONTENT_FIELD_EDITING_MODE}
       renderMarkdownEditor={renderMarkdownEditor}
+      renderMarkdownHtml={renderMarkdownHtml}
+      resolveMarkdownImageUrl={resolveMarkdownImageUrl}
     >
       <EidosFileEditorShell
         ref={editorRef}
@@ -729,6 +760,8 @@ export function EidosFileWorkbench({
           <EidosFileEditorView
             inspectedRowId={inspectedRowId}
             onInspectedRowChange={onInspectedRowChange}
+            recordPresentation={recordOpenMode}
+            onRecordPresentationToggle={toggleRecordPresentation}
             key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
             plugins={editorPlugins}
             source={source}
@@ -773,6 +806,8 @@ export function EidosFileWorkbench({
                 rowId: inspectedRowId,
                 title: "",
               }}
+              presentation={recordOpenMode}
+              onPresentationToggle={toggleRecordPresentation}
               onClose={() => onInspectedRowChange?.(null)}
               onError={onError}
               disabled={disabled}
@@ -783,6 +818,8 @@ export function EidosFileWorkbench({
               source={source}
               table={relatedRecordTable}
               target={relatedRecordTarget}
+              presentation={recordOpenMode}
+              onPresentationToggle={toggleRecordPresentation}
               disabled={disabled}
               onClose={() => setRelatedRecordTarget(null)}
               onMutation={() => setReloadToken((current) => current + 1)}

@@ -6,6 +6,7 @@ import { App } from "./app"
 import { EidosLiteI18nProvider } from "./i18n"
 import "./styles.css"
 import "@eidos.space/markdown/styles.css"
+import "@eidos.space/markdown/static.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

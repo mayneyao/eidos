@@ -727,6 +727,8 @@ export type EidosLiteLanguage = "system" | "en" | "zh"
 export type EidosLiteTerminalLayout = "bottom" | "side"
 export type EidosLiteMarkdownEditingMode = "source" | "wysiwyg"
 export type EidosLiteMarkdownCompatibilityProfile = "eidos" | "obsidian"
+/** Runtime-only: how the next record opens from a non-grid view or relation. */
+export type EidosLiteRecordOpenMode = "panel" | "page"
 /** `system` follows the operating system; every other value is an IANA zone. */
 export type EidosLiteTimeZone = string
 
