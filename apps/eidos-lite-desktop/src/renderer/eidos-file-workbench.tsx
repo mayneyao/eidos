@@ -353,7 +353,6 @@ export function EidosFileWorkbench({
       : activeViews[activeTable.table.id]
     return (
       activeTable.views.find((view) => view.id === requested) ??
-      activeTable.views.find((view) => view.type === "grid") ??
       activeTable.views[0]
     )
   }, [activeTable, activeViews, activeViewId, onViewSelect])

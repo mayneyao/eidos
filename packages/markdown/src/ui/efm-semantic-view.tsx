@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type JSX,
   type ReactNode,
@@ -407,10 +408,15 @@ function useResolvedImageUrl(
   fallbackUrl?: string
 ): string | undefined {
   const { documentKey, onError, resolveImageUrl } = useEfmSourceBlockContext()
-  const [hostUrl, setHostUrl] = useState<string>()
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+  const [resolution, setResolution] = useState<{
+    documentKey: string
+    markdownUrl: string
+    url: string
+  }>()
 
   useEffect(() => {
-    setHostUrl(undefined)
     if (!markdownUrl || !resolveImageUrl || isDeniedEfmUri(markdownUrl)) return
 
     const controller = new AbortController()
@@ -426,25 +432,30 @@ function useResolvedImageUrl(
           if (controller.signal.aborted || candidate === null) return
           const resolved = resolveEfmImagePresentationUri(candidate)
           if (!resolved) {
-            onError(
+            onErrorRef.current(
               new Error(
                 "resolveImageUrl must return a blob, http, or https URL."
               )
             )
             return
           }
-          setHostUrl(resolved)
+          setResolution({ documentKey, markdownUrl, url: resolved })
         })
         .catch((cause) => {
-          if (!controller.signal.aborted) onError(errorFrom(cause))
+          if (!controller.signal.aborted) onErrorRef.current(errorFrom(cause))
         })
     } catch (cause) {
-      onError(errorFrom(cause))
+      onErrorRef.current(errorFrom(cause))
     }
     return () => controller.abort()
-  }, [documentKey, markdownUrl, onError, resolveImageUrl])
+  }, [documentKey, markdownUrl, resolveImageUrl])
 
-  return hostUrl ?? fallbackUrl
+  // A callback rerender must not remove a loaded image and collapse the page.
+  // Never reuse an image for a different document or Markdown target.
+  return resolution?.documentKey === documentKey &&
+    resolution.markdownUrl === markdownUrl
+    ? resolution.url
+    : fallbackUrl
 }
 
 function useOpenObsidianLink(data: EfmInlineData): () => void {

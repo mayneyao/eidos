@@ -626,6 +626,78 @@ describe("EidosFileRecordInspector", () => {
     expect(onNextRecord).toHaveBeenCalledOnce()
   })
 
+  it("keeps the content editor editable and preserves newer drafts across a save", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0]!,
+      id: "body",
+      tableColumnName: "body",
+      name: "Body",
+      isRecordLabel: false,
+    }
+    let finishSave!: () => void
+    const onCellEdit = vi.fn(async (previous, field, value) => {
+      await new Promise<void>((resolve) => {
+        finishSave = resolve
+      })
+      return {
+        tableId: "tasks",
+        row: { ...previous, [field.tableColumnName]: value },
+        rowCount: 1,
+      }
+    })
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider markdownEditingMode="wysiwyg">
+          <EidosFileRecordInspector
+            variant="page"
+            row={{ _id: "row-1", title: "Title", body: "Initial" }}
+            fields={[...fields, contentField]}
+            contentField={contentField}
+            onCellEdit={onCellEdit}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    const editor = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Markdown content"]'
+    )!
+    const scroll = container.querySelector<HTMLElement>(
+      "[data-eidos-file-record-page-scroll]"
+    )!
+    scroll.scrollTop = 360
+    const type = async (value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )!.set!.call(editor, value)
+        editor.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    await type("Saved draft")
+    await act(async () =>
+      editor.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", metaKey: true, bubbles: true })
+      )
+    )
+    expect(onCellEdit).toHaveBeenCalledWith(
+      expect.any(Object),
+      contentField,
+      "Saved draft"
+    )
+    expect(editor.disabled).toBe(false)
+    expect(
+      container.querySelector('textarea[aria-label="Markdown content"]')
+    ).toBe(editor)
+    await type("Continued typing during save")
+    await act(async () => finishSave())
+    expect(editor.value).toBe("Continued typing during save")
+    expect(editor.disabled).toBe(false)
+    expect(scroll.scrollTop).toBe(360)
+    expect(
+      container.querySelector('textarea[aria-label="Markdown content"]')
+    ).toBe(editor)
+  })
+
   it("keeps record navigation available on a readonly full page", async () => {
     const contentField: EidosFileFieldInfo = {
       ...fields[0],

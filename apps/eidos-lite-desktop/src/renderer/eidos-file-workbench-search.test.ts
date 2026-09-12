@@ -29,13 +29,14 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const React = await import("react")
   const actual = await import("../../../../packages/eidos-file-ui/src/index.ts")
   const Empty = () => null
-  function SearchResultReporter() {
+  function SearchResultReporter({ view }: { view?: { id: string } }) {
     const navigation = actual.useEidosFileSearchNavigation()
     const { activateUrl, markdownEditingMode, openRelationRecord } =
       actual.useEidosFileUI()
     return React.createElement(
       React.Fragment,
       null,
+      React.createElement("span", { "data-testid": "selected-view" }, view?.id),
       React.createElement(
         "button",
         {
@@ -227,6 +228,57 @@ describe("Eidos Lite Eidos File search navigation", () => {
     act(() => root.unmount())
     host.remove()
   })
+
+  it.each([
+    [undefined, "gallery"],
+    ["grid", "grid"],
+    ["deleted-view", "gallery"],
+  ])(
+    "resolves requested view %s to %s in saved order",
+    (activeViewId, expected) => {
+      const firstTable = snapshot.tables[0]!
+      const grid = firstTable.views[0]!
+      const reordered: EidosFileSnapshot = {
+        ...snapshot,
+        tables: [
+          {
+            ...firstTable,
+            views: [
+              {
+                ...grid,
+                id: "gallery",
+                name: "Gallery",
+                type: "gallery",
+                position: 0,
+              },
+              { ...grid, position: 1 },
+            ],
+          },
+          ...snapshot.tables.slice(1),
+        ],
+      }
+      act(() => {
+        root.render(
+          createElement(EidosFileWorkbench, {
+            relativePath: "sample.eidos",
+            snapshot: reordered,
+            source: {} as IpcEidosFileDataSource,
+            activeTableId: "tasks",
+            activeViewId,
+            onViewSelect: vi.fn(),
+            disabled: false,
+            theme: "light",
+            onTableSelect: vi.fn(),
+            onSnapshot: vi.fn(),
+            onError: vi.fn(),
+          })
+        )
+      })
+      expect(
+        host.querySelector('[data-testid="selected-view"]')?.textContent
+      ).toBe(expected)
+    }
+  )
 
   it("cycles and highlights filtered records with Enter and Shift+Enter", () => {
     act(() => {

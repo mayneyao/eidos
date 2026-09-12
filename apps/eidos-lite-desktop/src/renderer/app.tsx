@@ -2071,13 +2071,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               {
                 ...next,
                 snapshot: opened.snapshot,
-                tableId:
-                  options.tableId ??
-                  (opened.snapshot.tables.some(
-                    (table) => table.table.id === next.tableId
-                  )
-                    ? next.tableId
-                    : tableId),
+                tableId,
               },
             ]
           })

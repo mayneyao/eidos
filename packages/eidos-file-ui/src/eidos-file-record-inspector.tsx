@@ -233,7 +233,7 @@ function MarkdownContentEditor({
   onDraftChange,
   onEdit,
   onCancelEdit,
-  onSaveAndPreview,
+  onSave,
   onError,
 }: {
   value: string
@@ -246,7 +246,7 @@ function MarkdownContentEditor({
   onDraftChange: (value: string) => void
   onEdit: () => void
   onCancelEdit: () => void
-  onSaveAndPreview: () => Promise<void>
+  onSave: () => Promise<void>
   onError?: (error: unknown) => void
 }) {
   const { markdownEditingMode, translate: t } = useEidosFileUI()
@@ -276,7 +276,7 @@ function MarkdownContentEditor({
             !event.altKey
           ) {
             event.preventDefault()
-            void onSaveAndPreview()
+            void onSave()
           }
         }}
       >
@@ -354,6 +354,8 @@ export interface EidosFileRecordInspectorProps {
   ) => Promise<EidosFileRowMutationResult>
   disabled?: boolean
   loading?: boolean
+  /** Keep the last complete record mounted while its replacement loads. */
+  preserveContentWhileLoading?: boolean
   loadError?: string | null
   onRetryLoad?: () => void
   onError?: (error: unknown) => void
@@ -381,6 +383,7 @@ export function EidosFileRecordInspector({
   onCellEdit,
   disabled = false,
   loading = false,
+  preserveContentWhileLoading = false,
   loadError,
   onRetryLoad,
   onError,
@@ -531,6 +534,7 @@ export function EidosFileRecordInspector({
     contentDisplayMode === "edit" && !directWysiwygContent
   const contentIdentity = `${currentRowId}:${contentField?.id ?? ""}`
   const contentIdentityRef = useRef(contentIdentity)
+  const savedContentRef = useRef(contentValue)
 
   useEffect(() => {
     if (contentIdentityRef.current === contentIdentity) return
@@ -540,8 +544,16 @@ export function EidosFileRecordInspector({
   }, [contentIdentity, contentValue])
 
   useEffect(() => {
-    if (contentMode === "preview") setContentDraft(contentValue)
-  }, [contentMode, contentValue])
+    const previousSaved = savedContentRef.current
+    savedContentRef.current = contentValue
+    setContentDraft((draft) =>
+      contentMode === "preview" && !directWysiwygContent
+        ? contentValue
+        : draft === previousSaved
+          ? contentValue
+          : draft
+    )
+  }, [contentMode, contentValue, directWysiwygContent])
 
   const startContentEdit = () => {
     if (!contentField || editorDisabled) return
@@ -554,12 +566,17 @@ export function EidosFileRecordInspector({
     setContentMode("preview")
   }
 
-  const saveContentAndPreview = async () => {
+  const saveContent = async () => {
     if (!contentField || editorDisabled) return false
     if (contentDraft !== contentValue) {
       await editField(contentField, contentDraft)
       if (failedEditRef.current) return false
     }
+    return true
+  }
+
+  const saveContentAndPreview = async () => {
+    if (!(await saveContent())) return false
     setContentMode("preview")
     return true
   }
@@ -597,16 +614,7 @@ export function EidosFileRecordInspector({
     }
   }
 
-  const saveStatus = loading ? (
-    <span
-      role="status"
-      aria-live="polite"
-      className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
-    >
-      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-      {t("Loading…")}
-    </span>
-  ) : savingField ? (
+  const saveStatus = savingField ? (
     <span
       role="status"
       aria-live="polite"
@@ -895,10 +903,10 @@ export function EidosFileRecordInspector({
           </div>
         </div>
       ) : null}
-      {loading ? (
+      {loading && !preserveContentWhileLoading ? (
         <div
           className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"
-          aria-hidden="true"
+          role="status"
         >
           <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
           {t("Loading record details…")}
@@ -957,16 +965,18 @@ export function EidosFileRecordInspector({
               >
                 <MarkdownContentEditor
                   key={`${currentRowId}:${contentField.id}`}
-                  value={contentValue}
+                  value={
+                    contentDisplayMode === "edit" ? contentDraft : contentValue
+                  }
                   mode={contentDisplayMode}
                   editable={editable}
-                  disabled={editorDisabled}
+                  disabled={disabled || loading}
                   cacheKey={`${currentRowId}:${contentField.id}`}
                   onDraftChange={setContentDraft}
                   onEdit={startContentEdit}
                   onCancelEdit={cancelContentEdit}
-                  onSaveAndPreview={async () => {
-                    await saveContentAndPreview()
+                  onSave={async () => {
+                    await saveContent()
                   }}
                   onError={onError}
                 />
@@ -993,7 +1003,7 @@ export function EidosFileRecordInspector({
                 onDraftChange={setContentDraft}
                 onEdit={startContentEdit}
                 onCancelEdit={cancelContentEdit}
-                onSaveAndPreview={async () => {
+                onSave={async () => {
                   await saveContentAndPreview()
                 }}
                 onError={onError}

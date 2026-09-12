@@ -75,22 +75,24 @@ export function EidosFileRelatedRecordPanel({
   const {
     inspectedRow,
     inspectorLoading,
+    inspectorHasCompleteRow,
     inspectorLoadError,
     openInspectorRow,
     closeInspectorRow,
     replaceInspectorRow,
     retryInspectorRow,
-  } = useEidosFileRecordInspectorRow(loadRow)
+  } = useEidosFileRecordInspectorRow(loadRow, true)
 
+  const targetPreviewRef = useRef({ fields: table.fields, title: target.title })
+  targetPreviewRef.current = { fields: table.fields, title: target.title }
   useEffect(() => {
-    const labelField = table.fields.find(
-      (field) => field.isRecordLabel === true
-    )
+    const { fields, title } = targetPreviewRef.current
+    const labelField = fields.find((field) => field.isRecordLabel === true)
     openInspectorRow({
       _id: target.rowId,
-      ...(labelField ? { [labelField.tableColumnName]: target.title } : {}),
+      ...(labelField ? { [labelField.tableColumnName]: title } : {}),
     })
-  }, [openInspectorRow, table.fields, target.rowId, target.title])
+  }, [openInspectorRow, target.rowId])
 
   const editRecord = useCallback(
     async (
@@ -167,6 +169,7 @@ export function EidosFileRelatedRecordPanel({
       : null
 
   if (!inspectedRow) return null
+  const retainingPreviousRow = String(inspectedRow._id) !== target.rowId
 
   const contentField = eidosFileContentField(table)
   const variant =
@@ -185,8 +188,9 @@ export function EidosFileRelatedRecordPanel({
       variant={variant}
       contentField={contentField}
       onPresentationToggle={onPresentationToggle}
-      disabled={disabled}
-      loading={inspectorLoading}
+      disabled={disabled || retainingPreviousRow}
+      loading={inspectorLoading || retainingPreviousRow}
+      preserveContentWhileLoading={inspectorHasCompleteRow}
       loadError={inspectorLoadError}
       onRetryLoad={retryInspectorRow}
       onPreviousRecord={

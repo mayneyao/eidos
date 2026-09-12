@@ -102,6 +102,63 @@ describe("EidosFileRelatedRecordPanel", () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it("keeps complete content mounted during navigation and retries the requested row", async () => {
+    const pending = new Map<
+      string,
+      (row: { _id: string; name: string } | null) => void
+    >()
+    const getRow = vi.fn(
+      (_table: string, id: string) =>
+        new Promise<{ _id: string; name: string } | null>((resolve) =>
+          pending.set(id, resolve)
+        )
+    )
+    const source = {
+      getRow,
+      updateRow: vi.fn(),
+    } as unknown as EidosFileEditorDataSource
+    const render = async (rowId: string) =>
+      act(async () => {
+        root.render(
+          <EidosFileRelatedRecordPanel
+            source={source}
+            table={{ ...table, fields: [...table.fields] }}
+            target={{ tableId: "people", rowId, title: "" }}
+            onClose={() => {}}
+          />
+        )
+      })
+    await render("a")
+    await act(async () => pending.get("a")!({ _id: "a", name: "Alice" }))
+    const title = container.querySelector("h2")
+    expect(container.textContent).toContain("Alice")
+    await render("b")
+    expect(container.querySelector("h2")).toBe(title)
+    expect(container.textContent).toContain("Alice")
+    expect(container.textContent).not.toContain("Loading record details")
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    await render("c")
+    await act(async () => pending.get("c")!({ _id: "c", name: "Carol" }))
+    await act(async () => pending.get("b")!({ _id: "b", name: "Bob" }))
+    expect(container.textContent).toContain("Carol")
+    expect(container.textContent).not.toContain("Bob")
+    await render("c")
+    expect(getRow).toHaveBeenCalledTimes(3)
+    await render("missing")
+    await act(async () => pending.get("missing")!(null))
+    expect(container.textContent).toContain("Record no longer exists")
+    await act(async () =>
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")!
+        .click()
+    )
+    expect(getRow).toHaveBeenLastCalledWith("people", "missing")
+    await act(async () =>
+      pending.get("missing")!({ _id: "missing", name: "Recovered" })
+    )
+    expect(container.textContent).toContain("Recovered")
+  })
+
   it("invalidates changed queries and ignores late neighbor results", async () => {
     const pending: Array<(result: RecordNeighbors) => void> = []
     const getRecordNeighbors = vi.fn(
@@ -151,7 +208,7 @@ describe("EidosFileRelatedRecordPanel", () => {
   })
 
   it("navigates to neighbours in the active query order", async () => {
-    const getRow = vi.fn(async (rowId: string) => ({
+    const getRow = vi.fn(async (_tableId: string, rowId: string) => ({
       _id: rowId,
       name: `Row ${rowId}`,
     }))
