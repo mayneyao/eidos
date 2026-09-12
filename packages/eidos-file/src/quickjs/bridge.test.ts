@@ -69,6 +69,8 @@ describe("QuickJS ConnectionPort bridge (Node reference host)", () => {
         "invalid-formula-classification",
         "rename-lossless-rewrite",
         "mutate-rows-1002",
+        "record-neighbors",
+        "file-name-search",
         "group-rows-first-page",
         "group-rows-continue-cursor",
         "group-rows-second-page",
