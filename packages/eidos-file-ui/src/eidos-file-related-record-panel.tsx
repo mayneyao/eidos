@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
@@ -119,23 +119,36 @@ export function EidosFileRelatedRecordPanel({
     index: number
     total: number
   } | null>(null)
+  // Keep inputs in refs so frequent Host renders, query identity changes, or
+  // table snapshot refreshes do not cancel an in-flight position lookup.
+  const queryRef = useRef(query)
+  queryRef.current = query
+  const onNavigateRef = useRef(onNavigate)
+  onNavigateRef.current = onNavigate
+  const getRowIndexRef = useRef(source.getRowIndex)
+  getRowIndexRef.current = source.getRowIndex
 
   useEffect(() => {
     let active = true
-    const getRowIndex = source.getRowIndex
-    if (!query || !onNavigate || !getRowIndex) {
+    const getRowIndex = getRowIndexRef.current
+    const currentQuery = queryRef.current
+    if (!currentQuery || !getRowIndex || !onNavigateRef.current) {
       setRecordPosition(null)
       return
     }
     void (async () => {
       try {
-        const index = await getRowIndex(table.table.id, target.rowId, query)
+        const index = await getRowIndex(
+          table.table.id,
+          target.rowId,
+          currentQuery
+        )
         if (!active) return
         if (index === null) {
           setRecordPosition(null)
           return
         }
-        const page = await source.getPage(table.table.id, 0, 1, query)
+        const page = await source.getPage(table.table.id, 0, 1, currentQuery)
         if (!active) return
         setRecordPosition({ index, total: page.total })
       } catch {
@@ -145,24 +158,26 @@ export function EidosFileRelatedRecordPanel({
     return () => {
       active = false
     }
-  }, [onNavigate, query, source, table.table.id, target.rowId])
+  }, [source, table.table.id, target.rowId])
 
   const navigateNeighbor = useCallback(
     (offset: number) => async () => {
-      if (!query || !onNavigate) return
+      const navigate = onNavigateRef.current
+      const currentQuery = queryRef.current
+      if (!currentQuery || !navigate) return
       const page = await source.getPage(
         table.table.id,
         offset,
         1,
-        query,
+        currentQuery,
         undefined,
         undefined,
         neighborProjection
       )
       const row = page.rows[0]
-      if (row) onNavigate(String(row._id))
+      if (row) navigate(String(row._id))
     },
-    [neighborProjection, onNavigate, query, source, table.table.id]
+    [neighborProjection, source, table.table.id]
   )
 
   if (!inspectedRow) return null
