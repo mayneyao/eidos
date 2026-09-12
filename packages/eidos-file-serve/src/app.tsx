@@ -56,6 +56,7 @@ import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/galle
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
 import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
+import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
 import {
   AlertTriangle,
   Check,
@@ -409,6 +410,7 @@ export function ServeApp() {
       eidosFileKanbanPlugin,
       eidosFileCalendarPlugin,
       eidosFileFormPlugin,
+      eidosFileFeedPlugin,
       createEidosFileCsvImportPlugin(
         {
           async pickFile() {

@@ -46,6 +46,7 @@ import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { cn } from "./lib/cn"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
+import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -377,6 +378,8 @@ export function EidosFileCalendarView({
   const [creatingDay, setCreatingDay] = useState<string | null>(null)
   const [deleteRow, setDeleteRow] = useState<EidosFileRow | null>(null)
   const requestGenerationRef = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEidosFileScrollKeys(scrollRef)
   const collapsedDayLimit = CALENDAR_COLLAPSED_DAY_LIMIT[layout]
   const initialDayLimit = collapsedDayLimit + 1
   const range = useMemo(
@@ -952,6 +955,7 @@ export function EidosFileCalendarView({
           </div>
         </header>
         <div
+          ref={scrollRef}
           className="min-h-0 flex-1 overflow-auto"
           aria-busy={loading}
           data-eidos-file-calendar

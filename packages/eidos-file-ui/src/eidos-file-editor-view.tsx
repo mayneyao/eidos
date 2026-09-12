@@ -35,6 +35,9 @@ export interface EidosFileViewRendererProps {
   showRowMarkers?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  /** Runtime presentation for a record opened from this view. */
+  recordPresentation?: "panel" | "page"
+  onRecordPresentationToggle?: () => void
   disabled: boolean
   reloadToken: number
   /** Monotonic Host request for the active view to reclaim keyboard focus. */
@@ -151,6 +154,8 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       showRowMarkers={props.showRowMarkers}
       inspectedRowId={props.inspectedRowId}
       onInspectedRowChange={props.onInspectedRowChange}
+      recordPresentation={props.recordPresentation}
+      onRecordPresentationToggle={props.onRecordPresentationToggle}
       disabled={props.disabled}
       reloadToken={props.reloadToken}
       focusRequestToken={props.focusRequestToken}

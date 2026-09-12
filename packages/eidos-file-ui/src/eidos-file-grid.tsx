@@ -233,6 +233,8 @@ export interface EidosFileGridProps {
   loadInspectorRow?: (rowId: string) => Promise<EidosFileRow | null>
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  recordPresentation?: "panel" | "page"
+  onRecordPresentationToggle?: () => void
   loadColumnStats?: (
     configs: EidosFileColumnStatConfig[]
   ) => Promise<EidosFileColumnStatResult[]>
@@ -492,6 +494,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   loadInspectorRow,
   inspectedRowId,
   onInspectedRowChange,
+  recordPresentation,
+  onRecordPresentationToggle,
   loadColumnStats,
   onAddRow,
   onCellEdit,
@@ -3007,8 +3011,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         <EidosFileRecordInspector
           row={inspectedRow}
           fields={fields}
-          variant={eidosFileContentField(table) ? "page" : "panel"}
+          variant={
+            recordPresentation ??
+            (eidosFileContentField(table) ? "page" : "panel")
+          }
           contentField={eidosFileContentField(table)}
+          onPresentationToggle={onRecordPresentationToggle}
           onClose={() => {
             setInspectedRowIndex(null)
             setDetachedInspectorRow(null)

@@ -315,7 +315,7 @@ describe("EidosFileViewTabs", () => {
       '[aria-label="View layout"]'
     )
     expect(layoutPicker?.className).toContain("grid-cols-4")
-    expect(layoutPicker?.children).toHaveLength(5)
+    expect(layoutPicker?.children).toHaveLength(6)
   })
 
   it("creates a Calendar when the table has a temporal field", async () => {

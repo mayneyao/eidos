@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
@@ -23,6 +15,8 @@ import {
   ChevronRight,
   ExternalLink,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   Minus,
   Save,
   X,
@@ -47,7 +41,7 @@ import {
 } from "./eidos-file-record-format"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
-import { renderSafeEidosFileMarkdown } from "./eidos-file-markdown"
+import { EidosFileMarkdownPreview } from "./eidos-file-markdown-preview"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 
 const LazyEidosFileMarkdownSourceEditor = lazy(async () => {
@@ -235,6 +229,7 @@ function MarkdownContentEditor({
   editable,
   disabled,
   cacheKey,
+  compact = false,
   onDraftChange,
   onEdit,
   onCancelEdit,
@@ -246,23 +241,15 @@ function MarkdownContentEditor({
   editable: boolean
   disabled: boolean
   cacheKey: string
+  /** Tighter layout for the side panel instead of the full content page. */
+  compact?: boolean
   onDraftChange: (value: string) => void
   onEdit: () => void
   onCancelEdit: () => void
   onSaveAndPreview: () => Promise<void>
   onError?: (error: unknown) => void
 }) {
-  const {
-    activateUrl,
-    markdownEditingMode,
-    translate: t,
-    contentImageBaseUrl,
-  } = useEidosFileUI()
-  const html = useMemo(
-    () =>
-      renderSafeEidosFileMarkdown(value, { imageBaseUrl: contentImageBaseUrl }),
-    [contentImageBaseUrl, value]
-  )
+  const { markdownEditingMode, translate: t } = useEidosFileUI()
 
   if (mode === "edit") {
     return (
@@ -270,8 +257,13 @@ function MarkdownContentEditor({
         className={cn(
           "w-full",
           markdownEditingMode === "wysiwyg"
-            ? ""
-            : "mx-auto flex min-h-0 max-w-[760px] flex-1 flex-col"
+            ? compact
+              ? "min-h-72"
+              : ""
+            : cn(
+                "mx-auto flex min-h-0 max-w-[760px] flex-1 flex-col",
+                compact && "min-h-72"
+              )
         )}
         data-eidos-file-markdown-editor={markdownEditingMode ?? "source"}
         onKeyDownCapture={(event) => {
@@ -312,30 +304,18 @@ function MarkdownContentEditor({
 
   return (
     <div
-      className="group relative mx-auto min-h-0 w-full max-w-[760px] pb-20"
+      className={cn(
+        "group relative mx-auto min-h-0 w-full max-w-[760px]",
+        compact ? "pb-0" : "pb-20"
+      )}
       data-eidos-file-markdown-editor="preview"
     >
       {value.trim() ? (
-        <div
-          className="max-w-none break-words text-[15px] leading-7 text-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-6 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h1]:mb-4 [&_h1]:mt-10 [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:leading-tight [&_h1]:tracking-tight [&_h2]:mb-3 [&_h2]:mt-9 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:tracking-tight [&_h3]:mb-2 [&_h3]:mt-7 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:leading-snug [&_hr]:my-9 [&_hr]:border-border [&_img]:my-6 [&_img]:max-w-full [&_img]:rounded-sm [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:text-sm [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_table]:my-6 [&_table]:w-full [&_td]:border-b [&_td]:px-2 [&_td]:py-2 [&_th]:border-b [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-6 [&>*:first-child]:mt-0"
-          data-eidos-file-markdown-preview=""
-          dangerouslySetInnerHTML={{ __html: html }}
+        <EidosFileMarkdownPreview
+          markdown={value}
+          onError={onError}
           onDoubleClick={() => {
             if (editable && !disabled) onEdit()
-          }}
-          onClick={(event) => {
-            const target = event.target as Element
-            const link = target.closest<HTMLAnchorElement>(
-              "a[data-eidos-file-markdown-external]"
-            )
-            if (!link) return
-            event.preventDefault()
-            if (!activateUrl) return
-            try {
-              void Promise.resolve(activateUrl(link.href)).catch(onError)
-            } catch (error) {
-              onError?.(error)
-            }
           }}
         />
       ) : editable ? (
@@ -363,6 +343,8 @@ export interface EidosFileRecordInspectorProps {
   onPreviousRecord?: () => void | Promise<void>
   onNextRecord?: () => void | Promise<void>
   onOpenInTab?: (row: EidosFileRow) => void
+  /** Switch between the side panel and the full content page. */
+  onPresentationToggle?: () => void
   /** @deprecated Record IDs are no longer shown in record inspectors. */
   onCopyRecordId?: (id: string) => void
   onCellEdit?: (
@@ -395,6 +377,7 @@ export function EidosFileRecordInspector({
   onPreviousRecord,
   onNextRecord,
   onOpenInTab,
+  onPresentationToggle,
   onCellEdit,
   disabled = false,
   loading = false,
@@ -539,7 +522,10 @@ export function EidosFileRecordInspector({
   const [contentMode, setContentMode] = useState<"preview" | "edit">("preview")
   const [contentDraft, setContentDraft] = useState(contentValue)
   const directWysiwygContent =
-    markdownEditingMode === "wysiwyg" && editable && Boolean(contentField)
+    variant === "page" &&
+    markdownEditingMode === "wysiwyg" &&
+    editable &&
+    Boolean(contentField)
   const contentDisplayMode = directWysiwygContent ? "edit" : contentMode
   const contentEditorOwnsScroll =
     contentDisplayMode === "edit" && !directWysiwygContent
@@ -585,6 +571,15 @@ export function EidosFileRecordInspector({
       if (!saved) return
     }
     onClose()
+  }
+
+  const togglePresentation = async () => {
+    if (!onPresentationToggle) return
+    if (contentDisplayMode === "edit" && contentDraft !== contentValue) {
+      const saved = await saveContentAndPreview()
+      if (!saved) return
+    }
+    onPresentationToggle()
   }
 
   const navigateRecord = async (
@@ -774,6 +769,20 @@ export function EidosFileRecordInspector({
               <div className="flex shrink-0 items-center gap-0.5">
                 {saveStatus}
                 {recordNavigationButtons}
+                {onPresentationToggle ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    aria-label={t("Open in side panel")}
+                    title={t("Open in side panel")}
+                    disabled={savingField !== null}
+                    onClick={() => void togglePresentation()}
+                  >
+                    <Minimize2 className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
                 {onClose ? (
                   <Button
                     type="button"
@@ -826,6 +835,20 @@ export function EidosFileRecordInspector({
               </Button>
             ) : null}
             {recordNavigationButtons}
+            {onPresentationToggle ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("Open as full page")}
+                title={t("Open as full page")}
+                disabled={savingField !== null}
+                onClick={() => void togglePresentation()}
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
             {onClose ? (
               <Button
                 type="button"
@@ -954,6 +977,29 @@ export function EidosFileRecordInspector({
       ) : (
         <ScrollArea className="min-h-0 flex-1">
           <div className="divide-y">{metadataRows}</div>
+          {contentField ? (
+            <div
+              className="border-t px-4 py-3"
+              data-eidos-file-record-content=""
+            >
+              <MarkdownContentEditor
+                key={`${currentRowId}:${contentField.id}`}
+                value={contentValue}
+                mode="preview"
+                editable={false}
+                disabled={editorDisabled}
+                cacheKey={`${currentRowId}:${contentField.id}`}
+                compact
+                onDraftChange={setContentDraft}
+                onEdit={startContentEdit}
+                onCancelEdit={cancelContentEdit}
+                onSaveAndPreview={async () => {
+                  await saveContentAndPreview()
+                }}
+                onError={onError}
+              />
+            </div>
+          ) : null}
         </ScrollArea>
       )}
     </Root>

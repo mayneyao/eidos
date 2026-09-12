@@ -72,6 +72,11 @@
       "import": "./dist/plugins/form.mjs",
       "default": "./dist/plugins/form.mjs"
     },
+    "./plugins/feed": {
+      "types": "./dist/plugins/feed.d.mts",
+      "import": "./dist/plugins/feed.mjs",
+      "default": "./dist/plugins/feed.mjs"
+    },
     "./plugins/csv-import": {
       "types": "./dist/plugins/csv-import.d.mts",
       "import": "./dist/plugins/csv-import.mjs",
@@ -96,6 +101,16 @@
       "types": "./dist/eidos-file-form-view.d.mts",
       "import": "./dist/eidos-file-form-view.mjs",
       "default": "./dist/eidos-file-form-view.mjs"
+    },
+    "./eidos-file-feed-view": {
+      "types": "./dist/eidos-file-feed-view.d.mts",
+      "import": "./dist/eidos-file-feed-view.mjs",
+      "default": "./dist/eidos-file-feed-view.mjs"
+    },
+    "./eidos-file-markdown-preview": {
+      "types": "./dist/eidos-file-markdown-preview.d.mts",
+      "import": "./dist/eidos-file-markdown-preview.mjs",
+      "default": "./dist/eidos-file-markdown-preview.mjs"
     },
     "./eidos-file-record-card": {
       "types": "./dist/eidos-file-record-card.d.mts",

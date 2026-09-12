@@ -42,6 +42,7 @@ import {
   type EidosFileRowWindowMergeMode,
 } from "./eidos-file-row-window"
 import { useEidosFileBoundedVirtualizer } from "./eidos-file-virtual-scroll"
+import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
 
@@ -253,6 +254,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  useEidosFileScrollKeys(scrollContainerRef)
   const previousColumnCountRef = useRef<number | null>(null)
   const previousLayoutFieldsRef = useRef<EidosFileFieldInfo[] | null>(null)
   const previousViewPropertiesRef =

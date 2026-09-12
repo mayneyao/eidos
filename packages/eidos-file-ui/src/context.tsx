@@ -83,6 +83,12 @@ export interface EidosFileMarkdownEditorRequest {
 export type EidosFileMarkdownSourceEditorRequest =
   EidosFileMarkdownEditorRequest
 
+/** Sanitized read-only Markdown HTML plus the wrapper class its styles expect. */
+export interface EidosFileMarkdownHtml {
+  html: string
+  className?: string
+}
+
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
@@ -105,6 +111,21 @@ export interface EidosFileUIHost {
    * `assets/diagram.png` against it.
    */
   contentImageBaseUrl?: string
+  /**
+   * Optional host read-only Markdown renderer. The Host owns sanitization and
+   * returns the wrapper class its styles expect. Shared UI falls back to its
+   * own safe renderer, which does not resolve remote images or highlight code.
+   */
+  renderMarkdownHtml?: (
+    markdown: string,
+    options: { imageBaseUrl?: string }
+  ) => EidosFileMarkdownHtml
+  /**
+   * Resolve a document-local Markdown image source (for example
+   * `assets/diagram.png`) to a displayable URL. Hosts that render remote
+   * images directly only need this for relative sources.
+   */
+  resolveMarkdownImageUrl?: (markdownUrl: string) => Promise<string | null>
   keyboardShortcuts?: EidosFileUIKeyboardShortcuts
   /** Host preference used to identify the active Content editing surface. */
   markdownEditingMode?: "source" | "wysiwyg"
@@ -140,6 +161,8 @@ export function EidosFileUIProvider({
   assetSession,
   assetPresenter,
   contentImageBaseUrl,
+  renderMarkdownHtml,
+  resolveMarkdownImageUrl,
   keyboardShortcuts,
   markdownEditingMode,
   renderMarkdownEditor,
@@ -161,6 +184,10 @@ export function EidosFileUIProvider({
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
   const resolvedContentImageBaseUrl =
     contentImageBaseUrl ?? parent.contentImageBaseUrl
+  const resolvedRenderMarkdownHtml =
+    renderMarkdownHtml ?? parent.renderMarkdownHtml
+  const resolvedResolveMarkdownImageUrl =
+    resolveMarkdownImageUrl ?? parent.resolveMarkdownImageUrl
   const resolvedKeyboardShortcuts =
     keyboardShortcuts ?? parent.keyboardShortcuts
   const resolvedMarkdownEditingMode =
@@ -192,6 +219,12 @@ export function EidosFileUIProvider({
       ...(resolvedContentImageBaseUrl
         ? { contentImageBaseUrl: resolvedContentImageBaseUrl }
         : {}),
+      ...(resolvedRenderMarkdownHtml
+        ? { renderMarkdownHtml: resolvedRenderMarkdownHtml }
+        : {}),
+      ...(resolvedResolveMarkdownImageUrl
+        ? { resolveMarkdownImageUrl: resolvedResolveMarkdownImageUrl }
+        : {}),
       ...(resolvedKeyboardShortcuts
         ? { keyboardShortcuts: resolvedKeyboardShortcuts }
         : {}),
@@ -212,6 +245,8 @@ export function EidosFileUIProvider({
       resolvedAssetPresenter,
       resolvedAssetSession,
       resolvedContentImageBaseUrl,
+      resolvedRenderMarkdownHtml,
+      resolvedResolveMarkdownImageUrl,
       resolvedKeyboardShortcuts,
       resolvedMarkdownEditingMode,
       resolvedRenderMarkdownEditor,

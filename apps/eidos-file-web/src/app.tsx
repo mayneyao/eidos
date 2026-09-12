@@ -51,6 +51,7 @@ import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/galle
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/calendar"
 import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
+import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
 import {
   EidosFileFormModeToolbar,
@@ -367,6 +368,7 @@ export function App() {
       eidosFileKanbanPlugin,
       eidosFileCalendarPlugin,
       eidosFileFormPlugin,
+      eidosFileFeedPlugin,
       createEidosFileCsvImportPlugin(
         {
           async pickFile() {

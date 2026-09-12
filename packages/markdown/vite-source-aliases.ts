@@ -18,6 +18,14 @@ export function markdownEditorSourceAliases() {
       replacement: `${sourceDirectory}styles.css`,
     },
     {
+      find: "@eidos.space/markdown/static.css",
+      replacement: `${sourceDirectory}static.css`,
+    },
+    {
+      find: "@eidos.space/markdown/static",
+      replacement: `${sourceDirectory}static.ts`,
+    },
+    {
       find: "@eidos.space/markdown/plugin-api",
       replacement: `${sourceDirectory}plugin-api.ts`,
     },

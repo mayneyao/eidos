@@ -89,6 +89,7 @@ export type EidosFileBuiltInViewType =
   | "kanban"
   | "calendar"
   | "form"
+  | "feed"
 export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = "extension:"
 
 export function eidosFileExtensionViewType(contributionId: string): string {
@@ -115,6 +116,11 @@ const VIEW_TYPES: Array<{
     description: "Records arranged by date",
   },
   { type: "form", label: "Form", description: "Collect new records" },
+  {
+    type: "feed",
+    label: "Feed",
+    description: "Reverse-chronological content stream",
+  },
 ]
 
 function defaultViewName(
@@ -135,7 +141,8 @@ export function isEidosFileBuiltInViewType(
     type === "gallery" ||
     type === "kanban" ||
     type === "calendar" ||
-    type === "form"
+    type === "form" ||
+    type === "feed"
   )
 }
 

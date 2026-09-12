@@ -17,6 +17,7 @@ import {
   GripVertical,
   LayoutGrid,
   ListPlus,
+  Newspaper,
   Puzzle,
   SquareKanban,
   Table2,
@@ -120,6 +121,7 @@ export function EidosFileViewTypeIcon({
   if (type === "kanban") return <SquareKanban className={className} />
   if (type === "calendar") return <CalendarDays className={className} />
   if (type === "form") return <ListPlus className={className} />
+  if (type === "feed") return <Newspaper className={className} />
   if (!type || type === "grid") return <Table2 className={className} />
   return <Puzzle className={className} />
 }

@@ -22,6 +22,13 @@ export interface EidosFileRelatedRecordPanelProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
   target: EidosFileRelationRecordTarget
+  /**
+   * Host-selected presentation. Defaults to the right panel, or the full page
+   * for tables with a Content field.
+   */
+  presentation?: "panel" | "page"
+  /** Switch between the side panel and the full content page. */
+  onPresentationToggle?: () => void
   disabled?: boolean
   onClose: () => void
   onMutation?: (result: EidosFileRowMutationResult) => void
@@ -38,6 +45,8 @@ export function EidosFileRelatedRecordPanel({
   source,
   table,
   target,
+  presentation,
+  onPresentationToggle,
   disabled = false,
   onClose,
   onMutation,
@@ -90,12 +99,23 @@ export function EidosFileRelatedRecordPanel({
 
   if (!inspectedRow) return null
 
+  const contentField = eidosFileContentField(table)
+  const variant =
+    presentation === "panel"
+      ? "panel"
+      : presentation === "page"
+        ? "page"
+        : contentField
+          ? "page"
+          : "panel"
+
   return (
     <EidosFileRecordInspector
       row={inspectedRow}
       fields={table.fields}
-      variant={eidosFileContentField(table) ? "page" : "panel"}
-      contentField={eidosFileContentField(table)}
+      variant={variant}
+      contentField={contentField}
+      onPresentationToggle={onPresentationToggle}
       disabled={disabled}
       loading={inspectorLoading}
       loadError={inspectorLoadError}

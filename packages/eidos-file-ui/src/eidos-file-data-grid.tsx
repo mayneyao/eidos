@@ -48,6 +48,8 @@ export interface EidosFileDataGridProps {
   showRowMarkers?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  recordPresentation?: "panel" | "page"
+  onRecordPresentationToggle?: () => void
   disabled?: boolean
   reloadToken?: number
   focusRequestToken?: number
@@ -170,6 +172,8 @@ export function EidosFileDataGrid({
   showRowMarkers = true,
   inspectedRowId,
   onInspectedRowChange,
+  recordPresentation,
+  onRecordPresentationToggle,
   disabled = false,
   reloadToken = 0,
   focusRequestToken = 0,
@@ -404,6 +408,8 @@ export function EidosFileDataGrid({
         loadInspectorRow={loadInspectorRow}
         inspectedRowId={inspectedRowId}
         onInspectedRowChange={onInspectedRowChange}
+        recordPresentation={recordPresentation}
+        onRecordPresentationToggle={onRecordPresentationToggle}
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
         onCellEdit={editCell}
