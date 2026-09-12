@@ -90,7 +90,37 @@ export function eidosFileConversionTargetNullable(
   to: StoredFieldType,
   sourceNullable: boolean
 ): boolean {
-  return sourceNullable || (from === "multi-select" && to === "select")
+  // List and forward-Relation destinations are structurally non-null and
+  // encode empty as [] rather than SQL NULL.
+  if (LIST_TYPES.has(to)) return false
+  // List and Relation sources are non-null for the same structural reason, not
+  // because the user asked for a required Field. A scalar destination encodes
+  // empty as SQL NULL, so grant it SQL NULL; otherwise a converted cell could
+  // never be cleared.
+  if (LIST_TYPES.has(from)) return true
+  return sourceNullable
+}
+
+/**
+ * Splits a Text value into Multi-select option names using the Runtime rule.
+ *
+ * A JSON array of strings is read as its ordered choice names; any other text
+ * (including malformed JSON, non-string arrays, or commas) is one choice. The
+ * Editor reuses this so inferred Field options match converted cell values.
+ */
+export function eidosFileTextMultiSelectChoices(text: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((item) => typeof item === "string")
+    ) {
+      return parsed
+    }
+  } catch {
+    // Ordinary text remains one choice, including commas and brackets.
+  }
+  return [text]
 }
 
 const INT64_MIN = -9_223_372_036_854_775_808n
@@ -355,21 +385,11 @@ function convertNonNull(
     }
     if (from === "text" && to === "multi-select") {
       const text = asText(value)
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        // Ordinary text remains one choice, including commas and brackets.
-      }
-      if (
-        Array.isArray(parsed) &&
-        parsed.every((item) => typeof item === "string")
-      ) {
-        // Destination validation still rejects duplicate option names.
-        const encoded = canonicalizeEidosFileJson(parsed)
-        return { value: encoded, class: encoded === text ? 0 : 1 }
-      }
-      return { value: canonicalizeEidosFileJson([text]), class: 1 }
+      // Destination validation still rejects duplicate option names.
+      const encoded = canonicalizeEidosFileJson(
+        eidosFileTextMultiSelectChoices(text)
+      )
+      return { value: encoded, class: encoded === text ? 0 : 1 }
     }
     if (
       (from === "multi-select" && to === "relation") ||

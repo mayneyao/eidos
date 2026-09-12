@@ -596,6 +596,9 @@ export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: E
 }): CompiledEidosFileRowQuery;
 
 // @public (undocumented)
+export function configuredTypeRef(value: unknown): TypeRef | null;
+
+// @public (undocumented)
 export function configureEidosFileConnection(connection: EidosFileConnection): void;
 
 // @public (undocumented)
@@ -2458,6 +2461,9 @@ export interface EidosFileTableSnapshot {
     // (undocumented)
     views: EidosFileViewInfo[];
 }
+
+// @public
+export function eidosFileTextMultiSelectChoices(text: string): string[];
 
 // @public (undocumented)
 export interface EidosFileTypeHandler {

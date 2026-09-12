@@ -1360,6 +1360,100 @@ describe("EidosRuntimeEditorDataSource", () => {
     expect(fixture.preflightSchema).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps a converted scalar target nullable so cleared cells save", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateField(PROJECTS, SIGNALS, { type: "text" })
+
+    expect(fixture.plannedChange()).toEqual({
+      kind: "batch",
+      changes: [
+        {
+          kind: "convert-field",
+          fieldId: SIGNALS,
+          to: "text",
+          toNullable: true,
+          policies: [],
+        },
+        {
+          kind: "set-field-settings",
+          fieldId: SIGNALS,
+          settings: {},
+        },
+      ],
+    })
+  })
+
+  it("infers Multi-select options from parsed Text arrays instead of raw JSON", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const getSchemaPage = fixture.runtime.getSchemaPage.bind(fixture.runtime)
+    Object.assign(fixture.runtime, {
+      getSchemaPage: async (
+        ...args: Parameters<RuntimeClient["getSchemaPage"]>
+      ) => {
+        const page = await getSchemaPage(...args)
+        return {
+          ...page,
+          objects: page.objects.map((object) =>
+            object.object === "field" && object.id === SIGNALS
+              ? {
+                  ...object,
+                  kind: "text" as const,
+                  valueType: "text" as const,
+                  nullable: true,
+                }
+              : object
+          ),
+        }
+      },
+      aggregate: async (request: AggregateRequest) => ({
+        fileId: FILE,
+        revision: "1",
+        results: request.items.map((item) => ({
+          key: item.key,
+          values: ['["Adventure","Drama"]', '["Adventure","Family"]', "Drama"],
+          truncated: false,
+        })),
+      }),
+    })
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateField(PROJECTS, SIGNALS, { type: "multi-select" })
+
+    expect(fixture.plannedChange()).toEqual({
+      kind: "batch",
+      changes: [
+        {
+          kind: "convert-field",
+          fieldId: SIGNALS,
+          to: "multi-select",
+          toNullable: false,
+          policies: ["null-to-empty-list"],
+        },
+        {
+          kind: "set-field-settings",
+          fieldId: SIGNALS,
+          settings: {
+            options: [
+              { name: "Adventure", color: "gray" },
+              { name: "Drama", color: "brown" },
+              { name: "Family", color: "pink" },
+            ],
+          },
+        },
+      ],
+    })
+  })
+
   it("maps a Record Label Field update to the canonical schema leaf", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const source = new EidosRuntimeEditorDataSource(

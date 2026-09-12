@@ -10,6 +10,7 @@ import {
   createEidosFile,
   type BetterSqlite3ConnectionPortOptions,
 } from "./better-sqlite3"
+import { eidosFileConversionTargetNullable } from "./canonical-conversion"
 import type {
   RequestContext,
   RuntimeClient,
@@ -785,6 +786,71 @@ describe("Eidos Runtime P0 data safety regressions", () => {
         ["Empty", null],
         ["One", "A"],
       ])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("keeps a Multi-select to Text conversion clearable", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "tags", name: "Tags", kind: "multi-select" },
+      ])
+      const titleId = table.fieldIds.title!
+      const tagsId = table.fieldIds.tags!
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: table.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "alpha",
+              values: { [titleId]: "First", [tagsId]: ["Alpha", "Beta"] },
+            },
+          ],
+        },
+        context("create-rows")
+      )
+      const conversion = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: tagsId,
+        to: "text",
+        toNullable: eidosFileConversionTargetNullable(
+          "multi-select",
+          "text",
+          false
+        ),
+      })
+      expect(conversion.plan.classification).not.toBe("forbidden")
+
+      const cleared = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: conversion.result.revision,
+          changes: [
+            {
+              kind: "update",
+              rowId: rows.created[0]!.rowId,
+              values: { [tagsId]: null },
+            },
+          ],
+        },
+        context("clear-cell")
+      )
+      const result = await runtime.getRowsById(
+        {
+          tableId: table.tableId,
+          rowIds: [rows.created[0]!.rowId],
+          projection: { fields: [titleId, tagsId], resolveRelations: [] },
+        },
+        context("cleared-value")
+      )
+      expect(cleared.revision).toBe(result.revision)
+      expect(result.rows[0]!.values).toEqual(["First", null])
     } finally {
       await runtime.close(context("close"))
       connection.close()

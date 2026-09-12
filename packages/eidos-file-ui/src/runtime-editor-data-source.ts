@@ -4,6 +4,7 @@ import {
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationIds,
   eidosFileConversionTargetNullable,
+  eidosFileTextMultiSelectChoices,
   eidosFileTypeRefQueryCapabilities,
   parseEidosFileJson,
   parseEidosFileSelectOptions,
@@ -802,7 +803,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
 
   private conversionOptionNames(
     field: FieldDescriptor,
-    value: unknown
+    value: unknown,
+    target: EidosFileFieldType
   ): string[] {
     if (value === null || value === undefined || value === "") return []
     if (field.kind === "multi-select") {
@@ -820,12 +822,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     if (field.kind === "file" || field.kind === "relation") return []
     if (value instanceof Uint8Array) return []
+    if (target === "multi-select" && field.kind === "text") {
+      return eidosFileTextMultiSelectChoices(String(value)).filter(Boolean)
+    }
     return [String(value)]
   }
 
   private async inferredFieldOptions(
     tableId: string,
-    field: FieldDescriptor
+    field: FieldDescriptor,
+    target: EidosFileFieldType
   ): Promise<Array<{ name: string; color: string }>> {
     const aggregate = await this.runtime.aggregate(
       {
@@ -857,7 +863,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const names = existing.map((option) => option.name)
     const seen = new Set(names)
     const addCandidates = (value: unknown) => {
-      const candidates = this.conversionOptionNames(field, value)
+      const candidates = this.conversionOptionNames(field, value, target)
       for (const name of candidates) {
         if (!name || seen.has(name)) continue
         seen.add(name)
@@ -888,7 +894,9 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): Promise<JsonObject | undefined> {
     if (target === "rating") return { display: { kind: "rating" } }
     if (target === "select" || target === "multi-select") {
-      return { options: await this.inferredFieldOptions(tableId, field) }
+      return {
+        options: await this.inferredFieldOptions(tableId, field, target),
+      }
     }
     if (
       ["text", "number", "checkbox", "date", "datetime", "url"].includes(target)

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   eidosFileConversionCanReusePhysicalColumn,
   eidosFileConversionTargetNullable,
+  eidosFileTextMultiSelectChoices,
   isEidosFileUriReference,
   planCanonicalFieldConversion,
   recommendedEidosFileConversionPolicies,
@@ -140,6 +141,19 @@ describe("canonical Eidos File conversion standard", () => {
     expect(
       eidosFileConversionTargetNullable("multi-select", "select", false)
     ).toBe(true)
+    // Structurally non-null list/Relation sources must not force a scalar
+    // target to be non-null; otherwise converted cells could never be cleared.
+    expect(
+      eidosFileConversionTargetNullable("multi-select", "text", false)
+    ).toBe(true)
+    expect(eidosFileConversionTargetNullable("relation", "text", false)).toBe(
+      true
+    )
+    // List destinations stay non-null regardless of source nullability.
+    expect(
+      eidosFileConversionTargetNullable("text", "multi-select", true)
+    ).toBe(false)
+    expect(eidosFileConversionTargetNullable("text", "file", true)).toBe(false)
     expect(
       eidosFileConversionCanReusePhysicalColumn("text", "url", true, true)
     ).toBe(true)
