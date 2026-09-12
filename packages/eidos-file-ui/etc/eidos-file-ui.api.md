@@ -41,9 +41,9 @@ import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspecto
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, AlertDialogPortal, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog.mjs";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu.mjs";
 import { DragEndEvent, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, Status } from "./ui/kanban.mjs";
-import { AtomicType, CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileRowsUndoResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
+import { AtomicType, CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileRowsUndoResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, RecordNeighbors, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
 import * as React$2 from "react";
-import { ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from "react";
+import { ComponentPropsWithoutRef, Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
 import { BaseDrawArgs, BaseGridCell, CustomCell, CustomRenderer, DataEditorProps, DataEditorRef, EditableGridCell, GridCell, GridColumn, GridSelection, Item, ProvideEditorComponent, Rectangle, SelectionRange, SpriteMap, Theme } from "@glideapps/glide-data-grid";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 import { Popover, ScrollArea, Select, Switch } from "radix-ui";
@@ -450,6 +450,8 @@ interface EidosFileRecordInspectorProps {
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   disabled?: boolean;
   loading?: boolean;
+  /** Keep the last complete record mounted while its replacement loads. */
+  preserveContentWhileLoading?: boolean;
   loadError?: string | null;
   onRetryLoad?: () => void;
   onError?: (error: unknown) => void;
@@ -470,6 +472,7 @@ declare function EidosFileRecordInspector({
   onCellEdit,
   disabled,
   loading,
+  preserveContentWhileLoading,
   loadError,
   onRetryLoad,
   onError,
@@ -509,6 +512,8 @@ interface EidosFileRelatedRecordPanelProps {
   onPresentationToggle?: () => void;
   /** Active view query used to resolve previous and next Records. */
   query?: EidosFileRowQuery;
+  /** Invalidate neighbors after external row mutations. */
+  reloadToken?: number;
   /** Ask the Host to open a neighbouring Record in the same query order. */
   onNavigate?: (rowId: string) => void;
   disabled?: boolean;
@@ -526,6 +531,7 @@ declare function EidosFileRelatedRecordPanel({
   presentation,
   onPresentationToggle,
   query,
+  reloadToken,
   onNavigate,
   disabled,
   onClose,
@@ -549,7 +555,7 @@ declare const EidosFileRelationCellRenderer: CustomRenderer<EidosFileRelationCel
 //#endregion
 //#region src/eidos-file-relation-listbox.d.ts
 type EidosFileRelationListboxEdge = "first" | "last";
-declare function useEidosFileRelationListbox(choices: EidosFileRelationValue[]): {
+interface EidosFileRelationListbox {
   activeOption: EidosFileRelationValue | null;
   activeOptionId: string | null;
   activeOptionIndex: number;
@@ -557,8 +563,9 @@ declare function useEidosFileRelationListbox(choices: EidosFileRelationValue[]):
   listboxId: string;
   moveActiveOption: (direction: -1 | 1 | EidosFileRelationListboxEdge) => void;
   optionId: (index: number) => string;
-  setActiveOptionId: React$2.Dispatch<React$2.SetStateAction<string | null>>;
-};
+  setActiveOptionId: Dispatch<SetStateAction<string | null>>;
+}
+declare function useEidosFileRelationListbox(choices: EidosFileRelationValue[]): EidosFileRelationListbox;
 //#endregion
 //#region src/eidos-file-relation-option-list.d.ts
 declare function EidosFileRelationOptionList({
@@ -650,6 +657,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   initialize(): Promise<EidosFileSnapshot>;
   getSnapshot(): Promise<EidosFileSnapshot>;
   getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
+  getRecordNeighbors(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
   getRowIndex(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
   getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
   getGroupCounts(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
@@ -2519,9 +2527,10 @@ export { type DragEndEvent, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCar
 import { EidosFileRow } from "@eidos.space/eidos-file";
 
 //#region src/use-eidos-file-record-inspector-row.d.ts
-declare function useEidosFileRecordInspectorRow(loadRow?: (rowId: string) => Promise<EidosFileRow | null>): {
+declare function useEidosFileRecordInspectorRow(loadRow?: (rowId: string) => Promise<EidosFileRow | null>, preservePreviousRow?: boolean): {
   inspectedRow: EidosFileRow | null;
   inspectorLoading: boolean;
+  inspectorHasCompleteRow: boolean;
   inspectorLoadError: string | null;
   openInspectorRow: (previewRow: EidosFileRow) => void;
   closeInspectorRow: () => void;

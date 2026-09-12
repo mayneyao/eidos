@@ -345,6 +345,15 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain(
       'test "$(realpath "$installed_executable")" = /opt/eidos-lite/eidos-lite-desktop'
     )
+    // electron-builder 26 only applies the SUID bit when the kernel lacks
+    // unprivileged user namespaces. The Debian validation mirrors that probe and
+    // must not hard-code the old 4755 contract.
+    expect(workflow).not.toContain("= root:root:4755")
+    expect(workflow).toContain("expected_sandbox_mode=755")
+    expect(workflow).toContain("expected_sandbox_mode=4755")
+    expect(workflow).toContain(
+      "[[ -L /proc/self/ns/user ]] && unshare --user true"
+    )
     expect(workflow).toContain("dist-app/*.deb")
     expect(workflow).toContain("-name '*.deb'")
     expect(workflow).not.toContain(

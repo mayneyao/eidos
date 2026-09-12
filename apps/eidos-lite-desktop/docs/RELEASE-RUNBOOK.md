@@ -132,8 +132,11 @@ download route keeps AppImage as the default and exposes Debian packages with
 
 Platform acceptance must cover macOS arm64/x64, Windows x64, and Linux
 arm64/x64 GNU. Each Linux release job installs its generated Debian package,
-checks the package identity, architecture, executable link, and Chromium SUID
-sandbox, then runs packaged acceptance from the installed executable. The
+checks the package identity, architecture, executable link, and Chromium
+sandbox permissions, then runs packaged acceptance from the installed
+executable. electron-builder 26 applies the SUID bit only when the kernel lacks
+unprivileged user namespaces, so the check mirrors that probe instead of
+requiring a fixed mode. The
 current repository packages macOS arm64 locally; the other targets require
 their CI runners and real installers.
 

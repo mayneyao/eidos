@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useId, useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
 import type { EidosFileRelationValue } from "@eidos.space/eidos-file"
 
 type EidosFileRelationListboxEdge = "first" | "last"
 
-export function useEidosFileRelationListbox(choices: EidosFileRelationValue[]) {
+interface EidosFileRelationListbox {
+  activeOption: EidosFileRelationValue | null
+  activeOptionId: string | null
+  activeOptionIndex: number
+  activeDescendantId: string | undefined
+  listboxId: string
+  moveActiveOption: (direction: -1 | 1 | EidosFileRelationListboxEdge) => void
+  optionId: (index: number) => string
+  setActiveOptionId: Dispatch<SetStateAction<string | null>>
+}
+
+export function useEidosFileRelationListbox(
+  choices: EidosFileRelationValue[]
+): EidosFileRelationListbox {
   const listboxId = useId()
   const [activeOptionId, setActiveOptionId] = useState<string | null>(null)
   const activeOptionIndex = choices.findIndex(

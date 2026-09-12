@@ -68,7 +68,8 @@ jobs:
             --unpublished-tag lite-v0.7.2 \
             --unpublished-tag lite-v0.10.0 \
             --unpublished-tag lite-v0.13.1 \
-            --unpublished-tag lite-v0.13.2
+            --unpublished-tag lite-v0.13.2 \
+            --unpublished-tag lite-v0.13.3
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -238,7 +239,17 @@ jobs:
           test "$(realpath "$installed_executable")" = /opt/eidos-lite/eidos-lite-desktop
           sandbox="$(dpkg-query --listfiles eidos-lite | awk '/\/chrome-sandbox$/ { print; exit }')"
           test -n "$sandbox"
-          test "$(stat -c '%U:%G:%a' "$sandbox")" = root:root:4755
+          test "$(stat -c '%U:%G' "$sandbox")" = root:root
+          # electron-builder 26 keeps chrome-sandbox non-SUID (0755) when the
+          # kernel supports unprivileged user namespaces and only applies the
+          # SUID bit (4755) otherwise. Its Debian post-install script runs this
+          # same probe as root, so mirror it to derive the expected mode.
+          if sudo bash -c '[[ -L /proc/self/ns/user ]] && unshare --user true' 2>/dev/null; then
+            expected_sandbox_mode=755
+          else
+            expected_sandbox_mode=4755
+          fi
+          test "$(stat -c '%a' "$sandbox")" = "$expected_sandbox_mode"
 
       - name: Validate fresh packaged release
         if: matrix.platform != 'linux'

@@ -54,6 +54,7 @@ import {
   type NewField,
   type ProjectedRow,
   type ProjectionSpec,
+  type RecordNeighbors,
   type RelationDefinition,
   type RowPage,
   type RowQuery,
@@ -325,7 +326,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     tableId: string,
     rowId: string,
     query: EidosFileRowQuery
-  ) {
+  ): Promise<RecordNeighbors> {
     this.assertTable(tableId)
     return this.runtime.getRecordNeighbors(
       { tableId, rowId, query: this.runtimeQuery(tableId, query) },

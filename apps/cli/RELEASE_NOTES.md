@@ -1,11 +1,16 @@
+## What's new
+
+### Feed view
+
+`eidos serve` now offers the Feed standard View, which reads a Table as a timeline: newest records come first, titled by the Record Label with the Content Field rendered as Markdown.
+
+### Record navigation
+
+Record Content renders through the shared Eidos Markdown preview, so Eidos syntax, highlighted code, and document-local images resolve through the mounted asset directory. The record panel moves to the previous or next record in the current View's order and switches between the side panel and the full content page.
+
 ## Bug fixes
 
-- **Serve Content images**: Record Content pages now resolve relative Markdown and HTML image paths through the mounted asset directory, so local images display in the browser editor opened by `eidos serve`.
-- **Multi-select conversion**: Converting Text containing a JSON string array now preserves its individual choices. Plain text stays a single choice, and duplicate choices are still rejected.
-
-## Improvements
-
-- **Serve attachment preview**: Copy an image directly from its attachment preview. Open, download, and copy actions use compact labels and keep their layout stable while copying.
+- **Field conversion**: Converting a JSON string array in a Text field into Multi-select now yields one choice per value, and converted scalar cells can be cleared.
 
 ## Use with an Agent
 
@@ -30,4 +35,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.1.2 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.2.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
