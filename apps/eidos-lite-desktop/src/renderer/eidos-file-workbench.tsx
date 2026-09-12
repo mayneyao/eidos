@@ -30,6 +30,8 @@ import {
   EidosFileViewFieldsPopover,
   EidosFileViewTabs,
   exportEidosFileViewCsv,
+  eidosFileFeedCreatedField,
+  eidosFileViewRowQuery,
   type EidosFileFormulaEditorAnchor,
   type EidosFileFormEditorMode,
   type EidosFileMarkdownEditorRequest,
@@ -355,6 +357,20 @@ export function EidosFileWorkbench({
       activeTable.views[0]
     )
   }, [activeTable, activeViews, activeViewId, onViewSelect])
+  const recordNavigationQuery = useMemo(() => {
+    if (!activeView) return undefined
+    const base = eidosFileViewRowQuery(activeView, search)
+    if (activeView.type !== "feed" || (base.sorts && base.sorts.length > 0)) {
+      return base
+    }
+    const created = eidosFileFeedCreatedField(activeTable?.fields ?? [])
+    return created
+      ? {
+          ...base,
+          sorts: [{ field: created.id, direction: "desc" as const }],
+        }
+      : base
+  }, [activeTable, activeView, search])
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
@@ -808,6 +824,8 @@ export function EidosFileWorkbench({
               }}
               presentation={recordOpenMode}
               onPresentationToggle={toggleRecordPresentation}
+              query={recordNavigationQuery}
+              onNavigate={(rowId) => onInspectedRowChange?.(rowId)}
               onClose={() => onInspectedRowChange?.(null)}
               onError={onError}
               disabled={disabled}
