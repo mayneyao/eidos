@@ -693,6 +693,10 @@ export function SyncPanel({
     if (failureContext === "connect") await enableSync()
     else if (failureContext === "clone" && selectedRepository) {
       await cloneRepository(selectedRepository)
+    } else if (syncFailure.code === "remote-conflict") {
+      // A Remote ref race must re-fetch and reclassify before any upload.
+      // Never replay the rejected push against the old expected head.
+      await syncNow("fetch")
     } else await syncNow(lastAction)
   }
 
@@ -1063,6 +1067,15 @@ export function SyncPanel({
               <RefreshCw />
             )}
             Try again
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            data-sync-check-remote
+            disabled={busy !== null}
+            onClick={() => void syncNow("fetch")}
+          >
+            <RefreshCw /> Check remote updates
           </button>
         </div>
       ) : null}

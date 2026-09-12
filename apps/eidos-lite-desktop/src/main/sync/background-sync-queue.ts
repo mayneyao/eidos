@@ -5,6 +5,7 @@ import type {
   EidosSyncQueueTrigger,
   EidosSyncRunResponse,
 } from "../../shared/contracts"
+import { classifySyncFailure } from "./sync-failure"
 import type { StoredSyncQueueEntry, SyncQueueStore } from "./sync-queue-store"
 
 export const SYNC_RETRY_BASE_MS = 1_000
@@ -318,6 +319,25 @@ export class BackgroundSyncQueue {
           await this.persistAndEmit(entry)
         }
         return response
+      })
+      .catch(async (error) => {
+        // The run failed before a typed Sync response was produced (queue
+        // persistence or the execute boundary threw). Never leave the durable
+        // projection pinned at `running`, which would block every later
+        // enqueue until a process restart.
+        if (entry.status.state === "running") {
+          entry.status = {
+            spaceId: entry.binding.spaceId,
+            state: "paused",
+            trigger: entry.status.trigger ?? "manual",
+            attempt: entry.status.attempt,
+            maxAttempts: this.maxAttempts,
+            queuedAtMs: entry.status.queuedAtMs ?? this.now(),
+            lastFailure: classifySyncFailure(error),
+          }
+          await this.persistAndEmit(entry).catch(() => undefined)
+        }
+        throw error
       })
       .finally(() => {
         entry.inFlight = null

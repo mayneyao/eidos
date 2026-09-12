@@ -169,4 +169,45 @@ describe("SyncRunTracker", () => {
       estimatedRemainingMs: 500,
     })
   })
+
+  it("coalesces rapid transfer samples without losing the final byte", () => {
+    let now = 1_000
+    const events: Array<{ transfer?: { transferredBytes: number } }> = []
+    const tracker = new SyncRunTracker(
+      "transfer-throttle",
+      (progress) => events.push(progress),
+      () => now,
+      "connect"
+    )
+
+    tracker.transition("push", "Uploading")
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 0,
+      totalBytes: 100,
+    })
+    const emitted = events.length
+
+    now += 10
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 25,
+      totalBytes: 100,
+    })
+    now += 10
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 50,
+      totalBytes: 100,
+    })
+    expect(events.length).toBe(emitted)
+
+    now += 10
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 100,
+      totalBytes: 100,
+    })
+    expect(events.at(-1)?.transfer?.transferredBytes).toBe(100)
+  })
 })

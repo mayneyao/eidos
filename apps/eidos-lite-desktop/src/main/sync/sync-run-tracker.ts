@@ -16,10 +16,16 @@ interface ActivePhase {
   transferStartedBytes?: number
 }
 
+// Transfer samples arrive per network chunk. Emitting each one crosses the IPC
+// boundary and re-renders the panel, so coalesce them to a human-visible rate
+// while always preserving phase changes and the final byte count.
+const TRANSFER_EMIT_INTERVAL_MS = 100
+
 export class SyncRunTracker {
   private readonly startedAtMs: number
   private readonly phases: EidosSyncPhaseTiming[] = []
   private active: ActivePhase | null = null
+  private lastTransferEmitMs: number | null = null
 
   constructor(
     readonly runId: string,
@@ -38,6 +44,7 @@ export class SyncRunTracker {
     }
     this.completeActive(now)
     this.active = { phase, detail, startedAtMs: now }
+    this.lastTransferEmitMs = null
     this.emitProgress("active", now)
   }
 
@@ -76,6 +83,14 @@ export class SyncRunTracker {
           ? null
           : Math.round((remainingBytes / bytesPerSecond) * 1_000),
     }
+    const finalSample = totalBytes !== null && transferredBytes >= totalBytes
+    const due =
+      this.lastTransferEmitMs === null ||
+      directionChanged ||
+      finalSample ||
+      now - this.lastTransferEmitMs >= TRANSFER_EMIT_INTERVAL_MS
+    if (!due) return
+    this.lastTransferEmitMs = now
     this.emitProgress("active", now)
   }
 

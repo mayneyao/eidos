@@ -1,5 +1,5 @@
 import type { EidosSyncFailureCode } from "../../shared/contracts"
-import { classifySyncFailure } from "./sync-failure"
+import { classifySyncFailure, shouldReconcileHostedPush } from "./sync-failure"
 
 describe("classifySyncFailure", () => {
   it.each([
@@ -115,6 +115,7 @@ describe("classifySyncFailure", () => {
 
   it.each([
     ["GRAFT_SDK_REMOTE_TRANSPORT_TIMEOUT", "offline"],
+    ["GRAFT_SDK_REPOSITORY_STALE", "remote-conflict"],
     ["GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED", "remote-persistence-failed"],
     [
       "GRAFT_SDK_REMOTE_PUBLICATION_OUTCOME_UNKNOWN",
@@ -164,5 +165,36 @@ describe("classifySyncFailure", () => {
         "push"
       ).code
     ).toBe("remote-conflict")
+  })
+})
+
+describe("shouldReconcileHostedPush", () => {
+  it.each([
+    [{ code: "GRAFT_SDK_REPOSITORY_STALE" }, true],
+    [{ code: "GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED" }, true],
+    [{ code: "GRAFT_SDK_REMOTE_PUBLICATION_OUTCOME_UNKNOWN" }, true],
+    [{ code: "GRAFT_SDK_REPOSITORY_COMMAND", status: 409 }, true],
+    [{ code: "GRAFT_SDK_REPOSITORY_COMMAND" }, true],
+    [{ code: "GRAFT_SDK_REPOSITORY_COMMAND", status: 500 }, false],
+    [{ code: "GRAFT_SDK_REMOTE_TRANSPORT_TIMEOUT" }, false],
+  ] satisfies Array<[Record<string, unknown>, boolean]>)(
+    "decides %o -> %s",
+    (source, expected) => {
+      expect(
+        shouldReconcileHostedPush(
+          Object.assign(new Error("safe diagnostic"), source)
+        )
+      ).toBe(expected)
+    }
+  )
+
+  it("recognizes an unclassified remote race without an SDK code", () => {
+    expect(shouldReconcileHostedPush(new Error("Hosted history changed"))).toBe(
+      true
+    )
+    expect(
+      shouldReconcileHostedPush(new Error("Remote head changed (CAS)"))
+    ).toBe(true)
+    expect(shouldReconcileHostedPush(new Error("Network offline"))).toBe(false)
   })
 })

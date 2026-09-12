@@ -87,6 +87,7 @@ import {
   assertSyncPreflightApproval,
   createSyncPreflight,
 } from "../sync/sync-preflight"
+import { shouldReconcileHostedPush } from "../sync/sync-failure"
 import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"
 import {
@@ -1650,39 +1651,111 @@ export class SpaceSession {
         )
       }
       reportProgress("push", "Pushing Local checkpoints to Hosted Space")
-      await this.gate.withRepositoryOperation(
-        "Pushing Space to Eidos Sync",
-        async (signal) => {
-          const current = await this.graft.status(
+      const pushLocalCheckpoints = async () =>
+        this.gate.withRepositoryOperation(
+          "Pushing Space to Eidos Sync",
+          async (signal) => {
+            const current = await this.graft.status(
+              this.canonical.root,
+              this.graftStatusOptions(signal)
+            )
+            if (current.dirty && action !== "push") {
+              throw new Error(
+                "Space changed before push. Create a checkpoint and Sync again."
+              )
+            }
+            const currentState = repositorySyncState(current)
+            if (
+              currentState === "behind" ||
+              currentState === "diverged" ||
+              current.hasConflicts
+            ) {
+              throw new Error(
+                "Hosted history changed before push. Sync again to re-fetch it."
+              )
+            }
+            await this.graft.push(this.canonical.root, accessToken, {
+              signal,
+              onProgress: reportTransfer,
+            })
+          },
+          { preemptible: true }
+        )
+
+      try {
+        await pushLocalCheckpoints()
+        pushed = true
+      } catch (error) {
+        // A lost compare-and-swap or an unconfirmed publication can leave the
+        // known Remote head stale. Re-fetch and reclassify instead of replaying
+        // the rejected push against the old expected head.
+        if (!shouldReconcileHostedPush(error)) throw error
+        reportProgress(
+          "fetch",
+          "Hosted history changed while uploading; re-checking"
+        )
+        relation = await this.gate.withRepositoryOperation(
+          "Reconciling Eidos Sync",
+          async (signal) => {
+            await this.graft.fetch(this.canonical.root, {
+              signal,
+              onProgress: reportTransfer,
+            })
+            await this.recordSyncHistoryCheck()
+            return this.graft.status(
+              this.canonical.root,
+              this.graftStatusOptions(signal)
+            )
+          },
+          { preemptible: true }
+        )
+        if (
+          relation.hasConflicts ||
+          repositorySyncState(relation) === "diverged"
+        ) {
+          return this.syncResult(
+            "conflict",
+            "Local and Hosted history have diverged. No files were replaced. Review History before choosing a recovery path.",
+            pulled,
+            false,
+            relation,
+            materializedPaths
+          )
+        }
+        if (repositorySyncState(relation) === "behind") {
+          return this.syncResult(
+            "checked",
+            "Hosted history changed while uploading. Receive the newer versions, then upload again.",
+            pulled,
+            false,
+            relation,
+            materializedPaths
+          )
+        }
+        if (repositorySyncState(relation) === "up_to_date") {
+          return this.syncResult(
+            "synced",
+            "The upload was already published by another attempt.",
+            pulled,
+            false,
+            relation,
+            materializedPaths
+          )
+        }
+        // Ahead or unclassified: the Remote head is unchanged, so one bounded
+        // retry with the refreshed compare-and-swap boundary is safe.
+        reportProgress("push", "Retrying upload")
+        await pushLocalCheckpoints()
+        pushed = true
+      }
+      if (pushed) {
+        relation = await this.repository.runForeground((signal) =>
+          this.graft.status(
             this.canonical.root,
             this.graftStatusOptions(signal)
           )
-          if (current.dirty && action !== "push") {
-            throw new Error(
-              "Space changed before push. Create a checkpoint and Sync again."
-            )
-          }
-          const currentState = repositorySyncState(current)
-          if (
-            currentState === "behind" ||
-            currentState === "diverged" ||
-            current.hasConflicts
-          ) {
-            throw new Error(
-              "Hosted history changed before push. Sync again to re-fetch it."
-            )
-          }
-          await this.graft.push(this.canonical.root, accessToken, {
-            signal,
-            onProgress: reportTransfer,
-          })
-        },
-        { preemptible: true }
-      )
-      pushed = true
-      relation = await this.repository.runForeground((signal) =>
-        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
-      )
+        )
+      }
     }
 
     return this.syncResult(

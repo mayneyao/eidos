@@ -305,4 +305,41 @@ describe("Sync inspector B", () => {
     expect(host.textContent).toContain("Results from the last successful check")
     await act(async () => root.unmount())
   })
+  it("offers a fetch escape while a failure is shown", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onAction = vi.fn()
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            history: { state: "ahead", ahead: 1, behind: 0, checkedAtMs: 1000 },
+            failure: {
+              code: "remote-persistence-failed",
+              state: "service-unavailable",
+              title: "Upload did not complete",
+              message: "Local files remain safe",
+              action: "retry-now",
+              actionLabel: "Retry now",
+              retryable: true,
+              localSafe: true,
+            },
+          }}
+          spaceKey="stuck"
+          onClose={() => undefined}
+          onAction={onAction}
+          onRetry={() => undefined}
+          onAccount={() => undefined}
+        />
+      )
+    )
+    const check = host.querySelector<HTMLButtonElement>(
+      "[data-sync-check-remote]"
+    )
+    expect(check).not.toBeNull()
+    await act(async () => check?.click())
+    expect(onAction).toHaveBeenCalledWith("fetch")
+    await act(async () => root.unmount())
+  })
 })

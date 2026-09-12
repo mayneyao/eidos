@@ -1159,6 +1159,86 @@ describe("SyncPanel failure states", () => {
     expect(runSync).toHaveBeenCalledTimes(2)
   })
 
+  it("re-fetches instead of replaying an upload after a Remote conflict", async () => {
+    const remoteConflict = {
+      ok: false,
+      runId: "race-run",
+      failure: {
+        code: "remote-conflict",
+        state: "needs-attention",
+        title: "Cloud updates changed",
+        message: "Another device uploaded a newer version.",
+        action: "retry-now",
+        actionLabel: "Fetch again",
+        retryable: true,
+        localSafe: true,
+        status: 409,
+      },
+      telemetry: {
+        startedAtMs: 0,
+        completedAtMs: 1,
+        durationMs: 1,
+        phases: [],
+      },
+    } satisfies EidosSyncRunResponse
+    const checked = {
+      ...conflictResponse,
+      result: {
+        ...conflictResponse.result,
+        state: "checked",
+        ahead: 0,
+        behind: 0,
+      },
+    } satisfies EidosSyncRunResponse
+    const runSync = vi
+      .fn()
+      .mockResolvedValueOnce(remoteConflict)
+      .mockResolvedValueOnce(checked)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue(status),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        runSync,
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          syncHistory: {
+            state: "ahead",
+            ahead: 1,
+            behind: 0,
+            localHead: "local",
+            remoteHead: "remote",
+            commonAncestor: "base",
+          },
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("[data-sync-push]")?.click()
+    })
+    expect(runSync).toHaveBeenNthCalledWith(1, "push")
+    expect(
+      host.querySelector<HTMLElement>("[data-sync-failure]")?.dataset
+        .syncFailure
+    ).toBe("remote-conflict")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
+        ?.click()
+    })
+    expect(runSync).toHaveBeenNthCalledWith(2, "fetch")
+  })
+
   it("surfaces a pending background retry without hiding Local safety", async () => {
     const api = {
       getSyncStatus: vi.fn().mockResolvedValue(status),

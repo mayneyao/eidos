@@ -279,6 +279,16 @@ export function classifySyncFailure(
   if (code === "protocol-version-mismatch") {
     return failure("protocol-version-mismatch", status)
   }
+  // Graft reports a lost compare-and-swap / concurrent ref change as a
+  // retryable stale repository command. During a remote operation that is a
+  // Remote race, so re-fetch and reclassify instead of treating it as a
+  // server persistence failure.
+  if (
+    code === "GRAFT_SDK_REPOSITORY_STALE" &&
+    (phase === "fetch" || phase === "pull" || phase === "push")
+  ) {
+    return failure("remote-conflict", status)
+  }
   if (code === "remote-conflict") return failure("remote-conflict", status)
   if (code === "service-unavailable" || code === "unavailable") {
     return failure("service-unavailable", status)
@@ -386,6 +396,44 @@ export function classifySyncFailure(
     return failure("remote-persistence-failed", status)
   }
   return failure("unknown", status)
+}
+
+/**
+ * Whether a rejected Hosted push must be reconciled by fetching the Remote
+ * before any retry. A lost compare-and-swap, a possibly-published ref, or an
+ * unclassified push command means the known Remote head can no longer be
+ * trusted. A definitive pre-publication failure (for example an explicit HTTP
+ * 500) can be retried as-is without paying for a fetch.
+ */
+export function shouldReconcileHostedPush(error: unknown): boolean {
+  const record = errorRecord(error)
+  const code = typeof record.code === "string" ? record.code : ""
+  if (
+    code === "GRAFT_SDK_REPOSITORY_STALE" ||
+    code === "GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED" ||
+    code === "GRAFT_SDK_REMOTE_PUBLICATION_OUTCOME_UNKNOWN"
+  ) {
+    return true
+  }
+  const explicitStatus =
+    typeof record.status === "number" && Number.isInteger(record.status)
+      ? record.status
+      : undefined
+  const message = errorMessage(error)
+  const status = explicitStatus ?? statusFromMessage(message)
+  if (status === 409) return true
+  const normalized = `${code} ${message}`.toLowerCase()
+  if (
+    normalized.includes("diverged") ||
+    normalized.includes("hosted history changed") ||
+    normalized.includes("ref conflict") ||
+    normalized.includes("remote head changed")
+  ) {
+    return true
+  }
+  // A push command that failed without a definitive HTTP status may be a lost
+  // compare-and-swap or an unconfirmed publication, so re-fetch before retry.
+  return code === "GRAFT_SDK_REPOSITORY_COMMAND" && status === undefined
 }
 
 export interface PackagedSyncFault {

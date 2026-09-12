@@ -504,6 +504,14 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   marker automatically.
 - **HTTP 409 / Remote ref race:** no force push. Re-fetch through **Retry now**;
   an ahead+behind result must return to the ordinary two-copy conflict flow.
+- **Upload rejected with an ambiguous outcome:** a lost compare-and-swap
+  (`GRAFT_SDK_REPOSITORY_STALE`), an unconfirmed publication
+  (`GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED`/`..._OUTCOME_UNKNOWN`), or an
+  unclassified push command means the known Remote head can no longer be
+  trusted. Re-fetch and reclassify inside the same run before any retry, and
+  never replay the rejected push against the old expected head. A definitive
+  pre-publication failure (for example an explicit HTTP 500) is retried as-is
+  without paying for a fetch.
 - **HTTP 429 or 502/503/504:** keep Local state and offer retry. The failure
   contract carries a bounded retry hint. Queue a new serialized attempt with
   exponential delay; treat a valid `Retry-After` as a floor, never spin a tight

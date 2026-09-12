@@ -178,8 +178,14 @@ export function SyncInspector({
   useEffect(() => {
     let alive = true
     setCommits([])
+    // Each direction previews at most ten versions, so only page what the
+    // inspector can display instead of always reading fifty commits.
+    const pageSize = Math.min(
+      50,
+      (history?.behind ? 10 : 0) + (history?.ahead ? 10 : 0)
+    )
     if (
-      !(history?.ahead || history?.behind) ||
+      pageSize === 0 ||
       state.failure ||
       !window.eidosLite.getVersionHistory
     ) {
@@ -188,7 +194,7 @@ export function SyncInspector({
     }
     setListState("loading")
     void window.eidosLite
-      .getVersionHistory(50)
+      .getVersionHistory(pageSize)
       .then((page) => {
         if (alive) {
           setCommits(page.commits)
@@ -205,7 +211,6 @@ export function SyncInspector({
     spaceKey,
     history?.localHead,
     history?.remoteHead,
-    history?.checkedAtMs,
     history?.ahead,
     history?.behind,
     state.failure,
@@ -434,11 +439,11 @@ export function SyncInspector({
               </button>
             ) : null}
             {!active &&
-            !state.failure &&
-            (action !== "fetch" || state.readOnly) &&
-            !merging ? (
+            !merging &&
+            (state.failure || action !== "fetch" || state.readOnly) ? (
               <button
                 className="sync-inspector-link"
+                data-sync-check-remote
                 onClick={() => onAction("fetch")}
               >
                 {t("Check remote updates")}

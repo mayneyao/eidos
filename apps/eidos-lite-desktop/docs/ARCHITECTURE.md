@@ -662,6 +662,11 @@ Every failure projection has `localSafe: true`; a Remote failure never rolls
 back an already committed SQLite transaction. HTTP 409 during reconciliation
 maps to a retryable Remote race, while an analyzed ahead+behind relation remains
 the ordinary non-error `conflict` outcome and keeps its two-copy recovery UI.
+A rejected upload whose Remote head may have moved or whose ref publication is
+unconfirmed (`GRAFT_SDK_REPOSITORY_STALE`, the `PUBLICATION_UNCONFIRMED`/
+`OUTCOME_UNKNOWN` codes, or an unclassified push command) re-fetches and
+reclassifies in the same run instead of replaying the push; a definitive
+pre-publication failure such as an explicit HTTP 500 keeps its direct retry.
 
 Connected Spaces also use one main-owned background queue. A successful Local
 checkpoint coalesces all current Space checkpoints into one pending item;

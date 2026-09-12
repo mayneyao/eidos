@@ -422,6 +422,29 @@ describe("BackgroundSyncQueue", () => {
     await syncQueue.close()
   })
 
+  it("does not stay stuck running when queue persistence fails", async () => {
+    const execute = vi.fn().mockResolvedValue(succeeded())
+    const syncQueue = queue()
+    await syncQueue.attach({ spaceId, execute, emit: () => undefined })
+    const write = vi
+      .spyOn(store, "write")
+      .mockRejectedValueOnce(new Error("disk full"))
+
+    await expect(syncQueue.runNow(spaceId)).rejects.toThrow("disk full")
+
+    expect(syncQueue.status(spaceId).state).toBe("paused")
+    expect(syncQueue.status(spaceId).lastFailure).toMatchObject({
+      localSafe: true,
+    })
+    expect(execute).not.toHaveBeenCalled()
+
+    write.mockRestore()
+    const recovered = await syncQueue.runNow(spaceId)
+    expect(recovered.ok).toBe(true)
+    expect(syncQueue.status(spaceId).state).toBe("idle")
+    await syncQueue.close()
+  })
+
   it("recovers an interrupted running item without persisted credentials", async () => {
     await store.write(spaceId, {
       version: 1,

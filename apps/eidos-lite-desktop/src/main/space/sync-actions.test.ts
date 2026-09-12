@@ -88,10 +88,64 @@ describe("explicit Sync actions", () => {
     expect(graft.push).not.toHaveBeenCalled()
   })
 
-  it("surfaces a rejected optimistic upload without fetching or applying remote files", async () => {
+  it("reconciles a lost upload race by fetching and reclassifying", async () => {
+    const { graft, invoke } = sessionFixture(2, 0, false)
+    graft.status
+      .mockResolvedValueOnce({
+        ahead: 2,
+        behind: 0,
+        dirty: false,
+        hasConflicts: false,
+      })
+      .mockResolvedValueOnce({
+        ahead: 2,
+        behind: 0,
+        dirty: false,
+        hasConflicts: false,
+      })
+      .mockResolvedValueOnce({
+        ahead: 0,
+        behind: 2,
+        dirty: false,
+        hasConflicts: false,
+      })
+    graft.push.mockRejectedValueOnce(new Error("Remote head changed (CAS)"))
+
+    expect(await invoke("push")).toMatchObject({
+      state: "checked",
+      pushed: false,
+      pulled: false,
+    })
+    expect(graft.push).toHaveBeenCalledTimes(1)
+    expect(graft.fetch).toHaveBeenCalledTimes(1)
+    expect(graft.applyMerge).not.toHaveBeenCalled()
+    expect(graft.commit).not.toHaveBeenCalled()
+  })
+
+  it("retries a lost upload race once when the remote head is unchanged", async () => {
     const { graft, invoke } = sessionFixture(2, 0, false)
     graft.push.mockRejectedValueOnce(new Error("Remote head changed (CAS)"))
-    await expect(invoke("push")).rejects.toThrow("Remote head changed")
+    expect(await invoke("push")).toMatchObject({
+      state: "synced",
+      pushed: true,
+      pulled: false,
+    })
+    expect(graft.push).toHaveBeenCalledTimes(2)
+    expect(graft.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("propagates a definitive upload failure without fetching", async () => {
+    const { graft, invoke } = sessionFixture(2, 0, false)
+    graft.push.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          "Object upload completed but ref publication failed with HTTP 500"
+        ),
+        { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+      )
+    )
+    await expect(invoke("push")).rejects.toThrow("ref publication failed")
+    expect(graft.push).toHaveBeenCalledTimes(1)
     expect(graft.fetch).not.toHaveBeenCalled()
     expect(graft.applyMerge).not.toHaveBeenCalled()
     expect(graft.commit).not.toHaveBeenCalled()
