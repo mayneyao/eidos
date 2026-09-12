@@ -354,7 +354,22 @@ function convertNonNull(
       return { value: canonicalizeEidosFileJson([asText(value)]), class: 1 }
     }
     if (from === "text" && to === "multi-select") {
-      return { value: canonicalizeEidosFileJson([asText(value)]), class: 1 }
+      const text = asText(value)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        // Ordinary text remains one choice, including commas and brackets.
+      }
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === "string")
+      ) {
+        // Destination validation still rejects duplicate option names.
+        const encoded = canonicalizeEidosFileJson(parsed)
+        return { value: encoded, class: encoded === text ? 0 : 1 }
+      }
+      return { value: canonicalizeEidosFileJson([text]), class: 1 }
     }
     if (
       (from === "multi-select" && to === "relation") ||

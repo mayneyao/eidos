@@ -791,50 +791,58 @@ describe("Eidos Runtime P0 data safety regressions", () => {
     }
   })
 
-  it("wraps plain Text values as one Multi-select choice", async () => {
-    const { runtime, connection } = await createRuntime()
-    try {
-      const table = await createTable(runtime, "items", "Items", [
-        { clientKey: "title", name: "Title", kind: "text" },
-        { clientKey: "tags", name: "Tags", kind: "text" },
-      ])
-      const titleId = table.fieldIds.title!
-      const tagsId = table.fieldIds.tags!
-      const rows = await runtime.mutateRows(
-        {
-          tableId: table.tableId,
-          expectedRevision: table.revision,
-          changes: [
-            {
-              kind: "create",
-              clientKey: "alpha",
-              values: { [titleId]: "First", [tagsId]: "Alpha" },
-            },
-          ],
-        },
-        context("create-text-choice")
-      )
-      const converted = await applySchema(runtime, {
-        kind: "convert-field",
-        fieldId: tagsId,
-        to: "multi-select",
-      })
-      const result = await runtime.getRowsById(
-        {
-          tableId: table.tableId,
-          rowIds: [rows.created[0]!.rowId],
-          projection: { fields: [titleId, tagsId], resolveRelations: [] },
-        },
-        context("converted-text-choice")
-      )
+  it.each([
+    ["Alpha", ["Alpha"], "lossless-rewrite"],
+    ['["Alpha","Beta"]', ["Alpha", "Beta"], "metadata-only"],
+    ['[ "Alpha", "Beta" ]', ["Alpha", "Beta"], "lossless-rewrite"],
+    ["[]", [], "metadata-only"],
+  ])(
+    "converts Text into Multi-select choices: %s",
+    async (text, choices, classification) => {
+      const { runtime, connection } = await createRuntime()
+      try {
+        const table = await createTable(runtime, "items", "Items", [
+          { clientKey: "title", name: "Title", kind: "text" },
+          { clientKey: "tags", name: "Tags", kind: "text" },
+        ])
+        const titleId = table.fieldIds.title!
+        const tagsId = table.fieldIds.tags!
+        const rows = await runtime.mutateRows(
+          {
+            tableId: table.tableId,
+            expectedRevision: table.revision,
+            changes: [
+              {
+                kind: "create",
+                clientKey: "alpha",
+                values: { [titleId]: "First", [tagsId]: text },
+              },
+            ],
+          },
+          context("create-text-choice")
+        )
+        const converted = await applySchema(runtime, {
+          kind: "convert-field",
+          fieldId: tagsId,
+          to: "multi-select",
+        })
+        const result = await runtime.getRowsById(
+          {
+            tableId: table.tableId,
+            rowIds: [rows.created[0]!.rowId],
+            projection: { fields: [titleId, tagsId], resolveRelations: [] },
+          },
+          context("converted-text-choice")
+        )
 
-      expect(converted.plan.classification).toBe("lossless-rewrite")
-      expect(result.rows[0]!.values).toEqual(["First", ["Alpha"]])
-    } finally {
-      await runtime.close(context("close"))
-      connection.close()
+        expect(converted.plan.classification).toBe(classification)
+        expect(result.rows[0]!.values).toEqual(["First", choices])
+      } finally {
+        await runtime.close(context("close"))
+        connection.close()
+      }
     }
-  })
+  )
 
   it("reuses the physical TEXT column for Text, URL, and Select metadata conversions", async () => {
     const { runtime, connection } = await createRuntime()

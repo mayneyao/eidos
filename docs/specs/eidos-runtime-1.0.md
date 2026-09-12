@@ -3099,7 +3099,13 @@ nullability guard succeeds. The other cells use only these algorithms:
    forbidden unless `null-to-empty-list` explicitly maps it to `[]`.
    Select-to-Multi-select remains injective with that policy: SQL NULL alone
    maps to `[]`, while every string maps to a singleton, so the whole valid
-   conversion is lossless. For Text to a list, every non-null value must
+   conversion is lossless. Text to Multi-select interprets a JSON array of
+   strings as option names in their original order; canonical arrays keep their
+   bytes (metadata-only), while whitespace/escape normalization is a
+   lossless-rewrite of the logical list. Duplicate names remain invalid.
+   Other text is wrapped as one option, without splitting commas or coercing
+   mixed JSON arrays. SQL NULL still requires `null-to-empty-list`.
+   For Text to other list types, every non-null value must
    already be exact canonical JCS of the destination and therefore keeps its
    bytes. With no SQL NULL this is metadata-only. With SQL NULL and
    `null-to-empty-list`, it is lossless-rewrite when no non-null source value

@@ -2935,7 +2935,12 @@ metadata-only。其他 cell 只使用以下 algorithm：
    non-null；因此 source SQL NULL 会使 conversion forbidden，除非
    `null-to-empty-list` 明确把它映射为 `[]`。使用该 policy 时，Select-to-
    Multi-select 仍为 injective：只有 SQL NULL 映射为 `[]`，每个 string 映射为
-   singleton，因此整个 valid conversion 是 lossless。对 Text 到 list，
+   singleton，因此整个 valid conversion 是 lossless。Text 到 Multi-select
+   将 JSON 字符串数组按原有顺序解释为选项；canonical 数组保持原字节
+   （metadata-only），空白与转义规范化属于逻辑列表的 lossless-rewrite。
+   重复选项名仍无效。其他文本包装为单个选项，不按逗号拆分，也不强制转换
+   混合类型 JSON 数组。SQL NULL 仍需要 `null-to-empty-list`。
+   对 Text 到其他 list 类型，
    每个 non-null value 必须已经是 destination 的 exact canonical JCS，因此保持
    byte。不含 SQL NULL 时是 metadata-only。存在 SQL NULL 且使用
    `null-to-empty-list` 时，如果没有 non-null source value 是 destination empty

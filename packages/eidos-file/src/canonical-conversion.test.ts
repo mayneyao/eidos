@@ -220,6 +220,54 @@ describe("canonical Eidos File conversion standard", () => {
     })
   })
 
+  it.each([
+    ['["Alpha","Beta"]', '["Alpha","Beta"]', "metadata-only"],
+    ['[ "Alpha", "Beta" ]', '["Alpha","Beta"]', "lossless-rewrite"],
+    ["[]", "[]", "metadata-only"],
+    ["Alpha, Beta", '["Alpha, Beta"]', "lossless-rewrite"],
+    ["[broken", '["[broken"]', "lossless-rewrite"],
+    ['[1,"Beta"]', '["[1,\\"Beta\\"]"]', "lossless-rewrite"],
+  ])(
+    "converts Text choices without double encoding: %s",
+    (value, expected, classification) => {
+      const plan = planCanonicalFieldConversion({
+        from: "text",
+        to: "multi-select",
+        toNullable: false,
+        rows: [{ id: "row", value }],
+      })
+      expect(plan.classification).toBe(classification)
+      expect(plan.rows[0]?.value).toBe(expected)
+    }
+  )
+
+  it("keeps duplicate rejection and explicit null conversion for Text arrays", () => {
+    const input = {
+      from: "text" as const,
+      to: "multi-select" as const,
+      toNullable: false,
+    }
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        rows: [{ id: "row", value: '["A","A"]' }],
+      }).classification
+    ).toBe("forbidden")
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        rows: [{ id: "row", value: null }],
+      }).classification
+    ).toBe("forbidden")
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        policies: ["null-to-empty-list"],
+        rows: [{ id: "row", value: null }],
+      }).rows[0]?.value
+    ).toBe("[]")
+  })
+
   it("covers stored File and Relation boundaries outside the editor picker", () => {
     expect(
       planCanonicalFieldConversion({
