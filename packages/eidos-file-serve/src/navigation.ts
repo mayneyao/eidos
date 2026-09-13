@@ -18,6 +18,13 @@ export interface ServeNavigationTarget {
   viewId: string | null
 }
 
+export function resolveServeView<T extends { id: string }>(
+  views: ReadonlyArray<T>,
+  requestedViewId?: string | null
+): T | undefined {
+  return views.find((view) => view.id === requestedViewId) ?? views[0]
+}
+
 export function parseServeNavigationParameters(
   search: string
 ): ServeNavigationParameters {
@@ -51,14 +58,7 @@ export function resolveServeNavigation(
   const table = requestedTable ?? viewTable ?? defaultTable
   if (table === null) return { tableId: null, viewId: null }
 
-  const requestedView = table.views.find(
-    (candidate) => candidate.id === requested.viewId
-  )
-  const view =
-    requestedView ??
-    table.views.find((candidate) => candidate.type === "grid") ??
-    table.views[0] ??
-    null
+  const view = resolveServeView(table.views, requested.viewId)
   return { tableId: table.table.id, viewId: view?.id ?? null }
 }
 

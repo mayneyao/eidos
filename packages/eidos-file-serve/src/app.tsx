@@ -82,7 +82,7 @@ import {
   pickCliHostAssetFiles,
 } from "./assets"
 import { firstTableTemplate, resolveServeEditorState } from "./empty-file"
-import { resolveServeNavigation } from "./navigation"
+import { resolveServeNavigation, resolveServeView } from "./navigation"
 import { RecordContentProvider } from "./record-content"
 import {
   browserPublishBrandingVisible,
@@ -348,11 +348,7 @@ export function ServeApp() {
   const activeView = useMemo(() => {
     if (!activeTable) return undefined
     const requested = activeViews[activeTable.table.id]
-    return (
-      activeTable.views.find((view) => view.id === requested) ??
-      activeTable.views.find((view) => view.type === "grid") ??
-      activeTable.views[0]
-    )
+    return resolveServeView(activeTable.views, requested)
   }, [activeTable, activeViews])
   const readOnly = manifest?.access === "read"
   const published = manifest?.mode === "publish"
