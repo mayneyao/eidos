@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { requiredEidosLiteExternalUrl } from "./external-url"
+import { eidosSyncHelpUrl, requiredEidosLiteExternalUrl } from "./external-url"
 
 describe("Eidos Lite external URL policy", () => {
   it("allows absolute HTTP(S) URLs without rewriting them", () => {
@@ -20,5 +20,25 @@ describe("Eidos Lite external URL policy", () => {
     "https://user:secret@example.com/private",
   ])("rejects unsafe or non-external URL %s", (uri) => {
     expect(() => requiredEidosLiteExternalUrl(uri)).toThrow()
+  })
+})
+
+describe("Eidos Lite Sync help URLs", () => {
+  it("opens the account Sync tab for Sync access management", () => {
+    expect(eidosSyncHelpUrl("sync-access", "https://eidos.space")).toBe(
+      "https://eidos.space/account?tab=sync"
+    )
+    expect(eidosSyncHelpUrl("sync-access", "https://staging.eidos.space")).toBe(
+      "https://staging.eidos.space/account?tab=sync"
+    )
+  })
+
+  it("keeps the account summary and download destinations", () => {
+    expect(eidosSyncHelpUrl("account", "https://eidos.space")).toBe(
+      "https://eidos.space"
+    )
+    expect(eidosSyncHelpUrl("download", "https://eidos.space")).toBe(
+      "https://eidos.space/download"
+    )
   })
 })

@@ -50,7 +50,10 @@ import {
   type SpaceWorkingChangesDiscardRequest,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
-import { requiredEidosLiteExternalUrl } from "../shared/external-url"
+import {
+  eidosSyncHelpUrl,
+  requiredEidosLiteExternalUrl,
+} from "../shared/external-url"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import type { EidosLiteUpdater } from "./updater"
 import {
@@ -972,8 +975,9 @@ export function registerIpc(
   })
   ipcMain.handle(
     IPC_CHANNELS.openExternalUrl,
-    async (event, value: unknown) => {
-      controller.requireSession(event.sender)
+    async (_event, value: unknown) => {
+      // Opening a validated external URL is app-scoped, not Space-scoped, so the
+      // Settings window (which has no Space session) can open account/pricing pages.
       await shell.openExternal(requiredEidosLiteExternalUrl(value))
     }
   )
@@ -2351,11 +2355,7 @@ export function registerIpc(
       throw new Error("Invalid Sync help destination")
     }
     await shell.openExternal(
-      destination === "account"
-        ? services.accountOrigin
-        : destination === "sync-access"
-          ? new URL("/pricing#sync", services.accountOrigin).href
-          : "https://eidos.space/download"
+      eidosSyncHelpUrl(destination, services.accountOrigin)
     )
   })
   ipcMain.handle(IPC_CHANNELS.publishRun, async (event, value: unknown) => {
