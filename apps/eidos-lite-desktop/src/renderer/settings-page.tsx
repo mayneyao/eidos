@@ -13,6 +13,7 @@ import {
   RefreshCw,
   RotateCcw,
   SlidersHorizontal,
+  Upload,
 } from "lucide-react"
 import appLogo from "../../assets/logo.svg"
 
@@ -26,10 +27,12 @@ import type {
   EidosLiteTerminalLayout,
   EidosLiteTerminalShell,
   EidosLiteUpdateStatus,
+  EidosSyncStatus,
 } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
 import { KeyboardShortcutSettings } from "./keyboard-shortcut-settings"
+import { usePublishAccount } from "./publish-account"
 import { rendererPlatform } from "./renderer-platform"
 import {
   clearSyncStatusSnapshots,
@@ -37,6 +40,7 @@ import {
   writeSyncStatusSnapshot,
 } from "./sync-status-cache"
 import { TimeZonePicker } from "./time-zone-picker"
+import { UsageMeter, formatUsageBytes } from "./usage-meter"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -64,9 +68,8 @@ const TERMINAL_LAYOUT_OPTIONS: Array<{
 
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
-  { id: "files", label: "Files", icon: FileText },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
-  { id: "spaces", label: "Spaces", icon: FolderOpen },
+  { id: "files", label: "Files", icon: FileText },
   { id: "plugins", label: "Built-in Plugins", icon: Blocks },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { id: "updates", label: "Updates", icon: RefreshCw },
@@ -129,6 +132,15 @@ export function SettingsPage() {
     null
   )
   const [syncAccount, setSyncAccount] = useState(() => readSyncAccountContext())
+  const [syncStatus, setSyncStatus] = useState<EidosSyncStatus | null>(null)
+  const [syncStatusBusy, setSyncStatusBusy] = useState(false)
+  const publishAccountEnabled = syncAccount?.account.state === "signed-in"
+  const {
+    account: publishAccount,
+    failed: publishAccountFailed,
+    refreshing: publishAccountRefreshing,
+    refresh: refreshPublishAccount,
+  } = usePublishAccount({ enabled: publishAccountEnabled })
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
@@ -293,6 +305,45 @@ export function SettingsPage() {
     }
   }, [t])
 
+  const manageSyncAccess = useCallback(async () => {
+    setError(null)
+    try {
+      await window.eidosLite.openSyncHelp("sync-access")
+    } catch (cause) {
+      console.error("Could not open the Sync access page", cause)
+      setError(t("Could not open your Eidos account page. Try again later."))
+    }
+  }, [t])
+
+  const syncSignedIn = syncAccount?.account.state === "signed-in"
+  const refreshSyncStatus = useCallback(async () => {
+    if (!syncSignedIn) return
+    setSyncStatusBusy(true)
+    try {
+      const status = await window.eidosLite.getSyncStatus()
+      const checkedAtMs = Date.now()
+      setSyncStatus(status)
+      writeSyncStatusSnapshot("settings", {
+        version: 1,
+        status,
+        checkedAtMs,
+      })
+      setSyncAccount(readSyncAccountContext())
+    } catch (cause) {
+      console.error("Could not refresh the Sync status", cause)
+    } finally {
+      setSyncStatusBusy(false)
+    }
+  }, [syncSignedIn])
+
+  useEffect(() => {
+    if (!syncSignedIn) {
+      setSyncStatus(null)
+      return
+    }
+    void refreshSyncStatus()
+  }, [syncSignedIn, refreshSyncStatus])
+
   const checkForUpdates = useCallback(async () => {
     setError(null)
     try {
@@ -348,6 +399,57 @@ export function SettingsPage() {
     !terminalShells.some(
       (shell) => shell.executable === preferences.terminalShell
     )
+  const syncAccessLabel = !syncAccount
+    ? null
+    : syncAccount.account.state !== "signed-in"
+      ? t("Sign-in required")
+      : syncAccount.entitlement.state === "read-write"
+        ? t("Download and upload")
+        : syncAccount.entitlement.state === "read-only"
+          ? t("Download only")
+          : syncAccount.entitlement.state === "blocked"
+            ? t("Blocked")
+            : t("Sync access required")
+  const syncDeviceLabel = syncAccount
+    ? `${syncAccount.device.state === "active" ? t("Registered") : t("Not registered")} · ${
+        syncAccount.environment === "staging" ? t("Staging") : t("Production")
+      }`
+    : null
+  const syncEntitlement =
+    syncStatus?.entitlement ?? syncAccount?.entitlement ?? null
+  const syncQuotaBytes = syncEntitlement?.quotaBytes
+  const syncUsedBytes = syncEntitlement?.usedBytes
+  const syncReservedBytes = syncEntitlement?.reservedBytes ?? 0
+  const publishUsedBytes =
+    publishAccount?.usedStorageBytes !== null &&
+    publishAccount?.usedStorageBytes !== undefined
+      ? Number(publishAccount.usedStorageBytes)
+      : null
+  const publishQuotaBytes = publishAccount
+    ? Number(publishAccount.maxStorageBytes)
+    : null
+  const publishPlanTitle = publishAccount
+    ? publishAccount.plan === "free"
+      ? t("Publish Free")
+      : t("Publish Pro")
+    : t("Publish")
+  const publishPlanSummary = publishAccount
+    ? publishAccount.plan === "free"
+      ? t("10 public Markdown pages · 100 MiB shared storage")
+      : t("Eidos Files, Markdown, and Forms")
+    : publishAccountFailed
+      ? t("Publish plan could not be checked. Check your connection and retry.")
+      : t("Checking Publish plan…")
+  const publishRestriction =
+    publishAccount && publishAccount.state !== "active"
+      ? t("Open your account to verify your email or restore Publish access.")
+      : publishAccount?.plan === "free" &&
+          publishAccount.activeSlugs !== null &&
+          publishAccount.activeSlugs.length >= 10
+        ? t(
+            "All 10 pages are in use. Unpublish a page in your account or upgrade to publish another."
+          )
+        : null
 
   return (
     <main
@@ -527,6 +629,38 @@ export function SettingsPage() {
                     <span />
                   </button>
                 </div>
+                <div className="settings-row settings-row-stacked">
+                  <div className="settings-row-copy">
+                    <strong>{t("Default location for new Spaces")}</strong>
+                    <small className="settings-path">
+                      {preferences.defaultSpaceLocation ??
+                        t("Documents folder (system default)")}
+                    </small>
+                  </div>
+                  <div className="settings-row-actions">
+                    {preferences.defaultSpaceLocation ? (
+                      <button
+                        type="button"
+                        className="settings-button settings-button-quiet"
+                        onClick={() =>
+                          void updatePreferences({
+                            defaultSpaceLocation: null,
+                          })
+                        }
+                      >
+                        <RotateCcw /> {t("Use default")}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="settings-button"
+                      disabled={busy}
+                      onClick={() => void chooseSpaceLocation()}
+                    >
+                      <FolderOpen /> {busy ? t("Choosing…") : t("Choose…")}
+                    </button>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -683,79 +817,202 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
-              <p className="settings-section-note">
-                {t(
-                  "Sign in once to use Sync and Publish. Your credentials remain in secure system storage; only your email and avatar are cached for the interface."
-                )}
-              </p>
-            </section>
-
-            <section
-              aria-labelledby="settings-spaces"
-              hidden={activePage !== "spaces"}
-            >
-              <h2 id="settings-spaces">{t("Spaces")}</h2>
-              <div className="settings-group">
-                <div className="settings-row">
-                  <div className="settings-row-copy">
-                    <strong>{t("Automatic versions")}</strong>
-                    <small>
-                      {t(
-                        "Save a new version after local activity settles. Off by default so background versioning never interrupts long local operations."
-                      )}
-                    </small>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    className="settings-switch"
-                    aria-label={t("Automatic versions")}
-                    aria-checked={preferences.automaticCheckpoints}
-                    onClick={() =>
-                      void updatePreferences({
-                        automaticCheckpoints: !preferences.automaticCheckpoints,
-                      })
-                    }
-                  >
-                    <span />
-                  </button>
-                </div>
-                <div className="settings-row settings-row-stacked">
-                  <div className="settings-row-copy">
-                    <strong>{t("Default location for new Spaces")}</strong>
-                    <small className="settings-path">
-                      {preferences.defaultSpaceLocation ??
-                        t("Documents folder (system default)")}
-                    </small>
-                  </div>
-                  <div className="settings-row-actions">
-                    {preferences.defaultSpaceLocation ? (
-                      <button
-                        type="button"
-                        className="settings-button settings-button-quiet"
-                        onClick={() =>
-                          void updatePreferences({
-                            defaultSpaceLocation: null,
-                          })
-                        }
-                      >
-                        <RotateCcw /> {t("Use default")}
-                      </button>
+              <h3 className="settings-subheading">
+                <Cloud aria-hidden="true" />
+                {t("Sync")}
+              </h3>
+              <div className="settings-group" data-settings-sync>
+                {syncAccount ? (
+                  <>
+                    <div className="settings-row">
+                      <div className="settings-row-copy">
+                        <strong>{t("Sync access")}</strong>
+                        <small>{syncAccessLabel}</small>
+                      </div>
+                      <div className="settings-row-actions">
+                        <button
+                          type="button"
+                          className="settings-button settings-button-quiet"
+                          onClick={() => void manageSyncAccess()}
+                        >
+                          {t("Manage Sync access")} <ExternalLink />
+                        </button>
+                        <button
+                          type="button"
+                          className="settings-button"
+                          disabled={syncStatusBusy}
+                          onClick={() => void refreshSyncStatus()}
+                        >
+                          <RefreshCw />
+                          {syncStatusBusy ? t("Refreshing…") : t("Refresh")}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="settings-row">
+                      <div className="settings-row-copy">
+                        <strong>{t("Device")}</strong>
+                        <small>{syncDeviceLabel}</small>
+                      </div>
+                    </div>
+                    {syncQuotaBytes !== undefined &&
+                    syncUsedBytes !== undefined ? (
+                      <UsageMeter
+                        title={t("Sync storage")}
+                        total={syncQuotaBytes}
+                        usedLabel={t("{used} of {total} used", {
+                          used: formatUsageBytes(syncUsedBytes),
+                          total: formatUsageBytes(syncQuotaBytes),
+                        })}
+                        freeLabel={t("Free")}
+                        segments={[
+                          {
+                            key: "used",
+                            label: t("Synced data"),
+                            value: syncUsedBytes,
+                            tone: "accent",
+                          },
+                          {
+                            key: "reserved",
+                            label: t("Reserved"),
+                            value: syncReservedBytes,
+                            tone: "muted",
+                          },
+                        ]}
+                      />
                     ) : null}
-                    <button
-                      type="button"
-                      className="settings-button"
-                      disabled={busy}
-                      onClick={() => void chooseSpaceLocation()}
-                    >
-                      <FolderOpen /> {busy ? t("Choosing…") : t("Choose…")}
-                    </button>
+                  </>
+                ) : (
+                  <div className="settings-row">
+                    <div className="settings-row-copy">
+                      <strong>{t("Sync")}</strong>
+                      <small>
+                        {t("Sync status has not been checked yet.")}
+                      </small>
+                    </div>
                   </div>
-                </div>
+                )}
+              </div>
+              <h3 className="settings-subheading">
+                <Upload aria-hidden="true" />
+                {t("Publish")}
+              </h3>
+              <div className="settings-group" data-settings-publish>
+                {publishAccountEnabled ? (
+                  <>
+                    <div className="settings-row settings-row-stacked">
+                      <div className="settings-row-copy">
+                        <strong>{publishPlanTitle}</strong>
+                        <small>{publishPlanSummary}</small>
+                        {publishAccount?.plan === "free" ? (
+                          <small>
+                            {t(
+                              "Markdown up to 2 MiB · 20 attachments, 25 MiB each · 20 new versions per day"
+                            )}
+                          </small>
+                        ) : null}
+                        {publishRestriction ? (
+                          <small className="settings-publish-warning">
+                            {publishRestriction}
+                          </small>
+                        ) : null}
+                      </div>
+                      <div className="settings-row-actions">
+                        {publishAccount ? (
+                          <button
+                            type="button"
+                            className="settings-button settings-button-quiet"
+                            onClick={() =>
+                              void window.eidosLite.openExternalUrl(
+                                publishAccount.accountUrl
+                              )
+                            }
+                          >
+                            {t("Manage published pages")} <ExternalLink />
+                          </button>
+                        ) : null}
+                        {publishAccount?.plan === "free" ? (
+                          <button
+                            type="button"
+                            className="settings-button settings-button-quiet"
+                            onClick={() =>
+                              void window.eidosLite.openExternalUrl(
+                                publishAccount.pricingUrl
+                              )
+                            }
+                          >
+                            {t("View paid plans")} <ExternalLink />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="settings-button"
+                          disabled={publishAccountRefreshing}
+                          onClick={() =>
+                            void refreshPublishAccount({ force: true })
+                          }
+                        >
+                          <RefreshCw />
+                          {publishAccountRefreshing
+                            ? t("Refreshing…")
+                            : t("Refresh")}
+                        </button>
+                      </div>
+                    </div>
+                    {publishAccount &&
+                    publishUsedBytes !== null &&
+                    publishQuotaBytes ? (
+                      <UsageMeter
+                        title={t("Publish storage")}
+                        total={publishQuotaBytes}
+                        usedLabel={t("{used} of {total} used", {
+                          used: formatUsageBytes(publishUsedBytes),
+                          total: formatUsageBytes(publishQuotaBytes),
+                        })}
+                        freeLabel={t("Free")}
+                        segments={[
+                          {
+                            key: "used",
+                            label: t("Published files"),
+                            value: publishUsedBytes,
+                            tone: "accent",
+                          },
+                        ]}
+                      />
+                    ) : null}
+                    {publishAccount?.plan === "free" &&
+                    publishAccount.activeSlugs !== null ? (
+                      <UsageMeter
+                        title={t("Published pages")}
+                        total={10}
+                        usedLabel={t("{used} of {total} used", {
+                          used: String(publishAccount.activeSlugs.length),
+                          total: "10",
+                        })}
+                        freeLabel={t("Free")}
+                        formatValue={(value) => String(Math.round(value))}
+                        segments={[
+                          {
+                            key: "used",
+                            label: t("Published pages"),
+                            value: publishAccount.activeSlugs.length,
+                            tone: "accent",
+                          },
+                        ]}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="settings-row">
+                    <div className="settings-row-copy">
+                      <strong>{t("Publish")}</strong>
+                      <small>{t("Sign in to manage Publish.")}</small>
+                    </div>
+                  </div>
+                )}
               </div>
               <p className="settings-section-note">
                 {t(
-                  "Manual saved versions remain available. Existing Spaces and their files are never moved."
+                  "Sign in once to use Sync and Publish. Your credentials remain in secure system storage; only your email and avatar are cached for the interface."
                 )}
               </p>
             </section>

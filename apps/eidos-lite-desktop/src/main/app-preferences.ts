@@ -32,7 +32,6 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
-  automaticCheckpoints: false,
   defaultSpaceLocation: null,
 }
 
@@ -145,10 +144,6 @@ export function normalizeEidosLitePreferences(
       typeof candidate.automaticUpdates === "boolean"
         ? candidate.automaticUpdates
         : DEFAULT_EIDOS_LITE_PREFERENCES.automaticUpdates,
-    automaticCheckpoints:
-      typeof candidate.automaticCheckpoints === "boolean"
-        ? candidate.automaticCheckpoints
-        : DEFAULT_EIDOS_LITE_PREFERENCES.automaticCheckpoints,
     defaultSpaceLocation:
       typeof defaultSpaceLocation === "string" && defaultSpaceLocation.trim()
         ? defaultSpaceLocation

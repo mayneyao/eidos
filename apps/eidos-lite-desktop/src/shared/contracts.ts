@@ -145,7 +145,6 @@ export const IPC_CHANNELS = {
   runtimeCall: "eidos-lite:runtime-call",
   enableVersioning: "eidos-lite:versioning-enable",
   createCheckpoint: "eidos-lite:checkpoint-create",
-  reviewCheckpoint: "eidos-lite:checkpoint-review",
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
   fileHistory: "eidos-lite:file-history",
@@ -762,7 +761,6 @@ export interface EidosLitePreferences {
   terminalShell: string | null
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   automaticUpdates: boolean
-  automaticCheckpoints: boolean
   defaultSpaceLocation: string | null
 }
 
@@ -1854,7 +1852,6 @@ export interface EidosLiteApi {
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
   createCheckpoint(message?: string, paths?: string[]): Promise<SpaceSnapshot>
-  reviewCheckpoint(active: boolean): Promise<void>
   getVersionChanges(limit?: number, after?: string): Promise<SpaceVersionDiff>
   getVersionHistory(
     limit?: number,

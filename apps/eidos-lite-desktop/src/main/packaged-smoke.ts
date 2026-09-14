@@ -209,7 +209,6 @@ interface RendererSmokeResult {
     rowChanges: number
     historyCount: number
     restoreCreatedCheckpoint: boolean
-    automaticCheckpoint: boolean
   }
   inlineError?: string
 }
@@ -1519,51 +1518,6 @@ const rendererProbe = `
   if (!restoreCreatedCheckpoint) {
     throw new Error("Restore rewrote history instead of creating a new checkpoint")
   }
-  window.__eidosLiteSmokeStep = "automatic checkpoint"
-  const defaultPreferences = await window.eidosLite.getPreferences()
-  if (defaultPreferences.automaticCheckpoints) {
-    throw new Error("Automatic checkpoints must be disabled by default")
-  }
-  await window.eidosLite.updatePreferences({ automaticCheckpoints: true })
-  await window.eidosLite.createFolder(null, "automatic-checkpoint-probe")
-  await window.eidosLite.createEidosFile(
-    "automatic-checkpoint-probe",
-    "tracked.eidos"
-  )
-  const automaticDeadline = Date.now() + 15000
-  let automaticHistory
-  let automaticSnapshot
-  while (Date.now() < automaticDeadline) {
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    const [candidateHistory, candidateSnapshot] = await Promise.all([
-      window.eidosLite.getVersionHistory(10),
-      window.eidosLite.refreshSpace(),
-    ])
-    if (
-      candidateSnapshot?.graft.clean === true &&
-      candidateHistory.commits[0]?.message === "Eidos Lite automatic checkpoint"
-    ) {
-      automaticHistory = candidateHistory
-      automaticSnapshot = candidateSnapshot
-      break
-    }
-  }
-  if (!automaticHistory || !automaticSnapshot) {
-    throw new Error("Stable Space change did not create an automatic checkpoint")
-  }
-  const afterAutomaticCheckpoint = await window.eidosLite.callRuntime(
-    opened.sessionId,
-    "getSnapshot",
-    []
-  )
-  if (
-    afterAutomaticCheckpoint.tables.find(
-      (candidate) => candidate.table.id === table.table.id
-    )?.rowCount !== beforeCount
-  ) {
-    throw new Error("Automatic checkpoint did not reopen the resident runtime")
-  }
-  await window.eidosLite.updatePreferences({ automaticCheckpoints: false })
   window.__eidosLiteSmokeStep = "Sync failure safety"
   const expectedSyncFailures = [
     { code: "offline" },
@@ -1901,15 +1855,14 @@ const rendererProbe = `
       restoredCount,
     },
     versioning: {
-      initialized: automaticSnapshot.graft.initialized,
-      clean: automaticSnapshot.graft.clean,
+      initialized: restored.graft.initialized,
+      clean: restored.graft.clean,
       iconAction: Boolean(historyButton.querySelector("svg")),
       changeBadge,
       changePaths: changes.paths.length,
       rowChanges,
-      historyCount: automaticHistory.commits.length,
+      historyCount: restoredHistory.commits.length,
       restoreCreatedCheckpoint,
-      automaticCheckpoint: true,
     },
     inlineError: document.querySelector(".inline-error span")?.textContent || undefined,
   }

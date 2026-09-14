@@ -49,7 +49,6 @@ describe("Eidos Lite preferences", () => {
           "toggle-sidebar": "Mod+Shift+B",
         },
         automaticUpdates: false,
-        automaticCheckpoints: true,
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
@@ -69,7 +68,6 @@ describe("Eidos Lite preferences", () => {
         "toggle-sidebar": "Mod+Shift+B",
       },
       automaticUpdates: false,
-      automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
 
@@ -92,7 +90,6 @@ describe("Eidos Lite preferences", () => {
         "toggle-sidebar": "Mod+Shift+B",
       },
       automaticUpdates: false,
-      automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
   })

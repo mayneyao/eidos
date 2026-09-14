@@ -1600,10 +1600,6 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.enableVersioning, (event) =>
     controller.requireSession(event.sender).enableVersioning()
   )
-  ipcMain.handle(IPC_CHANNELS.reviewCheckpoint, (event, active: unknown) => {
-    if (typeof active !== "boolean") throw new Error("Invalid review state")
-    controller.requireSession(event.sender).setCheckpointReview(active)
-  })
   ipcMain.handle(
     IPC_CHANNELS.createCheckpoint,
     async (event, message: unknown, paths: unknown) => {
@@ -2371,8 +2367,9 @@ export function registerIpc(
       }
     })
   })
-  ipcMain.handle(IPC_CHANNELS.publishAccountStatus, async (event) => {
-    controller.requireSession(event.sender)
+  ipcMain.handle(IPC_CHANNELS.publishAccountStatus, async () => {
+    // Publish access is account-scoped, not Space-scoped, so the Settings
+    // window can read the cached plan without an open Space session.
     return publishEngine.getAccountStatus()
   })
   ipcMain.handle(

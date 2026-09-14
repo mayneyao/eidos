@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react"
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react"
 import {
   Check,
   Copy,
@@ -28,6 +22,7 @@ import type {
   SyncAccountStatus,
 } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
+import { usePublishAccount } from "./publish-account"
 
 export function defaultPublishSlug(fileName: string): string {
   const stem = fileName.replace(/\.(?:eidos|md|markdown)$/i, "")
@@ -163,29 +158,9 @@ export function PublishPanel({
   onClose,
 }: PublishPanelProps) {
   const { t } = useEidosLiteI18n()
-  const [account, setAccount] = useState<EidosPublishAccountStatus | null>(null)
-  const [accountFailed, setAccountFailed] = useState(false)
-  const [accountRetry, setAccountRetry] = useState(0)
-  useEffect(() => {
-    let canceled = false
-    setAccount(null)
-    setAccountFailed(false)
-    void window.eidosLite.getPublishAccountStatus().then(
-      (value) => {
-        if (!canceled) setAccount(value)
-      },
-      () => {
-        if (!canceled) setAccountFailed(true)
-      }
-    )
-    const unsubscribe = window.eidosLite.onAccountChanged(() =>
-      setAccountRetry((value) => value + 1)
-    )
-    return () => {
-      canceled = true
-      unsubscribe()
-    }
-  }, [accountRetry])
+  // The cached plan only guides the form. Publish itself stays optimistic and
+  // lets the service enforce entitlements, so the panel never blocks on a check.
+  const { account } = usePublishAccount()
   const [slug, setSlug] = useState(() => defaultPublishSlug(entry.name))
   const [accessMode, setAccessMode] =
     useState<EidosPublishAccessSelection>("unchanged")
@@ -276,7 +251,7 @@ export function PublishPanel({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (validation || !account || planRestriction) return
+    if (validation) return
     onPublish({
       slug,
       accessMode: effectiveAccess,
@@ -354,93 +329,17 @@ export function PublishPanel({
         </button>
       </header>
 
-      <section
-        className="publish-plan-summary"
-        aria-live="polite"
-        aria-label={t("Publish plan")}
-      >
-        {account ? (
-          <>
-            <strong>{free ? "Publish Free" : "Publish Pro"}</strong>
-            <p>
-              {free
-                ? t("10 public Markdown pages · 100 MiB shared storage")
-                : t("Eidos Files, Markdown, and Forms")}
-            </p>
-            {free && (
-              <p>
-                {t(
-                  "Markdown up to 2 MiB · 20 attachments, 25 MiB each · 20 new versions per day"
-                )}
-              </p>
-            )}
-            {account.activeSlugs !== null && (
-              <p>
-                {t("{count} active pages", {
-                  count: account.activeSlugs.length,
-                })}
-                {account.usedStorageBytes !== null
-                  ? ` · ${(Number(account.usedStorageBytes) / 1048576).toFixed(1)} / ${(Number(account.maxStorageBytes) / 1048576).toFixed(0)} MiB`
-                  : ""}
-              </p>
-            )}
-            {free && (
-              <p>
-                {t(
-                  "Public links are not private, even when search indexing is disabled."
-                )}
-              </p>
-            )}
-            {planRestriction && (
-              <p className="publish-plan-warning">{t(planRestriction)}</p>
-            )}
-            <div className="publish-plan-actions">
-              <button
-                type="button"
-                onClick={() =>
-                  void window.eidosLite.openExternalUrl(account.accountUrl)
-                }
-              >
-                {t("Manage published pages")}
-              </button>
-              {free && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void window.eidosLite.openExternalUrl(account.pricingUrl)
-                  }
-                >
-                  {t("View paid plans")}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setAccountRetry((value) => value + 1)}
-              >
-                {t("Refresh")}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p>
-              {accountFailed
-                ? t(
-                    "Publish plan could not be checked. Check your connection and retry."
-                  )
-                : t("Checking Publish plan…")}
-            </p>
-            {accountFailed && (
-              <button
-                type="button"
-                onClick={() => setAccountRetry((value) => value + 1)}
-              >
-                {t("Retry")}
-              </button>
-            )}
-          </>
-        )}
-      </section>
+      {planRestriction ? (
+        <p className="publish-plan-note" role="status">
+          <span>{t(planRestriction)}</span>
+          <button
+            type="button"
+            onClick={() => void window.eidosLite.openSettings()}
+          >
+            {t("Manage in Settings")}
+          </button>
+        </p>
+      ) : null}
 
       {bindings.length > 0 ? (
         <section
@@ -518,12 +417,7 @@ export function PublishPanel({
                   {binding.sourceKind === "form" ? (
                     <button
                       type="button"
-                      disabled={
-                        collecting ||
-                        !account ||
-                        account.state !== "active" ||
-                        free
-                      }
+                      disabled={collecting || free}
                       aria-label={t("Collect now")}
                       title={t("Collect now")}
                       onClick={() => collect(binding)}
@@ -580,7 +474,7 @@ export function PublishPanel({
             <span>{t("Publish as")}</span>
             <select
               value={formView}
-              disabled={!account || free}
+              disabled={free}
               onChange={(event) => {
                 setFormView(event.target.value)
                 if (!event.target.value) {
@@ -605,7 +499,7 @@ export function PublishPanel({
         ) : null}
 
         {formView ? (
-          <fieldset className="publish-form-policy" disabled={!account || free}>
+          <fieldset className="publish-form-policy" disabled={free}>
             <legend>{t("Form responses")}</legend>
             <label>
               <span>{t("Who can respond")}</span>
@@ -660,7 +554,7 @@ export function PublishPanel({
           <span>{t("Access")}</span>
           <select
             value={effectiveAccess}
-            disabled={!account || free}
+            disabled={free}
             onChange={(event) =>
               setAccessMode(event.target.value as EidosPublishAccessSelection)
             }
@@ -716,7 +610,7 @@ export function PublishPanel({
           <span>{t("Branding")}</span>
           <select
             value={effectiveBranding}
-            disabled={!account || free}
+            disabled={free}
             onChange={(event) =>
               setBranding(event.target.value as EidosPublishBrandingSelection)
             }
@@ -745,9 +639,7 @@ export function PublishPanel({
           <button
             type="submit"
             className="primary-action"
-            disabled={
-              validation !== null || !account || planRestriction !== null
-            }
+            disabled={validation !== null}
           >
             <Upload />
             {t("Publish")}

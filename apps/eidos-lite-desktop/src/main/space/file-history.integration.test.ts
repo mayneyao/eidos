@@ -54,10 +54,7 @@ it("lists exact-path history and restores text with disk/draft copies without ch
   try {
     await fs.writeFile(path.join(root, "note.md"), "# Original\n")
     await fs.writeFile(path.join(root, "other.md"), "Original other")
-    session = await SpaceSession.create(root, state, {
-      graft,
-      automaticCheckpointsEnabled: false,
-    })
+    session = await SpaceSession.create(root, state, { graft })
     const initial = await session.enableVersioning()
     const revision = initial.graft.currentHead!
     await fs.writeFile(path.join(root, "note.md"), "# Current\n")

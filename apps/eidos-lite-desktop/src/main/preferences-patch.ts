@@ -122,12 +122,6 @@ export function eidosLitePreferencesPatch(
     }
     patch.automaticUpdates = candidate.automaticUpdates
   }
-  if ("automaticCheckpoints" in candidate) {
-    if (typeof candidate.automaticCheckpoints !== "boolean") {
-      throw new Error("Invalid automatic checkpoint preference")
-    }
-    patch.automaticCheckpoints = candidate.automaticCheckpoints
-  }
   if ("defaultSpaceLocation" in candidate) {
     if (
       candidate.defaultSpaceLocation !== null &&

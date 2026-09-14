@@ -41,7 +41,7 @@ describe.skipIf(process.env.EIDOS_SYNC_POLICY_PERF !== "1")(
       const space = await SpaceSession.create(
         base + "/local",
         base + "/policy-user-data",
-        { graft, automaticCheckpointsEnabled: false }
+        { graft }
       )
       const inspect = space as unknown as {
         ensureEidosMergePolicy(signal: AbortSignal): Promise<void>

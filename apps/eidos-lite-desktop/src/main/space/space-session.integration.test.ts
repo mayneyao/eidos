@@ -801,67 +801,6 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
-  it("does not let an automatic checkpoint quiesce a long local mutation", async () => {
-    const root = await fs.mkdtemp(
-      path.join(os.tmpdir(), "eidos-lite-long-local-mutation-")
-    )
-    const userData = await fs.mkdtemp(
-      path.join(os.tmpdir(), "eidos-lite-long-local-mutation-state-")
-    )
-    const stageAll = vi.fn(async () => undefined)
-    const graft = {
-      backend: "sdk",
-      syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.8",
-      close: async () => undefined,
-      inspectSpace: async () => ({
-        available: true,
-        backend: "sdk",
-        version: "0.3.8",
-        expectedVersion: "0.3.8",
-        initialized: true,
-        clean: false,
-      }),
-      inspectIgnores: async (_root: string, relativePaths: string[]) =>
-        relativePaths.map((relativePath) => ({
-          path: relativePath,
-          isIgnored: false,
-          isTracked: true,
-          isDirectory: false,
-          hasTrackedDescendants: false,
-        })),
-      stageAll,
-      commit: vi.fn(async () => ({ id: "b".repeat(64) })),
-    } as unknown as GraftClient
-    const mutation = deferred<void>()
-    let session: SpaceSession | null = null
-
-    try {
-      await fs.mkdir(path.join(root, ".graft"))
-      session = await SpaceSession.create(root, userData, {
-        graft,
-        automaticCheckpointsEnabled: true,
-      })
-      const runningMutation = session.gate.withMutation(() => mutation.promise)
-      await fs.writeFile(path.join(root, "long-write.txt"), "changed")
-      await new Promise((resolve) => setTimeout(resolve, 350))
-
-      expect(session.gate.current().phase).toBe("ready")
-      expect(stageAll).not.toHaveBeenCalled()
-
-      mutation.resolve()
-      await runningMutation
-      session.setAutomaticCheckpointsEnabled(false)
-    } finally {
-      mutation.resolve()
-      await session?.close().catch(() => undefined)
-      await Promise.all([
-        fs.rm(root, { recursive: true, force: true }),
-        fs.rm(userData, { recursive: true, force: true }),
-      ])
-    }
-  })
-
   it("keeps local mutations available while a manual checkpoint is created", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-nonblocking-checkpoint-")

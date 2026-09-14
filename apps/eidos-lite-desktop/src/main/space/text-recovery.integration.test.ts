@@ -14,10 +14,7 @@ it("recovers a historical note and a deleted note without reverting unrelated wo
   try {
     await fs.writeFile(path.join(root, "note.md"), "# Old note\n")
     await fs.writeFile(path.join(root, "other.md"), "Old other")
-    session = await SpaceSession.create(root, state, {
-      graft,
-      automaticCheckpointsEnabled: false,
-    })
+    session = await SpaceSession.create(root, state, { graft })
     const initial = await session.enableVersioning()
     const commitId = initial.graft.currentHead!
     await fs.writeFile(path.join(root, "note.md"), "# New note\n")

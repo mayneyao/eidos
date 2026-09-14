@@ -317,8 +317,6 @@ const api: EidosLiteApi = {
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
   createCheckpoint: (message, paths) =>
     ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message, paths),
-  reviewCheckpoint: (active) =>
-    ipcRenderer.invoke(IPC_CHANNELS.reviewCheckpoint, active),
   getVersionChanges: (limit, after) =>
     ipcRenderer.invoke(IPC_CHANNELS.versionChanges, limit, after),
   getFileHistory: (path, cursor) =>

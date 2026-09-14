@@ -33,7 +33,6 @@ describe("Eidos Lite preference IPC patch", () => {
       terminalShell: "/bin/zsh",
       keyboardShortcuts: DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
       automaticUpdates: false,
-      automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     }
 

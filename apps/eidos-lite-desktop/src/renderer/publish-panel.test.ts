@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it } from "vitest"
 
 import {
@@ -10,6 +12,11 @@ import {
   publishPlanRestriction,
 } from "./publish-panel"
 import type { EidosPublishAccountStatus } from "../shared/contracts"
+
+const source = readFileSync(
+  new URL("./publish-panel.tsx", import.meta.url),
+  "utf8"
+)
 
 describe("Publish panel", () => {
   const free: EidosPublishAccountStatus = {
@@ -147,6 +154,15 @@ describe("Publish panel", () => {
         formPolicy: null,
       })
     ).toBeNull()
+  })
+
+  it("publishes optimistically from a cached plan instead of a live check", () => {
+    expect(source).toContain("usePublishAccount")
+    expect(source).toContain("publish-plan-note")
+    expect(source).not.toContain("publish-plan-summary")
+    expect(source).not.toContain("getPublishAccountStatus")
+    expect(source).not.toContain("Manage published pages")
+    expect(source).toContain("if (validation) return")
   })
 
   it("keeps the measured panel inside the viewport near its anchor", () => {

@@ -215,7 +215,7 @@ async function changeTreeDiscardAction(
 }
 
 describe("VersionPanel table diff", () => {
-  it("saves checked files, keeps remaining changes visible, and pauses automatic checkpoints during review", async () => {
+  it("saves checked files and keeps remaining changes visible", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")
     document.body.append(host)
@@ -226,12 +226,10 @@ describe("VersionPanel table diff", () => {
     }
     const remaining = { ...versionDiff, paths: versionDiff.paths.slice(1) }
     const save = vi.fn().mockResolvedValue(space)
-    const review = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
         createCheckpoint: save,
-        reviewCheckpoint: review,
         getVersionChanges: vi
           .fn()
           .mockResolvedValueOnce(versionDiff)
@@ -253,7 +251,6 @@ describe("VersionPanel table diff", () => {
           })
         )
       })
-      expect(review).toHaveBeenCalledWith(true)
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
@@ -295,7 +292,6 @@ describe("VersionPanel table diff", () => {
       await act(async () => root.unmount())
       host.remove()
     }
-    expect(review).toHaveBeenLastCalledWith(false)
   })
   afterEach(() => vi.unstubAllGlobals())
 

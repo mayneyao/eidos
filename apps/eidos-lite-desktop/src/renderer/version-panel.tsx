@@ -1266,14 +1266,6 @@ export function VersionPanel({
     checkpointPaths === null
       ? (changes?.totalPaths ?? changes?.paths.length ?? 0)
       : checkpointPaths.size
-  useEffect(() => {
-    void window.eidosLite
-      .reviewCheckpoint?.(mode === "changes")
-      .catch((cause) => setError(errorMessage(cause)))
-    return () => {
-      void window.eidosLite.reviewCheckpoint?.(false).catch(() => undefined)
-    }
-  }, [mode, space.id])
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [discardConfirmation, setDiscardConfirmation] = useState<{
     target: VersionChangeDiscardTarget

@@ -146,7 +146,6 @@ describe.skipIf(!enabled)("real copied Space staging performance", () => {
       space = await measure("host.open", () =>
         SpaceSession.create(local, path.join(base, "user-data"), {
           graft: b,
-          automaticCheckpointsEnabled: false,
         })
       )
       await new SpaceSyncStateStore(
