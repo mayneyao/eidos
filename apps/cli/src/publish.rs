@@ -2090,7 +2090,7 @@ fn file_sha256(
     label: &str,
 ) -> Result<String> {
     let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 1024 * 1024];
+    let mut buffer = vec![0_u8; 1024 * 1024];
     let mut current = 0_u64;
     let mut last_percent = None;
     loop {
@@ -2147,7 +2147,7 @@ fn file_range_sha256(file: &mut File, offset: u64, bytes: u64) -> Result<String>
         .map_err(|error| AppError::publish_failed(error.to_string()))?;
     let mut digest = Sha256::new();
     let mut remaining = bytes;
-    let mut buffer = [0_u8; 1024 * 1024];
+    let mut buffer = vec![0_u8; 1024 * 1024];
     while remaining > 0 {
         let requested = usize::try_from(remaining.min(buffer.len() as u64))
             .map_err(|error| AppError::publish_failed(error.to_string()))?;
@@ -2341,6 +2341,32 @@ mod tests {
         let actual = file_range_sha256(&mut file, 7, 7).expect("hash range");
         let expected = format!("{:x}", Sha256::digest(b"payload"));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn hashes_sources_within_a_windows_sized_stack() {
+        let mut file = tempfile::tempfile().expect("temporary source");
+        file.write_all(b"payload").expect("write source");
+        let expected = format!("{:x}", Sha256::digest(b"payload"));
+        let handle = thread::Builder::new()
+            .stack_size(512 * 1024)
+            .spawn(move || {
+                let mut file = file;
+                file.seek(SeekFrom::Start(0)).expect("rewind source");
+                let whole = file_sha256(
+                    &mut file,
+                    7,
+                    PublishProgress::new(false, false),
+                    "hashing source",
+                )
+                .expect("hash source");
+                let range = file_range_sha256(&mut file, 0, 7).expect("hash range");
+                (whole, range)
+            })
+            .expect("spawn constrained thread");
+        let (whole, range) = handle.join().expect("constrained hash thread");
+        assert_eq!(whole, expected);
+        assert_eq!(range, expected);
     }
 
     #[test]
