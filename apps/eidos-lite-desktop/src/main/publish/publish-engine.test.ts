@@ -2,7 +2,8 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi, afterEach } from "vitest"
+import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
 
 import {
   EidosPublishEngine,
@@ -13,9 +14,84 @@ import {
   requiredPublicationBindingsRequest,
   requiredPublishCollectRequest,
   requiredPublishRequest,
+  parsePublishAccountStatus,
 } from "./publish-engine"
 
 describe("Eidos Publish engine boundary", () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const identity = {
+    sub: "test-user",
+    publish_access: {
+      version: 1,
+      service: "eidos_publish",
+      state: "active",
+      plan: "free",
+      privatePublications: false,
+      removeBranding: false,
+      maxStorageBytes: "104857600",
+    },
+  }
+  it("projects only UI capabilities and uses the configured account environment", () => {
+    const status = parsePublishAccountStatus(
+      identity,
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
+    )
+    expect(status).toMatchObject({
+      plan: "free",
+      accountUrl:
+        "https://staging.eidos.space/account?tab=publish&view=resources",
+      pricingUrl: "https://staging.eidos.space/pricing#publish",
+      activeSlugs: null,
+    })
+    expect(status).not.toHaveProperty("sub")
+    expect(() =>
+      parsePublishAccountStatus(
+        { publish_access: { ...identity.publish_access, plan: "unknown" } },
+        EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
+      )
+    ).toThrow()
+  })
+  it("reads Publish usage without exposing the OAuth token to the renderer", async () => {
+    const fetchMock = vi.fn(async (url: URL | RequestInfo) => {
+      if (String(url).endsWith("/api/publish/userinfo"))
+        return Response.json(identity)
+      return Response.json({
+        storage: { usedBytes: "123" },
+        publications: [
+          { slug: "report", currentVersionId: "v1" },
+          { slug: "draft", currentVersionId: null },
+        ],
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const engine = new EidosPublishEngine(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      {
+        accountAccessToken: async () => "test-token",
+        accountSubject: async () => "test-user",
+      }
+    )
+    expect(await engine.getAccountStatus()).toMatchObject({
+      activeSlugs: ["report"],
+      usedStorageBytes: "123",
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://staging.eidos.space/api/publish/userinfo",
+      "https://publish-staging.eidos.space/api/tenant",
+    ])
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        ...identity,
+        publish_access: { ...identity.publish_access, state: "blocked" },
+      })
+    )
+    expect(await engine.getAccountStatus()).toMatchObject({
+      state: "blocked",
+      activeSlugs: null,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
   it("does not expose an automatic background Form collector", () => {
     expect("setActiveCollectorSource" in EidosPublishEngine.prototype).toBe(
       false

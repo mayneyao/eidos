@@ -8,6 +8,7 @@ import { app } from "electron"
 
 import type {
   EidosPublicationBinding,
+  EidosPublishAccountStatus,
   EidosPublicationBindingsRequest,
   EidosPublishProgress,
   EidosPublishCollectRequest,
@@ -565,6 +566,56 @@ async function boundedResponseJson(
   }
 }
 
+export function parsePublishAccountStatus(
+  value: unknown,
+  services: EidosLiteServiceEnvironment
+): EidosPublishAccountStatus {
+  const access =
+    value && typeof value === "object" && "publish_access" in value
+      ? value.publish_access
+      : null
+  if (!access || typeof access !== "object")
+    throw new Error("Invalid Publish account response")
+  const grant = access as Record<string, unknown>
+  if (
+    grant.version !== 1 ||
+    grant.service !== "eidos_publish" ||
+    (grant.state !== "active" && grant.state !== "blocked") ||
+    (grant.plan !== "free" && grant.plan !== "pro") ||
+    typeof grant.privatePublications !== "boolean" ||
+    typeof grant.removeBranding !== "boolean" ||
+    typeof grant.maxStorageBytes !== "string" ||
+    !/^\d+$/.test(grant.maxStorageBytes)
+  )
+    throw new Error("Invalid Publish account response")
+  return {
+    state: grant.state,
+    plan: grant.plan,
+    privatePublications: grant.plan === "pro" && grant.privatePublications,
+    removeBranding: grant.plan === "pro" && grant.removeBranding,
+    maxStorageBytes: grant.maxStorageBytes,
+    usedStorageBytes: null,
+    activeSlugs: null,
+    accountUrl: new URL(
+      "/account?tab=publish&view=resources",
+      services.accountOrigin
+    ).href,
+    pricingUrl: new URL("/pricing#publish", services.billingOrigin).href,
+  }
+}
+
+function isPublicationSummary(
+  value: unknown
+): value is { slug: string; currentVersionId: string | null } {
+  if (typeof value !== "object" || value === null) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.slug === "string" &&
+    (record.currentVersionId === null ||
+      typeof record.currentVersionId === "string")
+  )
+}
+
 export class EidosPublishEngine {
   private readonly children = new Set<ChildProcess>()
   private readonly registries = new Map<string, PublicationRegistry>()
@@ -576,6 +627,64 @@ export class EidosPublishEngine {
       "accountAccessToken" | "accountSubject"
     >
   ) {}
+
+  async getAccountStatus(): Promise<EidosPublishAccountStatus> {
+    const token = await this.account.accountAccessToken()
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    }
+    const response = await fetch(
+      new URL("/api/publish/userinfo", this.services.accountOrigin),
+      {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new Error("Publish account is unavailable")
+    }
+    const identity = await boundedResponseJson(response, MAX_RESULT_BYTES)
+    const status = parsePublishAccountStatus(identity, this.services)
+    if (status.state !== "active") return status
+    // Usage is advisory: an unavailable usage endpoint must not erase a valid grant.
+    try {
+      const usage = await fetch(
+        new URL("/api/tenant", this.services.publishOrigin),
+        {
+          headers,
+          redirect: "error",
+          signal: AbortSignal.timeout(5_000),
+        }
+      )
+      if (!usage.ok) {
+        await usage.body?.cancel()
+        return status
+      }
+      const summary = await boundedResponseJson(usage, MAX_RESULT_BYTES)
+      if (typeof summary !== "object" || summary === null) return status
+      const record = summary as Record<string, unknown>
+      const storage = record.storage as Record<string, unknown> | undefined
+      if (
+        typeof storage?.usedBytes === "string" &&
+        /^\d+$/.test(storage.usedBytes)
+      )
+        status.usedStorageBytes = storage.usedBytes
+      if (
+        Array.isArray(record.publications) &&
+        record.publications.every(isPublicationSummary)
+      ) {
+        status.activeSlugs = record.publications
+          .filter((item) => item.currentVersionId !== null)
+          .map((item) => item.slug)
+      }
+    } catch {
+      /* Keep the authoritative grant when only usage is unavailable. */
+    }
+    return status
+  }
 
   async publish(
     session: SpaceSession,

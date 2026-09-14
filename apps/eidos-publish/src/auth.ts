@@ -1,4 +1,5 @@
 import type { PublishAccessGrant, PublishPrincipal } from "./contracts"
+import { enforceFreeGrant } from "./free"
 
 export type IdentityFetch = (
   input: RequestInfo | URL,
@@ -69,7 +70,7 @@ export function parsePrincipal(value: unknown): PublishPrincipal {
   }
   return {
     userId,
-    access: parseAccess(value.publish_access),
+    access: enforceFreeGrant(parseAccess(value.publish_access)),
   }
 }
 

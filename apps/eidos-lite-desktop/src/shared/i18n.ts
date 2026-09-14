@@ -4,6 +4,28 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Publish plan": "Publish 方案",
+  "10 public Markdown pages · 100 MiB shared storage":
+    "10 个公开 Markdown 页面 · 共享 100 MiB",
+  "Eidos Files, Markdown, and Forms": "支持 Eidos File、Markdown 和表单",
+  "Markdown up to 2 MiB · 20 attachments, 25 MiB each · 20 new versions per day":
+    "Markdown 最大 2 MiB · 最多 20 个附件，每个 25 MiB · 每天 20 个新版本",
+  "{count} active pages": "{count} 个活跃页面",
+  "Public links are not private, even when search indexing is disabled.":
+    "禁止搜索收录不代表私密，知道链接的人仍可访问。",
+  "Manage published pages": "管理已发布页面",
+  "View paid plans": "查看付费方案",
+  "Checking Publish plan…": "正在检查 Publish 方案…",
+  "Publish plan could not be checked. Check your connection and retry.":
+    "无法检查 Publish 方案，请检查网络后重试。",
+  "Publish Free always shows Built with Eidos.":
+    "Publish Free 始终保留 Built with Eidos 标识。",
+  "Open your account to verify your email or restore Publish access.":
+    "请前往账户页验证邮箱或恢复 Publish 权限。",
+  "Eidos Files and Forms require Publish Pro. You can publish a Markdown document with Free.":
+    "Eidos File 和表单需要 Publish Pro。免费方案可用于发布 Markdown 文档。",
+  "All 10 pages are in use. Unpublish a page in your account or upgrade to publish another.":
+    "10 个页面名额已用完。请到账户页取消发布一个页面，或升级方案后再发布。",
   "What's new": "更新内容",
   "Current version": "当前版本",
   "Updated to {version}": "已更新至 {version}",

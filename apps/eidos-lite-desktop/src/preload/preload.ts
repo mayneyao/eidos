@@ -443,6 +443,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncOpenHelp, destination),
   publishFile: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.publishRun, request),
+  getPublishAccountStatus: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.publishAccountStatus),
   collectPublishedForm: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.publishCollectRun, request),
   listPublicationBindings: (request) =>

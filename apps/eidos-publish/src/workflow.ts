@@ -272,7 +272,8 @@ export class PublishWorkflow extends WorkflowEntrypoint<
                 input.requestId,
                 currentPrincipal.access,
                 `workflow:${input.jobId}:activate`,
-                activationInputSha256
+                activationInputSha256,
+                true
               )
             )
           } catch (cause) {

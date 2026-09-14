@@ -2371,6 +2371,10 @@ export function registerIpc(
       }
     })
   })
+  ipcMain.handle(IPC_CHANNELS.publishAccountStatus, async (event) => {
+    controller.requireSession(event.sender)
+    return publishEngine.getAccountStatus()
+  })
   ipcMain.handle(
     IPC_CHANNELS.publishCollectRun,
     async (event, value: unknown) => {

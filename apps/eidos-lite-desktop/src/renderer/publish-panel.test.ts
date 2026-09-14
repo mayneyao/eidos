@@ -7,9 +7,56 @@ import {
   publishMenuAvailability,
   publishedFormRespondentLabel,
   publishFormViewLabel,
+  publishPlanRestriction,
 } from "./publish-panel"
+import type { EidosPublishAccountStatus } from "../shared/contracts"
 
 describe("Publish panel", () => {
+  const free: EidosPublishAccountStatus = {
+    state: "active",
+    plan: "free",
+    privatePublications: false,
+    removeBranding: false,
+    maxStorageBytes: "104857600",
+    usedStorageBytes: "0",
+    activeSlugs: [],
+    accountUrl: "https://eidos.space/account?tab=publish",
+    pricingUrl: "https://eidos.space/pricing#publish",
+  }
+  it("explains unsupported Free sources and permits republishing an occupied slot", () => {
+    expect(publishPlanRestriction(free, "markdown", "report")).toBeNull()
+    expect(publishPlanRestriction(free, "eidos-file", "report")).toContain(
+      "require Publish Pro"
+    )
+    expect(publishPlanRestriction(free, "form", "report")).toContain(
+      "require Publish Pro"
+    )
+    const full = {
+      ...free,
+      activeSlugs: Array.from({ length: 10 }, (_, index) => `page-${index}`),
+    }
+    expect(publishPlanRestriction(full, "markdown", "another")).toContain(
+      "All 10 pages"
+    )
+    expect(publishPlanRestriction(full, "markdown", "page-0")).toBeNull()
+    expect(
+      publishPlanRestriction({ ...full, plan: "pro" }, "form", "another")
+    ).toBeNull()
+    expect(
+      publishPlanRestriction(
+        { ...free, state: "blocked" },
+        "markdown",
+        "report"
+      )
+    ).toContain("verify your email")
+    expect(
+      publishPlanRestriction(
+        { ...free, activeSlugs: null },
+        "markdown",
+        "report"
+      )
+    ).toBeNull()
+  })
   it("derives a safe editable slug from an Eidos File name", () => {
     expect(defaultPublishSlug("Project Notes.eidos")).toBe("project-notes")
     expect(defaultPublishSlug("---.eidos")).toBe("untitled")

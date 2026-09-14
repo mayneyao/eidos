@@ -428,7 +428,8 @@ async function servePublicationDocument(
       resolved.value.staticArtifact,
       resolved.value.version,
       resolved.value.publication.accessMode !== "public",
-      resolved.value.publication.showBranding
+      resolved.value.publication.showBranding,
+      resolved.value.noIndex
     )
   }
   return await publicAsset(
@@ -782,7 +783,8 @@ async function servePublishedFile(
         asset.value.mediaType,
         assetName(asset.value.path),
         asset.value.bytes,
-        protectedAsset
+        protectedAsset,
+        resolved.value.noIndex
       ),
     })
   }
@@ -801,7 +803,8 @@ async function servePublishedFile(
     asset.value.mediaType,
     assetName(asset.value.path),
     asset.value.bytes,
-    protectedAsset
+    protectedAsset,
+    resolved.value.noIndex
   )
   const normalizedRange =
     requestedRange === null ? null : normalizedObjectRange(object.range)
@@ -824,7 +827,8 @@ async function serveStaticDocument(
   artifact: StaticArtifactRecord | null,
   version: PublicationVersionRecord,
   protectedDocument: boolean,
-  showBranding: boolean
+  showBranding: boolean,
+  noIndex: boolean
 ): Promise<Response> {
   const target = version.servingTarget
   if (
@@ -858,6 +862,10 @@ async function serveStaticDocument(
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
   })
+  if (noIndex) {
+    headers.set("X-Robots-Tag", "noindex, nofollow")
+    headers.set("Cache-Control", "private, no-store")
+  }
   if (request.method === "HEAD") {
     const object = await env.PUBLISH_OBJECTS.head(artifact.objectKey)
     return validStoredAsset(object, artifact.bytes, artifact.sha256)
@@ -900,7 +908,8 @@ function publishedAssetHeaders(
   mediaType: string,
   name: string,
   bytes: string,
-  protectedAsset: boolean
+  protectedAsset: boolean,
+  noIndex: boolean
 ): Headers {
   const inline = new Set([
     "image/avif",
@@ -922,6 +931,10 @@ function publishedAssetHeaders(
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
   })
+  if (noIndex) {
+    headers.set("X-Robots-Tag", "noindex, nofollow")
+    headers.set("Cache-Control", "private, no-store")
+  }
   return headers
 }
 

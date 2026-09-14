@@ -7,6 +7,54 @@ Object SQLite and it does not implement a second Eidos query engine.
 The hosted service deliberately publishes no EP conformance labels until the
 complete test families have shipped.
 
+## Publish Free
+
+Verified Eidos accounts can publish from Eidos Lite's existing OAuth session.
+Free does not accept Publish CLI keys. The v1 identity-grant shape is unchanged;
+the account service projects the Free storage grant and the Publish service
+enforces the plan's capabilities, including cached grants from older versions.
+
+| Limit                                             | Free                                                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Active public Markdown slugs                      | 10 per account                                                                                  |
+| Total source, attachments and generated artifacts | 100 MiB, shared across slugs and retained versions                                              |
+| Markdown entrypoint                               | 2 MiB                                                                                           |
+| Attachments                                       | 20 per bundle, 25 MiB per object                                                                |
+| Source bundle                                     | 50 MiB                                                                                          |
+| New version uploads / new slug creations          | 20 of each per UTC day; idempotent retries do not count again                                   |
+| History                                           | Previous version for 24 hours after replacement; older history is pruned after the grace period |
+| Access and branding                               | Public, anonymous `u-*` subdomain, mandatory Eidos branding, `noindex, nofollow`                |
+
+Images (PNG, JPEG, GIF, WebP, AVIF), PDF, plain text, Markdown, CSV, and
+MP4/WebM/QuickTime attachments are accepted. HTML, SVG, scripts, archives and
+other attachment types are rejected. Free cannot publish Eidos Runtime or Form
+bundles, use Collect, claim a handle, set private/password access, or hide branding.
+Search directives do not make a public URL private.
+
+Activation and source storage reservations are serialized in the Tenant's SQL
+transaction. Replacing a slug's active version does not consume another slot.
+`DELETE /api/publications/{slug}` (authenticated and idempotent), or Unpublish
+in the account Resources page, clears the active pointer and cancels pending
+automatic activation. This releases the slot immediately. Retained objects still
+count until history cleanup; the unpublished current version is retained for
+24 hours on Free. Local files are never changed.
+
+On paid-plan expiry, verified accounts fall back to Free. Existing Runtime,
+Form, and restricted publications become inaccessible without converting them
+to public pages. If there are more than ten public Markdown pointers, only the
+ten newest publications are served. Existing pointers/source remain available
+for management and upgrade; the user must unpublish excess pointers before
+activating another slug. Existing over-quota storage blocks new uploads rather
+than deleting the active source. Suspended entitlements remain blocked.
+
+Rollout order: deploy the Publish Worker with Free enforcement first, then the
+account service granting Free access and its account UI. Reversing that order
+would let the old Worker interpret an active Free grant with older capabilities.
+The new unpublish history table is additive and created by each Tenant on
+initialization; no account D1 migration is required. Validate in staging before
+shifting production traffic. Do not roll back the Worker alone while the account
+service still grants Free access.
+
 ## Architecture
 
 Markdown publications use `@eidos.space/markdown/static` and its standalone
@@ -51,7 +99,7 @@ viewer
   atomically activate;
 - standard Publish Tenant IDs are deterministically assigned to a bounded pool
   of Container shards. Custom Tenants use a deterministic dedicated instance;
-  every tier uses the same image and Runtime path;
+  both Runtime tiers use the same image and Runtime path;
 - each Container runs a small trusted Supervisor that streams and verifies the
   exact R2 source, starts one `eidos serve --publish` child per active Version,
   and evicts idle children with LRU when process or disk limits are reached;

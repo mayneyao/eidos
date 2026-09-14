@@ -14,8 +14,10 @@ is rendered once into a script-free static page. Your local file remains the
 source of truth and the CLI can exit after publishing.
 
 <Aside type="note" title="Hosted service">
-  Activate Publish on your eidos.space account before creating a CLI key. The
-  CLI uses the production Publish origin by default.
+  Publish CLI keys require a paid Publish plan. Publish Free is available through
+  Eidos Lite login for verified accounts: 10 active public Markdown pages sharing
+  100 MiB, with Eidos branding and search indexing disabled. Free does not include
+  Eidos Runtime or Forms. The CLI uses the production Publish origin by default.
 </Aside>
 
 ## Before you publish
@@ -270,8 +272,8 @@ and the history policy are. Current standard Publish limits are:
 | Imported response retention  | 30 days                           |
 
 Contact Eidos for a Custom plan when an `.eidos` file needs a higher limit or
-dedicated Runtime capacity. Publish is a paid hosted service; local build and
-preview remain free. History
+dedicated Runtime capacity. These limits apply to paid Publish; local build and
+preview remain free. Paid history
 retention starts when an active Version is replaced. Inactive Versions are
 kept for 30 days. Failed or never-activated Versions are
 removed after 24 hours. The currently active Version is never removed by
@@ -281,6 +283,14 @@ are retained separately from the full published source.
 
 The account page is authoritative for the current plan and usage. External
 custom domains are not part of Publish 1.0.
+
+Publish Free accepts Markdown up to 2 MiB, at most 20 attachments of 25 MiB each,
+and a Source Bundle up to 50 MiB. All retained source and generated artifacts
+share the 100 MiB account quota. Free allows 20 new version uploads per UTC day.
+Republishing the same slug does not use another slot. Use **Unpublish** on the
+account Resources page to release a slot; retained versions continue to count
+toward storage until cleanup. Free retains the previous version for 24 hours.
+Public links remain accessible to anyone who knows the URL despite `noindex`.
 
 ## Human output and automation
 

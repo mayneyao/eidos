@@ -96,8 +96,15 @@ export default defineConfig({
                 "test-only-publish-service-secret-32-bytes-minimum"
             ) {
               const body = await request.json<{ userId: string }>()
+              if (body.userId.startsWith("standard-")) {
+                return Response.json({
+                  sub: body.userId,
+                  publish_access: { ...freeAccess, plan: "pro" },
+                })
+              }
               const pro =
                 body.userId === "pro-user" ||
+                body.userId === "pro-markdown-user" ||
                 body.userId === "pro-collision-user"
               return Response.json({
                 sub: body.userId,
@@ -133,6 +140,12 @@ export default defineConfig({
               })
             }
             const authorization = request.headers.get("authorization")
+            if (authorization?.startsWith("Bearer standard-")) {
+              return Response.json({
+                sub: authorization.slice("Bearer ".length),
+                publish_access: { ...freeAccess, plan: "pro" },
+              })
+            }
             if (authorization?.startsWith("Bearer free-")) {
               return Response.json({
                 sub: authorization.slice("Bearer ".length),
@@ -147,6 +160,7 @@ export default defineConfig({
             }
             if (
               authorization === "Bearer pro-token" ||
+              authorization === "Bearer pro-markdown-token" ||
               authorization === "Bearer pro-collision-token" ||
               authorization === "Bearer downgrade-token"
             ) {
@@ -154,9 +168,11 @@ export default defineConfig({
                 sub:
                   authorization === "Bearer pro-token"
                     ? "pro-user"
-                    : authorization === "Bearer pro-collision-token"
-                      ? "pro-collision-user"
-                      : "downgrade-user",
+                    : authorization === "Bearer pro-markdown-token"
+                      ? "pro-markdown-user"
+                      : authorization === "Bearer pro-collision-token"
+                        ? "pro-collision-user"
+                        : "downgrade-user",
                 publish_access: {
                   ...freeAccess,
                   revision: 2,

@@ -331,7 +331,7 @@ describe("Eidos Publish control plane", () => {
     const response = await authenticatedFetch("/api/tenant", "blocked-token")
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({
-      error: { code: "publish_subscription_required" },
+      error: { code: "publish_email_verification_required" },
     })
   })
 
@@ -475,7 +475,7 @@ describe("Eidos Publish control plane", () => {
   it("stores a canonical manifest and streams a digest-checked immutable file into R2", async () => {
     const publicationResponse = await authenticatedFetch(
       "/api/publications/tasks",
-      "free-upload",
+      "standard-upload",
       mutation("create-tasks")
     )
     expect(publicationResponse.status).toBe(201)
@@ -483,7 +483,7 @@ describe("Eidos Publish control plane", () => {
     const sha256 = await digestHex(bytes)
     const versionResponse = await authenticatedFetch(
       "/api/publications/tasks/versions",
-      "free-upload",
+      "standard-upload",
       mutation("begin-tasks-version", {
         driver: { id: "org.eidos.driver.eidos", version: "1.0" },
         manifest: manifest("source.eidos", bytes.byteLength, sha256),
@@ -499,7 +499,7 @@ describe("Eidos Publish control plane", () => {
     }
     const uploaded = await authenticatedFetch(
       `/api/publications/tasks/versions/${version.versionId}/objects/${sha256}`,
-      "free-upload",
+      "standard-upload",
       {
         method: "PUT",
         headers: {
@@ -518,7 +518,7 @@ describe("Eidos Publish control plane", () => {
     })
     const finalized = await authenticatedFetch(
       `/api/publications/tasks/versions/${version.versionId}/complete`,
-      "free-upload",
+      "standard-upload",
       {
         method: "POST",
         headers: { "Idempotency-Key": "complete-tasks-source" },
@@ -539,7 +539,7 @@ describe("Eidos Publish control plane", () => {
     const otherSha256 = await digestHex(otherBytes)
     const otherVersionResponse = await authenticatedFetch(
       "/api/publications/tasks/versions",
-      "free-upload",
+      "standard-upload",
       mutation("begin-other-tasks-version", {
         driver: { id: "org.eidos.driver.eidos", version: "1.0" },
         manifest: manifest("source.eidos", otherBytes.byteLength, otherSha256),
@@ -551,7 +551,7 @@ describe("Eidos Publish control plane", () => {
     }
     const unequalUploadRetry = await authenticatedFetch(
       `/api/publications/tasks/versions/${otherVersion.versionId}/objects/${otherSha256}`,
-      "free-upload",
+      "standard-upload",
       {
         method: "PUT",
         headers: {
@@ -567,7 +567,7 @@ describe("Eidos Publish control plane", () => {
       error: { code: "idempotency_conflict" },
     })
 
-    const tenantState = await tenant("free-upload")
+    const tenantState = await tenant("standard-upload")
     expect(tenantState.usage.sourceBytes).toBe(bytes.byteLength.toString())
     const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
     const validating = await tenantStub.beginValidation(version.versionId)
@@ -600,7 +600,7 @@ describe("Eidos Publish control plane", () => {
     })
     const activated = await authenticatedFetch(
       `/api/publications/tasks/versions/${version.versionId}/activate`,
-      "free-upload",
+      "standard-upload",
       {
         method: "POST",
         headers: { "Idempotency-Key": "activate-tasks-version" },
@@ -617,7 +617,7 @@ describe("Eidos Publish control plane", () => {
         activated.headers.get("x-eidos-request-id")!
       )
     ).toMatchObject({ ok: true, value: { toVersionId: version.versionId } })
-    expect((await tenant("free-upload")).publications[0]).toMatchObject({
+    expect((await tenant("standard-upload")).publications[0]).toMatchObject({
       slug: "tasks",
       currentVersionId: version.versionId,
     })
@@ -662,7 +662,7 @@ describe("Eidos Publish control plane", () => {
       ok: false,
       error: { code: "stale_runtime_ticket" },
     })
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 16; index += 1) {
       expect(
         await tenantStub.authorizeRuntimeRequest(
           version.publicationId,
@@ -744,7 +744,7 @@ describe("Eidos Publish control plane", () => {
     expect(invalidProxy.status).toBe(401)
     const deleteCurrent = await authenticatedFetch(
       `/api/publications/tasks/versions/${version.versionId}`,
-      "free-upload",
+      "standard-upload",
       {
         method: "DELETE",
         headers: { "Idempotency-Key": "delete-current-version" },
@@ -774,7 +774,7 @@ describe("Eidos Publish control plane", () => {
 
   it("materializes an Eidos source from a bounded Graft SQLite page delta", async () => {
     const slug = "incremental"
-    const token = "free-graft-delta-upload"
+    const token = "standard-graft-delta-upload"
     await authenticatedFetch(
       `/api/publications/${slug}`,
       token,
@@ -920,7 +920,7 @@ describe("Eidos Publish control plane", () => {
 
   it("deduplicates attachment objects and serves authorized immutable assets with ranges", async () => {
     const slug = "attachments"
-    const token = "free-attachments"
+    const token = "standard-attachments"
     await authenticatedFetch(
       `/api/publications/${slug}`,
       token,
@@ -1064,7 +1064,7 @@ describe("Eidos Publish control plane", () => {
   })
 
   it("renders Markdown safely and serves its immutable attachments", async () => {
-    const token = "pro-token"
+    const token = "pro-markdown-token"
     const slug = "release-notes"
     await authenticatedFetch(
       `/api/publications/${slug}`,
@@ -1265,6 +1265,7 @@ describe("Eidos Publish control plane", () => {
     )
     expect(image.status).toBe(200)
     expect(image.headers.get("content-disposition")).toContain("inline")
+    expect(image.headers.get("x-robots-tag")).toBeNull()
 
     const attachment = await SELF.fetch(
       `https://${tenantState.canonicalHost}/_eidos/files/${slug}/${version.versionId}/${guideSha256}/files/guide.pdf`
@@ -1274,10 +1275,22 @@ describe("Eidos Publish control plane", () => {
     expect(new TextDecoder().decode(await attachment.arrayBuffer())).toBe(
       "published guide"
     )
+    await tenantStub.initialize(
+      "pro-markdown-user",
+      tenantState.publicSiteId,
+      { ...freeAccessGrant(), revision: 99 },
+      null
+    )
+    const freeImage = await SELF.fetch(
+      `https://${tenantState.canonicalHost}/_eidos/files/${slug}/${version.versionId}/${diagramSha256}/assets/diagram.png`
+    )
+    expect(freeImage.status).toBe(200)
+    expect(freeImage.headers.get("x-robots-tag")).toBe("noindex, nofollow")
+    expect(freeImage.headers.get("cache-control")).toBe("private, no-store")
   })
 
   it("publishes a Form revision, accepts deduplicated attachments, and leases the Inbox", async () => {
-    const token = "free-form"
+    const token = "standard-form"
     const slug = "feedback"
     await authenticatedFetch(
       `/api/publications/${slug}`,
@@ -1908,14 +1921,14 @@ describe("Eidos Publish control plane", () => {
   it("allows an interrupted multipart upload to be explicitly aborted", async () => {
     await authenticatedFetch(
       "/api/publications/multipart-abort",
-      "free-multipart-abort",
+      "standard-multipart-abort",
       mutation("create-multipart-abort")
     )
     const bytes = new TextEncoder().encode("aborted multipart source")
     const sha256 = await digestHex(bytes)
     const begun = await authenticatedFetch(
       "/api/publications/multipart-abort/versions",
-      "free-multipart-abort",
+      "standard-multipart-abort",
       mutation("begin-multipart-abort", {
         driver: { id: "org.eidos.driver.eidos", version: "1.0" },
         manifest: manifest("source.eidos", bytes.byteLength, sha256),
@@ -1925,13 +1938,13 @@ describe("Eidos Publish control plane", () => {
     const version = (await begun.json()) as { versionId: string }
     const initiated = await authenticatedFetch(
       `/api/publications/multipart-abort/versions/${version.versionId}/objects/${sha256}/multipart`,
-      "free-multipart-abort",
+      "standard-multipart-abort",
       { method: "POST", headers: { "Idempotency-Key": "init-multipart-abort" } }
     )
     const session = (await initiated.json()) as { sessionId: string }
     const aborted = await authenticatedFetch(
       `/api/publications/multipart-abort/versions/${version.versionId}/multipart/${session.sessionId}`,
-      "free-multipart-abort",
+      "standard-multipart-abort",
       {
         method: "DELETE",
         headers: { "Idempotency-Key": "abort-multipart-upload" },
@@ -1947,22 +1960,22 @@ describe("Eidos Publish control plane", () => {
   it("retries an interrupted Version deletion and never retires the active pointer", async () => {
     await authenticatedFetch(
       "/api/publications/retention",
-      "free-retention",
+      "standard-retention",
       mutation("create-retention-publication")
     )
     const oldVersion = await uploadVersion(
       "retention",
-      "free-retention",
+      "standard-retention",
       "retention-old",
       "old immutable source"
     )
     const activeVersion = await uploadVersion(
       "retention",
-      "free-retention",
+      "standard-retention",
       "retention-active",
       "active immutable source"
     )
-    const tenantState = await tenant("free-retention")
+    const tenantState = await tenant("standard-retention")
     const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
     await tenantStub.beginValidation(activeVersion.versionId)
     await tenantStub.recordValidation(activeVersion.versionId, {
@@ -2050,43 +2063,49 @@ describe("Eidos Publish control plane", () => {
     expect(
       await tenantStub.getVersionStatus("retention", activeVersion.versionId)
     ).toMatchObject({ ok: true, value: { state: "ready" } })
-    expect((await tenant("free-retention")).publications[0]).toMatchObject({
+    expect((await tenant("standard-retention")).publications[0]).toMatchObject({
       currentVersionId: activeVersion.versionId,
     })
   })
 
   it("keeps only the previous Free Version and starts its one-day window when replaced", async () => {
     await authenticatedFetch(
-      "/api/publications/free-history",
-      "free-history",
-      mutation("create-free-history-publication")
+      "/api/publications/standard-history",
+      "standard-history",
+      mutation("create-standard-history-publication")
     )
     const first = await publishReadyVersion(
-      "free-history",
-      "free-history",
-      "free-history-first",
+      "standard-history",
+      "standard-history",
+      "standard-history-first",
       "first source"
     )
     const second = await publishReadyVersion(
-      "free-history",
-      "free-history",
-      "free-history-second",
+      "standard-history",
+      "standard-history",
+      "standard-history-second",
       "second source"
     )
     const current = await publishReadyVersion(
-      "free-history",
-      "free-history",
-      "free-history-current",
+      "standard-history",
+      "standard-history",
+      "standard-history-current",
       "current source"
     )
     const abandoned = await uploadVersion(
-      "free-history",
-      "free-history",
-      "free-history-abandoned",
+      "standard-history",
+      "standard-history",
+      "standard-history-abandoned",
       "never activated source"
     )
-    const tenantState = await tenant("free-history")
+    const tenantState = await tenant("standard-history")
     const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
+    await tenantStub.initialize(
+      "standard-history",
+      tenantState.publicSiteId,
+      { ...freeAccessGrant(), revision: 10 },
+      null
+    )
     const retentionStart = Date.now()
 
     await tenantStub.runRetention(
@@ -2094,16 +2113,16 @@ describe("Eidos Publish control plane", () => {
     )
 
     expect(
-      await tenantStub.getVersionStatus("free-history", first.versionId)
+      await tenantStub.getVersionStatus("standard-history", first.versionId)
     ).toMatchObject({ ok: true, value: { state: "deleted" } })
     expect(
-      await tenantStub.getVersionStatus("free-history", second.versionId)
+      await tenantStub.getVersionStatus("standard-history", second.versionId)
     ).toMatchObject({ ok: true, value: { state: "ready" } })
     expect(
-      await tenantStub.getVersionStatus("free-history", current.versionId)
+      await tenantStub.getVersionStatus("standard-history", current.versionId)
     ).toMatchObject({ ok: true, value: { state: "ready" } })
     expect(
-      await tenantStub.getVersionStatus("free-history", abandoned.versionId)
+      await tenantStub.getVersionStatus("standard-history", abandoned.versionId)
     ).toMatchObject({ ok: true, value: { state: "uploaded" } })
 
     await tenantStub.runRetention(
@@ -2111,14 +2130,64 @@ describe("Eidos Publish control plane", () => {
     )
 
     expect(
-      await tenantStub.getVersionStatus("free-history", second.versionId)
+      await tenantStub.getVersionStatus("standard-history", second.versionId)
     ).toMatchObject({ ok: true, value: { state: "deleted" } })
     expect(
-      await tenantStub.getVersionStatus("free-history", current.versionId)
+      await tenantStub.getVersionStatus("standard-history", current.versionId)
     ).toMatchObject({ ok: true, value: { state: "ready" } })
     expect(
-      await tenantStub.getVersionStatus("free-history", abandoned.versionId)
+      await tenantStub.getVersionStatus("standard-history", abandoned.versionId)
     ).toMatchObject({ ok: true, value: { state: "deleted" } })
+  })
+
+  it("blocks an existing Runtime and its warm-container requests after downgrade to Free", async () => {
+    const token = "standard-runtime-downgrade"
+    await authenticatedFetch(
+      "/api/publications/runtime",
+      token,
+      mutation("create-runtime-downgrade")
+    )
+    const version = await publishReadyVersion(
+      "runtime",
+      token,
+      "runtime-downgrade",
+      "immutable runtime source"
+    )
+    const state = await tenant(token)
+    const stub = env.PUBLISH_TENANTS.getByName(state.publicSiteId)
+    const paid = await stub.getAccessGrant()
+    await stub.initialize(
+      token,
+      state.publicSiteId,
+      { ...freeAccessGrant(), revision: 10 },
+      null
+    )
+    expect(await stub.resolvePublication("runtime")).toMatchObject({
+      ok: false,
+    })
+    expect(
+      await stub.authorizeRuntimeRequest(
+        (await stub.listPublications())[0]!.publicationId,
+        version.versionId,
+        "warm-client",
+        false,
+        "warm-request"
+      )
+    ).toMatchObject({ ok: false, error: { code: "publish_access_suspended" } })
+    expect(
+      await stub.activateVersion(
+        "runtime",
+        version.versionId,
+        token,
+        "stale-paid-runtime",
+        paid,
+        "stale-paid-runtime",
+        "0".repeat(64)
+      )
+    ).toMatchObject({ ok: false, error: { code: "free_publish_limit" } })
+    expect(
+      await stub.getVersionStatus("runtime", version.versionId)
+    ).toMatchObject({ ok: true, value: { state: "ready" } })
   })
 
   it("keeps Pro history for 30 days from replacement", async () => {
@@ -2182,14 +2251,14 @@ describe("Eidos Publish control plane", () => {
   it("reserves bounded runtime starts before a Container can wake", async () => {
     await authenticatedFetch(
       "/api/publications/budget",
-      "free-budget",
+      "standard-budget",
       mutation("create-budget")
     )
     const bytes = new TextEncoder().encode("budget source")
     const sha256 = await digestHex(bytes)
     const begun = await authenticatedFetch(
       "/api/publications/budget/versions",
-      "free-budget",
+      "standard-budget",
       mutation("begin-budget", {
         driver: { id: "org.eidos.driver.eidos", version: "1.0" },
         manifest: manifest("source.eidos", bytes.byteLength, sha256),
@@ -2199,7 +2268,7 @@ describe("Eidos Publish control plane", () => {
     const version = (await begun.json()) as { versionId: string }
     await authenticatedFetch(
       `/api/publications/budget/versions/${version.versionId}/objects/${sha256}`,
-      "free-budget",
+      "standard-budget",
       {
         method: "PUT",
         headers: {
@@ -2212,20 +2281,21 @@ describe("Eidos Publish control plane", () => {
     )
     await authenticatedFetch(
       `/api/publications/budget/versions/${version.versionId}/complete`,
-      "free-budget",
+      "standard-budget",
       {
         method: "POST",
         headers: { "Idempotency-Key": "complete-budget" },
       }
     )
-    const tenantState = await tenant("free-budget")
+    const tenantState = await tenant("standard-budget")
     const tenantStub = env.PUBLISH_TENANTS.getByName(tenantState.publicSiteId)
     await tenantStub.initialize(
-      "free-budget",
+      "standard-budget",
       tenantState.publicSiteId,
       {
         ...freeAccessGrant(),
         revision: 10,
+        plan: "pro",
         runtimeSecondsPerPeriod: "60",
         runtimeStartsPerPeriod: 1,
       },

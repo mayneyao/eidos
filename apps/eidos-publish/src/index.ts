@@ -261,15 +261,33 @@ async function route(
     )
   }
 
+  const internalUnpublishMatch = /^\/_internal\/publications\/([^/]+)$/.exec(
+    url.pathname
+  )
+  if (request.method === "DELETE" && internalUnpublishMatch !== null) {
+    if (!sharedServiceSecret(request, env.PUBLISH_SERVICE_SECRET))
+      return problem(404, "not_found", "Route not found")
+    const principal = parsePrincipal(await boundedJson(request, 8192))
+    const tenant = await tenantForPrincipal(env, principal)
+    const slug = publicationSlug(internalUnpublishMatch[1])
+    return durableResponse(
+      await tenant.stub.unpublishPublication(
+        slug,
+        requiredIdempotencyKey(request),
+        await canonicalSha256({ slug })
+      )
+    )
+  }
+
   const principal = await authenticatePublishUser(request, env)
   if (principal.access.state === "blocked") {
     return problem(
       403,
       principal.access.plan === "free"
-        ? "publish_subscription_required"
+        ? "publish_email_verification_required"
         : "publish_access_suspended",
       principal.access.plan === "free"
-        ? "An active Publish subscription is required"
+        ? "Verify your Eidos account email before using Publish Free"
         : "Publish access is suspended"
     )
   }
@@ -461,6 +479,16 @@ async function route(
   }
 
   const publicationMatch = /^\/api\/publications\/([^/]+)$/.exec(url.pathname)
+  if (request.method === "DELETE" && publicationMatch !== null) {
+    const slug = publicationSlug(publicationMatch[1])
+    return durableResponse(
+      await tenant.stub.unpublishPublication(
+        slug,
+        requiredIdempotencyKey(request),
+        await canonicalSha256({ slug })
+      )
+    )
+  }
   if (request.method === "PUT" && publicationMatch !== null) {
     const slug = publicationSlug(publicationMatch[1])
     const idempotencyKey = requiredIdempotencyKey(request)

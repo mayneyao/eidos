@@ -27,6 +27,7 @@ import type {
   VersionLifecycleEvent,
 } from "./contracts"
 import { contentObjectKey, sourceManifestObjectKey } from "./bundle"
+import { enforceFreeGrant, freeBundleError, FREE_LIMITS } from "./free"
 import {
   createPublicationPasswordVerifier,
   verifyPublicationPassword,
@@ -591,6 +592,12 @@ export class PublishTenant extends DurableObject<Env> {
           activated_at TEXT NOT NULL,
           UNIQUE (publication_id, request_id)
         );
+        CREATE TABLE IF NOT EXISTS publication_unpublish_event (
+          event_id TEXT PRIMARY KEY,
+          publication_id TEXT NOT NULL,
+          version_id TEXT NOT NULL,
+          unpublished_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS version_failure_event (
           failure_id TEXT PRIMARY KEY,
           job_id TEXT NOT NULL,
@@ -746,6 +753,7 @@ export class PublishTenant extends DurableObject<Env> {
     _activeHandle: string | null
   ): Promise<void> {
     await this.ready
+    access = enforceFreeGrant(access)
     const existing = this.tenant()
     if (existing !== null) {
       if (
@@ -1173,7 +1181,7 @@ export class PublishTenant extends DurableObject<Env> {
       return failure(404, "publication_not_found", "Publication not found")
     }
     const access = this.currentAccess()
-    if (access.state !== "active") {
+    if (access.state !== "active" || access.plan === "free") {
       return failure(
         403,
         "publish_access_suspended",
@@ -1365,6 +1373,20 @@ export class PublishTenant extends DurableObject<Env> {
         if (existing !== null) {
           return ok(this.publicationRecord(existing))
         }
+        if (
+          access.plan === "free" &&
+          this.ctx.storage.sql
+            .exec<CountRow>(
+              "SELECT count(*) AS count FROM publication WHERE created_at >= ?",
+              new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
+            )
+            .one().count >= FREE_LIMITS.uploadsPerDay
+        )
+          return failure(
+            429,
+            "publish_rate_limit_reached",
+            "Publish Free allows 20 new slugs per UTC day"
+          )
         if (this.tenant() === null)
           return failure(
             409,
@@ -1692,6 +1714,37 @@ export class PublishTenant extends DurableObject<Env> {
         if (publication === null)
           return failure(404, "publication_not_found", "Publication not found")
         const access = this.currentAccess()
+        if (access.state !== "active")
+          return failure(
+            403,
+            "publish_access_suspended",
+            "Publish access is suspended"
+          )
+        if (access.plan === "free") {
+          const error = freeBundleError(bundle)
+          if (error !== null) return failure(403, "free_publish_limit", error)
+          if (
+            publication.current_version_id === null &&
+            this.activePublicationCount() >= FREE_LIMITS.activePublications
+          )
+            return failure(
+              403,
+              "publication_limit_reached",
+              "Publish Free allows 10 active publications; unpublish a page to free a slot"
+            )
+          const uploads = this.ctx.storage.sql
+            .exec<CountRow>(
+              "SELECT count(*) AS count FROM publication_version WHERE created_at >= ?",
+              new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
+            )
+            .one().count
+          if (uploads >= FREE_LIMITS.uploadsPerDay)
+            return failure(
+              429,
+              "publish_rate_limit_reached",
+              "Publish Free allows 20 new version uploads per UTC day"
+            )
+        }
         const tenant = this.tenant()
         if (tenant === null)
           return failure(
@@ -2675,9 +2728,10 @@ export class PublishTenant extends DurableObject<Env> {
     versionId: string,
     actor: string,
     requestId: string,
-    access: PublishAccessGrant | null,
+    _access: PublishAccessGrant | null,
     idempotencyKey: string,
-    inputSha256: string
+    inputSha256: string,
+    automatic = false
   ): Promise<DurableResult<ActivationResult>> {
     await this.ready
     const result = this.idempotent<ActivationResult>(
@@ -2699,13 +2753,32 @@ export class PublishTenant extends DurableObject<Env> {
             "version_not_ready",
             "Publication Version is not ready"
           )
-        const effectiveAccess = access ?? this.currentAccess()
+        if (automatic && version.activate_on_ready !== 1)
+          return failure(
+            409,
+            "activation_canceled",
+            "Automatic publication was canceled"
+          )
+        const effectiveAccess = this.currentAccess()
         if (effectiveAccess.state !== "active")
           return failure(
             403,
             "publish_access_suspended",
             "Publish access is suspended"
           )
+        if (effectiveAccess.plan === "free") {
+          const error = this.freeVersionError(version)
+          if (error !== null) return failure(403, "free_publish_limit", error)
+          if (
+            publication.current_version_id === null &&
+            this.activePublicationCount() >= FREE_LIMITS.activePublications
+          )
+            return failure(
+              403,
+              "publication_limit_reached",
+              "Publish Free allows 10 active publications; unpublish a page to free a slot"
+            )
+        }
         const publicationAccess = this.publicationAccess(
           publication.publication_id
         )
@@ -2760,6 +2833,75 @@ export class PublishTenant extends DurableObject<Env> {
     await this.runRetention(new Date().toISOString())
   }
 
+  async unpublishPublication(
+    slug: string,
+    idempotencyKey: string,
+    inputSha256: string
+  ): Promise<DurableResult<PublicationRecord>> {
+    await this.ready
+    const result = this.idempotent<PublicationRecord>(
+      idempotencyKey,
+      "unpublishPublication",
+      inputSha256,
+      () => {
+        const publication = this.publication(slug)
+        if (publication === null)
+          return failure(404, "publication_not_found", "Publication not found")
+        if (publication.current_version_id !== null)
+          this.ctx.storage.sql.exec(
+            "INSERT INTO publication_unpublish_event (event_id, publication_id, version_id, unpublished_at) VALUES (?, ?, ?, ?)",
+            crypto.randomUUID(),
+            publication.publication_id,
+            publication.current_version_id,
+            new Date().toISOString()
+          )
+        this.ctx.storage.sql.exec(
+          "UPDATE publication_version SET activate_on_ready = 0 WHERE publication_id = ?",
+          publication.publication_id
+        )
+        this.ctx.storage.sql.exec(
+          "UPDATE publication SET current_version_id = NULL WHERE publication_id = ?",
+          publication.publication_id
+        )
+        return ok(this.publicationRecord(this.publication(slug)!))
+      }
+    )
+    if (result.ok) await this.scheduleRetention()
+    return result
+  }
+
+  private activePublicationCount(): number {
+    return this.ctx.storage.sql
+      .exec<CountRow>(
+        "SELECT count(*) AS count FROM publication WHERE current_version_id IS NOT NULL"
+      )
+      .one().count
+  }
+
+  private freeVersionError(version: VersionRow): string | null {
+    const files = this.ctx.storage.sql
+      .exec<VersionFileRow>(
+        "SELECT * FROM version_file WHERE version_id = ? ORDER BY path LIMIT ?",
+        version.version_id,
+        FREE_LIMITS.attachments + 2
+      )
+      .toArray()
+    return freeBundleError({
+      driver: { id: version.driver_id },
+      entrypoint: parseJson<SourceBundleFile>(version.entrypoint_json),
+      sourceBytes: version.source_bytes,
+      manifest: {
+        files: files.map((file) => ({
+          path: file.path,
+          role: file.role,
+          mediaType: file.media_type,
+          bytes: file.bytes,
+          sha256: file.sha256,
+        })),
+      },
+    })
+  }
+
   async runRetention(nowInstant = new Date().toISOString()): Promise<void> {
     await this.ready
     const tenant = this.tenant()
@@ -2794,11 +2936,15 @@ export class PublishTenant extends DurableObject<Env> {
         )
       const deactivations = this.ctx.storage.sql
         .exec<VersionDeactivationRow>(
-          `SELECT from_version_id AS version_id,
-                  max(activated_at) AS deactivated_at
-             FROM activation_event
-            WHERE publication_id = ? AND from_version_id IS NOT NULL
-            GROUP BY from_version_id`,
+          `SELECT version_id, max(deactivated_at) AS deactivated_at FROM (
+             SELECT from_version_id AS version_id, activated_at AS deactivated_at
+               FROM activation_event
+              WHERE publication_id = ? AND from_version_id IS NOT NULL
+             UNION ALL
+             SELECT version_id, unpublished_at AS deactivated_at
+               FROM publication_unpublish_event WHERE publication_id = ?
+           ) GROUP BY version_id`,
+          publication.publication_id,
           publication.publication_id
         )
         .toArray()
@@ -2828,6 +2974,7 @@ export class PublishTenant extends DurableObject<Env> {
           (deactivated === undefined ? abandonedCutoff : retentionCutoff)
         const beyondFreeHistory =
           access.plan === "free" &&
+          publication.current_version_id !== null &&
           deactivated !== undefined &&
           version.version_id !== previousVersionId
         const graceElapsed = ageAnchor <= graceCutoff
@@ -2977,6 +3124,7 @@ export class PublishTenant extends DurableObject<Env> {
       ownerUserId: string
       canonicalHandle: string | null
       runtimeIdleSeconds: number
+      noIndex: boolean
       accessCheckedAt: string
       publication: PublicationRecord
       formPolicy: FormPublicationPolicy
@@ -2998,12 +3146,36 @@ export class PublishTenant extends DurableObject<Env> {
     const version = this.version(slug, publication.current_version_id)
     if (version === null || version.state !== "ready")
       return failure(404, "publication_not_found", "Publication not found")
+    if (
+      tenant.plan === "free" &&
+      (this.freeVersionError(version) !== null ||
+        this.publicationAccess(publication.publication_id)?.mode !== "public")
+    )
+      return failure(404, "publication_not_found", "Publication not found")
+    // A downgrade may leave more than ten paid pointers. Keep their source and
+    // pointers recoverable, but serve only the ten newest public Markdown pages.
+    if (
+      tenant.plan === "free" &&
+      !this.ctx.storage.sql
+        .exec<PublicationRow>(
+          `SELECT publication.* FROM publication
+         JOIN publication_version AS version ON version.version_id = publication.current_version_id
+         JOIN publication_access AS access ON access.publication_id = publication.publication_id
+        WHERE version.driver_id = 'org.eidos.driver.markdown' AND access.mode = 'public'
+        ORDER BY publication.created_at DESC, publication.publication_id DESC LIMIT ?`,
+          FREE_LIMITS.activePublications
+        )
+        .toArray()
+        .some((row) => row.publication_id === publication.publication_id)
+    )
+      return failure(404, "publication_not_found", "Publication not found")
     const resolvedVersion = versionRecord(version)
     const target = resolvedVersion.servingTarget
     return ok({
       ownerUserId: tenant.owner_user_id,
       canonicalHandle: tenant.plan === "pro" ? tenant.active_handle : null,
       runtimeIdleSeconds: this.currentAccess().runtimeIdleSeconds,
+      noIndex: tenant.plan === "free",
       accessCheckedAt: tenant.access_checked_at,
       publication: this.publicationRecord(publication),
       formPolicy: this.publicationFormPolicy(publication.publication_id),
@@ -3023,6 +3195,11 @@ export class PublishTenant extends DurableObject<Env> {
     }>
   > {
     await this.ready
+    if (
+      this.currentAccess().plan === "free" ||
+      this.currentAccess().state !== "active"
+    )
+      return failure(404, "form_not_found", "Published Form not found")
     const publication = this.ctx.storage.sql
       .exec<PublicationRow>(
         `SELECT publication_id, slug, visibility, current_version_id, created_at
@@ -3118,7 +3295,7 @@ export class PublishTenant extends DurableObject<Env> {
   private currentAccess(): PublishAccessGrant {
     const tenant = this.tenant()
     if (tenant === null) throw new Error("tenant is not initialized")
-    return parseJson<PublishAccessGrant>(tenant.access_json)
+    return enforceFreeGrant(parseJson<PublishAccessGrant>(tenant.access_json))
   }
 
   private async scheduleRetention(): Promise<void> {
@@ -3285,7 +3462,7 @@ export class PublishTenant extends DurableObject<Env> {
     reservationKey: string,
     now: string
   ): DurableResult<UsagePeriodRecord> {
-    if (access.state !== "active") {
+    if (access.state !== "active" || access.plan === "free") {
       return failure(
         403,
         "publish_access_suspended",
@@ -3538,6 +3715,7 @@ export class PublishTenant extends DurableObject<Env> {
   }
 
   private publicationBrandingPreference(publicationId: string): boolean {
+    if (!this.currentAccess().removeBranding) return true
     const row = this.ctx.storage.sql
       .exec<PublicationBrandingRow>(
         `SELECT publication_id, show_branding, updated_at

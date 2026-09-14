@@ -194,6 +194,7 @@ export const IPC_CHANNELS = {
   publishProgress: "eidos-lite:publish-progress",
   publishCollectRun: "eidos-lite:publish-collect-run",
   publishBindingsList: "eidos-lite:publish-bindings-list",
+  publishAccountStatus: "eidos-lite:publish-account-status",
   revealPath: "eidos-lite:path-reveal",
   openPath: "eidos-lite:path-open",
   copyPathText: "eidos-lite:path-copy-text",
@@ -241,6 +242,18 @@ export type EidosPublishProgress =
       totalBytes: string
       percent: number
     }
+
+export interface EidosPublishAccountStatus {
+  state: "active" | "blocked"
+  plan: "free" | "pro"
+  privatePublications: boolean
+  removeBranding: boolean
+  maxStorageBytes: string
+  usedStorageBytes: string | null
+  activeSlugs: string[] | null
+  accountUrl: string
+  pricingUrl: string
+}
 
 export interface EidosPublishResult {
   published: boolean
@@ -1953,6 +1966,7 @@ export interface EidosLiteApi {
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   openSyncHelp(destination: EidosSyncHelpDestination): Promise<void>
   publishFile(request: EidosPublishRequest): Promise<EidosPublishResponse>
+  getPublishAccountStatus(): Promise<EidosPublishAccountStatus>
   collectPublishedForm(
     request: EidosPublishCollectRequest
   ): Promise<EidosPublishCollectResponse>

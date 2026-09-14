@@ -14,8 +14,9 @@ Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳�
 本地文件仍是源文件；发布完成后 CLI 可以退出。
 
 <Aside type="note" title="托管服务">
-  请先在 eidos.space 账号中开通 Publish，再创建 CLI 密钥。CLI 默认 使用生产
-  Publish 服务地址。
+  Publish CLI 密钥需要付费 Publish 方案。已验证邮箱的账户可通过 Eidos Lite 登录使用
+  Publish Free：10 个活跃公开 Markdown 页面共享 100 MiB，保留 Eidos 品牌并禁止搜索收录。
+  Free 不包含 Eidos Runtime 或 Form。CLI 默认使用生产 Publish 服务地址。
 </Aside>
 
 ## 发布前准备
@@ -238,10 +239,16 @@ eidos publish inventory.eidos --slug inventory
 | 已导入回复保留        | 30 天                    |
 
 当 `.eidos` 文件需要更高上限或独立 Runtime 容量时，可以联系 Eidos 开通 Custom 方案。
-Publish 是付费托管服务；本地构建与预览保持免费。历史保留期从活动 Version 被替换时开始
+以上为付费 Publish 的限制；本地构建与预览保持免费。付费方案的历史保留期从活动 Version 被替换时开始
 计算，非当前 Version 保留 30 天。失败或从未激活的 Version 在 24 小时后清理。
 当前活动 Version 永远不会因历史保留期被删除；旧历史到期时，只会释放已经没有任何 Version
 引用的内容对象。解释已收集回复所需的 Form 定义快照独立于完整发布 source 保留。
+
+Publish Free 的 Markdown 上限为 2 MiB，每次发布最多 20 个附件、每个附件 25 MiB，
+Source Bundle 总计最多 50 MiB。保留的源文件、附件和生成产物共同计入账户的 100 MiB。
+每天最多创建 20 个新 Version（按 UTC 计算）；重复发布同一 slug 不占新名额。
+可在账户页的资源列表中选择“取消发布”立即释放名额；历史版本在清理前仍计入存储。
+Free 保留上一版本 24 小时。禁止搜索收录不代表私密，知道公开链接的人仍可访问。
 
 账号页展示的套餐和实时用量是最终依据。Publish 1.0 不包含外部自定义域名。
 
