@@ -14,10 +14,10 @@ import { Badge } from "@astrojs/starlight/components"
 
 Eidos Sync makes the saved versions of a Space available on your other devices. It does not turn the Space into a cloud-only workspace: every device keeps a complete local folder that you can open and edit while offline.
 
-Eidos Sync is a subscription service provided by Eidos. Your account must have Sync enabled and, during the current preview, be granted access before you can connect a Space. Local use of Eidos Lite does not require a subscription.
+Eidos Sync is an optional subscription service provided by Eidos. Any signed-in account can subscribe from the [pricing page](https://eidos.space/pricing#sync) or activate a monthly or annual period with Eidos Credits from the [Sync account page](https://eidos.space/account?tab=sync). Local use of Eidos Lite does not require a subscription.
 
 :::note
-Sync is in a limited preview. Signing in does not grant access automatically. Check the account page for your current access.
+Credits are debited when you activate a period. Renewal from Credits stays off unless you explicitly enable it; card subscriptions renew through Creem until canceled.
 :::
 
 ## How Sync works
@@ -33,7 +33,7 @@ Without a network connection, changes remain on the current device. Sync can con
 
 Make sure that:
 
-- Your account has Sync access.
+- Your account has an active Sync subscription or Credits-funded period.
 - The Space has [Versions](/user-guide/history-and-recovery/) enabled.
 - The work under **Changes** has been saved as a Version.
 - Important files have an independent backup.
@@ -94,7 +94,7 @@ One upload sends all waiting Versions. It does not fetch first. If the remote ha
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Everything is up to date** | Local and Hosted match. Continue working.                                                        |
 | **Unsaved changes**          | The current work is not a Version yet. Open **Changes** and save it.                             |
-| **Saved versions to upload** | Local Versions are waiting to upload. Open Sync and upload when ready.                          |
+| **Saved versions to upload** | Local Versions are waiting to upload. Open Sync and upload when ready.                           |
 | **Updates are available**    | Hosted has newer Versions. Download them before editing further.                                 |
 | **Sync queued**              | The background task is waiting to run. Do not click repeatedly.                                  |
 | **Sync will try again soon** | The network or service is temporarily unavailable. Eidos will retry and local files remain safe. |
@@ -143,7 +143,7 @@ Signing out does not delete local Spaces. Local files remain usable if access en
 
 ## If Sync needs attention
 
-- **Sync access required** — the account does not currently have Sync access. Check the account page.
+- **Sync access required** — the account does not currently have an active Sync period. Open the [Sync account page](https://eidos.space/account?tab=sync) to activate one with Credits, or subscribe by card from [pricing](https://eidos.space/pricing#sync).
 - **Sign in again** — the session expired. Sign in again; local files are unaffected.
 - **Manage storage** — cloud storage needs attention before another upload.
 - **Try again** — check the network and retry. If an automatic retry is scheduled, you can wait for it.
