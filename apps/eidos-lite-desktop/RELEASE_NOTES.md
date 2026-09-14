@@ -1,9 +1,9 @@
-## What's new
+## Improvements
 
-### Publish Markdown for free
+- **Publish**: The Publish panel now opens from a cached plan and publishes optimistically, so the form is ready immediately instead of waiting on an account check. The service still enforces your entitlement, and the panel only flags a restriction when your account actually needs attention.
+- **Settings**: Account & Services now has dedicated Sync and Publish sections. Review your plan, storage usage, page allowance, Sync access, and device at a glance with storage-style quota meters, then manage published pages, upgrade, or refresh on demand. The default location for new Spaces now lives in Preferences.
+- **Versions**: Automatic background versions are no longer offered or created. Saved versions remain fully manual.
 
-Share a local Markdown document as a public page without a Publish subscription. Sign in to Eidos Lite with a verified email address to publish up to 10 active Markdown pages, sharing 100 MiB of storage.
+## Bug fixes
 
-The Publish panel now shows your plan, storage usage, page allowance, and daily version allowance. Free publishing supports documents up to 2 MiB, up to 20 attachments of 25 MiB each, and a total upload of 50 MiB per publication. You can create up to 20 new versions per UTC day.
-
-Free pages retain Eidos branding and request that search engines do not index them; anyone with the public link can still visit. Previous versions are retained for 24 hours. Eidos File publishing, Forms, password-protected or account-private access, and CLI keys require Pro. These limits do not affect your local files.
+- **Publish on Windows**: Fixed a crash that made every Publish attempt from Eidos Lite on Windows exit with a stack-overflow code (`3221225725`). Publish now hashes the source without a 1 MiB stack buffer.
