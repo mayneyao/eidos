@@ -17,6 +17,22 @@ Versions stay local and do not require an account.
 
 Eidos Lite saves the current Space as its first version. The next time you open the panel, it shows **Changes** and **History**.
 
+## Exclude files from Versions
+
+Add a `.gitignore` or `.graftignore` file to the Space when generated files, caches, secrets, or other local-only content should stay out of version management. Eidos Lite reads these files from the Space root and from nested directories. Matching files that are not already tracked do not appear under **Changes** and are not added to new Versions.
+
+Both files use Git's ignore-pattern syntax. Use `.gitignore` when the rules should also apply to Git, or `.graftignore` for Eidos Lite's version management only. When both files in the same directory match a path, the `.graftignore` rule takes precedence; rules in deeper directories take precedence over rules inherited from parent directories.
+
+For example:
+
+```text
+node_modules/
+*.tmp
+private/
+```
+
+Ignore rules do not delete local files. A path that was already tracked before a matching rule was added remains under version management, and its existing history is preserved.
+
 ## Save a version
 
 1. Finish a group of edits, then open **Versions**.

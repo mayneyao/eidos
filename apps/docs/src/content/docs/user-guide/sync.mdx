@@ -37,7 +37,7 @@ Make sure that:
 - The Space has [Versions](/user-guide/history-and-recovery/) enabled.
 - The work under **Changes** has been saved as a Version.
 - Important files have an independent backup.
-- The Space does not contain files you do not want to upload.
+- Files you do not want to upload are excluded with the Space's [`.gitignore` or `.graftignore` rules](/user-guide/history-and-recovery/#exclude-files-from-versions).
 
 Sync covers the **whole Space**, including `.eidos` files, documents, images, and other ordinary files—not only the file currently open. Changes that have not been saved as a Version are not uploaded.
 
@@ -58,7 +58,7 @@ The first upload can continue in the background. Closing the Sync panel does not
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fix these files before connecting** | These files block the connection. Move files that are too large, replace symbolic links, and remove unsupported entries.              |
 | **Review files before upload**        | These may be hidden, contain private information, or use substantial storage. Review them, then confirm that they should be included. |
-| **Not included**                      | System files, temporary files, and files ignored by the Space settings are not uploaded.                                              |
+| **Not included**                      | System files, temporary files, and untracked files matched by the Space's `.gitignore` or `.graftignore` rules are not uploaded.      |
 
 The check shows the number of files, total size, and number of Eidos Files in scope. Review the list before confirming, and do not keep passwords, keys, or other private files in a Space you plan to sync.
 
