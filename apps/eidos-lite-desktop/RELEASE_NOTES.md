@@ -1,17 +1,9 @@
 ## What's new
 
-### Feed view
+### Publish Markdown for free
 
-Feed is a new standard View that reads a Table as a timeline: newest records come first, titled by the Record Label with the Content Field rendered as Markdown. It is a more natural way to read logs, notes, and other content that builds up over time. Feed is available in Eidos Lite, the browser editor, and `eidos serve`.
+Share a local Markdown document as a public page without a Publish subscription. Sign in to Eidos Lite with a verified email address to publish up to 10 active Markdown pages, sharing 100 MiB of storage.
 
-### Record navigation
+The Publish panel now shows your plan, storage usage, page allowance, and daily version allowance. Free publishing supports documents up to 2 MiB, up to 20 attachments of 25 MiB each, and a total upload of 50 MiB per publication. You can create up to 20 new versions per UTC day.
 
-The record panel can now move to the previous or next record, following the current View's order, so you can keep reading without returning to the grid. The panel can also switch between the side panel and the full content page.
-
-## Bug fixes
-
-- **Content images**: Record Content now displays images stored with an Eidos File, including relative paths in Markdown and HTML.
-- **Sync setup**: Spaces that are not yet connected now use the same compact Sync panel and account menu as connected Spaces.
-- **Sync reliability**: A Hosted upload rejected by a Remote race now re-fetches and reclassifies before retrying, instead of replaying against a stale head.
-- **Field conversion**: Converting a JSON string array in a Text field into Multi-select now yields one choice per value, and converted scalar cells can be cleared.
-- **Windows titlebar**: Caption controls stay visible in the dark theme.
+Free pages retain Eidos branding and request that search engines do not index them; anyone with the public link can still visit. Previous versions are retained for 24 hours. Eidos File publishing, Forms, password-protected or account-private access, and CLI keys require Pro. These limits do not affect your local files.
