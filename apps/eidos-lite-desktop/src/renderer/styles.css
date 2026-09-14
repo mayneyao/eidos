@@ -926,6 +926,19 @@ body {
   font-weight: 500;
 }
 
+.settings-row-publish-plan {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.settings-row-publish-plan .settings-row-copy {
+  flex: 1 1 16rem;
+}
+
+.settings-row-publish-plan .settings-row-actions {
+  margin-left: auto;
+}
+
 .usage-meter {
   padding: 0.7rem 0.8rem;
 }

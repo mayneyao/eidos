@@ -899,7 +899,7 @@ export function SettingsPage() {
               <div className="settings-group" data-settings-publish>
                 {publishAccountEnabled ? (
                   <>
-                    <div className="settings-row settings-row-stacked">
+                    <div className="settings-row settings-row-stacked settings-row-publish-plan">
                       <div className="settings-row-copy">
                         <strong>{publishPlanTitle}</strong>
                         <small>{publishPlanSummary}</small>

@@ -56,6 +56,10 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain("UsageMeter")
     expect(settings).toContain('t("Sync storage")')
     expect(settings).toContain('t("Publish storage")')
+    expect(settings).toContain("settings-row-publish-plan")
+    expect(styles).toMatch(
+      /\.settings-row-publish-plan\s*\{[^}]*flex-wrap:\s*wrap/
+    )
     expect(styles).toMatch(/\.usage-meter-bar\s*\{[^}]*display:\s*flex/)
     expect(styles).toMatch(/\.usage-meter-legend\s*\{[^}]*list-style:\s*none/)
     expect(settings).toContain("usePublishAccount")
