@@ -1,14 +1,25 @@
 {
   "name": "@eidos.space/plugin-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
   "description": "Versioned browser SDK and offline package contract for Eidos Lite file editors",
-  "publishConfig": { "access": "public" },
-  "dependencies": { "@eidos.space/eidos-file": "workspace:*" },
-  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@eidos.space/eidos-file": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "node build.mjs",
@@ -17,5 +28,9 @@
     "typecheck:tsgo": "tsgo -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts"
   },
-  "devDependencies": { "@types/node": "^24.12.2", "typescript": "^5.8.3", "vitest": "^4.1.11" }
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.11"
+  }
 }

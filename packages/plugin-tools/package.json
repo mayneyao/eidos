@@ -1,16 +1,26 @@
 {
   "name": "@eidos.space/plugin-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
   "description": "Create, check, develop and package offline Eidos Lite file editors",
-  "engines": { "node": ">=22.12.0" },
-  "publishConfig": { "access": "public" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "eidos-plugin": "./bin/eidos-plugin.mjs",
     "plugin-tools": "./bin/eidos-plugin.mjs"
   },
-  "files": ["bin", "dist", "templates", "README.md", "LICENSE"],
+  "files": [
+    "bin",
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "node build.mjs",
     "prepublishOnly": "node build.mjs",
