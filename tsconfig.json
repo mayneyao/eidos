@@ -21,6 +21,8 @@
     // "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
+      "@eidos.space/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
+      "@eidos.space/plugin-sdk/*": ["./packages/plugin-sdk/src/*"],
       "@eidos.space/eidos-file": ["./packages/eidos-file/src/index.ts"],
       "@eidos.space/eidos-file/*": ["./packages/eidos-file/src/*"],
       "@eidos.space/eidos-file-ui": ["./packages/eidos-file-ui/src/index.ts"],

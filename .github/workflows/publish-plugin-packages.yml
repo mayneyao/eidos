@@ -1,0 +1,203 @@
+name: Publish Plugin Packages
+run-name: Plugin packages v${{ inputs.version }} (${{ inputs.mode }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact shared package version, without a v prefix
+        required: true
+        type: string
+      mode:
+        description: Build and inspect only, or publish from the immutable tag
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - publish
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-packages-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+
+      - name: Require the immutable package tag for publication
+        if: inputs.mode == 'publish'
+        env:
+          EXPECTED_TAG: plugin-packages-v${{ inputs.version }}
+        run: >-
+          node -e
+          "if (process.env.GITHUB_REF_TYPE !== 'tag' || process.env.GITHUB_REF_NAME !== process.env.EXPECTED_TAG) {
+          throw new Error('Run publish from the exact tag ' + process.env.EXPECTED_TAG)
+          }"
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install release npm CLI
+        run: npm install --global npm@11.18.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify shared source version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          sdk_version="$(node -p "require('./packages/plugin-sdk/package.json').version")"
+          tools_version="$(node -p "require('./packages/plugin-tools/package.json').version")"
+          test "$sdk_version" = "$VERSION"
+          test "$tools_version" = "$VERSION"
+
+      - name: Test Plugin SDK
+        run: pnpm --filter @eidos.space/plugin-sdk test
+
+      - name: Test Plugin Tools
+        run: pnpm --filter @eidos.space/plugin-tools test
+
+      - name: Build public packages
+        run: |
+          pnpm --filter @eidos.space/plugin-sdk run prepublishOnly
+          pnpm --filter @eidos.space/plugin-tools run prepublishOnly
+
+      - name: Pack reviewed artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p package-release
+          pnpm --filter @eidos.space/plugin-sdk pack --pack-destination "$PWD/package-release"
+          pnpm --filter @eidos.space/plugin-tools pack --pack-destination "$PWD/package-release"
+          sdk_tar="package-release/eidos.space-plugin-sdk-${VERSION}.tgz"
+          tools_tar="package-release/eidos.space-plugin-tools-${VERSION}.tgz"
+          test -f "$sdk_tar"
+          test -f "$tools_tar"
+          cd package-release
+          sha256sum "$(basename "$sdk_tar")" "$(basename "$tools_tar")" > SHA256SUMS
+
+      - name: Reject conflicting registry artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          verify_existing() {
+            package_name="$1"
+            tarball="$2"
+            published_shasum="$(npm view "$package_name@$VERSION" dist.shasum 2>/dev/null || true)"
+            if [ -z "$published_shasum" ]; then
+              return
+            fi
+            reviewed_shasum="$(sha1sum "$tarball" | cut -d ' ' -f 1)"
+            test "$published_shasum" = "$reviewed_shasum" || {
+              echo "Registry collision for $package_name@$VERSION: reviewed $reviewed_shasum, published $published_shasum" >&2
+              exit 1
+            }
+            echo "$package_name@$VERSION already matches the reviewed tarball"
+          }
+          verify_existing "@eidos.space/plugin-sdk" "package-release/eidos.space-plugin-sdk-${VERSION}.tgz"
+          verify_existing "@eidos.space/plugin-tools" "package-release/eidos.space-plugin-tools-${VERSION}.tgz"
+
+      - name: Upload reviewed package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-packages-${{ inputs.version }}
+          path: package-release/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: inputs.mode == 'publish'
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install release npm CLI
+        run: npm install --global npm@11.18.0
+
+      - name: Download reviewed package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-packages-${{ inputs.version }}
+          path: package-release
+
+      - name: Verify reviewed artifact checksums
+        working-directory: package-release
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish SDK, then Tools
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          sdk_tar="package-release/eidos.space-plugin-sdk-${VERSION}.tgz"
+          tools_tar="package-release/eidos.space-plugin-tools-${VERSION}.tgz"
+          publish_or_verify() {
+            package_name="$1"
+            tarball="$2"
+            reviewed_shasum="$(sha1sum "$tarball" | cut -d ' ' -f 1)"
+            published_shasum="$(npm view "$package_name@$VERSION" dist.shasum 2>/dev/null || true)"
+            if [ -n "$published_shasum" ]; then
+              test "$published_shasum" = "$reviewed_shasum" || {
+                echo "Refusing to replace $package_name@$VERSION: reviewed $reviewed_shasum, published $published_shasum" >&2
+                exit 1
+              }
+              echo "$package_name@$VERSION already matches the reviewed tarball; skipping publish"
+              return
+            fi
+            npm publish "./$tarball" --access public --provenance
+          }
+          publish_or_verify "@eidos.space/plugin-sdk" "$sdk_tar"
+          for attempt in $(seq 1 24); do
+            published="$(npm view "@eidos.space/plugin-sdk@${VERSION}" version 2>/dev/null || true)"
+            if [ "$published" = "$VERSION" ]; then
+              break
+            fi
+            sleep 5
+          done
+          publish_or_verify "@eidos.space/plugin-tools" "$tools_tar"
+
+      - name: Verify public registry state
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          wait_for_version() {
+            package_name="$1"
+            for attempt in $(seq 1 24); do
+              published="$(npm view "$package_name@$VERSION" version 2>/dev/null || true)"
+              if [ "$published" = "$VERSION" ]; then
+                return
+              fi
+              echo "Waiting for $package_name@$VERSION to propagate (attempt $attempt/24)"
+              sleep 5
+            done
+            echo "$package_name@$VERSION did not become publicly visible" >&2
+            exit 1
+          }
+          wait_for_version "@eidos.space/plugin-sdk"
+          wait_for_version "@eidos.space/plugin-tools"
