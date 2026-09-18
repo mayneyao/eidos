@@ -73,7 +73,7 @@ export default function activate(ctx: ExtensionContext) {
 ## 两种开发模式
 
 - **单文件轻量模式（`.ts` / `.js`）：** 仅需导出 `manifest` 与默认的 `activate`（扩展操作）或 `mount`（界面挂载）。非常适合编写快捷命令、文本格式化脚本或原型验证，无需任何包管理。
-- **完整工程化模式（`eidos plugin create`）：** 具备 `plugin.json`、TypeScript、React、CSS 样式依赖管理，支持使用 `eidos plugin pack` 打包为 `.eidos-plugin` 分发归档。
+- **完整工程化模式（npx / CLI）：** 使用 `npx @eidos.space/plugin-tools create` 或 `eidos plugin create` 创建完整工程，具备 `plugin.json`、TypeScript、React、CSS 样式管理，并支持直接使用 `npm run pack:plugin` 打包为 `.eidos-plugin` 分发归档。
 
 ## 下一步
 

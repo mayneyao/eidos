@@ -59,6 +59,63 @@ export interface PluginManifest {
 | `browser.workers`        | `boolean`                | 否   | 是否启用包内打包的 Blob Web Worker（默认 `false`）。             |
 | `storage.maxBytes`       | `number`                 | 否   | 插件私有持久化存储配额（字节数，上限 1 GiB / `1073741824`）。    |
 
+### 图标定义 (`PluginIconDefinition`)
+
+用于定义插件品牌 Logo、视图专属图标以及动作命令图标：
+
+```ts
+export type PluginIconDefinition =
+  | string
+  | { paths: string[] }
+  | { src: string }
+  | { file: string }
+```
+
+- **内联单色 SVG 路径对象**：`{ paths: ["M12 2L2 7l10 5 10-5-10-5z..."] }`，由宿主使用当前主题色渲染，支持像素级自适应。
+- **本地相对路径**：如 `"./icon.svg"`、`"./assets/view.png"`，打包时自动内联为 Data URL。
+- **Data URL 字符串**：如 `"data:image/svg+xml;base64,..."`。
+
+### 视图声明 (`ViewDeclaration`)
+
+用于在 `plugin.json` 的 `views` 列表中声明 UI 页面或编辑器视图：
+
+```ts
+export interface ViewDeclaration {
+  id: string
+  title: string
+  entry: string
+  context: "page" | "document" | "table"
+  access?: "read" | "write"
+  icon?: PluginIconDefinition
+  configuration?: ViewConfiguration
+}
+```
+
+- `id`: 视图在插件内的唯一标识。
+- `title`: 界面上展示给用户的标题名称。
+- `entry`: 界面挂载源码入口（如 `./src/main.ts`）。
+- `context`: 视图挂载的上下文类型（`"page"` 独立页面、`"document"` 文本文档、`"table"` 表格视图）。
+- `access`: 文件访问权限级别（`"read"` 或 `"write"`）。
+- `icon`: 视图专属功能图标（用于文件右键「打开方式」、视图 Tab 栏）。未声明时自动回退至插件 `manifest.icon`。
+
+### 动作声明 (`ActionDeclaration`)
+
+用于在 `plugin.json` 的 `actions` 列表中声明快捷指令或命令操作：
+
+```ts
+export interface ActionDeclaration {
+  id: string
+  title: string
+  context: "workspace" | "document" | "table"
+  access?: "read" | "write"
+  extensions?: string[]
+  icon?: PluginIconDefinition
+  multiple?: boolean
+}
+```
+
+- `icon`: 动作命令在快捷命令面板（Command Palette）中展示的功能图标。
+
 ---
 
 ## 注入位置 (`Placement`)

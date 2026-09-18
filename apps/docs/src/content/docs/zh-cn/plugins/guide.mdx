@@ -26,17 +26,26 @@ Eidos Lite 插件可以为 Space 增加文档格式化工具、快捷指令和�
 
 ### 1. 准备环境
 
-确保已安装 **Node.js 22.12 或更新版本**、pnpm，以及 [Eidos CLI 和 Lite](https://eidos.space/download)。具体安装说明见 [CLI 安装指南](/zh-cn/cli/)。
+确保已安装 **Node.js 22.12 或更新版本**以及常用的包管理器（npm、pnpm 或 yarn）。同时安装 [Eidos Lite](https://eidos.space/download) 用于本地运行和调试。
 
 ### 2. 脚手架初始化
 
-运行 `eidos plugin create` 创建一个新插件项目：
+你可以选择以下任意一种方式创建插件项目：
+
+**方式一：使用 npm / npx（推荐，无需预装额外工具）**
+
+```bash
+npx @eidos.space/plugin-tools create my-plugin
+cd my-plugin
+npm install # 或 pnpm install
+```
+
+**方式二：使用 Eidos CLI**
 
 ```bash
 eidos plugin create my-plugin
 cd my-plugin
 pnpm install
-pnpm add -D @eidos.space/plugin-tools@0.1
 ```
 
 生成的项目目录结构如下：
@@ -44,18 +53,24 @@ pnpm add -D @eidos.space/plugin-tools@0.1
 ```text
 my-plugin/
 ├── plugin.json       # 声明插件能力、视图与入口的清单配置
-├── package.json      # 项目依赖与开发工具
+├── package.json      # 项目依赖与 npm scripts
+├── tsconfig.json     # 严格模式 TypeScript 配置
 └── src/
-    ├── main.ts       # 视图入口源码
-    ├── csv.ts        # 业务逻辑代码
+    ├── main.ts       # 视图挂载入口源码
+    ├── csv.ts        # 业务解析逻辑
     └── style.css     # 样式表
 ```
 
-模板已将 `@eidos.space/plugin-sdk` 声明为开发依赖。检查与打包交给 `@eidos.space/plugin-tools`，统一使用 `eidos plugin` 命令行接口。
+脚手架已在 `package.json` 中配置好官方发布的开发依赖与开箱即用的 scripts：
+
+- `@eidos.space/plugin-sdk`: 包含插件 1.0 规范的完整 TypeScript 契约与接口。
+- `@eidos.space/plugin-tools`: 提供 `eidos-plugin check`（源码校验）与 `eidos-plugin pack`（自包含打包）命令。
+- `npm run check`: 运行 `eidos-plugin check .`，执行静态校验。
+- `npm run pack:plugin`: 运行 `eidos-plugin pack .`，打包输出离线 `.eidos-plugin`。
 
 ### 3. 在 Eidos Lite 中即时加载与调试
 
-调试插件**无需手动 build 构建**，Eidos Lite 支持实时动态编译：
+调试插件**无需提前打包或 build**，Eidos Lite 内置编译器支持实时动态编译：
 
 1. 启动 **Eidos Lite**，打开任意 Space。
 2. 点击顶部工具栏中的 **Plugins** 图标（位于搜索与更多菜单之间）。
@@ -106,6 +121,40 @@ import type { ExtensionContext, ViewContext } from "@eidos.space/plugin-sdk"
 - **后台生命周期：** Action 和 Formatter 的 `extension` 默认导出 `activate(ctx: ExtensionContext)` 函数。
 - **视图生命周期：** 每个 View 的 `entry` 默认导出 `mount(ctx: ViewContext, root: HTMLElement)` 函数。
 - **资源清理：** 监听器、定时器请通过返回 `{ dispose() { ... } }` 或调用 `ctx.subscriptions.add(...)` 在卸载时清理。
+
+### 品牌 Logo 与功能图标（Icons & Branding）
+
+插件体系清晰区分**插件品牌标识**与**具体功能图标**：
+
+- **插件 Logo (`manifest.icon`)**：代表整个插件的品牌，展示在插件市场列表、插件详情面板以及 Space 插件管理设置中。
+- **视图/动作图标 (`view.icon` / `action.icon`)**：代表特定视图或操作的功能（如脑图、表格、格式化等），展示在文件右键「打开方式」（Open with）菜单、视图 Tab 栏以及命令面板中。若未单独设置 `view.icon`，系统会自动回退使用 `manifest.icon`；若均未提供，则自动生成优雅的主题首字母占位符。
+
+图标支持以下 3 种声明格式：
+
+```json
+{
+  "icon": {
+    "paths": ["M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"]
+  }
+}
+```
+
+1. **内联单色 SVG 路径对象**（推荐）：`{ "paths": ["..."] }`，由宿主按照设计系统当前主题色（`currentColor`）自动渲染，像素严格对齐且零额外网络开销。
+2. **本地文件相对路径**：如 `"./assets/logo.svg"` 或 `"./assets/view.png"`。在执行 `eidos-plugin pack` 打包时，打包器会自动将其读取并转为 Base64 Data URL 内嵌在包内，保持离线自包含。
+3. **Data URL 字符串**：如 `"data:image/svg+xml;base64,..."`。
+
+### 文件关联与全局默认编辑器
+
+通过在 `placements` 中声明 `location: "file/open"`，插件视图可以注册为特定文件扩展名的编辑器：
+
+```json
+"placements": [
+  { "location": "file/open", "view": "table", "extensions": [".csv"] }
+]
+```
+
+- **右键即用**：在 Space 文件列表中右键点击 `.csv` 文件，光标移至 **Open with**（打开方式），即可看到带独立功能图标的插件视图选项。
+- **全局默认编辑器设置**：在 Eidos Lite 偏好设置 **Settings → Files**（设置 → 文件）中，系统会集中展示 Markdown、HTML 以及所有已安装插件声明的文件扩展名。用户可以在下拉菜单中为 `.csv` 等文件全局选定默认编辑器，后续双击即可直接通过该插件打开。
 
 ### 插件的安装位置
 
@@ -414,6 +463,22 @@ export default function mount(ctx: ViewContext, element: HTMLElement) {
 }
 ```
 
+### 离线沙箱与第三方库开发避坑指南
+
+Eidos 插件运行在严格隔离且无外部网络的 iframe 沙箱中。为了确保第三方 UI 组件库（如 `@glideapps/glide-data-grid`、图表库、富文本编辑器等）正常渲染，建议遵循以下实践：
+
+1. **务必显式引入组件库样式**：
+   许多基于现代零运行时 CSS（如 Linaria、Vanilla Extract）或纯 CSS 的组件库，其核心布局与绝对定位规则保存在独立 `.css` 文件中。
+   - **务必在入口 `main.tsx` 或 `style.css` 顶部通过 `@import` 引入组件库 CSS**。
+   - 如果遗漏核心 CSS，会导致宿主容器高度坍塌（计算高度为 `0px`），组件内部测量逻辑（如 `ResizeObserver` / `useResizeDetector`）将误判尺寸为 0，从而直接跳过 `<canvas>` 或 DOM 内容挂载，导致“工具栏正常但中间内容完全空白”。
+2. **纯净 ESM 依赖与避免动态 require**：
+   - 宿主打包器会将代码和依赖静态编译为自包含 ESM 模块。
+   - 避免在浏览器端源码中编写 CommonJS 风格的动态 `require()`，统一使用标准静态 `import`。
+3. **严格遵守文档并发与冲突协议**：
+   - 插件通过 `const snapshot = await ctx.binding.document.read()` 获取当前快照及版本号 `snapshot.version`。
+   - 编辑时调用 `await ctx.binding.document.edit({ text, expectedVersion: snapshot.version, label: "修改单元格" })`。
+   - 如果返回 `{ status: "stale" }`，说明该文件在编辑期间已被外部（或宿主内置编辑器）修改。插件应重新读取最新快照进行合并或提醒用户，避免盲目覆盖。
+
 ---
 
 ## 离线存储与网络权限
@@ -461,17 +526,22 @@ const bytes = await ctx.storage.read("config")
 
 ### 1. 校验与打包
 
-在插件根目录运行：
+你可以在插件工程中直接使用 npm scripts，也可以调用 CLI：
 
 ```bash
-# 校验清单、类型声明和依赖
-eidos plugin check .
+# 校验清单元数据、TypeScript 类型与模块依赖
+npm run check
+# 或者直接调用：
+# npx eidos-plugin check .
+# eidos plugin check .
 
 # 打包为离线自包含的 .eidos-plugin 归档
-eidos plugin pack . --out my-plugin.eidos-plugin
+npm run pack:plugin
+# 或者自定义输出位置：
+# npx eidos-plugin pack . --out ./dist/my-plugin-0.1.0.eidos-plugin
 ```
 
-生成的 `.eidos-plugin` 归档已打包所有模块与资源。用户在 Eidos Lite 中选择 **Plugins → Install plugin…** 即可直接安装，无需 Node.js 或网络连接。
+打包器执行后将自动生成 `<id>-<version>.eidos-plugin` 文件。该文件本质是经过 gzip 压缩的标准化 JSON 包，内含 `format: 1`、完整 `manifest` 元数据以及编译自包含的模块代码。用户在 Eidos Lite 中点击 **Plugins → Install plugin…** 即可直接导入，无需安装 Node.js 或连接互联网。
 
 ### 2. 发布到官方插件市场
 

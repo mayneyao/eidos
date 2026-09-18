@@ -75,7 +75,7 @@ A plugin can combine multiple capabilities in a single `plugin.json` manifest (o
 ## Two ways to develop
 
 - **Single-file plugins (`.ts` / `.js`):** Export `manifest` and default `activate` or `mount`. Best for lightweight utilities, formatting scripts, and rapid prototypes without package management.
-- **Full projects (`eidos plugin create`):** Scaffolds a complete package directory with `plugin.json`, TypeScript, React, styles, and automated packaging into `.eidos-plugin` archives for distribution.
+- **Full projects (npx / CLI):** Scaffolds a complete project directory with `npx @eidos.space/plugin-tools create` or `eidos plugin create`, including `plugin.json`, TypeScript, React, styles, and automated packaging via `npm run pack:plugin` into `.eidos-plugin` archives.
 
 ## Guides and reference
 

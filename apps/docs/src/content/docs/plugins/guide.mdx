@@ -26,17 +26,26 @@ A plugin can combine any of these extension points in a single `plugin.json` man
 
 ### 1. Install prerequisites
 
-Ensure you have **Node.js 22.12 or newer**, pnpm, and [Eidos CLI and Lite](https://eidos.space/download) installed. See [CLI installation](/cli/) for details.
+Ensure you have **Node.js 22.12 or newer** and a package manager (npm, pnpm, or yarn) installed. Also install [Eidos Lite](https://eidos.space/download) for running and testing your plugins locally.
 
 ### 2. Scaffold a project
 
-Run `eidos plugin create` to generate a new plugin project:
+Choose either method to create a new plugin project:
+
+**Method 1: Using npm / npx (Recommended, zero extra CLI setup)**
+
+```bash
+npx @eidos.space/plugin-tools create my-plugin
+cd my-plugin
+npm install # or pnpm install
+```
+
+**Method 2: Using the Eidos CLI**
 
 ```bash
 eidos plugin create my-plugin
 cd my-plugin
 pnpm install
-pnpm add -D @eidos.space/plugin-tools@0.1
 ```
 
 The generated project has the following layout:
@@ -44,14 +53,20 @@ The generated project has the following layout:
 ```text
 my-plugin/
 ├── plugin.json       # Manifest declaring capabilities and entry points
-├── package.json      # Dependencies and dev tools
+├── package.json      # Dependencies and npm scripts
+├── tsconfig.json     # Strict TypeScript configuration
 └── src/
-    ├── main.ts       # View entry point
+    ├── main.ts       # View mount entry point
     ├── csv.ts        # Business logic
     └── style.css     # Styles
 ```
 
-The scaffold declares `@eidos.space/plugin-sdk` as a development dependency. Checking and packaging are handled by `@eidos.space/plugin-tools` through the unified `eidos plugin` CLI.
+The scaffold pre-configures official dependencies and scripts in `package.json`:
+
+- `@eidos.space/plugin-sdk`: TypeScript types and interfaces for the Plugin 1.0 specification.
+- `@eidos.space/plugin-tools`: CLI providing `eidos-plugin check` (validation) and `eidos-plugin pack` (self-contained bundle packaging).
+- `npm run check`: Runs `eidos-plugin check .` for static verification.
+- `npm run pack:plugin`: Runs `eidos-plugin pack .` to produce an offline `.eidos-plugin` bundle.
 
 ### 3. Load and test in Eidos Lite
 
@@ -114,6 +129,40 @@ Plugins install once per device and are enabled per Space:
 - Eidos Lite and `eidos serve` store plugins in `~/.eidos/plugins` (`%USERPROFILE%\\.eidos\\plugins` on Windows).
 - Set `EIDOS_HOME` to relocate the store directory.
 - The store contains immutable package archives (`packages/<sha256>.eidos-plugin`), device configuration (`config.json`), and per-plugin offline data under `data/<plugin-id>/`.
+
+### Branding and functional icons (Icons & Branding)
+
+The plugin architecture cleanly separates **plugin brand logos** from **functional view/action icons**:
+
+- **Plugin Logo (`manifest.icon`)**: Represents the overall plugin brand. Displayed in the Marketplace listing, plugin details pane, and Space plugin settings.
+- **View/Action Icons (`view.icon` / `action.icon`)**: Represents a specific capability or view (e.g. mind map, grid, formatter). Displayed in the file context menu (**Open with**), editor view tabs, and Command Palette. If `view.icon` is omitted, the host automatically falls back to `manifest.icon`; if neither is provided, an elegant theme-aware initial badge is generated.
+
+Icons support three declaration formats:
+
+```json
+{
+  "icon": {
+    "paths": ["M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"]
+  }
+}
+```
+
+1. **Inline monochrome SVG paths** (recommended): `{ "paths": ["..."] }`, rendered using the host's design system text color (`currentColor`) with pixel-perfect alignment and zero overhead.
+2. **Local relative file paths**: e.g. `"./assets/logo.svg"` or `"./assets/view.png"`. During `eidos-plugin pack`, the bundler automatically reads and inlines the asset as a Base64 Data URL to preserve offline self-containment.
+3. **Data URL string**: e.g. `"data:image/svg+xml;base64,..."`.
+
+### File associations and global default editors
+
+By declaring `location: "file/open"` in `placements`, a view registers as an editor for specific file extensions:
+
+```json
+"placements": [
+  { "location": "file/open", "view": "table", "extensions": [".csv"] }
+]
+```
+
+- **Open with menu**: Right-click a `.csv` file in the Space file tree and hover over **Open with** to see the plugin editor with its dedicated functional icon.
+- **Global default editor settings**: In Eidos Lite preferences (**Settings → Files**), all installed plugins and their associated file extensions are listed alongside Markdown and HTML. Users can choose their preferred default editor for `.csv` or custom file types globally, opening files directly on double-click.
 
 ---
 
@@ -414,6 +463,22 @@ Use the host's semantic CSS variables to automatically match light and dark mode
 }
 ```
 
+### Offline sandbox & third-party library best practices
+
+Eidos plugins execute inside an isolated, network-gapped iframe sandbox. When integrating third-party UI libraries (such as `@glideapps/glide-data-grid`, chart renderers, or rich text engines), keep these practices in mind:
+
+1. **Always explicitly import library CSS**:
+   Many modern libraries (using Linaria, Vanilla Extract, or standard CSS) store critical structural layout and positioning rules in separate `.css` files.
+   - **Always `@import` the library's CSS at the top of `main.tsx` or `style.css`**.
+   - Missing core CSS can cause the host container to compute an effective height of `0px`. Internal resize observers (e.g., `ResizeObserver` / `useResizeDetector`) will measure zero dimensions and skip mounting `<canvas>` or DOM trees entirely, resulting in "toolbar visible but content completely blank".
+2. **Clean ESM dependencies and no dynamic require**:
+   - The host bundler compiles code and dependencies into self-contained browser ESM modules.
+   - Avoid CommonJS runtime `require()` calls in client code; use standard static `import` syntax.
+3. **Handle document concurrency and stale edit conflicts**:
+   - Read the current snapshot and its version: `const snapshot = await ctx.binding.document.read()`.
+   - Apply edits with the expected version: `await ctx.binding.document.edit({ text, expectedVersion: snapshot.version, label: "Edit cell" })`.
+   - If `{ status: "stale" }` is returned, the document was modified by another editor or external process. Re-read the latest snapshot to reconcile or prompt the user, avoiding accidental overwrites.
+
 ---
 
 ## Storage and network permissions
@@ -461,17 +526,22 @@ All external network requests must be explicitly declared in `browser.networkOri
 
 ### 1. Validate and package
 
-From your plugin directory:
+You can run scripts directly from your plugin directory or use the CLI:
 
 ```bash
-# Validate manifest, types, and dependencies
-eidos plugin check .
+# Validate manifest metadata, TypeScript types, and dependencies
+npm run check
+# Or run directly:
+# npx eidos-plugin check .
+# eidos plugin check .
 
-# Bundle into an offline .eidos-plugin archive
-eidos plugin pack . --out my-plugin.eidos-plugin
+# Bundle into an offline, self-contained .eidos-plugin archive
+npm run pack:plugin
+# Or specify a custom output path:
+# npx eidos-plugin pack . --out ./dist/my-plugin-0.1.0.eidos-plugin
 ```
 
-The resulting `.eidos-plugin` file is self-contained. Users can install it directly in Eidos Lite (**Plugins → Install plugin…**) without needing Node.js, npm, or an internet connection.
+Packaging creates a `<id>-<version>.eidos-plugin` archive. This is a standardized gzip-compressed JSON envelope containing `format: 1`, full manifest metadata, and bundled module sources. Users can install it directly in Eidos Lite (**Plugins → Install plugin…**) without Node.js or an internet connection.
 
 ### 2. Publish to the Marketplace
 

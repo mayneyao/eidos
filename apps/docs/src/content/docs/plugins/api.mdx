@@ -59,6 +59,63 @@ export interface PluginManifest {
 | `browser.workers`        | `boolean`                | No       | Enables bundled Blob Web Workers (default: `false`).                      |
 | `storage.maxBytes`       | `number`                 | No       | Storage quota in bytes for `ctx.storage` (maximum: 1 GiB / `1073741824`). |
 
+### Icon definition (`PluginIconDefinition`)
+
+Defines plugin brand logos, view-specific icons, or command-palette action icons:
+
+```ts
+export type PluginIconDefinition =
+  | string
+  | { paths: string[] }
+  | { src: string }
+  | { file: string }
+```
+
+- **Inline monochrome SVG paths**: `{ paths: ["M12 2L2 7l10 5 10-5-10-5z..."] }`, rendered using the current theme text color (`currentColor`) with pixel-perfect alignment.
+- **Local relative path**: e.g. `"./icon.svg"`, `"./assets/view.png"`, automatically inlined as a Data URL during packaging.
+- **Data URL string**: e.g. `"data:image/svg+xml;base64,..."`.
+
+### View declaration (`ViewDeclaration`)
+
+Declares UI page or editor views in `manifest.views`:
+
+```ts
+export interface ViewDeclaration {
+  id: string
+  title: string
+  entry: string
+  context: "page" | "document" | "table"
+  access?: "read" | "write"
+  icon?: PluginIconDefinition
+  configuration?: ViewConfiguration
+}
+```
+
+- `id`: Unique identifier within the plugin.
+- `title`: Human-readable title displayed in the UI.
+- `entry`: Relative path to view source entry (e.g. `./src/main.ts`).
+- `context`: Target context (`"page"` for navigation views, `"document"` for file editors, `"table"` for table views).
+- `access`: File access permission (`"read"` or `"write"`).
+- `icon`: View-specific functional icon (used in the **Open with** menu and view tabs). Falls back to `manifest.icon` if omitted.
+
+### Action declaration (`ActionDeclaration`)
+
+Declares command-palette actions or keyboard shortcut handlers in `manifest.actions`:
+
+```ts
+export interface ActionDeclaration {
+  id: string
+  title: string
+  context: "workspace" | "document" | "table"
+  access?: "read" | "write"
+  extensions?: string[]
+  icon?: PluginIconDefinition
+  multiple?: boolean
+}
+```
+
+- `icon`: Dedicated icon shown next to the action in the Command Palette. Falls back to `manifest.icon` if omitted.
+
 ---
 
 ## Placements (`Placement`)

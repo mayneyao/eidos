@@ -25,10 +25,11 @@ apps/cli/target/debug/eidos plugin pack /tmp/my-csv-editor --out /tmp/my-csv-edi
 EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
 ```
 
-The current bridge requires Node.js >=22.12 and an explicit backend path or a
-project-installed backend. Standalone compiler distribution is still pending.
-These packages are unpublished. Dependency-free compilation uses the compiler's
-SDK types; third-party dependencies require a matching lockfile and local install.
+The bridge requires Node.js >=22.12. `@eidos.space/plugin-tools` bundles its
+compiler backend into `dist/compiler.js` via `build.mjs` and is published to npm
+alongside `@eidos.space/plugin-sdk`. Developers can use `npx @eidos.space/plugin-tools create`
+or the Rust `eidos plugin` CLI interchangeably. Dependency-free compilation uses
+the built-in SDK types; third-party dependencies require a matching lockfile and local install.
 
 ## Lite development
 
