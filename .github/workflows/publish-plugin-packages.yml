@@ -67,6 +67,9 @@ jobs:
           test "$sdk_version" = "$VERSION"
           test "$tools_version" = "$VERSION"
 
+      - name: Build dependencies
+        run: pnpm --filter @eidos.space/eidos-file build
+
       - name: Build public packages
         run: |
           pnpm --filter @eidos.space/plugin-sdk run prepublishOnly
