@@ -167,6 +167,12 @@ export function registerPluginIpc(controller: WindowController): () => void {
       throw new Error("Invalid refresh request")
     return registry.list(refresh === true)
   })
+  ipcMain.handle(PLUGIN_CHANNELS.readme, async (event, id: unknown) => {
+    caller(event)
+    if (typeof id !== "string" || !id || id.length > 128)
+      throw new PluginError("INVALID_REQUEST", "Invalid plugin")
+    return registry.readme(id)
+  })
   ipcMain.handle(
     PLUGIN_CHANNELS.table,
     (event, key: unknown, tableId: unknown, viewId: unknown) => {
@@ -340,7 +346,39 @@ export function registerPluginIpc(controller: WindowController): () => void {
         throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
       const marketplaceBytes =
         typeof marketplaceId === "string"
-          ? await registry.download(marketplaceId)
+          ? await (async () => {
+              const bytes = await registry.download(
+                marketplaceId,
+                (loaded, total) => {
+                  if (
+                    typeof event.sender.send === "function" &&
+                    !event.sender.isDestroyed()
+                  ) {
+                    event.sender.send(PLUGIN_CHANNELS.installProgress, {
+                      id: marketplaceId,
+                      phase: "downloading",
+                      loaded,
+                      total,
+                      percent:
+                        total > 0
+                          ? Math.min(100, Math.round((loaded / total) * 100))
+                          : 0,
+                    })
+                  }
+                }
+              )
+              if (
+                typeof event.sender.send === "function" &&
+                !event.sender.isDestroyed()
+              ) {
+                event.sender.send(PLUGIN_CHANNELS.installProgress, {
+                  id: marketplaceId,
+                  phase: "installing",
+                  percent: 100,
+                })
+              }
+              return bytes
+            })()
           : undefined
       const selected = marketplaceBytes
         ? { canceled: false, filePaths: [""] }

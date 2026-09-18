@@ -20,6 +20,7 @@ import type {
   PluginEditorChoice,
   PluginListing,
   PluginMarketplace,
+  PluginInstallTask,
 } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
 import { PluginPage } from "./plugin-workspace"
@@ -145,15 +146,89 @@ export function PluginManager({
   useEffect(() => {
     void loadMarketplace()
   }, [loadMarketplace])
-  const [installingId, setInstallingId] = useState<string | null>(null)
-  const installMarketplacePlugin = async (id: string) => {
-    setInstallingId(id)
-    try {
-      await run(() => window.eidosLite.installMarketplacePlugin(id))
-    } finally {
-      setInstallingId(null)
+
+  const [installQueue, setInstallQueue] = useState<string[]>([])
+  const [installTasks, setInstallTasks] = useState<
+    Record<string, PluginInstallTask>
+  >({})
+  const [activeInstallId, setActiveInstallId] = useState<string | null>(null)
+
+  useEffect(() => {
+    return window.eidosLite.onPluginInstallProgress?.((progress) => {
+      setInstallTasks((prev) => {
+        const task = prev[progress.id]
+        if (!task) return prev
+        return {
+          ...prev,
+          [progress.id]: {
+            ...task,
+            status: progress.phase,
+            percent: progress.percent ?? task.percent,
+          },
+        }
+      })
+    })
+  }, [])
+
+  const installMarketplacePlugin = useCallback((id: string) => {
+    setInstallTasks((prev) => {
+      if (prev[id]) return prev
+      return {
+        ...prev,
+        [id]: { id, status: "queued", percent: 0 },
+      }
+    })
+    setInstallQueue((prev) => {
+      if (prev.includes(id)) return prev
+      return [...prev, id]
+    })
+  }, [])
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (activeInstallId !== null || installQueue.length === 0) return
+    const nextId = installQueue[0]
+    setActiveInstallId(nextId)
+    setInstallTasks((prev) => {
+      const existing = prev[nextId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        [nextId]: { ...existing, status: "downloading", percent: 0 },
+      }
+    })
+
+    void (async () => {
+      try {
+        await window.eidosLite.installMarketplacePlugin(nextId)
+        if (mountedRef.current) {
+          await refresh()
+          window.dispatchEvent(new Event("eidos-plugins-changed"))
+        }
+      } catch (err) {
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : String(err))
+        }
+      } finally {
+        if (mountedRef.current) {
+          setInstallTasks((prev) => {
+            const next = { ...prev }
+            delete next[nextId]
+            return next
+          })
+          setInstallQueue((prev) => prev.filter((item) => item !== nextId))
+          setActiveInstallId(null)
+        }
+      }
+    })()
+  }, [activeInstallId, installQueue, refresh])
 
   const query = search.trim().toLowerCase()
   const matchesSearch = (
@@ -231,9 +306,10 @@ export function PluginManager({
           marketplacePlugin={matchedMarketplacePlugin}
           spaceAvailable={spaceAvailable}
           busy={busy}
-          installing={
-            installingId !== null &&
-            installingId === matchedMarketplacePlugin?.id
+          installTask={
+            matchedMarketplacePlugin
+              ? installTasks[matchedMarketplacePlugin.id]
+              : undefined
           }
           installDisabled={Boolean(marketplace?.cached)}
           error={error}
@@ -243,7 +319,7 @@ export function PluginManager({
           onInstall={() => {
             const id = plugin?.manifest.id ?? matchedMarketplacePlugin?.id
             if (!id) return
-            return installMarketplacePlugin(id)
+            installMarketplacePlugin(id)
           }}
           onToggleEnable={() => {
             if (!plugin || !manifest) return
@@ -406,8 +482,8 @@ export function PluginManager({
             error={marketplaceError}
             refreshing={marketplaceLoading}
             onRefresh={() => void loadMarketplace(true)}
-            installing={installingId}
-            onInstall={(id) => void installMarketplacePlugin(id)}
+            installTasks={installTasks}
+            onInstall={(id) => installMarketplacePlugin(id)}
             layout={layout}
             search={search}
             onSelectPlugin={(id, name) => setSelected(id, name)}

@@ -11,6 +11,9 @@ const zh: Record<string, string> = {
     "正在显示缓存目录。联网后可安装插件。",
   "Install listed version…": "安装此版本…",
   "Install…": "安装…",
+  Queued: "排队中",
+  "Installing…": "安装中…",
+  "Loading documentation…": "正在加载文档…",
   "Not installed": "未安装",
   Compatibility: "兼容性",
   "Install this plugin to see its views, commands, and settings.":

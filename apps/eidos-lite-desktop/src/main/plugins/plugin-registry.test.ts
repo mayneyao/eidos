@@ -114,3 +114,35 @@ it("checks both checksum and manifest identity", async () => {
   }
   await expect(registry.download(item.id)).rejects.toThrow("identity")
 })
+
+it("fetches and caches plugin README markdown from GitHub", async () => {
+  const dir = await directory()
+  const fetcher = vi.fn<typeof fetch>(async (url) => {
+    const target = String(url)
+    if (target.includes("plugins.registry.json")) {
+      return Response.json({ schemaVersion: 1, plugins: [entry] })
+    }
+    if (target.includes("main/README.md")) {
+      return new Response("# Map Documentation\n\nSample readme.")
+    }
+    return new Response(null, { status: 404 })
+  })
+  const registry = new PluginRegistry(dir, fetcher)
+  const readme = await registry.readme(entry.id)
+  expect(readme).toBe("# Map Documentation\n\nSample readme.")
+
+  // Verify cached on disk
+  const cachedFile = path.join(dir, "readme", `${entry.id}.md`)
+  expect(await fs.readFile(cachedFile, "utf8")).toBe(
+    "# Map Documentation\n\nSample readme."
+  )
+
+  // Verify offline read from cache
+  const offlineFetcher = vi
+    .fn<typeof fetch>()
+    .mockRejectedValue(new Error("offline"))
+  const offlineRegistry = new PluginRegistry(dir, offlineFetcher)
+  expect(await offlineRegistry.readme(entry.id)).toBe(
+    "# Map Documentation\n\nSample readme."
+  )
+})

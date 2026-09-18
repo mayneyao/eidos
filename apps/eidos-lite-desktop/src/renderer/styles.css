@@ -425,7 +425,9 @@ body {
   position: relative;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
 .settings-page {
@@ -5953,7 +5955,9 @@ body {
   min-height: 0;
   max-height: none;
   border: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   padding: 24px;
 }
 
@@ -6289,6 +6293,7 @@ body {
 .plugin-detail-main {
   flex: 1;
   min-width: 0;
+  min-height: min(480px, 60vh);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -12080,6 +12085,122 @@ body {
   cursor: wait;
   opacity: 1;
 }
+.settings-button.plugin-install-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-width: 86px;
+  justify-content: center;
+  text-align: center;
+}
+.settings-button.plugin-install-btn.is-queued:disabled {
+  background: var(--control-fill);
+  color: var(--ink-muted);
+  border-color: var(--control-border);
+  cursor: wait;
+  opacity: 0.9;
+}
+.settings-button.plugin-install-btn.is-downloading:disabled {
+  background: color-mix(
+    in oklab,
+    var(--primary-action) 12%,
+    var(--control-fill)
+  );
+  color: var(--ink);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-action) 35%,
+    var(--control-border)
+  );
+  cursor: wait;
+  opacity: 1;
+}
+.settings-button.plugin-install-btn .plugin-btn-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  background: color-mix(in oklab, var(--primary-action) 30%, transparent);
+  border-right: 2px solid var(--primary-action);
+  border-radius: inherit;
+  transition: width 0.15s ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+.settings-button.plugin-install-btn .plugin-btn-label {
+  position: relative;
+  z-index: 1;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.plugin-readme-loading {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.plugin-readme-card {
+  display: block;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  line-height: 1.6;
+  font-size: 13px;
+}
+.plugin-readme-card.markdown-document {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.plugin-readme-card.markdown-document > :first-child {
+  margin-top: 0;
+}
+.plugin-readme-card.markdown-document > :last-child {
+  margin-bottom: 0;
+}
+.plugin-readme-card.markdown-document h1 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+.plugin-readme-card.markdown-document h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.plugin-readme-card.markdown-document h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+}
+.plugin-readme-card.markdown-document pre {
+  background: var(--control-fill);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.plugin-readme-card.markdown-document code:not(pre code) {
+  background: var(--control-fill);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 0.9em;
+}
+.plugin-readme-card.markdown-document img {
+  max-width: 100%;
+  border-radius: 6px;
+}
 @keyframes plugin-install-progress {
   0% {
     background-position: 140% 0;
@@ -12092,6 +12213,9 @@ body {
   .plugin-manager button.settings-button.is-installing {
     animation: none;
     background-position: 50% 0;
+  }
+  .settings-button.plugin-install-btn .plugin-btn-progress-fill {
+    transition: none;
   }
 }
 @media (max-width: 640px) {

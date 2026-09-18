@@ -1,7 +1,77 @@
 import { RotateCw } from "lucide-react"
-import type { PluginListing, PluginMarketplace } from "../shared/plugins"
+import type {
+  PluginListing,
+  PluginMarketplace,
+  PluginInstallTask,
+} from "../shared/plugins"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { useEidosLiteI18n } from "./i18n"
+
+export function PluginMarketplaceInstallButton({
+  same,
+  installed,
+  task,
+  unavailable,
+  onInstall,
+}: {
+  same: boolean
+  installed: boolean
+  task?: PluginInstallTask
+  unavailable: boolean
+  onInstall(): void
+}) {
+  const { t } = useEidosLiteI18n()
+  const isQueued = task?.status === "queued"
+  const isDownloading = task?.status === "downloading"
+  const isInstalling = task?.status === "installing"
+  const inProgress = Boolean(task)
+
+  const className = [
+    "settings-button",
+    "plugin-install-btn",
+    same ? "" : "settings-button-primary",
+    isQueued ? "is-queued" : "",
+    isDownloading ? "is-downloading" : "",
+    isInstalling ? "is-installing" : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
+  const label = same
+    ? t("Installed")
+    : isQueued
+      ? t("Queued")
+      : isDownloading
+        ? `${task?.percent ?? 0}%`
+        : isInstalling
+          ? t("Installing…")
+          : installed
+            ? t("Install listed version…")
+            : t("Install…")
+
+  const disabled = unavailable || same || inProgress
+
+  return (
+    <button
+      className={className}
+      disabled={disabled}
+      aria-busy={inProgress || undefined}
+      onClick={(e) => {
+        e.stopPropagation()
+        onInstall()
+      }}
+    >
+      {isDownloading && (
+        <span
+          className="plugin-btn-progress-fill"
+          style={{ width: `${task?.percent ?? 0}%` }}
+          aria-hidden="true"
+        />
+      )}
+      <span className="plugin-btn-label">{label}</span>
+    </button>
+  )
+}
 
 export function PluginMarketplaceView({
   listing,
@@ -11,7 +81,7 @@ export function PluginMarketplaceView({
   error,
   refreshing,
   onRefresh,
-  installing,
+  installTasks = {},
   onInstall,
   layout = "card",
   search,
@@ -24,7 +94,7 @@ export function PluginMarketplaceView({
   error: string
   refreshing: boolean
   onRefresh(): void
-  installing: string | null
+  installTasks?: Record<string, PluginInstallTask>
   onInstall(id: string): void
   layout?: "card" | "list"
   search?: string
@@ -42,14 +112,6 @@ export function PluginMarketplaceView({
       )
     }) ?? []
   const unavailable = !listing || Boolean(catalog?.cached)
-  const installClass = (same: boolean, isInstalling: boolean) =>
-    [
-      "settings-button",
-      same ? "" : "settings-button-primary",
-      isInstalling ? "is-installing" : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
   return (
     <div>
       <div className="plugin-manager-tab-header">
@@ -81,6 +143,7 @@ export function PluginMarketplaceView({
           {error}
         </p>
       )}
+
       {layout === "card" ? (
         <div className="plugin-manager-grid">
           {plugins.map((p) => {
@@ -88,7 +151,6 @@ export function PluginMarketplaceView({
               (item) => item.manifest.id === p.id
             )
             const same = installed?.hash === p.sha256
-            const isInstalling = installing === p.id
             return (
               <div
                 className="plugin-card plugin-marketplace-card"
@@ -134,23 +196,13 @@ export function PluginMarketplaceView({
                       </span>
                     ) : null}
                   </div>
-                  <button
-                    className={installClass(same, isInstalling)}
-                    disabled={busy || unavailable || same}
-                    aria-busy={isInstalling || undefined}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onInstall(p.id)
-                    }}
-                  >
-                    {t(
-                      same
-                        ? "Installed"
-                        : installed
-                          ? "Install listed version…"
-                          : "Install…"
-                    )}
-                  </button>
+                  <PluginMarketplaceInstallButton
+                    same={same}
+                    installed={Boolean(installed)}
+                    task={installTasks[p.id]}
+                    unavailable={unavailable}
+                    onInstall={() => onInstall(p.id)}
+                  />
                 </div>
               </div>
             )
@@ -163,7 +215,6 @@ export function PluginMarketplaceView({
               (item) => item.manifest.id === p.id
             )
             const same = installed?.hash === p.sha256
-            const isInstalling = installing === p.id
             return (
               <div
                 className="plugin-marketplace-row"
@@ -211,23 +262,13 @@ export function PluginMarketplaceView({
                     {p.repo} · {p.compatibility}
                   </small>
                 </div>
-                <button
-                  className={installClass(same, isInstalling)}
-                  disabled={busy || unavailable || same}
-                  aria-busy={isInstalling || undefined}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onInstall(p.id)
-                  }}
-                >
-                  {t(
-                    same
-                      ? "Installed"
-                      : installed
-                        ? "Install listed version…"
-                        : "Install…"
-                  )}
-                </button>
+                <PluginMarketplaceInstallButton
+                  same={same}
+                  installed={Boolean(installed)}
+                  task={installTasks[p.id]}
+                  unavailable={unavailable}
+                  onInstall={() => onInstall(p.id)}
+                />
               </div>
             )
           })}

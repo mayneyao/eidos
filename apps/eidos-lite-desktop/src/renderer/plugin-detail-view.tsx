@@ -3,6 +3,8 @@ import {
   useId,
   useEffect,
   useRef,
+  useMemo,
+  useCallback,
   type ReactNode,
   type KeyboardEvent,
 } from "react"
@@ -23,9 +25,15 @@ import {
   FileCode,
   HardDrive,
 } from "lucide-react"
-import type { PluginListing, MarketplacePlugin } from "../shared/plugins"
+import type {
+  PluginListing,
+  MarketplacePlugin,
+  PluginInstallTask,
+} from "../shared/plugins"
+import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginPage } from "./plugin-workspace"
+import { PluginMarketplaceInstallButton } from "./plugin-marketplace"
 import { useEidosLiteI18n } from "./i18n"
 
 export interface PluginDetailViewProps {
@@ -39,6 +47,7 @@ export interface PluginDetailViewProps {
   marketplacePlugin?: MarketplacePlugin | null
   spaceAvailable?: boolean
   busy?: boolean
+  installTask?: PluginInstallTask
   installing?: boolean
   installDisabled?: boolean
   error?: string | null
@@ -64,6 +73,7 @@ export function PluginDetailView({
   marketplacePlugin,
   spaceAvailable = false,
   busy = false,
+  installTask,
   installing = false,
   installDisabled = false,
   error = null,
@@ -127,6 +137,54 @@ export function PluginDetailView({
     }
   }, [marketplaceOnly, activeTab])
 
+  const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  const [readmeLoading, setReadmeLoading] = useState(false)
+
+  const repo = marketplacePlugin?.repo
+
+  useEffect(() => {
+    if (!pluginId || !window.eidosLite?.pluginReadme) {
+      setReadmeContent(null)
+      return
+    }
+    let cancelled = false
+    setReadmeLoading(true)
+    void window.eidosLite
+      .pluginReadme(pluginId)
+      .then((content) => {
+        if (!cancelled) setReadmeContent(content)
+      })
+      .catch(() => {
+        if (!cancelled) setReadmeContent(null)
+      })
+      .finally(() => {
+        if (!cancelled) setReadmeLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [pluginId])
+
+  const readmeHtml = useMemo(() => {
+    if (!readmeContent) return null
+    let processed = readmeContent
+    if (repo) {
+      const rawBase = `https://raw.githubusercontent.com/${repo}/main/`
+      processed = processed.replace(
+        /!\[([^\]]*)\]\((?!(?:https?:\/\/|data:))([^)]+)\)/g,
+        (_match, alt, src) => {
+          const cleanSrc = src.trim().replace(/^\.?\//, "")
+          return `![${alt}](${rawBase}${cleanSrc})`
+        }
+      )
+    }
+    try {
+      return renderMarkdownToHtml(processed)
+    } catch {
+      return null
+    }
+  }, [readmeContent, repo])
+
   const settingsView = manifest?.placements?.find(
     (p) => p.location === "plugin/settings"
   )
@@ -181,6 +239,13 @@ export function PluginDetailView({
             : []),
         ]
 
+  const switchTab = useCallback((tabKey: DetailTab) => {
+    setActiveTab(tabKey)
+    containerRef.current
+      ?.closest(".plugin-management-panel, .settings-content")
+      ?.scrollTo({ top: 0, behavior: "instant" })
+  }, [])
+
   const handleTabKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
     index: number
@@ -193,7 +258,7 @@ export function PluginDetailView({
     else if (event.key === "End") next = tabs.length - 1
     else return
     event.preventDefault()
-    setActiveTab(tabs[next].key)
+    switchTab(tabs[next].key)
     const targetButton = event.currentTarget.parentElement?.children[next] as
       | HTMLElement
       | undefined
@@ -296,10 +361,21 @@ export function PluginDetailView({
         <div className="plugin-resource-links">
           {marketplacePlugin?.repo ? (
             <a
-              href={`https://github.com/${marketplacePlugin.repo}`}
+              href={
+                marketplacePlugin.repo.startsWith("http")
+                  ? marketplacePlugin.repo
+                  : `https://github.com/${marketplacePlugin.repo}`
+              }
               target="_blank"
               rel="noreferrer"
               className="plugin-resource-link"
+              onClick={(e) => {
+                e.preventDefault()
+                const url = marketplacePlugin.repo.startsWith("http")
+                  ? marketplacePlugin.repo
+                  : `https://github.com/${marketplacePlugin.repo}`
+                void window.eidosLite?.openExternalUrl(url)
+              }}
             >
               <ExternalLink size={13} aria-hidden="true" />
               <span>{t("Repository")}</span>
@@ -439,19 +515,23 @@ export function PluginDetailView({
           <p className="plugin-detail-desc">{pluginDescription}</p>
 
           <div className="plugin-detail-actions">
-            {marketplaceOnly && (
-              <button
-                className={`settings-button settings-button-primary${
-                  installing ? " is-installing" : ""
-                }`}
-                type="button"
-                disabled={busy || installDisabled}
-                aria-busy={installing || undefined}
-                onClick={() => void onInstall?.()}
-              >
-                <Download size={12} aria-hidden="true" />
-                <span>{t("Install…")}</span>
-              </button>
+            {marketplaceOnly && onInstall && (
+              <PluginMarketplaceInstallButton
+                same={false}
+                installed={false}
+                task={
+                  installTask ??
+                  (installing
+                    ? {
+                        id: marketplacePlugin?.id ?? "",
+                        status: "installing",
+                        percent: 100,
+                      }
+                    : undefined)
+                }
+                unavailable={installDisabled}
+                onInstall={() => void onInstall()}
+              />
             )}
 
             {plugin && manifest && (
@@ -500,7 +580,7 @@ export function PluginDetailView({
                     ? "settings-button-active"
                     : "settings-button-quiet"
                 }`}
-                onClick={() => setActiveTab("settings")}
+                onClick={() => switchTab("settings")}
               >
                 <Settings size={12} aria-hidden="true" />
                 <span>{t("Settings")}</span>
@@ -527,7 +607,7 @@ export function PluginDetailView({
             aria-controls={`${id}-${tabItem.key}-panel`}
             aria-selected={activeTab === tabItem.key}
             tabIndex={activeTab === tabItem.key ? 0 : -1}
-            onClick={() => setActiveTab(tabItem.key)}
+            onClick={() => switchTab(tabItem.key)}
             onKeyDown={(e) => handleTabKeyDown(e, index)}
           >
             {tabItem.label}
@@ -551,6 +631,22 @@ export function PluginDetailView({
             <div className="plugin-tab-details space-y-6">
               {builtin ? (
                 <div className="plugin-builtin-content">{builtin.details}</div>
+              ) : readmeLoading && !readmeHtml ? (
+                <div className="plugin-readme-loading">
+                  <p role="status">{t("Loading documentation…")}</p>
+                </div>
+              ) : readmeHtml ? (
+                <section
+                  className="plugin-readme-card markdown-document eme-static"
+                  dangerouslySetInnerHTML={{ __html: readmeHtml }}
+                  onClick={(e) => {
+                    const anchor = (e.target as HTMLElement).closest("a")
+                    if (anchor && anchor.href) {
+                      e.preventDefault()
+                      void window.eidosLite?.openExternalUrl(anchor.href)
+                    }
+                  }}
+                />
               ) : marketplaceOnly ? (
                 <section className="plugin-section-card">
                   <h2 className="plugin-section-title">

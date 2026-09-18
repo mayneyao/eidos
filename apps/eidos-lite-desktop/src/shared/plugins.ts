@@ -59,9 +59,26 @@ export interface PluginRpcResult {
   response: PluginResponse
   draft?: TextChange | null
 }
+export interface PluginInstallProgress {
+  id: string
+  phase: "downloading" | "installing"
+  loaded?: number
+  total?: number
+  percent?: number
+}
+export type PluginInstallStatus = "queued" | "downloading" | "installing"
+export interface PluginInstallTask {
+  id: string
+  status: PluginInstallStatus
+  percent: number
+}
 export interface PluginApi {
   pluginMarketplace(refresh?: boolean): Promise<PluginMarketplace>
+  pluginReadme(id: string): Promise<string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
+  onPluginInstallProgress(
+    listener: (progress: PluginInstallProgress) => void
+  ): () => void
   openPluginTable(
     key: string,
     tableId: string,
@@ -111,6 +128,7 @@ export interface PluginApi {
 }
 export const PLUGIN_CHANNELS = {
   marketplace: "eidos-lite:plugins-marketplace",
+  readme: "eidos-lite:plugins-readme",
   table: "eidos-lite:plugins-table",
   formatterContext: "eidos-lite:plugins-formatter-context",
   formatter: "eidos-lite:plugins-formatter",
@@ -123,6 +141,7 @@ export const PLUGIN_CHANNELS = {
   event: "eidos-lite:plugins-event",
   list: "eidos-lite:plugins-list",
   install: "eidos-lite:plugins-install",
+  installProgress: "eidos-lite:plugins-install-progress",
   uninstall: "eidos-lite:plugins-uninstall",
   enable: "eidos-lite:plugins-enable",
   associate: "eidos-lite:plugins-associate",

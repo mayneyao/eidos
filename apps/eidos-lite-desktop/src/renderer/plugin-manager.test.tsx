@@ -37,6 +37,8 @@ beforeEach(() => {
       listPlugins: async () => listing,
       onPluginEvent: () => () => {},
       installPlugin: install,
+      onPluginInstallProgress: () => () => {},
+      pluginReadme: async () => null,
       pluginMarketplace: async () => ({
         plugins: [
           {
@@ -344,4 +346,166 @@ it("filters plugins across tabs using search input beside layout toggle", async 
 
   await changeSearch("unknown-plugin")
   expect(container.textContent).toContain("No plugins found")
+})
+
+it("queues multiple marketplace plugins and displays progress and readme", async () => {
+  let progressListener:
+    | ((progress: {
+        id: string
+        phase: "downloading" | "installing"
+        percent?: number
+      }) => void)
+    | undefined
+  let finishInstallMap: (() => void) | undefined
+  let finishInstallChart: (() => void) | undefined
+
+  const deferredMap = new Promise<boolean>((resolve) => {
+    finishInstallMap = () => resolve(true)
+  })
+  const deferredChart = new Promise<boolean>((resolve) => {
+    finishInstallChart = () => resolve(true)
+  })
+
+  const customInstall = vi.fn((id: string) => {
+    if (id === "eidos.map") return deferredMap
+    if (id === "eidos.chart") return deferredChart
+    return Promise.resolve(true)
+  })
+
+  Object.assign(window.eidosLite, {
+    pluginMarketplace: async () => ({
+      plugins: [
+        {
+          id: "eidos.map",
+          name: "Map",
+          description: "Map view",
+          repo: "eidos-space/eidos-map-plugin",
+          version: "0.1.0",
+          sha256: "abc",
+          preview: true,
+          compatibility: "Preview build",
+        },
+        {
+          id: "eidos.chart",
+          name: "Chart",
+          description: "Chart view",
+          repo: "eidos-space/eidos-chart-plugin",
+          version: "0.1.0",
+          sha256: "def",
+          preview: false,
+          compatibility: "Preview build",
+        },
+      ],
+      cached: false,
+      fetchedAt: new Date().toISOString(),
+    }),
+    installMarketplacePlugin: customInstall,
+    onPluginInstallProgress: (listener: unknown) => {
+      progressListener = listener as typeof progressListener
+      return () => {}
+    },
+    pluginReadme: async (id: string) => {
+      if (id === "eidos.map")
+        return "# Map Plugin\n\nInteractive MapLibre maps."
+      return null
+    },
+  })
+
+  await act(async () => root.render(<PluginManager />))
+  await click("Marketplace")
+
+  // Find install buttons for Map and Chart
+  const buttons = [
+    ...container.querySelectorAll(
+      ".plugin-marketplace-card .plugin-install-btn"
+    ),
+  ] as HTMLButtonElement[]
+  expect(buttons.length).toBe(2)
+
+  // Click install on Map
+  await act(async () => buttons[0].click())
+  expect(customInstall).toHaveBeenCalledWith("eidos.map")
+
+  // Map should be downloading, Chart button remains enabled
+  expect(buttons[1].disabled).toBe(false)
+
+  // Click install on Chart
+  await act(async () => buttons[1].click())
+
+  // Chart should now be queued
+  expect(container.textContent).toContain("Queued")
+
+  // Progress update for Map
+  await act(async () => {
+    progressListener?.({ id: "eidos.map", phase: "downloading", percent: 45 })
+  })
+  expect(container.textContent).toContain("45%")
+
+  // Finish Map install
+  await act(async () => {
+    finishInstallMap?.()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  // Chart should now be called automatically by the queue
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(customInstall).toHaveBeenCalledWith("eidos.chart")
+
+  // Finish Chart install
+  await act(async () => {
+    finishInstallChart?.()
+  })
+})
+
+it("renders README markdown in plugin detail view for marketplace plugins", async () => {
+  Object.assign(window.eidosLite, {
+    pluginReadme: async (id: string) => {
+      if (id === "eidos.map")
+        return "# Map Plugin\n\nInteractive map view with MapLibre."
+      return null
+    },
+  })
+
+  await act(async () => root.render(<PluginManager />))
+  await click("Marketplace")
+
+  // Click Map card to enter Detail view
+  const mapCard = container.querySelector(
+    ".plugin-marketplace-card"
+  ) as HTMLElement
+  expect(mapCard).not.toBeNull()
+  await act(async () => mapCard.click())
+
+  // Wait for readme to load and render
+  await act(async () => {})
+  expect(container.querySelector(".plugin-readme-card")).not.toBeNull()
+  expect(container.textContent).toContain("Map Plugin")
+  expect(container.textContent).toContain("Interactive map view with MapLibre.")
+})
+
+it("opens repository link in external browser when clicked", async () => {
+  const openExternalUrl = vi.fn(async () => {})
+  Object.assign(window.eidosLite, { openExternalUrl })
+
+  await act(async () => root.render(<PluginManager />))
+  await click("Marketplace")
+
+  const mapCard = container.querySelector(
+    ".plugin-marketplace-card"
+  ) as HTMLElement
+  expect(mapCard).not.toBeNull()
+  await act(async () => mapCard.click())
+
+  const repoLink = Array.from(container.querySelectorAll("a")).find((a) =>
+    a.textContent?.includes("Repository")
+  ) as HTMLAnchorElement
+  expect(repoLink).toBeDefined()
+  await act(async () => repoLink.click())
+  expect(openExternalUrl).toHaveBeenCalledWith(
+    "https://github.com/eidos-space/eidos-map-plugin"
+  )
 })

@@ -122,7 +122,8 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
 export async function registryDownload(
   url: string,
   limit: number,
-  fetcher: Fetcher
+  fetcher: Fetcher,
+  onProgress?: (loaded: number, total: number) => void
 ): Promise<Uint8Array> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 30000)
@@ -151,7 +152,8 @@ export async function registryDownload(
       }
       if (!response.ok || !response.body)
         throw new Error(`Download failed (${response.status})`)
-      if (Number(response.headers.get("content-length")) > limit) {
+      const contentLength = Number(response.headers.get("content-length")) || 0
+      if (contentLength > limit) {
         await response.body.cancel()
         throw new Error("Download is too large")
       }
@@ -167,6 +169,9 @@ export async function registryDownload(
           throw new Error("Download is too large")
         }
         chunks.push(value)
+        if (onProgress && contentLength > 0) {
+          onProgress(size, contentLength)
+        }
       }
       return Buffer.concat(chunks)
     }
@@ -241,7 +246,10 @@ export class PluginRegistry {
       }
     }
   }
-  async download(id: string): Promise<Uint8Array> {
+  async download(
+    id: string,
+    onProgress?: (loaded: number, total: number) => void
+  ): Promise<Uint8Array> {
     const catalog = await this.list(true)
     if (catalog.cached)
       throw new Error("Connect to the internet to install from Marketplace")
@@ -250,7 +258,8 @@ export class PluginRegistry {
     const bytes = await registryDownload(
       `https://github.com/${entry.repo}/releases/download/${entry.tag}/${entry.asset}`,
       16 * 1024 * 1024,
-      this.fetcher
+      this.fetcher,
+      onProgress
     )
     if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256)
       throw new Error("Plugin checksum does not match the registry")
@@ -258,5 +267,37 @@ export class PluginRegistry {
     if (pkg.manifest.id !== entry.id || pkg.manifest.version !== entry.version)
       throw new Error("Plugin identity does not match the registry")
     return bytes
+  }
+  async readme(id: string): Promise<string | null> {
+    const catalog = await this.list(false)
+    const entry = catalog.plugins.find((plugin) => plugin.id === id)
+    if (!entry || !entry.repo) return null
+    const cacheDir = path.join(this.directory, "readme")
+    const cacheFile = path.join(cacheDir, `${id}.md`)
+    if (catalog.cached) {
+      try {
+        return await fs.readFile(cacheFile, "utf8")
+      } catch {
+        return null
+      }
+    }
+    for (const branch of ["main", "master"]) {
+      try {
+        const url = `https://raw.githubusercontent.com/${entry.repo}/${branch}/README.md`
+        const bytes = await registryDownload(url, 1024 * 1024, this.fetcher)
+        const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+        await fs
+          .mkdir(cacheDir, { recursive: true, mode: 0o700 })
+          .then(() => fs.writeFile(`${cacheFile}.tmp`, content, "utf8"))
+          .then(() => fs.rename(`${cacheFile}.tmp`, cacheFile))
+          .catch(() => {})
+        return content
+      } catch {}
+    }
+    try {
+      return await fs.readFile(cacheFile, "utf8")
+    } catch {
+      return null
+    }
   }
 }

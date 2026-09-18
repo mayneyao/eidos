@@ -58,6 +58,7 @@ const events = new Map<
       id: number
       mainFrame: object
       once: ReturnType<typeof vi.fn>
+      send?: ReturnType<typeof vi.fn>
       isDestroyed(): boolean
     }
     senderFrame: object
@@ -101,7 +102,13 @@ beforeEach(async () => {
   for (const id of [1, 2, 3]) {
     const mainFrame = {}
     events.set(id, {
-      sender: { id, mainFrame, once: vi.fn(), isDestroyed: () => false },
+      sender: {
+        id,
+        mainFrame,
+        once: vi.fn(),
+        send: vi.fn(),
+        isDestroyed: () => false,
+      },
       senderFrame: mainFrame,
     })
   }
@@ -144,7 +151,7 @@ it("marketplace installs reuse permission approval and Space isolation", async (
   expect((await listing(1)).plugins).toHaveLength(0)
   mock.response = 1
   expect(await call("install", 1, false, id)).toBe(true)
-  expect(download).toHaveBeenCalledWith(id)
+  expect(download).toHaveBeenCalledWith(id, expect.any(Function))
   expect((await listing(1)).plugins[0].enabled).toBe(true)
   expect((await listing(2)).plugins[0].enabled).toBe(false)
 })
@@ -201,4 +208,12 @@ it("uninstall cancellation preserves installation; confirmation removes it for a
   expect(await call("uninstall", 3, id)).toBe(true)
   expect((await listing(1)).plugins).toEqual([])
   expect((await listing(2)).plugins).toEqual([])
+})
+
+it("handles plugin readme IPC requests", async () => {
+  vi.spyOn(PluginRegistry.prototype, "readme").mockResolvedValue(
+    "# Plugin Readme"
+  )
+  expect(await call("readme", 1, id)).toBe("# Plugin Readme")
+  await expect(call("readme", 1, 123)).rejects.toThrow(/Invalid plugin/)
 })
