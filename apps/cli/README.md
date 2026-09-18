@@ -518,6 +518,31 @@ apps/cli/
 └── tests/      # End-to-end external-agent contract tests
 ```
 
+## Plugin development
+
+`eidos plugin create my-csv-editor` creates an Eidos Lite CSV editor project.
+Use `eidos plugin check` and `eidos plugin pack` with a source directory or a
+single TS/JS file. Pack accepts `--out`; both commands support structured JSON.
+Create requires no Node. The current development bridge uses Node.js >=22.12
+and either `EIDOS_PLUGIN_TOOLS` or a project-installed backend. Compiler
+distribution inside the standalone CLI is still pending. No dependencies are
+downloaded by these commands. Lite can load and watch source directly;
+`eidos plugin dev` reports that its authoring connection is not implemented yet.
+See the [backend maintenance guide](../../packages/plugin-tools/README.md) for
+checkout setup and the [public guide](../docs/src/content/docs/plugins/guide.mdx)
+for the intended installed developer workflow.
+
+Lite's internal `plugin fs` transport is hidden from help and is not a public
+authoring command. It pins a Space directory handle and accepts bounded JSON
+frames on stdin for list/read/create/write. The startup response reports the
+opened root identity, which Lite must compare with its expected Space identity.
+Each path component is opened without following symlinks; ordinary data access
+also rejects hard links, `.graft`, `.eidos`, plugin packages and host-supplied
+protected roots. Text writes use an absent-only publish or revision-checked
+replacement. Grant filtering, working-copy coordination and history remain host
+responsibilities; this transport does not confer plugin permissions. Each
+instance serves one host lifecycle and exits when its input closes.
+
 ## License
 
 AGPL-3.0

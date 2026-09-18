@@ -55,6 +55,48 @@ the `assets/` prefix are not resolved by this mount. Each upload is limited to
 guest with a `--share` link receives the same upload authority for the lifetime
 of the Serve process, so mount only a directory intended for those users.
 
+## Load custom plugins
+
+`eidos serve` can load `.eidos-plugin` packages (such as `eidos.chart` or custom table views) and make them available in the embedded web editor.
+
+```bash
+# Load a single plugin package
+eidos serve tracker.eidos --plugin ./dist/eidos.chart-0.1.0.eidos-plugin --open
+
+# Load multiple plugins
+eidos serve tracker.eidos \
+  --plugin ./dist/eidos.chart-0.1.0.eidos-plugin \
+  --plugin ./dist/eidos.map-0.1.0.eidos-plugin
+
+# Load all plugins from a directory
+eidos serve tracker.eidos --plugins-dir ./plugins
+```
+
+If a `.eidos/plugins/` directory exists adjacent to the served file, Serve automatically discovers and loads all `.eidos-plugin` packages within it.
+
+Serve also loads the device-wide store at `~/.eidos/plugins` (override with `EIDOS_HOME`), so plugins installed in Eidos Lite are available here. An adjacent `.eidos/plugins/` directory takes precedence, and the strict `--publish` profile ignores the shared store.
+
+### Sandbox and security
+
+Custom views run in an isolated `iframe` with `sandbox="allow-scripts"` (without `allow-same-origin`), assigning each plugin an opaque `null` origin. Plugins have no access to the host DOM, cookies, local storage, or other plugins.
+
+Each plugin receives a dynamic Content Security Policy (CSP) enforced by the host:
+
+- Outbound network requests are blocked by default, unless exact origins are declared in `manifest.browser.networkOrigins`.
+- Web Workers are blocked unless `manifest.browser.workers` is set to `true`.
+- Scripts and styles are scoped to the sandboxed document.
+
+### Host capabilities
+
+Plugins communicate with Serve via asynchronous JSON-RPC:
+
+- **`table.read`**: Retrieves table fields and merged view properties.
+- **`table.page`**: Fetches paged records respecting active search and filters.
+- **`table.aggregate`**: Executes high-performance grouped calculations (count, sum, average, min, max) server-side directly in SQLite, without transferring large row datasets over the network.
+- **`table.properties`**: Persists custom view settings to `properties.plugin`. In `--publish` mode, mutations are blocked with a `PERMISSION_DENIED` error.
+- **`table.openRecord`**: Opens the record detail panel.
+- **View settings**: If the plugin declares a `configuration` schema, Serve automatically renders a **View settings** menu in the table toolbar.
+
 ## Trusted LAN access
 
 Use `--lan` to detect and bind one private IPv4 interface:

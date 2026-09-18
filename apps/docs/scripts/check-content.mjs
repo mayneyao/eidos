@@ -74,9 +74,9 @@ const bilingualFoundations = [
   "cli/automation-workflow.mdx",
   "cli/serve.mdx",
   "cli/publish.mdx",
-  "developers/index.mdx",
-  "developers/runtime-quickstart.mdx",
-  "developers/runtime-and-hosts.mdx",
+  "plugins/index.mdx",
+  "plugins/guide.mdx",
+  "plugins/api.mdx",
   "specifications/index.mdx",
   "legacy/index.mdx",
 ]

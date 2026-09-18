@@ -15,9 +15,11 @@ export default defineConfig({
     starlight({
       title: "Eidos Docs",
       description:
-        "Documentation for Eidos Lite, Eidos CLI, building with Eidos File, and the Eidos File specifications.",
+        "Documentation for Eidos Lite, Eidos CLI, Eidos Plugins, and the Eidos File specifications.",
       expressiveCode: {
-        emitExternalStylesheet: false,
+        // Inline styles become inert set:html attributes in the current MDX
+        // pipeline. Keep Expressive Code's standard fingerprinted stylesheet.
+        emitExternalStylesheet: true,
       },
       favicon: "/favicon.svg",
       customCss: ["./src/styles/docs-home.css"],
@@ -68,6 +70,7 @@ export default defineConfig({
                   label: "Basics",
                   translations: { "zh-CN": "基础使用" },
                   items: [
+                    "concepts",
                     "user-guide/eidos-file-basics",
                     "user-guide/tables-and-fields",
                     "user-guide/formula",
@@ -120,30 +123,26 @@ export default defineConfig({
             },
             {
               label: {
-                en: "Build with Eidos File",
-                "zh-CN": "基于 Eidos File 构建",
+                en: "Eidos Plugins",
+                "zh-CN": "Eidos 插件",
               },
-              icon: "setting",
-              link: "/developers/",
+              icon: "puzzle",
+              link: "/plugins/",
               items: [
-                {
-                  label: "Install",
-                  translations: { "zh-CN": "安装" },
-                  items: ["developers/runtime-quickstart"],
-                },
                 {
                   label: "Basics",
                   translations: { "zh-CN": "基础使用" },
-                  items: ["concepts", "developers/runtime-and-hosts"],
+                  items: ["plugins"],
                 },
                 {
-                  label: "Advanced",
-                  translations: { "zh-CN": "进阶使用" },
-                  items: [
-                    "reference/eidos-file-ui-package",
-                    "reference/eidos-file-custom-views",
-                    "reference",
-                  ],
+                  label: "Development",
+                  translations: { "zh-CN": "开发指南" },
+                  items: ["plugins/guide"],
+                },
+                {
+                  label: "Reference",
+                  translations: { "zh-CN": "参考" },
+                  items: ["plugins/api"],
                 },
               ],
             },

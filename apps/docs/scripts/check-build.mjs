@@ -53,14 +53,20 @@ for (const route of [
   "/",
   "/cli/",
   "/user-guide/",
+  "/plugins/",
   "/zh-cn/",
   "/zh-cn/cli/",
   "/zh-cn/user-guide/",
+  "/zh-cn/plugins/",
 ]) {
   const source = await readFile(outputForRoute(route), "utf8")
   const renderBlockingStylesheets = [
     ...source.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*>/gu),
-  ].filter(([link]) => !/\bmedia="print"/u.test(link))
+  ].filter(
+    ([link]) =>
+      !/\bmedia="print"/u.test(link) &&
+      !/\bhref="\/_astro\/ec\.[a-zA-Z0-9_-]+\.css"/u.test(link)
+  )
   if (renderBlockingStylesheets.length > 0) {
     failures.push(`${route} has render-blocking stylesheets`)
   }
@@ -68,6 +74,39 @@ for (const route of [
 
 for (const sourceFile of htmlFiles) {
   const source = await readFile(sourceFile, "utf8")
+  if (/<style\b[^>]*\bset:html=/u.test(source)) {
+    failures.push(
+      `${path.relative(outputRoot, sourceFile)} has inert inline styles`
+    )
+  }
+  if (source.includes('class="expressive-code"')) {
+    // Plain Markdown currently emits real inline styles, while MDX uses the
+    // fingerprinted stylesheet. Accept either, but never inert attributes.
+    const inlineCodeStyles = [
+      ...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gu),
+    ].some(([, css]) => css.includes(".expressive-code{"))
+    const stylesheet = source.match(
+      /\bhref="(\/_astro\/ec\.[a-zA-Z0-9_-]+\.css)"/u
+    )?.[1]
+    if (!stylesheet && !inlineCodeStyles) {
+      failures.push(
+        `${path.relative(outputRoot, sourceFile)} is missing code block CSS`
+      )
+    } else if (stylesheet) {
+      try {
+        const css = await readFile(
+          path.join(outputRoot, stylesheet.slice(1)),
+          "utf8"
+        )
+        if (!css.includes(".expressive-code"))
+          throw new Error("Missing code block styles")
+      } catch {
+        failures.push(
+          `${path.relative(outputRoot, sourceFile)} has unavailable code block CSS: ${stylesheet}`
+        )
+      }
+    }
+  }
   for (const match of source.matchAll(/\bhref="([^"]+)"/gu)) {
     const href = decodeAttribute(match[1])
     if (!href.startsWith("/") || href.startsWith("//")) continue

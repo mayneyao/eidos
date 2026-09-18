@@ -4,6 +4,8 @@ mod cli;
 mod collect;
 mod error;
 mod output;
+mod plugin;
+mod plugin_fs;
 mod publish;
 mod relay_auth;
 mod runtime;
@@ -54,6 +56,17 @@ fn main() -> ExitCode {
     };
     let json = cli.json;
 
+    if let cli::Command::Plugin(cli::PluginArgs {
+        command: cli::PluginCommand::Fs { root, deny },
+    }) = &cli.command
+    {
+        return if plugin_fs::serve(root, deny).is_ok() {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+
     match app::run(cli.command, !json) {
         Ok(CommandOutput { value, success }) => {
             let result = if json {
@@ -83,6 +96,34 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plugin_subcommands_parse_with_global_json_and_directory_spaces() {
+        use crate::cli::{Cli, Command, PluginCommand, normalize_args};
+        use clap::Parser;
+        for command in ["check", "pack", "dev", "create"] {
+            let args = ["eidos", "--json", "plugin", command, "/tmp/my project"]
+                .into_iter()
+                .map(std::ffi::OsString::from)
+                .collect();
+            let cli = Cli::try_parse_from(normalize_args(args)).unwrap();
+            assert!(cli.json);
+            let Command::Plugin(args) = cli.command else {
+                panic!("expected plugin")
+            };
+            match args.command {
+                PluginCommand::Fs { .. } => panic!("unexpected internal transport"),
+                PluginCommand::Create { directory } => {
+                    assert_eq!(directory.to_str(), Some("/tmp/my project"))
+                }
+                PluginCommand::Check(args)
+                | PluginCommand::Pack(args)
+                | PluginCommand::Dev(args) => {
+                    assert_eq!(args.directory.to_str(), Some("/tmp/my project"))
+                }
+            }
+        }
+        assert!(Cli::try_parse_from(["eidos", "plugin", "unknown"]).is_err());
+    }
     use super::*;
     use crate::cli::{
         AttachmentCommand, Command, FieldCommand, FormulaCommand, LookupCommand, RelationCommand,

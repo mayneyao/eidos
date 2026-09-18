@@ -1,7 +1,7 @@
 # Eidos documentation
 
 This Astro/Starlight site is the unified documentation for Eidos Lite, Eidos
-CLI, Eidos File development, and the Eidos File specifications. It is published at
+CLI, Eidos Plugins, and the Eidos File specifications. It is published at
 [docs.eidos.space](https://docs.eidos.space).
 
 ## Information architecture
@@ -13,8 +13,8 @@ to basics and then advanced use:
    and troubleshooting;
 2. **Eidos CLI** — installation, basic file commands, automation, Serve, and
    Publish;
-3. **Build with Eidos File** — package installation, Runtime and Host basics,
-   shared UI, and custom views;
+3. **Eidos Plugins** — extension capabilities, SDK lifecycle, formatters,
+   commands, custom views, and distribution;
 4. **Eidos File Specs** — reading order, core contracts, integration contracts,
    and extended specifications.
 

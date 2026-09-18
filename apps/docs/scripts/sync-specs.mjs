@@ -48,7 +48,7 @@ function routeForSource(source) {
   if (source === "README.md") return "/specifications/"
   if (source === "README.zh.md") return "/zh-cn/specifications/"
   if (source === "eidos-file-developer-guide.zh.md") {
-    return "/zh-cn/developers/runtime-quickstart/"
+    return "/zh-cn/specifications/"
   }
   const chinese = source.endsWith(".zh.md")
   const name = source.replace(/\.zh\.md$|\.md$/u, "")

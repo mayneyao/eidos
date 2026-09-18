@@ -24,6 +24,7 @@ sha2 = "0.10"
 rand = "0.8"
 chrono = "0.4"
 anyhow = "1"
+flate2 = "1.0"
 tiny_http = "0.12"
 open = "5"
 rust-embed = { version = "8", features = ["debug-embed"] }

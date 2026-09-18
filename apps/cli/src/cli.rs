@@ -22,6 +22,8 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Create, check, develop, and package Eidos Lite plugins.
+    Plugin(PluginArgs),
     /// Sign in to Eidos and store a renewable CLI session securely.
     Login(AccountArgs),
     /// Show the Eidos account currently available to the CLI.
@@ -76,6 +78,42 @@ pub enum Command {
     Publish(PublishArgs),
     /// Import committed responses from a published Form into its Eidos File.
     Collect(CollectArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct PluginArgs {
+    #[command(subcommand)]
+    pub command: PluginCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PluginCommand {
+    /// Internal, host-owned filesystem transport; not a plugin authoring API.
+    #[command(hide = true)]
+    Fs {
+        #[arg(long)]
+        root: PathBuf,
+        #[arg(long)]
+        deny: Vec<String>,
+    },
+    /// Create a CSV editor project without requiring Node.js.
+    Create { directory: PathBuf },
+    /// Validate the manifest and TypeScript using local development dependencies.
+    Check(PluginProjectArgs),
+    /// Connect an authoring session (requires host authoring support).
+    Dev(PluginProjectArgs),
+    /// Build a self-contained .eidos-plugin package.
+    Pack(PluginProjectArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct PluginProjectArgs {
+    /// Plugin source directory or single TS/JS file.
+    #[arg(default_value = ".")]
+    pub directory: PathBuf,
+    /// Output archive path for plugin pack.
+    #[arg(long = "out")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -147,6 +185,12 @@ pub struct ServeArgs {
     /// Explicitly mount an existing folder for assets/<name> File entries.
     #[arg(long, value_name = "DIR")]
     pub assets_dir: Option<PathBuf>,
+    /// Load extensions from this directory. If omitted, defaults to .eidos/plugins beside the file.
+    #[arg(long, value_name = "DIR")]
+    pub plugins_dir: Option<PathBuf>,
+    /// Explicit path to a .eidos-plugin file to load. Can be passed multiple times.
+    #[arg(long = "plugin", value_name = "PLUGIN_FILE")]
+    pub plugins: Vec<PathBuf>,
     /// Open the served URL in the default browser.
     #[arg(long)]
     pub open: bool,
@@ -1326,6 +1370,7 @@ const COMMANDS: &[&str] = &[
     "formula",
     "lookup",
     "skills",
+    "plugin",
     "serve",
     "publish",
 ];

@@ -61,6 +61,7 @@ impl CommandOutput {
 
 pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
     match command {
+        Command::Plugin(args) => crate::plugin::run(args, show_progress),
         Command::Login(args) => login(args),
         Command::Whoami(args) => whoami(args),
         Command::Logout(args) => logout(args),
@@ -263,6 +264,8 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
             requested_host: args.host,
             relay,
             publish: args.publish,
+            plugins_dir: args.plugins_dir,
+            plugins: args.plugins,
         },
     )
     .map_err(|error| AppError::internal(error.to_string()))?;

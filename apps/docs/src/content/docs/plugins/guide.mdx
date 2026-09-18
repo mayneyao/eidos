@@ -1,0 +1,487 @@
+---
+title: Plugin development guide
+description: Step-by-step tutorial to create, test, and package offline Eidos Lite plugins with formatters, commands, custom views, and React.
+sidebar:
+  order: 2
+---
+
+Eidos Lite plugins add document formatters, command-palette actions, and custom interfaces to a Space.
+Plugins run in a local, isolated sandbox without requiring network access or external CDNs.
+
+## Extension capabilities
+
+A plugin can combine any of these extension points in a single `plugin.json` manifest:
+
+| Your feature                            | Extension point    | User entry point                         |
+| --------------------------------------- | ------------------ | ---------------------------------------- |
+| Format Markdown or text                 | Formatter provider | Format Document or Format Document With… |
+| Count words or run a document operation | Action             | Cmd+K, optionally a custom shortcut      |
+| Edit CSV, Markdown, or custom files     | Document view      | File context menu → Open with            |
+| Open an independent plugin page         | Page view          | Space plugin navigation entry            |
+| Show table records on a map or chart    | Table view         | Table view menu → New view               |
+
+---
+
+## Quickstart: Create and run your first plugin
+
+### 1. Install prerequisites
+
+Ensure you have **Node.js 22.12 or newer**, pnpm, and [Eidos CLI and Lite](https://eidos.space/download) installed. See [CLI installation](/cli/) for details.
+
+### 2. Scaffold a project
+
+Run `eidos plugin create` to generate a new plugin project:
+
+```bash
+eidos plugin create my-plugin
+cd my-plugin
+pnpm install
+pnpm add -D @eidos.space/plugin-tools@0.1
+```
+
+The generated project has the following layout:
+
+```text
+my-plugin/
+├── plugin.json       # Manifest declaring capabilities and entry points
+├── package.json      # Dependencies and dev tools
+└── src/
+    ├── main.ts       # View entry point
+    ├── csv.ts        # Business logic
+    └── style.css     # Styles
+```
+
+The scaffold declares `@eidos.space/plugin-sdk` as a development dependency. Checking and packaging are handled by `@eidos.space/plugin-tools` through the unified `eidos plugin` CLI.
+
+### 3. Load and test in Eidos Lite
+
+You don't need a manual build step to test your plugin. Eidos Lite compiles source files on the fly:
+
+1. Launch **Eidos Lite** and open any Space.
+2. In the top toolbar, click the **Plugins** icon (between Search and the Space menu).
+3. Click **Load development source…** and select your project's `plugin.json` (or a standalone `.ts` file).
+4. Review the declared capabilities and click **Enable** for this Space.
+5. Create or select a `.csv` file in your Space, right-click it, and choose **Open with → CSV Table**.
+
+When you edit code in `src/`, Eidos Lite automatically recompiles and hot-reloads the view!
+
+---
+
+## Core concepts: Manifest and lifecycle
+
+### The manifest (`plugin.json`)
+
+The manifest declares your plugin's identity, permissions, and extension points:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.my-plugin",
+  "name": "My Plugin",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "views": [],
+  "actions": [],
+  "formatters": [],
+  "placements": []
+}
+```
+
+- `apiVersion`: Currently `1`, specifying the Plugin 1.0 host contract.
+- `id`: Globally unique identifier (e.g. `vendor.feature`).
+- `extension`: Points to background controller code that runs on activation.
+- `views`: List of custom UI views.
+- `placements`: Tells the host where to display views and actions in the UI.
+
+### Type-only SDK
+
+The core SDK provides **TypeScript types only**:
+
+```ts
+import type { ExtensionContext, ViewContext } from "@eidos.space/plugin-sdk"
+```
+
+All runtime APIs are injected by the host into the `ctx` context parameter. There is no SDK bundle overhead and no `connect()` call.
+
+- **Background lifecycle:** For actions and formatters, `extension` exports a default `activate(ctx: ExtensionContext)` function.
+- **View lifecycle:** Each view's entry exports a default `mount(ctx: ViewContext, root: HTMLElement)` function.
+- **Disposal:** Clean up event listeners and timers by returning `{ dispose() { ... } }` or calling `ctx.subscriptions.add(...)`.
+
+### Where installed plugins live
+
+Plugins install once per device and are enabled per Space:
+
+- Eidos Lite and `eidos serve` store plugins in `~/.eidos/plugins` (`%USERPROFILE%\\.eidos\\plugins` on Windows).
+- Set `EIDOS_HOME` to relocate the store directory.
+- The store contains immutable package archives (`packages/<sha256>.eidos-plugin`), device configuration (`config.json`), and per-plugin offline data under `data/<plugin-id>/`.
+
+---
+
+## Extension points by example
+
+### 1. Document formatters
+
+A formatter processes document text and returns updated text. The host manages undo/redo, selections, and saving.
+
+In `plugin.json`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.typography",
+  "name": "Typography",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "formatters": [
+    {
+      "id": "trim",
+      "title": "Trim trailing whitespace",
+      "extensions": [".md", ".txt"]
+    }
+  ]
+}
+```
+
+In `src/extension.ts`:
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.formatters.register("trim", {
+    format({ text, signal }) {
+      signal.throwIfAborted()
+      return { text: text.replace(/[ \t]+(?=\r\n|\r|\n|$)/g, "") }
+    },
+  })
+}
+```
+
+Users run formatting via:
+
+- <kbd>Cmd</kbd>+<kbd>K</kbd> → **Format Document**
+- Default shortcut: <kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd> (macOS) / <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd> (Windows)
+
+### 2. Commands and shortcuts (Actions)
+
+Actions execute custom logic from the Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd>) or keyboard shortcuts.
+
+In `plugin.json`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.text-tools",
+  "name": "Text Tools",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "count",
+      "title": "Count characters",
+      "context": "document",
+      "access": "read",
+      "extensions": [".md", ".txt"]
+    }
+  ],
+  "placements": [
+    { "location": "command-palette", "action": "count" },
+    { "location": "keybinding", "action": "count", "key": "Mod+Alt+C" }
+  ]
+}
+```
+
+In `src/extension.ts`:
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("count", async ({ binding, ui }) => {
+    if (binding.kind !== "document") return
+    const snapshot = await binding.document.read()
+    await ui.notify(`Characters: ${Array.from(snapshot.text).length}`)
+  })
+}
+```
+
+### 3. Custom document views
+
+Document views replace the default editor for specific file extensions when selected in **Open with**.
+
+In `plugin.json`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.markdown-viewer",
+  "name": "Markdown Preview",
+  "version": "0.1.0",
+  "views": [
+    {
+      "id": "preview",
+      "title": "Rich Preview",
+      "entry": "./src/preview.ts",
+      "context": "document",
+      "access": "write"
+    }
+  ],
+  "placements": [
+    { "location": "file/open", "view": "preview", "extensions": [".md"] }
+  ]
+}
+```
+
+In `src/preview.ts`:
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default async function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "document") return
+  const file = ctx.binding.document
+
+  // Subscribe to changes from the host or other editors
+  const observation = await file.observe((snapshot) => {
+    root.textContent = snapshot.text
+  })
+  ctx.subscriptions.add(observation.subscription)
+
+  // Initial render
+  root.textContent = observation.snapshot.text
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+To edit the document:
+
+```ts
+const before = await file.read()
+const result = await file.edit({
+  text: nextText,
+  expectedVersion: before.version,
+  label: "Edit cell",
+})
+if (result.status === "stale") {
+  // Conflict reconciliation
+}
+```
+
+### 4. Independent page views
+
+Independent pages add navigation entries to the Space sidebar:
+
+In `plugin.json`:
+
+```json
+{
+  "views": [
+    {
+      "id": "home",
+      "title": "Dashboard",
+      "context": "page",
+      "entry": "./src/page.ts"
+    }
+  ],
+  "placements": [{ "location": "navigation", "view": "home" }]
+}
+```
+
+In `src/page.ts`:
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "page") return
+
+  root.innerHTML = `
+    <div style="padding: 24px;">
+      <h1>Plugin Dashboard</h1>
+      <p>Current route: ${ctx.binding.route || "/"}</p>
+    </div>
+  `
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+### 5. Table views
+
+Table views render `.eidos` table records in novel layouts like charts, maps, or galleries.
+
+In `plugin.json`:
+
+```json
+{
+  "views": [
+    {
+      "id": "map",
+      "title": "Map View",
+      "entry": "./src/map.ts",
+      "context": "table",
+      "access": "read"
+    }
+  ],
+  "placements": [{ "location": "table/view", "view": "map" }]
+}
+```
+
+In `src/map.ts`:
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default async function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "table") return
+  const table = ctx.binding.table
+
+  // Read view metadata and column definitions
+  const meta = await table.read()
+
+  // Fetch paginated rows with the host's current filters and sorting
+  const page = await table.getPage({ offset: 0, limit: 100 })
+
+  // Accelerated SQLite server-side aggregation
+  const aggregates = await table.aggregate({
+    metric: { op: "count" },
+    groupBy: { fieldId: "category" },
+  })
+
+  // Listen for table mutations
+  const unsubscribe = await table.observe(() => {
+    // Re-render when records change
+  })
+  ctx.subscriptions.add(unsubscribe)
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+---
+
+## Using React and UI components
+
+You can use React, Vue, Svelte, or vanilla DOM. To use React:
+
+```bash
+pnpm add react react-dom
+pnpm add -D @types/react @types/react-dom
+```
+
+In `src/main.tsx`:
+
+```tsx
+import { createRoot } from "react-dom/client"
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+import { App } from "./app"
+import "./style.css"
+
+export default function mount(ctx: ViewContext, element: HTMLElement) {
+  const root = createRoot(element)
+  root.render(<App context={ctx} />)
+  return {
+    dispose() {
+      root.unmount()
+    },
+  }
+}
+```
+
+### Theme adaptation
+
+Use the host's semantic CSS variables to automatically match light and dark modes:
+
+```css
+.card {
+  background-color: var(--e-color-bg-subtle);
+  color: var(--e-color-text-primary);
+  border: 1px solid var(--e-color-border-subtle);
+  border-radius: var(--e-radius-md);
+}
+```
+
+---
+
+## Storage and network permissions
+
+### Offline storage
+
+Plugins have access to isolated, persistent key-value binary storage that survives restarts:
+
+In `plugin.json`:
+
+```json
+{
+  "storage": { "maxBytes": 536870912 }
+}
+```
+
+In your code:
+
+```ts
+// Write data
+await ctx.storage.write(
+  "config",
+  new TextEncoder().encode(JSON.stringify({ dark: true }))
+)
+
+// Read data
+const bytes = await ctx.storage.read("config")
+```
+
+### Network requests
+
+All external network requests must be explicitly declared in `browser.networkOrigins`. Direct `eval`, Node.js APIs, and CDN scripts are blocked by the sandbox CSP.
+
+```json
+{
+  "browser": {
+    "networkOrigins": ["https://api.example.com"]
+  }
+}
+```
+
+---
+
+## Packaging and marketplace publishing
+
+### 1. Validate and package
+
+From your plugin directory:
+
+```bash
+# Validate manifest, types, and dependencies
+eidos plugin check .
+
+# Bundle into an offline .eidos-plugin archive
+eidos plugin pack . --out my-plugin.eidos-plugin
+```
+
+The resulting `.eidos-plugin` file is self-contained. Users can install it directly in Eidos Lite (**Plugins → Install plugin…**) without needing Node.js, npm, or an internet connection.
+
+### 2. Publish to the Marketplace
+
+1. Publish `<id>-<version>.eidos-plugin` as a GitHub Release asset in your repository.
+2. Submit a PR to [the official registry](https://github.com/eidos-space/registry) updating `plugins.registry.json` with your plugin ID, version, release download URL, and SHA-256 checksum.
+3. Once merged, your plugin appears in the Eidos Lite Marketplace for all users.
+
+---
+
+## Next steps
+
+- Explore the complete [Plugin API reference](/plugins/api/) for all context methods, interfaces, and options.
+- Read the normative [Plugin 1.0 specifications](/specifications/) for underlying host contracts.

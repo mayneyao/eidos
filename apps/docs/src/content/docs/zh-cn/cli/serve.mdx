@@ -51,6 +51,48 @@ eidos serve tracker.eidos --assets-dir ./assets --open
 `--share` 链接的访客，在 Serve 进程存活期间都拥有同样的上传权限，因此只应挂载准备
 授权给这些用户的目录。
 
+## 加载自定义插件
+
+`eidos serve` 支持加载 `.eidos-plugin` 格式的插件包（如 `eidos.chart` 或各类自定义表格视图），并在嵌入式 Web 编辑器中运行。
+
+```bash
+# 加载单个插件包
+eidos serve tracker.eidos --plugin ./dist/eidos.chart-0.1.0.eidos-plugin --open
+
+# 加载多个插件包
+eidos serve tracker.eidos \
+  --plugin ./dist/eidos.chart-0.1.0.eidos-plugin \
+  --plugin ./dist/eidos.map-0.1.0.eidos-plugin
+
+# 扫描并加载目录下的所有插件
+eidos serve tracker.eidos --plugins-dir ./plugins
+```
+
+如果所打开文件同级目录下存在 `.eidos/plugins/` 文件夹，Serve 启动时会自动扫描并加载其中的全部 `.eidos-plugin` 插件包。
+
+Serve 还会加载设备级共享存储 `~/.eidos/plugins`（可用 `EIDOS_HOME` 覆盖），因此在 Eidos Lite 中安装的插件在此同样可用。同级 `.eidos/plugins/` 目录优先，严格的 `--publish` 模式忽略共享存储。
+
+### 沙箱与安全隔离
+
+自定义插件视图运行在严格受限的 `iframe` 沙箱中（设置 `sandbox="allow-scripts"`，无 `allow-same-origin`），每个插件均具有独立的 `null` origin，完全隔离宿主 DOM、Cookie、LocalStorage 及其他插件。
+
+宿主为插件注入动态内容安全策略 (CSP)：
+
+- 默认完全禁止外部网络请求；仅允许在 `manifest.browser.networkOrigins` 显式声明的 HTTPS 源。
+- 默认禁止 Web Worker；仅在声明 `manifest.browser.workers: true` 时开放 Blob Worker。
+- 脚本与样式均限制在沙箱文档内执行。
+
+### 宿主能力支持
+
+插件通过异步 JSON-RPC 与 Serve 通信：
+
+- **`table.read`**：获取表格字段定义与合并后的视图配置。
+- **`table.page`**：分页拉取当前视图过滤与检索后的行记录。
+- **`table.aggregate`**：在服务端 SQLite 层直接执行高速分组指标计算（支持计数、求和、平均值、最值等），无需在客户端拉取数万行原始数据。
+- **`table.properties`**：持久化保存视图个性化配置到 `properties.plugin`。在 `--publish` 模式下禁止修改并返回 `PERMISSION_DENIED`。
+- **`table.openRecord`**：打开行记录详情抽屉。
+- **View settings**：插件声明 `configuration` 时，Serve 会自动在表格工具栏渲染 **View settings** 配置菜单。
+
 ## 可信局域网访问
 
 `--lan` 会检测并绑定一个私有 IPv4 接口：

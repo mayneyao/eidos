@@ -1,0 +1,487 @@
+---
+title: 插件开发指南
+description: 分步教程：创建、测试并打包支持格式化、快捷命令、自定义视图及 React 的离线 Eidos Lite 插件。
+sidebar:
+  order: 2
+---
+
+Eidos Lite 插件可以为 Space 增加文档格式化工具、快捷指令和自定义界面。
+插件运行在完全隔离的本地沙箱中，全设备安装一份，并按 Space 分别启用，无需网络连接或外部 CDN。
+
+## 扩展能力一览
+
+一个插件可以在同一份 `plugin.json` 清单中组合以下能力：
+
+| 你要实现的功能                  | 使用的接口         | 用户入口                   |
+| ------------------------------- | ------------------ | -------------------------- |
+| 格式化 Markdown 或文本          | Formatter provider | 格式化文档、选择格式化程序 |
+| 统计字数、执行文档操作          | Action             | Cmd+K，可选自定义快捷键    |
+| 编辑 CSV、Markdown 或自定义文件 | Document view      | 文件右键菜单 → Open with   |
+| 打开独立的插件页面              | Page view          | 插件的导航入口             |
+| 在地图或图表上展示表格记录      | Table view         | 表格视图菜单 → 新建视图    |
+
+---
+
+## 快速上手：创建并运行你的第一个插件
+
+### 1. 准备环境
+
+确保已安装 **Node.js 22.12 或更新版本**、pnpm，以及 [Eidos CLI 和 Lite](https://eidos.space/download)。具体安装说明见 [CLI 安装指南](/zh-cn/cli/)。
+
+### 2. 脚手架初始化
+
+运行 `eidos plugin create` 创建一个新插件项目：
+
+```bash
+eidos plugin create my-plugin
+cd my-plugin
+pnpm install
+pnpm add -D @eidos.space/plugin-tools@0.1
+```
+
+生成的项目目录结构如下：
+
+```text
+my-plugin/
+├── plugin.json       # 声明插件能力、视图与入口的清单配置
+├── package.json      # 项目依赖与开发工具
+└── src/
+    ├── main.ts       # 视图入口源码
+    ├── csv.ts        # 业务逻辑代码
+    └── style.css     # 样式表
+```
+
+模板已将 `@eidos.space/plugin-sdk` 声明为开发依赖。检查与打包交给 `@eidos.space/plugin-tools`，统一使用 `eidos plugin` 命令行接口。
+
+### 3. 在 Eidos Lite 中即时加载与调试
+
+调试插件**无需手动 build 构建**，Eidos Lite 支持实时动态编译：
+
+1. 启动 **Eidos Lite**，打开任意 Space。
+2. 点击顶部工具栏中的 **Plugins** 图标（位于搜索与更多菜单之间）。
+3. 点击 **Load development source…**（加载开发源码），选中项目的 `plugin.json`（或单文件 `.ts`）。
+4. 检查权限并点击启用插件。
+5. 在 Space 中找到或新建一个 `.csv` 文件，右键点击并选择 **Open with → CSV Table**。
+
+当你在编辑器中修改 `src/` 下的代码并保存时，Eidos Lite 会自动重新编译并热重载视图！
+
+---
+
+## 核心概念：清单与生命周期
+
+### 清单配置 (`plugin.json`)
+
+清单文件声明插件的元数据、所需权限和扩展点配置：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.my-plugin",
+  "name": "My Plugin",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "views": [],
+  "actions": [],
+  "formatters": [],
+  "placements": []
+}
+```
+
+- `apiVersion`: 当前固定为 `1`，遵循 Plugin 1.0 契约。
+- `id`: 全局唯一标识符（如 `vendor.feature`）。
+- `extension`: 后台控制模块入口，插件激活时执行。
+- `views`: 自定义 UI 界面列表。
+- `placements`: 告知宿主在界面的哪些入口展示这些视图和操作。
+
+### 纯类型 SDK
+
+核心 SDK **仅包含 TypeScript 类型**：
+
+```ts
+import type { ExtensionContext, ViewContext } from "@eidos.space/plugin-sdk"
+```
+
+所有的运行时能力均由宿主在激活或挂载时动态注入到 `ctx` 上下文中。没有 SDK 运行时体积负担，也没有 `connect()` 初始化开销。
+
+- **后台生命周期：** Action 和 Formatter 的 `extension` 默认导出 `activate(ctx: ExtensionContext)` 函数。
+- **视图生命周期：** 每个 View 的 `entry` 默认导出 `mount(ctx: ViewContext, root: HTMLElement)` 函数。
+- **资源清理：** 监听器、定时器请通过返回 `{ dispose() { ... } }` 或调用 `ctx.subscriptions.add(...)` 在卸载时清理。
+
+### 插件的安装位置
+
+插件按设备安装一次，按 Space 分别启用：
+
+- Eidos Lite 与 `eidos serve` 统一使用 `~/.eidos/plugins`（Windows 下为 `%USERPROFILE%\\.eidos\\plugins`）。
+- 设置环境变量 `EIDOS_HOME` 可迁移整个存储目录。
+- 存储目录内包含内容寻址的归档（`packages/<sha256>.eidos-plugin`）、设备配置文件（`config.json`），以及插件私有数据（`data/<plugin-id>/`）。
+
+---
+
+## 扩展能力实战
+
+### 1. 文档格式化（Formatters）
+
+Formatter 接收编辑器文本并返回格式化后的文本。撤销／重做、选区管理和文件保存由宿主全权托管。
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.typography",
+  "name": "Typography",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "formatters": [
+    {
+      "id": "trim",
+      "title": "Trim trailing whitespace",
+      "extensions": [".md", ".txt"]
+    }
+  ]
+}
+```
+
+在 `src/extension.ts` 中实现：
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.formatters.register("trim", {
+    format({ text, signal }) {
+      signal.throwIfAborted()
+      return { text: text.replace(/[ \t]+(?=\r\n|\r|\n|$)/g, "") }
+    },
+  })
+}
+```
+
+触发方式：
+
+- 按 <kbd>Cmd</kbd>+<kbd>K</kbd> 选择 **格式化文档**（Format Document）。
+- 快捷键：macOS 为 <kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd>，Windows 为 <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>。
+
+### 2. 命令与快捷键（Actions）
+
+Action 用于从命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd>）或快捷键触发自定义业务逻辑。
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.text-tools",
+  "name": "Text Tools",
+  "version": "0.1.0",
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "count",
+      "title": "Count characters",
+      "context": "document",
+      "access": "read",
+      "extensions": [".md", ".txt"]
+    }
+  ],
+  "placements": [
+    { "location": "command-palette", "action": "count" },
+    { "location": "keybinding", "action": "count", "key": "Mod+Alt+C" }
+  ]
+}
+```
+
+在 `src/extension.ts` 中实现：
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("count", async ({ binding, ui }) => {
+    if (binding.kind !== "document") return
+    const snapshot = await binding.document.read()
+    await ui.notify(`字符数统计：${Array.from(snapshot.text).length}`)
+  })
+}
+```
+
+### 3. 自定义文件视图（Document View）
+
+文件视图可以接管特定扩展名文件的预览或编辑（通过右键菜单 **Open with** 打开）。
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.markdown-viewer",
+  "name": "Markdown Preview",
+  "version": "0.1.0",
+  "views": [
+    {
+      "id": "preview",
+      "title": "Rich Preview",
+      "entry": "./src/preview.ts",
+      "context": "document",
+      "access": "write"
+    }
+  ],
+  "placements": [
+    { "location": "file/open", "view": "preview", "extensions": [".md"] }
+  ]
+}
+```
+
+在 `src/preview.ts` 中实现：
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default async function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "document") return
+  const file = ctx.binding.document
+
+  // 监听来自宿主或其他编辑器的修改
+  const observation = await file.observe((snapshot) => {
+    root.textContent = snapshot.text
+  })
+  ctx.subscriptions.add(observation.subscription)
+
+  // 首次渲染
+  root.textContent = observation.snapshot.text
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+编辑文档内容：
+
+```ts
+const before = await file.read()
+const result = await file.edit({
+  text: nextText,
+  expectedVersion: before.version,
+  label: "修改内容",
+})
+if (result.status === "stale") {
+  // 版本冲突协调处理
+}
+```
+
+### 4. 独立插件页面（Page View）
+
+独立页面为 Space 侧边栏添加导航入口：
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "views": [
+    {
+      "id": "home",
+      "title": "控制面板",
+      "context": "page",
+      "entry": "./src/page.ts"
+    }
+  ],
+  "placements": [{ "location": "navigation", "view": "home" }]
+}
+```
+
+在 `src/page.ts` 中实现：
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "page") return
+
+  root.innerHTML = `
+    <div style="padding: 24px;">
+      <h1>插件控制面板</h1>
+      <p>当前子路由：${ctx.binding.route || "/"}</p>
+    </div>
+  `
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+### 5. 表格视图（Table View）
+
+表格视图可以用图表、地图或画廊等形式展现 `.eidos` 表格数据。
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "views": [
+    {
+      "id": "map",
+      "title": "地图视图",
+      "entry": "./src/map.ts",
+      "context": "table",
+      "access": "read"
+    }
+  ],
+  "placements": [{ "location": "table/view", "view": "map" }]
+}
+```
+
+在 `src/map.ts` 中实现：
+
+```ts
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+
+export default async function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "table") return
+  const table = ctx.binding.table
+
+  // 读取视图与字段定义
+  const meta = await table.read()
+
+  // 分页获取符合宿主当前搜索、筛选与排序的记录
+  const page = await table.getPage({ offset: 0, limit: 100 })
+
+  // SQLite 服务端加速的分组聚合计算
+  const aggregates = await table.aggregate({
+    metric: { op: "count" },
+    groupBy: { fieldId: "category" },
+  })
+
+  // 监听表格数据变化
+  const unsubscribe = await table.observe(() => {
+    // 记录变更时重新渲染
+  })
+  ctx.subscriptions.add(unsubscribe)
+
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+---
+
+## 使用 React 与界面组件
+
+插件可以使用 React、Vue、Svelte 或原生 DOM。使用 React 时：
+
+```bash
+pnpm add react react-dom
+pnpm add -D @types/react @types/react-dom
+```
+
+在 `src/main.tsx` 中挂载：
+
+```tsx
+import { createRoot } from "react-dom/client"
+import type { ViewContext } from "@eidos.space/plugin-sdk"
+import { App } from "./app"
+import "./style.css"
+
+export default function mount(ctx: ViewContext, element: HTMLElement) {
+  const root = createRoot(element)
+  root.render(<App context={ctx} />)
+  return {
+    dispose() {
+      root.unmount()
+    },
+  }
+}
+```
+
+### 主题适配
+
+使用宿主语义 CSS 变量，无需额外编写亮色与暗色模式逻辑：
+
+```css
+.card {
+  background-color: var(--e-color-bg-subtle);
+  color: var(--e-color-text-primary);
+  border: 1px solid var(--e-color-border-subtle);
+  border-radius: var(--e-radius-md);
+}
+```
+
+---
+
+## 离线存储与网络权限
+
+### 离线私有存储
+
+插件可以使用独立的二进制持久化键值存储，跨重启和重新加载保留：
+
+在 `plugin.json` 中申请配额：
+
+```json
+{
+  "storage": { "maxBytes": 536870912 }
+}
+```
+
+在代码中存取：
+
+```ts
+// 写入数据
+await ctx.storage.write(
+  "config",
+  new TextEncoder().encode(JSON.stringify({ dark: true }))
+)
+
+// 读取数据
+const bytes = await ctx.storage.read("config")
+```
+
+### 网络请求
+
+沙箱禁止任意网络请求与动态 `eval`。外部网络必须在 `browser.networkOrigins` 中精确声明 HTTPS 来源：
+
+```json
+{
+  "browser": {
+    "networkOrigins": ["https://api.example.com"]
+  }
+}
+```
+
+---
+
+## 打包与插件市场分发
+
+### 1. 校验与打包
+
+在插件根目录运行：
+
+```bash
+# 校验清单、类型声明和依赖
+eidos plugin check .
+
+# 打包为离线自包含的 .eidos-plugin 归档
+eidos plugin pack . --out my-plugin.eidos-plugin
+```
+
+生成的 `.eidos-plugin` 归档已打包所有模块与资源。用户在 Eidos Lite 中选择 **Plugins → Install plugin…** 即可直接安装，无需 Node.js 或网络连接。
+
+### 2. 发布到官方插件市场
+
+1. 将 `<id>-<version>.eidos-plugin` 作为 GitHub Release 附件发布。
+2. 向 [官方注册中心](https://github.com/eidos-space/registry) 提交 PR，在 `plugins.registry.json` 中登记插件 ID、版本号、下载地址和 SHA-256 校验和。
+3. 合并后，所有 Eidos Lite 用户即可在插件市场中直接浏览与安装。
+
+---
+
+## 下一步
+
+- 查阅完整的 [插件 API 参考](/zh-cn/plugins/api/) 了解所有上下文方法、接口及参数细节。
+- 阅读 [Plugin 1.0 规范](/zh-cn/specifications/) 了解底层宿主契约。

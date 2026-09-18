@@ -90,6 +90,8 @@ fn main() -> anyhow::Result<()> {
                     requested_host: host,
                     relay: None,
                     publish,
+                    plugins_dir: None,
+                    plugins: Vec::new(),
                 },
             )
         }

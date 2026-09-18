@@ -37,6 +37,8 @@ tiny_http = "0.12"
 rusqlite = { version = "0.32", features = ["bundled"] }
 eidos-file-core = { path = "core" }
 qjs-host = { path = "qjs-host" }
+cap-std = "4.0.2"
+cap-fs-ext = "4.0.2"
 
 [dev-dependencies]
 tempfile = "3.19"

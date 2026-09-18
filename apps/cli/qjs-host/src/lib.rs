@@ -13,6 +13,7 @@ use rusqlite::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod plugin_store;
 pub mod relay;
 pub mod serve;
 

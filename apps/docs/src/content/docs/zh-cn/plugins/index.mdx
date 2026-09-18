@@ -1,0 +1,101 @@
+---
+title: Eidos 插件
+description: 使用格式化工具、命令、自定义视图和独立页面扩展 Eidos Lite。
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos Lite 插件可以为 Space 增加格式化、命令、自定义文件编辑器和独立界面。插件在完全隔离的安全沙箱中本地运行，全设备安装一份，并按 Space 分别启用。
+
+## 极速上手：30 秒运行 Hello World
+
+开发 Eidos 插件最简单的方式是编写单个 TypeScript 文件。Eidos Lite 内置编译器直接即时编译运行，**无需安装依赖，无需构建配置**。
+
+### 1. 创建 `hello.ts`
+
+在电脑任意位置新建 `hello.ts`：
+
+```ts
+// hello.ts
+import type { ExtensionContext, PluginManifest } from "@eidos.space/plugin-sdk"
+
+export const manifest: PluginManifest = {
+  apiVersion: 1,
+  id: "example.hello",
+  name: "Hello World",
+  version: "0.1.0",
+  actions: [
+    {
+      id: "say-hello",
+      title: "Hello World",
+      context: "workspace",
+    },
+  ],
+  placements: [{ location: "command-palette", action: "say-hello" }],
+}
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("say-hello", async ({ ui }) => {
+    await ui.notify("Hello from Eidos Plugin! 🎉")
+  })
+}
+```
+
+### 2. 加载到 Eidos Lite
+
+1. 打开 **Eidos Lite** 并进入任意 Space。
+2. 在 Space 顶部工具栏中，点击 **Plugins** 图标（位于搜索与更多菜单之间）。
+3. 点击 **Load development source…**（加载开发源码），选择刚才保存的 `hello.ts`。
+4. 确认插件声明并在当前 Space 中启用。
+
+### 3. 执行命令
+
+按下快捷键 <kbd>Cmd</kbd>+<kbd>K</kbd>（Windows/Linux 为 <kbd>Ctrl</kbd>+<kbd>K</kbd>），输入 **Hello World** 并回车。
+
+屏幕上将立即弹出提示通知：`Hello from Eidos Plugin! 🎉`！当你修改 `hello.ts` 文件并保存时，Eidos Lite 会自动重编译并热重载。
+
+---
+
+## 扩展能力一览
+
+一个插件可以在一份配置中组合以下多种扩展能力：
+
+| 你要实现的功能                  | 使用的接口         | 用户入口                   |
+| ------------------------------- | ------------------ | -------------------------- |
+| 格式化 Markdown 或文本          | Formatter provider | 格式化文档、选择格式化程序 |
+| 统计字数、执行文档操作          | Action             | Cmd+K，可选自定义快捷键    |
+| 编辑 CSV、Markdown 或自定义文件 | Document view      | 文件右键菜单 → Open with   |
+| 打开独立的插件页面              | Page view          | 插件的导航入口             |
+| 在地图或图表上展示表格记录      | Table view         | 表格视图菜单 → 新建视图    |
+
+## 两种开发模式
+
+- **单文件轻量模式（`.ts` / `.js`）：** 仅需导出 `manifest` 与默认的 `activate`（扩展操作）或 `mount`（界面挂载）。非常适合编写快捷命令、文本格式化脚本或原型验证，无需任何包管理。
+- **完整工程化模式（`eidos plugin create`）：** 具备 `plugin.json`、TypeScript、React、CSS 样式依赖管理，支持使用 `eidos plugin pack` 打包为 `.eidos-plugin` 分发归档。
+
+## 下一步
+
+<CardGrid>
+  <LinkCard
+    title="插件开发指南"
+    description="分步教程：从完整项目脚手架、编写 formatter、添加命令，到构建 React 视图与打包发布。"
+    href="/zh-cn/plugins/guide/"
+  />
+  <LinkCard
+    title="CLI 插件命令"
+    description="使用 eidos plugin create、check 与 pack 命令生成与打包插件归档。"
+    href="/zh-cn/cli/"
+  />
+  <LinkCard
+    title="API 参考"
+    description="@eidos.space/plugin-sdk 接口定义、上下文类型与宿主方法完整参考。"
+    href="/zh-cn/plugins/api/"
+  />
+  <LinkCard
+    title="规范参考"
+    description="阅读规范性的 Plugin 1.0 架构与宿主契约。"
+    href="/zh-cn/specifications/"
+  />
+</CardGrid>

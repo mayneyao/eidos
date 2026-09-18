@@ -63,6 +63,12 @@ Semantic ownership is one-way. In particular:
 
 ## Document organization
 
+The [Eidos Plugins 1.0](./eidos-lite-plugins-1.0.md)
+([中文](./eidos-lite-plugins-1.0.zh.md)) profile defines views, actions,
+background document formatters, parameterized table action templates, scoped
+resources, source loading, and agent authoring at the Lite Adapter / UI boundary.
+It adds no File Format or Runtime semantics.
+
 Each layer has one core specification. A normative companion is used only
 when one cohesive topic would make that core document difficult to navigate;
 it keeps the same layer ownership and normally reuses the layer's conformance

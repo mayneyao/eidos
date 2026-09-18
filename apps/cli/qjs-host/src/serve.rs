@@ -956,6 +956,10 @@ fn trusted_api_request(request: &tiny_http::Request, network: &ServeNetwork) -> 
     if !allowed_host(host, network) {
         return false;
     }
+    let url_path = request.url().split('?').next().unwrap_or("/");
+    if url_path.starts_with("/api/plugins/") {
+        return true;
+    }
     header_value(request, "Origin").is_none_or(|origin| allowed_origin(origin, network))
 }
 
@@ -987,6 +991,10 @@ fn session_cookie_name(port: u16) -> String {
 }
 
 fn has_lan_session(request: &tiny_http::Request, network: &ServeNetwork) -> bool {
+    let url_path = request.url().split('?').next().unwrap_or("/");
+    if url_path.starts_with("/api/plugins/") {
+        return true;
+    }
     let Some(access) = &network.lan else {
         return true;
     };
@@ -1768,6 +1776,42 @@ pub struct ServeOptions {
     pub requested_host: Option<IpAddr>,
     pub relay: Option<RelayConfig>,
     pub publish: bool,
+    pub plugins_dir: Option<PathBuf>,
+    pub plugins: Vec<PathBuf>,
+}
+
+fn shared_plugins_dir(home: &Path) -> PathBuf {
+    home.join(".eidos").join("plugins")
+}
+
+/// Device-wide plugin store shared with other native Eidos hosts, matching the
+/// Eidos home used by the desktop app. `EIDOS_HOME` overrides the default.
+fn device_plugins_dir() -> Option<PathBuf> {
+    if let Some(explicit) = std::env::var_os("EIDOS_HOME") {
+        let path = PathBuf::from(explicit);
+        if path.is_absolute() {
+            return Some(shared_plugins_dir(&path));
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Some(profile) = std::env::var_os("USERPROFILE") {
+            return Some(shared_plugins_dir(Path::new(&profile)));
+        }
+        if let (Some(drive), Some(path)) =
+            (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH"))
+        {
+            let home = PathBuf::from(format!(
+                "{}{}",
+                drive.to_string_lossy(),
+                path.to_string_lossy()
+            ));
+            return Some(shared_plugins_dir(&home));
+        }
+    }
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|home| shared_plugins_dir(Path::new(&home)))
 }
 
 pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
@@ -1780,6 +1824,8 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         requested_host,
         relay,
         publish,
+        plugins_dir,
+        plugins,
     } = options;
     let file_name = db_path
         .file_name()
@@ -1801,6 +1847,31 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         None => AssetMount::without_root(),
     };
     let url_images = UrlImageResolver::default();
+    let mut plugin_store = crate::plugin_store::CliPluginStore::new();
+    // Strict read-only publish profile stays scoped to the served file; it must
+    // not pick up arbitrary plugins from the device-wide Eidos home.
+    if !publish {
+        if let Some(shared_dir) = device_plugins_dir() {
+            if shared_dir.is_dir() {
+                let _ = plugin_store.load_from_dir(&shared_dir);
+            }
+        }
+    }
+    if let Some(parent) = db_path.parent() {
+        let default_dir = parent.join(".eidos").join("plugins");
+        if default_dir.is_dir() {
+            let _ = plugin_store.load_from_dir(&default_dir);
+        }
+    }
+    if let Some(dir) = &plugins_dir {
+        let _ = plugin_store.load_from_dir(dir);
+    }
+    for plugin_path in &plugins {
+        if let Err(error) = plugin_store.load_file(plugin_path) {
+            eprintln!("failed to load plugin {}: {error}", plugin_path.display());
+        }
+    }
+    let plugin_store = Arc::new(plugin_store);
 
     let server = tiny_http::Server::http(network.bind)
         .map_err(|error| anyhow!("bind {}: {error}", network.bind))?;
@@ -1900,6 +1971,82 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                 serve_instance_id.clone(),
             );
             continue;
+        }
+
+        if matches!(method.as_str(), "GET" | "HEAD") && url_path == "/api/plugins" {
+            let json = plugin_store.list_plugins_json().to_string();
+            let response = tiny_http::Response::from_string(json).with_header(
+                "Content-Type: application/json"
+                    .parse::<tiny_http::Header>()
+                    .unwrap(),
+            );
+            if let Err(error) = request.respond(response) {
+                eprintln!("respond failed: {error}");
+            }
+            continue;
+        }
+
+        if matches!(method.as_str(), "GET" | "HEAD") && url_path.starts_with("/api/plugins/") {
+            let rest = url_path.trim_start_matches("/api/plugins/");
+            let parts: Vec<&str> = rest.split('/').collect();
+            if parts.len() == 3 && parts[1] == "views" {
+                let plugin_id = parts[0];
+                let view_id = parts[2];
+                let table_id = query_parameter(&request_url, "tableId").unwrap_or_default();
+                let table_view_id = query_parameter(&request_url, "viewId").unwrap_or_default();
+                let response = match plugin_store.render_sandbox_html(
+                    plugin_id,
+                    view_id,
+                    &table_id,
+                    &table_view_id,
+                ) {
+                    Some(html) => {
+                        let csp = plugin_store.csp_header(plugin_id);
+                        tiny_http::Response::from_string(html)
+                            .with_header(
+                                "Content-Type: text/html; charset=utf-8"
+                                    .parse::<tiny_http::Header>()
+                                    .unwrap(),
+                            )
+                            .with_header(
+                                format!("Content-Security-Policy: {csp}")
+                                    .parse::<tiny_http::Header>()
+                                    .unwrap(),
+                            )
+                    }
+                    None => error_response(404, "Plugin view not found"),
+                };
+                if let Err(error) = request.respond(response) {
+                    eprintln!("respond failed: {error}");
+                }
+                continue;
+            } else if parts.len() == 3 && parts[1] == "entry" {
+                let plugin_id = parts[0];
+                let view_id = parts[2];
+                let response = match plugin_store.get_entry_module(plugin_id, view_id) {
+                    Some(js) => tiny_http::Response::from_string(js.to_string())
+                        .with_header(
+                            "Content-Type: text/javascript; charset=utf-8"
+                                .parse::<tiny_http::Header>()
+                                .unwrap(),
+                        )
+                        .with_header(
+                            "Access-Control-Allow-Origin: *"
+                                .parse::<tiny_http::Header>()
+                                .unwrap(),
+                        )
+                        .with_header(
+                            "Cache-Control: public, max-age=3600"
+                                .parse::<tiny_http::Header>()
+                                .unwrap(),
+                        ),
+                    None => error_response(404, "Plugin entry not found"),
+                };
+                if let Err(error) = request.respond(response) {
+                    eprintln!("respond failed: {error}");
+                }
+                continue;
+            }
         }
 
         if method == "POST" && url_path == "/api/url-images/resolve" {
@@ -2237,9 +2384,17 @@ mod tests {
         detect_url_image_media_type, detected_remote_asset_media_type, event_stream_preamble,
         is_lan_address, is_proxy_synthetic_url_image_address, is_public_url_image_address,
         mutation_event, query_parameter, query_text_parameter, relative_asset_file_response,
-        remote_asset_name, validated_remote_asset_url, AssetEntry, AssetLeaseSource, AssetMount,
-        EmbeddedUi, EventHub, RevisionEvent, ServeNetwork,
+        remote_asset_name, shared_plugins_dir, validated_remote_asset_url, AssetEntry,
+        AssetLeaseSource, AssetMount, EmbeddedUi, EventHub, RevisionEvent, ServeNetwork,
     };
+
+    #[test]
+    fn shared_plugins_live_under_the_eidos_home() {
+        assert_eq!(
+            shared_plugins_dir(std::path::Path::new("/home/tester")),
+            std::path::Path::new("/home/tester/.eidos/plugins")
+        );
+    }
 
     fn relative_asset_references(source: &str) -> Vec<&str> {
         let bytes = source.as_bytes();

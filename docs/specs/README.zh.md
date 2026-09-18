@@ -1,5 +1,8 @@
 # Eidos 规范
 
+[Eidos 插件 1.0](./eidos-lite-plugins-1.0.md)（[中文参考](./eidos-lite-plugins-1.0.zh.md)）
+定义 Lite Adapter / UI 边界的 views、actions、文档格式化程序、参数化表格动作模板、资源授权、源码加载和 agent 创作契约。不改变 File Format 或 Runtime 语义。
+
 状态：规范套件索引  
 套件版本：1.0  
 唯一规范语言：English

@@ -1,0 +1,103 @@
+---
+title: Eidos Plugins
+description: Build offline Eidos Lite plugins with formatters, commands, custom views, and independent pages.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos Lite plugins extend Spaces with custom interfaces, file editors, document formatters, and
+commands. Plugins run locally in an isolated sandbox, follow declarative capabilities, and install
+once per device while enabling per Space.
+
+## Quickstart: Hello World in 30 seconds
+
+The fastest way to build a plugin is a single TypeScript file. Eidos Lite compiles and runs it directly—no build steps or `node_modules` required.
+
+### 1. Create `hello.ts`
+
+Create a file named `hello.ts` anywhere on your computer:
+
+```ts
+// hello.ts
+import type { ExtensionContext, PluginManifest } from "@eidos.space/plugin-sdk"
+
+export const manifest: PluginManifest = {
+  apiVersion: 1,
+  id: "example.hello",
+  name: "Hello World",
+  version: "0.1.0",
+  actions: [
+    {
+      id: "say-hello",
+      title: "Hello World",
+      context: "workspace",
+    },
+  ],
+  placements: [{ location: "command-palette", action: "say-hello" }],
+}
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("say-hello", async ({ ui }) => {
+    await ui.notify("Hello from Eidos Plugin! 🎉")
+  })
+}
+```
+
+### 2. Load into Eidos Lite
+
+1. Open **Eidos Lite** and enter any Space.
+2. In the top toolbar, click the **Plugins** icon (between Search and the Space more menu).
+3. Click **Load development source…** and select your `hello.ts` file.
+4. Review the declared capabilities and enable the plugin for this Space.
+
+### 3. Run the command
+
+Press <kbd>Cmd</kbd>+<kbd>K</kbd> (or <kbd>Ctrl</kbd>+<kbd>K</kbd> on Windows/Linux), type **Hello World**, and press <kbd>Enter</kbd>.
+
+A notification toast appears: `Hello from Eidos Plugin! 🎉`. Whenever you edit and save `hello.ts`, Lite automatically recompiles and reloads the code.
+
+---
+
+## Extension capabilities
+
+A plugin can combine multiple capabilities in a single `plugin.json` manifest (or single-file export):
+
+| Your feature                            | Extension point    | User entry point                         |
+| --------------------------------------- | ------------------ | ---------------------------------------- |
+| Format Markdown or text                 | Formatter provider | Format Document or Format Document With… |
+| Count words or run a document operation | Action             | Cmd+K, optionally a custom shortcut      |
+| Edit CSV, Markdown, or custom files     | Document view      | File context menu → Open with            |
+| Open an independent plugin page         | Page view          | Space plugin navigation entry            |
+| Show table records on a map or chart    | Table view         | Table view menu → New view               |
+
+## Two ways to develop
+
+- **Single-file plugins (`.ts` / `.js`):** Export `manifest` and default `activate` or `mount`. Best for lightweight utilities, formatting scripts, and rapid prototypes without package management.
+- **Full projects (`eidos plugin create`):** Scaffolds a complete package directory with `plugin.json`, TypeScript, React, styles, and automated packaging into `.eidos-plugin` archives for distribution.
+
+## Guides and reference
+
+<CardGrid>
+  <LinkCard
+    title="Plugin development guide"
+    description="Step-by-step tutorial covering full projects, formatters, commands, document views, React, and publishing."
+    href="/plugins/guide/"
+  />
+  <LinkCard
+    title="CLI plugin commands"
+    description="Use eidos plugin create, check, and pack to scaffold and bundle plugin archives."
+    href="/cli/"
+  />
+  <LinkCard
+    title="API reference"
+    description="Complete reference for @eidos.space/plugin-sdk interfaces, contexts, and host methods."
+    href="/plugins/api/"
+  />
+  <LinkCard
+    title="Specifications"
+    description="Read the normative Plugin 1.0 architecture and host contract."
+    href="/specifications/"
+  />
+</CardGrid>

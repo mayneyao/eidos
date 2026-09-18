@@ -23,6 +23,7 @@ fn watch_git_path(path: &str) {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=../../packages/plugin-tools/templates");
     // Get git version if available
     let git_hash =
         git_output(&["rev-parse", "--short", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
