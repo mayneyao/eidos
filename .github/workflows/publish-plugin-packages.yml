@@ -67,16 +67,16 @@ jobs:
           test "$sdk_version" = "$VERSION"
           test "$tools_version" = "$VERSION"
 
+      - name: Build public packages
+        run: |
+          pnpm --filter @eidos.space/plugin-sdk run prepublishOnly
+          pnpm --filter @eidos.space/plugin-tools run prepublishOnly
+
       - name: Test Plugin SDK
         run: pnpm --filter @eidos.space/plugin-sdk test
 
       - name: Test Plugin Tools
         run: pnpm --filter @eidos.space/plugin-tools test
-
-      - name: Build public packages
-        run: |
-          pnpm --filter @eidos.space/plugin-sdk run prepublishOnly
-          pnpm --filter @eidos.space/plugin-tools run prepublishOnly
 
       - name: Pack reviewed artifacts
         env:
