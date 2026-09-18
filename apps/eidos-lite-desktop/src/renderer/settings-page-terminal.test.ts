@@ -53,9 +53,6 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
     await Promise.resolve()
   })
 
-  const wysiwygEditor = host.querySelector<HTMLButtonElement>(
-    'button[data-markdown-file-editing-mode="wysiwyg"]'
-  )
   const filesPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
   ].find((button) => button.textContent === "Files")
@@ -64,14 +61,24 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
     host.querySelector<HTMLElement>('[aria-labelledby="settings-files"]')
       ?.hidden
   ).toBe(false)
-  expect(
-    wysiwygEditor?.closest("section")?.getAttribute("aria-labelledby")
-  ).toBe("settings-files")
-  const htmlSource = host.querySelector<HTMLButtonElement>(
-    '[data-html-file-open-mode="source"]'
+
+  const markdownSelect = host.querySelector<HTMLSelectElement>(
+    "[data-markdown-file-editing-mode-select]"
   )
+  expect(markdownSelect).not.toBeNull()
+  expect(
+    markdownSelect?.closest("section")?.getAttribute("aria-labelledby")
+  ).toBe("settings-files")
+
+  const htmlSelect = host.querySelector<HTMLSelectElement>(
+    "[data-html-file-open-mode-select]"
+  )
+  expect(htmlSelect).not.toBeNull()
   await act(async () => {
-    htmlSource?.click()
+    if (htmlSelect) {
+      htmlSelect.value = "source"
+      htmlSelect.dispatchEvent(new Event("change", { bubbles: true }))
+    }
     await Promise.resolve()
   })
   expect(updatePreferences).toHaveBeenCalledWith({ htmlFileOpenMode: "source" })
@@ -79,9 +86,12 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
     "Choose the default editor for .md and .markdown files."
   )
   expect(host.textContent).not.toContain("Content fields")
-  expect(wysiwygEditor?.getAttribute("aria-checked")).toBe("false")
+
   await act(async () => {
-    wysiwygEditor?.click()
+    if (markdownSelect) {
+      markdownSelect.value = "wysiwyg"
+      markdownSelect.dispatchEvent(new Event("change", { bubbles: true }))
+    }
     await Promise.resolve()
   })
   expect(updatePreferences).toHaveBeenCalledWith({
@@ -96,8 +106,15 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
 
   const pluginsPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
-  ].find((button) => button.textContent === "Built-in Plugins")
+  ].find((button) => button.textContent === "Plugins")
   await act(async () => pluginsPage?.click())
+  expect(host.querySelector("[data-terminal-layout]")).toBeNull()
+  await act(async () => {
+    Array.from(host.querySelectorAll<HTMLButtonElement>(".plugin-list-entry"))
+      .find((button) => button.textContent?.includes("Terminal"))
+      ?.click()
+  })
+  expect(host.textContent).not.toContain("Uninstall")
   expect(window.location.hash).toBe("#/settings/plugins")
 
   const terminalSide = host.querySelector<HTMLButtonElement>(

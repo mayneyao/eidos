@@ -19,6 +19,7 @@ import type {
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
 import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
+import type { PluginApi } from "./plugins"
 import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
@@ -1492,6 +1493,7 @@ export const RUNTIME_READ_METHODS = [
   "getRecordNeighbors",
   "getGroupCounts",
   "calculateColumnStats",
+  "aggregateTable",
   "previewFormula",
   "previewCsv",
   "previewCsvFile",
@@ -1693,7 +1695,7 @@ export interface RuntimeSystemMetadataMergeOptions {
 
 export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
 
-export interface EidosLiteApi {
+export interface EidosLiteApi extends PluginApi {
   onTextDraftPrepareClose(listener: (token: string) => void): () => void
   onTextDraftReleaseClose(listener: () => void): () => void
   replyTextDraftClose(token: string, allowed: boolean): void

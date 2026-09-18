@@ -142,6 +142,21 @@ function EditableTextFile({
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const mountedRef = useRef(true)
 
+  useRendererLayoutEffect(() => {
+    const content = draft?.content ?? preview.content
+    if (content === draftRef.current) return
+    draftRef.current = content
+    setEditorContent(content)
+    setError(null)
+    setState(
+      conflictRef.current
+        ? "conflict"
+        : content === savedRef.current
+          ? "saved"
+          : "dirty"
+    )
+  }, [draft?.content, preview.content])
+
   useEffect(() => {
     mountedRef.current = true
     return () => {

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { registerPluginIpc } from "./plugins/plugin-ipc"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -616,6 +617,7 @@ export function registerIpc(
     syncFailuresForTesting?: readonly PackagedSyncFault[]
   } = {}
 ): { close(): Promise<void> } {
+  const closePlugins = registerPluginIpc(controller)
   const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
     controller.handleWorkspaceShortcutInput(owner, event, input)
   )
@@ -2414,6 +2416,7 @@ export function registerIpc(
   )
   return {
     async close() {
+      closePlugins()
       unsubscribeTerminalPlugin()
       htmlPreviewViews.closeAll()
       assetLeases.clear()

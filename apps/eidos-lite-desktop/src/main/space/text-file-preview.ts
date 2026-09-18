@@ -50,7 +50,7 @@ function hasBinaryControls(content: string): boolean {
   return controls > Math.max(2, content.length * 0.01)
 }
 
-function decodeText(
+export function decodeText(
   bytes: Uint8Array,
   truncated: boolean
 ): { content: string; encoding: TextFileEncoding; bom: boolean } | null {
@@ -83,7 +83,7 @@ function bytesRevision(bytes: Uint8Array, suffix = ""): string {
   return createHash("sha256").update(bytes).update(suffix).digest("hex")
 }
 
-function encodeText(
+export function encodeText(
   content: string,
   encoding: TextFileEncoding,
   bom: boolean

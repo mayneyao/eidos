@@ -31,6 +31,7 @@ import {
   EidosFileViewTabs,
   exportEidosFileViewCsv,
   eidosFileFeedCreatedField,
+  eidosFilePluginContributionId,
   eidosFileViewRowQuery,
   type EidosFileFormulaEditorAnchor,
   type EidosFileFormEditorMode,
@@ -65,6 +66,7 @@ import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
+import { usePluginTableViews } from "./plugin-table-view"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
@@ -73,7 +75,6 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileFormPlugin,
   eidosFileFeedPlugin,
 ]
-const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
 const CONTENT_FIELD_EDITING_MODE = "wysiwyg" as const
 interface FormulaEditorTarget {
   field: EidosFileFieldInfo
@@ -132,6 +133,11 @@ export function EidosFileWorkbench({
   onError,
 }: EidosFileWorkbenchProps) {
   const { locale } = useEidosLiteI18n()
+  const tablePlugins = usePluginTableViews()
+  const pluginRegistry = useMemo(
+    () => createEidosFilePluginRegistry([...VIEW_PLUGINS, ...tablePlugins]),
+    [tablePlugins]
+  )
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [formModes, setFormModes] = useState<
     Record<string, EidosFileFormEditorMode>
@@ -259,6 +265,7 @@ export function EidosFileWorkbench({
   const editorPlugins = useMemo<EidosFilePlugin[]>(
     () => [
       ...VIEW_PLUGINS,
+      ...tablePlugins,
       createEidosFileCsvImportPlugin({
         async pickFile() {
           const selection = await window.eidosLite.selectCsvFile()
@@ -302,7 +309,7 @@ export function EidosFileWorkbench({
         },
       }),
     ],
-    [source]
+    [source, tablePlugins]
   )
 
   const activeTable = useMemo(
@@ -407,6 +414,9 @@ export function EidosFileWorkbench({
   ])
 
   if (!activeTable) return null
+  const ViewSettings = activeView
+    ? pluginRegistry.views[activeView.type]?.settings
+    : undefined
 
   const updateActiveView = async (changes: UpdateEidosFileViewInput) => {
     if (!activeView) return
@@ -469,7 +479,7 @@ export function EidosFileWorkbench({
     options?: Pick<CreateEidosFileViewInput, "hiddenFields">
   ) => {
     const previousIds = new Set(activeTable.views.map((view) => view.id))
-    const contribution = PLUGIN_REGISTRY.views[type]
+    const contribution = pluginRegistry.views[type]
     const next = await source.createView(activeTable.table.id, {
       name,
       type,
@@ -574,7 +584,16 @@ export function EidosFileWorkbench({
         }}
         viewTabs={
           <EidosFileViewTabs
+            plugins={tablePlugins}
             views={activeTable.views}
+            pluginViews={tablePlugins.flatMap((plugin) =>
+              (plugin.views ?? []).map((view) => ({
+                id: eidosFilePluginContributionId(view.type) ?? view.type,
+                displayName: view.label,
+                pluginDisplayName: view.description,
+                icon: view.icon,
+              }))
+            )}
             fields={activeTable.fields}
             activeView={activeView}
             disabled={disabled}
@@ -638,18 +657,33 @@ export function EidosFileWorkbench({
         }
         fields={
           activeView ? (
-            <EidosFileViewFieldsPopover
-              fields={activeTable.fields}
-              view={activeView}
-              disabled={disabled}
-              onUpdate={updateActiveView}
-              onFieldOpen={setPropertyField}
-              onFieldAdd={(allowedTypes) => {
-                setFieldInsertIndex(null)
-                setFieldAllowedTypes(allowedTypes)
-                setAddPropertyOpen(true)
-              }}
-            />
+            <>
+              <EidosFileViewFieldsPopover
+                fields={activeTable.fields}
+                view={activeView}
+                disabled={disabled}
+                onUpdate={updateActiveView}
+                onFieldOpen={setPropertyField}
+                onFieldAdd={(allowedTypes) => {
+                  setFieldInsertIndex(null)
+                  setFieldAllowedTypes(allowedTypes)
+                  setAddPropertyOpen(true)
+                }}
+              />
+              {ViewSettings && (
+                <ViewSettings
+                  key={activeView.id}
+                  fields={activeTable.fields}
+                  view={activeView}
+                  disabled={disabled}
+                  onUpdate={(plugin) =>
+                    updateActiveView({
+                      properties: { ...activeView.properties, plugin },
+                    })
+                  }
+                />
+              )}
+            </>
           ) : undefined
         }
         fieldCreator={

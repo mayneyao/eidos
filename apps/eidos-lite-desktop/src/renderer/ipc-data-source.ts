@@ -92,6 +92,12 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     )
   }
 
+  aggregateTable(
+    ...args: Parameters<NonNullable<EidosFileDataSource["aggregateTable"]>>
+  ) {
+    return window.eidosLite.callRuntime(this.sessionId, "aggregateTable", args)
+  }
+
   previewFormula(
     ...args: Parameters<NonNullable<EidosFileDataSource["previewFormula"]>>
   ) {

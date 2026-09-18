@@ -32,6 +32,9 @@
     "smoke:markdown-image": "node scripts/packaged-markdown-image-smoke.mjs"
   },
   "dependencies": {
+    "@eidos.space/plugin-runtime": "workspace:*",
+    "chokidar": "5.0.0",
+    "@eidos.space/plugin-sdk": "workspace:*",
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
     "@eidos.space/markdown": "workspace:*",
@@ -45,12 +48,14 @@
     "@xterm/xterm": "^6.0.0",
     "csv-parse": "^7.0.2",
     "electron-updater": "^6.8.9",
+    "esbuild": "0.28.1",
     "lucide-react": "^0.471.2",
     "marked": "^4.3.0",
     "node-pty": "^1.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "smol-toml": "^1.8.0",
+    "typescript": "^5.8.3",
     "yaml": "2.9.0"
   },
   "optionalDependencies": {
@@ -71,7 +76,6 @@
     "electron-builder": "^26.16.1",
     "jsdom": "^26.1.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.3",
     "vite": "^8.1.5",
     "vite-plugin-electron": "^1.1.0",
     "vitest": "^4.1.11"

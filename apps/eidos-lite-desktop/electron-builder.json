@@ -11,14 +11,27 @@
     "package.json",
     "!**/node_modules/**/*",
     "**/node_modules/@eidos.space/graft/**/*",
+    "**/node_modules/@eidos.space/eidos-file/dist/**/*",
+    "**/node_modules/@eidos.space/eidos-file/package.json",
     "**/node_modules/@eidos.space/graft-*/**/*",
-    "**/node_modules/node-pty/**/*"
+    "**/node_modules/node-pty/**/*",
+    "**/node_modules/esbuild/**/*",
+    "**/node_modules/@esbuild/**/*",
+    "**/node_modules/typescript/**/*"
   ],
   "asarUnpack": [
+    "**/node_modules/typescript/**/*",
+    "**/node_modules/esbuild/**/*",
+    "**/node_modules/@esbuild/**/*",
     "**/node_modules/@eidos.space/graft-*/**/*",
     "**/node_modules/node-pty/**/*"
   ],
   "extraResources": [
+    {
+      "from": "node_modules/typescript/lib",
+      "to": "app.asar.unpacked/node_modules/typescript/lib",
+      "filter": ["*.d.ts"]
+    },
     {
       "from": "resources/publish-engine",
       "to": "publish-engine",

@@ -206,6 +206,12 @@ async function runtimeCall(
         objectValue(args[2], "query") as EidosFileRowQuery
       )
     }
+    case "aggregateTable":
+      return dataSource.aggregateTable?.(
+        requireString(args[0], "tableId"),
+        objectValue(args[1], "options") as any,
+        objectValue(args[2], "query") as EidosFileRowQuery
+      )
     case "previewFormula":
       return dataSource.previewFormula(...methodArgs<"previewFormula">(args))
     case "previewCsv": {

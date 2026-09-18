@@ -16,6 +16,8 @@ export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
   "focus-file-content",
   "search-space-text",
   "toggle-markdown-editing-mode",
+  "command-palette",
+  "format-document",
 ] as const
 
 export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
@@ -50,6 +52,8 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   "search-space-text",
   "toggle-markdown-editing-mode",
   ...EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS,
+  "command-palette",
+  "format-document",
 ] as const
 
 export type EidosLiteShortcutCommand =
@@ -68,6 +72,14 @@ export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
   Object.freeze({
     "new-file": "Mod+N",
     "quick-open": "Mod+P",
+    "command-palette": "Mod+K",
+    "format-document": (
+      typeof navigator !== "undefined"
+        ? /Linux/.test(navigator.platform)
+        : typeof process !== "undefined" && process.platform === "linux"
+    )
+      ? "Ctrl+Shift+I"
+      : "Alt+Shift+F",
     "toggle-sidebar": "Mod+Backslash",
     "toggle-theme": "Mod+Shift+L",
     "toggle-version": "Mod+Shift+H",

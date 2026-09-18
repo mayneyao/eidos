@@ -1,5 +1,45 @@
 # Eidos Lite Desktop
 
+File editor plugins: [specification](../../docs/specs/eidos-lite-plugins-1.0.md),
+[SDK](../../packages/plugin-sdk/README.md), and
+[developer quick start](../../packages/plugin-tools/README.md).
+The current Plugin 1.0 implementation supports offline document/page views and
+lazy workspace/document actions with one device-wide installation catalog,
+independent Space enablement and default editors, source watching,
+scoped text handles and local package installation. The host now has a tested
+text/directory grant policy and local grant persistence: permissions and include
+filters intersect the current declaration with the approved ceiling, grants are
+separate per Space/plugin, and revoke/rebind invalidates live handles. This is
+host infrastructure only. A native CLI transport and Lite adapter now provide
+directory listing and bounded text read/create/save, with directory-handle path
+traversal, symlink/hard-link rejection, root identity checks, revision checks and
+UTF-8/UTF-16 preservation. The caller must still apply grant filters, register
+protected source/config roots, and connect shared working copies and recovery.
+Resource picking and guest resource RPC are not connected, so installation still
+rejects named resources. Table views/actions and authoring IPC also remain pending;
+this is not complete Plugin 1.0 conformance.
+Plugins install once per device under `~/.eidos/plugins`
+(`%USERPROFILE%\.eidos\plugins` on Windows; override the location with an
+absolute `EIDOS_HOME`). Development and packaged-smoke profiles redirect Electron
+`userData`, so
+`EIDOS_LITE_DEV_USER_DATA=/absolute/test/profile pnpm dev:eidos-lite`
+from the repository root keeps an isolated plugin store and never touches the
+shared Eidos home. The first launch after upgrading migrates an existing
+`userData/plugins` store into the home.
+
+Native resource integration tests require a freshly built CLI from this checkout:
+
+```bash
+cd apps/cli
+cargo build --locked --bin eidos
+cd ../..
+EIDOS_PLUGIN_FS_TEST_BINARY="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/eidos-lite-desktop test src/main/plugins/plugin-filesystem.integration.test.ts
+```
+
+Without that explicit binary, the integration suite is skipped. Current native
+transport verification is on macOS; Windows/reparse-point and Linux validation
+must complete before enabling named resources across supported platforms.
+
 > [!NOTE]
 > Eidos Lite is the primary Eidos desktop product and the default target for
 > new desktop development. For the product overview and quick start, begin at

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { PluginListing } from "../shared/plugins"
+import { PluginManager } from "./plugin-manager"
 import {
   Blocks,
   Cloud,
@@ -70,7 +72,7 @@ const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "files", label: "Files", icon: FileText },
-  { id: "plugins", label: "Built-in Plugins", icon: Blocks },
+  { id: "plugins", label: "Plugins", icon: Blocks },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
@@ -189,6 +191,157 @@ export function SettingsPage() {
     void window.eidosLite.getUpdateStatus().then(setUpdateStatus)
     return window.eidosLite.onUpdateStatusChanged(setUpdateStatus)
   }, [])
+
+  const [pluginListing, setPluginListing] = useState<PluginListing | null>(null)
+
+  useEffect(() => {
+    if (activePage !== "files" || !window.eidosLite?.listPlugins) return
+    let active = true
+    const refresh = () => {
+      void window.eidosLite
+        .listPlugins()
+        .then((listing) => {
+          if (active) setPluginListing(listing)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const unsubscribe = window.eidosLite.onPluginEvent?.(({ event }) => {
+      if (event.observation === "host.catalog") refresh()
+    })
+    window.addEventListener("eidos-plugins-changed", refresh)
+    return () => {
+      active = false
+      unsubscribe?.()
+      window.removeEventListener("eidos-plugins-changed", refresh)
+    }
+  }, [activePage])
+
+  const { markdownPluginEditors, htmlPluginEditors, fileEditorGroups } =
+    useMemo(() => {
+      const associations =
+        pluginListing?.associations ?? pluginListing?.space?.associations ?? {}
+
+      const extChoicesMap = new Map<string, { key: string; label: string }[]>()
+
+      for (const plugin of pluginListing?.plugins ?? []) {
+        for (const placement of plugin.manifest.placements ?? []) {
+          if (
+            placement.location !== "file/open" ||
+            !placement.extensions?.length
+          )
+            continue
+          const view = plugin.manifest.views?.find(
+            (v) => v.id === placement.view && v.context === "document"
+          )
+          if (!view) continue
+          const editorKey = `${plugin.manifest.id}/${view.id}`
+          const editorLabel =
+            plugin.manifest.name === view.title
+              ? view.title
+              : `${view.title} (${plugin.manifest.name})`
+
+          for (const rawExt of placement.extensions) {
+            const ext = (
+              rawExt.startsWith(".") ? rawExt : `.${rawExt}`
+            ).toLowerCase()
+            if (ext === ".eidos") continue
+            if (!extChoicesMap.has(ext)) {
+              extChoicesMap.set(ext, [])
+            }
+            const list = extChoicesMap.get(ext)!
+            if (!list.some((item) => item.key === editorKey)) {
+              list.push({ key: editorKey, label: editorLabel })
+            }
+          }
+        }
+      }
+
+      const mdChoices = [
+        ...(extChoicesMap.get(".md") ?? []),
+        ...(extChoicesMap.get(".markdown") ?? []),
+      ].filter(
+        (item, index, self) =>
+          self.findIndex((other) => other.key === item.key) === index
+      )
+
+      const htmlChoices = [
+        ...(extChoicesMap.get(".html") ?? []),
+        ...(extChoicesMap.get(".htm") ?? []),
+      ].filter(
+        (item, index, self) =>
+          self.findIndex((other) => other.key === item.key) === index
+      )
+
+      const nonBuiltinExts = [...extChoicesMap.keys()]
+        .filter(
+          (ext) =>
+            ext !== ".md" &&
+            ext !== ".markdown" &&
+            ext !== ".html" &&
+            ext !== ".htm"
+        )
+        .sort()
+
+      const groups: {
+        extensions: string[]
+        label: string
+        options: { key: string; label: string }[]
+        selected: string
+      }[] = []
+
+      for (const ext of nonBuiltinExts) {
+        const choices = extChoicesMap.get(ext)!
+        const selected = associations[ext] ?? "builtin"
+        const options = [
+          { key: "builtin", label: t("Built-in editor") },
+          ...choices,
+        ]
+
+        const existing = groups.find(
+          (g) =>
+            g.selected === selected &&
+            g.options.length === options.length &&
+            g.options.every((opt, idx) => opt.key === options[idx].key)
+        )
+        if (existing) {
+          existing.extensions.push(ext)
+          existing.label = existing.extensions.join(", ")
+        } else {
+          groups.push({
+            extensions: [ext],
+            label: ext,
+            options,
+            selected,
+          })
+        }
+      }
+
+      return {
+        markdownPluginEditors: mdChoices,
+        htmlPluginEditors: htmlChoices,
+        fileEditorGroups: groups,
+      }
+    }, [pluginListing, t])
+
+  const currentAssociations =
+    pluginListing?.associations ?? pluginListing?.space?.associations ?? {}
+
+  const activeMarkdownPlugin = markdownPluginEditors.find(
+    (p) =>
+      p.key === currentAssociations[".md"] ||
+      p.key === currentAssociations[".markdown"]
+  )
+  const selectedMarkdownEditor =
+    activeMarkdownPlugin?.key ?? preferences.markdownFileEditingMode
+
+  const activeHtmlPlugin = htmlPluginEditors.find(
+    (p) =>
+      p.key === currentAssociations[".html"] ||
+      p.key === currentAssociations[".htm"]
+  )
+  const selectedHtmlEditor =
+    activeHtmlPlugin?.key ?? preferences.htmlFileOpenMode
 
   const updatePreferences = useCallback(
     async (patch: Partial<EidosLitePreferences>) => {
@@ -669,11 +822,8 @@ export function SettingsPage() {
               hidden={activePage !== "files"}
             >
               <h2 id="settings-files">{t("Files")}</h2>
-              <div className="settings-group">
-                <div
-                  className="settings-row settings-row-stacked"
-                  data-markdown-file-editing-mode
-                >
+              <div className="settings-group" data-default-file-editors>
+                <div className="settings-row" data-markdown-file-editing-mode>
                   <div className="settings-row-copy">
                     <strong>{t("Markdown file editor")}</strong>
                     <small>
@@ -682,33 +832,93 @@ export function SettingsPage() {
                       )}
                     </small>
                   </div>
-                  <div
-                    className="settings-segmented-control"
-                    data-segment-count={MARKDOWN_EDITOR_OPTIONS.length}
-                    role="radiogroup"
+                  <select
+                    className="settings-shell-select"
                     aria-label={t("Markdown file editor")}
+                    data-markdown-file-editing-mode-select
+                    value={selectedMarkdownEditor}
+                    onChange={(event) => {
+                      const nextKey = event.currentTarget.value
+                      void (async () => {
+                        try {
+                          if (nextKey === "wysiwyg" || nextKey === "source") {
+                            if (window.eidosLite?.setPluginDefault) {
+                              await window.eidosLite.setPluginDefault(
+                                ".md",
+                                null
+                              )
+                              await window.eidosLite.setPluginDefault(
+                                ".markdown",
+                                null
+                              )
+                            }
+                            await updatePreferences({
+                              markdownFileEditingMode:
+                                nextKey as EidosLiteMarkdownEditingMode,
+                            })
+                          } else if (window.eidosLite?.setPluginDefault) {
+                            await window.eidosLite.setPluginDefault(
+                              ".md",
+                              nextKey
+                            )
+                            await window.eidosLite.setPluginDefault(
+                              ".markdown",
+                              nextKey
+                            )
+                          }
+                          window.dispatchEvent(
+                            new Event("eidos-plugins-changed")
+                          )
+                          if (window.eidosLite?.listPlugins) {
+                            setPluginListing(
+                              await window.eidosLite.listPlugins()
+                            )
+                          }
+                        } catch (cause) {
+                          setError(
+                            cause instanceof Error
+                              ? cause.message
+                              : String(cause)
+                          )
+                        }
+                      })()
+                    }}
                   >
-                    {MARKDOWN_EDITOR_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        data-markdown-file-editing-mode={option.value}
-                        aria-checked={
-                          preferences.markdownFileEditingMode === option.value
-                        }
-                        key={option.value}
-                        onClick={() =>
-                          void updatePreferences({
-                            markdownFileEditingMode: option.value,
-                          })
-                        }
-                      >
-                        {t(option.label)}
-                      </button>
-                    ))}
-                  </div>
+                    {markdownPluginEditors.length > 0 ? (
+                      <>
+                        <optgroup label={t("Built-in")}>
+                          {MARKDOWN_EDITOR_OPTIONS.map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              data-markdown-file-editing-mode={option.value}
+                            >
+                              {t(option.label)}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label={t("Plugins")}>
+                          {markdownPluginEditors.map((p) => (
+                            <option key={p.key} value={p.key}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      MARKDOWN_EDITOR_OPTIONS.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          data-markdown-file-editing-mode={option.value}
+                        >
+                          {t(option.label)}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
-                <div className="settings-row">
+                <div className="settings-row" data-html-file-open-mode>
                   <div className="settings-row-copy">
                     <strong>{t("HTML default open mode")}</strong>
                     <small>
@@ -717,28 +927,150 @@ export function SettingsPage() {
                       )}
                     </small>
                   </div>
-                  <div
-                    className="settings-segmented-control"
-                    data-segment-count={2}
-                    role="radiogroup"
+                  <select
+                    className="settings-shell-select"
                     aria-label={t("HTML default open mode")}
-                  >
-                    {(["source", "preview"] as const).map((mode) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        key={mode}
-                        data-html-file-open-mode={mode}
-                        aria-checked={preferences.htmlFileOpenMode === mode}
-                        onClick={() =>
-                          void updatePreferences({ htmlFileOpenMode: mode })
+                    data-html-file-open-mode-select
+                    value={selectedHtmlEditor}
+                    onChange={(event) => {
+                      const nextKey = event.currentTarget.value
+                      void (async () => {
+                        try {
+                          if (nextKey === "preview" || nextKey === "source") {
+                            if (window.eidosLite?.setPluginDefault) {
+                              await window.eidosLite.setPluginDefault(
+                                ".html",
+                                null
+                              )
+                              await window.eidosLite.setPluginDefault(
+                                ".htm",
+                                null
+                              )
+                            }
+                            await updatePreferences({
+                              htmlFileOpenMode: nextKey as "preview" | "source",
+                            })
+                          } else if (window.eidosLite?.setPluginDefault) {
+                            await window.eidosLite.setPluginDefault(
+                              ".html",
+                              nextKey
+                            )
+                            await window.eidosLite.setPluginDefault(
+                              ".htm",
+                              nextKey
+                            )
+                          }
+                          window.dispatchEvent(
+                            new Event("eidos-plugins-changed")
+                          )
+                          if (window.eidosLite?.listPlugins) {
+                            setPluginListing(
+                              await window.eidosLite.listPlugins()
+                            )
+                          }
+                        } catch (cause) {
+                          setError(
+                            cause instanceof Error
+                              ? cause.message
+                              : String(cause)
+                          )
                         }
-                      >
-                        {t(mode === "preview" ? "Preview" : "Source")}
-                      </button>
-                    ))}
-                  </div>
+                      })()
+                    }}
+                  >
+                    {htmlPluginEditors.length > 0 ? (
+                      <>
+                        <optgroup label={t("Built-in")}>
+                          <option
+                            value="preview"
+                            data-html-file-open-mode="preview"
+                          >
+                            {t("Preview")}
+                          </option>
+                          <option
+                            value="source"
+                            data-html-file-open-mode="source"
+                          >
+                            {t("Source")}
+                          </option>
+                        </optgroup>
+                        <optgroup label={t("Plugins")}>
+                          {htmlPluginEditors.map((p) => (
+                            <option key={p.key} value={p.key}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      <>
+                        <option
+                          value="preview"
+                          data-html-file-open-mode="preview"
+                        >
+                          {t("Preview")}
+                        </option>
+                        <option
+                          value="source"
+                          data-html-file-open-mode="source"
+                        >
+                          {t("Source")}
+                        </option>
+                      </>
+                    )}
+                  </select>
                 </div>
+                {fileEditorGroups.map((group) => (
+                  <div className="settings-row" key={group.label}>
+                    <div className="settings-row-copy">
+                      <strong>{group.label}</strong>
+                      <small>
+                        {t(
+                          "Choose the default editor for {extensions} files.",
+                          { extensions: group.label }
+                        )}
+                      </small>
+                    </div>
+                    <select
+                      className="settings-shell-select"
+                      aria-label={group.label}
+                      value={group.selected}
+                      onChange={(event) => {
+                        const nextKey = event.currentTarget.value
+                        void (async () => {
+                          try {
+                            for (const ext of group.extensions) {
+                              await window.eidosLite.setPluginDefault(
+                                ext,
+                                nextKey === "builtin" ? null : nextKey
+                              )
+                            }
+                            window.dispatchEvent(
+                              new Event("eidos-plugins-changed")
+                            )
+                            if (window.eidosLite.listPlugins) {
+                              setPluginListing(
+                                await window.eidosLite.listPlugins()
+                              )
+                            }
+                          } catch (cause) {
+                            setError(
+                              cause instanceof Error
+                                ? cause.message
+                                : String(cause)
+                            )
+                          }
+                        })()
+                      }}
+                    >
+                      {group.options.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -1018,126 +1350,152 @@ export function SettingsPage() {
             </section>
 
             <section
-              aria-labelledby="settings-plugins"
+              aria-label={t("Plugins")}
+              id="settings-plugins"
               hidden={activePage !== "plugins"}
             >
-              <h2 id="settings-plugins">{t("Built-in Plugins")}</h2>
-              <div className="settings-group">
-                <div className="settings-row" data-built-in-plugin="terminal">
-                  <div className="settings-row-copy">
-                    <strong>{t("Terminal")}</strong>
-                    <small>
-                      {t(
-                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
-                      )}
-                    </small>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    className="settings-switch"
-                    aria-label={t("Terminal")}
-                    aria-checked={preferences.builtInPlugins.terminal}
-                    onClick={() =>
-                      void updatePreferences({
-                        builtInPlugins: {
-                          terminal: !preferences.builtInPlugins.terminal,
-                        },
-                      })
-                    }
-                  >
-                    <span />
-                  </button>
-                </div>
-                <div
-                  className="settings-row settings-row-stacked"
-                  data-terminal-layout
-                >
-                  <div className="settings-row-copy">
-                    <strong>{t("Terminal layout")}</strong>
-                    <small>
-                      {t(
-                        "Choose how Terminal and file content share the middle work area."
-                      )}
-                    </small>
-                  </div>
-                  <div
-                    className="settings-segmented-control"
-                    data-segment-count={TERMINAL_LAYOUT_OPTIONS.length}
-                    role="radiogroup"
-                    aria-label={t("Terminal layout")}
-                  >
-                    {TERMINAL_LAYOUT_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        data-terminal-layout={option.value}
-                        aria-checked={
-                          preferences.terminalLayout === option.value
-                        }
-                        disabled={!preferences.builtInPlugins.terminal}
-                        key={option.value}
-                        onClick={() =>
-                          void updatePreferences({
-                            terminalLayout: option.value,
-                          })
-                        }
-                      >
-                        {t(option.label)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div
-                  className="settings-row settings-row-stacked"
-                  data-terminal-shell
-                >
-                  <div className="settings-row-copy">
-                    <strong>{t("Default shell")}</strong>
-                    <small>
-                      {t(
-                        "Choose which installed shell new Terminal tabs use. Existing tabs are not restarted."
-                      )}
-                    </small>
-                  </div>
-                  <select
-                    className="settings-shell-select"
-                    aria-label={t("Default shell")}
-                    value={preferences.terminalShell ?? ""}
-                    disabled={
-                      terminalShellsLoading ||
-                      !preferences.builtInPlugins.terminal
-                    }
-                    onChange={(event) =>
-                      void updatePreferences({
-                        terminalShell: event.currentTarget.value || null,
-                      })
-                    }
-                  >
-                    <option value="">
-                      {terminalShellsLoading
-                        ? t("Detecting shells…")
-                        : systemTerminalShell
-                          ? t("System default — {shell}", {
-                              shell: systemTerminalShell.name,
-                            })
-                          : t("System default")}
-                    </option>
-                    {selectedTerminalShellUnavailable ? (
-                      <option value={preferences.terminalShell ?? ""}>
-                        {t("Unavailable — {shell}", {
-                          shell: preferences.terminalShell ?? "",
-                        })}
-                      </option>
-                    ) : null}
-                    {terminalShells.map((shell) => (
-                      <option key={shell.executable} value={shell.executable}>
-                        {shell.name} — {shell.executable}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {activePage === "plugins" && (
+                <PluginManager
+                  variant="settings"
+                  builtins={[
+                    {
+                      id: "builtin.terminal",
+                      name: t("Terminal"),
+                      enabled: preferences.builtInPlugins.terminal,
+                      details: (
+                        <div className="settings-group">
+                          <div
+                            className="settings-row"
+                            data-built-in-plugin="terminal"
+                          >
+                            <div className="settings-row-copy">
+                              <strong>{t("Terminal")}</strong>
+                              <small>
+                                {t(
+                                  "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+                                )}
+                              </small>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              className="settings-switch"
+                              aria-label={t("Terminal")}
+                              aria-checked={preferences.builtInPlugins.terminal}
+                              onClick={() =>
+                                void updatePreferences({
+                                  builtInPlugins: {
+                                    terminal:
+                                      !preferences.builtInPlugins.terminal,
+                                  },
+                                })
+                              }
+                            >
+                              <span />
+                            </button>
+                          </div>
+                          <div
+                            className="settings-row settings-row-stacked"
+                            data-terminal-layout
+                          >
+                            <div className="settings-row-copy">
+                              <strong>{t("Terminal layout")}</strong>
+                              <small>
+                                {t(
+                                  "Choose how Terminal and file content share the middle work area."
+                                )}
+                              </small>
+                            </div>
+                            <div
+                              className="settings-segmented-control"
+                              data-segment-count={
+                                TERMINAL_LAYOUT_OPTIONS.length
+                              }
+                              role="radiogroup"
+                              aria-label={t("Terminal layout")}
+                            >
+                              {TERMINAL_LAYOUT_OPTIONS.map((option) => (
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  data-terminal-layout={option.value}
+                                  aria-checked={
+                                    preferences.terminalLayout === option.value
+                                  }
+                                  disabled={
+                                    !preferences.builtInPlugins.terminal
+                                  }
+                                  key={option.value}
+                                  onClick={() =>
+                                    void updatePreferences({
+                                      terminalLayout: option.value,
+                                    })
+                                  }
+                                >
+                                  {t(option.label)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div
+                            className="settings-row settings-row-stacked"
+                            data-terminal-shell
+                          >
+                            <div className="settings-row-copy">
+                              <strong>{t("Default shell")}</strong>
+                              <small>
+                                {t(
+                                  "Choose which installed shell new Terminal tabs use. Existing tabs are not restarted."
+                                )}
+                              </small>
+                            </div>
+                            <select
+                              className="settings-shell-select"
+                              aria-label={t("Default shell")}
+                              value={preferences.terminalShell ?? ""}
+                              disabled={
+                                terminalShellsLoading ||
+                                !preferences.builtInPlugins.terminal
+                              }
+                              onChange={(event) =>
+                                void updatePreferences({
+                                  terminalShell:
+                                    event.currentTarget.value || null,
+                                })
+                              }
+                            >
+                              <option value="">
+                                {terminalShellsLoading
+                                  ? t("Detecting shells…")
+                                  : systemTerminalShell
+                                    ? t("System default — {shell}", {
+                                        shell: systemTerminalShell.name,
+                                      })
+                                    : t("System default")}
+                              </option>
+                              {selectedTerminalShellUnavailable ? (
+                                <option value={preferences.terminalShell ?? ""}>
+                                  {t("Unavailable — {shell}", {
+                                    shell: preferences.terminalShell ?? "",
+                                  })}
+                                </option>
+                              ) : null}
+                              {terminalShells.map((shell) => (
+                                <option
+                                  key={shell.executable}
+                                  value={shell.executable}
+                                >
+                                  {shell.name} — {shell.executable}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              )}
             </section>
 
             <section

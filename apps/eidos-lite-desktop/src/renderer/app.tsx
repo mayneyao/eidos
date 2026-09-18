@@ -40,6 +40,10 @@ import {
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { WorkspaceHeading } from "./workspace-heading"
+import { PluginEditor } from "./plugin-editor"
+import { PluginWorkspace, PluginPage } from "./plugin-workspace"
+import { PluginManager } from "./plugin-manager"
+import type { PluginOpenResult } from "../shared/plugins"
 import {
   resolveTextSearchTarget,
   type TextSearchHit,
@@ -90,6 +94,7 @@ import {
   canNavigateHistory,
   NAVIGATION_EVENT,
   closeRecordLocation,
+  closeCurrentPage,
   initializeNavigationHistory,
   isVersionDiffNavigationLocation,
   pathMatchesPrefix,
@@ -126,7 +131,7 @@ import {
   SidebarUpdateAction,
 } from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
-import { SpaceEntryOpenMenuItems } from "./space-entry-open-menu"
+import { SpaceEntryOpenActions } from "./space-entry-open-menu"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -149,6 +154,8 @@ import {
   workspaceShortcutLabel,
 } from "./workspace-shortcuts"
 import { resolveWorkbenchSurfaces } from "./workbench-layout"
+
+const pluginNameCache = new Map<string, string>()
 
 let eidosFileWorkbenchModule:
   | Promise<{
@@ -840,6 +847,34 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     Record<string, TextFileDraft | undefined>
   >({})
   const [textPreviewReloadToken, setTextPreviewReloadToken] = useState(0)
+  const [pluginEditor, setPluginEditor] = useState<
+    | (NonNullable<PluginOpenResult["instance"]> & { relativePath: string })
+    | null
+  >(null)
+  const [pluginsVisible, setPluginsVisible] = useState(false)
+  const [pluginDetailId, setPluginDetailId] = useState<string | null>(null)
+  const [pluginDetailName, setPluginDetailName] = useState<string | null>(null)
+  const [pluginPage, setPluginPage] = useState<string | null>(null)
+  const [pluginPageRevision, setPluginPageRevision] = useState(0)
+  const navigatePluginPage = (key: string) => {
+    setPluginsVisible(false)
+    setPluginDetailId(null)
+    setPluginDetailName(null)
+    setPluginEditor(null)
+    setPluginPage(key)
+    setPluginPageRevision((value) => value + 1)
+  }
+  useEffect(() => {
+    setPluginEditor((current) =>
+      current?.relativePath === textPreview?.relativePath ? current : null
+    )
+  }, [textPreview?.relativePath])
+  useEffect(() => {
+    setPluginEditor(null)
+    setPluginPage(null)
+    setPluginDetailId(null)
+    setPluginDetailName(null)
+  }, [space?.id])
   const [openingSpace, setOpeningSpace] = useState(false)
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
@@ -1164,6 +1199,35 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       )
     },
     [space?.id]
+  )
+
+  const goToPluginsList = useCallback(() => {
+    setPluginsVisible(true)
+    setPluginPage(null)
+    setPluginDetailId(null)
+    setPluginDetailName(null)
+    recordNavigationLocation({ type: "plugins" })
+  }, [recordNavigationLocation])
+
+  const handleSelectPlugin = useCallback(
+    (id: string | null, name?: string | null) => {
+      setPluginsVisible(true)
+      setPluginPage(null)
+      setPluginDetailId(id)
+      if (!id) {
+        setPluginDetailName(null)
+      } else {
+        const resolvedName = name ?? pluginNameCache.get(id) ?? null
+        setPluginDetailName(resolvedName)
+        if (name) {
+          pluginNameCache.set(id, name)
+        }
+      }
+      recordNavigationLocation(
+        id ? { type: "plugins", pluginId: id } : { type: "plugins" }
+      )
+    },
+    [recordNavigationLocation]
   )
 
   const updateRecentFiles = useCallback(
@@ -1617,6 +1681,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 current?.relativePath === relativePath ? result.file : current
               )
               setTextPreviewReloadToken((current) => current + 1)
+              setPluginEditor(null)
             }
           },
         })
@@ -1951,10 +2016,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         recordHistory?: boolean
         tableId?: string
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
+        pluginEditor?: string
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
       if (fileOpenInFlight.current) return false
+      setPluginsVisible(false)
+      setPluginPage(null)
       // History navigation inside an open Eidos File only changes the table
       // or record. Reuse its live session instead of reopening the file.
       const historyFile =
@@ -2004,7 +2072,25 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           const preview = await window.eidosLite.previewTextFile(
             entry.relativePath
           )
-          await prepareTextFilePreview(preview, editingMode)
+          const draft = textDraftLifecycle.getDraft(entry.relativePath)
+          const plugin = window.eidosLite.openPluginEditor
+            ? await window.eidosLite.openPluginEditor(
+                entry.relativePath,
+                options.pluginEditor ??
+                  (options.fileOpenMode ? "builtin" : undefined),
+                draft
+                  ? { text: draft.content, expectedRevision: draft.revision }
+                  : undefined
+              )
+            : { instance: null }
+          if (!plugin.instance)
+            await prepareTextFilePreview(preview, editingMode)
+          setPluginEditor(
+            plugin.instance
+              ? { ...plugin.instance, relativePath: entry.relativePath }
+              : null
+          )
+          if (plugin.warning) setError(plugin.warning)
           setActiveSession(null)
           setTextPreviewEditingMode(editingMode)
           setTextPreviewHtmlMode(htmlMode)
@@ -2379,6 +2465,25 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
             let currentSpace = launchSpace.current
             if (!currentSpace) continue
+            if (
+              typeof target === "object" &&
+              target !== null &&
+              target.type === "plugins"
+            ) {
+              setPluginsVisible(true)
+              setPluginPage(null)
+              setPluginDetailId(target.pluginId ?? null)
+              if (!target.pluginId) {
+                setPluginDetailName(null)
+              } else {
+                const cached = pluginNameCache.get(target.pluginId)
+                if (cached) setPluginDetailName(cached)
+              }
+              continue
+            }
+            setPluginsVisible(false)
+            setPluginDetailId(null)
+            setPluginDetailName(null)
             if (typeof target === "object" && target?.type === "whats-new")
               continue
             if (typeof target === "object" && target?.type === "merge") {
@@ -2641,6 +2746,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       }
       if (workspaceShortcut === "quick-open" && space) {
         setQuickOpenVisible((current) => !current)
+        return
+      }
+      if (workspaceShortcut === "command-palette") {
+        setQuickOpenVisible(false)
         return
       }
       if (workspaceShortcut === "search-space-text" && space) {
@@ -3192,6 +3301,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         </header>
         <WorkspaceHeading
           name={space.name}
+          onPlugins={goToPluginsList}
+          pluginsActive={pluginsVisible}
+          pluginsDisabled={pathMutationBusy || localInteractionBlocked}
           path={space.displayPath}
           searching={textSearchVisible}
           query={textSearchQuery}
@@ -3411,7 +3523,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       <main
         className="editor-region"
         id="main-content"
-        hidden={!editorSurfaceVisible && !whatsNew.open}
+        hidden={
+          !editorSurfaceVisible &&
+          !whatsNew.open &&
+          !pluginPage &&
+          !pluginsVisible
+        }
         data-whats-new-open={whatsNew.open ? "true" : "false"}
       >
         <header className="file-titlebar">
@@ -3420,7 +3537,36 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             : null}
           <div className="file-titlebar-identity">
             <div>
-              {whatsNew.open ? (
+              {pluginsVisible ? (
+                <div className="file-titlebar-breadcrumbs">
+                  {pluginDetailId ? (
+                    <>
+                      <button
+                        type="button"
+                        className="file-titlebar-breadcrumb-link"
+                        onClick={goToPluginsList}
+                      >
+                        <strong>{t("Plugins")}</strong>
+                      </button>
+                      <span
+                        className="file-titlebar-breadcrumb-separator"
+                        aria-hidden="true"
+                      >
+                        /
+                      </span>
+                      <strong className="file-titlebar-breadcrumb-current">
+                        {pluginDetailName || pluginDetailId}
+                      </strong>
+                    </>
+                  ) : (
+                    <strong className="file-titlebar-breadcrumb-current">
+                      {t("Plugins")}
+                    </strong>
+                  )}
+                </div>
+              ) : pluginPage ? (
+                <strong>{t("Plugin page")}</strong>
+              ) : whatsNew.open ? (
                 <strong>RELEASE_NOTES.md</strong>
               ) : activeDocumentPath && !titlebarPresentation.pending ? (
                 <button
@@ -3456,7 +3602,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               ) : (
                 <strong>{titlebarPresentation.title}</strong>
               )}
-              {!whatsNew.open &&
+              {!pluginPage &&
+              !pluginsVisible &&
+              !whatsNew.open &&
               activeDocumentDirty &&
               !titlebarPresentation.pending ? (
                 <span
@@ -3466,7 +3614,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 />
               ) : null}
             </div>
-            {whatsNew.open ? (
+            {pluginsVisible ? (
+              <button
+                type="button"
+                className="icon-button active-file-close"
+                aria-label={t("Close")}
+                onClick={closeCurrentPage}
+              >
+                <X />
+              </button>
+            ) : whatsNew.open ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
@@ -3475,7 +3632,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               >
                 <X />
               </button>
-            ) : activeDocumentPath && !titlebarPresentation.pending ? (
+            ) : !pluginPage &&
+              !pluginsVisible &&
+              activeDocumentPath &&
+              !titlebarPresentation.pending ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
@@ -3489,6 +3649,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           </div>
           <div
             className="file-titlebar-actions"
+            hidden={Boolean(pluginPage) || pluginsVisible}
             role="toolbar"
             aria-label={t("Space actions")}
           >
@@ -3647,13 +3808,189 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
         <div className="editor-work-area">
           <div className="editor-primary-area">
+            <PluginWorkspace
+              key={space.id}
+              navigationVisible={false}
+              disabled={
+                pathMutationBusy || localInteractionBlocked || !!pathDialog
+              }
+              commands={[
+                {
+                  key: "host/quick-open",
+                  title: t("Quick Open"),
+                  shortcut: workspaceShortcutLabel(
+                    "quick-open",
+                    macos,
+                    keyboardShortcuts
+                  ),
+                  run: () => setQuickOpenVisible(true),
+                },
+                {
+                  key: "host/new-file",
+                  title: t("New File"),
+                  shortcut: workspaceShortcutLabel(
+                    "new-file",
+                    macos,
+                    keyboardShortcuts
+                  ),
+                  run: () =>
+                    setPathDialog({
+                      action: "create-file",
+                      entry: selectedEntry,
+                    }),
+                },
+                {
+                  key: "host/plugins",
+                  title: t("Plugins"),
+                  run: goToPluginsList,
+                },
+                {
+                  key: "host/theme",
+                  title: t("Toggle theme"),
+                  shortcut: workspaceShortcutLabel(
+                    "toggle-theme",
+                    macos,
+                    keyboardShortcuts
+                  ),
+                  run: toggleTheme,
+                },
+                {
+                  key: "host/sidebar",
+                  title: t("Toggle Space Explorer"),
+                  shortcut: workspaceShortcutLabel(
+                    "toggle-sidebar",
+                    macos,
+                    keyboardShortcuts
+                  ),
+                  run: toggleSidebar,
+                },
+                ...(terminalPluginEnabled
+                  ? [
+                      {
+                        key: "host/terminal",
+                        title: t("Toggle terminal"),
+                        shortcut: terminalShortcutLabel,
+                        run: toggleTerminalPanel,
+                      },
+                    ]
+                  : []),
+              ]}
+              onPage={(key) => {
+                navigatePluginPage(key)
+              }}
+              document={
+                !pluginPage &&
+                !pluginsVisible &&
+                !whatsNew.open &&
+                editorSurfaceVisible &&
+                textPreview
+                  ? {
+                      path: textPreview.relativePath,
+                      draft: textFileDrafts[textPreview.relativePath]
+                        ? {
+                            text: textFileDrafts[textPreview.relativePath]!
+                              .content,
+                            expectedRevision:
+                              textFileDrafts[textPreview.relativePath]!
+                                .revision,
+                          }
+                        : undefined,
+                    }
+                  : undefined
+              }
+              onDraft={(path, draft) =>
+                updateTextFileDraft(
+                  path,
+                  draft
+                    ? { content: draft.text, revision: draft.expectedRevision }
+                    : null
+                )
+              }
+              onActionComplete={async (path) => {
+                const spaceId = space.id
+                const preview = await window.eidosLite.previewTextFile(path)
+                // Activation and saving can finish after navigation. Refresh
+                // only the same file in the same Space.
+                if (
+                  titleActionRef.current.spaceId !== spaceId ||
+                  titleActionRef.current.path !== path
+                )
+                  return
+                setTextPreview(preview)
+                setTextPreviewReloadToken((token) => token + 1)
+              }}
+            />
+            {pluginsVisible && (
+              <section
+                className="plugin-management-panel"
+                aria-label={t("Plugins")}
+              >
+                <PluginManager
+                  key={space.id}
+                  spaceAvailable
+                  onOpenPage={navigatePluginPage}
+                  selectedPluginId={pluginDetailId}
+                  onSelectPlugin={handleSelectPlugin}
+                  onPluginNameChange={(name) => {
+                    if (name && pluginDetailId) {
+                      pluginNameCache.set(pluginDetailId, name)
+                    }
+                    setPluginDetailName(name)
+                  }}
+                />
+              </section>
+            )}
             <div
               className="editor-work-content"
+              hidden={pluginsVisible}
               ref={(element) => {
                 element?.toggleAttribute("inert", pathMutationBusy)
               }}
             >
-              {textPreview ? (
+              {pluginPage ? (
+                <PluginPage
+                  key={`${space.id}/${pluginPage}/${pluginPageRevision}`}
+                  pageKey={pluginPage}
+                  onNavigate={navigatePluginPage}
+                  onClose={() => setPluginPage(null)}
+                />
+              ) : textPreview &&
+                pluginEditor?.relativePath === textPreview.relativePath ? (
+                <PluginEditor
+                  key={pluginEditor.ticket}
+                  instance={pluginEditor}
+                  onNavigate={navigatePluginPage}
+                  onDraft={(change) =>
+                    updateTextFileDraft(
+                      pluginEditor.relativePath,
+                      change
+                        ? {
+                            content: change.text,
+                            revision: change.expectedRevision,
+                          }
+                        : null
+                    )
+                  }
+                  onFallback={() => {
+                    const entry = findSpaceEntry(
+                      space.entries,
+                      pluginEditor.relativePath
+                    )
+                    if (entry)
+                      void openEntry(entry, { pluginEditor: "builtin" })
+                  }}
+                  onRetry={() => {
+                    const entry = findSpaceEntry(
+                      space.entries,
+                      pluginEditor.relativePath
+                    )
+                    if (entry)
+                      void openEntry(entry, {
+                        pluginEditor: pluginEditor.editor.key,
+                      })
+                  }}
+                />
+              ) : textPreview ? (
                 textPreview.type === "media" ? (
                   <MediaFilePreview
                     preview={textPreview}
@@ -4179,9 +4516,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <SpaceEntryOpenMenuItems
+          <SpaceEntryOpenActions
             key={contextMenu.entry.relativePath}
             entry={contextMenu.entry}
+            selectedEditor={
+              pluginEditor?.relativePath === contextMenu.entry.relativePath
+                ? pluginEditor.editor.key
+                : "builtin"
+            }
             editingModeShortcut={workspaceShortcutLabel(
               "toggle-markdown-editing-mode",
               macos,
@@ -4189,6 +4531,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             )}
             onOpen={(fileOpenMode) => {
               void openEntry(contextMenu.entry, { fileOpenMode })
+              setContextMenu(null)
+            }}
+            onSelectPluginEditor={(editor) => {
+              void openEntry(contextMenu.entry, { pluginEditor: editor })
               setContextMenu(null)
             }}
           />

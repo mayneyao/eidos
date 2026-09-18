@@ -97,6 +97,40 @@ vi.mock("@pierre/diffs/react", () => ({
 import PierreTextEditorSurface from "./pierre-text-editor-surface"
 
 describe("PierreTextEditorSurface", () => {
+  it("applies a host formatting result as one undoable edit without remounting", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onChange = vi.fn()
+    const render = (content: string) =>
+      createElement(PierreTextEditorSurface, {
+        relativePath: "notes.md",
+        content,
+        theme: "light",
+        onChange,
+      })
+    await act(async () => root.render(render("first\n中文text")))
+    const editor = pierre.editorInstances.mock.calls.at(-1)![0] as {
+      applyEdits: ReturnType<typeof vi.fn>
+    }
+    await act(async () => root.render(render("first\n中文 text")))
+    expect(editor.applyEdits).toHaveBeenCalledWith(
+      [
+        {
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 1, character: 6 },
+          },
+          newText: "first\n中文 text",
+        },
+      ],
+      true
+    )
+    expect(pierre.fileLifecycle.mock.calls.map(([event]) => event)).toEqual([
+      "mount:light",
+    ])
+    expect(pierre.fileContents).toHaveBeenLastCalledWith("first\n中文text")
+    await act(async () => root.unmount())
+  })
   beforeEach(() => {
     pierre.createEditor = undefined
     pierre.editorInstances.mockClear()

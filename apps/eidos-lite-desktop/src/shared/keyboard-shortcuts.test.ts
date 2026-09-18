@@ -20,6 +20,17 @@ function event(overrides: Partial<KeyboardEvent> = {}) {
 }
 
 describe("Eidos Lite keyboard shortcuts", () => {
+  it("opens the command palette with the primary K binding on both platforms", () => {
+    for (const macos of [true, false]) {
+      expect(
+        eidosLiteShortcutCommandForKeyboardEvent(
+          event({ key: "k", metaKey: macos, ctrlKey: !macos }),
+          DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+          macos
+        )
+      ).toBe("command-palette")
+    }
+  })
   it("captures and matches primary-modifier shortcuts per platform", () => {
     expect(
       shortcutBindingForKeyboardEvent(event({ key: "\\", metaKey: true }), true)

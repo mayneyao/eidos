@@ -33,6 +33,8 @@ export const SHORTCUT_GROUPS: Array<{
   {
     label: "Workspace",
     commands: [
+      "command-palette",
+      "format-document",
       "focus-file-content",
       "toggle-sidebar",
       "toggle-theme",
@@ -70,6 +72,8 @@ export const SHORTCUT_GROUPS: Array<{
 const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "new-file": "New File",
   "quick-open": "Quick Open",
+  "command-palette": "Command palette",
+  "format-document": "Format Document",
   "search-space-text": "Search Space text",
   "focus-file-content": "Focus file content",
   "toggle-markdown-editing-mode": "Toggle Markdown editing mode",

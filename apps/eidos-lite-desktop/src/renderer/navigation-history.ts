@@ -28,6 +28,7 @@ export type NavigationLocation =
   | string
   | VersionDiffNavigationLocation
   | RecordNavigationLocation
+  | { type: "plugins"; pluginId?: string }
   | { type: "file"; path: string; openWith: "source" | "wysiwyg" | "preview" }
   | { type: "whats-new"; lang?: "en" | "zh-CN" }
   | { type: "merge"; path: string; tableName?: string }
@@ -136,6 +137,11 @@ export function navigationHash(
   location: NavigationLocation
 ): string {
   const space = encodeURIComponent(spaceId)
+  if (typeof location === "object" && location?.type === "plugins") {
+    return location.pluginId
+      ? `#/spaces/${space}/plugins/${encodeURIComponent(location.pluginId)}`
+      : `#/spaces/${space}/plugins`
+  }
   if (location === null) return spaceId ? `#/spaces/${space}` : "#/"
   if (typeof location === "string") {
     return `#/spaces/${space}/files/${encodeURIComponent(location)}`
@@ -192,6 +198,14 @@ export function parseNavigationHash(
       const spaceId = decodeURIComponent(match[1])
       if (!match[2]) return { spaceId, location: null }
       const parts = match[2].split("/").map(decodeURIComponent)
+      if (parts[0] === "plugins") {
+        return {
+          spaceId,
+          location: parts[1]
+            ? { type: "plugins", pluginId: parts[1] }
+            : { type: "plugins" },
+        }
+      }
       if (parts[0] === "files" && parts[1]) {
         if (parts.length === 2) {
           const openWith = params.get("openWith")

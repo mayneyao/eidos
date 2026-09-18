@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -142,8 +143,29 @@ export default function PierreTextEditorSurface({
   const pasteControllersRef = useRef(new Set<AbortController>())
   if (contentPropRef.current !== content) {
     contentPropRef.current = content
-    currentContentRef.current = content
+    if (!editorRef.current || !persistEditorState)
+      currentContentRef.current = content
   }
+  useLayoutEffect(() => {
+    const editor = editorRef.current
+    if (!editor || content === currentContentRef.current) return
+    const previous = currentContentRef.current
+    const end = textOffsetPosition(previous, previous.length)
+    // Host edits must join the editor's undo timeline, rather than replace
+    // File's input document (which resets its history).
+    editor.applyEdits(
+      [
+        {
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: end.lineNumber - 1, character: end.character },
+          },
+          newText: content,
+        },
+      ],
+      true
+    )
+  }, [content])
   const createEditor = useCallback(
     (options: EditorOptions<undefined>) => {
       const persistentOptions: EditorOptions<undefined> = {

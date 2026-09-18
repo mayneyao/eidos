@@ -162,6 +162,11 @@ describe("Eidos Lite package identity", () => {
     expect(builder.asarUnpack).toContain("**/node_modules/node-pty/**/*")
     expect(builder.extraResources).toEqual([
       {
+        from: "node_modules/typescript/lib",
+        to: "app.asar.unpacked/node_modules/typescript/lib",
+        filter: ["*.d.ts"],
+      },
+      {
         from: "resources/publish-engine",
         to: "publish-engine",
         filter: ["**/*"],

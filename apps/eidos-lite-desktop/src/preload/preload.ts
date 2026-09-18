@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
+import { PLUGIN_CHANNELS } from "../shared/plugins"
 import type { TextSearchProgress } from "../shared/text-search"
 
 import {
@@ -22,6 +23,62 @@ import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
+  openPluginTable: (key, tableId, viewId) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.table, key, tableId, viewId),
+  setFormatterContext: (path, version) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.formatterContext, path, version),
+  setDefaultFormatter: (extension, formatter) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.defaultFormatter, extension, formatter),
+  invokePluginFormatter: (ticket, formatter, path, draft, version) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.formatter,
+      ticket,
+      formatter,
+      path,
+      draft,
+      version
+    ),
+  setPluginShortcuts: (bindings) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.shortcuts, bindings),
+  onPluginShortcut: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, binding: string) =>
+      listener(binding)
+    ipcRenderer.on(PLUGIN_CHANNELS.shortcut, handler)
+    return () => ipcRenderer.removeListener(PLUGIN_CHANNELS.shortcut, handler)
+  },
+  listPlugins: () => ipcRenderer.invoke(PLUGIN_CHANNELS.list),
+  openPluginPage: (key, route) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.page, key, route),
+  openPluginExtension: (id) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.extension, id),
+  invokePluginAction: (ticket, action, path, draft) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.invoke, ticket, action, path, draft),
+  installPlugin: (development) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.install, development),
+  pluginMarketplace: (refresh) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.marketplace, refresh),
+  installMarketplacePlugin: (id) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, id),
+  uninstallPlugin: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.uninstall, id),
+  setPluginEnabled: (id, enabled) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.enable, id, enabled),
+  setPluginDefault: (extension, editor) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
+  pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),
+  openPluginEditor: (path, explicit, draft) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.open, path, explicit, draft),
+  onPluginEvent: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: Parameters<typeof listener>[0]
+    ) => listener(value)
+    ipcRenderer.on(PLUGIN_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(PLUGIN_CHANNELS.event, handler)
+  },
+  pluginRequest: (ticket, request) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.request, ticket, request),
+  closePluginEditor: (ticket) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.close, ticket),
   onTextDraftPrepareClose: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, token: string) =>
       listener(token)

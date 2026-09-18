@@ -10,6 +10,13 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: [
+      {
+        find: /^@eidos\.space\/plugin-runtime\/(.+)$/,
+        replacement: path.resolve(
+          appRoot,
+          "../../packages/plugin-runtime/src/$1.ts"
+        ),
+      },
       ...eidosFileUiSourceAliases(),
       ...markdownEditorSourceAliases(),
       {

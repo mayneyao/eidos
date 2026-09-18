@@ -1,4 +1,5 @@
 import path from "node:path"
+import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
@@ -24,6 +25,14 @@ function buildEnvironmentManifest(
     generateBundle() {
       this.emitFile({
         type: "asset",
+        fileName: "contracts.ts",
+        source: readFileSync(
+          path.resolve(appRoot, "../../packages/plugin-sdk/src/index.ts"),
+          "utf8"
+        ),
+      })
+      this.emitFile({
+        type: "asset",
         fileName: "eidos-lite-build-environment.json",
         source: `${JSON.stringify(
           EIDOS_LITE_SERVICE_ENVIRONMENTS[environment],
@@ -36,6 +45,13 @@ function buildEnvironmentManifest(
 }
 
 const aliases = [
+  {
+    find: /^@eidos\.space\/plugin-runtime\/(.+)$/,
+    replacement: path.resolve(
+      appRoot,
+      "../../packages/plugin-runtime/src/$1.ts"
+    ),
+  },
   ...eidosFileUiSourceAliases(),
   ...markdownEditorSourceAliases(),
   {
@@ -98,6 +114,8 @@ export default defineConfig(({ mode, command }) => {
               reportCompressedSize: false,
               rolldownOptions: {
                 external: [
+                  "esbuild",
+                  "typescript",
                   "@eidos.space/graft",
                   "electron",
                   "node-pty",

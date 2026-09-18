@@ -43,7 +43,7 @@ describe("Settings responsive layout", () => {
     expect(settings).not.toContain("Automatic versions")
     expect(settings).not.toContain("automaticCheckpoints")
     expect(settings).toContain('id: "plugins"')
-    expect(settings).toContain('label: "Built-in Plugins"')
+    expect(settings).toContain('label: "Plugins"')
     expect(settings).toContain('id="settings-plugins"')
     expect(settings).toContain('activePage !== "plugins"')
     expect(settings).toContain('label: "Account & Services"')
@@ -73,8 +73,8 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain('t("Start week on Monday")')
     expect(settings).toContain('t("Terminal layout")')
     expect(settings).toContain("data-terminal-layout")
-    expect(settings).toContain(
-      "data-segment-count={TERMINAL_LAYOUT_OPTIONS.length}"
+    expect(settings).toMatch(
+      /data-segment-count=\{\s*TERMINAL_LAYOUT_OPTIONS.length\s*\}/
     )
     expect(settings).toContain("data-terminal-layout={option.value}")
     expect(settings).toContain("preferences.terminalLayout === option.value")

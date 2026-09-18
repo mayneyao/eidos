@@ -1,0 +1,347 @@
+// @vitest-environment jsdom
+import { act } from "react"
+import { createRoot, type Root } from "react-dom/client"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { PluginManager, PluginFileActions } from "./plugin-manager"
+import type { PluginListing } from "../shared/plugins"
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+let container: HTMLDivElement
+let root: Root
+const install = vi.fn(async () => true)
+const enable = vi.fn(async () => {})
+const uninstall = vi.fn(async () => true)
+const associate = vi.fn(async () => {})
+beforeEach(() => {
+  vi.clearAllMocks()
+  container = document.createElement("div")
+  document.body.append(container)
+  root = createRoot(container)
+  const listing: PluginListing = {
+    space: { plugins: {}, associations: {} },
+    plugins: [
+      {
+        hash: "hash",
+        enabled: false,
+        manifest: {
+          apiVersion: 1,
+          id: "example.csv",
+          name: "CSV",
+          version: "1.0.0",
+        },
+      },
+    ],
+  }
+  Object.assign(window, {
+    eidosLite: {
+      listPlugins: async () => listing,
+      onPluginEvent: () => () => {},
+      installPlugin: install,
+      pluginMarketplace: async () => ({
+        plugins: [
+          {
+            id: "eidos.map",
+            name: "Map",
+            description: "Map view",
+            repo: "eidos-space/eidos-map-plugin",
+            version: "0.1.0",
+            sha256: "abc",
+            preview: true,
+            compatibility: "Preview build",
+          },
+        ],
+        cached: false,
+        fetchedAt: new Date().toISOString(),
+      }),
+      installMarketplacePlugin: install,
+      setPluginEnabled: enable,
+      uninstallPlugin: uninstall,
+      setPluginDefault: associate,
+      pluginEditors: async () => [
+        { key: "example.csv/csv", label: "CSV", pluginName: "CSV" },
+      ],
+    },
+  })
+})
+afterEach(async () => {
+  await act(async () => root.unmount())
+  container.remove()
+})
+async function click(text: string) {
+  const button = [...container.querySelectorAll("button")].find(
+    (item) =>
+      item.textContent === text ||
+      item.getAttribute("aria-label") === text ||
+      (item.getAttribute("role") === "tab" &&
+        item.textContent?.startsWith(text))
+  )
+  expect(button).toBeDefined()
+  await act(async () => button!.click())
+}
+
+it("shows one installation list with Space-only enablement and device-wide uninstall", async () => {
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+  expect(container.querySelector("select")).toBeNull()
+  expect(container.textContent).toContain("No plugins enabled in this Space")
+  await click("Installed")
+  await click("Install plugin…")
+  expect(install).toHaveBeenCalledWith()
+  await click("CSV")
+  await click("Enable")
+  expect(enable).toHaveBeenCalledWith("example.csv", true)
+  await click("Uninstall")
+  expect(uninstall).toHaveBeenCalledWith("example.csv")
+})
+
+it("application settings can install but cannot enable a plugin without a Space", async () => {
+  await act(async () => root.render(<PluginManager />))
+  expect(
+    [...container.querySelectorAll("button")].some(
+      (button) =>
+        button.textContent === "Enable" || button.textContent === "Disable"
+    )
+  ).toBe(false)
+  expect(container.textContent).toContain("Open a Space")
+  await click("Load development source…")
+  expect(install).toHaveBeenCalledWith(true)
+  expect(enable).not.toHaveBeenCalled()
+  await click("Marketplace")
+  expect(container.querySelector('[role="tabpanel"]')?.textContent).toContain(
+    "Map view"
+  )
+  expect(
+    container.querySelector('[role="tabpanel"]')?.textContent
+  ).not.toContain("Uninstall")
+  await click("Install…")
+  expect(install).toHaveBeenCalledWith("eidos.map")
+})
+
+it("guides enabled empty state to installed tab, and installed empty state to marketplace tab", async () => {
+  Object.assign(window.eidosLite, {
+    listPlugins: async () => ({
+      space: { plugins: {}, associations: {} },
+      plugins: [],
+    }),
+  })
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+  expect(container.textContent).toContain("No plugins enabled in this Space")
+  await click("Browse installed plugins")
+  expect(container.textContent).toContain("No plugins installed")
+  await click("Browse Marketplace")
+  expect(container.querySelector('[role="tabpanel"]')?.textContent).toContain(
+    "Map view"
+  )
+})
+
+it("renders on-demand editor choices with icons and without default management buttons", async () => {
+  const onSelect = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginFileActions
+        relativePath="data.csv"
+        selected="example.csv/csv"
+        initialChoices={[
+          {
+            key: "example.csv/csv",
+            label: "CSV",
+            pluginName: "CSV",
+            icon: { paths: ["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"] },
+          },
+          {
+            key: "example.mindmap/map",
+            label: "Mindmap",
+            pluginName: "Mindmap",
+            icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          },
+        ]}
+        onSelect={onSelect}
+      />
+    )
+  )
+  expect(container.querySelectorAll("select")).toHaveLength(0)
+  const buttons = container.querySelectorAll("button")
+  expect(buttons).toHaveLength(3)
+
+  // Built-in editor has Code2 svg icon
+  const builtinBtn = buttons[0]
+  expect(builtinBtn.textContent).toContain("Built-in editor")
+  expect(builtinBtn.querySelector("svg")).not.toBeNull()
+
+  // CSV has custom path svg icon
+  const csvBtn = buttons[1]
+  expect(csvBtn.textContent).toContain("CSV")
+  expect(csvBtn.querySelector("svg")).not.toBeNull()
+
+  // Mindmap has img icon
+  const mindmapBtn = buttons[2]
+  expect(mindmapBtn.textContent).toContain("Mindmap")
+  expect(mindmapBtn.querySelector("img")).not.toBeNull()
+
+  expect(container.textContent).not.toContain("Set as default in this Space")
+  expect(container.textContent).not.toContain("Reset default")
+
+  await click("Built-in editor")
+  expect(onSelect).toHaveBeenCalledWith("builtin")
+})
+
+it("omits built-in editor option for markdown files in PluginFileActions", async () => {
+  await act(async () =>
+    root.render(
+      <PluginFileActions
+        relativePath="README.md"
+        selected="builtin"
+        onSelect={() => {}}
+      />
+    )
+  )
+  expect(container.textContent).not.toContain("Built-in editor")
+  expect(container.textContent).toContain("CSV")
+})
+
+it("supports switching between card and list layouts and persists preference", async () => {
+  localStorage.clear()
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+  await click("Installed")
+
+  // Default is card layout
+  expect(container.querySelector(".plugin-manager-grid")).not.toBeNull()
+  expect(container.querySelector(".plugin-card")).not.toBeNull()
+
+  // Switch to list layout
+  const listBtn = container.querySelector(
+    'button[aria-label="List view"]'
+  ) as HTMLButtonElement
+  expect(listBtn).not.toBeNull()
+  await act(async () => listBtn.click())
+
+  expect(container.querySelector(".plugin-manager-list")).not.toBeNull()
+  expect(container.querySelector(".plugin-manager-grid")).toBeNull()
+  expect(localStorage.getItem("eidos:plugin-layout")).toBe("list")
+
+  // Switch back to card layout
+  const cardBtn = container.querySelector(
+    'button[aria-label="Card view"]'
+  ) as HTMLButtonElement
+  expect(cardBtn).not.toBeNull()
+  await act(async () => cardBtn.click())
+
+  expect(container.querySelector(".plugin-manager-grid")).not.toBeNull()
+  expect(localStorage.getItem("eidos:plugin-layout")).toBe("card")
+})
+
+it("hides in-page back button in page mode and preserves it in settings mode", async () => {
+  // Page mode with selected plugin: no in-page back button
+  await act(async () =>
+    root.render(
+      <PluginManager
+        spaceAvailable
+        variant="page"
+        selectedPluginId="example.csv"
+      />
+    )
+  )
+  expect(container.querySelector(".plugin-detail-back")).toBeNull()
+
+  // Settings mode with selected plugin: has in-page back button
+  await act(async () =>
+    root.render(
+      <PluginManager variant="settings" selectedPluginId="example.csv" />
+    )
+  )
+  expect(container.querySelector(".plugin-detail-back")).not.toBeNull()
+})
+
+it("calls onSelectPlugin with both id and displayName when a plugin is selected", async () => {
+  const onSelectPlugin = vi.fn()
+  const onPluginNameChange = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginManager
+        spaceAvailable
+        onSelectPlugin={onSelectPlugin}
+        onPluginNameChange={onPluginNameChange}
+      />
+    )
+  )
+  await click("Installed")
+  await click("CSV")
+  expect(onSelectPlugin).toHaveBeenCalledWith("example.csv", "CSV")
+})
+
+it("opens details and installs for a marketplace plugin that is not installed", async () => {
+  await act(async () => root.render(<PluginManager />))
+  await click("Marketplace")
+  const card = container.querySelector(
+    '[role="button"].plugin-marketplace-card'
+  ) as HTMLElement
+  expect(card).not.toBeNull()
+  await act(async () => card.click())
+  expect(container.querySelector(".plugin-detail-hero")).not.toBeNull()
+  expect(container.textContent).toContain("Map")
+  expect(container.textContent).toContain("Not installed")
+  expect(container.querySelector('[role="tabpanel"]')?.textContent).toContain(
+    "eidos-space/eidos-map-plugin"
+  )
+  await click("Install…")
+  expect(install).toHaveBeenCalledWith("eidos.map")
+})
+
+it("filters plugins across tabs using search input beside layout toggle", async () => {
+  await act(async () =>
+    root.render(
+      <PluginManager
+        spaceAvailable
+        builtins={[
+          {
+            id: "builtin.terminal",
+            name: "Terminal",
+            enabled: true,
+            details: <div>Terminal details</div>,
+          },
+        ]}
+      />
+    )
+  )
+
+  const searchInput = container.querySelector(
+    'input[type="search"]'
+  ) as HTMLInputElement
+  expect(searchInput).not.toBeNull()
+
+  // Switch to Installed tab
+  await click("Installed")
+  expect(container.textContent).toContain("CSV")
+  expect(container.textContent).toContain("Terminal")
+
+  const changeSearch = async (val: string) => {
+    await act(async () => {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )
+      descriptor?.set?.call(searchInput, val)
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+
+  // Search for "Terminal"
+  await changeSearch("terminal")
+  expect(container.textContent).toContain("Terminal")
+  expect(container.textContent).not.toContain("CSV")
+
+  // Search for nonexistent term shows empty state with Clear search
+  await changeSearch("nonexistent-query")
+  expect(container.textContent).toContain("No plugins found")
+  await click("Clear search")
+  expect(searchInput.value).toBe("")
+  expect(container.textContent).toContain("CSV")
+  expect(container.textContent).toContain("Terminal")
+
+  // Search applies to Marketplace tab as well
+  await changeSearch("map")
+  await click("Marketplace")
+  expect(container.textContent).toContain("Map view")
+
+  await changeSearch("unknown-plugin")
+  expect(container.textContent).toContain("No plugins found")
+})

@@ -35,6 +35,11 @@ import {
   eidosLiteShortcutCommandForKeyboardEvent,
   isEidosLiteWorkspaceShortcutCommand,
 } from "../shared/keyboard-shortcuts"
+import { PLUGIN_CHANNELS } from "../shared/plugins"
+import {
+  availablePluginShortcuts,
+  pluginShortcutForEvent,
+} from "../shared/plugin-shortcuts"
 import { resolveEidosLiteLocale, translateEidosLite } from "../shared/i18n"
 import {
   createEidosLiteDiagnostics,
@@ -498,6 +503,18 @@ export class WindowController {
     return () => this.preferencesListeners.delete(listener)
   }
 
+  private pluginShortcuts = new WeakMap<WebContents, Set<string>>()
+
+  setPluginShortcuts(owner: WebContents, value: unknown): string[] {
+    const accepted = availablePluginShortcuts(
+      value,
+      this.keyboardShortcuts,
+      process.platform === "darwin"
+    )
+    this.pluginShortcuts.set(owner, new Set(accepted))
+    return accepted
+  }
+
   handleWorkspaceShortcutInput(
     owner: WebContents,
     event: Event,
@@ -521,7 +538,29 @@ export class WindowController {
     )
     // Editor-scoped shortcuts must reach the renderer DOM. Only global
     // workspace commands are intercepted before Electron dispatches them.
-    if (!command || !isEidosLiteWorkspaceShortcutCommand(command)) return
+    if (command === "format-document" && input.isComposing) return
+    if (!command) {
+      const match = pluginShortcutForEvent(
+        {
+          key: input.key,
+          code: input.code,
+          altKey: input.alt,
+          ctrlKey: input.control,
+          metaKey: input.meta,
+          shiftKey: input.shift,
+          repeat: input.isAutoRepeat,
+          isComposing: input.isComposing,
+        },
+        this.pluginShortcuts.get(owner) ?? new Set(),
+        process.platform === "darwin"
+      )
+      if (match && !owner.isDestroyed()) {
+        event.preventDefault()
+        owner.send(PLUGIN_CHANNELS.shortcut, match)
+      }
+      return
+    }
+    if (!isEidosLiteWorkspaceShortcutCommand(command)) return
     if (!isEidosLiteShortcutEnabled(command, this.builtInPlugins)) return
     event.preventDefault()
     if (!owner.isDestroyed()) {
@@ -1053,6 +1092,16 @@ export class WindowController {
     installHtmlPreviewGuestGuard(window.webContents)
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
+    window.webContents.on("will-frame-navigate", (event) => {
+      if (event.isMainFrame) return
+      // A guest may not navigate to a URL containing document contents.
+      const initial = !event.frame?.url || event.frame.url === "about:blank"
+      if (
+        !initial ||
+        !/^eidos-plugin:\/\/[a-f0-9-]+\/index\.html$/.test(event.url)
+      )
+        event.preventDefault()
+    })
     window.webContents.on("before-input-event", (event, input) =>
       this.handleWorkspaceShortcutInput(window.webContents, event, input)
     )

@@ -6,6 +6,7 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outputRoot = path.join(appRoot, "dist-electron")
 
 const fixedFiles = new Set([
+  "contracts.ts",
   "eidos-lite-build-environment.json",
   "graft-worker.js",
   "main.js",

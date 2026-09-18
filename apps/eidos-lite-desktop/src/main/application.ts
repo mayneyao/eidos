@@ -27,6 +27,7 @@ import { WindowController } from "./window-controller"
 const mainModuleStartedAtMs = Date.now()
 
 protocol.registerSchemesAsPrivileged([
+  { scheme: "eidos-plugin", privileges: { standard: true, secure: true } },
   {
     scheme: EIDOS_SPACE_MEDIA_SCHEME,
     privileges: {
@@ -59,6 +60,15 @@ const bootstrapStartedAtMs =
   bootstrapState?.startedAtMs ?? mainModuleStartedAtMs
 
 app.setName("Eidos Lite")
+
+// Keep plugin development and verification separate from everyday user data.
+const developmentUserData = process.env.EIDOS_LITE_DEV_USER_DATA
+if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL && developmentUserData) {
+  if (!path.isAbsolute(developmentUserData))
+    throw new Error("EIDOS_LITE_DEV_USER_DATA must be an absolute path")
+  fs.mkdirSync(developmentUserData, { recursive: true })
+  app.setPath("userData", developmentUserData)
+}
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT

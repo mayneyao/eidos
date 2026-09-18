@@ -4,6 +4,133 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Downloading plugin for review…": "正在下载插件，完成后确认安装…",
+  "Search plugins": "搜索插件",
+  "Loading plugins…": "正在加载插件…",
+  "Showing a saved catalog. Connect to install plugins.":
+    "正在显示缓存目录。联网后可安装插件。",
+  "Install listed version…": "安装此版本…",
+  "Install…": "安装…",
+  "Not installed": "未安装",
+  Compatibility: "兼容性",
+  "Install this plugin to see its views, commands, and settings.":
+    "安装此插件后可查看其视图、命令和设置。",
+  "No plugins found": "未找到插件",
+  Enabled: "已启用",
+  Disabled: "已禁用",
+  Page: "页面",
+  Command: "命令",
+  "Read only": "只读",
+  "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device.":
+    "随 Eidos Lite 提供，可禁用但不能卸载。设置作用于本机。",
+  "This plugin has no configurable settings.": "此插件暂无可配置项。",
+  "Document view": "文档视图",
+  "Table view": "表格视图",
+  "Read and write": "读写",
+  Formatter: "格式化程序",
+  "Format Document": "格式化文档",
+  "Format Document With…": "使用其他格式化程序…",
+  "Configure Default Formatter…": "配置默认格式化程序…",
+  "Reset default formatter": "重置默认格式化程序",
+  "No formatter available for this file.": "没有适用于此文件的格式化程序。",
+  "Document formatted.": "文档已格式化。",
+  "No formatting changes needed.": "文档无需格式化修改。",
+  "Plugins are installed once. Enable and configure them separately in each Space.":
+    "插件统一安装，按 Space 分别启用和配置。",
+  "Plugins are installed once for this device. Open a Space to enable and configure them.":
+    "插件统一安装在本机。打开 Space 后可启用和配置。",
+  "Enable in this Space": "在当前 Space 启用",
+  "Disable in this Space": "在当前 Space 禁用",
+  "Uninstall from device…": "从本机卸载…",
+  "Set as default in this Space": "设为当前 Space 的默认编辑器",
+  Scope: "作用域",
+  Enable: "启用",
+  Disable: "禁用",
+  Uninstall: "卸载",
+  Remove: "移除",
+  Plugins: "插件",
+  Details: "详情",
+  Features: "功能与贡献",
+  "Runtime & Security": "运行与安全",
+  Overview: "概览",
+  "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device.":
+    "此插件通过可定制的视图、命令和格式化工具扩展 Eidos。所有操作均在本地设备运行。",
+  "How to Use": "使用指南",
+  Capabilities: "扩展能力",
+  Properties: "属性信息",
+  Identifier: "唯一标识",
+  Version: "版本",
+  "API Version": "API 版本",
+  Type: "类型",
+  Packaged: "安装包",
+  Development: "开发模式",
+  Resources: "资源",
+  Repository: "代码仓库",
+  "Network Access": "网络访问",
+  "Storage Quota": "存储配额",
+  "Integrity (SHA-256)": "完整性校验 (SHA-256)",
+  "Copied to clipboard": "已复制到剪贴板",
+  "No external network access (100% offline)": "无外部网络访问（100% 离线）",
+  "Isolated iframe sandbox (null origin)": "独立 iframe 沙箱（null 源）",
+  "Default sandbox quota": "默认沙箱配额",
+  "Enable this plugin in this Space to configure its settings.":
+    "在当前 Space 启用此插件以配置其设置。",
+  Views: "视图",
+  "Actions & Commands": "动作与命令",
+  Formatters: "格式化程序",
+  Placements: "挂载点",
+  "Enabled in this Space": "当前 Space 已启用",
+  Installed: "已安装",
+  Marketplace: "插件市场",
+  "Enable plugins for this Space. Install once, use across Spaces.":
+    "为当前 Space 启用插件。安装一次，可在不同 Space 中使用。",
+  "Marketplace is coming": "插件市场尚未开放",
+  "For now, install a local plugin package or load development source.":
+    "目前可安装本地插件包，或加载开发源码。",
+  "Only plugins enabled in this Space appear here.":
+    "此处仅显示当前 Space 已启用的插件。",
+  "Installed on this device. Enablement is managed separately in each Space.":
+    "已安装在此设备上，启用状态由各 Space 分别管理。",
+  "Plugins available to install on this device. Enablement is managed separately in each Space.":
+    "可安装到本机的插件。启用状态由各 Space 分别管理。",
+  "No plugins enabled in this Space": "当前 Space 尚未启用插件",
+  "No plugins installed": "尚未安装插件",
+  "Choose an installed plugin to enable it here.":
+    "从已安装的插件中选择，并在当前 Space 启用。",
+  "Install an .eidos-plugin package to get started.":
+    "安装 .eidos-plugin 文件以开始使用。",
+  "Browse installed plugins": "查看已安装的插件",
+  "Explore and install plugins from the Marketplace to get started.":
+    "前往插件市场探索并安装扩展插件。",
+  "Browse Marketplace": "前往插件市场",
+  "Card view": "卡片视图",
+  Layout: "布局",
+  Global: "全局",
+  "This Space": "当前 Space",
+  "Install plugin…": "安装插件…",
+  "Load development source…": "加载开发源码…",
+  "Plugin contributions": "插件入口",
+  "Plugin commands": "插件命令",
+  "Command palette": "命令面板",
+  "Built-in": "系统",
+  "Plugin page": "插件页面",
+  "Plugin instance closed. Retry or use the built-in editor.":
+    "插件实例已关闭。请重试或使用内置编辑器。",
+  "Search commands": "搜索命令",
+  "No matching commands": "没有匹配的命令",
+  "Run a command…": "运行命令…",
+  "Running…": "正在运行…",
+  "Install an .eidos-plugin package to add views and commands. Installed plugins work offline.":
+    "安装 .eidos-plugin 包以添加视图和命令。安装后可离线运行。",
+  "Built-in editor": "内置编辑器",
+  "Set as default": "设为默认",
+  "Reset default": "重置默认",
+  "Use built-in editor": "使用内置编辑器",
+  "Plugin did not connect. Retry or use the built-in editor.":
+    "插件未连接。请重试或使用内置编辑器。",
+  "Plugin failed to load.": "插件加载失败。",
+  "Plugin navigation was blocked. Retry or use the built-in editor.":
+    "插件导航已被阻止。请重试或使用内置编辑器。",
   "Publish plan": "Publish 方案",
   "10 public Markdown pages · 100 MiB shared storage":
     "10 个公开 Markdown 页面 · 共享 100 MiB",
@@ -48,7 +175,7 @@ const zh: Record<string, string> = {
     "选择 .html 和 .htm 文件的默认打开方式。预览在沙箱中运行。",
   "Changes layout": "变更显示方式",
   "Tree view": "树形",
-  "List view": "平铺",
+  "List view": "列表视图",
   "Open a document to view its history": "打开文档后可查看其历史",
   "Account menu": "账号菜单",
   "Show as list": "平铺显示",
@@ -240,6 +367,7 @@ const zh: Record<string, string> = {
   "Saves current file contents. Include new attachments with Markdown files.":
     "保存文件的当前内容；Markdown 的新增附件请一并勾选。",
   "Clear selection": "清除选择",
+  "Clear search": "清除搜索",
   selected: "个已选",
   "All changes": "全部变更",
   "Save selected files": "保存所选文件",
@@ -257,6 +385,11 @@ const zh: Record<string, string> = {
   "Markdown file editor": "Markdown 文件编辑器",
   "Choose the default editor for .md and .markdown files.":
     "选择 .md 和 .markdown 文件默认使用的编辑器。",
+  "Default file editors": "默认文件编辑器",
+  "Choose the default editor for {extensions} files.":
+    "选择 {extensions} 文件默认使用的编辑器。",
+  "Choose the default editor for {extensions} files in this Space.":
+    "选择当前 Space 中 {extensions} 文件默认使用的编辑器。",
   "Rich text": "富文本",
   "Terminal layout": "终端布局",
   "Choose how Terminal and file content share the middle work area.":

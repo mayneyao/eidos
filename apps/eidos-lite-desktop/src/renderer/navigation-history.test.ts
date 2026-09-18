@@ -22,6 +22,8 @@ describe("Eidos Lite browser navigation history", () => {
 
   it("round-trips canonical record, file, merge and release-note routes", () => {
     const locations = [
+      { type: "plugins" as const },
+      { type: "plugins" as const, pluginId: "eidos.map" },
       {
         type: "record" as const,
         path: "目录/a?#.eidos",
