@@ -1,0 +1,34 @@
+{
+  "name": "@eidos.space/plugin-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts.ts",
+    "./manifest": "./src/manifest.ts",
+    "./package": "./src/package.ts",
+    "./rpc": "./src/rpc.ts",
+    "./sandbox": "./src/sandbox.ts",
+    "./extension-sandbox": "./src/extension-sandbox.ts",
+    "./working-copy": "./src/working-copy.ts",
+    "./lifecycle": "./src/lifecycle.ts",
+    "./resource-grants": "./src/resource-grants.ts",
+    "./compiler": { "types": "./src/compiler.ts", "default": "./dist/compiler.js" }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@eidos.space/plugin-sdk": "workspace:*",
+    "@eidos.space/eidos-file": "workspace:*",
+    "esbuild": "0.28.1",
+    "typescript": "^5.8.3",
+    "chokidar": "5.0.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": { "@types/node": "^24.12.2", "vitest": "^4.1.11" }
+}

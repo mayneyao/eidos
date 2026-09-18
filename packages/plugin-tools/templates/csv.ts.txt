@@ -1,0 +1,29 @@
+export function parseCsv(text: string): string[][] {
+  if (!text) return []
+  const rows: string[][] = []
+  let row: string[] = [], field = "", quoted = false, endedQuote = false
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!
+    if (quoted) {
+      if (char === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++ }
+        else { quoted = false; endedQuote = true }
+      } else field += char
+    } else if (char === ",") {
+      row.push(field); field = ""; endedQuote = false
+    } else if (char === "\r" || char === "\n") {
+      if (char === "\r" && text[i + 1] === "\n") i++
+      row.push(field); rows.push(row); row = []; field = ""; endedQuote = false
+    } else if (char === '"' && !field && !endedQuote) quoted = true
+    else {
+      if (endedQuote || char === '"') throw new Error("Invalid CSV quoting")
+      field += char
+    }
+  }
+  if (quoted) throw new Error("Unclosed CSV quoted field")
+  if (field || row.length || endedQuote || !/[\r\n]$/.test(text)) { row.push(field); rows.push(row) }
+  return rows
+}
+export function stringifyCsv(rows: string[][], newline: string, trailing: boolean): string {
+  return rows.map(row => row.map(value => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value).join(",")).join(newline) + (trailing && rows.length ? newline : "")
+}

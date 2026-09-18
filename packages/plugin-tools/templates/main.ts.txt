@@ -1,0 +1,73 @@
+import type { ViewContext, TextSnapshot } from "@eidos.space/plugin-sdk"
+import { parseCsv, stringifyCsv } from "./csv"
+import "./style.css"
+
+export default async function mount(ctx: ViewContext, root: HTMLElement) {
+  if (ctx.binding.kind !== "document") throw Error("CSV requires a document")
+  const file = ctx.binding.document
+  root.innerHTML = '<header><strong>CSV Table</strong><button id="save">Save</button><button id="undo">Undo</button><button id="redo">Redo</button><span role="status"></span></header><main><table aria-label="CSV data"><tbody></tbody></table></main>'
+  const status = root.querySelector<HTMLElement>('[role="status"]')!
+  const tbody = root.querySelector("tbody")!
+  let snapshot: TextSnapshot
+  let rows: string[][] = []
+  let newline = "\n", trailing = false, queued = 0, conflict = false
+  let chain = Promise.resolve()
+  const ownVersions = new Set<string>()
+  const report = (error: unknown) => { status.textContent = error instanceof Error ? error.message : String(error) }
+  function render(state: TextSnapshot) {
+    snapshot = state
+    rows = parseCsv(state.text)
+    if (rows.reduce((count, row) => count + row.length, 0) > 20000) throw Error("Example limit: 20,000 cells")
+    newline = state.text.includes("\r\n") ? "\r\n" : state.text.includes("\r") ? "\r" : "\n"
+    trailing = /[\r\n]$/.test(state.text)
+    tbody.replaceChildren()
+    rows.forEach((row, rowIndex) => {
+      const tr = document.createElement("tr")
+      row.forEach((value, columnIndex) => {
+        const td = document.createElement("td"), input = document.createElement("textarea")
+        input.value = value; input.rows = 1; input.setAttribute("aria-label", `Row ${rowIndex + 1}, column ${columnIndex + 1}`)
+        input.addEventListener("input", () => {
+          row[columnIndex] = input.value
+          const text = stringifyCsv(rows, newline, trailing)
+          queued++; status.textContent = "Unsaved"
+          chain = chain.then(async () => {
+            if (conflict) return
+            const result = await file.edit({ text, expectedVersion: snapshot.version, group: `cell-${rowIndex}-${columnIndex}` })
+            if (result.status === "stale") { conflict = true; throw Error("Document changed elsewhere. Your input remains visible; use the built-in editor to reconcile.") }
+            snapshot = result.snapshot
+            ownVersions.add(snapshot.version)
+            if (ownVersions.size > 256) ownVersions.delete(ownVersions.values().next().value!)
+          }).catch(report).finally(() => { queued-- })
+        }, { signal: ctx.signal })
+        input.addEventListener("keydown", event => {
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+            event.preventDefault(); void history(event.shiftKey ? "redo" : "undo")
+          }
+        }, { signal: ctx.signal })
+        td.append(input); tr.append(td)
+      }); tbody.append(tr)
+    })
+    status.textContent = state.conflicted ? "Disk conflict: use host recovery" : state.dirty ? "Unsaved" : `${rows.length} rows`
+  }
+  const observed = await file.observe(state => {
+    if (ownVersions.delete(state.version)) return
+    if (queued || conflict) return
+    if (snapshot?.text !== state.text) render(state)
+    else { snapshot = state; status.textContent = state.conflicted ? "Disk conflict" : state.dirty ? "Unsaved" : "Saved" }
+  }, report)
+  ctx.subscriptions.add(observed.subscription)
+  render(observed.snapshot)
+  async function history(method: "undo" | "redo") {
+    try { await chain; if (!conflict) render(await file[method]()) } catch (error) { report(error) }
+  }
+  for (const method of ["undo", "redo"] as const) root.querySelector(`#${method}`)!.addEventListener("click", () => { void history(method) }, { signal: ctx.signal })
+  root.querySelector("#save")!.addEventListener("click", () => {
+    chain = chain.then(async () => {
+      if (conflict) return
+      const result = await file.save()
+      snapshot = result.snapshot
+      status.textContent = result.status === "conflict" ? "File changed on disk. Draft retained; use host recovery." : snapshot.dirty ? "Unsaved" : "Saved"
+    }).catch(report)
+  }, { signal: ctx.signal })
+  return { dispose() { root.replaceChildren() } }
+}
