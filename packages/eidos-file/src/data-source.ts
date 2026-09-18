@@ -20,6 +20,8 @@ import type {
   EidosFileRowsDeleteResult,
   EidosFileRowsUndoResult,
   EidosFileSnapshot,
+  EidosFileTableAggregateOptions,
+  EidosFileTableAggregateResult,
   UpdateEidosFileFieldInput,
   UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
@@ -64,6 +66,11 @@ export interface EidosFileDataSource {
     configs: EidosFileColumnStatConfig[],
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]>
+  aggregateTable?(
+    tableId: string,
+    options: EidosFileTableAggregateOptions,
+    query: EidosFileRowQuery
+  ): Promise<EidosFileTableAggregateResult>
   /**
    * Validate a draft formula against the live file and return sample values.
    * Hosts without a runtime preview boundary may omit this; the shared UI
@@ -207,6 +214,14 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
     return this.runtime.calculateColumnStats(tableId, configs, query)
+  }
+
+  async aggregateTable(
+    tableId: string,
+    options: EidosFileTableAggregateOptions,
+    query: EidosFileRowQuery
+  ): Promise<EidosFileTableAggregateResult> {
+    return this.runtime.aggregateTable(tableId, options, query)
   }
 
   async previewFormula(

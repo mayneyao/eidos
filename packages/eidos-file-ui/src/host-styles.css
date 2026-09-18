@@ -4,6 +4,110 @@
 @variant dark (&:where(.dark, .dark *));
 @source "./**/*.{ts,tsx}";
 
+.plugin-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+.plugin-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.plugin-page > header {
+  flex: none;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.plugin-contributions {
+  padding: 0.375rem 0.75rem;
+  font-size: var(--font-size-ui);
+  border-bottom: 1px solid var(--border);
+}
+.plugin-contributions label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.plugin-contributions select,
+.plugin-page > header button {
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+}
+.plugin-contributions :focus-visible,
+.plugin-page > header button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.plugin-editor iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--canvas);
+}
+.plugin-actions,
+.plugin-file-actions,
+.plugin-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.plugin-file-actions {
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-ui);
+}
+.plugin-actions label,
+.plugin-file-actions label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.plugin-file-actions button,
+.plugin-file-actions select,
+.plugin-management-panel > .plugin-actions button,
+.plugin-error button {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  color: var(--ink);
+  background: var(--canvas);
+  font: inherit;
+}
+.plugin-file-actions button:hover {
+  background: var(--muted);
+}
+.plugin-file-actions button:disabled {
+  opacity: 0.5;
+}
+.plugin-manager :focus-visible,
+.plugin-file-actions :focus-visible,
+.plugin-error :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.plugin-manager {
+  font-size: var(--font-size-ui);
+}
+.plugin-note {
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+.plugin-error {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
 :root {
   color-scheme: light;
   font-family: var(--font-ui);

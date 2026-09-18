@@ -41,6 +41,8 @@ import {
   type EidosFileRowsDeleteResult,
   type EidosFileRowsUndoResult,
   type EidosFileSnapshot,
+  type EidosFileTableAggregateOptions,
+  type EidosFileTableAggregateResult,
   type EidosFileTableInfo,
   type EidosFileTableSnapshot,
   type EidosFileViewInfo,
@@ -537,6 +539,51 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             result.fieldId === config.fieldId && result.type === config.type
         ) ?? { ...config, value: null }
     )
+  }
+
+  async aggregateTable(
+    tableId: string,
+    options: EidosFileTableAggregateOptions,
+    query: EidosFileRowQuery
+  ): Promise<EidosFileTableAggregateResult> {
+    if (
+      "aggregateTable" in this.runtime &&
+      typeof (this.runtime as any).aggregateTable === "function"
+    ) {
+      return (this.runtime as any).aggregateTable(tableId, options, query)
+    }
+    if (options.groupBy?.fieldId && options.metric.op === "count") {
+      const groups = await this.getGroupCounts(
+        tableId,
+        options.groupBy.fieldId,
+        query
+      )
+      const items = groups.map((g) => ({
+        key: g.value as any,
+        label:
+          g.value === null || g.value === undefined || g.value === ""
+            ? "(Empty)"
+            : String(g.value),
+        value: g.total,
+      }))
+      const totalRecords = groups.reduce((acc, g) => acc + g.total, 0)
+      return { items, totalRecords }
+    }
+    if (!options.groupBy?.fieldId) {
+      const statType =
+        options.metric.op === "count" ? "count-all" : options.metric.op
+      const stats = await this.calculateColumnStats(
+        tableId,
+        [{ fieldId: options.metric.fieldId ?? "", type: statType as any }],
+        query
+      )
+      const val = Number(stats[0]?.value ?? 0)
+      return {
+        items: [{ key: null, label: "Total", value: val }],
+        totalRecords: val,
+      }
+    }
+    throw new Error("aggregateTable is not supported by runtime")
   }
 
   async previewFormula(

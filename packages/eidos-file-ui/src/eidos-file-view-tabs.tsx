@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -9,9 +10,12 @@ import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
 import { FileDown, Pencil, Settings2, Trash2 } from "lucide-react"
 
 import { EidosFileViewTabStrip } from "./eidos-file-editor-chrome"
+import type { EidosFilePlugin } from "./plugin"
 import { useEidosFileUI } from "./context"
 import {
   EidosFileViewSelector,
+  eidosFilePluginContributionId,
+  type EidosFilePluginViewContribution,
   type EidosFileViewSelectorRequest,
 } from "./eidos-file-view-selector"
 import {
@@ -43,6 +47,7 @@ export type EidosFileViewTabsProps = Omit<
   ComponentProps<typeof EidosFileViewSelector>,
   "request" | "triggerMode"
 > & {
+  plugins?: readonly EidosFilePlugin[]
   onExportCsv?: (view: EidosFileViewInfo) => Promise<void> | void
   onExportError?: (error: unknown) => void
   renderTab?: EidosFileViewTabRenderer
@@ -120,6 +125,7 @@ function EidosFileViewTabContextMenu({
 }
 
 export function EidosFileViewTabs({
+  plugins,
   onExportCsv,
   onExportError,
   renderTab,
@@ -133,6 +139,28 @@ export function EidosFileViewTabs({
     useState<EidosFileViewSelectorRequest | null>(null)
   const [exportingViewId, setExportingViewId] = useState<string | null>(null)
   const gridViewCount = views.filter((view) => view.type === "grid").length
+
+  const effectivePluginViews = useMemo<
+    EidosFilePluginViewContribution[]
+  >(() => {
+    if (props.pluginViews && props.pluginViews.length > 0) {
+      return props.pluginViews
+    }
+    if (props.extensionViews && props.extensionViews.length > 0) {
+      return props.extensionViews
+    }
+    if (!plugins) return []
+    return plugins.flatMap((p) =>
+      (p.views ?? [])
+        .filter((v) => eidosFilePluginContributionId(v.type) !== null)
+        .map((v) => ({
+          id: eidosFilePluginContributionId(v.type)!,
+          displayName: v.label,
+          description: v.description,
+          icon: v.icon,
+        }))
+    )
+  }, [props.pluginViews, props.extensionViews, plugins])
 
   const requestPanel = (
     view: EidosFileViewInfo,
@@ -164,6 +192,7 @@ export function EidosFileViewTabs({
   return (
     <div ref={rootRef} className="contents">
       <EidosFileViewTabStrip
+        plugins={plugins}
         views={views}
         activeViewId={activeView?.id}
         disabled={disabled}
@@ -215,11 +244,13 @@ export function EidosFileViewTabs({
           <>
             <EidosFileViewSelector
               {...props}
+              pluginViews={effectivePluginViews}
               viewAction={undefined}
               triggerMode="create"
             />
             <EidosFileViewSelector
               {...props}
+              pluginViews={effectivePluginViews}
               request={selectorRequest}
               triggerMode="context"
             />

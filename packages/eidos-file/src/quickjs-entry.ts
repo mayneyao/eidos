@@ -87,6 +87,7 @@ const SERIALIZABLE_METHODS = new Set([
   "exportCsv",
   "importCsv",
   "cancel",
+  "aggregateTable",
 ])
 
 const errorEnvelope = (error: unknown): string => {
@@ -209,11 +210,21 @@ globalThis.__eidos_runtime = {
       if (method === "importCsv" && typeof request.csv === "string") {
         request.csv = base64ToBytes(request.csv)
       }
-      const target = service as unknown as Record<
-        string,
-        (request: unknown, context: RequestContext) => Promise<unknown>
-      >
-      const result = await target[method]!(request, context)
+      let result: unknown
+      if (method === "aggregateTable") {
+        const { tableId, options, query } = request as {
+          tableId: string
+          options: any
+          query?: any
+        }
+        result = (service as any).aggregateTable(tableId, options, query)
+      } else {
+        const target = service as unknown as Record<
+          string,
+          (request: unknown, context: RequestContext) => Promise<unknown>
+        >
+        result = await target[method]!(request, context)
+      }
       if (
         method === "exportCsv" &&
         result !== null &&

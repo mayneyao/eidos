@@ -780,6 +780,34 @@ describe("Eidos File 1.0 native Runtime", () => {
         [`${team.id}:relation-row-count`]: 2,
         [`${team.id}:relation-distinct-target-count`]: 1,
       })
+
+      const aggTotal = runtime.aggregateTable(projects.id, {
+        metric: { fieldId: score.id!, op: "sum" },
+      })
+      expect(aggTotal.totalRecords).toBe(3)
+      expect(aggTotal.items).toEqual([{ key: null, label: "Total", value: 30 }])
+
+      const aggGroup = runtime.aggregateTable(projects.id, {
+        groupBy: { fieldId: done.id! },
+        metric: { op: "count" },
+        sort: "value-desc",
+      })
+      expect(aggGroup.totalRecords).toBe(3)
+      expect(aggGroup.items).toContainEqual({
+        key: 1,
+        label: "Checked",
+        value: 1,
+      })
+      expect(aggGroup.items).toContainEqual({
+        key: 0,
+        label: "Unchecked",
+        value: 1,
+      })
+      expect(aggGroup.items).toContainEqual({
+        key: null,
+        label: "(Empty)",
+        value: 1,
+      })
     } finally {
       runtime.close()
     }

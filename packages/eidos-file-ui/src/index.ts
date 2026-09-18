@@ -1,4 +1,5 @@
 export * from "./eidos-file-field-properties"
+export * from "./eidos-file-schema-settings"
 export * from "./eidos-file-data-grid"
 export * from "./eidos-file-editor-view"
 export * from "./eidos-file-editor-chrome"

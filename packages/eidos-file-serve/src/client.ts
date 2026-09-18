@@ -630,6 +630,17 @@ export class HttpRuntimeClient implements RuntimeClient {
     // Session lifecycle is owned by EidosFileHttpClient.close().
   }
 
+  async aggregateTable(tableId: string, options: unknown, query?: unknown) {
+    return await this.call(
+      "aggregateTable",
+      { tableId, options, query },
+      {
+        requestId: "aggregateTable",
+        deadlineMilliseconds: 30_000,
+      }
+    )
+  }
+
   private async call(
     method: string,
     request: unknown,
@@ -704,6 +715,14 @@ export class EidosFileHttpClient {
     ...args: Parameters<EidosFileEditorDataSource["calculateColumnStats"]>
   ) {
     return this.requireEditor().calculateColumnStats(...args)
+  }
+
+  aggregateTable(
+    ...args: Parameters<
+      NonNullable<EidosFileEditorDataSource["aggregateTable"]>
+    >
+  ) {
+    return this.requireEditor().aggregateTable(...args)
   }
 
   previewFormula(
@@ -899,6 +918,66 @@ export async function fetchCliHostManifest(): Promise<CliHostManifest | null> {
     return manifest as CliHostManifest
   } catch (error) {
     if (error instanceof CliHostAccessError) throw error
+    return null
+  }
+}
+
+export interface PluginViewDescriptor {
+  id: string
+  title: string
+  context: string
+  entry: string
+  access?: string
+  configuration?: {
+    type?: string
+    properties: Record<
+      string,
+      {
+        type: string
+        title?: string
+        default?: unknown
+        enum?: unknown[]
+        description?: string
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+}
+
+export interface PluginPlacement {
+  location: string
+  view: string
+}
+
+export interface PluginManifest {
+  apiVersion?: number
+  id: string
+  name: string
+  version: string
+  icon?: unknown
+  views?: PluginViewDescriptor[]
+  placements?: PluginPlacement[]
+  browser?: {
+    workers?: boolean
+    networkOrigins?: string[]
+  }
+}
+
+export interface PluginListing {
+  plugins: {
+    id: string
+    enabled: boolean
+    manifest: PluginManifest
+  }[]
+}
+
+export async function fetchPlugins(): Promise<PluginListing | null> {
+  try {
+    const response = await hostFetch("/api/plugins")
+    if (!response.ok) return null
+    return (await response.json()) as PluginListing
+  } catch {
     return null
   }
 }

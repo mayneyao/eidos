@@ -353,6 +353,17 @@ describe("EidosRuntimeEditorDataSource", () => {
       { fieldId: ESTIMATE, type: "average", value: 4.5 },
       { fieldId: ESTIMATE, type: "count-all", value: 2 },
     ])
+
+    ;(fixture.runtime as any).aggregateTable = vi.fn(() => ({
+      items: [{ key: null, label: "Total", value: 2 }],
+      totalRecords: 2,
+    }))
+    await expect(
+      source.aggregateTable(PROJECTS, { metric: { op: "count" } }, {})
+    ).resolves.toEqual({
+      items: [{ key: null, label: "Total", value: 2 }],
+      totalRecords: 2,
+    })
   })
 
   it("keeps inferred image display settings when importing CSV", async () => {

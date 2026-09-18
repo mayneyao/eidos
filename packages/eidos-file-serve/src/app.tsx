@@ -88,6 +88,7 @@ import {
   browserPublishBrandingVisible,
   EidosPublishBrand,
 } from "./publish-brand"
+import { usePluginTableViews } from "./plugin-view"
 
 const EidosFileEditorView = lazy(() =>
   import("./record-view").then((module) => ({
@@ -399,6 +400,8 @@ export function ServeApp() {
     [assetSession, manifest?.assets?.mounted]
   )
 
+  const pluginTableViews = usePluginTableViews(published)
+
   const editorPlugins = useMemo(
     () => [
       eidosFileGalleryPlugin,
@@ -406,6 +409,7 @@ export function ServeApp() {
       eidosFileCalendarPlugin,
       eidosFileFormPlugin,
       eidosFileFeedPlugin,
+      ...pluginTableViews,
       createEidosFileCsvImportPlugin(
         {
           async pickFile() {
@@ -472,7 +476,7 @@ export function ServeApp() {
         }
       ),
     ],
-    []
+    [pluginTableViews]
   )
 
   const onRowMutation = useCallback((result: EidosFileRowMutationResult) => {
@@ -1134,6 +1138,7 @@ export function ServeApp() {
                 />
               ) : (
                 <EidosFileViewTabs
+                  plugins={editorPlugins}
                   views={activeTable.views}
                   fields={activeTable.fields}
                   activeView={activeView}

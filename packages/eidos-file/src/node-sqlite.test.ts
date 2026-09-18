@@ -690,6 +690,12 @@ describe.runIf(supportsElectron43NodeSqlite)(
           "Second",
           null,
         ])
+
+        const agg = (runtime as any).aggregateTable(tableId, {
+          metric: { op: "count" },
+        })
+        expect(agg.totalRecords).toBe(2)
+        expect(agg.items).toEqual([{ key: null, label: "Total", value: 2 }])
       } finally {
         await runtime.close(runtimeContext("close-required-values"))
         connection.close()

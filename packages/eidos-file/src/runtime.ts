@@ -97,6 +97,9 @@ import type {
   EidosFileSchemaMutation,
   EidosFileSourceFieldType,
   EidosFileSort,
+  EidosFileTableAggregateItem,
+  EidosFileTableAggregateOptions,
+  EidosFileTableAggregateResult,
   EidosFileTableInfo,
   EidosFileViewInfo,
   ImportEidosFileFieldInput,
@@ -4681,6 +4684,183 @@ export class EidosFileRuntime {
     query: EidosFileRowQuery = {}
   ): EidosFileColumnStatResult[] {
     return this.calculateColumnStats(tableId, configs, query)
+  }
+
+  aggregateTable(
+    tableId: string,
+    options: EidosFileTableAggregateOptions,
+    query: EidosFileRowQuery = {}
+  ): EidosFileTableAggregateResult {
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const groupByField = options.groupBy?.fieldId
+      ? this.fieldByKey(tableId, options.groupBy.fieldId)
+      : undefined
+    const metricField = options.metric.fieldId
+      ? this.fieldByKey(tableId, options.metric.fieldId)
+      : undefined
+
+    const requiredFieldIds = [
+      ...(groupByField ? [groupByField.id!] : []),
+      ...(metricField ? [metricField.id!] : []),
+      ...this.requiredQueryFieldKeys(fields, compatibleQuery),
+    ]
+
+    const source = this.logicalSource(
+      tableId,
+      requiredFieldIds,
+      false,
+      false,
+      this.querySearchFragmentFieldIds(fields, compatibleQuery)
+    )
+
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+      referenceInstant: this.nowInstant(),
+    })
+
+    let metricSql = "count(*)"
+    if (options.metric.op === "count") {
+      metricSql = metricField
+        ? `count(${quoteIdentifier(metricField.tableColumnName)})`
+        : "count(*)"
+    } else if (metricField) {
+      const col = quoteIdentifier(metricField.tableColumnName)
+      switch (options.metric.op) {
+        case "sum":
+          metricSql = `coalesce(sum(${col}), 0)`
+          break
+        case "average":
+          metricSql = `coalesce(avg(${col}), 0)`
+          break
+        case "min":
+          metricSql = `min(${col})`
+          break
+        case "max":
+          metricSql = `max(${col})`
+          break
+      }
+    }
+
+    const countRow = this.connection.query<{ total: number }>(
+      `WITH logical AS (${source.sql})
+       SELECT count(*) AS total FROM logical ${compiled.whereSql}`,
+      compiled.params
+    )[0]
+    const totalRecords = Number(countRow?.total ?? 0)
+
+    if (!groupByField) {
+      const row = this.connection.query<{ val: number | null }>(
+        `WITH logical AS (${source.sql})
+         SELECT ${metricSql} AS val FROM logical ${compiled.whereSql}`,
+        compiled.params
+      )[0]
+      const value =
+        row?.val !== null && row?.val !== undefined ? Number(row.val) : 0
+      return {
+        items: [{ key: null, label: "Total", value }],
+        totalRecords,
+      }
+    }
+
+    const groupCol = quoteIdentifier(groupByField.tableColumnName)
+    let groupKeyExpr = groupCol
+    if (groupByField.type === "date") {
+      switch (options.groupBy?.dateInterval) {
+        case "year":
+          groupKeyExpr = `strftime('%Y', ${groupCol})`
+          break
+        case "month":
+          groupKeyExpr = `strftime('%Y-%m', ${groupCol})`
+          break
+        case "day":
+          groupKeyExpr = `strftime('%Y-%m-%d', ${groupCol})`
+          break
+        case "exact":
+        default:
+          groupKeyExpr = groupCol
+          break
+      }
+    }
+
+    let orderClause = "ORDER BY group_key ASC"
+    if (options.sort === "value-desc") {
+      orderClause = "ORDER BY metric_value DESC, group_key ASC"
+    } else if (options.sort === "value-asc") {
+      orderClause = "ORDER BY metric_value ASC, group_key ASC"
+    }
+
+    const isList =
+      groupByField.storageCodec === "json_array" ||
+      groupByField.storageCodec === "relation"
+
+    type RawRow = {
+      group_key: EidosFileSqlPrimitive
+      metric_value: number | null
+    }
+
+    let rows: RawRow[] = []
+    if (isList) {
+      rows = this.connection.query<RawRow>(
+        `WITH logical AS (${source.sql}), filtered AS (
+           SELECT * FROM logical ${compiled.whereSql}
+         )
+         SELECT item.value AS group_key, ${metricSql} AS metric_value
+         FROM filtered, json_each(filtered.${groupCol}) item
+         GROUP BY item.value
+         ${orderClause}`,
+        compiled.params
+      )
+    } else {
+      rows = this.connection.query<RawRow>(
+        `WITH logical AS (${source.sql})
+         SELECT ${groupKeyExpr} AS group_key, ${metricSql} AS metric_value
+         FROM logical ${compiled.whereSql}
+         GROUP BY ${groupKeyExpr}
+         ${orderClause}`,
+        compiled.params
+      )
+    }
+
+    const optionsMap = new Map<string, string>()
+    if (
+      (groupByField.type === "select" ||
+        groupByField.type === "multi-select") &&
+      Array.isArray(groupByField.property?.options)
+    ) {
+      for (const opt of groupByField.property.options as Array<{
+        id: string
+        name: string
+      }>) {
+        optionsMap.set(opt.id, opt.name)
+      }
+    }
+
+    const items: EidosFileTableAggregateItem[] = rows.map((r) => {
+      const key = r.group_key
+      let label = ""
+      if (key === null || key === undefined || key === "") {
+        label = "(Empty)"
+      } else if (groupByField.type === "checkbox") {
+        label = Number(key) === 1 ? "Checked" : "Unchecked"
+      } else if (typeof key === "string" && optionsMap.has(key)) {
+        label = optionsMap.get(key)!
+      } else {
+        label = String(key)
+      }
+      return {
+        key,
+        label,
+        value:
+          r.metric_value !== null && r.metric_value !== undefined
+            ? Number(r.metric_value)
+            : 0,
+      }
+    })
+
+    return {
+      items,
+      totalRecords,
+    }
   }
 
   private normalizeStoredValue(

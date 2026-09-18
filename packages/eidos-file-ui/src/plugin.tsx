@@ -29,6 +29,13 @@ export interface EidosFileViewPluginContribution {
   description: string
   icon?: ComponentType<{ className?: string }>
   renderer: EidosFileViewRenderer
+  /** Optional host toolbar configuration surface. */
+  settings?: ComponentType<{
+    fields: readonly EidosFileFieldInfo[]
+    view: EidosFileViewInfo
+    disabled: boolean
+    onUpdate: (properties: Record<string, unknown>) => Promise<void>
+  }>
   /** Defaults used by hosts that expose view creation. */
   create?: {
     defaultName: string
@@ -56,9 +63,9 @@ export interface EidosFileActionPluginContribution {
 /**
  * A trusted Eidos File editor composition unit.
  *
- * Plugins are imported by the host application. They are not Eidos Space
- * extensions: there is no manifest, installation lifecycle, sandbox, or raw
- * SQLite/file-handle access. Runtime semantics stay behind public adapters.
+ * Plugins are imported by the host application as in-process composition units.
+ * For sandboxed external plugins with manifest and lifecycle, see Eidos Lite Plugins 1.0.
+ * Runtime semantics stay behind public adapters.
  */
 export interface EidosFilePlugin {
   id: string

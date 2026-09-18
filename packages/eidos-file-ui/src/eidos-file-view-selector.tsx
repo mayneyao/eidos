@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ComponentType,
   type ReactNode,
 } from "react"
 import {
@@ -59,15 +60,21 @@ import {
 } from "./eidos-file-calendar-view"
 import { nextEidosFileViewName } from "./eidos-file-view-name"
 
-export interface EidosFileExternalViewContribution {
+export interface EidosFilePluginViewContribution {
+  icon?: ComponentType<{ className?: string }>
   id: string
   displayName: string
   description?: string | null
+  pluginDisplayName?: string | null
+  /** @deprecated Use `pluginDisplayName`. */
   extensionDisplayName?: string | null
   packageId?: string
   contentDigest?: string
   permissionHash?: string
 }
+
+/** @deprecated Use `EidosFilePluginViewContribution`. */
+export type EidosFileExternalViewContribution = EidosFilePluginViewContribution
 
 type Panel = "list" | "create" | "manage" | "delete" | "card"
 type FormStartMode = "existing" | "empty"
@@ -90,17 +97,27 @@ export type EidosFileBuiltInViewType =
   | "calendar"
   | "form"
   | "feed"
-export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = "extension:"
+export const EIDOS_FILE_PLUGIN_VIEW_PREFIX = "plugin:"
+/** @deprecated Use `EIDOS_FILE_PLUGIN_VIEW_PREFIX`. */
+export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = EIDOS_FILE_PLUGIN_VIEW_PREFIX
 
-export function eidosFileExtensionViewType(contributionId: string): string {
-  return `${EIDOS_FILE_EXTENSION_VIEW_PREFIX}${contributionId}`
+export function eidosFilePluginViewType(contributionId: string): string {
+  return `${EIDOS_FILE_PLUGIN_VIEW_PREFIX}${contributionId}`
 }
+/** @deprecated Use `eidosFilePluginViewType`. */
+export const eidosFileExtensionViewType = eidosFilePluginViewType
 
-export function eidosFileExtensionContributionId(type: string): string | null {
-  return type.startsWith(EIDOS_FILE_EXTENSION_VIEW_PREFIX)
-    ? type.slice(EIDOS_FILE_EXTENSION_VIEW_PREFIX.length) || null
-    : null
+export function eidosFilePluginContributionId(type: string): string | null {
+  if (type.startsWith(EIDOS_FILE_PLUGIN_VIEW_PREFIX)) {
+    return type.slice(EIDOS_FILE_PLUGIN_VIEW_PREFIX.length) || null
+  }
+  if (type.startsWith("extension:")) {
+    return type.slice("extension:".length) || null
+  }
+  return null
 }
+/** @deprecated Use `eidosFilePluginContributionId`. */
+export const eidosFileExtensionContributionId = eidosFilePluginContributionId
 
 const VIEW_TYPES: Array<{
   type: EidosFileBuiltInViewType
@@ -263,7 +280,8 @@ function SortableSelectorRow({
 
 export function EidosFileViewSelector({
   views,
-  extensionViews = [],
+  pluginViews,
+  extensionViews,
   fields,
   activeView,
   disabled,
@@ -279,7 +297,9 @@ export function EidosFileViewSelector({
   request,
 }: {
   views: EidosFileViewInfo[]
-  extensionViews?: EidosFileExternalViewContribution[]
+  pluginViews?: EidosFilePluginViewContribution[]
+  /** @deprecated Use `pluginViews`. */
+  extensionViews?: EidosFilePluginViewContribution[]
   fields: EidosFileFieldInfo[]
   activeView?: EidosFileViewInfo
   disabled?: boolean
@@ -323,6 +343,7 @@ export function EidosFileViewSelector({
   const selectFields = fields.filter((field) => field.type === "select")
   const dateFields = eidosFileCalendarDateFields(fields)
   const formFields = fields.filter(isEidosFileFormInputField)
+  const availablePluginViews = pluginViews ?? extensionViews ?? []
   const visibleFieldIds = new Set(
     visibleEidosFileFields(
       fields,
@@ -646,7 +667,7 @@ export function EidosFileViewSelector({
               renderItem={(view) => {
                 const supported =
                   isEidosFileBuiltInViewType(view.type) ||
-                  Boolean(eidosFileExtensionContributionId(view.type))
+                  Boolean(eidosFilePluginContributionId(view.type))
                 return (
                   <SortableSelectorRow
                     id={view.id}
@@ -816,38 +837,43 @@ export function EidosFileViewSelector({
                   </div>
                 </fieldset>
               ) : null}
-              {extensionViews.length > 0 ? (
-                <div className="mt-2 border-t pt-2">
+              {availablePluginViews.length > 0 ? (
+                <div className="mt-3 border-t pt-2.5">
                   <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t("Extensions")}
+                    {t("Plugins")}
                   </p>
-                  <div className="grid gap-1">
-                    {extensionViews.map((extensionView) => {
-                      const type = eidosFileExtensionViewType(extensionView.id)
+                  <div
+                    className="grid grid-cols-4 gap-1.5"
+                    role="group"
+                    aria-label={t("Plugins")}
+                  >
+                    {availablePluginViews.map((pluginView) => {
+                      const Icon = pluginView.icon ?? Puzzle
+                      const type = eidosFilePluginViewType(pluginView.id)
+                      const isSelected = createType === type
                       return (
                         <button
-                          key={extensionView.id}
+                          key={pluginView.id}
                           type="button"
                           className={cn(
-                            "flex min-h-10 items-center gap-2 rounded-md border px-2 text-left outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring",
-                            createType === type &&
-                              "border-foreground/30 bg-accent"
+                            "grid min-h-16 place-items-center content-center gap-1 rounded-md border border-border/70 px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
+                            isSelected && "border-foreground/30 bg-accent"
                           )}
-                          aria-pressed={createType === type}
+                          aria-pressed={isSelected}
                           disabled={busy}
+                          title={
+                            pluginView.description ??
+                            pluginView.pluginDisplayName ??
+                            pluginView.extensionDisplayName ??
+                            pluginView.displayName
+                          }
                           onClick={() =>
-                            selectCreateType(type, extensionView.displayName)
+                            selectCreateType(type, pluginView.displayName)
                           }
                         >
-                          <Puzzle className="h-4 w-4 shrink-0" />
-                          <span className="min-w-0">
-                            <span className="block truncate text-xs font-medium">
-                              {extensionView.displayName}
-                            </span>
-                            <span className="block truncate text-[10px] text-muted-foreground">
-                              {extensionView.description ??
-                                extensionView.extensionDisplayName}
-                            </span>
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="max-w-full truncate text-[11px]">
+                            {pluginView.displayName}
                           </span>
                         </button>
                       )

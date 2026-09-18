@@ -680,3 +680,39 @@ export interface EidosFileSnapshot {
   metadata: EidosFileMetadata
   tables: EidosFileTableSnapshot[]
 }
+
+export type EidosFileTableAggregateMetric =
+  | "count"
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+
+export type EidosFileTableAggregateDateInterval =
+  | "exact"
+  | "day"
+  | "month"
+  | "year"
+
+export interface EidosFileTableAggregateOptions {
+  groupBy?: {
+    fieldId: string
+    dateInterval?: EidosFileTableAggregateDateInterval
+  }
+  metric: {
+    fieldId?: string
+    op: EidosFileTableAggregateMetric
+  }
+  sort?: "label" | "value-desc" | "value-asc"
+}
+
+export interface EidosFileTableAggregateItem {
+  key: EidosFileSqlPrimitive
+  label: string
+  value: number
+}
+
+export interface EidosFileTableAggregateResult {
+  items: EidosFileTableAggregateItem[]
+  totalRecords: number
+}

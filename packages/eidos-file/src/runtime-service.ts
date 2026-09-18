@@ -43,6 +43,9 @@ import type {
   EidosFileRelativeDateValue,
   EidosFileLookupAggregate,
   EidosFileLogicalRow,
+  EidosFileRowQuery,
+  EidosFileTableAggregateOptions,
+  EidosFileTableAggregateResult,
 } from "./types"
 import { EidosFileRuntime } from "./runtime"
 import type {
@@ -768,6 +771,14 @@ export class EidosRuntimeService implements RuntimeClient {
       false,
       request
     )
+  }
+
+  aggregateTable(
+    tableId: string,
+    options: EidosFileTableAggregateOptions,
+    query: EidosFileRowQuery = {}
+  ): EidosFileTableAggregateResult {
+    return this.read(() => this.core.aggregateTable(tableId, options, query))
   }
 
   groupRows(
