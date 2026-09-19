@@ -4,7 +4,7 @@
 
 Plugins bring more ways to work with your files and tables. Choose an editor that fits a file, add a new way to display a table, or find tools for everyday document tasks.
 
-Browse the plugin marketplace in Settings, read a plugin's introduction, and follow its download progress as it installs. You can also install a local plugin package. For file editors, use **Open with** to choose a plugin or set it as the default for that file type.
+Discover and install plugins from the marketplace in Settings, or install a local plugin package. For file editors, use **Open with** to choose a plugin or set it as the default for that file type.
 
 This is the first preview of plugins in Eidos Lite. Choose which plugins to enable in each Space; updating a plugin keeps those choices.
 
