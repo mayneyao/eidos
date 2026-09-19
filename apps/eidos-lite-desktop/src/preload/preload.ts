@@ -295,6 +295,12 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
+  importDroppedFiles: (files, targetDirectory) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.importDroppedFiles,
+      files.map((file) => webUtils.getPathForFile(file)),
+      targetDirectory
+    ),
   selectEidosFileAssets: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.selectEidosFileAssets, sessionId),
   importDroppedEidosFileAssets: async (sessionId, files, source) => {

@@ -132,6 +132,7 @@ export const IPC_CHANNELS = {
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
+  importDroppedFiles: "eidos-lite:path-import-dropped",
   selectEidosFileAssets: "eidos-lite:eidos-file-assets-select",
   importEidosFileAssets: "eidos-lite:eidos-file-assets-import",
   importEidosFileAssetData: "eidos-lite:eidos-file-assets-import-data",
@@ -1818,6 +1819,10 @@ export interface EidosLiteApi extends PluginApi {
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult | null>
   selectEidosFileAssets(sessionId: string): Promise<FileEntry[]>
+  importDroppedFiles(
+    files: readonly File[],
+    targetDirectory: string | null
+  ): Promise<SpacePathMutationResult>
   importDroppedEidosFileAssets(
     sessionId: string,
     files: readonly File[],

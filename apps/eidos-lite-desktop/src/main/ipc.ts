@@ -1271,6 +1271,16 @@ export function registerIpc(
     )
   )
   ipcMain.handle(
+    IPC_CHANNELS.importDroppedFiles,
+    (event, sourcePaths: unknown, targetDirectory: unknown) =>
+      controller
+        .requireSession(event.sender)
+        .importFiles(
+          requiredAbsolutePaths(sourcePaths),
+          optionalRelativePath(targetDirectory)
+        )
+  )
+  ipcMain.handle(
     IPC_CHANNELS.selectEidosFileAssets,
     async (event, value: unknown) => {
       const sessionId = requiredString(value, "Eidos File session")

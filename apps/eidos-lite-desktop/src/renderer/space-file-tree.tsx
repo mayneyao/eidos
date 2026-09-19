@@ -19,7 +19,7 @@ import {
 
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
-import { setSpacePathDragData } from "./space-path-drag"
+import { hasSpacePathDragData, setSpacePathDragData } from "./space-path-drag"
 
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
@@ -32,6 +32,7 @@ interface SpaceFileTreeProps {
   onLoadDirectory(relativePath: string): void
   onMove(relativePath: string, targetDirectory: string | null): Promise<void>
   onMoveError(error: unknown): void
+  onImportFiles?(files: File[], targetDirectory: string | null): Promise<void>
   onRename(entry: SpaceTreeEntry, nextName: string): Promise<void>
   onRenameError(error: unknown): void
   onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
@@ -258,11 +259,13 @@ export function SpaceFileTree({
   onLoadDirectory,
   onMove,
   onMoveError,
+  onImportFiles,
   onRename,
   onRenameError,
   onContextMenu,
 }: SpaceFileTreeProps) {
   const [treeResetVersion, setTreeResetVersion] = useState(0)
+  const [externalDropActive, setExternalDropActive] = useState(false)
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
   const mutationInFlightRef = useRef(false)
@@ -464,7 +467,63 @@ export function SpaceFileTree({
       data-active-selected={
         activePath && selectedPaths.includes(activePath) ? "true" : "false"
       }
-      style={SPACE_FILE_TREE_STYLES}
+      style={
+        externalDropActive
+          ? {
+              ...SPACE_FILE_TREE_STYLES,
+              outline: "1px solid var(--focus)",
+              outlineOffset: "-1px",
+            }
+          : SPACE_FILE_TREE_STYLES
+      }
+      onDragOverCapture={(event) => {
+        if (
+          hasSpacePathDragData(event.dataTransfer) ||
+          !Array.from(event.dataTransfer.types).includes("Files")
+        )
+          return
+        event.preventDefault()
+        event.stopPropagation()
+        setExternalDropActive(
+          !disabled && !mutationInFlightRef.current && Boolean(onImportFiles)
+        )
+        event.dataTransfer.dropEffect =
+          disabled || mutationInFlightRef.current || !onImportFiles
+            ? "none"
+            : "copy"
+      }}
+      onDragLeaveCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setExternalDropActive(false)
+      }}
+      onDropCapture={(event) => {
+        if (
+          hasSpacePathDragData(event.dataTransfer) ||
+          !Array.from(event.dataTransfer.types).includes("Files")
+        )
+          return
+        event.preventDefault()
+        event.stopPropagation()
+        setExternalDropActive(false)
+        if (disabled || mutationInFlightRef.current || !onImportFiles) return
+        const files = Array.from(event.dataTransfer.files)
+        if (!files.length) return
+        const treePath = eventTreePath(event)
+        const targetDirectory = treePath?.endsWith("/")
+          ? relativePathFromTreePath(treePath)
+          : treePath
+            ? (parentTreeDirectory(treePath)?.replace(/\/$/, "") ?? null)
+            : null
+        mutationInFlightRef.current = true
+        void onImportFiles(files, targetDirectory)
+          .catch(onMoveError)
+          .finally(() => {
+            mutationInFlightRef.current = false
+          })
+      }}
       onDragStart={(event) => {
         const treePath = eventTreePath(event)
         if (!treePath || disabled) return

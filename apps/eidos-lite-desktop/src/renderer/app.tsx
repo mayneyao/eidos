@@ -3418,6 +3418,22 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   .catch((error) => setError(errorMessage(error)))
               }}
               onMove={moveTreeEntry}
+              onImportFiles={async (files, targetDirectory) => {
+                setPathMutationBusy(true)
+                setError(null)
+                try {
+                  applyPathMutation(
+                    await window.eidosLite.importDroppedFiles(
+                      files,
+                      targetDirectory
+                    )
+                  )
+                } catch (cause) {
+                  setError(errorMessage(cause))
+                } finally {
+                  setPathMutationBusy(false)
+                }
+              }}
               onMoveError={(cause) =>
                 setError(`Could not move item. ${errorMessage(cause)}`)
               }
