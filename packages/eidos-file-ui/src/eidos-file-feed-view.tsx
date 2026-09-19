@@ -27,6 +27,7 @@ import {
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
 import { EidosFileMarkdownPreview } from "./eidos-file-markdown-preview"
+import { EidosFileRelativeTime } from "./eidos-file-relative-time"
 import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
 import {
   eidosFileRecordFieldText,
@@ -170,13 +171,8 @@ function EidosFileFeedEntry({
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-6">
           {title === "Empty" ? t("Untitled") : title}
         </h2>
-        {displayDate ? (
-          <time
-            dateTime={dateRaw ?? undefined}
-            className="shrink-0 text-xs tabular-nums text-muted-foreground"
-          >
-            {displayDate}
-          </time>
+        {displayDate && dateRaw ? (
+          <EidosFileRelativeTime value={dateRaw} title={displayDate} />
         ) : null}
       </div>
       {contentMarkdown ? (
