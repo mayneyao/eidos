@@ -198,6 +198,19 @@ it("global settings updates reload active instances without enabling other Space
   )
 })
 
+it("updating from a disabled Space preserves all Space enablement", async () => {
+  await call("install", 1)
+  await call("enable", 1, id, false)
+  await call("enable", 2, id, true)
+  await packageVersion("2.0.0")
+  await call("install", 1)
+  expect((await listing(1)).plugins[0]).toMatchObject({
+    enabled: false,
+    manifest: { version: "2.0.0" },
+  })
+  expect((await listing(2)).plugins[0].enabled).toBe(true)
+})
+
 it("uninstall cancellation preserves installation; confirmation removes it for all Spaces", async () => {
   await call("install", 1)
   await call("enable", 2, id, true)

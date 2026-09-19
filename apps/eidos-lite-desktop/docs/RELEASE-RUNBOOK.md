@@ -54,6 +54,12 @@ approval, create one lightweight tag and push the branch plus tag. Monitor
 `build-and-release-eidos-lite.yml` through all five platform/architecture jobs,
 the Worker deployment, and the final Release job.
 
+The packaged smoke also typechecks a plugin against the SDK and TypeScript
+libraries inside the actual `app.asar`, rejects invalid source, and exercises
+the packaged native esbuild binary. Every development and release build first
+builds Eidos File, whose type declarations are required by the plugin SDK.
+Do not substitute a source-only compiler test for this packaged check.
+
 After publication, require all of the following before reporting success:
 
 1. The remote `lite-v*` tag points to the approved commit.

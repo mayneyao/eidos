@@ -150,3 +150,5 @@ export const PLUGIN_CHANNELS = {
   request: "eidos-lite:plugins-request",
   close: "eidos-lite:plugins-close",
 } as const
+
+export * from "./plugin-version"

@@ -18,6 +18,7 @@
 - [View commands and mutations](#view-commands-and-mutations)
 - [Validation](#validation)
 - [Local web editor](#local-web-editor)
+- [Plugins](#plugins)
 - [Logical values](#logical-values)
 - [Errors](#errors)
 
@@ -641,6 +642,43 @@ opaque `u-….eidos.ink` hostname. The OAuth token stays in memory and is not
 included in the browser link. A later Relay serve for the same account takes
 over the hostname. `--relay` and `--lan` are mutually exclusive; Relay request
 bodies are limited to 4 MiB in the initial service.
+
+## Plugins
+
+Plugins extend Eidos with custom views, fields, formulas, and actions. Plugins
+are stored in the device-wide catalog (`~/.eidos/plugins/`), shared between
+the CLI, `eidos serve`, and Eidos Lite desktop.
+
+```bash
+# Search available plugins in the official registry
+eidos --json plugin search <query>
+
+# List installed plugins
+eidos --json plugin list
+
+# List all plugins available in the marketplace registry
+eidos --json plugin list --marketplace
+
+# View metadata for an installed plugin or marketplace plugin
+eidos --json plugin info <id>
+
+# Install from official registry (by ID) or local file path (.eidos-plugin)
+eidos --json plugin install <id-or-path> [--version <semver>] [--force] [--unpack]
+
+# Uninstall an installed plugin
+eidos --json plugin uninstall <id>
+```
+
+Options:
+
+- `--dir <PATH>`: Override plugin root directory (default: `~/.eidos/plugins`).
+- `--unpack`: When installing, also export `plugin.json` and module files to a new `<dir>/<id>/` directory. An existing directory or symlink is rejected, including with `--force`.
+- `--force`: Reinstall even if the plugin is already installed.
+- `--marketplace`: For `plugin list`, query the official online registry.
+
+Registry integration verifies HTTPS endpoints, downloads release assets with a
+16 MiB size limit, validates the SHA-256 integrity hash, and unpacks the Gzip
+envelope conforming to format version 1.
 
 ## Logical values
 

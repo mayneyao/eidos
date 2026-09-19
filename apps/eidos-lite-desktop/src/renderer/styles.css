@@ -6179,6 +6179,12 @@ body {
   border: 1px solid color-mix(in oklab, var(--lite-accent) 25%, transparent);
 }
 
+.plugin-status-pill.is-update {
+  background: color-mix(in oklab, var(--lite-accent) 14%, var(--canvas));
+  color: var(--accent-strong);
+  border: 1px solid color-mix(in oklab, var(--lite-accent) 30%, transparent);
+}
+
 .plugin-status-pill .status-icon {
   width: 0.75rem;
   height: 0.75rem;
@@ -6965,6 +6971,18 @@ body {
   border-color: color-mix(in oklab, var(--lite-accent) 35%, transparent);
   color: var(--accent-strong);
 }
+.plugin-manager-tabs .plugin-tab-update-badge,
+.plugin-manager-tabs button[aria-selected="true"] .plugin-tab-update-badge {
+  background: var(--lite-accent);
+  border-color: color-mix(in oklab, var(--lite-accent) 40%, transparent);
+  color: #ffffff;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 2px;
+}
 .plugin-manager-caption {
   padding: 16px 0 8px;
 }
@@ -7265,6 +7283,11 @@ body {
   background: color-mix(in oklab, var(--theme-warning) 14%, transparent);
   color: var(--theme-warning);
   border: 1px solid color-mix(in oklab, var(--theme-warning) 30%, transparent);
+}
+.plugin-pill-status.is-update {
+  background: color-mix(in oklab, var(--lite-accent) 14%, transparent);
+  color: var(--accent-strong);
+  border: 1px solid color-mix(in oklab, var(--lite-accent) 30%, transparent);
 }
 .plugin-row-desc {
   font-size: 12px;
@@ -12032,6 +12055,17 @@ body {
   min-height: 0;
   height: 26px;
   padding: 0 0.5rem;
+}
+.plugin-manager-tab-header .settings-button.plugin-update-all-btn {
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--lite-accent) 35%, transparent);
+  background: color-mix(in oklab, var(--lite-accent) 8%, transparent);
+}
+.plugin-manager-tab-header .settings-button.plugin-update-all-btn:hover {
+  background: color-mix(in oklab, var(--lite-accent) 15%, transparent);
+  border-color: color-mix(in oklab, var(--lite-accent) 50%, transparent);
 }
 .plugin-marketplace-row {
   display: flex;

@@ -955,6 +955,9 @@ importers:
 
   packages/plugin-tools:
     dependencies:
+      '@eidos.space/eidos-file':
+        specifier: workspace:*
+        version: link:../eidos-file
       '@eidos.space/plugin-sdk':
         specifier: workspace:^
         version: link:../plugin-sdk

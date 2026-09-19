@@ -23,13 +23,8 @@ test("create, typecheck and pack an offline CSV editor against the real SDK", as
       '\nheader { background-image: url("./icon.svg"); }\n'
     )
     await assert.rejects(create(directory))
-    await fs.mkdir(path.join(directory, "node_modules/@eidos.space"), {
-      recursive: true,
-    })
-    await fs.symlink(
-      fileURLToPath(new URL("../../plugin-sdk", import.meta.url)),
-      path.join(directory, "node_modules/@eidos.space/plugin-sdk")
-    )
+    // The distributed compiler carries its SDK contract, even before the
+    // generated project's dependencies have been installed.
     const output = await pack(directory)
     const pkg = decodePackage(await fs.readFile(output))
     assert.equal(pkg.manifest.id, "local.csv-editor")

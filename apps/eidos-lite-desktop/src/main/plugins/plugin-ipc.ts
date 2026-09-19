@@ -417,12 +417,27 @@ export function registerPluginIpc(controller: WindowController): () => void {
           "UNSUPPORTED_API",
           "Table actions, settings and named resources are not connected yet"
         )
+      const existing = await store.installed(pkg.manifest.id)
+      let existingVersion: string | undefined
+      if (existing) {
+        try {
+          existingVersion = (await store.read(existing.hash)).manifest.version
+        } catch {
+          // Ignore if previous package cannot be read
+        }
+      }
+      const isUpdate = !!existing
+      const versionLabel =
+        existingVersion && existingVersion !== pkg.manifest.version
+          ? `${existingVersion} → ${pkg.manifest.version}`
+          : pkg.manifest.version
+
       const review = await dialog.showMessageBox(owner, {
         type: "question",
-        title: "Install plugin",
-        message: `${pkg.manifest.name} ${pkg.manifest.version}${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
-        detail: `${pkg.manifest.id}\n\nInstalled once for this device. ${spaceId ? "Enable in this Space after installation." : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
-        buttons: ["Cancel", "Install"],
+        title: isUpdate ? "Update plugin" : "Install plugin",
+        message: `${pkg.manifest.name} ${versionLabel}${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
+        detail: `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+        buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
         defaultId: 0,
         cancelId: 0,
         noLink: true,

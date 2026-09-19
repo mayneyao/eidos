@@ -81,7 +81,7 @@ it("reuses validated code only when the bytes still match the installed hash", a
   await expect(store.read(hash)).rejects.toThrow("integrity check failed")
 })
 
-it("enables only the installing Space and shares package bytes", async () => {
+it("does not enable another Space when reinstalling a shared package", async () => {
   const first = await store.install(bytes(), "a")
   const second = await store.install(bytes(), "b")
   expect(first).toBe(second)
@@ -89,7 +89,7 @@ it("enables only the installing Space and shares package bytes", async () => {
     `${first}.eidos-plugin`,
   ])
   expect((await store.list("a")).plugins).toHaveLength(1)
-  expect((await store.list("b")).plugins[0].enabled).toBe(true)
+  expect((await store.list("b")).plugins[0].enabled).toBe(false)
   expect((await store.list("new")).plugins[0].enabled).toBe(false)
 })
 
@@ -99,7 +99,7 @@ it("updates the shared version while preserving enablement and routes after rest
   await store.enable(manifest.id, false, "c")
   await store.setPageRoute("a", "example.csv/page", "one")
   await store.setPageRoute("b", "example.csv/page", "two")
-  const hash = await store.install(bytes("2.0.0"))
+  const hash = await store.install(bytes("2.0.0"), "c")
   const restarted = new PluginStore(directory)
   expect(await restarted.binding(manifest.id, "a")).toEqual({
     hash,

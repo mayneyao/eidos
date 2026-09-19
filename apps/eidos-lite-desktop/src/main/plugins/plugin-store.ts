@@ -291,8 +291,9 @@ export class PluginStore {
       return hash
     }
     await this.update((config) => {
+      const installed = !!config.installed[pkg.manifest.id]
       config.installed[pkg.manifest.id] = { hash }
-      if (spaceId)
+      if (spaceId && !installed)
         (config.spaces[spaceId] ??= emptyScope()).plugins[pkg.manifest.id] = {
           enabled: true,
         }

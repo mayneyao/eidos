@@ -414,6 +414,7 @@ dependencies = [
  "cap-std",
  "clap",
  "eidos-file-core",
+ "flate2",
  "mime_guess",
  "open",
  "pulldown-cmark",

@@ -509,3 +509,87 @@ it("opens repository link in external browser when clicked", async () => {
     "https://github.com/eidos-space/eidos-map-plugin"
   )
 })
+
+it("detects plugin updates and shows update actions in marketplace, detail view, and installed tab", async () => {
+  const installMarketplace = vi.fn(async () => true)
+  Object.assign(window.eidosLite, {
+    listPlugins: async () => ({
+      space: { plugins: {}, associations: {} },
+      plugins: [
+        {
+          hash: "hash-csv",
+          enabled: false,
+          manifest: {
+            apiVersion: 1,
+            id: "example.csv",
+            name: "CSV",
+            version: "1.0.0",
+          },
+        },
+      ],
+    }),
+    pluginMarketplace: async () => ({
+      plugins: [
+        {
+          id: "example.csv",
+          name: "CSV",
+          description: "CSV editor",
+          repo: "eidos-space/eidos-csv-plugin",
+          version: "1.2.0",
+          sha256: "xyz",
+        },
+      ],
+      cached: false,
+      fetchedAt: new Date().toISOString(),
+    }),
+    installMarketplacePlugin: installMarketplace,
+  })
+
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+
+  // In Installed tab: update badge should show count "1", and "Update all" button should be present
+  await click("Installed")
+  const updateBadge = container.querySelector(".plugin-tab-update-badge")
+  expect(updateBadge).not.toBeNull()
+  expect(updateBadge?.textContent).toBe("1")
+
+  const updateAllBtn = container.querySelector(".plugin-update-all-btn")
+  expect(updateAllBtn).not.toBeNull()
+  expect(updateAllBtn?.textContent).toContain("Update all")
+  expect(updateAllBtn?.textContent).toContain("1")
+
+  // Installed card should show "Update available" badge
+  expect(
+    container.querySelector(".plugin-pill-status.is-update")
+  ).not.toBeNull()
+  expect(container.textContent).toContain("Update available")
+
+  // Click Update all
+  await act(async () => (updateAllBtn as HTMLButtonElement).click())
+  expect(installMarketplace).toHaveBeenCalledWith("example.csv")
+
+  // Switch to Marketplace tab
+  await click("Marketplace")
+  expect(
+    container.querySelector(".plugin-pill-status.is-update")
+  ).not.toBeNull()
+  const updateBtn = [...container.querySelectorAll("button")].find(
+    (b) => b.textContent === "Update"
+  )
+  expect(updateBtn).toBeDefined()
+  expect((updateBtn as HTMLButtonElement).disabled).toBe(false)
+
+  // Click Update button on card
+  await act(async () => (updateBtn as HTMLButtonElement).click())
+  expect(installMarketplace).toHaveBeenCalledWith("example.csv")
+
+  // Click card to open detail view
+  const card = container.querySelector(
+    ".plugin-marketplace-card"
+  ) as HTMLElement
+  await act(async () => card.click())
+  expect(
+    container.querySelector(".plugin-status-pill.is-update")
+  ).not.toBeNull()
+  expect(container.textContent).toContain("Update available: v1.2.0")
+})

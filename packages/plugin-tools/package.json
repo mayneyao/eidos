@@ -27,6 +27,7 @@
     "test": "node build.mjs && node --test bin/*.test.mjs"
   },
   "dependencies": {
+    "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/plugin-sdk": "workspace:^",
     "esbuild": "0.28.1",
     "typescript": "^5.8.3",

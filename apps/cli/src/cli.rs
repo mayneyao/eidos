@@ -104,6 +104,68 @@ pub enum PluginCommand {
     Dev(PluginProjectArgs),
     /// Build a self-contained .eidos-plugin package.
     Pack(PluginProjectArgs),
+    /// Install a plugin from the registry or a local .eidos-plugin package.
+    Install(PluginInstallArgs),
+    /// List installed plugins on this device or browse the marketplace.
+    List(PluginListArgs),
+    /// Search plugins in the official registry.
+    Search(PluginSearchArgs),
+    /// Show detailed information about a plugin.
+    Info(PluginInfoArgs),
+    /// Uninstall a plugin from this device.
+    Uninstall(PluginUninstallArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct PluginInstallArgs {
+    /// Plugin identifier from the registry (e.g. eidos.chart) or path to a local .eidos-plugin file.
+    pub target: String,
+    /// Exact version to install from the registry (defaults to latest listed).
+    #[arg(long)]
+    pub version: Option<String>,
+    /// Custom target directory for installation (defaults to ~/.eidos/plugins).
+    #[arg(long)]
+    pub dir: Option<PathBuf>,
+    /// Force reinstall even if the plugin is already installed at the same version.
+    #[arg(short = 'f', long)]
+    pub force: bool,
+    /// Also unpack the package modules to a directory for inspection.
+    #[arg(long)]
+    pub unpack: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct PluginListArgs {
+    /// Also query and display all plugins available in the marketplace.
+    #[arg(short = 'm', long)]
+    pub marketplace: bool,
+    /// Custom plugins directory to inspect (defaults to ~/.eidos/plugins).
+    #[arg(long)]
+    pub dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct PluginSearchArgs {
+    /// Keyword to match against plugin ID, name, or description.
+    pub query: String,
+}
+
+#[derive(Debug, Args)]
+pub struct PluginInfoArgs {
+    /// Plugin identifier from registry/device or path to a local .eidos-plugin file.
+    pub target: String,
+    /// Custom plugins directory to inspect (defaults to ~/.eidos/plugins).
+    #[arg(long)]
+    pub dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct PluginUninstallArgs {
+    /// Plugin identifier to uninstall.
+    pub id: String,
+    /// Custom plugins directory to uninstall from (defaults to ~/.eidos/plugins).
+    #[arg(long)]
+    pub dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]

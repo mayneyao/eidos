@@ -4,6 +4,7 @@ import {
   useId,
   useState,
   useRef,
+  useMemo,
   type ReactNode,
 } from "react"
 import {
@@ -15,12 +16,14 @@ import {
   LayoutGrid,
   List,
   Search,
+  RotateCw,
 } from "lucide-react"
-import type {
-  PluginEditorChoice,
-  PluginListing,
-  PluginMarketplace,
-  PluginInstallTask,
+import {
+  type PluginEditorChoice,
+  type PluginListing,
+  type PluginMarketplace,
+  type PluginInstallTask,
+  isPluginUpdateAvailable,
 } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
 import { PluginPage } from "./plugin-workspace"
@@ -263,7 +266,27 @@ export function PluginManager({
 
   const builtin = builtins.find((item) => item.id === selected)
   const plugin = plugins.find((item) => item.manifest.id === selected)
-  const tabs: { key: PluginTab; label: string; count?: number }[] = [
+
+  const updatablePlugins = useMemo(() => {
+    if (!listing?.plugins || !marketplace?.plugins) return []
+    return listing.plugins.filter((p) => {
+      const match = marketplace.plugins.find((m) => m.id === p.manifest.id)
+      return match && isPluginUpdateAvailable(p.manifest.version, match.version)
+    })
+  }, [listing, marketplace])
+
+  const handleUpdateAll = useCallback(() => {
+    for (const p of updatablePlugins) {
+      installMarketplacePlugin(p.manifest.id)
+    }
+  }, [updatablePlugins, installMarketplacePlugin])
+
+  const tabs: {
+    key: PluginTab
+    label: string
+    count?: number
+    updateCount?: number
+  }[] = [
     ...(spaceAvailable
       ? [
           {
@@ -279,6 +302,7 @@ export function PluginManager({
       count: query
         ? filteredPlugins.length + filteredBuiltins.length
         : plugins.length + builtins.length,
+      updateCount: updatablePlugins.length,
     },
     { key: "marketplace", label: t("Marketplace") },
   ]
@@ -407,6 +431,14 @@ export function PluginManager({
             >
               {item.label}
               {item.count !== undefined && listing && <span>{item.count}</span>}
+              {item.updateCount !== undefined && item.updateCount > 0 && (
+                <span
+                  className="plugin-tab-update-badge"
+                  title={t("Update available")}
+                >
+                  {item.updateCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -498,6 +530,23 @@ export function PluginManager({
                       "Installed on this device. Enablement is managed separately in each Space."
                     )}
               </p>
+              {tab === "installed" && updatablePlugins.length > 0 && (
+                <button
+                  className="settings-button settings-button-primary settings-button-compact plugin-update-all-btn"
+                  type="button"
+                  disabled={updatablePlugins.some(
+                    (p) =>
+                      installTasks[p.manifest.id]?.status === "downloading" ||
+                      installTasks[p.manifest.id]?.status === "installing"
+                  )}
+                  onClick={handleUpdateAll}
+                >
+                  <RotateCw size={12} aria-hidden="true" />
+                  <span>
+                    {t("Update all")} ({updatablePlugins.length})
+                  </span>
+                </button>
+              )}
             </div>
             {listing &&
               visible.length === 0 &&
@@ -603,6 +652,13 @@ export function PluginManager({
                   const matched = marketplace?.plugins.find(
                     (p) => p.id === plugin.manifest.id
                   )
+                  const hasUpdate = Boolean(
+                    matched &&
+                    isPluginUpdateAvailable(
+                      plugin.manifest.version,
+                      matched.version
+                    )
+                  )
                   const desc = matched?.description
                   return (
                     <button
@@ -646,6 +702,11 @@ export function PluginManager({
                           <span className="plugin-pill-version">
                             v{plugin.manifest.version}
                           </span>
+                          {hasUpdate ? (
+                            <span className="plugin-pill-status is-update">
+                              {t("Update available")}
+                            </span>
+                          ) : null}
                           {plugin.developmentPath ? (
                             <span className="plugin-pill-status is-dev">
                               {t("Development")}
@@ -727,6 +788,13 @@ export function PluginManager({
                   const matched = marketplace?.plugins.find(
                     (p) => p.id === plugin.manifest.id
                   )
+                  const hasUpdate = Boolean(
+                    matched &&
+                    isPluginUpdateAvailable(
+                      plugin.manifest.version,
+                      matched.version
+                    )
+                  )
                   const desc = matched?.description
                   return (
                     <button
@@ -775,6 +843,11 @@ export function PluginManager({
                           <span className="plugin-pill-version">
                             v{plugin.manifest.version}
                           </span>
+                          {hasUpdate ? (
+                            <span className="plugin-pill-status is-update">
+                              {t("Update available")}
+                            </span>
+                          ) : null}
                           {plugin.developmentPath ? (
                             <span className="plugin-pill-status is-dev">
                               {t("Development")}

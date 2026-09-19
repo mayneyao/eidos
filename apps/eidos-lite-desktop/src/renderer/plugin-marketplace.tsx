@@ -1,8 +1,9 @@
 import { RotateCw } from "lucide-react"
-import type {
-  PluginListing,
-  PluginMarketplace,
-  PluginInstallTask,
+import {
+  type PluginListing,
+  type PluginMarketplace,
+  type PluginInstallTask,
+  isPluginUpdateAvailable,
 } from "../shared/plugins"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { useEidosLiteI18n } from "./i18n"
@@ -10,12 +11,14 @@ import { useEidosLiteI18n } from "./i18n"
 export function PluginMarketplaceInstallButton({
   same,
   installed,
+  hasUpdate = false,
   task,
   unavailable,
   onInstall,
 }: {
   same: boolean
   installed: boolean
+  hasUpdate?: boolean
   task?: PluginInstallTask
   unavailable: boolean
   onInstall(): void
@@ -26,10 +29,13 @@ export function PluginMarketplaceInstallButton({
   const isInstalling = task?.status === "installing"
   const inProgress = Boolean(task)
 
+  const isPrimary = hasUpdate || (!installed && !same)
+
   const className = [
     "settings-button",
     "plugin-install-btn",
-    same ? "" : "settings-button-primary",
+    isPrimary ? "settings-button-primary" : "",
+    hasUpdate ? "is-update-btn" : "",
     isQueued ? "is-queued" : "",
     isDownloading ? "is-downloading" : "",
     isInstalling ? "is-installing" : "",
@@ -37,19 +43,27 @@ export function PluginMarketplaceInstallButton({
     .filter(Boolean)
     .join(" ")
 
-  const label = same
-    ? t("Installed")
-    : isQueued
+  const label = hasUpdate
+    ? isQueued
       ? t("Queued")
       : isDownloading
         ? `${task?.percent ?? 0}%`
         : isInstalling
-          ? t("Installing…")
-          : installed
-            ? t("Install listed version…")
-            : t("Install…")
+          ? t("Updating…")
+          : t("Update")
+    : same
+      ? t("Installed")
+      : isQueued
+        ? t("Queued")
+        : isDownloading
+          ? `${task?.percent ?? 0}%`
+          : isInstalling
+            ? t("Installing…")
+            : installed
+              ? t("Install listed version…")
+              : t("Install…")
 
-  const disabled = unavailable || same || inProgress
+  const disabled = unavailable || (!hasUpdate && same) || inProgress
 
   return (
     <button
@@ -151,6 +165,10 @@ export function PluginMarketplaceView({
               (item) => item.manifest.id === p.id
             )
             const same = installed?.hash === p.sha256
+            const hasUpdate = isPluginUpdateAvailable(
+              installed?.manifest.version,
+              p.version
+            )
             return (
               <div
                 className="plugin-card plugin-marketplace-card"
@@ -190,7 +208,11 @@ export function PluginMarketplaceView({
                 <div className="plugin-card-footer">
                   <div className="plugin-card-badges">
                     <span className="plugin-pill-version">v{p.version}</span>
-                    {p.preview ? (
+                    {hasUpdate ? (
+                      <span className="plugin-pill-status is-update">
+                        {t("Update available")}
+                      </span>
+                    ) : p.preview ? (
                       <span className="plugin-pill-status is-dev">
                         {t("Preview")}
                       </span>
@@ -199,6 +221,7 @@ export function PluginMarketplaceView({
                   <PluginMarketplaceInstallButton
                     same={same}
                     installed={Boolean(installed)}
+                    hasUpdate={hasUpdate}
                     task={installTasks[p.id]}
                     unavailable={unavailable}
                     onInstall={() => onInstall(p.id)}
@@ -215,6 +238,10 @@ export function PluginMarketplaceView({
               (item) => item.manifest.id === p.id
             )
             const same = installed?.hash === p.sha256
+            const hasUpdate = isPluginUpdateAvailable(
+              installed?.manifest.version,
+              p.version
+            )
             return (
               <div
                 className="plugin-marketplace-row"
@@ -251,7 +278,11 @@ export function PluginMarketplaceView({
                   </div>
                   <div className="plugin-row-meta-line">
                     <span className="plugin-pill-version">v{p.version}</span>
-                    {p.preview ? (
+                    {hasUpdate ? (
+                      <span className="plugin-pill-status is-update">
+                        {t("Update available")}
+                      </span>
+                    ) : p.preview ? (
                       <span className="plugin-pill-status is-dev">
                         {t("Preview")}
                       </span>
@@ -265,6 +296,7 @@ export function PluginMarketplaceView({
                 <PluginMarketplaceInstallButton
                   same={same}
                   installed={Boolean(installed)}
+                  hasUpdate={hasUpdate}
                   task={installTasks[p.id]}
                   unavailable={unavailable}
                   onInstall={() => onInstall(p.id)}

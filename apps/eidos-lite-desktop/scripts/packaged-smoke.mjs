@@ -163,6 +163,18 @@ try {
   ])
   const executable = await executablePath()
   const packagedResources = await resourcesPath(executable)
+  const pluginCompiler = spawnSync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "scripts/run-electron-node.mjs"),
+      path.join(appRoot, "scripts/plugin-compiler-packaged-smoke.mjs"),
+      path.join(packagedResources, "app.asar"),
+    ],
+    { stdio: "inherit", timeout: 30_000 }
+  )
+  if (pluginCompiler.error) throw pluginCompiler.error
+  if (pluginCompiler.status !== 0)
+    throw new Error("Packaged plugin compiler validation failed")
   const packagedCli = path.join(packagedResources, "graft")
   if (
     await fs.stat(packagedCli).then(

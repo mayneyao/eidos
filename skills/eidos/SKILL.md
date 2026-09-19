@@ -277,6 +277,30 @@ Formula and Lookup Fields are read-only for row mutations. Use
 preview it first and pass `--confirm-lossy` only after confirming the impact.
 Do not retry after a dependency or cycle error without replanning the schema.
 
+## Manage plugins device-wide
+
+Plugins are installed into the device-wide plugin catalog (`~/.eidos/plugins/`),
+shared seamlessly by the CLI, `eidos serve`, and Eidos Lite desktop.
+
+```bash
+# Search the official plugin registry
+eidos --json plugin search chart
+
+# List installed plugins (or browse marketplace with --marketplace)
+eidos --json plugin list
+eidos --json plugin list --marketplace
+
+# View detailed plugin info
+eidos --json plugin info eidos.chart
+
+# Install a plugin from registry or local .eidos-plugin package
+eidos --json plugin install eidos.chart
+eidos --json plugin install ./my-plugin.eidos-plugin --unpack
+
+# Uninstall a plugin
+eidos --json plugin uninstall eidos.chart
+```
+
 ## Use the guarded legacy path when needed
 
 `apply` currently updates existing rows only. For creates, deletes, schema

@@ -1854,6 +1854,10 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
         if let Some(shared_dir) = device_plugins_dir() {
             if shared_dir.is_dir() {
                 let _ = plugin_store.load_from_dir(&shared_dir);
+                let packages_dir = shared_dir.join("packages");
+                if packages_dir.is_dir() {
+                    let _ = plugin_store.load_from_dir(&packages_dir);
+                }
             }
         }
     }

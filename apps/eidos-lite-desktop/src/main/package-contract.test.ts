@@ -200,7 +200,11 @@ describe("Eidos Lite package identity", () => {
       "build:release",
     ]) {
       expect(scripts[scriptName]).toContain("prepare:terminal")
+      expect(scripts[scriptName]).toContain("prepare:plugin-compiler")
     }
+    expect(scripts["prepare:plugin-compiler"]).toBe(
+      "pnpm --filter @eidos.space/eidos-file build"
+    )
     for (const scriptName of [
       "package:dir",
       "package:production:dir",

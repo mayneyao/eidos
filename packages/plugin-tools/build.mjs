@@ -11,3 +11,4 @@ await build({
   target: "node22",
   external: ["esbuild", "typescript", "yaml"],
 })
+await fs.copyFile("../plugin-sdk/src/index.ts", "dist/contracts.ts")

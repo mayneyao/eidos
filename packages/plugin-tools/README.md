@@ -13,8 +13,10 @@ or standalone TS/JS sources, without executing plugin code or build configuratio
 
 ```sh
 pnpm install
+pnpm --filter @eidos.space/eidos-file build
 pnpm --filter @eidos.space/plugin-sdk build
 pnpm --filter @eidos.space/plugin-runtime build
+pnpm --filter @eidos.space/plugin-tools build
 cd apps/cli
 cargo build --locked
 cd ../..
@@ -26,7 +28,8 @@ EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/p
 ```
 
 The bridge requires Node.js >=22.12. `@eidos.space/plugin-tools` bundles its
-compiler backend into `dist/compiler.js` via `build.mjs` and is published to npm
+compiler backend into `dist/compiler.js` and its SDK contract into `dist/contracts.ts`
+via `build.mjs` and is published to npm
 alongside `@eidos.space/plugin-sdk`. Developers can use `npx @eidos.space/plugin-tools create`
 or the Rust `eidos plugin` CLI interchangeably. Dependency-free compilation uses
 the built-in SDK types; third-party dependencies require a matching lockfile and local install.

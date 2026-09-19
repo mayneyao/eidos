@@ -24,11 +24,13 @@ import {
   CircleSlash,
   FileCode,
   HardDrive,
+  ArrowUpCircle,
 } from "lucide-react"
-import type {
-  PluginListing,
-  MarketplacePlugin,
-  PluginInstallTask,
+import {
+  type PluginListing,
+  type MarketplacePlugin,
+  type PluginInstallTask,
+  isPluginUpdateAvailable,
 } from "../shared/plugins"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
@@ -98,6 +100,12 @@ export function PluginDetailView({
   const pluginVersion =
     manifest?.version ?? marketplacePlugin?.version ?? "1.0.0"
   const pluginIcon = manifest?.icon ?? marketplacePlugin?.icon
+  const hasUpdate = Boolean(
+    plugin &&
+    manifest &&
+    marketplacePlugin &&
+    isPluginUpdateAvailable(manifest.version, marketplacePlugin.version)
+  )
 
   useEffect(() => {
     if (variant === "settings") {
@@ -294,7 +302,21 @@ export function PluginDetailView({
           </div>
           <div className="plugin-prop-item">
             <dt>{t("Version")}</dt>
-            <dd>{pluginVersion}</dd>
+            <dd>
+              {hasUpdate && marketplacePlugin ? (
+                <span>
+                  v{manifest?.version} → v{marketplacePlugin.version}{" "}
+                  <span
+                    className="plugin-pill-status is-update"
+                    style={{ marginLeft: 6, verticalAlign: "middle" }}
+                  >
+                    {t("Update available")}
+                  </span>
+                </span>
+              ) : (
+                pluginVersion
+              )}
+            </dd>
           </div>
           <div className="plugin-prop-item">
             <dt>{t("API Version")}</dt>
@@ -469,6 +491,23 @@ export function PluginDetailView({
               {builtin ? t("Built-in") : `v${pluginVersion}`}
             </span>
             <span className="plugin-detail-dot">·</span>
+            {hasUpdate && marketplacePlugin && (
+              <>
+                <span className="plugin-status-pill is-update">
+                  <ArrowUpCircle
+                    size={12}
+                    className="status-icon"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {t("Update available: v{version}", {
+                      version: marketplacePlugin.version,
+                    })}
+                  </span>
+                </span>
+                <span className="plugin-detail-dot">·</span>
+              </>
+            )}
             {plugin ? (
               <span
                 className={`plugin-status-pill ${
@@ -515,6 +554,26 @@ export function PluginDetailView({
           <p className="plugin-detail-desc">{pluginDescription}</p>
 
           <div className="plugin-detail-actions">
+            {hasUpdate && onInstall && (
+              <PluginMarketplaceInstallButton
+                same={false}
+                installed={true}
+                hasUpdate={true}
+                task={
+                  installTask ??
+                  (installing
+                    ? {
+                        id: marketplacePlugin?.id ?? "",
+                        status: "installing",
+                        percent: 100,
+                      }
+                    : undefined)
+                }
+                unavailable={installDisabled}
+                onInstall={() => void onInstall()}
+              />
+            )}
+
             {marketplaceOnly && onInstall && (
               <PluginMarketplaceInstallButton
                 same={false}

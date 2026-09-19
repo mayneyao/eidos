@@ -6,6 +6,7 @@ mod error;
 mod output;
 mod plugin;
 mod plugin_fs;
+mod plugin_registry;
 mod publish;
 mod relay_auth;
 mod runtime;
@@ -120,6 +121,7 @@ mod tests {
                 | PluginCommand::Dev(args) => {
                     assert_eq!(args.directory.to_str(), Some("/tmp/my project"))
                 }
+                _ => panic!("unexpected plugin command variant"),
             }
         }
         assert!(Cli::try_parse_from(["eidos", "plugin", "unknown"]).is_err());

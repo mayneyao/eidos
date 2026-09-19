@@ -20,6 +20,7 @@ anyhow = "1"
 base64 = "0.22"
 clap = { version = "4.5", features = ["derive", "env"] }
 open = "5"
+flate2 = "1.0"
 mime_guess = "2"
 pulldown-cmark = "0.13"
 rand = "0.8"
