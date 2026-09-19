@@ -70,11 +70,22 @@ test("Lite releases use an independent stable and beta namespace", () => {
 })
 
 test("retired 1.0 preview cannot pin the current Lite beta channel", () => {
-  const retired = { draft: false, prerelease: true, tag_name: "lite-v1.0.0-rc.1" }
+  const retired = {
+    draft: false,
+    prerelease: true,
+    tag_name: "lite-v1.0.0-rc.1",
+  }
   const stable = { draft: false, prerelease: false, tag_name: "lite-v0.15.2" }
-  const beta = { draft: false, prerelease: true, tag_name: "lite-v0.16.0-beta.1" }
+  const beta = {
+    draft: false,
+    prerelease: true,
+    tag_name: "lite-v0.16.0-beta.1",
+  }
   assert.equal(selectEidosLiteRelease([retired, stable, beta], "beta"), beta)
-  assert.equal(selectEidosLiteRelease([beta, retired, stable], "stable"), stable)
+  assert.equal(
+    selectEidosLiteRelease([beta, retired, stable], "stable"),
+    stable
+  )
   assert.equal(selectEidosLiteRelease([retired, stable], "beta"), stable)
   assert.equal(selectEidosLiteRelease([retired], "beta"), null)
 })
