@@ -511,6 +511,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn renamed_protected_roots_keep_their_identity_and_replacements_are_denied() {
         let root = tempfile::tempdir().unwrap();
@@ -535,6 +536,36 @@ mod tests {
                 .unwrap()["files"],
             json!([])
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn protected_roots_cannot_be_renamed_while_the_session_is_open() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("plugins")).unwrap();
+        fs::write(root.path().join("plugins/main.ts"), "private code").unwrap();
+        let filesystem = Filesystem::open(root.path(), &["plugins".into()]).unwrap();
+        // cap-std deliberately excludes FILE_SHARE_DELETE for directory handles
+        // on Windows to prevent renames during sandboxed path lookups.
+        let error = fs::rename(root.path().join("plugins"), root.path().join("notes")).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(32)); // ERROR_SHARING_VIOLATION
+        assert_eq!(
+            filesystem
+                .execute(Operation::Read {
+                    path: "plugins/main.ts".into()
+                })
+                .unwrap_err()
+                .0,
+            "PERMISSION_DENIED"
+        );
+        assert_eq!(
+            filesystem
+                .execute(Operation::List { path: ".".into() })
+                .unwrap()["files"],
+            json!([])
+        );
+        drop(filesystem);
+        fs::rename(root.path().join("plugins"), root.path().join("notes")).unwrap();
     }
 
     #[cfg(target_os = "macos")]
