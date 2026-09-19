@@ -332,7 +332,7 @@ fn create(directory: &Path) -> Result<CommandOutput> {
         ));
     }
     let manifest = json!({"apiVersion":1,"id":format!("local.{name}"),"name":name,"version":"0.1.0","views":[{"id":"table","title":"CSV Table","context":"document","entry":"./src/main.ts","access":"write"}],"placements":[{"location":"file/open","view":"table","extensions":[".csv"]}]});
-    let package = json!({"name":name,"version":"0.1.0","private":true,"type":"module","scripts":{"check":"eidos plugin check","pack:plugin":"eidos plugin pack"},"devDependencies":{"@eidos.space/plugin-sdk":"^0.1.2","@eidos.space/plugin-tools":"^0.1.2"}});
+    let package = json!({"name":name,"version":"0.1.0","private":true,"type":"module","scripts":{"check":"eidos plugin check","pack:plugin":"eidos plugin pack"},"devDependencies":{"@eidos.space/plugin-sdk":"^0.1.3","@eidos.space/plugin-tools":"^0.1.3"}});
     let tsconfig = json!({"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"bundler","lib":["ES2022","DOM"],"strict":true,"skipLibCheck":true,"noEmit":true},"include":["src"]});
     // create_dir refuses existing files/directories, including symlinks.
     fs::create_dir(directory).map_err(|error| {
@@ -379,11 +379,11 @@ mod tests {
         assert_eq!(package["scripts"]["check"], "eidos plugin check");
         assert_eq!(
             package["devDependencies"]["@eidos.space/plugin-tools"],
-            "^0.1.2"
+            "^0.1.3"
         );
         assert_eq!(
             package["devDependencies"]["@eidos.space/plugin-sdk"],
-            "^0.1.2"
+            "^0.1.3"
         );
         assert!(project.join("plugin.json").is_file());
         fs::write(project.join("src/main.ts"), "user changes").unwrap();

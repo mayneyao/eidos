@@ -1,6 +1,11 @@
 {
   "name": "@eidos.space/plugin-tools",
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/plugin-tools"
+  },
   "type": "module",
   "license": "MIT",
   "description": "Create, check, develop and package offline Eidos Lite file editors",
