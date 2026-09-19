@@ -1387,6 +1387,11 @@ const rendererProbe = `
     "closed Version panel"
   )
   window.__eidosLiteSmokeStep = "checkpoint row insert"
+  const versionSnapshots = []
+  const stopVersionSnapshots = window.eidosLite.onSpaceChanged((snapshot) => {
+    versionSnapshots.push(snapshot.graft)
+    if (versionSnapshots.length > 20) versionSnapshots.shift()
+  })
   await window.eidosLite.callRuntime(opened.sessionId, "insertRow", [
     table.table.id,
     { [writableField.id]: "Persisted checkpoint probe" },
@@ -1439,7 +1444,14 @@ const rendererProbe = `
         : null
     },
     "Version History change badge"
-  )
+  ).catch(async (error) => {
+    const button = document.querySelector('button[data-titlebar-action="version"]')
+    throw new Error(String(error) + "; version diagnostics: " + JSON.stringify({
+      observed: versionSnapshots,
+      current: (await window.eidosLite.getSpace())?.graft,
+      button: button?.outerHTML ?? null,
+    }))
+  }).finally(stopVersionSnapshots)
   const changeBadge = Boolean(
     dirtyVersionButton.querySelector(".version-change-badge")
   )
