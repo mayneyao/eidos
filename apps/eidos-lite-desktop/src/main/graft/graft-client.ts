@@ -1015,11 +1015,15 @@ export class GraftClient {
     root: string,
     options: GraftStatusOptions = {}
   ): Promise<GraftSpaceStatus> {
+    options.signal?.throwIfAborted()
     let version: string
     try {
       await this.open(root)
       version = await this.version()
+      options.signal?.throwIfAborted()
     } catch (error) {
+      options.signal?.throwIfAborted()
+      if (error instanceof Error && error.name === "AbortError") throw error
       return {
         available: false,
         backend: this.backend,
@@ -1043,6 +1047,7 @@ export class GraftClient {
     }
     try {
       const status = await this.status(root, options)
+      options.signal?.throwIfAborted()
       const changedPaths = status.dirty ? status.changedPaths : 0
       return {
         available: true,
@@ -1066,6 +1071,10 @@ export class GraftClient {
           : {}),
       }
     } catch (error) {
+      // Cancellation is control flow, not a repository status. Returning it as
+      // status would replace the session's last known dirty state and badge.
+      options.signal?.throwIfAborted()
+      if (error instanceof Error && error.name === "AbortError") throw error
       return {
         available: true,
         backend: this.backend,

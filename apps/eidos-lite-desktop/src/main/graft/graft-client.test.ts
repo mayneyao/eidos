@@ -35,6 +35,36 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it.each(["open", "status"] as const)(
+    "does not turn a cancelled %s into a cacheable Space status",
+    async (stage) => {
+      const root = await fs.mkdtemp(
+        path.join(os.tmpdir(), "eidos-graft-cancel-")
+      )
+      await fs.mkdir(path.join(root, ".graft"))
+      const client = new GraftClient({ sdkTransport: createUnusedTransport() })
+      const cancelled = new Error("operation cancelled")
+      cancelled.name = "AbortError"
+      vi.spyOn(client, "version").mockResolvedValue(GRAFT_SDK_VERSION)
+      const operation = vi.spyOn(client, stage).mockRejectedValue(cancelled)
+      try {
+        await expect(client.inspectSpace(root)).rejects.toBe(cancelled)
+        // A transport may surface a generic failure after its signal aborts.
+        const controller = new AbortController()
+        operation.mockImplementation(async () => {
+          controller.abort()
+          throw new Error("transport interrupted")
+        })
+        await expect(
+          client.inspectSpace(root, { signal: controller.signal })
+        ).rejects.toMatchObject({ name: "AbortError" })
+      } finally {
+        await client.close()
+        await fs.rm(root, { recursive: true, force: true })
+      }
+    }
+  )
+
   it("captures a SQLite publication snapshot and projects its reusable token", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-publish-capture-")
