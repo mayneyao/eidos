@@ -38,8 +38,8 @@ export async function create(directory) {
       "pack:plugin": "eidos-plugin pack .",
     },
     devDependencies: {
-      "@eidos.space/plugin-sdk": "^0.1.1",
-      "@eidos.space/plugin-tools": "^0.1.1",
+      "@eidos.space/plugin-sdk": "^0.1.2",
+      "@eidos.space/plugin-tools": "^0.1.2",
     },
   }
   const tsconfig = {

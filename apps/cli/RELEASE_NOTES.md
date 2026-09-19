@@ -1,7 +1,30 @@
+## What's new
+
+### Plugin management and authoring
+
+Use `eidos plugin search`, `info`, `install`, `list`, and `uninstall` to manage plugins from the registry or local `.eidos-plugin` packages. Installations share the device plugin store with Eidos Lite. Removing a plugin clears its saved Space enablement and resource grants.
+
+Create a plugin project, check its types, and build an offline package:
+
+```sh
+eidos plugin create my-plugin
+cd my-plugin
+npm install
+eidos plugin check .
+eidos plugin pack .
+```
+
+Source checking and packaging require Node.js 22.12 or newer and the project's plugin-tools dependency. Registry and local package management run directly in the CLI. The dev/inspect/invoke/accept/rollback authoring workflow is not available yet.
+
+## Improvements
+
+- **Serve Feed timestamps**: Records display relative timestamps for recent activity.
+
 ## Bug fixes
 
-- **Serve Content editing**: Expanded record pages now use the same rich Markdown editor as Eidos Lite instead of falling back to a plain text box. Editing and preview share Eidos syntax and resolve images through the mounted asset directory.
-- **Record controls**: Fix missing record expansion in Feed and incomplete full-page and previous/next controls outside Grid. Navigation now reaches the Runtime through the browser adapter and follows the current View's filter and order.
+- **Serve record editing**: Pressing Enter in a record title moves focus into its Content editor.
+- **Publish default view**: Publishing without an explicit view uses the first saved view.
+- **Publish on Windows**: Source hashing no longer uses a large stack buffer that could crash publishing with a stack overflow.
 
 ## Use with an Agent
 
@@ -26,4 +49,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.2.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.3.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.

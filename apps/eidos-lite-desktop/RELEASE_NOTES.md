@@ -1,10 +1,22 @@
+## What's new
+
+### Make Eidos Lite your own with plugins
+
+Plugins bring more ways to work with your files and tables. Choose an editor that fits a file, add a new way to display a table, or find tools for everyday document tasks.
+
+Browse the plugin marketplace in Settings, read a plugin's introduction, and follow its download progress as it installs. You can also install a local plugin package. For file editors, use **Open with** to choose a plugin or set it as the default for that file type.
+
+This is the first preview of plugins in Eidos Lite. Choose which plugins to enable in each Space; updating a plugin keeps those choices.
+
+### Bring files into your Space by dragging them in
+
+Drag files from Finder or your system file manager onto a folder in Eidos Lite's sidebar to import them into your Space.
+
 ## Improvements
 
-- **Publish**: The Publish panel now opens from a cached plan and publishes optimistically, so the form is ready immediately instead of waiting on an account check. The service still enforces your entitlement, and the panel only flags a restriction when your account actually needs attention.
-- **Account & Services**: Settings now has dedicated Sync and Publish sections. Review your plan, storage usage, page allowance, Sync access, and device at a glance with storage-style quota meters, then manage published pages, open the account Sync tab, upgrade, or refresh on demand. The Publish plan row wraps cleanly in narrow windows, and account links open directly from Settings without requiring an open Space.
-- **Preferences**: The default location for new Spaces now lives in Settings > Preferences, alongside the other app preferences.
-- **Versions**: Automatic background versions are no longer offered or created. Saved versions remain fully manual.
+- **See what's recent in Feed**: Relative timestamps make recent records easier to spot.
 
 ## Bug fixes
 
-- **Publish on Windows**: Fixed a crash that made every Publish attempt from Eidos Lite on Windows exit with a stack-overflow code (`3221225725`). Publish now hashes the source without a 1 MiB stack buffer.
+- **Keep writing after a title**: Pressing Enter in a record title now moves the cursor into its content.
+- **Jump to a moment in a video**: Dragging the playback position now works when previewing local videos.
