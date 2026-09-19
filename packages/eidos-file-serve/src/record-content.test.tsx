@@ -13,11 +13,51 @@ const editor = vi.hoisted(() => ({ props: null as MarkdownEditorProps | null }))
 vi.mock("@eidos.space/markdown", () => ({
   MarkdownEditor: (props: MarkdownEditorProps) => {
     editor.props = props
-    return <div data-rich-editor="" />
+    return <div data-rich-editor="" contentEditable tabIndex={0} />
   },
 }))
 
 describe("browser record content integration", () => {
+  it("focuses the existing editor on each explicit title navigation request", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    function Probe({ token }: { token: number }) {
+      return useEidosFileUI().renderMarkdownEditor?.({
+        cacheKey: "record:body",
+        content: "Draft",
+        disabled: false,
+        onChange: vi.fn(),
+        focusRequestToken: token,
+      })
+    }
+    try {
+      const render = async (token: number) => {
+        await act(async () =>
+          root.render(
+            <RecordContentProvider>
+              <Probe token={token} />
+            </RecordContentProvider>
+          )
+        )
+      }
+      await render(0)
+      const editorElement =
+        host.querySelector<HTMLElement>("[data-rich-editor]")!
+      expect(document.activeElement).not.toBe(editorElement)
+      await render(1)
+      expect(document.activeElement).toBe(editorElement)
+      editorElement.blur()
+      await render(2)
+      expect(document.activeElement).toBe(editorElement)
+      expect(host.querySelector("[data-rich-editor]")).toBe(editorElement)
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      vi.unstubAllGlobals()
+    }
+  })
   it("shares rich editing, fragment semantics, theme and mounted image resolution", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
     const host = document.createElement("div")

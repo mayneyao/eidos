@@ -200,6 +200,7 @@ export function EidosFileWorkbench({
       content,
       disabled,
       onChange,
+      focusRequestToken,
     }: EidosFileMarkdownEditorRequest) => {
       const contentEditorPath = `eidos-content-${cacheKey}.md`
       return (
@@ -214,6 +215,8 @@ export function EidosFileWorkbench({
           inputProfile="fragment"
           disabled={disabled}
           persistSourceEditorState={false}
+          focusRequestToken={focusRequestToken}
+          autoFocus={Boolean(focusRequestToken)}
           keyboardShortcuts={keyboardShortcuts}
           onChange={onChange}
         />

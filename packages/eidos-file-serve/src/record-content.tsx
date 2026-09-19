@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, type ReactNode } from "react"
 import {
   EidosFileUIProvider,
   useEidosFileUI,
@@ -15,7 +15,16 @@ function RecordContentEditor({
   content,
   disabled,
   onChange,
+  focusRequestToken = 0,
 }: EidosFileMarkdownEditorRequest) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!disabled && focusRequestToken > 0) {
+      containerRef.current
+        ?.querySelector<HTMLElement>('[contenteditable="true"]')
+        ?.focus({ preventScroll: true })
+    }
+  }, [disabled, focusRequestToken])
   const {
     themeName,
     activateUrl,
@@ -28,19 +37,21 @@ function RecordContentEditor({
     [resolveMarkdownImageUrl]
   )
   return (
-    <MarkdownEditor
-      documentKey={cacheKey}
-      markdown={content}
-      onMarkdownChange={onChange}
-      readOnly={disabled}
-      theme={themeName}
-      layout="embedded"
-      inputProfile="fragment"
-      preset={eidosPreset}
-      baseUri={contentImageBaseUrl}
-      resolveImageUrl={resolveImageUrl}
-      onOpenExternalUrl={activateUrl}
-    />
+    <div ref={containerRef}>
+      <MarkdownEditor
+        documentKey={cacheKey}
+        markdown={content}
+        onMarkdownChange={onChange}
+        readOnly={disabled}
+        theme={themeName}
+        layout="embedded"
+        inputProfile="fragment"
+        preset={eidosPreset}
+        baseUri={contentImageBaseUrl}
+        resolveImageUrl={resolveImageUrl}
+        onOpenExternalUrl={activateUrl}
+      />
+    </div>
   )
 }
 

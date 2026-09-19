@@ -48,6 +48,7 @@ export function EidosFileRecordFieldEditor({
   appearance = "field",
   disabled,
   onChange,
+  onEnter,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
@@ -55,6 +56,7 @@ export function EidosFileRecordFieldEditor({
   appearance?: "field" | "record-title"
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
+  onEnter?: () => void
 }) {
   const { timeZone, translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
@@ -293,6 +295,20 @@ export function EidosFileRecordFieldEditor({
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return
+          if (
+            event.key === "Enter" &&
+            appearance === "record-title" &&
+            !event.shiftKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey
+          ) {
+            event.preventDefault()
+            event.currentTarget.blur()
+            onEnter?.()
+            return
+          }
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
             event.currentTarget.blur()
           }

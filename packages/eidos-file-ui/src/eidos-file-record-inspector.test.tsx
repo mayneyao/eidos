@@ -13,13 +13,16 @@ vi.mock("./eidos-file-markdown-source-editor", () => ({
     content,
     disabled,
     onChange,
+    focusRequestToken,
   }: {
     content: string
     disabled: boolean
     onChange: (content: string) => void
+    focusRequestToken?: number
   }) => (
     <textarea
       aria-label="Markdown content"
+      data-focus-token={focusRequestToken}
       data-eidos-file-markdown-source-editor="host"
       value={content}
       disabled={disabled}
@@ -775,6 +778,30 @@ describe("EidosFileRecordInspector", () => {
     expect(
       container.querySelector('[data-eidos-file-markdown-editor="preview"]')
     ).toBeNull()
+    const body = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Markdown content"]'
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(body, "Unsaved body")
+      body.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const title = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Title"]'
+    )!
+    await act(async () => {
+      title.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    expect(body.dataset.focusToken).toBe("1")
+    expect(body.value).toBe("Unsaved body")
     expect(
       container.querySelector('[data-eidos-file-record-page-scroll=""]')
         ?.className

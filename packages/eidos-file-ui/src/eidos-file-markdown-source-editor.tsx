@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { useEidosFileUI } from "./context"
 import { Textarea } from "./ui/primitives"
@@ -8,11 +8,13 @@ export function EidosFileMarkdownSourceEditor({
   content,
   disabled,
   onChange,
+  focusRequestToken = 0,
 }: {
   cacheKey: string
   content: string
   disabled: boolean
   onChange: (content: string) => void
+  focusRequestToken?: number
 }) {
   const {
     renderMarkdownEditor,
@@ -20,11 +22,16 @@ export function EidosFileMarkdownSourceEditor({
     translate: t,
   } = useEidosFileUI()
   const [draft, setDraft] = useState(content)
+  const fallbackRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (focusRequestToken > 0) fallbackRef.current?.focus()
+  }, [focusRequestToken])
 
   useEffect(() => setDraft(content), [content])
 
   const hostEditor = (renderMarkdownEditor ?? renderMarkdownSourceEditor)?.({
     cacheKey,
+    focusRequestToken,
     content: draft,
     disabled,
     onChange: (nextContent) => {
@@ -44,6 +51,7 @@ export function EidosFileMarkdownSourceEditor({
     >
       {hostEditor ?? (
         <Textarea
+          ref={fallbackRef}
           autoFocus
           value={draft}
           disabled={disabled}

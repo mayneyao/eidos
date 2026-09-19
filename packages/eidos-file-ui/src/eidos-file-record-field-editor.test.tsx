@@ -88,6 +88,59 @@ function enterInputValue(element: HTMLInputElement, value: string): void {
 }
 
 describe("EidosFileRecordFieldEditor option presentation", () => {
+  it("moves from the title on Enter while preserving Shift+Enter and IME confirmation", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const onEnter = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <EidosFileRecordFieldEditor
+            field={{ ...numberField(), type: "text" }}
+            row={{ score: "Title" }}
+            appearance="record-title"
+            disabled={false}
+            onChange={vi.fn()}
+            onEnter={onEnter}
+          />
+        )
+      )
+      const title = host.querySelector("textarea")!
+      for (const options of [
+        { shiftKey: true },
+        { isComposing: true },
+        { keyCode: 229 },
+      ]) {
+        const event = new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+          ...options,
+        })
+        await act(async () => {
+          title.dispatchEvent(event)
+        })
+        expect(event.defaultPrevented).toBe(false)
+      }
+      expect(onEnter).not.toHaveBeenCalled()
+      title.focus()
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      })
+      await act(async () => {
+        title.dispatchEvent(event)
+      })
+      expect(event.defaultPrevented).toBe(true)
+      expect(onEnter).toHaveBeenCalledOnce()
+      expect(document.activeElement).not.toBe(title)
+    } finally {
+      act(() => root.unmount())
+      host.remove()
+    }
+  })
   let container: HTMLDivElement
   let root: Root
 

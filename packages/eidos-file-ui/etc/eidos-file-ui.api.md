@@ -436,7 +436,8 @@ declare function EidosFileRecordFieldEditor({
   placeholder,
   appearance,
   disabled,
-  onChange
+  onChange,
+  onEnter
 }: {
   field: EidosFileFieldInfo;
   row: EidosFileRow;
@@ -444,6 +445,7 @@ declare function EidosFileRecordFieldEditor({
   appearance?: "field" | "record-title";
   disabled: boolean;
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>;
+  onEnter?: () => void;
 }): _$react_jsx_runtime0.JSX.Element | null;
 //#endregion
 //#region src/eidos-file-record-attachment-editor.d.ts

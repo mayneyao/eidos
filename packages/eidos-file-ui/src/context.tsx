@@ -73,6 +73,7 @@ export interface EidosFileRelationRecordTarget {
 
 /** Host-native Markdown editor rendered inside a record content page. */
 export interface EidosFileMarkdownEditorRequest {
+  focusRequestToken?: number
   cacheKey: string
   content: string
   disabled: boolean

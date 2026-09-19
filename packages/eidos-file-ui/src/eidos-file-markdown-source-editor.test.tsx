@@ -43,6 +43,7 @@ describe("EidosFileMarkdownSourceEditor", () => {
         >
           <EidosFileMarkdownSourceEditor
             cacheKey="row:body"
+            focusRequestToken={2}
             content="# Initial"
             disabled={false}
             onChange={onChange}
@@ -53,6 +54,7 @@ describe("EidosFileMarkdownSourceEditor", () => {
 
     expect(request).toMatchObject({
       cacheKey: "row:body",
+      focusRequestToken: 2,
       content: "# Initial",
       disabled: false,
     })

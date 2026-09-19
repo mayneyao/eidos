@@ -224,6 +224,7 @@ function FieldValue({
 }
 
 function MarkdownContentEditor({
+  focusRequestToken,
   value,
   mode,
   editable,
@@ -237,6 +238,7 @@ function MarkdownContentEditor({
   onError,
 }: {
   value: string
+  focusRequestToken?: number
   mode: "preview" | "edit"
   editable: boolean
   disabled: boolean
@@ -292,6 +294,7 @@ function MarkdownContentEditor({
           }
         >
           <LazyEidosFileMarkdownSourceEditor
+            focusRequestToken={focusRequestToken}
             cacheKey={cacheKey}
             content={value}
             disabled={disabled}
@@ -524,6 +527,7 @@ export function EidosFileRecordInspector({
     : ""
   const [contentMode, setContentMode] = useState<"preview" | "edit">("preview")
   const [contentDraft, setContentDraft] = useState(contentValue)
+  const [contentFocusToken, setContentFocusToken] = useState(0)
   const directWysiwygContent =
     variant === "page" &&
     markdownEditingMode === "wysiwyg" &&
@@ -539,6 +543,7 @@ export function EidosFileRecordInspector({
   useEffect(() => {
     if (contentIdentityRef.current === contentIdentity) return
     contentIdentityRef.current = contentIdentity
+    setContentFocusToken(0)
     setContentMode("preview")
     setContentDraft(contentValue)
   }, [contentIdentity, contentValue])
@@ -754,6 +759,11 @@ export function EidosFileRecordInspector({
                       row={currentRow}
                       placeholder={eidosFileFieldDisplayName(pageTitleField)}
                       appearance="record-title"
+                      onEnter={() => {
+                        if (!contentField || editorDisabled) return
+                        if (contentDisplayMode !== "edit") startContentEdit()
+                        setContentFocusToken((token) => token + 1)
+                      }}
                       disabled={editorDisabled}
                       onChange={(value) => editField(pageTitleField, value)}
                     />
@@ -964,6 +974,11 @@ export function EidosFileRecordInspector({
                 data-eidos-file-record-content=""
               >
                 <MarkdownContentEditor
+                  focusRequestToken={
+                    contentIdentityRef.current === contentIdentity
+                      ? contentFocusToken
+                      : 0
+                  }
                   key={`${currentRowId}:${contentField.id}`}
                   value={
                     contentDisplayMode === "edit" ? contentDraft : contentValue
