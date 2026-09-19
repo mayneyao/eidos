@@ -14,8 +14,13 @@ export function getCliSource(pathname) {
 const LITE_TAG_PATTERN =
   /^lite-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 
+// This historical preview predates the continued 0.x release line. Keep its
+// GitHub assets available, but do not let its higher version pin beta updates.
+const RETIRED_LITE_UPDATE_TAGS = new Set(["lite-v1.0.0-rc.1"])
+
 function liteVersion(release) {
   if (release?.draft !== false) return null
+  if (RETIRED_LITE_UPDATE_TAGS.has(release.tag_name)) return null
   const match = LITE_TAG_PATTERN.exec(release?.tag_name ?? "")
   if (!match) return null
   const prerelease = match[4] ?? null
