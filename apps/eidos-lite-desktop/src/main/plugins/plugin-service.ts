@@ -342,10 +342,7 @@ export class PluginService {
           )
         const safe = normalizeMutableRelativePath(path)
         invocation.path = safe
-        if (
-          safe.split("/").some((part) => part.startsWith(".graft")) ||
-          safe.toLowerCase().endsWith(".eidos")
-        )
+        if (safe.toLowerCase().endsWith(".eidos"))
           throw new PluginError("PERMISSION_DENIED", "Not a text document")
         if (
           declaration.extensions?.length &&
@@ -468,8 +465,6 @@ export class PluginService {
     draft?: TextChange
   ): Promise<PluginOpenResult> {
     const safe = normalizeMutableRelativePath(relativePath)
-    if (safe.split("/").some((part) => part.startsWith(".graft")))
-      throw new PluginError("PERMISSION_DENIED", "Protected file")
     const selected = await this.store.resolve(
       safe,
       session.canonical.id,

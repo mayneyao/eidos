@@ -50,7 +50,7 @@ vi.mock("electron", () => ({
 import { registerPluginIpc } from "./plugin-ipc"
 import { PluginRegistry } from "./plugin-registry"
 const id = "example.csv"
-let dispose: () => void
+let registered: ReturnType<typeof registerPluginIpc>
 const events = new Map<
   number,
   {
@@ -126,7 +126,7 @@ beforeEach(async () => {
       },
     ])
   )
-  dispose = registerPluginIpc({
+  registered = registerPluginIpc({
     requireSession: (sender: { id: number }) => {
       const session = sessions.get(sender.id)
       if (!session) throw new Error("No active Space")
@@ -136,7 +136,7 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   vi.restoreAllMocks()
-  dispose?.()
+  registered?.close()
   events.clear()
   await fs.rm(mock.directory, { recursive: true, force: true })
 })

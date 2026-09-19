@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { createRequire } from "node:module"
 import { gzipSync, gunzipSync } from "node:zlib"
 import type { PluginManifest, PluginPackage } from "./contracts"
 export type { PluginPackage } from "./contracts"
@@ -6,8 +7,16 @@ import { PACKAGE_LIMIT, PluginError, invalid } from "./errors"
 import { parseManifest, record } from "./manifest"
 import { parseJson } from "./json"
 import ts from "typescript"
-import { transformSync } from "esbuild"
+import type * as Esbuild from "esbuild"
 import { validateSource } from "./source"
+
+// Native esbuild must resolve its executable outside Electron's asar archive,
+// including when packages are read on startup rather than compiled locally.
+const require = createRequire(import.meta.url)
+const esbuildPath = require
+  .resolve("esbuild")
+  .replace(/\.asar([\\/])/, ".asar.unpacked$1")
+const { transformSync } = require(esbuildPath) as typeof Esbuild
 
 export function packageHash(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")

@@ -13,7 +13,10 @@ import {
   protocol,
   type IpcMainInvokeEvent,
 } from "electron"
-import { decodePackage } from "@eidos.space/plugin-runtime/package"
+import {
+  decodePackage,
+  encodePackage,
+} from "@eidos.space/plugin-runtime/package"
 import { PluginError, parseChange } from "@eidos.space/plugin-runtime/rpc"
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
@@ -27,7 +30,10 @@ import {
 } from "../eidos-home"
 
 export const PLUGIN_CSP = SANDBOX_CSP
-export function registerPluginIpc(controller: WindowController): () => void {
+export function registerPluginIpc(controller: WindowController): {
+  close(): void
+  verifyPackagedSmoke(): Promise<void>
+} {
   const home = resolveEidosHome({
     env: process.env,
     homeDirectory: os.homedir(),
@@ -741,14 +747,48 @@ export function registerPluginIpc(controller: WindowController): () => void {
     const owner = caller(event)
     if (typeof ticket === "string") service.close(owner, ticket)
   })
-  return () => {
-    for (const channel of Object.values(PLUGIN_CHANNELS))
-      ipcMain.removeHandler(channel)
-    protocol.unhandle("eidos-plugin")
-    for (const watcher of watchers.values()) void watcher.close()
-    watchers.clear()
-    for (const pending of pendingReloads.values()) clearTimeout(pending.timer)
-    pendingReloads.clear()
-    for (const owner of owners) service.closeOwner(owner)
+  return {
+    close() {
+      for (const channel of Object.values(PLUGIN_CHANNELS))
+        ipcMain.removeHandler(channel)
+      protocol.unhandle("eidos-plugin")
+      for (const watcher of watchers.values()) void watcher.close()
+      watchers.clear()
+      for (const pending of pendingReloads.values()) clearTimeout(pending.timer)
+      pendingReloads.clear()
+      for (const owner of owners) service.closeOwner(owner)
+    },
+    async verifyPackagedSmoke() {
+      // Exercise the same package decoder used by startup discovery from the
+      // packaged main process, where native esbuild must live outside asar.
+      const bytes = encodePackage(
+        {
+          apiVersion: 1,
+          id: "example.smoke",
+          name: "Packaged smoke",
+          version: "1.0.0",
+          views: [
+            {
+              id: "text",
+              title: "Text",
+              context: "document",
+              entry: "./view.js",
+            },
+          ],
+          placements: [
+            {
+              location: "file/open",
+              view: "text",
+              extensions: [".txt"],
+            },
+          ],
+        },
+        { "./view.js": "export default function mount() {}" }
+      )
+      await store.install(bytes)
+      const listing = await new PluginStore(store.directory).list()
+      if (listing.plugins[0]?.manifest.id !== "example.smoke")
+        throw new Error("Packaged plugin discovery failed after restart")
+    },
   }
 }

@@ -509,6 +509,13 @@ describe("Lite document-view integration", () => {
     expect(await store.editors("data.csv", "space-a")).toEqual([])
     expect(await store.editors("data.csv", "space-b")).toHaveLength(0)
   })
+
+  it("keeps .graftignore available as an ordinary file", async () => {
+    await fs.writeFile(path.join(root, ".graftignore"), "dist\n")
+    await expect(service.open(1, session, ".graftignore")).resolves.toEqual({
+      instance: null,
+    })
+  })
   it("injects mount context and preserves drafts across view recreation", async () => {
     const ticket = await open(),
       initial = await read(ticket)

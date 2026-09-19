@@ -1,22 +1,4 @@
-## What's new
-
-### Make Eidos Lite your own with plugins
-
-Plugins bring more ways to work with your files and tables. Choose an editor that fits a file, add a new way to display a table, or find tools for everyday document tasks.
-
-Discover and install plugins from the marketplace in Settings, or install a local plugin package. For file editors, use **Open with** to choose a plugin or set it as the default for that file type.
-
-This is the first preview of plugins in Eidos Lite. Choose which plugins to enable in each Space; updating a plugin keeps those choices.
-
-### Bring files into your Space by dragging them in
-
-Drag files from Finder or your system file manager onto a folder in Eidos Lite's sidebar to import them into your Space.
-
-## Improvements
-
-- **See what's recent in Feed**: Relative timestamps make recent records easier to spot.
-
 ## Bug fixes
 
-- **Keep writing after a title**: Pressing Enter in a record title now moves the cursor into its content.
-- **Jump to a moment in a video**: Dragging the playback position now works when previewing local videos.
+- **Open Spaces with installed plugins**: Eidos Lite now loads installed plugins correctly after an update instead of reporting a valid plugin package as invalid.
+- **Open .graftignore normally**: `.graftignore` is treated as an ordinary text file instead of being mistaken for Eidos Lite's protected versioning data.

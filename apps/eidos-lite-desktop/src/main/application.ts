@@ -309,9 +309,15 @@ void app.whenReady().then(async () => {
     }
     try {
       await controller.recoverCloneOperations()
-      closeIpc = registerIpc(controller, services, syncControl, updater, {
-        syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE,
-      }).close
+      const registeredIpc = registerIpc(
+        controller,
+        services,
+        syncControl,
+        updater,
+        { syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE }
+      )
+      closeIpc = registeredIpc.close
+      await registeredIpc.verifyPluginPackageForSmoke()
       const ipcReadyAtMs = Date.now()
       if (!Number.isFinite(smokeLaunchedAtMs) || smokeLaunchedAtMs <= 0) {
         throw new Error("Packaged smoke requires its process launch timestamp")

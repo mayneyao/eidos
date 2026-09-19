@@ -616,8 +616,11 @@ export function registerIpc(
   options: {
     syncFailuresForTesting?: readonly PackagedSyncFault[]
   } = {}
-): { close(): Promise<void> } {
-  const closePlugins = registerPluginIpc(controller)
+): {
+  close(): Promise<void>
+  verifyPluginPackageForSmoke(): Promise<void>
+} {
+  const plugins = registerPluginIpc(controller)
   const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
     controller.handleWorkspaceShortcutInput(owner, event, input)
   )
@@ -2425,8 +2428,9 @@ export function registerIpc(
     }
   )
   return {
+    verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     async close() {
-      closePlugins()
+      plugins.close()
       unsubscribeTerminalPlugin()
       htmlPreviewViews.closeAll()
       assetLeases.clear()
