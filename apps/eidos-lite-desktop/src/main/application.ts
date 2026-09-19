@@ -31,6 +31,9 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: EIDOS_SPACE_MEDIA_SCHEME,
     privileges: {
+      // Chromium needs a standard origin to reuse media byte-range requests
+      // (including MP4 metadata stored at the end of the file).
+      standard: true,
       secure: true,
       stream: true,
       supportFetchAPI: true,

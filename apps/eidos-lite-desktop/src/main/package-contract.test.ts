@@ -56,6 +56,20 @@ describe("Eidos Lite package identity", () => {
     expect(html).toContain("connect-src 'self' eidos-space-media:;")
   })
 
+  it("registers media with a standard origin for MP4 tail metadata and seeking", async () => {
+    const application = await fs.readFile(
+      path.resolve(appRoot, "src/main/application.ts"),
+      "utf8"
+    )
+    const mediaPrivileges = application.match(
+      /scheme: EIDOS_SPACE_MEDIA_SCHEME,\s*privileges: \{([^}]+)\}/
+    )?.[1]
+    // Without this, Chromium disables playback when it must read a nonzero
+    // range before loadedmetadata (small videos can still appear to work).
+    expect(mediaPrivileges).toMatch(/standard:\s*true/)
+    expect(mediaPrivileges).toMatch(/stream:\s*true/)
+  })
+
   it("keeps heavy packaged verification outside the first-window startup path", async () => {
     const [bootstrapSource, applicationSource, startupSmokeSource] =
       await Promise.all([
