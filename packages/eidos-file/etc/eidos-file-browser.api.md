@@ -949,6 +949,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     addField(tableId: string, field: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): Promise<EidosFileSnapshot>;
     // (undocumented)
+    aggregateTable?(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
+    // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
     // (undocumented)
     createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>;
@@ -1602,6 +1604,46 @@ export type EidosFileSqlPrimitive = string | number | bigint | null | Uint8Array
 
 // @public (undocumented)
 export type EidosFileStorageCodec = "scalar" | "json_array" | "relation" | "materialized_text";
+
+// @public (undocumented)
+export type EidosFileTableAggregateDateInterval = "exact" | "day" | "month" | "year";
+
+// @public (undocumented)
+export interface EidosFileTableAggregateItem {
+    // (undocumented)
+    key: EidosFileSqlPrimitive;
+    // (undocumented)
+    label: string;
+    // (undocumented)
+    value: number;
+}
+
+// @public (undocumented)
+export type EidosFileTableAggregateMetric = "count" | "sum" | "average" | "min" | "max";
+
+// @public (undocumented)
+export interface EidosFileTableAggregateOptions {
+    // (undocumented)
+    groupBy?: {
+        fieldId: string;
+        dateInterval?: EidosFileTableAggregateDateInterval;
+    };
+    // (undocumented)
+    metric: {
+        fieldId?: string;
+        op: EidosFileTableAggregateMetric;
+    };
+    // (undocumented)
+    sort?: "label" | "value-desc" | "value-asc";
+}
+
+// @public (undocumented)
+export interface EidosFileTableAggregateResult {
+    // (undocumented)
+    items: EidosFileTableAggregateItem[];
+    // (undocumented)
+    totalRecords: number;
+}
 
 // @public (undocumented)
 export interface EidosFileTableInfo {

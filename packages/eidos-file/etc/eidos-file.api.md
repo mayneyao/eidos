@@ -1289,6 +1289,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     addField(tableId: string, field: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): Promise<EidosFileSnapshot>;
     // (undocumented)
+    aggregateTable?(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
+    // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
     // (undocumented)
     createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>;
@@ -2044,6 +2046,8 @@ export class EidosFileRuntime {
     addField(tableId: string, input: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): EidosFileFieldInfo;
     // (undocumented)
     aggregate(tableId: string, configs: EidosFileColumnStatConfig[], query?: EidosFileRowQuery): EidosFileColumnStatResult[];
+    // (undocumented)
+    aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query?: EidosFileRowQuery): EidosFileTableAggregateResult;
     // @internal
     appendImportedRows(tableId: string, rows: EidosFileRow[]): void;
     // @internal
@@ -2238,6 +2242,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     constructor(runtime: EidosFileRuntime, path: string);
     // (undocumented)
     addField(tableId: string, field: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): Promise<EidosFileSnapshot>;
+    // (undocumented)
+    aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
     // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
     // (undocumented)
@@ -2437,6 +2443,46 @@ export type EidosFileSqlPrimitive = string | number | bigint | null | Uint8Array
 export type EidosFileStorageCodec = "scalar" | "json_array" | "relation" | "materialized_text";
 
 // @public (undocumented)
+export type EidosFileTableAggregateDateInterval = "exact" | "day" | "month" | "year";
+
+// @public (undocumented)
+export interface EidosFileTableAggregateItem {
+    // (undocumented)
+    key: EidosFileSqlPrimitive;
+    // (undocumented)
+    label: string;
+    // (undocumented)
+    value: number;
+}
+
+// @public (undocumented)
+export type EidosFileTableAggregateMetric = "count" | "sum" | "average" | "min" | "max";
+
+// @public (undocumented)
+export interface EidosFileTableAggregateOptions {
+    // (undocumented)
+    groupBy?: {
+        fieldId: string;
+        dateInterval?: EidosFileTableAggregateDateInterval;
+    };
+    // (undocumented)
+    metric: {
+        fieldId?: string;
+        op: EidosFileTableAggregateMetric;
+    };
+    // (undocumented)
+    sort?: "label" | "value-desc" | "value-asc";
+}
+
+// @public (undocumented)
+export interface EidosFileTableAggregateResult {
+    // (undocumented)
+    items: EidosFileTableAggregateItem[];
+    // (undocumented)
+    totalRecords: number;
+}
+
+// @public (undocumented)
 export interface EidosFileTableInfo {
     contentFieldId?: string | null;
     // (undocumented)
@@ -2580,6 +2626,8 @@ export class EidosRuntimeService implements RuntimeClient {
     constructor(connection: ConnectionPort, core: EidosFileRuntime, environment: RuntimeEnvironment, writable: boolean, generator: EidosUuidV7Generator);
     // (undocumented)
     aggregate(request: AggregateRequest, context: RequestContext): Promise<AggregateResponse>;
+    // (undocumented)
+    aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query?: EidosFileRowQuery): EidosFileTableAggregateResult;
     // (undocumented)
     cancel(request: {
         requestId: string;
