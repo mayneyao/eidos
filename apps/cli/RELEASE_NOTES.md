@@ -1,7 +1,45 @@
+## What's new
+
+### Plugins in the CLI and local editor
+
+Discover and manage plugins from the official registry with `eidos plugin search`, `info`, `install`, `list`, and `uninstall`. Plugins use the same device-wide store as Eidos Lite, so an installed plugin is available in both the desktop app and `eidos serve`.
+
+Create a File, install the Chart plugin, and open the local editor:
+
+```sh
+eidos create sales.eidos \
+  --table Sales \
+  --label-field Product \
+  --fields '[{"name":"Product","type":"text"},{"name":"Amount","type":"number"}]'
+eidos plugin install eidos.chart
+eidos serve sales.eidos --open
+```
+
+Use `--plugin <package.eidos-plugin>` to load a specific package or `--plugins-dir <directory>` to load a separate plugin directory. Serve also discovers packages in `.eidos/plugins` beside the File.
+
+### Plugin project tools
+
+Create a TypeScript plugin project, check it, and build a self-contained offline package:
+
+```sh
+eidos plugin create my-plugin
+cd my-plugin
+npm install
+eidos plugin check .
+eidos plugin pack .
+```
+
+Checking and packaging require Node.js 22.12 or newer and the generated project's dependencies. Interactive `dev`, `inspect`, `invoke`, `accept`, and `rollback` authoring sessions are not available yet.
+
+## Improvements
+
+- **Serve Feed timestamps**: Recent records display relative timestamps, making activity easier to scan.
+
 ## Bug fixes
 
-- **Serve Content editing**: Expanded record pages now use the same rich Markdown editor as Eidos Lite instead of falling back to a plain text box. Editing and preview share Eidos syntax and resolve images through the mounted asset directory.
-- **Record controls**: Fix missing record expansion in Feed and incomplete full-page and previous/next controls outside Grid. Navigation now reaches the Runtime through the browser adapter and follows the current View's filter and order.
+- **Serve record editing**: Pressing Enter in a record title moves focus into its Content editor.
+- **Publish default view**: Publishing without an explicit view uses the first saved view.
+- **Publish on Windows**: Source hashing no longer uses a large stack buffer that could crash publishing.
 
 ## Use with an Agent
 
@@ -26,4 +64,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.2.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.3.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
