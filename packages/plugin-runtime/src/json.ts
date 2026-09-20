@@ -1,8 +1,10 @@
-import ts from "typescript"
+import type ts from "typescript"
 import { invalid } from "./errors"
+import { loadTypeScript } from "./toolchain"
 
 /** JSON.parse alone silently accepts duplicate keys, which this protocol forbids. */
 export function parseJson(text: string): unknown {
+  const ts = loadTypeScript()
   const value: unknown = JSON.parse(text)
   const source = ts.parseJsonText("plugin.json", text)
   const visit = (node: ts.Node) => {

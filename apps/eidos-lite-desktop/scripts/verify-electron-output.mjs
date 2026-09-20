@@ -15,11 +15,14 @@ const fixedFiles = new Set([
 ])
 const chunkNames = [
   "application",
+  "compiler",
+  "dist",
   "node-sqlite",
   "contracts",
   "logging",
   "packaged-smoke",
   "packaged-startup-smoke",
+  "rolldown-runtime",
   "terminal-session-manager",
   "updater",
 ]

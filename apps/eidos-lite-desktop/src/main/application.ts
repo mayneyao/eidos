@@ -317,7 +317,6 @@ void app.whenReady().then(async () => {
         { syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE }
       )
       closeIpc = registeredIpc.close
-      await registeredIpc.verifyPluginPackageForSmoke()
       const ipcReadyAtMs = Date.now()
       if (!Number.isFinite(smokeLaunchedAtMs) || smokeLaunchedAtMs <= 0) {
         throw new Error("Packaged smoke requires its process launch timestamp")
@@ -331,6 +330,9 @@ void app.whenReady().then(async () => {
         appReadyAtMs,
         ipcReadyAtMs,
       })
+      // Keep smoke-only package/toolchain verification outside the user startup
+      // measurement. The production path does not compile or install a fixture.
+      await registeredIpc.verifyPluginPackageForSmoke()
       const { runPackagedSmoke } = await import("./packaged-smoke")
       await runPackagedSmoke(controller, smokeSpace, smokeResult, startup)
       logger.info("app.packaged-smoke.completed")

@@ -3,7 +3,6 @@ import fsSync from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import { watch, type FSWatcher } from "chokidar"
-import { compilePlugin } from "@eidos.space/plugin-runtime/compiler"
 import { SANDBOX_CSP } from "@eidos.space/plugin-runtime/sandbox"
 import {
   app,
@@ -30,6 +29,12 @@ import {
 } from "../eidos-home"
 
 export const PLUGIN_CSP = SANDBOX_CSP
+
+async function compilePluginSource(source: string) {
+  const { compilePlugin } = await import("@eidos.space/plugin-runtime/compiler")
+  return compilePlugin(source)
+}
+
 export function registerPluginIpc(controller: WindowController): {
   close(): void
   verifyPackagedSmoke(): Promise<void>
@@ -408,7 +413,9 @@ export function registerPluginIpc(controller: WindowController): {
         path.basename(selected.filePaths[0]) === "plugin.json"
           ? path.dirname(selected.filePaths[0])
           : selected.filePaths[0]
-      const compiled = development ? await compilePlugin(source) : undefined
+      const compiled = development
+        ? await compilePluginSource(source)
+        : undefined
       const bytes =
         marketplaceBytes ??
         compiled?.bytes ??
@@ -488,7 +495,7 @@ export function registerPluginIpc(controller: WindowController): {
             do {
               again = false
               try {
-                const next = await compilePlugin(source)
+                const next = await compilePluginSource(source)
                 if (watchers.get(key) !== watcher) return
                 if (
                   JSON.stringify(next.program.manifest) !==

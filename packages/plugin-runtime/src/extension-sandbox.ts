@@ -6,7 +6,7 @@ import type {
   FormatterProvider,
 } from "./contracts"
 import { viewHtml } from "./sandbox"
-import ts from "typescript"
+import { loadTypeScript } from "./toolchain"
 
 /** Runs only inside the isolated extension iframe. No host object is captured. */
 function activateGuest(
@@ -358,6 +358,7 @@ export function extensionHtml(
 ): string {
   // The view bootstrap supplies transport for its own mount only. The extension
   // bootstrap uses a separate channel state and never exposes a DOM root to Activate.
+  const ts = loadTypeScript()
   const compiled = ts.transpileModule(code, {
     fileName: "extension.js",
     compilerOptions: {

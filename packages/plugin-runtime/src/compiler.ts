@@ -2,11 +2,8 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { createHash } from "node:crypto"
-import { createRequire } from "node:module"
 import type { CompilerOptions } from "typescript"
 import type { Loader } from "esbuild"
-import type * as TypeScript from "typescript"
-import type * as Esbuild from "esbuild"
 import type {
   PluginIconDefinition,
   PluginManifest,
@@ -19,19 +16,7 @@ import { inlineManifest, validateSource } from "./source"
 import { encodePackage } from "./package"
 export { decodePackage } from "./package"
 import { loadDependencyLock } from "./dependencies"
-
-// Native binaries cannot be spawned from an asar path. Resolve the complete
-// esbuild package from its unpacked sibling so its own platform lookup also
-// returns a real executable path. Ordinary Node development keeps its resolution.
-const require = createRequire(import.meta.url)
-const typescriptPath = require
-  .resolve("typescript")
-  .replace(/\.asar([\\/])/, ".asar.unpacked$1")
-const ts = require(typescriptPath) as typeof TypeScript
-const esbuildPath = require
-  .resolve("esbuild")
-  .replace(/\.asar([\\/])/, ".asar.unpacked$1")
-const { build } = require(esbuildPath) as typeof Esbuild
+import { loadEsbuild, loadTypeScript } from "./toolchain"
 
 export interface Diagnostic {
   code: string
@@ -84,6 +69,8 @@ const sdkPath = fileURLToPath(
 
 /** Trusted compiler: reads code as data, never imports a plugin or its config. */
 export async function compilePlugin(input: string): Promise<CompiledPlugin> {
+  const ts = loadTypeScript()
+  const { build } = loadEsbuild()
   const requested = path.resolve(input)
   if ((await fs.lstat(requested)).isSymbolicLink())
     throw new PluginError("SOURCE_INVALID", "Source root cannot be a symlink")

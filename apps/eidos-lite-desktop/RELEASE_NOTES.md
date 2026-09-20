@@ -12,6 +12,7 @@ Drag files from Finder or your system file manager onto a folder in the sidebar 
 
 ## Improvements
 
+- **Startup**: Eidos Lite now opens faster.
 - **Feed**: Recent records show relative timestamps, making activity easier to scan.
 
 ## Bug fixes

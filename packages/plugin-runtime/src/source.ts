@@ -1,10 +1,12 @@
-import ts from "typescript"
+import type ts from "typescript"
 import { PluginError } from "./errors"
+import { loadTypeScript } from "./toolchain"
 
 function fail(message: string): never {
   throw new PluginError("SOURCE_INVALID", message)
 }
 export function inlineManifest(source: ts.SourceFile): unknown | undefined {
+  const ts = loadTypeScript()
   let found = false
   let value: unknown
   function literal(node: ts.Expression): unknown {
@@ -75,6 +77,7 @@ export function validateSource(
   bundled = false,
   dependency = false
 ): void {
+  const ts = loadTypeScript()
   if (source.referencedFiles.length || source.typeReferenceDirectives.length)
     fail("Triple-slash references are not supported")
   const visit = (node: ts.Node) => {

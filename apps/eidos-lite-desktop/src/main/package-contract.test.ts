@@ -71,15 +71,23 @@ describe("Eidos Lite package identity", () => {
   })
 
   it("keeps heavy packaged verification outside the first-window startup path", async () => {
-    const [bootstrapSource, applicationSource, startupSmokeSource] =
-      await Promise.all([
-        fs.readFile(path.resolve(appRoot, "src/main/main.ts"), "utf8"),
-        fs.readFile(path.resolve(appRoot, "src/main/application.ts"), "utf8"),
-        fs.readFile(
-          path.resolve(appRoot, "src/main/packaged-startup-smoke.ts"),
-          "utf8"
-        ),
-      ])
+    const [
+      bootstrapSource,
+      applicationSource,
+      pluginIpcSource,
+      startupSmokeSource,
+    ] = await Promise.all([
+      fs.readFile(path.resolve(appRoot, "src/main/main.ts"), "utf8"),
+      fs.readFile(path.resolve(appRoot, "src/main/application.ts"), "utf8"),
+      fs.readFile(
+        path.resolve(appRoot, "src/main/plugins/plugin-ipc.ts"),
+        "utf8"
+      ),
+      fs.readFile(
+        path.resolve(appRoot, "src/main/packaged-startup-smoke.ts"),
+        "utf8"
+      ),
+    ])
 
     expect(bootstrapSource).toMatch(/^import \{ app \} from "electron"/m)
     expect(bootstrapSource).not.toContain("WindowController")
@@ -88,6 +96,15 @@ describe("Eidos Lite package identity", () => {
     expect(applicationSource).toContain('"./packaged-startup-smoke"')
     expect(applicationSource).toContain('await import("./packaged-smoke")')
     expect(applicationSource).toContain("process.exit(isPackagedSmoke ? 2 : 0)")
+    expect(applicationSource.indexOf("runPackagedStartupSmoke")).toBeLessThan(
+      applicationSource.indexOf("verifyPluginPackageForSmoke")
+    )
+    expect(pluginIpcSource).not.toMatch(
+      /^import .*@eidos\.space\/plugin-runtime\/compiler/m
+    )
+    expect(pluginIpcSource).toContain(
+      'await import("@eidos.space/plugin-runtime/compiler")'
+    )
     expect(startupSmokeSource).not.toContain(
       "@eidos.space/eidos-file/better-sqlite3"
     )
