@@ -1,23 +1,19 @@
 ## What's new
 
-### Extend Eidos Lite with plugins
+### Run plugin actions on your records
 
-Add new ways to view tables, open files, and work with documents while keeping your Space and its data on your device. Browse the plugin marketplace from **Settings > Plugins**, or install a local `.eidos-plugin` package. The marketplace currently includes Map, Chart, and Markmap.
+Plugins can now add actions to a table's context menu. Run an action on selected records or the current filtered set, follow its progress in a task window that can be minimized or expanded, and undo or redo supported changes without running the action again.
 
-Plugins install once on your device and are enabled separately for each Space. Choose a plugin from **Open with**, set a default editor for a file type in **Settings > Files**, or add a plugin view to a table. Updating a plugin keeps your Space choices, and installed packages continue to load after upgrading Eidos Lite.
-
-### Drag files into your Space
-
-Drag files from Finder or your system file manager onto a folder in the sidebar to import them directly into your Space.
+Plugins can also provide a dedicated workspace for a `.eidos` file through **Open with**. Connection settings, including endpoints, models and API keys, are managed in the plugin's settings; API keys are stored encrypted on your device.
 
 ## Improvements
 
-- **Startup**: Eidos Lite now opens faster.
-- **Feed**: Recent records show relative timestamps, making activity easier to scan.
+- **Plugin installation**: Drag a `.eidos-plugin` file onto the Plugins page to install or update it.
+- **Plugin compatibility**: Eidos checks a plugin's required API before installation and execution. An incompatible update leaves the installed version intact, and incompatible plugins remain available for inspection or removal.
+- **Editor titles**: The title bar identifies the active plugin or Markdown editing mode alongside the filename.
 
 ## Bug fixes
 
-- **Record editing**: Pressing Enter in a record title moves the cursor into its Content editor.
-- **Video preview**: Dragging the playback position now seeks correctly in local videos.
-- **Text files**: `.graftignore` opens as an ordinary text file instead of being treated as protected versioning data.
-- **Versions**: Cancelling a background history read no longer clears the current version status.
+- **Dark mode**: Markdown in Feed and record details now follows the app's theme, even when it differs from the system appearance.
+- **History**: Diff values stay aligned with their column labels when historical column order differs.
+- **Plugin pages**: Avoid an unnecessary page scrollbar.

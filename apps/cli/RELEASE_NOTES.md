@@ -1,45 +1,20 @@
 ## What's new
 
-### Plugins in the CLI and local editor
+### Check plugin compatibility before running
 
-Discover and manage plugins from the official registry with `eidos plugin search`, `info`, `install`, `list`, and `uninstall`. Plugins use the same device-wide store as Eidos Lite, so an installed plugin is available in both the desktop app and `eidos serve`.
+Use `eidos plugin doctor` to see the plugin API supported by your CLI, or `eidos plugin doctor ./example.eidos-plugin` to inspect a package without installing or executing it. JSON reports include the required API and any unsupported features.
 
-Create a File, install the Chart plugin, and open the local editor:
+Installation and `eidos serve` now reject incompatible plugins before loading them. A rejected update preserves the installed package. New packages can declare a minimum API; existing packages remain supported when their declared features are available.
 
-```sh
-eidos create sales.eidos \
-  --table Sales \
-  --label-field Product \
-  --fields '[{"name":"Product","type":"text"},{"name":"Amount","type":"number"}]'
-eidos plugin install eidos.chart
-eidos serve sales.eidos --open
-```
-
-Use `--plugin <package.eidos-plugin>` to load a specific package or `--plugins-dir <directory>` to load a separate plugin directory. Serve also discovers packages in `.eidos/plugins` beside the File.
-
-### Plugin project tools
-
-Create a TypeScript plugin project, check it, and build a self-contained offline package:
-
-```sh
-eidos plugin create my-plugin
-cd my-plugin
-npm install
-eidos plugin check .
-eidos plugin pack .
-```
-
-Checking and packaging require Node.js 22.12 or newer and the generated project's dependencies. Interactive `dev`, `inspect`, `invoke`, `accept`, and `rollback` authoring sessions are not available yet.
+The CLI supports table-view plugins. Desktop-only actions, connections and file-editor plugins require Eidos Lite and are rejected by the CLI.
 
 ## Improvements
 
-- **Serve Feed timestamps**: Recent records display relative timestamps, making activity easier to scan.
+- **Plugin authoring**: New projects use Plugin SDK and Tools 0.2. The check command reports compatibility with Lite and CLI, and packaging preserves the minimum API requirement in the new package format.
 
 ## Bug fixes
 
-- **Serve record editing**: Pressing Enter in a record title moves focus into its Content editor.
-- **Publish default view**: Publishing without an explicit view uses the first saved view.
-- **Publish on Windows**: Source hashing no longer uses a large stack buffer that could crash publishing.
+- **Serve dark mode**: Markdown previews follow the selected application theme instead of switching back to the system appearance.
 
 ## Use with an Agent
 
@@ -64,4 +39,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.3.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.4.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
