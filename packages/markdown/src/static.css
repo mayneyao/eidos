@@ -3,7 +3,8 @@
 
 .eme-static {
   box-sizing: border-box;
-  color-scheme: light dark;
+  /* Follow the host's explicit theme, even when it differs from the OS. */
+  color-scheme: inherit;
   color: var(--eme-foreground);
   background: var(--eme-background);
   font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
