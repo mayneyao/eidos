@@ -41,6 +41,7 @@ export type * from "./adapter-contract"
 export type * from "./runtime-contract"
 export type * from "./connection"
 export type { EidosFileDataSource } from "./data-source"
+export type { EidosFilePluginConfig, EidosFileActionRow } from "./plugin-config"
 export type {
   EidosFileDescriptor,
   EidosFileDocument,

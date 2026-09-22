@@ -49,6 +49,8 @@ vi.mock("electron", () => ({
 }))
 import { registerPluginIpc } from "./plugin-ipc"
 import { PluginRegistry } from "./plugin-registry"
+import { PluginService } from "./plugin-service"
+import { PluginConnections } from "./plugin-connections"
 const id = "example.csv"
 let registered: ReturnType<typeof registerPluginIpc>
 const events = new Map<
@@ -229,4 +231,89 @@ it("handles plugin readme IPC requests", async () => {
   )
   expect(await call("readme", 1, id)).toBe("# Plugin Readme")
   await expect(call("readme", 1, 123)).rejects.toThrow(/Invalid plugin/)
+})
+
+it("dropped packages install and update by manifest ID while preserving Space enablement", async () => {
+  const dropped = mock.selected
+  mock.selected = "must-not-open-file-picker"
+  expect(await call("install", 1, false, undefined, dropped)).toBe(true)
+  await call("enable", 1, id, false)
+  await call("enable", 2, id, true)
+  mock.selected = dropped
+  await packageVersion("2.0.0")
+  mock.selected = "must-not-open-file-picker"
+  expect(await call("install", 1, false, undefined, dropped)).toBe(true)
+  expect((await listing(1)).plugins[0]).toMatchObject({
+    enabled: false,
+    manifest: { version: "2.0.0" },
+  })
+  expect((await listing(2)).plugins[0].enabled).toBe(true)
+  // Same-version replacement is useful for local development packages.
+  expect(await call("install", 1, false, undefined, dropped)).toBe(true)
+})
+
+it("dropped packages still require approval and reject invalid paths and contents", async () => {
+  mock.response = 0
+  expect(await call("install", 1, false, undefined, mock.selected)).toBe(false)
+  expect((await listing(1)).plugins).toHaveLength(0)
+  for (const source of [
+    123,
+    "relative.eidos-plugin",
+    "/tmp/not-a-plugin.txt",
+  ]) {
+    await expect(call("install", 1, false, undefined, source)).rejects.toThrow(
+      /Invalid dropped/
+    )
+  }
+  await expect(
+    call("install", 1, true, undefined, mock.selected)
+  ).rejects.toThrow(/Invalid dropped/)
+  await expect(call("install", 1, false, id, mock.selected)).rejects.toThrow(
+    /Invalid dropped/
+  )
+  await fs.writeFile(mock.selected, "invalid archive")
+  await expect(
+    call("install", 1, false, undefined, mock.selected)
+  ).rejects.toThrow()
+  expect((await listing(1)).plugins).toHaveLength(0)
+})
+
+it("allows two authenticated requests per instance and cancels both", async () => {
+  vi.spyOn(PluginService.prototype, "connectionAccess").mockResolvedValue({
+    scope: ["space-1", id, "ai", "https://example.com"],
+    configurable: false,
+    url: "https://example.com",
+    signal: new AbortController().signal,
+  })
+  const pending: {
+    signal: AbortSignal
+    resolve: (value: Record<string, never>) => void
+  }[] = []
+  vi.spyOn(PluginConnections.prototype, "request").mockImplementation(
+    async (_scope, _url, _body, signal) =>
+      new Promise((resolve, reject) => {
+        pending.push({ signal, resolve })
+        signal.addEventListener("abort", () => reject(new Error("Cancelled")), {
+          once: true,
+        })
+      })
+  )
+  const first = call("connection", 1, "ticket", "ai", "request", {})
+  const second = call("connection", 1, "ticket", "ai", "request", {})
+  await vi.waitFor(() => expect(pending).toHaveLength(2))
+  await expect(
+    call("connection", 1, "ticket", "ai", "request", {})
+  ).rejects.toThrow(/busy/)
+  pending[0].resolve({})
+  await first
+  const replacement = call("connection", 1, "ticket", "ai", "request", {})
+  const settled = Promise.allSettled([second, replacement])
+  await vi.waitFor(() => expect(pending).toHaveLength(3))
+  await call("connection", 1, "ticket", "ai", "cancel", null)
+  expect((await settled).map((result) => result.status)).toEqual([
+    "rejected",
+    "rejected",
+  ])
+  expect(pending[1].signal.aborted).toBe(true)
+  expect(pending[2].signal.aborted).toBe(true)
 })

@@ -133,7 +133,7 @@ export function SpaceEntryOpenActions({
   const [choices, setChoices] = useState<PluginEditorChoice[]>([])
 
   useEffect(() => {
-    if (entry.kind !== "file" || !window.eidosLite?.pluginEditors) return
+    if (entry.kind === "directory" || !window.eidosLite?.pluginEditors) return
     let active = true
     const refresh = () => {
       void window.eidosLite
@@ -160,7 +160,7 @@ export function SpaceEntryOpenActions({
       entry={entry}
       hasPluginEditors={choices.length > 0}
       pluginEditors={
-        entry.kind === "file" && choices.length > 0 ? (
+        entry.kind !== "directory" && choices.length > 0 ? (
           <PluginFileActions
             relativePath={entry.relativePath}
             selected={selectedEditor}

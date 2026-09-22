@@ -15,12 +15,27 @@ export interface PluginRequest {
   id: string
   method:
     | "view.ready"
+    | "eidos.tables"
+    | "eidos.table"
+    | "eidos.connection.status"
+    | "eidos.connection.request"
+    | "eidos.pluginConfig.read"
+    | "eidos.pluginConfig.write"
     | "network.read"
     | "storage.list"
     | "storage.read"
     | "storage.write"
     | "storage.remove"
     | "table.read"
+    | "table.pluginConfig.read"
+    | "table.pluginConfig.write"
+    | "table.actions.ready"
+    | "table.actions.result"
+    | "table.target.read"
+    | "table.target.update"
+    | "table.connection.request"
+    | "table.task.preview"
+    | "table.task.report"
     | "table.page"
     | "table.properties"
     | "table.openRecord"
@@ -68,12 +83,27 @@ export function parseRequest(value: unknown): PluginRequest {
     r.id.length > 128 ||
     ![
       "view.ready",
+      "eidos.tables",
+      "eidos.table",
+      "eidos.connection.status",
+      "eidos.connection.request",
+      "eidos.pluginConfig.read",
+      "eidos.pluginConfig.write",
       "network.read",
       "storage.list",
       "storage.read",
       "storage.write",
       "storage.remove",
       "table.read",
+      "table.pluginConfig.read",
+      "table.pluginConfig.write",
+      "table.actions.ready",
+      "table.actions.result",
+      "table.target.read",
+      "table.target.update",
+      "table.connection.request",
+      "table.task.preview",
+      "table.task.report",
       "table.page",
       "table.properties",
       "table.openRecord",

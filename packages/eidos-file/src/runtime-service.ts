@@ -2083,6 +2083,13 @@ export class EidosRuntimeService implements RuntimeClient {
 
   private schemaDescriptors(): SchemaDescriptor[] {
     const tables = this.core.listTables()
+    const tableSettings = new Map(
+      this.core.connection
+        .query<{ id: string; settings_json: string }>(
+          "SELECT id, settings_json FROM eidos__tables"
+        )
+        .map((row) => [row.id, objectValue(JSON.parse(row.settings_json))])
+    )
     const tableDescriptors = tables.map((table) => {
       const fields = this.core.listFields(table.id)
       const label = fields.find((field) => field.isRecordLabel)
@@ -2097,15 +2104,7 @@ export class EidosRuntimeService implements RuntimeClient {
         name: table.name,
         labelFieldId: label.id,
         position: String(table.position ?? 0),
-        settings: objectValue({
-          ...(table.icon === null ? {} : { icon: table.icon }),
-          ...(table.description === null
-            ? {}
-            : { description: table.description }),
-          ...(table.contentFieldId === null
-            ? {}
-            : { contentFieldId: table.contentFieldId }),
-        }),
+        settings: tableSettings.get(table.id) ?? {},
       }
     })
     const fieldDescriptors = tables.flatMap((table) =>

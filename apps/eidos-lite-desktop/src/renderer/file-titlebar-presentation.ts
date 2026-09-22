@@ -11,10 +11,18 @@ function fileName(relativePath: string): string {
 export function fileTitlebarPresentation(
   spaceName: string,
   activeDocumentPath: string | null,
-  pendingDocumentPath: string | null
+  pendingDocumentPath: string | null,
+  editor?: { documentPath: string; label: string } | null
 ): FileTitlebarPresentation {
   const documentPath = pendingDocumentPath ?? activeDocumentPath
-  const title = documentPath ? fileName(documentPath) : spaceName
+  const name = documentPath ? fileName(documentPath) : spaceName
+  const title =
+    documentPath &&
+    !pendingDocumentPath &&
+    editor?.documentPath === documentPath &&
+    editor.label
+      ? `${editor.label}:\\${name}`
+      : name
   return {
     documentPath,
     title,

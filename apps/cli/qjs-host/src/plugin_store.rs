@@ -36,6 +36,8 @@ pub struct PluginBrowserConfig {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PluginManifest {
+    #[serde(rename = "apiVersion")]
+    pub api_version: u32,
     pub id: String,
     pub name: String,
     pub version: String,
@@ -214,7 +216,15 @@ impl CliPluginStore {
         decoder
             .read_to_end(&mut json_bytes)
             .with_context(|| format!("cannot decompress plugin file {}", path.display()))?;
-        let package: PluginPackage = serde_json::from_slice(&json_bytes)
+        let raw: serde_json::Value = serde_json::from_slice(&json_bytes)?;
+        if raw["format"] != 1 && raw["format"] != 2 {
+            anyhow::bail!("Unsupported plugin package format");
+        }
+        if (raw["format"] == 2) != raw["manifest"].get("requires").is_some() {
+            anyhow::bail!("Packages declaring requires must use format 2; format 2 requires a minimum plugin API");
+        }
+        crate::plugin_compatibility::ensure(&raw["manifest"]).map_err(anyhow::Error::msg)?;
+        let package: PluginPackage = serde_json::from_value(raw)
             .with_context(|| format!("invalid plugin package JSON in {}", path.display()))?;
         println!(
             "  plugin: {} v{} ({})",
@@ -363,6 +373,7 @@ mod tests {
     #[test]
     fn test_load_plugin_and_render() {
         let manifest = PluginManifest {
+            api_version: 1,
             id: "test.plugin".to_string(),
             name: "Test Plugin".to_string(),
             version: "1.0.0".to_string(),
@@ -427,11 +438,42 @@ mod tests {
     }
 
     #[test]
+    fn rejects_incompatible_direct_load_before_registering() {
+        let file = NamedTempFile::new().unwrap();
+        let raw = serde_json::json!({
+            "format": 2,
+            "manifest": { "apiVersion": 1, "id": "test.future", "name": "Future",
+                "version": "1.0.0", "requires": {"pluginApi":"1.1.0"},
+                "views": [{"id":"main","title":"Main","context":"table","entry":"./main.js"}] },
+            "modules": {"./main.js":"export default function mount() {}"}
+        });
+        let mut encoder = GzEncoder::new(file.as_file(), Compression::default());
+        encoder
+            .write_all(&serde_json::to_vec(&raw).unwrap())
+            .unwrap();
+        encoder.finish().unwrap();
+        let mut store = CliPluginStore::new();
+        assert!(store
+            .load_file(file.path())
+            .unwrap_err()
+            .to_string()
+            .contains("requires plugin API 1.1.0"));
+        assert_eq!(
+            store.list_plugins_json()["plugins"]
+                .as_array()
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    #[test]
     fn test_multiple_plugins_and_dir_loading() {
         let temp_dir = tempfile::tempdir().unwrap();
 
         for id in ["plugin.beta", "plugin.alpha"] {
             let manifest = PluginManifest {
+                api_version: 1,
                 id: id.to_string(),
                 name: format!("Name for {id}"),
                 version: "1.0.0".to_string(),

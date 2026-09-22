@@ -1,5 +1,6 @@
 export type * from "./contracts"
 export * from "./errors"
+export * from "./compatibility"
 export * from "./manifest"
 export * from "./package"
 export * from "./lifecycle"

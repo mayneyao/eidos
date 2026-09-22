@@ -130,6 +130,11 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
             clientKey: "table",
             name: "Items",
             position: "0",
+            settings: {
+              description: "Preserve complete table metadata",
+              custom: { enabled: true },
+              plugins: { "example.actions": { version: 1, actions: [] } },
+            },
             fields: [
               {
                 clientKey: "group",
@@ -196,6 +201,21 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
       const tableId = schema.createdObjects.find(
         (entry) => "clientKey" in entry && entry.clientKey === "table"
       )!.id
+      const descriptorPage = await runtime.getSchemaPage(
+        { revision: schema.revision, limit: 100 },
+        context("complete-table-settings")
+      )
+      expect(
+        descriptorPage.objects.find(
+          (entry) => entry.object === "table" && entry.id === tableId
+        )
+      ).toMatchObject({
+        settings: {
+          description: "Preserve complete table metadata",
+          custom: { enabled: true },
+          plugins: { "example.actions": { version: 1, actions: [] } },
+        },
+      })
       const groupFieldId = schema.createdObjects.find(
         (entry) => "clientKey" in entry && entry.clientKey === "group"
       )!.id

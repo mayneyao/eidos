@@ -49,12 +49,25 @@ const api: EidosLiteApi = {
   listPlugins: () => ipcRenderer.invoke(PLUGIN_CHANNELS.list),
   openPluginPage: (key, route) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.page, key, route),
-  openPluginExtension: (id) =>
-    ipcRenderer.invoke(PLUGIN_CHANNELS.extension, id),
+  openPluginExtension: (id, table) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.extension, id, table),
+  pluginConnection: (ticket, connection, operation, value) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.connection,
+      ticket,
+      connection,
+      operation,
+      value
+    ),
   invokePluginAction: (ticket, action, path, draft) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.invoke, ticket, action, path, draft),
   installPlugin: (development) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.install, development),
+  installDroppedPlugin: (file) => {
+    const source = webUtils.getPathForFile(file)
+    if (!source) return Promise.reject(new Error("Invalid plugin file"))
+    return ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, undefined, source)
+  },
   pluginMarketplace: (refresh) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.marketplace, refresh),
   pluginReadme: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id),

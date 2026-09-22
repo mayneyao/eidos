@@ -14,11 +14,15 @@ export function packageHash(bytes: Uint8Array): string {
 export function parsePackage(value: unknown): PluginPackage {
   const p = record(value)
   if (
-    p.format !== 1 ||
+    (p.format !== 1 && p.format !== 2) ||
     Object.keys(p).sort().join() !== "format,manifest,modules"
   )
     invalid("Invalid plugin package envelope")
   const manifest = parseManifest(p.manifest)
+  if ((p.format === 2) !== Boolean(manifest.requires))
+    invalid(
+      "Packages declaring requires must use format 2; format 2 requires a minimum plugin API"
+    )
   const modules = record(p.modules)
   const entries = new Set([
     ...(manifest.views ?? []).map((v) => v.entry),
@@ -53,7 +57,7 @@ export function parsePackage(value: unknown): PluginPackage {
     )
   }
   return {
-    format: 1,
+    format: p.format,
     manifest,
     modules: { ...modules } as Record<string, string>,
   }
@@ -80,7 +84,11 @@ export function encodePackage(
   manifest: PluginManifest,
   modules: Record<string, string>
 ): Uint8Array {
-  const pkg = parsePackage({ format: 1, manifest, modules })
+  const pkg = parsePackage({
+    format: manifest.requires ? 2 : 1,
+    manifest,
+    modules,
+  })
   const raw = Buffer.from(JSON.stringify(pkg))
   if (raw.length > PACKAGE_LIMIT)
     throw new PluginError("TOO_LARGE", "Package exceeds 16 MiB")

@@ -459,9 +459,14 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
     hash.update(entry).update(code)
   const bytes = encodePackage(finalManifest, modules)
   return {
-    program: { format: 1, manifest: finalManifest, modules },
+    program: {
+      format: finalManifest.requires ? 2 : 1,
+      manifest: finalManifest,
+      modules,
+    },
     bytes,
     revision: hash.digest("hex"),
     dependencies: [...files.keys()],
   }
 }
+export { checkPluginCompatibility } from "./compatibility"

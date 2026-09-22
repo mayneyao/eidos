@@ -1,4 +1,5 @@
 import path from "node:path"
+import { assertPluginCompatibility } from "@eidos.space/plugin-runtime/compatibility"
 import fsSync from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -10,6 +11,7 @@ import {
   dialog,
   ipcMain,
   protocol,
+  safeStorage,
   type IpcMainInvokeEvent,
 } from "electron"
 import {
@@ -21,6 +23,7 @@ import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginService } from "./plugin-service"
+import { PluginConnections } from "./plugin-connections"
 import { PluginRegistry } from "./plugin-registry"
 import {
   ensureOwnerOnlyDirectory,
@@ -66,6 +69,17 @@ export function registerPluginIpc(controller: WindowController): {
   if (home.source !== "profile") ensureOwnerOnlyDirectory(fsSync, home.home)
   const store = new PluginStore(home.plugins)
   const registry = new PluginRegistry(store.directory)
+  const connections = new PluginConnections(
+    path.join(store.directory, "credentials"),
+    {
+      available: () =>
+        safeStorage.isEncryptionAvailable() &&
+        safeStorage.getSelectedStorageBackend?.() !== "basic_text",
+      encrypt: (value) => safeStorage.encryptString(value),
+      decrypt: (value) => safeStorage.decryptString(value),
+    }
+  )
+  const connectionRequests = new Map<string, Set<AbortController>>()
   const service = new PluginService(store, (owner, ticket) => {
     const target = BrowserWindow.getAllWindows().find(
       (window) => window.webContents.id === owner
@@ -228,16 +242,94 @@ export function registerPluginIpc(controller: WindowController): {
       )
     }
   )
-  ipcMain.handle(PLUGIN_CHANNELS.extension, (event, id: unknown) => {
-    const owner = caller(event)
-    if (typeof id !== "string")
-      throw new PluginError("INVALID_REQUEST", "Invalid plugin")
-    return service.openExtension(
-      owner,
-      controller.requireSession(event.sender),
-      id
-    )
-  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.connection,
+    async (
+      event,
+      ticket: string,
+      id: string,
+      operation: string,
+      value: unknown
+    ) => {
+      const owner = caller(event)
+      if (typeof ticket !== "string" || typeof id !== "string")
+        throw new Error("Invalid connection")
+      const access = await service.connectionAccess(
+        owner,
+        controller.requireSession(event.sender),
+        ticket,
+        id,
+        operation === "status" ||
+          operation === "save" ||
+          operation === "configure"
+      )
+      if (operation === "status")
+        return access.configurable
+          ? connections.configuration(access.scope)
+          : connections.configured(access.scope)
+      if (operation === "configure") {
+        if (!access.configurable)
+          throw new Error("Connection is not configurable")
+        return connections.configure(access.scope, value)
+      }
+      if (operation === "save") {
+        if (access.configurable) throw new Error("Use connection configuration")
+        if (value !== null && typeof value !== "string")
+          throw new Error("Invalid credential")
+        return connections.save(access.scope, value)
+      }
+      if (operation === "cancel") {
+        for (const pending of connectionRequests.get(ticket) ?? [])
+          pending.abort()
+        return
+      }
+      if (
+        operation !== "request" ||
+        (connectionRequests.get(ticket)?.size ?? 0) >= 2
+      )
+        throw new Error("Invalid or busy connection request")
+      const pending = new AbortController()
+      const requests =
+        connectionRequests.get(ticket) ?? new Set<AbortController>()
+      requests.add(pending)
+      connectionRequests.set(ticket, requests)
+      try {
+        return await connections.request(
+          access.scope,
+          access.url,
+          value,
+          AbortSignal.any([access.signal, pending.signal]),
+          access.configurable,
+          ticket
+        )
+      } finally {
+        requests.delete(pending)
+        if (!requests.size) connectionRequests.delete(ticket)
+      }
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.extension,
+    (event, id: unknown, table?: { tableId: string; viewId: string }) => {
+      const owner = caller(event)
+      if (typeof id !== "string")
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin")
+      if (
+        table &&
+        (typeof table.tableId !== "string" ||
+          typeof table.viewId !== "string" ||
+          table.tableId.length > 128 ||
+          table.viewId.length > 128)
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid table binding")
+      return service.openExtension(
+        owner,
+        controller.requireSession(event.sender),
+        id,
+        table
+      )
+    }
+  )
   ipcMain.handle(
     PLUGIN_CHANNELS.defaultFormatter,
     async (event, extension: unknown, key: unknown) => {
@@ -340,9 +432,23 @@ export function registerPluginIpc(controller: WindowController): {
   )
   ipcMain.handle(
     PLUGIN_CHANNELS.install,
-    async (event, development: unknown, marketplaceId: unknown) => {
+    async (
+      event,
+      development: unknown,
+      marketplaceId: unknown,
+      droppedPath: unknown
+    ) => {
       caller(event)
       const spaceId = currentSpace(event)
+      if (
+        droppedPath !== undefined &&
+        (typeof droppedPath !== "string" ||
+          !path.isAbsolute(droppedPath) ||
+          path.extname(droppedPath).toLowerCase() !== ".eidos-plugin" ||
+          development ||
+          marketplaceId !== undefined)
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid dropped plugin file")
       if (development !== undefined && typeof development !== "boolean")
         throw new PluginError("INVALID_REQUEST", "Invalid development mode")
       if (
@@ -393,20 +499,22 @@ export function registerPluginIpc(controller: WindowController): {
           : undefined
       const selected = marketplaceBytes
         ? { canceled: false, filePaths: [""] }
-        : await dialog.showOpenDialog(owner, {
-            title: development
-              ? "Load development source (plugin.json or TS/JS)"
-              : "Install plugin",
-            properties: ["openFile"],
-            filters: [
-              {
-                name: "Eidos Plugin",
-                extensions: development
-                  ? ["json", "ts", "js", "tsx", "jsx"]
-                  : ["eidos-plugin"],
-              },
-            ],
-          })
+        : typeof droppedPath === "string"
+          ? { canceled: false, filePaths: [droppedPath] }
+          : await dialog.showOpenDialog(owner, {
+              title: development
+                ? "Load development source (plugin.json or TS/JS)"
+                : "Install plugin",
+              properties: ["openFile"],
+              filters: [
+                {
+                  name: "Eidos Plugin",
+                  extensions: development
+                    ? ["json", "ts", "js", "tsx", "jsx"]
+                    : ["eidos-plugin"],
+                },
+              ],
+            })
       if (selected.canceled || (!marketplaceBytes && !selected.filePaths[0]))
         return false
       const source =
@@ -421,14 +529,14 @@ export function registerPluginIpc(controller: WindowController): {
         compiled?.bytes ??
         (await store.readBytes(selected.filePaths[0]))
       const pkg = decodePackage(bytes)
+      assertPluginCompatibility(pkg.manifest, "eidos-lite")
       if (
-        pkg.manifest.actions?.some((action) => action.context === "table") ||
         Object.keys(pkg.manifest.resources ?? {}).length ||
         Object.keys(pkg.manifest.settings ?? {}).length
       )
         throw new PluginError(
           "UNSUPPORTED_API",
-          "Table actions, settings and named resources are not connected yet"
+          "Settings and named resources are not connected yet"
         )
       const existing = await store.installed(pkg.manifest.id)
       let existingVersion: string | undefined
@@ -448,7 +556,19 @@ export function registerPluginIpc(controller: WindowController): {
       const review = await dialog.showMessageBox(owner, {
         type: "question",
         title: isUpdate ? "Update plugin" : "Install plugin",
-        message: `${pkg.manifest.name} ${versionLabel}${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
+        message: `${pkg.manifest.name} ${versionLabel}${
+          Object.values(pkg.manifest.connections ?? {}).length
+            ? `\nAuthenticated connections: ${Object.values(
+                pkg.manifest.connections ?? {}
+              )
+                .map((c) =>
+                  c.configurable
+                    ? `${c.title}: user-configurable HTTPS endpoint`
+                    : c.url
+                )
+                .join(", ")}`
+            : ""
+        }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
         detail: `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
         buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
         defaultId: 0,

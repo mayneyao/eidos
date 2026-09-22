@@ -318,13 +318,18 @@ pub fn decode_package(bytes: &[u8]) -> Result<PluginPackageEnvelope> {
         AppError::invalid_request(format!("invalid plugin package envelope: {error}"))
     })?;
 
-    if envelope.format != 1 {
+    if !matches!(envelope.format, 1 | 2) {
         return Err(AppError::invalid_request(format!(
             "unsupported plugin package format: {}",
             envelope.format
         )));
     }
 
+    if (envelope.format == 2) != envelope.manifest.extra.contains_key("requires") {
+        return Err(AppError::invalid_request(
+            "Packages declaring requires must use format 2; format 2 requires a minimum plugin API",
+        ));
+    }
     if !is_valid_plugin_id(&envelope.manifest.id) {
         return Err(AppError::invalid_request(format!(
             "invalid plugin id in manifest: '{}'",
@@ -428,6 +433,10 @@ pub fn install_package_bytes(
     force: bool,
 ) -> Result<InstalledPluginInfo> {
     let envelope = decode_package(bytes)?;
+    qjs_host::plugin_compatibility::ensure(
+        &serde_json::to_value(&envelope.manifest).map_err(|e| AppError::internal(e.to_string()))?,
+    )
+    .map_err(AppError::invalid_request)?;
     let hash = format!("{:x}", Sha256::digest(bytes));
     let store_dir = explicit_dir
         .map(PathBuf::from)

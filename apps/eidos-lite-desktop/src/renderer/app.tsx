@@ -41,6 +41,7 @@ import {
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { WorkspaceHeading } from "./workspace-heading"
 import { PluginEditor } from "./plugin-editor"
+import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
 import { PluginManager } from "./plugin-manager"
 import type { PluginOpenResult } from "../shared/plugins"
@@ -87,6 +88,7 @@ import {
 } from "./app-appearance"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
+import { isMarkdownTextFile } from "./text-editor-options"
 import type { EidosFileWorkbench as EidosFileWorkbenchImplementation } from "./eidos-file-workbench"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { useEidosLiteI18n } from "./i18n"
@@ -866,7 +868,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   }
   useEffect(() => {
     setPluginEditor((current) =>
-      current?.relativePath === textPreview?.relativePath ? current : null
+      current?.relativePath.toLowerCase().endsWith(".eidos") ||
+      current?.relativePath === textPreview?.relativePath
+        ? current
+        : null
     )
   }, [textPreview?.relativePath])
   useEffect(() => {
@@ -2030,6 +2035,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ? cachedFiles.find((file) => file.relativePath === entry.relativePath)
           : undefined
       if (historyFile) {
+        setPluginEditor(null)
         if (options.tableId) {
           if (
             !historyFile.snapshot.tables.some(
@@ -2138,11 +2144,26 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           }
         }
         const opened = await window.eidosLite.openEidosFile(entry.relativePath)
-        const tableId = options.tableId ?? opened.snapshot.tables[0]?.table.id
-        if (!tableId) throw new Error("This Eidos File has no tables")
-        if (!opened.snapshot.tables.some((table) => table.table.id === tableId))
+        const tableId =
+          options.tableId ?? opened.snapshot.tables[0]?.table.id ?? ""
+        if (
+          options.tableId &&
+          !opened.snapshot.tables.some((table) => table.table.id === tableId)
+        )
           throw new Error("This table is no longer available in the file.")
         await loadEidosFileWorkbench()
+        const filePlugin = await window.eidosLite.openPluginEditor(
+          entry.relativePath,
+          options.pluginEditor
+        )
+        if (!tableId && !filePlugin.instance)
+          throw new Error("This Eidos File has no tables")
+        if (filePlugin.warning) setError(filePlugin.warning)
+        setPluginEditor(
+          filePlugin.instance
+            ? { ...filePlugin.instance, relativePath: entry.relativePath }
+            : null
+        )
         const existing = availableCachedFiles.find(
           (file) => file.sessionId === opened.sessionId
         )
@@ -3180,7 +3201,29 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const titlebarPresentation = fileTitlebarPresentation(
     space.name,
     activeDocumentPath,
-    busyFile
+    busyFile,
+    pluginEditor?.relativePath === activeDocumentPath
+      ? {
+          documentPath: pluginEditor.relativePath,
+          label: pluginEditor.editor.pluginName,
+        }
+      : textPreview?.type === "text" &&
+          textPreview.relativePath === activeDocumentPath &&
+          isMarkdownTextFile(textPreview.relativePath)
+        ? {
+            documentPath: textPreview.relativePath,
+            label: t(
+              textPreviewEditingMode === "source" ? "Source" : "Rich text"
+            ),
+          }
+        : textPreview?.type === "text" &&
+            textPreview.relativePath === activeDocumentPath &&
+            textPreview.browserPreview?.kind === "html"
+          ? {
+              documentPath: textPreview.relativePath,
+              label: t(textPreviewHtmlMode === "source" ? "Source" : "Preview"),
+            }
+          : null
   )
   const openEntryContextMenu = (
     entry: SpaceTreeEntry,
@@ -4059,6 +4102,34 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     }
                   />
                 )
+              ) : activeFile &&
+                pluginEditor?.relativePath === activeFile.relativePath ? (
+                <PluginEditor
+                  key={pluginEditor.ticket}
+                  instance={pluginEditor}
+                  onDraft={() => {}}
+                  onTableRequest={(request) =>
+                    fileViewRequest(
+                      activeFile.source,
+                      pluginEditor.editor.key.split("/")[0]!,
+                      request,
+                      localInteractionBlocked
+                    )
+                  }
+                  onFallback={() => setPluginEditor(null)}
+                  onRetry={() => {
+                    void openEntry(
+                      {
+                        kind: "eidos",
+                        relativePath: activeFile.relativePath,
+                        name: activeFile.relativePath.split("/").at(-1)!,
+                        size: 0,
+                        modifiedAtMs: 0,
+                      },
+                      { pluginEditor: pluginEditor.editor.key }
+                    )
+                  }}
+                />
               ) : activeFile && activeTable ? (
                 <section
                   className="file-editor"

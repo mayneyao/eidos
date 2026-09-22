@@ -10,8 +10,13 @@ export function pluginTheme(): Record<string, string> {
       background: "--canvas",
       foreground: "--ink",
       muted: "--ink-muted",
+      "surface-hover": "--surface-hover",
+      "surface-selected": "--surface-selected",
       border: "--line",
       accent: "--lite-accent",
+      "scrollbar-thumb": "--scrollbar-thumb",
+      "scrollbar-thumb-hover": "--scrollbar-thumb-hover",
+      "scrollbar-thumb-active": "--scrollbar-thumb-active",
     })) {
       probe.style.color = `var(${token})`
       values[`--eidos-${name}`] = getComputedStyle(probe).color

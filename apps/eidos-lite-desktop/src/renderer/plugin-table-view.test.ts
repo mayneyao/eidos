@@ -14,6 +14,13 @@ const request = (
 })
 function fixture() {
   const source = {
+    readTablePluginConfig: vi
+      .fn()
+      .mockResolvedValue({ value: null, version: "null" }),
+    writeTablePluginConfig: vi
+      .fn()
+      .mockResolvedValue({ value: {}, version: "{}" }),
+    getSnapshot: vi.fn().mockResolvedValue({ tables: [] }),
     getPage: vi.fn().mockResolvedValue({ rows: [] }),
     updateView: vi.fn().mockResolvedValue({ tables: [] }),
     getRow: vi.fn().mockResolvedValue({ _id: "row" }),
@@ -31,6 +38,57 @@ function fixture() {
   return { props, source }
 }
 describe("table view bridge", () => {
+  it("binds config to the host table and plugin and rejects scope overrides", async () => {
+    const { props, source } = fixture()
+    await tableViewRequest(
+      props,
+      request("table.pluginConfig.read"),
+      undefined,
+      "eidos.smart-actions"
+    )
+    expect(source.readTablePluginConfig).toHaveBeenCalledWith(
+      "bound-table",
+      "eidos.smart-actions"
+    )
+    await tableViewRequest(
+      props,
+      request("table.pluginConfig.write", {
+        value: {},
+        expectedVersion: "null",
+      }),
+      undefined,
+      "eidos.smart-actions"
+    )
+    expect(source.writeTablePluginConfig).toHaveBeenCalledWith(
+      "bound-table",
+      "eidos.smart-actions",
+      { value: {}, expectedVersion: "null" }
+    )
+    await expect(
+      tableViewRequest(
+        props,
+        request("table.pluginConfig.write", {
+          value: {},
+          expectedVersion: "null",
+          pluginId: "other.plugin",
+        }),
+        undefined,
+        "eidos.smart-actions"
+      )
+    ).rejects.toThrow("Invalid")
+    await expect(
+      tableViewRequest(
+        { ...props, disabled: true },
+        request("table.pluginConfig.write", {
+          value: {},
+          expectedVersion: "null",
+        }),
+        undefined,
+        "eidos.smart-actions"
+      )
+    ).rejects.toThrow("read-only")
+    expect(source.writeTablePluginConfig).toHaveBeenCalledTimes(1)
+  })
   it("resolves defaults without writing and validates configured values", async () => {
     const { props, source } = fixture()
     const schema = {

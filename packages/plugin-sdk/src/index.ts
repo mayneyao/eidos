@@ -10,6 +10,8 @@ export interface PluginManifest {
   id: string
   name: string
   version: string
+  /** Minimum plugin API contract (stable major.minor.patch, not the SDK npm version). */
+  requires?: { pluginApi: string }
   /**
    * Plugin icon. Can be:
    * - A relative file path (e.g. "./icon.png", "icon.svg")
@@ -28,12 +30,16 @@ export interface PluginManifest {
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; networkOrigins?: string[] }
   storage?: { maxBytes: number }
+  connections?: Record<
+    string,
+    { title: string; url: string; configurable?: boolean }
+  >
 }
 export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table"
+  context: "page" | "document" | "table" | "eidos"
   access?: "read" | "write"
   /** Host-rendered, per-table-view configuration stored in view.properties.plugin. */
   configuration?: ViewConfiguration
@@ -64,7 +70,9 @@ export interface ActionDeclaration {
   context: "workspace" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
+  /** @deprecated Reserved legacy design; rejected by current hosts. Use table.pluginConfig. */
   configuration?: ActionConfiguration
+  /** @deprecated Reserved legacy design; action lists are owned by the plugin. */
   multiple?: boolean
   /** Optional icon for this action. When omitted, the host may fall back to the plugin manifest icon. */
   icon?: PluginIconDefinition
@@ -112,6 +120,7 @@ export interface CommonContext extends Lifetime {
   readonly ui: HostUI
 }
 export type ViewBinding =
+  | { kind: "eidos"; file: EidosFileContext }
   | { kind: "page"; route: string }
   | { kind: "document"; document: TextDocument }
   | { kind: "table"; table: TableContext }
@@ -161,11 +170,61 @@ export interface ExtensionContext extends Lifetime {
   }
   readonly settings: Settings
   readonly actions: {
+    registerTableProvider(id: string, provider: TableActionProvider): Disposable
     register(
       id: string,
       handler: (ctx: ActionContext) => void | Promise<void>
     ): Disposable
   }
+}
+export interface TableActionItem {
+  id: string
+  title: string
+  /** Optional monochrome 24×24 SVG paths; no external resources. */
+  icon?: { paths: string[] }
+  targets: Array<"row" | "selection" | "view">
+}
+export interface TableActionRecord {
+  id: string
+  values: Record<string, LogicalValue>
+  readToken: string
+}
+export interface TableActionContext {
+  readonly signal: AbortSignal
+  readonly table: Pick<TableContext, "tableId" | "viewId" | "read"> & {
+    pluginConfig: Pick<TableContext["pluginConfig"], "read">
+  }
+  readonly target: {
+    count: number
+    read(options: {
+      offset: number
+      limit: number
+      fields: string[]
+    }): Promise<TableActionRecord[]>
+    update(input: {
+      readToken: string
+      values: Record<string, LogicalValue>
+    }): Promise<void>
+  }
+  readonly connections: {
+    request(input: {
+      connection: string
+      body: JsonObject
+    }): Promise<JsonObject>
+  }
+  readonly task: {
+    /** Declares validated sample outputs. Lite applies runs directly and does not show a confirmation preview. */
+    preview(
+      rows: Array<{ readToken: string; values: Record<string, LogicalValue> }>
+    ): Promise<boolean>
+    report(progress: { completed: number; message?: string }): Promise<void>
+  }
+}
+export interface TableActionProvider {
+  getItems(
+    context: Pick<TableActionContext, "table" | "signal">
+  ): Promise<TableActionItem[]> | TableActionItem[]
+  run(context: TableActionContext, itemId: string): Promise<void>
 }
 export type Mount = (
   ctx: ViewContext,
@@ -176,7 +235,7 @@ export type Activate = (
 ) => void | Disposable | Promise<void | Disposable>
 
 export interface PluginPackage {
-  format: 1
+  format: 1 | 2
   manifest: PluginManifest
   modules: Record<string, string> // entry key -> self-contained ESM JavaScript
 }
@@ -238,6 +297,8 @@ export interface TextDocument {
 }
 
 import type {
+  LogicalValue,
+  JsonObject,
   EidosFileFieldInfo,
   EidosFileRowPage,
   EidosFileRuntime,
@@ -280,6 +341,7 @@ export interface EidosResource extends Disposable {
   readonly runtime: GrantedDataClient
 }
 export interface TableContext {
+  readonly pluginConfig: TablePluginConfig
   readonly tableId: string
   readonly viewId: string
   read(): Promise<TableViewSnapshot>
@@ -289,9 +351,41 @@ export interface TableContext {
   openRecord(rowId: string): Promise<void>
   observe(listener: () => void): Disposable
 }
+/** Portable, plugin-owned JSON stored in the bound table's settings. */
+export interface TablePluginConfig {
+  read(): Promise<TablePluginConfigSnapshot>
+  write(input: {
+    value: JsonObject | null
+    expectedVersion: string
+  }): Promise<TablePluginConfigSnapshot>
+  /** Invalidation hint; call read() for current values. May include unrelated table changes. */
+  observe(listener: () => void): Disposable
+}
+export interface TablePluginConfigSnapshot {
+  value: JsonObject | null
+  version: string
+}
 export interface TableViewSnapshot {
   fields: EidosFileFieldInfo[]
   view: EidosFileViewInfo
+}
+
+/** Bound file only; config writes are scoped to this plugin's namespace. */
+export interface EidosFileContext {
+  readonly connections: {
+    configured(connection: string): Promise<boolean>
+    request(input: {
+      connection: string
+      body: JsonObject
+    }): Promise<JsonObject>
+  }
+  listTables(): Promise<Array<{ id: string; name: string }>>
+  readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
+  readPluginConfig(tableId: string): ReturnType<TablePluginConfig["read"]>
+  writePluginConfig(
+    tableId: string,
+    input: Parameters<TablePluginConfig["write"]>[0]
+  ): ReturnType<TablePluginConfig["write"]>
 }
 
 export type TableAggregateMetric = "count" | "sum" | "average" | "min" | "max"

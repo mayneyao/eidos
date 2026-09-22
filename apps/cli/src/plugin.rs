@@ -66,6 +66,22 @@ await import(pathToFileURL(entry).href);
 
 pub fn run(args: PluginArgs, human: bool) -> Result<CommandOutput> {
     match args.command {
+        PluginCommand::Doctor { package } => {
+            let compatibility = if let Some(path) = package {
+                let bytes = fs::read(path).map_err(|e| AppError::invalid_request(e.to_string()))?;
+                let package = crate::plugin_registry::decode_package(&bytes)?;
+                Some(qjs_host::plugin_compatibility::check(
+                    &serde_json::to_value(package.manifest)
+                        .map_err(|e| AppError::internal(e.to_string()))?,
+                ))
+            } else {
+                None
+            };
+            Ok(CommandOutput::success(json!({
+                "command": "plugin doctor", "host": qjs_host::plugin_compatibility::host_info(),
+                "hostVersion": env!("CARGO_PKG_VERSION"), "compatibility": compatibility
+            })))
+        }
         PluginCommand::Fs { .. } => Err(AppError::invalid_request(
             "Filesystem transport requires the host protocol",
         )),

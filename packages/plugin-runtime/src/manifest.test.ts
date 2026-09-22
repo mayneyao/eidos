@@ -20,6 +20,54 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("validates fixed credential endpoints and table context placement", () => {
+    const value = {
+      ...manifest(),
+      extension: "./extension.ts",
+      actions: [
+        { id: "smart", title: "Smart", context: "table", access: "write" },
+      ],
+      placements: [{ location: "table/context", action: "smart" }],
+      connections: {
+        model: { title: "Model", url: "https://api.example.com/v1" },
+      },
+    }
+    expect(parseManifest(value).connections).toEqual(value.connections)
+    expect(
+      parseManifest({
+        ...value,
+        connections: {
+          model: { ...value.connections.model, configurable: true },
+        },
+      }).connections?.model?.configurable
+    ).toBe(true)
+    expect(() =>
+      parseManifest({
+        ...value,
+        connections: {
+          model: { ...value.connections.model, configurable: "yes" },
+        },
+      })
+    ).toThrow()
+    for (const url of [
+      "http://api.example.com",
+      "https://user:secret@api.example.com",
+      "https://api.example.com?q=key",
+      "https://api.example.com/#token",
+    ])
+      expect(() =>
+        parseManifest({
+          ...value,
+          connections: { model: { title: "Model", url } },
+        })
+      ).toThrow()
+    expect(() =>
+      parseManifest({
+        ...value,
+        actions: [{ id: "smart", title: "Smart", context: "workspace" }],
+      })
+    ).toThrow()
+  })
   it("allows formatter-only plugins and validates provider declarations", () => {
     const value = {
       apiVersion: 1,
@@ -63,6 +111,31 @@ describe("manifest and offline envelope", () => {
       parseManifest({
         ...value,
         placements: [{ ...value.placements[0], linux: 42 }],
+      })
+    ).toThrow()
+  })
+  it("supports Eidos file views without granting text editors binary access", () => {
+    const value = manifest()
+    const file = {
+      ...value,
+      views: value.views.map((v) => ({ ...v, context: "eidos" })),
+      placements: [
+        { location: "file/open", view: "csv", extensions: [".eidos"] },
+      ],
+    }
+    expect(parseManifest(file).views?.[0]?.context).toBe("eidos")
+    expect(() =>
+      parseManifest({
+        ...file,
+        placements: [
+          { location: "file/open", view: "csv", extensions: [".csv"] },
+        ],
+      })
+    ).toThrow()
+    expect(() =>
+      parseManifest({
+        ...file,
+        placements: [{ location: "table/view", view: "csv" }],
       })
     ).toThrow()
   })

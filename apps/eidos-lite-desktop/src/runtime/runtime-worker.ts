@@ -127,6 +127,34 @@ async function runtimeCall(
 ): Promise<unknown> {
   const dataSource = requireSource()
   switch (method) {
+    case "readTablePluginConfig":
+      return dataSource.readTablePluginConfig(
+        ...methodArgs<"readTablePluginConfig">(args)
+      )
+    case "writeTablePluginConfig":
+      return dataSource.writeTablePluginConfig(
+        ...methodArgs<"writeTablePluginConfig">(args)
+      )
+    case "captureTableActionTarget":
+      return dataSource.captureTableActionTarget(
+        ...methodArgs<"captureTableActionTarget">(args)
+      )
+    case "readTableActionRows":
+      return dataSource.readTableActionRows(
+        ...methodArgs<"readTableActionRows">(args)
+      )
+    case "writeTableActionRow":
+      return dataSource.writeTableActionRow(
+        ...methodArgs<"writeTableActionRow">(args)
+      )
+    case "undoTableActionRow":
+      return dataSource.undoTableActionRow(
+        ...methodArgs<"undoTableActionRow">(args)
+      )
+    case "releaseTableActionUndo":
+      return dataSource.releaseTableActionUndo(
+        ...methodArgs<"releaseTableActionUndo">(args)
+      )
     case "getSnapshot":
       return dataSource.getSnapshot()
     case "getExternalChangeProbe":

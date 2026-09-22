@@ -11,7 +11,7 @@ Owner: Lite Adapter / UI; structured data semantics remain owned by Eidos File d
 
 Eidos Plugins defines the extension and application model for Eidos Lite. It establishes
 an isolated, sandboxed execution environment where plugins can contribute custom views,
-actions, background document formatters, parameterized table action templates, and scoped
+actions, background document formatters, dynamic table action providers, and scoped
 resource access across text files, directories, and .eidos structured data databases.
 Conforming plugins can be loaded directly from source during local development or packaged
 into immutable, offline-capable distributables.
@@ -104,6 +104,7 @@ If both forms are supplied, fail rather than guess precedence.
 ```ts
 interface PluginManifest {
   apiVersion: 1
+  requires?: { pluginApi: string }
   id: string
   name: string
   version: string
@@ -122,7 +123,7 @@ interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table"
+  context: "page" | "document" | "table" | "eidos"
   access?: "read" | "write"
   configuration?: ViewConfiguration
   icon?: PluginIconDefinition
@@ -133,8 +134,6 @@ interface ActionDeclaration {
   context: "workspace" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
-  configuration?: ActionConfiguration
-  multiple?: boolean
   icon?: PluginIconDefinition
 }
 type Placement =
@@ -162,17 +161,24 @@ expressions. Case-sensitive supported entry suffixes are .ts/.tsx/.js/.jsx.
 Imported modules may also use .mjs, including locked dependency package exports.
 Paths MUST resolve inside the source root; no absolute paths, `..`, backslashes,
 queries, fragments or remote entrypoints. `access` defaults to read and is valid
-only for document/table context. Workspace/page context obtains data only through
+only for document/table/eidos view context. Workspace/page context obtains data only through
 named resource grants. Actions' extensions are valid only for document actions;
 file extensions are lower-case dot-prefixed ASCII alphanumerics, 1–16 characters.
-`.eidos` MUST NOT be claimed through file/open or text document actions.
+`.eidos` MUST NOT be claimed by document views or text document actions. A view
+with `context: "eidos"` MAY claim `file/open` with exactly `[".eidos"]`.
+It receives `ctx.binding.file`, never a TextDocument or filesystem handle.
+`listTables()` returns IDs and names; `readTable(tableId)` returns fields.
+`readPluginConfig(tableId)` and `writePluginConfig(tableId, {value,
+expectedVersion})` use the same table settings namespace and optimistic version
+contract as table-bound pluginConfig. Writes require `access: "write"`.
+The host MUST bind every request to the mounted file and plugin identity, reject
+tables outside that file, and reject guest-supplied session/plugin overrides.
+The initial API does not grant row reads, row writes, or schema mutation.
 
-An action declaration defines an invocable capability. For table actions (`context: "table"`),
-declaring `configuration` defines a parameter schema for host-rendered forms, turning the action
-into an action template. In this mode, `multiple` defaults to `true`, permitting users to instantiate
-and name multiple configured action instances on a single table. When `multiple` is explicitly `false`,
-at most one configuration instance is maintained per table. Actions without `configuration` are fixed
-singleton actions available directly across all tables.
+An action declaration defines an invocable capability. Lite supports dynamic
+table action providers as specified below. Plugins own their action configuration in the
+table settings namespace described below; action `configuration` and `multiple`
+are not accepted by the current manifest validator.
 
 The manifest may declare `"icon": { "paths": ["..."] }` (or local file / data URL format).
 Paths use a 24 × 24 coordinate system, no fill, a 2-unit stroke and round caps/joins. Color follows
@@ -281,6 +287,7 @@ interface ActionContext extends CommonContext {
 interface ExtensionContext extends Lifetime {
   readonly settings: Settings
   readonly actions: {
+    registerTableProvider(id: string, provider: TableActionProvider): Disposable
     register(
       id: string,
       handler: (ctx: ActionContext) => void | Promise<void>
@@ -424,7 +431,7 @@ The distributable `.eidos-plugin` format is gzip UTF-8 JSON:
 
 ```ts
 interface PluginPackage {
-  format: 1
+  format: 1 | 2
   manifest: PluginManifest
   modules: Record<string, string> // entry key -> self-contained ESM JavaScript
 }
@@ -462,6 +469,13 @@ hosts. Catalog browsing MUST NOT execute plugin code. A successful catalog is
 cached for offline browsing; cached catalogs cannot authorize new installs.
 Updates are explicit installations, with the same device-wide installation and
 Space isolation rules. Compatibility notes are informational, not executable checks.
+
+Lite's plugin list and detail pages also accept dropped `.eidos-plugin` files.
+Drops use the same package validation and native permission review as the file
+picker. The manifest ID determines installation or replacement, including
+same-version replacement; updates preserve each Space's enablement. Multiple
+files are processed sequentially. Dropped source directories are not development
+installs, and invalid packages cannot replace an existing installation.
 
 ## 6. Views, placements and routing
 
@@ -541,7 +555,8 @@ names. A directory include glob is a root-relative slash-separated pattern of
 literal segments, `*` within a segment and `**` as a whole segment; no negation,
 brace expansion, character classes, absolute paths or `..`. `**/*.md` matches root
 and nested Markdown files. Hosts restrict text operations to recognized ordinary
-text files; `.eidos` is accessible only through the eidos resource / data engine.
+text files; `.eidos` is accessible through the eidos resource / data engine or the
+restricted file-bound schema/configuration interface described above.
 
 Directory API:
 
@@ -915,33 +930,118 @@ at 4 KiB and total effective settings at 64 KiB. observe has the same atomic
 initial-read/subscription guarantee as TextDocument.observe. select option IDs
 are unique local IDs, options are nonempty and capped at 100.
 
-### Host-rendered table configuration
+### Table configuration
 
-Table views and table actions may declare `configuration: { type: "object", properties: { ... } }` in their manifest to enable host-generated configuration forms. This is a supported JSON Schema-style subset, not a general JSON Schema engine. Each property requires `title`, `type`, and `default`; `description` is optional. Supported types are:
+Table views may declare `configuration: { type: "object", properties: { ... } }`
+for host-rendered View settings. Each property requires `title`, `type` and
+`default`; supported types are boolean, string and number, with optional string
+enum, numeric bounds and a string `"x-field": true` field selector. Schemas are
+limited to 32 properties and 16,384 JSON characters. Unknown keywords and invalid
+defaults are rejected. Values live in the view's `properties.plugin`;
+`table.read()` supplies defaults and `table.observe()` invalidates readers.
 
-- `string`: standard text input. An optional `enum` renders a single-select dropdown. An optional `"x-field": true` renders a single-column field selector for the bound table's fields (storing the field ID, with empty default and no enum). An optional `"x-multiline": true` renders a multiline text area suitable for prompt templates or format instructions.
-- `array`: list of scalar values. When declared with `items: { type: "string" }` and `"x-field": true`, the host renders a multi-column picker allowing multiple fields to be selected (such as combining columns A+B), storing an array of field IDs.
-- `number`: numeric input with optional `minimum` and `maximum`.
-- `boolean`: toggle or checkbox.
+Plugin-owned table configuration is separate from view properties. The host MUST
+store it in `eidos__tables.settings_json` under `plugins[pluginId]`. The value
+is an opaque JSON object owned by that plugin; the host does not interpret action
+definitions, prompts or field mappings. A plugin may offer YAML import/export,
+but a separate YAML file is not required. Credentials MUST NOT be stored here.
 
-Table configuration schemas support at most 32 properties and 16,384 JSON characters. Unknown schema keywords, invalid defaults, and unsupported field declarations are rejected during installation. Nested schemas, references, conditionals, and custom code are unsupported.
+```ts
+table.pluginConfig.read(): Promise<{ value: JsonObject | null; version: string }>
+table.pluginConfig.write({ value, expectedVersion }): Promise<{ value: JsonObject | null; version: string }>
+table.pluginConfig.observe(listener): Disposable
+```
 
-Configuration values are persisted separately depending on the target scope:
+The host binds the table and plugin ID; guests cannot supply either. Missing
+configuration reads as null; writing null removes only this plugin's namespace.
+Writes require declared write access and a writable table. Values are limited to
+64 KiB of canonical UTF-8 JSON. Invalid existing metadata MUST be preserved and
+reported, never silently replaced. All other table settings and plugin namespaces
+MUST survive a write.
 
-1. **Table views**: Persisted in the current `.eidos` view's `properties.plugin`, independently of other views and Space-wide plugin settings. The host renders **View settings** in the table toolbar. `table.read()` supplies declared defaults for missing keys without writing metadata; `table.observe()` reports updates.
-2. **Table actions**: Configurable table actions act as action templates. An action declaration with `configuration` supports instantiation into multiple named table action instances by default (`multiple: true`). Each instance persists in the `.eidos` SQLite database in `eidos__tables.settings_json` within the `pluginActions.instances` array:
-   ```json
-   {
-     "id": "<instance-uuid>",
-     "pluginId": "<plugin-id>",
-     "actionId": "<action-id>",
-     "title": "Custom Action Title",
-     "config": { ... }
-   }
-   ```
-   This isolates configurations per table, keeps field mappings, custom prompts, and custom action titles portable across devices with the file, and separates them cleanly from Space-wide plugin credentials (such as model API keys declared in `manifest.settings`). When `multiple` is explicitly declared `false`, at most one configuration instance is maintained per table under `pluginActions.<plugin-id>/<action-id>`.
+The version is an opaque content token for this plugin's value, not a file
+revision or a monotonic counter. A stale token MUST reject the write. The host
+reads current settings at a pinned Runtime revision and commits through schema
+preflight/mutation at that same revision. A concurrent file mutation may also
+reject the write; callers must reread rather than blindly retry. Observation is
+an invalidation hint, may include unrelated table changes, and does not deliver
+an initial value; subscribe before reading. Multiple observers must coexist.
 
-When configured table actions exist for a table, the host renders each active instance directly in the grid view context menu under its custom `title`. Invoking an instance executes the action with its saved configuration in `ctx.binding.config`, the instance UUID in `ctx.binding.instanceId`, the active title in `ctx.binding.actionTitle`, and the targeted row ID in `ctx.binding.rowId`. Context menus also provide entries to configure existing actions, add new action instances from eligible plugin templates, and manage (reorder, rename, or delete) configured instances. Actions declared without `configuration` appear directly as fixed entries without table-level instantiation. Field references store immutable field IDs; column renames do not break configuration, and removed fields are flagged as unavailable during reconfiguration without aborting untouched actions.
+Lite table plugin views implement this config API. Table action extensions register
+`ctx.actions.registerTableProvider(id, { getItems, run })` against declared table
+actions placed at `table/context`. `getItems({table,signal})` returns at most 100
+unique local IDs, plain titles and targets (`row`, `selection`, `view`). Listing
+permits metadata/config reads only. Invocations receive a table-bound context;
+config writes and observations are not exposed during an invocation.
+Configuration belongs in a mounted table view.
+
+The host freezes matching row IDs in the effective query order before execution,
+including records not loaded by Grid. Grid range ends are exclusive. The toolbar
+targets all filtered rows; a right-click inside a selection targets that selection.
+Later inserts do not join a run. Capture rejects revision changes and more than
+100,000 target IDs. `target.read({offset,limit,fields})` reads at most 100 records
+and 64 fields, returning opaque per-run read tokens. Deleted records are omitted.
+`target.update({readToken,values})` updates one existing row atomically, requires
+declared write access, and accepts only fields declared by validated sample outputs.
+Tokens bind current input/output values and field descriptors; changes reject the
+result. Schema changes, new rows and row deletion are not exposed. Runtime type
+validation remains authoritative. The host permits one write at a time.
+
+`task.preview(rows)` is retained for compatibility as a sample/output-scope
+declaration: Lite validates up to three samples with one common set of at most
+16 output fields and returns true without a confirmation screen. Invoking an
+action applies results directly. `task.report({completed,message})` reports
+progress in a non-modal task card over the lower-right of the table. The card
+shows the last supplied message separately and retains it through completion,
+errors and undo/redo; starting a new run clears it. Messages are plain text,
+bounded to 300 characters, and may contain plugin-calculated estimates.
+The card
+can be minimized or expanded. Close dismisses the window and its minimized chip;
+progress and completion do not reopen it. A new invocation opens a new card.
+Closing the window does not cancel execution. Cancel aborts network work and prevents further writes, while
+retaining an already-dispatched atomic write and its undo receipt. Conditional
+undo restores completed rows in reverse order and refuses to overwrite newer
+edits. Reverting a receipt produces its inverse, enabling redo without rerunning
+plugin logic or network requests. Redo uses the same conflict checks. Unchanged
+results create no mutation or receipt. Undo and redo are unavailable during a run.
+Undo receipts are session-local, capped at 64 MiB and released when the
+table closes or the next run starts. Undo can stop on a conflict after restoring
+other records; it is not an all-or-nothing transaction across the whole run.
+
+Manifest `connections` declares up to eight named `{title,url}` HTTPS endpoints.
+The host stores a Bearer key using OS encryption, scoped to Space, plugin,
+connection and exact URL. Keys never enter plugin code, table JSON or packages.
+`connections.request({connection,body})` sends JSON to that fixed endpoint only;
+the host blocks redirects/private addresses, pins DNS, limits request/response
+bodies to 1/4 MiB and times out after 25 seconds. Network requests exist only
+during a live run and are cancelled when the instance closes. Lite permits up to
+two in-flight requests per plugin instance across its connections; additional
+requests are rejected as busy. Task cancellation aborts all pending requests for
+that instance. This does not permit concurrent table writes. Hosts without
+secure credential storage reject saving and use. Lite implements this execution
+contract; other hosts must not advertise it until they implement the same rules.
+
+Connections may declare `configurable: true`: Lite plugin Settings owns the full
+HTTPS endpoint, model ID and encrypted key; the manifest URL is an initial
+suggestion. Configuration remains Space/plugin/connection scoped, outside the
+`.eidos` file. Changing endpoints requires a new key; changing only the model can
+retain the existing key. The host overrides the request body's `model`, retains
+size/concurrency/network restrictions, and uses a 90-second request timeout.
+Eidos file views can use `file.connections.configured(id)` and
+`file.connections.request({connection,body})` for declared configurable
+connections only. They cannot read keys or change configuration. Access requires
+a live instance with matching Space, owner and package revision; closing the
+instance aborts its requests. Workspace settings instances can manage but not
+call connections. Other hosts must reject unsupported capabilities.
+Requests identify Lite with its own User-Agent. OpenCode Go endpoints additionally
+receive a stable hash scoped to the connection and live instance in
+`x-opencode-session`; raw instance tickets and keys are never used as session IDs.
+Provider JSON error messages are bounded and credential-redacted before reaching
+the plugin. Expected connection failures do not switch the editor to fallback UI.
+
+Host-owned action templates and `pluginActions.instances` are not supported.
+Smart Actions owns its action list, prompts, field mappings and TypeSafe model
+integration; the host owns menu placement, task chrome and data authority.
 
 HostUI provides asynchronous notify(message), select({title,options}),
 confirm({title,message}), navigate(viewId,route), resolveAsset and openLink as
@@ -958,9 +1058,25 @@ resolve literal CommonJS require calls in locked dependencies at build time;
 dynamic require and host/Node module access remain forbidden. Plugin disposal
 MUST unmount framework roots and release document observations.
 
+Dynamic table action items MAY include `icon: { paths: string[] }`, using the
+same bounded monochrome 24×24 SVG path contract as manifest icons. Dynamic icons
+MUST NOT reference files, remote images or executable markup. The host validates
+icons before exposing menu items and aligns them with built-in menu icons.
+
+Authenticated connection credentials are managed in the plugin's Settings tab,
+not in the Grid toolbar. A live workspace extension may authorize host-owned
+credential status/save operations; authenticated requests still require a live
+table action instance. Credentials remain scoped to Space/plugin/connection/URL.
+
 The host injects semantic CSS variables into each view: --eidos-background,
 --eidos-foreground, --eidos-muted, --eidos-border, --eidos-accent,
---eidos-font-family and --eidos-color-scheme. Values derive from shared Eidos File
+--eidos-font-family and --eidos-color-scheme, plus --eidos-surface-hover and
+--eidos-surface-selected for backgrounds. --eidos-muted is a secondary text color.
+The container applies --eidos-color-scheme to the document root and styles all
+scrollbars using --eidos-scrollbar-thumb, --eidos-scrollbar-thumb-hover and
+--eidos-scrollbar-thumb-active, resolved from the shared host tokens. Tracks and
+corners remain transparent. Native controls and scrollbars follow live theme updates.
+Values derive from shared Eidos File
 UI tokens through a safe value allowlist. Updates MUST NOT remount views or reset
 focus/drafts. No theme service object is required. Native DOM events are local;
 public host events are typed observations on their owning resource, not an
@@ -1142,3 +1258,38 @@ view/action lifecycle, then working copies and grants, data engine/output integr
 and the complete authoring loop. Shipping conformity requires the full matrix.
 Future compatible additions preserve these contracts; changes to public API
 semantics require a new API major, not silent reinterpretation of version 1.
+
+## Plugin compatibility contract
+
+A manifest MAY declare `requires: { "pluginApi": "1.1.0" }`. The value MUST be a
+stable three-component version with no leading zeros; components MUST be safe
+JavaScript integers. This minimum is independent of npm SDK and product versions.
+A host MUST reject a different API major or a requirement newer than its supported
+contract, before installing, replacing, or executing a package. Failed compatibility
+checks MUST leave an existing installation unchanged.
+
+Hosts also derive required features from view contexts, extension/actions/formatters,
+connections/resources/settings/storage and browser permissions. Authors do not
+maintain a capabilities list. The shared host inventory is
+`packages/plugin-runtime/src/compatibility-data.json`. This implementation advertises
+Lite 1.1.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Contract 1.1.0 includes table action providers, table plugin configuration, tasks,
+connections and eidos file views. CLI Serve implements table views only, plus its
+declared browser permissions, and rejects unsupported contributions even if the
+minimum API is satisfied. A contract revision alone does not imply all host surfaces.
+
+Packages with a minimum requirement MUST use envelope format 2; format 2 MUST
+contain a requirement. Format 1 MUST NOT contain one. Old Lite and CLI installers
+reject format 2 rather than ignoring the new field. Historical CLI Serve loaders
+did not validate the envelope: directly loading a package there is not protected
+retroactively and requires upgrading the CLI. Legacy format 1 packages remain loadable when
+inferred features are supported, but their minimum is reported as undeclared.
+Manifest inference cannot prove compatibility of arbitrary dynamic calls. Authors
+MUST raise the declared minimum when using newer APIs. Permission grants remain
+separate from compatibility. This mechanism does not introduce date-based behavior.
+
+`eidos plugin doctor [package]` reports the CLI contract and optional compatibility
+result without installing or executing code. A successful diagnostic command can
+report `compatible: false`; consumers MUST inspect that field. Lite's plugin details
+show required and supported contract versions. Registry prose is not authoritative;
+installation checks the downloaded package itself.

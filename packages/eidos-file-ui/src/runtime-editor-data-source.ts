@@ -1,6 +1,8 @@
 import {
   assertEidosFileValues,
   canonicalizeEidosFileJson,
+  readEidosFilePluginConfig,
+  mergeEidosFilePluginConfig,
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationIds,
   eidosFileConversionTargetNullable,
@@ -21,6 +23,7 @@ import {
   type EidosFileCsvImportPlan,
   type EidosFileCsvImportResult,
   type EidosFileFieldInfo,
+  type EidosFileActionRow,
   type EidosFileFieldType,
   type EidosFileFieldPlacement,
   type EidosFileFilterGroup,
@@ -214,6 +217,16 @@ function conversionErrorMessage(error: unknown): string {
  * mutation still crosses RuntimeClient and never receives SQL or file bytes.
  */
 export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
+  private actionUndo = new Map<
+    string,
+    {
+      tableId: string
+      row: EidosFileActionRow
+      values: Record<string, LogicalValue>
+      bytes: number
+    }
+  >()
+  private actionUndoBytes = 0
   private sequence = 0
   private runtimeCapabilities: RuntimeCapabilities | null = null
   private runtimeLimits: RuntimeLimits | null = null
@@ -1328,6 +1341,314 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return this.getSnapshot()
   }
 
+  async captureTableActionTarget(
+    tableId: string,
+    query: EidosFileRowQuery,
+    ranges: readonly EidosFileRowRange[] | null,
+    signal?: AbortSignal
+  ) {
+    if (
+      ranges?.some(
+        (r) =>
+          !Number.isSafeInteger(r.startIndex) ||
+          !Number.isSafeInteger(r.endIndex) ||
+          r.startIndex < 0 ||
+          r.endIndex < r.startIndex
+      )
+    )
+      throw new Error("Invalid target ranges")
+    const ids: string[] = []
+    let cursor: string | undefined,
+      revision: string | undefined,
+      offset = 0
+    const rowIdField = (this.fieldsByTable.get(tableId) ?? []).find(
+      (f) => f.systemRole === "row-id"
+    )
+    if (!rowIdField) throw new Error("Table is unavailable")
+    const runtimeQuery = this.runtimeQuery(tableId, query)
+    do {
+      signal?.throwIfAborted()
+      const page = await this.runtime.queryRows(
+        {
+          tableId,
+          query: runtimeQuery,
+          projection: { fields: [rowIdField.id], resolveRelations: [] },
+          limit: 1000,
+          ...(cursor ? { cursor } : {}),
+        },
+        this.context("action-target")
+      )
+      if (revision !== undefined && page.revision !== revision)
+        throw new Error("Table changed while capturing selection; try again")
+      revision = page.revision
+      for (const row of page.rows) {
+        if (
+          !ranges ||
+          ranges.some((r) => offset >= r.startIndex && offset < r.endIndex)
+        )
+          ids.push(row.id)
+        offset++
+      }
+      if (ids.length > 100000)
+        throw new Error("Select at most 100,000 records per action")
+      cursor = page.nextCursor ?? undefined
+      if (ranges && ranges.every((r) => offset >= r.endIndex)) break
+    } while (cursor)
+    signal?.throwIfAborted()
+    return [...new Set(ids)]
+  }
+
+  async readTableActionRows(
+    tableId: string,
+    rowIds: string[],
+    fieldIds: string[]
+  ): Promise<EidosFileActionRow[]> {
+    return (await this.actionRows(tableId, rowIds, fieldIds)).rows
+  }
+
+  private async actionRows(
+    tableId: string,
+    rowIds: string[],
+    fieldIds: string[]
+  ) {
+    if (
+      rowIds.length > 100 ||
+      !fieldIds.length ||
+      fieldIds.length > 64 ||
+      new Set(fieldIds).size !== fieldIds.length
+    )
+      throw new Error("Invalid action read bounds")
+    const snapshot = await this.runtime.getSnapshot(
+      {},
+      this.context("action-schema")
+    )
+    const fields: FieldDescriptor[] = []
+    let cursor: string | undefined
+    do {
+      const page = await this.runtime.getSchemaPage(
+        {
+          revision: snapshot.revision,
+          limit: 1000,
+          ...(cursor ? { cursor } : {}),
+        },
+        this.context("action-schema")
+      )
+      for (const entry of page.objects)
+        if (
+          entry.object === "field" &&
+          entry.tableId === tableId &&
+          fieldIds.includes(entry.id)
+        )
+          fields.push(entry)
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    if (fields.length !== fieldIds.length)
+      throw new Error("Action field is unavailable")
+    const rows = await this.runtime.getRowsById(
+      {
+        tableId,
+        rowIds,
+        projection: { fields: fieldIds, resolveRelations: [] },
+      },
+      this.context("action-read")
+    )
+    if (rows.revision !== snapshot.revision)
+      throw new Error("Table changed while reading action inputs; try again")
+    return {
+      revision: rows.revision,
+      rows: rows.rows.map((row) => {
+        const values = Object.fromEntries(
+          rows.columns.map((column, i) => [column.fieldId, row.values[i]!])
+        )
+        return {
+          id: row.id,
+          values,
+          version: canonicalizeEidosFileJson({ fields, values }),
+        }
+      }),
+    }
+  }
+
+  async writeTableActionRow(
+    tableId: string,
+    row: EidosFileActionRow,
+    values: Record<string, LogicalValue>,
+    signal?: AbortSignal
+  ) {
+    return this.applyTableActionRow(tableId, row, values, signal, true)
+  }
+
+  private async applyTableActionRow(
+    tableId: string,
+    row: EidosFileActionRow,
+    values: Record<string, LogicalValue>,
+    signal: AbortSignal | undefined,
+    retainUndo: boolean,
+    replacingToken?: string
+  ) {
+    signal?.throwIfAborted()
+    const ids = Object.keys(values)
+    if (
+      !ids.length ||
+      ids.some((id) => !Object.prototype.hasOwnProperty.call(row.values, id))
+    )
+      throw new Error("Output fields must be included in the action read")
+    const checked = await this.actionRows(
+      tableId,
+      [row.id],
+      Object.keys(row.values)
+    )
+    const [current] = checked.rows
+    if (!current || current.version !== row.version)
+      throw new Error("Record or fields changed; result discarded")
+    if (
+      ids.every(
+        (id) =>
+          canonicalizeEidosFileJson(values[id]) ===
+          canonicalizeEidosFileJson(current.values[id])
+      )
+    )
+      return {}
+    // Pin the mutation to the revision of this exact row read, not the adapter cache.
+    signal?.throwIfAborted()
+    const before = Object.fromEntries(
+      ids.map((id) => [id, current.values[id]!])
+    )
+    const bytes =
+      new TextEncoder().encode(
+        current.version +
+          canonicalizeEidosFileJson(values) +
+          canonicalizeEidosFileJson(before)
+      ).length * 2
+    const replacedBytes = replacingToken
+      ? (this.actionUndo.get(replacingToken)?.bytes ?? 0)
+      : 0
+    if (
+      retainUndo &&
+      this.actionUndoBytes - replacedBytes + bytes > 64 * 1024 * 1024
+    )
+      throw new Error(
+        "Action undo storage reached 64 MiB; undo or finish this batch before continuing"
+      )
+    const result = await this.runtime.mutateRows(
+      {
+        tableId,
+        expectedRevision: checked.revision,
+        returning: {
+          fields: Object.keys(current.values),
+          resolveRelations: [],
+        },
+        changes: [{ kind: "update", rowId: row.id, values }],
+      },
+      this.context("table-action")
+    )
+    this.acceptRevision(result.revision)
+    if (!retainUndo) return {}
+    const returned = result.returnedRows!
+    const afterValues = Object.fromEntries(
+      returned.columns.map((column, i) => [
+        column.fieldId,
+        returned.rows[0]!.values[i]!,
+      ])
+    )
+    const schema = JSON.parse(current.version) as { fields: FieldDescriptor[] }
+    const after = {
+      id: row.id,
+      values: afterValues,
+      version: canonicalizeEidosFileJson({
+        fields: schema.fields,
+        values: afterValues,
+      }),
+    }
+    const undoToken = this.id("table-action-undo")
+    this.actionUndo.set(undoToken, {
+      tableId,
+      row: after,
+      values: before,
+      bytes,
+    })
+    this.actionUndoBytes += bytes
+    if (replacingToken) this.releaseTableActionUndo([replacingToken])
+    return { undoToken }
+  }
+
+  async undoTableActionRow(token: string) {
+    const receipt = this.actionUndo.get(token)
+    if (!receipt) throw new Error("Action undo has expired")
+    const result = await this.applyTableActionRow(
+      receipt.tableId,
+      receipt.row,
+      receipt.values,
+      undefined,
+      true,
+      token
+    )
+    this.releaseTableActionUndo([token])
+    return result
+  }
+
+  releaseTableActionUndo(tokens: string[]) {
+    for (const token of tokens) {
+      const receipt = this.actionUndo.get(token)
+      if (receipt) {
+        this.actionUndoBytes -= receipt.bytes
+        this.actionUndo.delete(token)
+      }
+    }
+  }
+
+  private async pluginConfigSnapshot(tableId: string) {
+    // Read schema pinned to a local revision, not this adapter's mutable cache.
+    const snapshot = await this.runtime.getSnapshot(
+      {},
+      this.context("plugin-config-read")
+    )
+    let cursor: string | undefined
+    do {
+      const page = await this.runtime.getSchemaPage(
+        {
+          revision: snapshot.revision,
+          limit: 1000,
+          ...(cursor ? { cursor } : {}),
+        },
+        this.context("plugin-config-schema")
+      )
+      const table = page.objects.find(
+        (entry) => entry.object === "table" && entry.id === tableId
+      )
+      if (table?.object === "table")
+        return { table, revision: snapshot.revision }
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    throw new Error("Table is unavailable")
+  }
+
+  async readTablePluginConfig(tableId: string, pluginId: string) {
+    const { table } = await this.pluginConfigSnapshot(tableId)
+    return readEidosFilePluginConfig(table.settings, pluginId)
+  }
+
+  async writeTablePluginConfig(
+    tableId: string,
+    pluginId: string,
+    input: { value: JsonObject | null; expectedVersion: string }
+  ) {
+    const { table, revision } = await this.pluginConfigSnapshot(tableId)
+    const settings = mergeEidosFilePluginConfig(
+      table.settings,
+      pluginId,
+      input.value,
+      input.expectedVersion
+    )
+    await this.commitSchema(
+      { kind: "set-table-settings", tableId, settings },
+      false,
+      false,
+      revision
+    )
+    return readEidosFilePluginConfig(settings, pluginId)
+  }
+
   async deleteTable(tableId: string): Promise<EidosFileSnapshot> {
     await this.commitSchema({ kind: "delete-table", tableId }, true)
     return this.getSnapshot()
@@ -1622,9 +1943,9 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private async commitSchema(
     change: SchemaChange,
     confirmLossy = false,
-    requireImpactConfirmation = false
+    requireImpactConfirmation = false,
+    expectedRevision = this.revision()
   ) {
-    const expectedRevision = this.revision()
     const changeKey = canonicalizeEidosFileJson(change)
     const pendingSchemaImpact = pendingSchemaImpacts.get(this)
     const confirmedImpactPlan =

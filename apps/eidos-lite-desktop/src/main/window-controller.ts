@@ -1095,7 +1095,15 @@ export class WindowController {
     window.webContents.on("will-frame-navigate", (event) => {
       if (event.isMainFrame) return
       // A guest may not navigate to a URL containing document contents.
-      const initial = !event.frame?.url || event.frame.url === "about:blank"
+      let initial = false
+      try {
+        const url = event.frame?.url
+        initial = !url || url === "about:blank"
+      } catch {
+        // Chromium may already have disposed an iframe removed during navigation.
+        event.preventDefault()
+        return
+      }
       if (
         !initial ||
         !/^eidos-plugin:\/\/[a-f0-9-]+\/index\.html$/.test(event.url)

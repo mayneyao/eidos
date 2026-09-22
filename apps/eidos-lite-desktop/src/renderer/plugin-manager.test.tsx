@@ -37,6 +37,7 @@ beforeEach(() => {
       listPlugins: async () => listing,
       onPluginEvent: () => () => {},
       installPlugin: install,
+      installDroppedPlugin: install,
       onPluginInstallProgress: () => () => {},
       pluginReadme: async () => null,
       pluginMarketplace: async () => ({
@@ -80,6 +81,58 @@ async function click(text: string) {
   expect(button).toBeDefined()
   await act(async () => button!.click())
 }
+
+async function drop(files: File[], type = "drop") {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperty(event, "dataTransfer", {
+    value: { types: ["Files"], files, dropEffect: "none" },
+  })
+  await act(async () => {
+    container.querySelector(".plugin-drop-zone")!.dispatchEvent(event)
+  })
+  expect(event.defaultPrevented).toBe(true)
+}
+
+it("drops packages in the catalog and detail view, rejects mixed files and refreshes", async () => {
+  const list = vi.spyOn(window.eidosLite, "listPlugins")
+  await act(async () => root.render(<PluginManager />))
+  const file = new File(["archive"], "smart.eidos-plugin")
+  await drop([file], "dragenter")
+  expect(container.textContent).toContain("Drop to install or update")
+  await drop([file])
+  expect(install).toHaveBeenCalledWith(file)
+  expect(list).toHaveBeenCalledTimes(2)
+  expect(container.querySelector(".plugin-drop-overlay")).toBeNull()
+  await click("CSV")
+  const second = new File(["archive"], "another.eidos-plugin")
+  await drop([file, second])
+  expect(install).toHaveBeenLastCalledWith(second)
+  install.mockClear()
+  await drop([file, new File(["text"], "notes.txt")])
+  expect(install).not.toHaveBeenCalled()
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    ".eidos-plugin"
+  )
+})
+
+it("ignores another drop while installation is pending and shows installation errors", async () => {
+  let finish!: (value: boolean) => void
+  install.mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve
+      })
+  )
+  await act(async () => root.render(<PluginManager />))
+  const file = new File(["archive"], "smart.eidos-plugin")
+  await drop([file])
+  await drop([file])
+  expect(install).toHaveBeenCalledTimes(1)
+  await act(async () => finish(true))
+  install.mockRejectedValueOnce(new Error("Invalid package"))
+  await drop([file])
+  expect(container.textContent).toContain("Invalid package")
+})
 
 it("shows one installation list with Space-only enablement and device-wide uninstall", async () => {
   await act(async () => root.render(<PluginManager spaceAvailable />))

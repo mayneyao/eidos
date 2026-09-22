@@ -34,6 +34,8 @@ import type { PluginStore } from "./plugin-store"
 import { diskSnapshot, type PluginDocumentSession } from "./document-host"
 export type { PluginDocumentSession } from "./document-host"
 interface Instance {
+  eidos?: boolean
+  tableWritable?: boolean
   table?: { tableId: string; viewId: string }
   csp?: string
   mounted?: () => void
@@ -116,7 +118,8 @@ export class PluginService {
   async openExtension(
     owner: number,
     session: PluginDocumentSession,
-    id: string
+    id: string,
+    table?: { tableId: string; viewId: string }
   ): Promise<PluginOpenResult> {
     const binding = await this.store.binding(id, session.canonical.id)
     if (!binding?.enabled)
@@ -126,7 +129,9 @@ export class PluginService {
         instance.owner === owner &&
         instance.session === session &&
         instance.pluginId === id &&
-        instance.extension
+        instance.extension &&
+        !table &&
+        !instance.table
       ) {
         if (instance.hash === binding.hash)
           return {
@@ -146,11 +151,6 @@ export class PluginService {
       pkg.manifest.id !== id
     )
       throw new PluginError("INVALID_REQUEST", "Plugin has no actions")
-    if (pkg.manifest.actions?.some((a) => a.context === "table"))
-      throw new PluginError(
-        "UNSUPPORTED_API",
-        "Table actions are not connected"
-      )
     if (
       [...this.instances.values()].filter((i) => i.owner === owner).length >= 16
     )
@@ -183,6 +183,12 @@ export class PluginService {
         (pkg.manifest.actions ?? []).map((a) => a.id),
         (pkg.manifest.formatters ?? []).map((f) => f.id)
       ),
+      table,
+      tableWritable:
+        !!table &&
+        pkg.manifest.actions?.some(
+          (a) => a.context === "table" && a.access === "write"
+        ),
       csp: sandboxCsp(pkg.manifest.browser),
       resource,
       scope,
@@ -214,6 +220,49 @@ export class PluginService {
           pluginName: pkg.manifest.name,
         },
       },
+    }
+  }
+  async connectionAccess(
+    owner: number,
+    session: PluginDocumentSession,
+    ticket: string,
+    id: string,
+    management = false
+  ) {
+    const instance = this.instances.get(ticket)
+    if (
+      !instance ||
+      instance.owner !== owner ||
+      instance.session !== session ||
+      (!instance.table &&
+        !instance.eidos &&
+        !(management && instance.extension))
+    )
+      throw new PluginError(
+        "PERMISSION_DENIED",
+        "Connection requires a live table plugin"
+      )
+    instance.scope.assertActive()
+    const binding = await this.store.binding(
+      instance.pluginId,
+      session.canonical.id
+    )
+    if (!binding?.enabled || binding.hash !== instance.hash)
+      throw new PluginError("PERMISSION_DENIED", "Plugin changed or disabled")
+    const pkg = await this.store.read(instance.hash)
+    const connection = pkg.manifest.connections?.[id]
+    if (!connection)
+      throw new PluginError("PERMISSION_DENIED", "Connection is not declared")
+    if (instance.eidos && !connection.configurable)
+      throw new PluginError(
+        "PERMISSION_DENIED",
+        "File views require a configurable connection"
+      )
+    return {
+      scope: [session.canonical.id, instance.pluginId, id, connection.url],
+      url: connection.url,
+      configurable: connection.configurable === true,
+      signal: instance.scope.signal,
     }
   }
   async invoke(
@@ -439,6 +488,7 @@ export class PluginService {
         table ? { kind: "table", ...table } : { kind: "page", route }
       ),
       table,
+      tableWritable: view.access === "write",
       csp: sandboxCsp(pkg.manifest.browser),
       resource,
       scope,
@@ -479,11 +529,15 @@ export class PluginService {
     const view = pkg.manifest.views?.find(
       (view) =>
         `${id}/${view.id}` === selected.editor!.key &&
-        view.context === "document"
+        view.context ===
+          (safe.toLowerCase().endsWith(".eidos") ? "eidos" : "document")
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "View is unavailable")
-    const copy = await this.documentCopy(session, safe, draft)
+    const eidos = view.context === "eidos"
+    const copy = eidos
+      ? undefined
+      : await this.documentCopy(session, safe, draft)
     for (const [ticket, old] of this.instances)
       if (old.owner === owner && old.session !== session)
         this.close(owner, ticket)
@@ -501,9 +555,13 @@ export class PluginService {
       resource,
       scope,
       copy,
-      html: documentViewHtml(pkg.modules[view.entry]!),
+      eidos,
+      tableWritable: view.access === "write",
+      html: eidos
+        ? viewHtml(pkg.modules[view.entry]!, { kind: "eidos" })
+        : documentViewHtml(pkg.modules[view.entry]!),
       csp: sandboxCsp(pkg.manifest.browser),
-      document: copy.bind(scope, view.access ?? "read"),
+      document: copy?.bind(scope, view.access ?? "read"),
       pluginId: id,
       hash: binding.hash,
       observations: new Map(),
@@ -684,9 +742,35 @@ export class PluginService {
         instance.scope.assertActive()
         return { response: { ...base, result } }
       }
+      if (request.method.startsWith("eidos.")) {
+        if (
+          !instance.eidos ||
+          binding.hash !== instance.hash ||
+          (request.method === "eidos.pluginConfig.write" &&
+            !instance.tableWritable)
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Eidos file access not granted"
+          )
+        return { response: { ...base, result: null } }
+      }
       if (request.method.startsWith("table.")) {
+        if (binding.hash !== instance.hash)
+          throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
+        // Provider registration carries no table data authority.
+        if (request.method === "table.actions.ready" && instance.extension)
+          return { response: { ...base, result: null } }
         if (!instance.table)
           throw new PluginError("PERMISSION_DENIED", "Not a table view")
+        if (
+          request.method === "table.pluginConfig.write" &&
+          !instance.tableWritable
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Table view has no write access"
+          )
         // The workbench adapter supplies only this mounted view's data source;
         // guests cannot send runtime session handles across this boundary.
         return { response: { ...base, result: null } }

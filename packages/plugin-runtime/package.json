@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./compatibility": "./src/compatibility.ts",
     ".": "./src/index.ts",
     "./contracts": "./src/contracts.ts",
     "./manifest": "./src/manifest.ts",
@@ -30,5 +31,5 @@
     "chokidar": "5.0.0",
     "yaml": "2.9.0"
   },
-  "devDependencies": { "@types/node": "^24.12.2", "vitest": "^4.1.11" }
+  "devDependencies": { "@types/node": "^24.12.2", "jsdom": "^26.1.0", "vitest": "^4.1.11" }
 }

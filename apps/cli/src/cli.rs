@@ -88,6 +88,8 @@ pub struct PluginArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum PluginCommand {
+    /// Report this host's plugin API support and inspect a package without installing it.
+    Doctor { package: Option<PathBuf> },
     /// Internal, host-owned filesystem transport; not a plugin authoring API.
     #[command(hide = true)]
     Fs {

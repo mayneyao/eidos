@@ -5966,8 +5966,31 @@ body {
 }
 
 .plugin-drop-zone {
+  position: relative;
   /* Keep child margins inside the full-height drop target. */
   display: flow-root;
+  min-height: 100%;
+}
+
+.plugin-drop-overlay {
+  position: absolute;
+  inset: 8px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  border: 2px dashed var(--lite-accent);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.plugin-drop-error {
+  color: var(--danger);
+  padding: 12px;
 }
 
 .plugin-management-panel .plugin-manager {

@@ -69,6 +69,57 @@ fn create_test_plugin_package(id: &str, name: &str, version: &str) -> (Vec<u8>, 
 }
 
 #[test]
+fn incompatible_update_preserves_installed_bytes_and_configuration() {
+    let temp = TempDir::new().unwrap();
+    let store = temp.path().join("store");
+    let file = temp.path().join("test.eidos-plugin");
+    let (bytes, _) = create_test_plugin_package("local.compat", "Compat", "1.0.0");
+    fs::write(&file, &bytes).unwrap();
+    success_json(
+        &[
+            "plugin",
+            "install",
+            file.to_str().unwrap(),
+            "--dir",
+            store.to_str().unwrap(),
+        ],
+        &[],
+    );
+    let config = fs::read(store.join("config.json")).unwrap();
+    let mut raw = String::new();
+    flate2::read::GzDecoder::new(bytes.as_slice())
+        .read_to_string(&mut raw)
+        .unwrap();
+    let mut package: Value = serde_json::from_str(&raw).unwrap();
+    package["format"] = json!(2);
+    package["manifest"]["requires"] = json!({"pluginApi":"1.1.0"});
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(&serde_json::to_vec(&package).unwrap())
+        .unwrap();
+    fs::write(&file, encoder.finish().unwrap()).unwrap();
+    let output = run(
+        &[
+            "plugin",
+            "install",
+            file.to_str().unwrap(),
+            "--dir",
+            store.to_str().unwrap(),
+            "--force",
+        ],
+        &[],
+    );
+    assert!(!output.status.success());
+    assert_eq!(fs::read(store.join("config.json")).unwrap(), config);
+    assert_eq!(
+        fs::read(store.join("local.compat.eidos-plugin")).unwrap(),
+        bytes
+    );
+    let report = success_json(&["plugin", "doctor", file.to_str().unwrap()], &[]);
+    assert_eq!(report["compatibility"]["reason"], "API_VERSION");
+}
+
+#[test]
 fn install_local_plugin_and_list_info_uninstall() {
     let temp = TempDir::new().unwrap();
     let eidos_home = temp.path().join("home");

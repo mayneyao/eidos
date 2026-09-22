@@ -1,4 +1,8 @@
 import fs from "node:fs/promises"
+import {
+  assertPluginCompatibility,
+  checkPluginCompatibility,
+} from "@eidos.space/plugin-runtime/compatibility"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 import {
@@ -104,6 +108,15 @@ export class PluginStore {
     const pending = this.read(hash)
       .then((pkg) => pkg.manifest)
       .catch((error) => {
+        // Keep incompatible installations manageable after a host downgrade.
+        // read() has verified the bytes and cached metadata before rejecting execution.
+        const metadata = this.packages.get(hash)?.value.manifest
+        if (
+          error instanceof PluginError &&
+          error.code === "UNSUPPORTED_API" &&
+          metadata
+        )
+          return metadata
         this.manifests.delete(hash)
         throw error
       })
@@ -206,11 +219,13 @@ export class PluginStore {
       )
     const cached = this.packages.get(hash)
     if (cached) {
+      assertPluginCompatibility(cached.value.manifest, "eidos-lite")
       this.packages.delete(hash)
       this.packages.set(hash, cached)
       return cached.value
     }
     const pkg = this.remember(hash, decodePackage(bytes))
+    assertPluginCompatibility(pkg.manifest, "eidos-lite")
     this.manifests.set(hash, Promise.resolve(pkg.manifest))
     return pkg
   }
@@ -257,6 +272,7 @@ export class PluginStore {
     persist = true
   ): Promise<string> {
     const pkg = decodePackage(bytes)
+    assertPluginCompatibility(pkg.manifest, "eidos-lite")
     const hash = packageHash(bytes)
     const directory = path.join(this.directory, "packages")
     await fs.mkdir(directory, { recursive: true, mode: 0o700 })
@@ -308,6 +324,10 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Enabling a plugin requires a Space"
       )
+    if (enabled) {
+      const binding = await this.installed(id)
+      if (binding) await this.read(binding.hash)
+    }
     await this.update((config) => {
       if (!config.installed[id])
         throw new PluginError("INVALID_REQUEST", "Plugin is not installed")
@@ -408,7 +428,9 @@ export class PluginStore {
       plugins.push({
         manifest,
         hash,
-        enabled: space?.plugins[id]?.enabled ?? false,
+        enabled:
+          (space?.plugins[id]?.enabled ?? false) &&
+          checkPluginCompatibility(manifest, "eidos-lite").compatible,
         developmentPath: this.development.get(hash),
       })
     }
@@ -440,7 +462,6 @@ export class PluginStore {
     spaceId?: string
   ): Promise<PluginEditorChoice[]> {
     const extension = path.extname(relativePath).toLowerCase()
-    if (extension === ".eidos") return []
     const config = await this.config()
     const bindings = config.installed
     const choices: PluginEditorChoice[] = []
@@ -451,6 +472,8 @@ export class PluginStore {
           this.trials.get(id) ?? binding.hash
         )
         if (manifest.id !== id) continue
+        if (!checkPluginCompatibility(manifest, "eidos-lite").compatible)
+          continue
         for (const placement of manifest.placements ?? []) {
           if (
             placement.location !== "file/open" ||
@@ -458,7 +481,9 @@ export class PluginStore {
           )
             continue
           const editor = manifest.views?.find(
-            (view) => view.id === placement.view && view.context === "document"
+            (view) =>
+              view.id === placement.view &&
+              view.context === (extension === ".eidos" ? "eidos" : "document")
           )
           if (editor)
             choices.push({
@@ -475,11 +500,7 @@ export class PluginStore {
     return choices
   }
   async resolve(relativePath: string, spaceId: string, explicit?: string) {
-    if (
-      explicit === "builtin" ||
-      path.extname(relativePath).toLowerCase() === ".eidos"
-    )
-      return { editor: null }
+    if (explicit === "builtin") return { editor: null }
     let config: Configuration
     try {
       config = await this.config()

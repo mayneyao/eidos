@@ -53,6 +53,21 @@ test("create, typecheck and pack an offline CSV editor against the real SDK", as
       decodePackage(await fs.readFile(output)).manifest.id,
       "local.csv-editor"
     )
+    const manifestPath = path.join(directory, "plugin.json")
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"))
+    manifest.requires = { pluginApi: "1.1.0" }
+    await fs.writeFile(manifestPath, JSON.stringify(manifest))
+    const modern = decodePackage(await fs.readFile(await pack(directory)))
+    assert.equal(modern.format, 2)
+    const checked = spawnSync(
+      process.execPath,
+      [executable, "check", directory, "--json"],
+      { encoding: "utf8" }
+    )
+    assert.equal(checked.status, 0, checked.stderr)
+    const compatibility = JSON.parse(checked.stdout).compatibility
+    assert.equal(compatibility.lite.compatible, true)
+    assert.equal(compatibility.cli.compatible, false)
   } finally {
     await fs.rm(parent, { recursive: true, force: true })
   }

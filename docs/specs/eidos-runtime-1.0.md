@@ -923,6 +923,10 @@ eligible persisted result type. A Lookup is never the Record Label in core
 Runtime treats any violation as semantic invalidity rather than guessing from
 current rows.
 
+`TableDescriptor.settings` MUST expose the complete parsed `settings_json`,
+including unknown application-owned keys and plugin namespaces. Reconstructing
+only recognized built-in settings would break read/modify/write preservation.
+
 `TableDescriptor.settings.contentFieldId`, when present, is the File Format
 optional Content Field. Runtime MUST expose it unchanged only when it names an
 ordinary stored non-system Text Field in the same Table. `set-table-settings`

@@ -20,6 +20,64 @@ const snapshot = {
   tables: [],
 } as unknown as EidosFileSnapshot
 
+it("bridges plugin config and action operations without cloning AbortSignals", async () => {
+  const callRuntime = vi.fn(async (_session: string, method: string) =>
+    method === "captureTableActionTarget"
+      ? ["row"]
+      : method === "getSnapshot"
+        ? snapshot
+        : { undoToken: "undo" }
+  )
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime },
+  })
+  const source = new IpcEidosFileDataSource("session", snapshot)
+  const controller = new AbortController()
+  await source.readTablePluginConfig("table", "plugin")
+  await source.writeTablePluginConfig("table", "plugin", {
+    value: null,
+    expectedVersion: "v1",
+  })
+  expect(
+    await source.captureTableActionTarget("table", {}, null, controller.signal)
+  ).toEqual(["row"])
+  const row = { id: "row", values: { field: null }, version: "v1" }
+  await source.readTableActionRows("table", ["row"], ["field"])
+  expect(
+    await source.writeTableActionRow(
+      "table",
+      row,
+      { field: "done" },
+      controller.signal
+    )
+  ).toEqual({ undoToken: "undo" })
+  await source.undoTableActionRow("undo")
+  source.releaseTableActionUndo(["undo"])
+  expect(callRuntime).toHaveBeenCalledWith(
+    "session",
+    "captureTableActionTarget",
+    ["table", {}, null]
+  )
+  expect(callRuntime).toHaveBeenCalledWith("session", "writeTableActionRow", [
+    "table",
+    row,
+    { field: "done" },
+  ])
+  controller.abort()
+  await expect(
+    source.captureTableActionTarget("table", {}, null, controller.signal)
+  ).rejects.toThrow()
+  expect(() =>
+    source.writeTableActionRow(
+      "table",
+      row,
+      { field: "bad" },
+      controller.signal
+    )
+  ).toThrow()
+})
+
 const plan = {
   fileName: "tasks.csv",
   tableName: "Tasks",

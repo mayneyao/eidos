@@ -1,5 +1,20 @@
 # Eidos Plugins 1.0
 
+动态表格动作可声明 `icon: { paths: string[] }`，沿用 manifest 中受限的 24×24
+单色 SVG 路径规范，禁止文件引用、外部图片和可执行标记。宿主校验后与内置菜单
+图标使用相同尺寸及间距。
+
+授权连接凭据在插件详情的设置页管理，不在 Grid 常驻工具栏中管理。工作区扩展
+实例仅可授权宿主管理凭据的状态和保存操作；外部请求仍需存活的表格动作实例。
+凭据继续按 Space、插件、连接和固定 URL 隔离。
+
+插件主题增加 `--eidos-surface-hover` 和 `--eidos-surface-selected` 背景色变量；
+`--eidos-muted` 保持为次要文字色。
+插件容器将 `--eidos-color-scheme` 应用到文档根节点，并使用宿主共享主题解析的
+`--eidos-scrollbar-thumb`、`--eidos-scrollbar-thumb-hover`、
+`--eidos-scrollbar-thumb-active` 统一滚动条颜色；轨道和边角透明。
+原生控件与滚动条跟随主题实时更新，无需重新挂载插件。
+
 状态：Eidos 最终标准规范  
 版本：1.0  
 发布日期：2026-09-17  
@@ -9,7 +24,7 @@
 
 ## 摘要
 
-Eidos 插件规范定义了 Eidos Lite 桌面宿主下的扩展与应用开发模型。它构建了一个轻量、受控的沙箱隔离环境，允许插件贡献自定义视图（View）、上下文动作（Action）、文档格式化程序（Formatter）、参数化表格动作模板（Table Action Template）以及受权限限制的文本、目录与 `.eidos` 结构化数据访问。符合规范的插件既可以在本地开发中直接免构建加载源码，也可以打包为不可变、完全离线可用的自包含安装包。
+Eidos 插件规范定义了 Eidos Lite 桌面宿主下的扩展与应用开发模型。它构建了一个轻量、受控的沙箱隔离环境，允许插件贡献自定义视图（View）、上下文动作（Action）、文档格式化程序（Formatter）、动态表格动作提供者（Table Action Provider）以及受权限限制的文本、目录与 `.eidos` 结构化数据访问。符合规范的插件既可以在本地开发中直接免构建加载源码，也可以打包为不可变、完全离线可用的自包含安装包。
 
 ## 规范地位
 
@@ -71,7 +86,7 @@ plugin.json
   icon?          矢量图标声明（SVG paths）
   extension?     动作注册入口
   views?         id, title, entry, context, access?, configuration?, icon?
-  actions?       id, title, context, access?, extensions?, configuration?, multiple?, icon?
+  actions?       id, title, context, access?, extensions?, icon?
   placements?    入口位置及目标引用
   resources?     逻辑资源名称到授权声明
   settings?      插件配置声明
@@ -89,23 +104,30 @@ Manifest 可声明 `"icon": { "paths": ["..."] }`（或本地文件/Data URL 格
 
 具体的 view 和 action 也可声明各自的 `icon`（格式相同），用于将特定视图或编辑器（如思维导图视图）与插件本身的 Logo 区分开。当 view 或 action 未声明 `icon` 时，宿主回退使用 `manifest.icon`，若均未声明则使用宿主默认图标。在文件“打开方式”菜单和编辑器切换器中展示 view 图标。
 
-View context 为 page/document/table；Action context 为 workspace/document/table。
-文档和表上下文 access 默认为 read，可声明 write；page/workspace 通过命名资源获得数据权限。
-文档 action 可限定扩展名。`.eidos` 不能通过普通文件编辑器或文本文档动作接管。
+View context 为 page/document/table/eidos；Action context 为 workspace/document/table。
+文档、表和 eidos 视图上下文 access 默认为 read，可声明 write；page/workspace 通过命名资源获得数据权限。
+文档 action 可限定扩展名。`.eidos` 不能通过 document 视图或文本文档动作接管。
+专用 `context: "eidos"` 视图可声明 `file/open`，扩展名必须为 `[".eidos"]`。
+该视图通过 `ctx.binding.file` 获取 `listTables()`（表 ID 和名称）、
+`readTable(tableId)`（字段）、`readPluginConfig(tableId)` 和
+`writePluginConfig(tableId, {value, expectedVersion})`。配置仍存入对应表的插件
+命名空间并使用版本冲突检查；写入要求 `access: "write"`。宿主必须固定当前文件和
+插件身份，拒绝跨文件表以及调用方提供的 session/plugin 覆盖。不暴露文本句柄、
+文件系统句柄、记录读写或结构修改权限。
 
-Action 声明定义可调用的操作能力。对于表格动作（`context: "table"`），声明 `configuration` 会为其定义由宿主原生渲染的参数表单 Schema，使其成为动作模板。在此模式下，`multiple` 默认为 `true`，允许用户针对同一张表配置并命名多个动作实例；显式设为 `false` 时，单张表最多保留一份配置实例。未声明 `configuration` 的动作为全局固定动作，直接在所有表的右键菜单中可用。
+Action 声明定义可调用的操作能力。Lite 支持下文定义的动态表格动作提供器；插件在表级命名空间中自行管理动作配置。当前 manifest 校验器不接受 Action 的 `configuration` 和 `multiple`。
 
-| placement       | 目标约束                                             |
-| --------------- | ---------------------------------------------------- |
-| navigation      | page view                                            |
-| file/open       | document view，声明小写点前缀扩展名                  |
-| table/view      | table view                                           |
-| plugin/settings | page view，置于插件详情设置区域                      |
-| command-palette | action，有符合条件的上下文才启用                     |
-| file/context    | document action                                      |
-| table/context   | table action，出现在网格/表格右键上下文菜单          |
-| view/toolbar    | 与目标 view 上下文匹配的 action；page 对应 workspace |
-| keybinding      | action，系统与宿主快捷键优先，冲突需可见             |
+| placement       | 目标约束                                               |
+| --------------- | ------------------------------------------------------ |
+| navigation      | page view                                              |
+| file/open       | document view 声明文本扩展名；eidos view 仅声明 .eidos |
+| table/view      | table view                                             |
+| plugin/settings | page view，置于插件详情设置区域                        |
+| command-palette | action，有符合条件的上下文才启用                       |
+| file/context    | document action                                        |
+| table/context   | table action，出现在网格/表格右键上下文菜单            |
+| view/toolbar    | 与目标 view 上下文匹配的 action；page 对应 workspace   |
+| keybinding      | action，系统与宿主快捷键优先，冲突需可见               |
 
 快捷键使用宿主的修饰键记法，例如 `Mod+Alt+F`；`Mod` 在 macOS 为 Command，
 其他平台为 Control，`mac` 可覆盖 macOS 绑定，`linux` 可覆盖 Linux 绑定，未覆盖的平台使用 `key`。只有已启用且上下文匹配的 Action
@@ -222,7 +244,7 @@ watch 监听可达源码、资源、清单与 lockfile，转换一致快照后�
 
 ```ts
 interface PluginPackage {
-  format: 1
+  format: 1 | 2
   manifest: PluginManifest
   modules: Record<string, string>
 }
@@ -246,6 +268,10 @@ modules 为入口键到自包含 ESM JS 的映射，源码中的 CSS／资源随
 目录上限 1 MiB，包上限 16 MiB；仅允许 HTTPS 及允许列表内的 GitHub 下载域名重定向。
 浏览不会执行插件代码。成功目录会缓存供离线浏览，缓存不能授权新安装。
 更新由用户主动安装，继续遵循本机安装和 Space 隔离规则。兼容性说明仅供参考，并非可执行检查。
+
+Lite 的插件列表和详情页也接受拖入 `.eidos-plugin` 文件，复用文件选择器的包校验和
+原生权限确认流程。根据 manifest ID 判断安装或替换，支持同版本替换；更新保留各
+Space 的启用状态。多个文件依次处理。拖入源码目录不视为开发安装，无效包不能替换已有安装。
 
 ## 6. View 与路由
 
@@ -456,33 +482,89 @@ Settings 的 update(key,value)、reset(key) 隐式作用于当前实例的 Space
 设置键遵循局部 ID 规则，数字必须有限，字符串最多 4 KiB，有效设置合计最多 64 KiB。
 observe 采用与文本文档相同的原子订阅保证，具体类型以英文第 10 节为准。
 
-### 宿主生成表格配置
+### 表格配置
 
-表格视图与表格动作可在 manifest 中声明 `configuration: { type: "object", properties: { ... } }`，以启用宿主自动生成配置表单。这是 JSON Schema 风格的受限子集，而非通用引擎。每个属性必须有 `title`、`type` 和 `default`，可选 `description`。支持的类型包括：
+表格视图可声明 `configuration: { type: "object", properties: { ... } }`，
+由宿主生成视图设置表单。属性必须包含 `title`、`type` 和 `default`，
+支持 boolean、string 和 number，以及字符串枚举、数值范围和字符串类型的
+`"x-field": true` 字段选择器。最多 32 个属性、16,384 个 JSON 字符；
+未知关键字和非法默认值会被拒绝。值保存在视图的 `properties.plugin` 中，
+`table.read()` 补齐默认值，`table.observe()` 通知读取方刷新。
 
-- `string`：标准文本输入。声明可选 `enum` 时渲染为单选下拉框；声明可选 `"x-field": true` 时渲染为当前表格的单字段选择器（存储字段 ID，默认值为空且无 enum）；声明可选 `"x-multiline": true` 时渲染为多行文本框（适合编写提取提示词 Prompt 或格式说明）。
-- `array`：标量值列表。当声明 `items: { type: "string" }` 且包含 `"x-field": true` 时，渲染为多字段选择器（允许勾选 A+B 等多个输入列），存储字段 ID 数组。
-- `number`：数值输入，可选 `minimum` / `maximum`。
-- `boolean`：布尔开关或复选框。
+插件自行管理的表级配置独立于视图属性，宿主必须将其保存到
+`eidos__tables.settings_json` 的 `plugins[pluginId]` 下。值是插件拥有的
+不透明 JSON 对象；宿主不解释动作定义、提示词或字段映射。插件可提供 YAML
+导入导出，但不要求独立 YAML 文件。凭据不得保存在这里。
 
-表格配置 Schema 最多支持 32 个属性、16,384 个 JSON 字符；安装时拒绝未知关键词、错误默认值和不支持的字段选择器声明。不支持嵌套 Schema、引用、条件或自定义代码。
+```ts
+table.pluginConfig.read(): Promise<{ value: JsonObject | null; version: string }>
+table.pluginConfig.write({ value, expectedVersion }): Promise<{ value: JsonObject | null; version: string }>
+table.pluginConfig.observe(listener): Disposable
+```
 
-配置值的持久化位置根据作用范围清晰划分：
+表和插件 ID 由宿主绑定，插件不能指定。未配置时返回 null，写入 null 仅删除
+当前插件的命名空间。写入要求声明 write 权限且表可写。规范化 UTF-8 JSON
+上限为 64 KiB。已有元数据非法时必须保留并报错，不得静默覆盖；其他表设置及
+其他插件配置必须保留。
 
-1. **表格视图**：保存在当前 `.eidos` 视图的 `properties.plugin` 中，与其他视图和 Space 级插件设置隔离。宿主在表格工具栏中提供 **View settings**。`table.read()` 为缺失属性补充默认值但不写元数据，更新通过 `table.observe()` 通知。
-2. **表格动作**：具有配置的表格动作作为动作模板使用。声明了 `configuration` 的 Action 默认支持实例化为多个具名动作实例（`multiple: true`）。每个实例保存在 `.eidos` SQLite 数据库的 `eidos__tables.settings_json` 内的 `pluginActions.instances` 数组中：
-   ```json
-   {
-     "id": "<instance-uuid>",
-     "pluginId": "<plugin-id>",
-     "actionId": "<action-id>",
-     "title": "自定义动作名称",
-     "config": { ... }
-   }
-   ```
-   这使得每张表的字段映射、自定义 Prompt 与个性化动作名称能够随文件流转与跨端协同，且与 Space 级插件设置（如在 `manifest.settings` 中配置的模型 API Key）清晰分离。当 `multiple` 显式声明为 `false` 时，单张表最多在 `pluginActions.<plugin-id>/<action-id>` 下维护一个配置实例。
+version 是当前插件配置的内容令牌，不是文件 revision 或递增计数器。过期令牌
+必须导致写入失败。宿主在固定 Runtime revision 读取设置，并在相同 revision
+执行 schema preflight/mutation。并发文件修改也可能导致失败，此时应重新读取，
+不得盲目重试。observe 是失效通知，可能包含其他表变化，不发送初始值；调用方
+应先订阅再读取。多个监听必须共存。
 
-当表格存在已配置的动作实例时，宿主直接在网格（Grid）视图的右键菜单中以自定义的 `title` 渲染各动作项。用户点击时，校验后的表级配置注入到 `ctx.binding.config`，实例 UUID 注入到 `ctx.binding.instanceId`，动作标题注入到 `ctx.binding.actionTitle`，右键点击的目标行 ID 注入到 `ctx.binding.rowId`。右键菜单同时提供“添加动作…”（从启用的动作模板创建新实例）以及“管理表格动作…”（重命名、重配置、排序与删除）入口。未声明 `configuration` 的普通动作直接作为全局固定动作显示，无需表级实例化。字段引用保存不可变字段 ID；重命名列名不破坏配置，删除的字段在重新配置时高亮标记为不可用，且不破坏未触及的动作执行。
+Lite 表格插件视图已实现此配置 API。表格动作通过
+`ctx.actions.registerTableProvider(id, { getItems, run })` 注册，必须对应声明的
+table action 和 `table/context` 位置。`getItems({table,signal})` 最多返回 100 项，
+局部 ID 唯一，标题为纯文本，targets 为 row、selection、view。列菜单只允许读取
+表元数据和插件配置。执行期间不暴露配置写入或 observe；
+配置编辑应在挂载的表格视图完成。
+
+宿主按当前有效查询冻结记录 ID，包含 Grid 尚未加载的记录；选区 endIndex 不包含
+在范围内。工具栏处理全部筛选结果，在选区内右键处理该选区。后续新增记录不加入
+本次任务。固定范围期间 revision 变化或超过 100,000 条时拒绝执行。
+`target.read({offset,limit,fields})` 每次最多读取 100 条、64 个字段，返回本次任务
+专用的 readToken，已删除记录跳过。`target.update({readToken,values})` 要求声明
+write 权限，仅能原子更新已有记录中经过宿主样例校验所声明的字段；输入、输出或字段
+定义变化时拒绝旧结果。不得改 schema、新增或删除记录，Runtime 负责类型校验，
+宿主同一时刻只允许一个写入。
+
+`task.preview(rows)` 作为兼容的样例和输出范围声明保留：宿主校验最多三条样例，
+输出字段集合相同且最多 16 个，直接返回 true，不再展示确认预览。执行动作直接
+应用结果。`task.report({completed,message})` 在表格右下角的非模态任务卡报告进度，
+最后提供的 message 单独显示，在完成、出错和撤销/重做后保留，新任务开始时清空。
+message 为最多 300 字符的纯文本，可包含插件计算的估算值。
+任务卡可最小化和展开；关闭会移除窗口及最小化任务条，进度更新或完成不会重新弹出，
+下一次执行会打开新任务卡。关闭窗口不取消执行。取消中断网络并阻止后续写入，已提交
+的原子写入必须完成并保留撤销凭据。撤销按逆序恢复已完成记录，拒绝覆盖新编辑；
+撤销生成反向凭据，重做直接恢复保存的结果，不重新调用插件或网络，并执行同样的
+冲突检查。无变化结果不写入、不生成凭据。任务运行中不可撤销或重做。
+凭据只保留在当前会话，最多 64 MiB，关闭表或开始下一次任务时释放。撤销遇到冲突
+时会停止，之前已恢复的记录保留，并非整批事务。
+
+manifest 的 `connections` 最多声明八个 `{title,url}` 固定 HTTPS 端点。宿主用
+系统加密存储 Bearer key，按 Space、插件、连接和 URL 隔离，不向插件代码暴露，
+不写入表 JSON 或插件包。`connections.request({connection,body})` 只允许向此固定
+端点发送 JSON，禁止重定向和私有地址，固定 DNS，请求/响应上限 1/4 MiB，25 秒
+超时。只有活跃任务可发请求，关闭实例会取消请求。Lite 每个插件实例的所有连接
+合计最多两个在途请求，超出时返回忙碌错误；取消任务会终止该实例的全部在途请求。
+这不允许并发写表。无安全加密能力时拒绝保存和使用。
+当前 Lite 实现此执行契约，其他宿主完成相同约束前不得宣称支持。
+
+连接可声明 `configurable: true`，由 Lite 插件设置管理完整 HTTPS endpoint、模型 ID
+和加密密钥，manifest URL 仅为初始建议。配置按 Space/插件/连接隔离，不写入
+`.eidos` 文件。更换 endpoint 必须重新输入密钥，仅修改模型可保留原密钥。宿主覆盖
+请求体中的 model，保留大小、并发和网络限制，请求超时为 90 秒。
+Eidos 文件视图可通过 `file.connections.configured(id)` 和
+`file.connections.request({connection,body})` 使用声明的可配置连接，不可读取密钥或修改
+连接配置。要求有效实例及匹配的 Space、拥有者和包版本；关闭实例取消请求。工作区
+设置实例只能管理配置，不能发请求。其他宿主必须拒绝不支持的能力。
+请求使用 Lite 自身的 User-Agent；OpenCode Go 额外携带按连接和当前实例生成的稳定
+哈希 `x-opencode-session`，不发送原始实例票据或以密钥作为会话 ID。服务端 JSON 错误
+消息在长度限制和密钥脱敏后返回插件；正常连接失败不触发编辑器降级界面。
+
+不支持宿主管理的动作模板及 `pluginActions.instances`。Smart Actions 自行管理
+动作列表、提示词、字段映射与 TypeSafe 接口，宿主负责菜单、任务窗口和数据权限。
 
 HostUI 提供异步 notify、select、confirm、navigate、resolveAsset、openLink，文本最多 4 KiB。
 取消必须显式返回，不能视为批准。插件不能伪造宿主权限提示，可受提示频率限制。
@@ -587,3 +669,27 @@ L01 生命周期与诊断；G01 agent 创作及权限、代码／数据回滚边
 测试必须覆盖源码和安装包两条路径，并使用真实沙箱验证，不只依赖 mock。
 建议先做源码加载与 views/actions，再做工作副本／授权，接入数据引擎／输出，最后打通创作闭环。
 完整符合性要求全矩阵通过。后续兼容新增必须保持语义，破坏性变化升级 API major，不静默重解释 1.0。
+
+## 插件兼容契约
+
+清单可声明 `requires: { "pluginApi": "1.1.0" }`，使用无前导零的稳定三段版本，
+每段必须是 JavaScript 安全整数。它表示最低插件 API，与 npm SDK 和产品版本独立。
+宿主在安装、替换和执行前检查：主版本必须相同，最低要求不得高于宿主支持版本。
+检查失败必须保留原安装。
+
+宿主从视图上下文、扩展、动作、格式化器、连接、资源、设置、存储和浏览器权限推导
+功能要求，开发者无需维护 capabilities 清单。共享定义位于
+`packages/plugin-runtime/src/compatibility-data.json`。此实现的 Lite 支持 1.1.0，
+CLI Serve 支持 1.0.0；这些标记不追溯适用于历史发行版。1.1.0 包含动态表格动作、
+表格插件配置、任务、连接和 eidos 文件视图。CLI Serve 仅实现表格视图及声明的浏览器
+权限，即使最低版本满足，也必须拒绝不支持的功能。API 版本不能代替宿主功能检查。
+
+声明最低版本的包必须使用格式 2，格式 2 必须包含该声明，格式 1 不得包含。
+旧版 Lite 和 CLI 安装器因此会拒绝新包，而不是忽略字段继续执行。历史 CLI Serve
+直接加载本地包时未检查格式，此路径无法追溯保护，必须升级 CLI。未声明的格式 1 旧包仍可在功能满足
+时加载，诊断结果标为未声明。静态清单无法证明任意动态调用的兼容性，使用新 API 时
+作者仍需提高最低版本。兼容检查与权限授权独立，不引入日期兼容机制。
+
+`eidos plugin doctor [package]` 在不安装、不执行插件的情况下报告宿主支持及兼容
+结果。诊断命令成功并不表示兼容，调用者须检查 `compatible` 字段。Lite 插件详情
+展示最低及宿主 API。注册表描述仅供参考，安装时以下载的包为准。

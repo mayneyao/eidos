@@ -56,6 +56,67 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return window.eidosLite.callRuntime(this.sessionId, "getPage", args)
   }
 
+  readTablePluginConfig(
+    ...args: RuntimeCalls["readTablePluginConfig"]["args"]
+  ) {
+    return window.eidosLite.callRuntime(
+      this.sessionId,
+      "readTablePluginConfig",
+      args
+    )
+  }
+  writeTablePluginConfig(
+    ...args: RuntimeCalls["writeTablePluginConfig"]["args"]
+  ) {
+    return this.mutate("writeTablePluginConfig", args)
+  }
+  async captureTableActionTarget(
+    tableId: string,
+    query: RuntimeCalls["captureTableActionTarget"]["args"][1],
+    ranges: RuntimeCalls["captureTableActionTarget"]["args"][2],
+    signal?: AbortSignal
+  ) {
+    signal?.throwIfAborted()
+    const ids = await window.eidosLite.callRuntime(
+      this.sessionId,
+      "captureTableActionTarget",
+      [tableId, query, ranges]
+    )
+    signal?.throwIfAborted()
+    return ids
+  }
+  readTableActionRows(...args: RuntimeCalls["readTableActionRows"]["args"]) {
+    return window.eidosLite.callRuntime(
+      this.sessionId,
+      "readTableActionRows",
+      args
+    )
+  }
+  writeTableActionRow(
+    tableId: string,
+    row: RuntimeCalls["writeTableActionRow"]["args"][1],
+    values: RuntimeCalls["writeTableActionRow"]["args"][2],
+    signal?: AbortSignal
+  ) {
+    signal?.throwIfAborted()
+    // A dispatched atomic write must settle so cancellation retains its undo receipt.
+    return window.eidosLite.callRuntime(this.sessionId, "writeTableActionRow", [
+      tableId,
+      row,
+      values,
+    ])
+  }
+  undoTableActionRow(token: string) {
+    return window.eidosLite.callRuntime(this.sessionId, "undoTableActionRow", [
+      token,
+    ])
+  }
+  releaseTableActionUndo(tokens: string[]) {
+    void window.eidosLite
+      .callRuntime(this.sessionId, "releaseTableActionUndo", [tokens])
+      .catch(() => {})
+  }
+
   getRow(...args: Parameters<NonNullable<EidosFileDataSource["getRow"]>>) {
     return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
   }

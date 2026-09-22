@@ -10,16 +10,56 @@ import type {
 import type { PluginRequest } from "@eidos.space/plugin-runtime/rpc"
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
 import { PluginEditor } from "./plugin-editor"
+import type { JsonObject } from "@eidos.space/eidos-file"
 
 /** IDs come only from this mounted host view, never from guest request arguments. */
 export async function tableViewRequest(
   props: EidosFileViewRendererProps,
   request: PluginRequest,
-  schema?: ViewConfiguration
+  schema?: ViewConfiguration,
+  pluginId?: string
 ): Promise<unknown> {
   const { view, table, source } = props
   if (!view) throw new Error("Table view is unavailable")
   const params = request.params
+  if (
+    request.method === "table.pluginConfig.read" ||
+    request.method === "table.pluginConfig.write"
+  ) {
+    if (!pluginId) throw new Error("Plugin binding is unavailable")
+    if (request.method === "table.pluginConfig.read") {
+      if (params !== null) throw new Error("Unexpected config parameters")
+      if (!source.readTablePluginConfig)
+        throw new Error("Plugin config is unsupported")
+      return source.readTablePluginConfig(table.table.id, pluginId)
+    }
+    if (props.disabled || !props.capabilities.mutate)
+      throw new Error("Table is read-only")
+    if (
+      !params ||
+      typeof params !== "object" ||
+      Array.isArray(params) ||
+      Object.keys(params).sort().join() !== "expectedVersion,value" ||
+      !("expectedVersion" in params) ||
+      typeof params.expectedVersion !== "string" ||
+      !("value" in params) ||
+      (params.value !== null &&
+        (typeof params.value !== "object" || Array.isArray(params.value)))
+    )
+      throw new Error("Invalid plugin config request")
+    if (!source.writeTablePluginConfig)
+      throw new Error("Plugin config is unsupported")
+    const result = await source.writeTablePluginConfig(
+      table.table.id,
+      pluginId,
+      {
+        value: params.value as JsonObject | null,
+        expectedVersion: params.expectedVersion,
+      }
+    )
+    props.onSnapshot?.(await source.getSnapshot())
+    return result
+  }
   if (request.method === "table.read")
     return {
       fields: table.fields,
@@ -162,7 +202,12 @@ function TableView({
       onRetry={() => setRetry((value) => value + 1)}
       onFallback={() => setError("Choose another view from the view menu.")}
       onTableRequest={(request) =>
-        tableViewRequest(latest.current, request, schema)
+        tableViewRequest(
+          latest.current,
+          request,
+          schema,
+          contribution.split("/")[0]
+        )
       }
       tableRevision={revision}
     />

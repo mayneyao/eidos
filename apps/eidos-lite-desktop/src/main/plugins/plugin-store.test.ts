@@ -2,7 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { encodePackage } from "@eidos.space/plugin-runtime/package"
+import { encodePackage, packageHash } from "@eidos.space/plugin-runtime/package"
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
 import type { PluginManifest } from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
@@ -20,6 +20,21 @@ const bytes = (version = "1.0.0") =>
     { ...manifest, version },
     { "./csv.ts": "export default function mount() {}" }
   )
+it("preserves the installed version when an update requires a newer API", async () => {
+  const hash = await store.install(bytes(), "a")
+  const before = await store.config()
+  await expect(
+    store.install(
+      encodePackage(
+        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.2.0" } },
+        { "./csv.ts": "export default function mount() {}" }
+      ),
+      "a"
+    )
+  ).rejects.toThrow("requires plugin API 1.2.0")
+  expect(await store.config()).toEqual(before)
+  expect((await store.read(hash)).manifest.version).toBe("1.0.0")
+})
 let directory: string
 let store: PluginStore
 beforeEach(async () => {
@@ -42,6 +57,37 @@ it("installs once without implicitly enabling existing or future Spaces", async 
   expect(config.installed).toEqual({ [manifest.id]: { hash } })
   expect(config.spaces.a.plugins[manifest.id]).toEqual({ enabled: true })
   expect("global" in config).toBe(false)
+})
+
+it("keeps incompatible plugins manageable after downgrading the host", async () => {
+  await store.install(bytes(), "a")
+  const future = encodePackage(
+    { ...manifest, requires: { pluginApi: "2.0.0" } },
+    { "./csv.ts": "export default function mount() {}" }
+  )
+  const hash = packageHash(future)
+  await fs.writeFile(
+    path.join(directory, "packages", `${hash}.eidos-plugin`),
+    future
+  )
+  const config = await store.config()
+  config.installed[manifest.id] = { hash }
+  await fs.writeFile(
+    path.join(directory, "config.json"),
+    JSON.stringify(config)
+  )
+  const restarted = new PluginStore(directory)
+  expect((await restarted.list("a")).plugins[0]).toMatchObject({
+    enabled: false,
+    hash,
+  })
+  expect(await restarted.editors("data.csv", "a")).toEqual([])
+  await expect(restarted.read(hash)).rejects.toThrow("requires plugin API")
+  await expect(restarted.enable(manifest.id, true, "a")).rejects.toThrow(
+    "requires plugin API"
+  )
+  await restarted.uninstall(manifest.id)
+  expect((await restarted.list("a")).plugins).toEqual([])
 })
 
 it("discovers editors from verified metadata without repeatedly parsing bundles", async () => {

@@ -219,6 +219,13 @@ describe("Eidos Lite Eidos File search navigation", () => {
 
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listPlugins: vi.fn(async () => ({ plugins: [], space: null })),
+        onPluginEvent: vi.fn(() => () => {}),
+      },
+    })
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -227,6 +234,7 @@ describe("Eidos Lite Eidos File search navigation", () => {
   afterEach(() => {
     act(() => root.unmount())
     host.remove()
+    Reflect.deleteProperty(window, "eidosLite")
   })
 
   it.each([
@@ -365,7 +373,7 @@ describe("Eidos Lite Eidos File search navigation", () => {
     )
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
-      value: { callRuntime } as unknown as EidosLiteApi,
+      value: { ...window.eidosLite, callRuntime } as unknown as EidosLiteApi,
     })
     const onSnapshot = vi.fn()
     const source = new IpcEidosFileDataSource("session-1", snapshot, onSnapshot)
@@ -417,7 +425,10 @@ describe("Eidos Lite Eidos File search navigation", () => {
     const openExternalUrl = vi.fn(async () => undefined)
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
-      value: { openExternalUrl } as unknown as EidosLiteApi,
+      value: {
+        ...window.eidosLite,
+        openExternalUrl,
+      } as unknown as EidosLiteApi,
     })
 
     await act(async () => {

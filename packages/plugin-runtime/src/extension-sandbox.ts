@@ -4,6 +4,8 @@ import type {
   Disposable,
   TextDocument,
   FormatterProvider,
+  TableActionProvider,
+  TableActionContext,
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
@@ -33,6 +35,7 @@ function activateGuest(
   const runs = new Map<string, () => void>()
   let activated = false
   const formatters = new Map<string, FormatterProvider>()
+  const tableProviders = new Map<string, TableActionProvider>()
   const failure = (code: string, message: string) =>
     Object.assign(new Error(message), { code })
   const call = <T>(method: string, params: unknown = null): Promise<T> => {
@@ -44,10 +47,13 @@ function activateGuest(
       )
     const id = crypto.randomUUID()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        reject(failure("TIMEOUT", "Host request timed out"))
-      }, 30000)
+      const timer = setTimeout(
+        () => {
+          pending.delete(id)
+          reject(failure("TIMEOUT", "Host request timed out"))
+        },
+        method === "table.task.preview" ? 10 * 60 * 1000 : 30000
+      )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -233,6 +239,66 @@ function activateGuest(
       })()
       return
     }
+    if (message.observation === "host.tableAction.abort") {
+      runs.get(message.value)?.()
+      return
+    }
+    if (message.observation === "host.tableAction") {
+      const value = message.value
+      const controller = new AbortController()
+      runs.set(value.id, () => controller.abort())
+      const invoke = <T>(method: string, args: unknown = null): Promise<T> => {
+        controller.signal.throwIfAborted()
+        return call(method, { runId: value.id, args })
+      }
+      const context: TableActionContext = {
+        signal: controller.signal,
+        table: {
+          tableId: value.tableId,
+          viewId: value.viewId,
+          read: () => invoke("table.read"),
+          pluginConfig: {
+            read: () => invoke("table.pluginConfig.read"),
+          },
+        },
+        target: {
+          count: value.count,
+          read: (input) => invoke("table.target.read", input),
+          update: (input) => invoke("table.target.update", input),
+        },
+        connections: {
+          request: (input) => invoke("table.connection.request", input),
+        },
+        task: {
+          preview: (rows) => invoke("table.task.preview", { rows }),
+          report: (progress) => invoke("table.task.report", progress),
+        },
+      }
+      void (async () => {
+        try {
+          const provider = tableProviders.get(value.provider)
+          if (!activated || !provider)
+            throw new Error("Table action provider unavailable")
+          const items =
+            value.operation === "list"
+              ? await provider.getItems(context)
+              : (await provider.run(context, value.itemId), undefined)
+          await call("table.actions.result", {
+            runId: value.id,
+            ...(items ? { items } : {}),
+          })
+        } catch (error) {
+          await call("table.actions.result", {
+            runId: value.id,
+            error: String(error).slice(0, 4096),
+          }).catch(() => {})
+        } finally {
+          controller.abort()
+          runs.delete(value.id)
+        }
+      })()
+      return
+    }
     if (message.observation === "action.run") {
       void run(message.value)
       return
@@ -305,6 +371,25 @@ function activateGuest(
           },
         },
         actions: {
+          registerTableProvider(id, provider) {
+            if (
+              activated ||
+              !declared.includes(id) ||
+              handlers.has(id) ||
+              typeof provider.getItems !== "function" ||
+              typeof provider.run !== "function"
+            )
+              throw failure("INVALID_REQUEST", "Invalid table provider")
+            tableProviders.set(id, provider)
+            handlers.set(id, unavailable)
+            return own({
+              dispose() {
+                tableProviders.delete(id)
+                if (handlers.delete(id) && activated)
+                  void call("extension.unregister", { id }).catch(() => {})
+              },
+            })
+          },
           register(id, handler) {
             if (
               activated ||
@@ -340,6 +425,10 @@ function activateGuest(
         actions: [...handlers.keys()],
         formatters: [...formatters.keys()],
       })
+      if (tableProviders.size)
+        await call("table.actions.ready", {
+          providers: [...tableProviders.keys()],
+        })
     })
     .catch(async (cause) => {
       dispose(owned)

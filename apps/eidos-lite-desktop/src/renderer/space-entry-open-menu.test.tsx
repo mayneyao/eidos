@@ -166,41 +166,48 @@ describe("SpaceEntryOpenActions", () => {
     expect(host?.textContent).not.toContain("Open with")
   })
 
-  it("shows Open with with Built-in and plugin editors for files with plugin support", async () => {
-    const { onSelectPluginEditor } = await renderActions(
-      {
-        name: "data.csv",
-        relativePath: "data.csv",
-        kind: "file",
-        size: 100,
-        modifiedAtMs: 1,
-      },
-      {
-        editors: [
-          { key: "example.csv/glide", label: "Glide Table", pluginName: "CSV" },
-        ],
-      }
-    )
+  it.each(["file", "eidos"] as const)(
+    "shows built-in and plugin editors for %s entries",
+    async (kind) => {
+      const { onSelectPluginEditor } = await renderActions(
+        {
+          name: kind === "eidos" ? "data.eidos" : "data.csv",
+          relativePath: kind === "eidos" ? "data.eidos" : "data.csv",
+          kind,
+          size: 100,
+          modifiedAtMs: 1,
+        },
+        {
+          editors: [
+            {
+              key: "example.csv/glide",
+              label: "Glide Table",
+              pluginName: "CSV",
+            },
+          ],
+        }
+      )
 
-    expect(host?.textContent).toContain("Open")
-    expect(host?.textContent).toContain("Open with")
+      expect(host?.textContent).toContain("Open")
+      expect(host?.textContent).toContain("Open with")
 
-    const openWithBtn = [...(host?.querySelectorAll("button") ?? [])].find(
-      (b) => b.textContent?.trim() === "Open with"
-    )
-    await act(async () => openWithBtn?.click())
+      const openWithBtn = [...(host?.querySelectorAll("button") ?? [])].find(
+        (b) => b.textContent?.trim() === "Open with"
+      )
+      await act(async () => openWithBtn?.click())
 
-    expect(host?.textContent).toContain("Built-in editor")
-    expect(host?.textContent).toContain("Glide Table")
-    expect(host?.textContent).not.toContain("Set as default in this Space")
-    expect(host?.textContent).not.toContain("Reset default")
+      expect(host?.textContent).toContain("Built-in editor")
+      expect(host?.textContent).toContain("Glide Table")
+      expect(host?.textContent).not.toContain("Set as default in this Space")
+      expect(host?.textContent).not.toContain("Reset default")
 
-    const glideBtn = [...(host?.querySelectorAll("button") ?? [])].find(
-      (b) => b.textContent?.trim() === "Glide Table"
-    )
-    await act(async () => glideBtn?.click())
-    expect(onSelectPluginEditor).toHaveBeenCalledWith("example.csv/glide")
-  })
+      const glideBtn = [...(host?.querySelectorAll("button") ?? [])].find(
+        (b) => b.textContent?.trim() === "Glide Table"
+      )
+      await act(async () => glideBtn?.click())
+      expect(onSelectPluginEditor).toHaveBeenCalledWith("example.csv/glide")
+    }
+  )
 
   it("omits Built-in editor for markdown files with plugin editors", async () => {
     await renderActions(markdownEntry, {

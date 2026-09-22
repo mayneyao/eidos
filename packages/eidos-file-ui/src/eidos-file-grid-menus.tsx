@@ -32,6 +32,7 @@ import {
 
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
+import { EidosFileTableActionMenu } from "./table-actions"
 import { eidosFileFieldDisplaysUrl } from "./eidos-file-field-properties"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
@@ -520,6 +521,13 @@ export function EidosFileCellMenu({
                 {t("Open URL")}
               </MenuItem>
             ) : null}
+            <EidosFileTableActionMenu
+              target={{
+                ranges: state.rowRanges,
+                rowId: typeof rowId === "string" ? rowId : undefined,
+              }}
+              onClose={() => onOpenChange(false)}
+            />
             <div className="my-1 h-px bg-border" role="separator" />
             <MenuItem
               destructive

@@ -1,4 +1,7 @@
 import type { EidosFileRuntime } from "./runtime"
+import type { EidosFilePluginConfig, EidosFileActionRow } from "./plugin-config"
+import type { LogicalValue } from "./runtime-contract"
+import type { JsonObject } from "./runtime-contract"
 import type { RecordNeighbors } from "./runtime-contract"
 import type {
   CreateEidosFileFieldInput,
@@ -35,6 +38,34 @@ import type {
  * native file handle, router, or application store.
  */
 export interface EidosFileDataSource {
+  captureTableActionTarget?(
+    tableId: string,
+    query: EidosFileRowQuery,
+    ranges: readonly EidosFileRowRange[] | null,
+    signal?: AbortSignal
+  ): Promise<string[]>
+  readTableActionRows?(
+    tableId: string,
+    rowIds: string[],
+    fieldIds: string[]
+  ): Promise<EidosFileActionRow[]>
+  writeTableActionRow?(
+    tableId: string,
+    row: EidosFileActionRow,
+    values: Record<string, LogicalValue>,
+    signal?: AbortSignal
+  ): Promise<{ undoToken?: string }>
+  undoTableActionRow?(token: string): Promise<{ undoToken?: string }>
+  releaseTableActionUndo?(tokens: string[]): void
+  readTablePluginConfig?(
+    tableId: string,
+    pluginId: string
+  ): Promise<EidosFilePluginConfig>
+  writeTablePluginConfig?(
+    tableId: string,
+    pluginId: string,
+    input: { value: JsonObject | null; expectedVersion: string }
+  ): Promise<EidosFilePluginConfig>
   getSnapshot(): Promise<EidosFileSnapshot>
   getPage(
     tableId: string,

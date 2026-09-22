@@ -20,6 +20,8 @@ export function PluginEditor({
   onNavigate,
   onTableRequest,
   tableRevision,
+  hostEvent,
+  onError,
 }: {
   instance: Instance
   onDraft(change: TextChange | null, path?: string): void
@@ -29,6 +31,8 @@ export function PluginEditor({
   onNavigate?(key: string): void
   onTableRequest?(request: PluginRequest): Promise<unknown>
   tableRevision?: unknown
+  hostEvent?: { observation: string; value: unknown }
+  onError?(message: string): void
 }) {
   const { t } = useEidosLiteI18n()
   const frame = useRef<HTMLIFrameElement>(null)
@@ -53,6 +57,18 @@ export function PluginEditor({
   const [error, setError] = useState<string | null>(null)
   const [closed, setClosed] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
+  const errorCallback = useRef(onError)
+  errorCallback.current = onError
+  useEffect(() => {
+    if (error) errorCallback.current?.(error)
+  }, [error])
+  useEffect(() => {
+    if (hostEvent)
+      frame.current?.contentWindow?.postMessage(
+        { protocol: PLUGIN_PROTOCOL, apiVersion: 1, ...hostEvent },
+        "*"
+      )
+  }, [hostEvent])
   useEffect(() => {
     frame.current?.contentWindow?.postMessage(
       {
@@ -66,6 +82,7 @@ export function PluginEditor({
   }, [tableRevision])
   useEffect(() => {
     lease.current = instance.ticket
+    loads.current = 0
     setError(null)
     setClosed(false)
     let connected = false
@@ -106,10 +123,29 @@ export function PluginEditor({
         return
       }
       if (textDraftLifecycle.isLocked) return
+      if (request.method === "extension.failed") {
+        const params = request.params as { message?: unknown } | null
+        setError(
+          typeof params?.message === "string"
+            ? params.message
+            : "Plugin activation failed"
+        )
+      }
       const source = event.source as Window
       pending++
-      void textDraftLifecycle.track(
-        (request.method.startsWith("table.") &&
+      // A preview or network call can wait for user input. Only table writes
+      // participate in the close/save barrier; otherwise closing would deadlock.
+      const track = (operation: Promise<void>) =>
+        (request.method.startsWith("table.") ||
+          request.method.startsWith("eidos.")) &&
+        request.method !== "table.target.update" &&
+        request.method !== "table.pluginConfig.write" &&
+        request.method !== "eidos.pluginConfig.write"
+          ? operation
+          : textDraftLifecycle.track(operation)
+      void track(
+        ((request.method.startsWith("table.") ||
+          request.method.startsWith("eidos.")) &&
         callbacks.current.onTableRequest &&
         !closed
           ? window.eidosLite
@@ -122,6 +158,33 @@ export function PluginEditor({
                   !callbacks.current.onTableRequest
                 )
                   throw new Error("Table view closed")
+                if (
+                  request.method === "eidos.connection.status" ||
+                  request.method === "eidos.connection.request"
+                ) {
+                  const params = request.params as {
+                    connection?: unknown
+                    body?: unknown
+                  } | null
+                  if (!params || typeof params.connection !== "string")
+                    throw new Error("Invalid connection")
+                  const result = await window.eidosLite.pluginConnection(
+                    instance.ticket,
+                    params.connection,
+                    request.method === "eidos.connection.status"
+                      ? "status"
+                      : "request",
+                    params.body
+                  )
+                  return request.method === "eidos.connection.status"
+                    ? !!(
+                        result &&
+                        typeof result === "object" &&
+                        "configured" in result &&
+                        result.configured
+                      )
+                    : result
+                }
                 return callbacks.current.onTableRequest(request)
               })
               .then(
@@ -160,7 +223,11 @@ export function PluginEditor({
             if (lease.current !== instance.ticket) return
             const message =
               cause instanceof Error ? cause.message : "Plugin request failed"
-            setError(message)
+            if (
+              !request.method.startsWith("table.") &&
+              !request.method.startsWith("eidos.connection.")
+            )
+              setError(`${request.method}: ${message}`)
             source.postMessage(
               {
                 protocol: PLUGIN_PROTOCOL,
@@ -198,9 +265,11 @@ export function PluginEditor({
       if (ticket === instance.ticket && event.observation === "host.closed") {
         setClosed(true)
         setError(
-          callbacks.current.t(
-            "Plugin instance closed. Retry or use the built-in editor."
-          )
+          (previous) =>
+            previous ??
+            callbacks.current.t(
+              "Plugin instance closed. Retry or use the built-in editor."
+            )
         )
         return
       }

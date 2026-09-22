@@ -878,6 +878,9 @@ type 的 Formula。core 1.0 中 Lookup 绝不是 Record Label，因为其 inferr
 scalar/list TypeRef 不由 File Format 持久化。Runtime 把任何 violation 视为
 semantic invalidity，而不是根据 current row 猜测。
 
+`TableDescriptor.settings` 必须完整返回解析后的 `settings_json`，包括未知的应用
+设置及插件命名空间。仅重建已知内置设置会破坏读取、修改、写回时的数据保留。
+
 `TableDescriptor.settings.contentFieldId` 存在时就是 File Format 的可选 Content
 Field。Runtime 只有在它引用同一 Table 的普通 stored、non-system Text Field 时才能
 原样暴露。`set-table-settings` 必须拒绝 dangling、cross-Table、非 string 或不合法的

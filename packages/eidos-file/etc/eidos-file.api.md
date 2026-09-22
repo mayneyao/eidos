@@ -1086,6 +1086,16 @@ export class EidosAdapterError extends Error implements AdapterError {
 }
 
 // @public (undocumented)
+export interface EidosFileActionRow {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    values: Record<string, LogicalValue>;
+    // (undocumented)
+    version: string;
+}
+
+// @public (undocumented)
 export interface EidosFileCandidateDescriptor {
     // (undocumented)
     mimeType: string;
@@ -1293,6 +1303,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
     // (undocumented)
+    captureTableActionTarget?(tableId: string, query: EidosFileRowQuery, ranges: readonly EidosFileRowRange[] | null, signal?: AbortSignal): Promise<string[]>;
+    // (undocumented)
     createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     createView(tableId: string, input: CreateEidosFileViewInput): Promise<EidosFileSnapshot>;
@@ -1324,8 +1336,18 @@ export interface EidosFileDataSource {
     insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
+    readTableActionRows?(tableId: string, rowIds: string[], fieldIds: string[]): Promise<EidosFileActionRow[]>;
+    // (undocumented)
+    readTablePluginConfig?(tableId: string, pluginId: string): Promise<EidosFilePluginConfig>;
+    // (undocumented)
+    releaseTableActionUndo?(tokens: string[]): void;
+    // (undocumented)
     reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>;
     revertRowMutation?(tableId: string, undoToken: string): Promise<EidosFileRowsUndoResult>;
+    // (undocumented)
+    undoTableActionRow?(token: string): Promise<{
+        undoToken?: string;
+    }>;
     // (undocumented)
     updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1334,6 +1356,15 @@ export interface EidosFileDataSource {
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     updateView(viewId: string, changes: UpdateEidosFileViewInput): Promise<EidosFileSnapshot>;
+    // (undocumented)
+    writeTableActionRow?(tableId: string, row: EidosFileActionRow, values: Record<string, LogicalValue>, signal?: AbortSignal): Promise<{
+        undoToken?: string;
+    }>;
+    // (undocumented)
+    writeTablePluginConfig?(tableId: string, pluginId: string, input: {
+        value: JsonObject | null;
+        expectedVersion: string;
+    }): Promise<EidosFilePluginConfig>;
 }
 
 // @public (undocumented)
@@ -1801,6 +1832,13 @@ export interface EidosFileOptionValueChange {
 
 // @public (undocumented)
 export type EidosFilePermissionState = "granted" | "prompt" | "denied" | "unavailable";
+
+// @public (undocumented)
+export interface EidosFilePluginConfig {
+    // (undocumented)
+    value: JsonObject | null;
+    version: string;
+}
 
 // @public (undocumented)
 export interface EidosFileReadResult {
@@ -3539,6 +3577,9 @@ export class MemoryByteSource implements ByteSource {
 }
 
 // @public
+export function mergeEidosFilePluginConfig(settings: JsonObject, pluginId: string, value: JsonObject | null, expectedVersion: string): JsonObject;
+
+// @public
 export function mergeEidosSystemMetadata(input: EidosSystemMergeInput): EidosSystemMergeResult;
 
 // @public (undocumented)
@@ -3713,6 +3754,9 @@ export interface QueryRowsRequest {
 
 // @public (undocumented)
 export function quoteIdentifier(identifier: string): string;
+
+// @public (undocumented)
+export function readEidosFilePluginConfig(settings: JsonObject, pluginId: string): EidosFilePluginConfig;
 
 // @public
 export function recommendedEidosFileConversionPolicies(from: StoredFieldType, to: StoredFieldType): ConversionPolicy[];

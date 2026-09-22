@@ -68,6 +68,150 @@ const rpc = (
 const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
+
+it("opens Eidos views without text access and scopes config writes to writable instances", async () => {
+  for (const access of ["read", "write"] as const) {
+    const id = `example.${access}`
+    const file: PluginManifest = {
+      ...manifest,
+      id,
+      views: [{ ...manifest.views![0]!, context: "eidos", access }],
+      connections: {
+        generator: {
+          title: "Generator",
+          url: "https://example.com/v1/chat/completions",
+          configurable: true,
+        },
+        fixed: { title: "Fixed", url: "https://example.com/v1" },
+      },
+      placements: [
+        { location: "file/open", view: "table", extensions: [".eidos"] },
+      ],
+    }
+    await store.install(encodePackage(file, modules), "space-a")
+    const result = await service.open(1, session, "test.eidos", `${id}/table`)
+    const ticket = result.instance!.ticket
+    expect(
+      (await service.connectionAccess(1, session, ticket, "generator"))
+        .configurable
+    ).toBe(true)
+    await expect(
+      service.connectionAccess(1, session, ticket, "fixed")
+    ).rejects.toThrow(/configurable/)
+    await expect(
+      service.connectionAccess(2, session, ticket, "generator")
+    ).rejects.toThrow()
+    expect(service.instances.get(ticket)?.document).toBeUndefined()
+    expect((await rpc(ticket, "eidos.tables")).response).toHaveProperty(
+      "result"
+    )
+    expect(
+      (
+        await rpc(ticket, "eidos.pluginConfig.write", {
+          tableId: "a",
+          value: null,
+          expectedVersion: "v",
+        })
+      ).response
+    ).toHaveProperty(access === "write" ? "result" : "error")
+    expect((await rpc(ticket, "document.read")).response).toHaveProperty(
+      "error"
+    )
+    expect((await rpc(ticket, "table.read")).response).toHaveProperty("error")
+    expect(
+      (await rpc(ticket, "eidos.tables", null, 2)).response
+    ).toHaveProperty("error")
+  }
+  expect((await store.editors("test.eidos", "space-a")).length).toBe(2)
+  const text = await open()
+  expect((await rpc(text, "eidos.tables")).response).toHaveProperty("error")
+})
+
+it("binds table action instances and credential authority to the live Space and package", async () => {
+  const plugin: PluginManifest = {
+    apiVersion: 1,
+    id: "example.smart",
+    name: "Smart",
+    version: "1.0.0",
+    extension: "./extension.ts",
+    actions: [
+      { id: "smart", title: "Smart", context: "table", access: "write" },
+    ],
+    placements: [{ location: "table/context", action: "smart" }],
+    connections: {
+      model: { title: "Model", url: "https://api.example.com/v1" },
+    },
+  }
+  await store.install(
+    encodePackage(plugin, {
+      "./extension.ts": "export default function activate() {}",
+    }),
+    "space-a"
+  )
+  const bound = (
+    await service.openExtension(1, session, plugin.id, {
+      tableId: "table-a",
+      viewId: "view-a",
+    })
+  ).instance!
+  const other = (
+    await service.openExtension(1, session, plugin.id, {
+      tableId: "table-b",
+      viewId: "view-b",
+    })
+  ).instance!
+  expect(other.ticket).not.toBe(bound.ticket)
+  expect(service.instances.get(bound.ticket)?.table?.tableId).toBe("table-a")
+  const access = await service.connectionAccess(
+    1,
+    session,
+    bound.ticket,
+    "model"
+  )
+  expect(access.scope).toEqual([
+    "space-a",
+    plugin.id,
+    "model",
+    "https://api.example.com/v1",
+  ])
+  await expect(
+    service.connectionAccess(2, session, bound.ticket, "model")
+  ).rejects.toThrow()
+  await expect(
+    service.connectionAccess(1, session, bound.ticket, "unknown")
+  ).rejects.toThrow()
+  const workspace = (await service.openExtension(1, session, plugin.id))
+    .instance!
+  expect(
+    (await rpc(workspace.ticket, "table.actions.ready", { providers: ["run"] }))
+      .response
+  ).toHaveProperty("result")
+  expect((await rpc(workspace.ticket, "table.read")).response).toHaveProperty(
+    "error"
+  )
+  await expect(
+    service.connectionAccess(1, session, workspace.ticket, "model")
+  ).rejects.toThrow()
+  expect(
+    (
+      await service.connectionAccess(
+        1,
+        session,
+        workspace.ticket,
+        "model",
+        true
+      )
+    ).scope
+  ).toEqual(access.scope)
+  await expect(
+    service.connectionAccess(2, session, workspace.ticket, "model", true)
+  ).rejects.toThrow()
+  service.close(1, bound.ticket)
+  expect(access.signal.aborted).toBe(true)
+  await expect(
+    service.connectionAccess(1, session, bound.ticket, "model")
+  ).rejects.toThrow()
+})
 async function read(ticket: string): Promise<TextSnapshot> {
   const response = (await rpc(ticket, "document.read")).response
   if (!("result" in response)) throw Error(response.error.message)
@@ -108,6 +252,13 @@ describe("Lite document-view integration", () => {
       version: "1.0.0",
       views: [
         { id: "map", title: "Map", context: "table", entry: "./main.ts" },
+        {
+          id: "settings",
+          title: "Settings",
+          context: "table",
+          entry: "./main.ts",
+          access: "write",
+        },
       ],
       browser: {
         workers: true,
@@ -122,9 +273,34 @@ describe("Lite document-view integration", () => {
       })
     ).instance!
     expect(service.csp(opened.url)).toContain("worker-src blob:")
+    const writable = (
+      await service.openPage(1, session, "example.map/settings", "", {
+        tableId: "table",
+        viewId: "view",
+      })
+    ).instance!
+    expect(
+      (
+        await rpc(writable.ticket, "table.pluginConfig.write", {
+          value: {},
+          expectedVersion: "null",
+        })
+      ).response
+    ).toHaveProperty("result")
     expect((await rpc(opened.ticket, "table.read")).response).toHaveProperty(
       "result"
     )
+    expect(
+      (await rpc(opened.ticket, "table.pluginConfig.read")).response
+    ).toHaveProperty("result")
+    expect(
+      (
+        await rpc(opened.ticket, "table.pluginConfig.write", {
+          value: {},
+          expectedVersion: "null",
+        })
+      ).response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
     expect((await rpc(await open(), "table.read")).response).toHaveProperty(
       "error.code",
       "PERMISSION_DENIED"

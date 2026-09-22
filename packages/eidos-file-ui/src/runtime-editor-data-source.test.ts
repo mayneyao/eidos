@@ -463,6 +463,60 @@ describe("EidosRuntimeEditorDataSource", () => {
     )
   })
 
+  it("commits plugin config through Runtime preflight with the exact read revision", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    const config = await source.readTablePluginConfig(
+      PROJECTS,
+      "eidos.smart-actions"
+    )
+    expect(config.value).toBeNull()
+    await source.writeTablePluginConfig(PROJECTS, "eidos.smart-actions", {
+      value: { actions: [] },
+      expectedVersion: config.version,
+    })
+    expect(fixture.plannedChange()).toEqual({
+      kind: "set-table-settings",
+      tableId: PROJECTS,
+      settings: { plugins: { "eidos.smart-actions": { actions: [] } } },
+    })
+    expect(fixture.runtime.mutateSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedRevision: "1" }),
+      expect.any(Object)
+    )
+  })
+
+  it("propagates Runtime conflicts without retrying a stale settings merge", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    const config = await source.readTablePluginConfig(
+      PROJECTS,
+      "eidos.smart-actions"
+    )
+    const mutateSchema = vi
+      .fn()
+      .mockRejectedValue(new Error("revision-conflict"))
+    Object.assign(fixture.runtime, { mutateSchema })
+    await expect(
+      source.writeTablePluginConfig(PROJECTS, "eidos.smart-actions", {
+        value: { actions: [] },
+        expectedVersion: config.version,
+      })
+    ).rejects.toThrow("revision-conflict")
+    expect(mutateSchema).toHaveBeenCalledTimes(1)
+    expect(
+      await source.readTablePluginConfig(PROJECTS, "eidos.smart-actions")
+    ).toEqual(config)
+  })
+
   it("commits Record Label and optional Content Field settings atomically", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const getSchemaPage = fixture.runtime.getSchemaPage.bind(fixture.runtime)

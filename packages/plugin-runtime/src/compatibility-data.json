@@ -1,0 +1,35 @@
+{
+  "hosts": {
+    "eidos-lite": {
+      "pluginApi": "1.1.0",
+      "features": [
+        "view.table",
+        "view.document",
+        "view.eidos",
+        "view.page",
+        "extension",
+        "actions",
+        "formatters",
+        "connections",
+        "resources",
+        "settings",
+        "storage",
+        "browser.workers",
+        "browser.network"
+      ]
+    },
+    "eidos-cli": {
+      "pluginApi": "1.0.0",
+      "features": ["view.table", "browser.workers", "browser.network"]
+    }
+  },
+  "rules": [
+    { "key": "extension", "feature": "extension" },
+    { "key": "actions", "feature": "actions" },
+    { "key": "formatters", "feature": "formatters" },
+    { "key": "connections", "feature": "connections" },
+    { "key": "resources", "feature": "resources" },
+    { "key": "settings", "feature": "settings" },
+    { "key": "storage", "feature": "storage" }
+  ]
+}

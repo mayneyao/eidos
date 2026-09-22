@@ -35,8 +35,13 @@ import {
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginPage } from "./plugin-workspace"
+import { PluginConnectionSettings } from "./plugin-connection-settings"
 import { PluginMarketplaceInstallButton } from "./plugin-marketplace"
 import { useEidosLiteI18n } from "./i18n"
+import {
+  pluginHostInfo,
+  checkPluginCompatibility,
+} from "@eidos.space/plugin-runtime/compatibility"
 
 export interface PluginDetailViewProps {
   plugin?: PluginListing["plugins"][number]
@@ -95,6 +100,9 @@ export function PluginDetailView({
   const [copiedHash, setCopiedHash] = useState(false)
 
   const manifest = plugin?.manifest
+  const compatibility = manifest
+    ? checkPluginCompatibility(manifest, "eidos-lite")
+    : null
   const marketplaceOnly = !plugin && !builtin && Boolean(marketplacePlugin)
   const pluginId = manifest?.id ?? builtin?.id ?? marketplacePlugin?.id ?? ""
   const pluginVersion =
@@ -196,6 +204,7 @@ export function PluginDetailView({
   const settingsView = manifest?.placements?.find(
     (p) => p.location === "plugin/settings"
   )
+  const hasConnections = !!Object.keys(manifest?.connections ?? {}).length
   const pageView = manifest?.views?.find((v) => v.context === "page")
   const canOpenPage =
     pageView &&
@@ -238,7 +247,7 @@ export function PluginDetailView({
             label: t("Features"),
             count: totalContributions > 0 ? totalContributions : undefined,
           },
-          ...(settingsView
+          ...(settingsView || hasConnections
             ? [{ key: "settings" as const, label: t("Settings") }]
             : []),
           { key: "runtime", label: t("Runtime & Security") },
@@ -285,9 +294,13 @@ export function PluginDetailView({
       ? t(
           "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device."
         )
-      : t(
-          "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device."
-        ))
+      : hasConnections
+        ? t(
+            "This plugin uses authenticated connections configured in its settings."
+          )
+        : t(
+            "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device."
+          ))
   const sidebarContent = (
     <div className="plugin-sidebar-content">
       {/* Identity & Properties */}
@@ -319,8 +332,12 @@ export function PluginDetailView({
             </dd>
           </div>
           <div className="plugin-prop-item">
-            <dt>{t("API Version")}</dt>
-            <dd>1.0</dd>
+            <dt>{t("Minimum Plugin API")}</dt>
+            <dd>{manifest?.requires?.pluginApi ?? t("Undeclared")}</dd>
+          </div>
+          <div className="plugin-prop-item">
+            <dt>{t("Host Plugin API")}</dt>
+            <dd>{pluginHostInfo("eidos-lite").pluginApiVersion}</dd>
           </div>
           <div className="plugin-prop-item">
             <dt>{t("Type")}</dt>
@@ -367,7 +384,9 @@ export function PluginDetailView({
           <div className="plugin-prop-item">
             <dt>{t("Network Access")}</dt>
             <dd>
-              {manifest?.browser?.networkOrigins?.length ? (
+              {hasConnections ? (
+                <span>{t("Authenticated connections")}</span>
+              ) : manifest?.browser?.networkOrigins?.length ? (
                 <span>{manifest.browser.networkOrigins.length} domain(s)</span>
               ) : (
                 <span>{t("No external network access (100% offline)")}</span>
@@ -631,7 +650,7 @@ export function PluginDetailView({
               </button>
             )}
 
-            {settingsView && (
+            {(settingsView || hasConnections) && (
               <button
                 type="button"
                 className={`settings-button ${
@@ -652,6 +671,11 @@ export function PluginDetailView({
       {error && (
         <p role="alert" className="plugin-manager-error">
           {error}
+        </p>
+      )}
+      {compatibility && !compatibility.compatible && (
+        <p role="alert" className="plugin-manager-error">
+          {compatibility.message}
         </p>
       )}
 
@@ -980,6 +1004,15 @@ export function PluginDetailView({
 
           {activeTab === "settings" && (
             <div className="plugin-tab-settings">
+              {hasConnections &&
+                manifest &&
+                plugin?.enabled &&
+                spaceAvailable && (
+                  <PluginConnectionSettings
+                    key={`${manifest.id}:${plugin.hash}`}
+                    manifest={manifest}
+                  />
+                )}
               {settingsView && plugin?.enabled && spaceAvailable ? (
                 <div className="plugin-settings-surface">
                   <PluginPage
@@ -989,7 +1022,8 @@ export function PluginDetailView({
                     onNavigate={onOpenPage ?? (() => {})}
                   />
                 </div>
-              ) : settingsView && (!plugin?.enabled || !spaceAvailable) ? (
+              ) : (settingsView || hasConnections) &&
+                (!plugin?.enabled || !spaceAvailable) ? (
                 <div className="plugin-empty-notice">
                   <p>
                     {t(
@@ -1007,11 +1041,11 @@ export function PluginDetailView({
                     </button>
                   )}
                 </div>
-              ) : (
+              ) : !hasConnections ? (
                 <p className="plugin-detail-description">
                   {t("This plugin has no configurable settings.")}
                 </p>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -1041,7 +1075,20 @@ export function PluginDetailView({
                       {t("Network Access")}
                     </span>
                     <span className="plugin-spec-value">
-                      {manifest?.browser?.networkOrigins?.length ? (
+                      {hasConnections ? (
+                        <div className="space-y-1">
+                          {Object.values(manifest?.connections ?? {}).map(
+                            (connection) => (
+                              <code
+                                key={connection.url}
+                                className="block break-all text-xs"
+                              >
+                                {connection.url}
+                              </code>
+                            )
+                          )}
+                        </div>
+                      ) : manifest?.browser?.networkOrigins?.length ? (
                         <div className="space-y-1">
                           {manifest.browser.networkOrigins.map((origin) => (
                             <code key={origin} className="block text-xs">

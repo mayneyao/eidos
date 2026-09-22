@@ -30,6 +30,7 @@ import { PluginPage } from "./plugin-workspace"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginMarketplaceView } from "./plugin-marketplace"
 import { PluginDetailView } from "./plugin-detail-view"
+import { PluginDropZone } from "./plugin-drop-zone"
 import { isMarkdownTextFile } from "./text-editor-options"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
@@ -320,9 +321,23 @@ export function PluginManager({
     onPluginNameChange?.(selected ? displayName : null)
   }, [selected, displayName, onPluginNameChange])
 
+  const withDropZone = (content: ReactNode) => (
+    <PluginDropZone
+      busy={busy || activeInstallId !== null}
+      install={(files) =>
+        run(async () => {
+          for (const file of files)
+            await window.eidosLite.installDroppedPlugin(file)
+        })
+      }
+    >
+      {content}
+    </PluginDropZone>
+  )
+
   if (selected && (builtin || plugin || matchedMarketplacePlugin)) {
     const manifest = plugin?.manifest
-    return (
+    return withDropZone(
       <div ref={surface}>
         <PluginDetailView
           plugin={plugin}
@@ -359,7 +374,7 @@ export function PluginManager({
       </div>
     )
   }
-  return (
+  return withDropZone(
     <div
       ref={surface}
       className={`plugin-manager${variant === "settings" ? " plugin-manager-settings" : ""}`}

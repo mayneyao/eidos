@@ -99,7 +99,16 @@ export interface PluginApi {
   setPluginShortcuts(bindings: string[]): Promise<string[]>
   onPluginShortcut(listener: (binding: string) => void): () => void
   openPluginPage(key: string, route?: string): Promise<PluginOpenResult>
-  openPluginExtension(id: string): Promise<PluginOpenResult>
+  openPluginExtension(
+    id: string,
+    table?: { tableId: string; viewId: string }
+  ): Promise<PluginOpenResult>
+  pluginConnection(
+    ticket: string,
+    connection: string,
+    operation: "status" | "save" | "configure" | "request" | "cancel",
+    value?: unknown
+  ): Promise<unknown>
   invokePluginAction(
     ticket: string,
     action: string,
@@ -111,6 +120,7 @@ export interface PluginApi {
   ): () => void
   listPlugins(): Promise<PluginListing>
   installPlugin(development?: boolean): Promise<boolean>
+  installDroppedPlugin(file: File): Promise<boolean>
   uninstallPlugin(id: string): Promise<boolean>
   setPluginEnabled(id: string, enabled: boolean): Promise<void>
   setPluginDefault(extension: string, editor: string | null): Promise<void>
@@ -127,6 +137,7 @@ export interface PluginApi {
   closePluginEditor(ticket: string): Promise<void>
 }
 export const PLUGIN_CHANNELS = {
+  connection: "eidos-lite:plugins-connection",
   marketplace: "eidos-lite:plugins-marketplace",
   readme: "eidos-lite:plugins-readme",
   table: "eidos-lite:plugins-table",

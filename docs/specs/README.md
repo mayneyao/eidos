@@ -65,7 +65,8 @@ Semantic ownership is one-way. In particular:
 
 The [Eidos Plugins 1.0](./eidos-lite-plugins-1.0.md)
 ([中文](./eidos-lite-plugins-1.0.zh.md)) profile defines views, actions,
-background document formatters, parameterized table action templates, scoped
+background document formatters, plugin-owned table configuration, dynamic table
+actions with scoped targets and credentialed connections, scoped
 resources, source loading, and agent authoring at the Lite Adapter / UI boundary.
 It adds no File Format or Runtime semantics.
 

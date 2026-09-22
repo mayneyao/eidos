@@ -6,6 +6,7 @@ import type {
   ViewContext,
   PluginManifest,
   TableContext,
+  EidosFileContext,
 } from "./contracts"
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -25,6 +26,7 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
     )
 }
 type BrowserBinding =
+  | { kind: "eidos" }
   | { kind: "document" }
   | { kind: "page"; route: string }
   | { kind: "table"; tableId: string; viewId: string }
@@ -43,6 +45,15 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
     }
   >()
   const observers = new Map<string, (value: unknown) => void>()
+  const tableObservers = new Set<() => void>()
+  const observeTable = (listener: () => void) => {
+    tableObservers.add(listener)
+    return own({
+      dispose() {
+        tableObservers.delete(listener)
+      },
+    })
+  }
   const error = (code: string, message: string) =>
     Object.assign(new Error(message), { code })
   let closed = false
@@ -65,8 +76,13 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
           "background",
           "foreground",
           "muted",
+          "surface-hover",
+          "surface-selected",
           "border",
           "accent",
+          "scrollbar-thumb",
+          "scrollbar-thumb-hover",
+          "scrollbar-thumb-active",
           "font-family",
           "color-scheme",
         ]) {
@@ -87,6 +103,15 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
         }
         return
       }
+      if (r.observation === "host.table") {
+        for (const listener of tableObservers) {
+          try {
+            listener()
+          } catch {
+            /* One listener must not block others. */
+          }
+        }
+      }
       observers.get(r.observation)?.(r.value)
       return
     }
@@ -106,10 +131,13 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       )
     const id = crypto.randomUUID()
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        reject(error("TIMEOUT", "Host request timed out"))
-      }, 30000)
+      const timer = setTimeout(
+        () => {
+          pending.delete(id)
+          reject(error("TIMEOUT", "Host request timed out"))
+        },
+        method === "eidos.connection.request" ? 95000 : 30000
+      )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -220,32 +248,46 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       remove: (key) => call("storage.remove", { key }),
     },
     binding:
-      binding.kind === "document"
-        ? { kind: "document", document }
-        : binding.kind === "table"
-          ? {
-              kind: "table",
-              table: {
-                tableId: binding.tableId,
-                viewId: binding.viewId,
-                read: () => call("table.read"),
-                getPage: (options) => call("table.page", options),
-                aggregate: (options) => call("table.aggregate", options),
-                updateProperties: (properties) =>
-                  call("table.properties", properties),
-                openRecord: (rowId) => call("table.openRecord", { rowId }),
-                observe(listener) {
-                  const id = "host.table"
-                  observers.set(id, listener)
-                  return own({
-                    dispose() {
-                      observers.delete(id)
-                    },
-                  })
-                },
-              } satisfies TableContext,
-            }
-          : binding,
+      binding.kind === "eidos"
+        ? {
+            kind: "eidos",
+            file: {
+              connections: {
+                configured: (connection: string) =>
+                  call("eidos.connection.status", { connection }),
+                request: (input) => call("eidos.connection.request", input),
+              },
+              listTables: () => call("eidos.tables"),
+              readTable: (tableId: string) => call("eidos.table", { tableId }),
+              readPluginConfig: (tableId: string) =>
+                call("eidos.pluginConfig.read", { tableId }),
+              writePluginConfig: (tableId: string, input) =>
+                call("eidos.pluginConfig.write", { tableId, ...input }),
+            } satisfies EidosFileContext,
+          }
+        : binding.kind === "document"
+          ? { kind: "document", document }
+          : binding.kind === "table"
+            ? {
+                kind: "table",
+                table: {
+                  tableId: binding.tableId,
+                  viewId: binding.viewId,
+                  pluginConfig: {
+                    read: () => call("table.pluginConfig.read"),
+                    write: (input) => call("table.pluginConfig.write", input),
+                    observe: observeTable,
+                  },
+                  read: () => call("table.read"),
+                  getPage: (options) => call("table.page", options),
+                  aggregate: (options) => call("table.aggregate", options),
+                  updateProperties: (properties) =>
+                    call("table.properties", properties),
+                  openRecord: (rowId) => call("table.openRecord", { rowId }),
+                  observe: observeTable,
+                } satisfies TableContext,
+              }
+            : binding,
     signal: controller.signal,
     subscriptions: { add: own },
     resources: {
@@ -287,6 +329,7 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       }
       subscriptions.clear()
       observers.clear()
+      tableObservers.clear()
       window.removeEventListener("message", receive)
       for (const request of pending.values()) {
         clearTimeout(request.timer)
@@ -319,5 +362,14 @@ export function viewHtml(code: string, binding: BrowserBinding): string {
   // local exports object inside the iframe closure; no require/Node is supplied.
   const compiled = browserModule(code)
   const script = `(()=>{const module = {exports: {}}; const exports = module.exports;\n${compiled}\n(${bootstrap.toString()})(module.exports.default, ${JSON.stringify(binding)});})()`
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body,#app{width:100%;height:100%;margin:0;padding:0;}</style></head><body><div id="app"></div><script>${script.replace(/<\/script/gi, "<\\/script")}</script></body></html>`
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+html{color-scheme:var(--eidos-color-scheme,light);background:var(--eidos-background,transparent);}
+html,body,#app{width:100%;height:100%;margin:0;padding:0;}
+*::-webkit-scrollbar{width:15px;height:15px;}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner,*::-webkit-resizer{background:transparent;}
+*::-webkit-scrollbar-thumb{min-width:2.5rem;min-height:2.5rem;border:3px solid transparent;border-radius:999px;background:var(--eidos-scrollbar-thumb,color-mix(in oklab,var(--eidos-foreground,currentColor) 14%,transparent));background-clip:padding-box;}
+*::-webkit-scrollbar-thumb:hover{background-color:var(--eidos-scrollbar-thumb-hover,color-mix(in oklab,var(--eidos-foreground,currentColor) 24%,transparent));}
+*::-webkit-scrollbar-thumb:active{background-color:var(--eidos-scrollbar-thumb-active,color-mix(in oklab,var(--eidos-foreground,currentColor) 34%,transparent));}
+*::-webkit-scrollbar-button{display:none;width:0;height:0;}
+</style></head><body><div id="app"></div><script>${script.replace(/<\/script/gi, "<\\/script")}</script></body></html>`
 }

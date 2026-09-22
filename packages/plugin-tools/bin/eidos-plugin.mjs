@@ -2,7 +2,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { compilePlugin } from "../dist/compiler.js"
+import { compilePlugin, checkPluginCompatibility } from "../dist/compiler.js"
 const templates = fileURLToPath(new URL("../templates/", import.meta.url))
 export async function create(directory) {
   const name = path.basename(path.resolve(directory))
@@ -112,8 +112,16 @@ export async function run(argv) {
     if (args.length < 2) throw Error("Specify a project directory")
     await create(source)
     value = { directory: source }
-  } else if (command === "check") value = { manifest: await check(source) }
-  else if (command === "pack") {
+  } else if (command === "check") {
+    const manifest = await check(source)
+    value = {
+      manifest,
+      compatibility: {
+        lite: checkPluginCompatibility(manifest, "eidos-lite"),
+        cli: checkPluginCompatibility(manifest, "eidos-cli"),
+      },
+    }
+  } else if (command === "pack") {
     const index = args.indexOf("--out")
     if (index >= 0 && !args[index + 1]) throw Error("--out requires a path")
     value = {

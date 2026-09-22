@@ -1484,6 +1484,10 @@ interface RuntimeCustomCalls {
 }
 
 export const RUNTIME_READ_METHODS = [
+  "readTablePluginConfig",
+  "captureTableActionTarget",
+  "readTableActionRows",
+  "releaseTableActionUndo",
   "getSnapshot",
   "getExternalChangeProbe",
   "allocateFileEntry",
@@ -1506,6 +1510,9 @@ export const RUNTIME_READ_METHODS = [
 )[]
 
 export const RUNTIME_MUTATION_METHODS = [
+  "writeTablePluginConfig",
+  "writeTableActionRow",
+  "undoTableActionRow",
   "insertRow",
   "updateRow",
   "deleteRowRanges",
@@ -1544,8 +1551,8 @@ type RuntimeCall<M extends RuntimeMethod> = M extends keyof RuntimeCustomCalls
   : M extends keyof EidosFileDataSource
     ? NonNullable<EidosFileDataSource[M]> extends (
         ...args: infer Args
-      ) => Promise<infer Result>
-      ? { args: Args; result: Result }
+      ) => infer Result
+      ? { args: Args; result: Awaited<Result> }
       : never
     : never
 

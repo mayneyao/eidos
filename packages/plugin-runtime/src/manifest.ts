@@ -251,11 +251,41 @@ export function parseManifest(input: unknown): PluginManifest {
       "settings",
       "browser",
       "storage",
+      "connections",
       "icon",
+      "requires",
     ]
   )
   if (m.icon !== undefined) {
     validateIconDefinition(m.icon)
+  }
+  const connections = m.connections === undefined ? {} : record(m.connections)
+  if (Object.keys(connections).length > 8) invalid("Too many connections")
+  for (const [key, raw] of Object.entries(connections)) {
+    id(key)
+    const connection = record(raw)
+    fields(connection, ["title", "url"], ["configurable"])
+    if (
+      connection.configurable !== undefined &&
+      typeof connection.configurable !== "boolean"
+    )
+      invalid("Invalid configurable connection")
+    text(connection.title)
+    text(connection.url)
+    let url: URL
+    try {
+      url = new URL(String(connection.url))
+    } catch {
+      invalid("Invalid connection URL")
+    }
+    if (
+      url!.protocol !== "https:" ||
+      url!.username ||
+      url!.password ||
+      url!.hash ||
+      url!.search
+    )
+      invalid("Connection requires a fixed HTTPS URL")
   }
   if (m.storage !== undefined) {
     const storage = record(m.storage)
@@ -295,6 +325,20 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.apiVersion !== 1)
     throw new PluginError("UNSUPPORTED_API", "Unsupported plugin API")
+  if (m.requires !== undefined) {
+    const requirement = record(m.requires)
+    fields(requirement, ["pluginApi"], [])
+    if (
+      typeof requirement.pluginApi !== "string" ||
+      !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(
+        requirement.pluginApi
+      ) ||
+      !requirement.pluginApi
+        .split(".")
+        .every((p) => Number.isSafeInteger(Number(p)))
+    )
+      invalid("requires.pluginApi must be a stable major.minor.patch version")
+  }
   text(m.id)
   text(m.name)
   text(m.version)
@@ -332,9 +376,12 @@ export function parseManifest(input: unknown): PluginManifest {
       text(v.title)
       if (v.icon !== undefined) validateIconDefinition(v.icon)
       if (
-        ![isView ? "page" : "workspace", "document", "table"].includes(
-          String(v.context)
-        )
+        ![
+          isView ? "page" : "workspace",
+          "document",
+          "table",
+          ...(isView ? ["eidos"] : []),
+        ].includes(String(v.context))
       )
         invalid("Invalid contribution context")
       if (isView) entryPath(v.entry)
@@ -370,7 +417,9 @@ export function parseManifest(input: unknown): PluginManifest {
       if (
         v.access !== undefined &&
         (!["read", "write"].includes(String(v.access)) ||
-          !["document", "table"].includes(String(v.context)))
+          !["document", "table", ...(isView ? ["eidos"] : [])].includes(
+            String(v.context)
+          ))
       )
         invalid("Invalid context access")
       if (v.extensions !== undefined) {
@@ -405,15 +454,21 @@ export function parseManifest(input: unknown): PluginManifest {
                 navigation: "page",
                 "plugin/settings": "page",
                 "table/view": "table",
-                "file/open": "document",
+                "file/open": view.context === "eidos" ? "eidos" : "document",
               } as const
             )[p.location]
         )
           invalid("Placement/view mismatch")
-        if (p.location === "file/open") extensions(p.extensions)
+        if (p.location === "file/open") {
+          if (view?.context === "eidos") {
+            if (strings(p.extensions).join() !== ".eidos")
+              invalid("Eidos views require only .eidos")
+          } else extensions(p.extensions)
+        }
         break
       case "command-palette":
       case "file/context":
+      case "table/context":
       case "view/toolbar":
       case "keybinding":
         fields(
@@ -430,6 +485,8 @@ export function parseManifest(input: unknown): PluginManifest {
           p.location === "keybinding" ? ["mac", "linux"] : []
         )
         if (!action) invalid("Unknown action")
+        if (p.location === "table/context" && action.context !== "table")
+          invalid("Table action requires table context")
         if (p.location === "file/context" && action.context !== "document")
           invalid("File action requires document context")
         if (

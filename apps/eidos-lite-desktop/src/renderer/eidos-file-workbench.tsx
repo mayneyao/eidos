@@ -67,6 +67,7 @@ import { useEidosLiteI18n } from "./i18n"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { usePluginTableViews } from "./plugin-table-view"
+import { PluginTableActions } from "./plugin-table-actions"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
@@ -808,83 +809,93 @@ export function EidosFileWorkbench({
           </>
         }
       >
-        <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
-          <EidosFileEditorView
-            inspectedRowId={inspectedRowId}
-            onInspectedRowChange={onInspectedRowChange}
-            recordPresentation={recordOpenMode}
-            onRecordPresentationToggle={toggleRecordPresentation}
-            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-            plugins={editorPlugins}
-            source={source}
-            table={activeTable}
-            tables={snapshot.tables}
-            view={activeView}
-            search={search}
-            state={{ formMode: activeFormMode }}
-            disabled={disabled}
-            reloadToken={reloadToken}
-            focusRequestToken={focusRequestToken}
-            propertyField={currentPropertyField}
-            capabilities={{
-              read: true,
-              mutate: !disabled,
-              resolveAssets: true,
-              rawFile: false,
-              nativeFileSystem: false,
-            }}
-            onSnapshot={onSnapshot}
-            onDeleteRow={deleteRow}
-            onDeleteRows={deleteRows}
-            onFieldOpen={setPropertyField}
-            onFieldClose={() => setPropertyField(null)}
-            onEditFormula={openFormulaEditor}
-            onEditLookup={setLookupTarget}
-            onFieldAdd={(position, allowedTypes) => {
-              setFieldInsertIndex(position ?? null)
-              setFieldAllowedTypes(allowedTypes)
-              setAddPropertyOpen(true)
-            }}
-            onError={onError}
-            onImportFiles={importFiles}
-            onImportDroppedFiles={importDroppedFiles}
-          />
-          {inspectedRowId && activeView?.type !== "grid" ? (
-            <EidosFileRelatedRecordPanel
+        <PluginTableActions
+          key={`${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id}`}
+          source={source}
+          table={activeTable}
+          view={activeView}
+          query={recordNavigationQuery ?? {}}
+          disabled={disabled}
+          onSnapshot={onSnapshot}
+        >
+          <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
+            <EidosFileEditorView
+              inspectedRowId={inspectedRowId}
+              onInspectedRowChange={onInspectedRowChange}
+              recordPresentation={recordOpenMode}
+              onRecordPresentationToggle={toggleRecordPresentation}
+              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+              plugins={editorPlugins}
               source={source}
               table={activeTable}
-              target={{
-                tableId: activeTable.table.id,
-                rowId: inspectedRowId,
-                title: "",
-              }}
-              presentation={recordOpenMode}
-              onPresentationToggle={toggleRecordPresentation}
-              query={recordNavigationQuery}
+              tables={snapshot.tables}
+              view={activeView}
+              search={search}
+              state={{ formMode: activeFormMode }}
+              disabled={disabled}
               reloadToken={reloadToken}
-              onNavigate={(rowId) => onInspectedRowChange?.(rowId)}
-              onMutation={() => setReloadToken((current) => current + 1)}
-              onClose={() => onInspectedRowChange?.(null)}
-              onError={onError}
-              disabled={disabled}
-            />
-          ) : relatedRecordTarget && relatedRecordTable ? (
-            <EidosFileRelatedRecordPanel
-              key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
-              source={source}
-              table={relatedRecordTable}
-              target={relatedRecordTarget}
-              presentation={recordOpenMode}
-              onPresentationToggle={toggleRecordPresentation}
-              disabled={disabled}
-              onClose={() => setRelatedRecordTarget(null)}
-              onMutation={() => setReloadToken((current) => current + 1)}
+              focusRequestToken={focusRequestToken}
+              propertyField={currentPropertyField}
+              capabilities={{
+                read: true,
+                mutate: !disabled,
+                resolveAssets: true,
+                rawFile: false,
+                nativeFileSystem: false,
+              }}
+              onSnapshot={onSnapshot}
+              onDeleteRow={deleteRow}
+              onDeleteRows={deleteRows}
+              onFieldOpen={setPropertyField}
+              onFieldClose={() => setPropertyField(null)}
+              onEditFormula={openFormulaEditor}
+              onEditLookup={setLookupTarget}
+              onFieldAdd={(position, allowedTypes) => {
+                setFieldInsertIndex(position ?? null)
+                setFieldAllowedTypes(allowedTypes)
+                setAddPropertyOpen(true)
+              }}
               onError={onError}
               onImportFiles={importFiles}
               onImportDroppedFiles={importDroppedFiles}
             />
-          ) : null}
-        </div>
+            {inspectedRowId && activeView?.type !== "grid" ? (
+              <EidosFileRelatedRecordPanel
+                source={source}
+                table={activeTable}
+                target={{
+                  tableId: activeTable.table.id,
+                  rowId: inspectedRowId,
+                  title: "",
+                }}
+                presentation={recordOpenMode}
+                onPresentationToggle={toggleRecordPresentation}
+                query={recordNavigationQuery}
+                reloadToken={reloadToken}
+                onNavigate={(rowId) => onInspectedRowChange?.(rowId)}
+                onMutation={() => setReloadToken((current) => current + 1)}
+                onClose={() => onInspectedRowChange?.(null)}
+                onError={onError}
+                disabled={disabled}
+              />
+            ) : relatedRecordTarget && relatedRecordTable ? (
+              <EidosFileRelatedRecordPanel
+                key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
+                source={source}
+                table={relatedRecordTable}
+                target={relatedRecordTarget}
+                presentation={recordOpenMode}
+                onPresentationToggle={toggleRecordPresentation}
+                disabled={disabled}
+                onClose={() => setRelatedRecordTarget(null)}
+                onMutation={() => setReloadToken((current) => current + 1)}
+                onError={onError}
+                onImportFiles={importFiles}
+                onImportDroppedFiles={importDroppedFiles}
+              />
+            ) : null}
+          </div>
+        </PluginTableActions>
       </EidosFileEditorShell>
     </EidosFileUIProvider>
   )
