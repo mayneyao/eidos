@@ -5965,6 +5965,11 @@ body {
   grid-template-rows: minmax(0, 1fr);
 }
 
+.plugin-drop-zone {
+  /* Keep child margins inside the full-height drop target. */
+  display: flow-root;
+}
+
 .plugin-management-panel .plugin-manager {
   max-width: 960px;
   margin: 16px auto;
