@@ -185,7 +185,8 @@ jobs:
             npm publish "./$tarball" --access public --provenance
           }
           publish_or_verify "@eidos.space/plugin-sdk" "$sdk_tar"
-          for attempt in $(seq 1 24); do
+          # npm may process a successful upload for several minutes.
+          for attempt in $(seq 1 120); do
             published="$(npm view "@eidos.space/plugin-sdk@${VERSION}" version 2>/dev/null || true)"
             if [ "$published" = "$VERSION" ]; then
               break
@@ -200,12 +201,12 @@ jobs:
         run: |
           wait_for_version() {
             package_name="$1"
-            for attempt in $(seq 1 24); do
+            for attempt in $(seq 1 120); do
               published="$(npm view "$package_name@$VERSION" version 2>/dev/null || true)"
               if [ "$published" = "$VERSION" ]; then
                 return
               fi
-              echo "Waiting for $package_name@$VERSION to propagate (attempt $attempt/24)"
+              echo "Waiting for $package_name@$VERSION to propagate (attempt $attempt/120)"
               sleep 5
             done
             echo "$package_name@$VERSION did not become publicly visible" >&2
