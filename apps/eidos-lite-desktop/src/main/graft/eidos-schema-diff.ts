@@ -26,6 +26,24 @@ export interface EidosPhysicalSchema {
 
 interface FieldVersion extends EidosPhysicalField {}
 
+function snapshotColumns(sql: string, tableName: string): string[] {
+  // Let SQLite parse quoted identifiers and table constraints. Prepare only a
+  // single CREATE TABLE statement in an isolated database, never the live file.
+  if (!/^\s*CREATE\s+TABLE\s/i.test(sql)) {
+    throw new Error("Expected a table schema")
+  }
+  const database = new DatabaseSync(":memory:", { allowExtension: false })
+  try {
+    database.prepare(sql).run()
+    return database
+      .prepare("SELECT name FROM pragma_table_info(?) ORDER BY cid")
+      .all(tableName)
+      .map((column) => String(column.name))
+  } finally {
+    database.close()
+  }
+}
+
 function tableFromDiff(
   diff: SpaceVersionDiff,
   tableName: string
@@ -233,7 +251,10 @@ export function normalizeEidosTableDiff(
   if (tableName.startsWith("eidos__")) return diff
   const table = tableFromDiff(diff, tableName)
   const fieldsTable = tableFromDiff(fieldsDiff, "eidos__fields")
-  if (!table || !fieldsTable || fieldsTable.hasMore) return diff
+  if (!table || fieldsTable?.hasMore) return diff
+  const schemaChange = diff.files
+    .flatMap((file) => file.schemaChanges ?? [])
+    .find((change) => change.name === tableName && change.entryType === "table")
 
   const currentTable = currentSchema.tables.find(
     (candidate) => candidate.physicalName === tableName
@@ -247,13 +268,13 @@ export function normalizeEidosTableDiff(
   const beforeFields = new Map(afterFields)
   let schemaChanged = false
 
-  for (const change of fieldsTable.changes) {
+  for (const change of fieldsTable?.changes ?? []) {
     const kind = changeKind(change)
-    const after = fieldVersion(fieldsTable.columns, change.values)
+    const after = fieldVersion(fieldsTable!.columns, change.values)
     const before =
       kind === "delete"
         ? after
-        : fieldVersion(fieldsTable.columns, change.oldValues)
+        : fieldVersion(fieldsTable!.columns, change.oldValues)
     const affectedTableId = after?.tableId ?? before?.tableId
     if (affectedTableId !== currentTable.id) continue
     if (kind === "insert" && after) {
@@ -270,7 +291,7 @@ export function normalizeEidosTableDiff(
       if (before.physicalName !== after.physicalName) schemaChanged = true
     }
   }
-  if (!schemaChanged) return diff
+  if (!schemaChanged && !schemaChange?.oldSql) return diff
 
   const afterFieldByName = new Map(
     [...afterFields.values()].map(
@@ -293,7 +314,19 @@ export function normalizeEidosTableDiff(
       beforeFields.set(id, field)
     }
   }
-  const beforeOrder = insertDeletedFields(afterOrder, beforeFields)
+  // Field positions describe presentation, not SQLite record layout. A table
+  // rebuild can reorder every stored value without adding or removing fields.
+  // Prefer the actual source schema supplied with the same snapshot diff.
+  const beforeFieldByName = new Map(
+    [...beforeFields.values()].map(
+      (field) => [field.physicalName, field] as const
+    )
+  )
+  const beforeOrder = schemaChange?.oldSql
+    ? snapshotColumns(schemaChange.oldSql, tableName).map(
+        (column) => beforeFieldByName.get(column)?.id ?? `physical:${column}`
+      )
+    : insertDeletedFields(afterOrder, beforeFields)
   const mergedOrder = mergeFieldOrders(beforeOrder, afterOrder)
   const changes = normalizeChanges(table, beforeOrder, afterOrder, mergedOrder)
   if (!changes) return diff
