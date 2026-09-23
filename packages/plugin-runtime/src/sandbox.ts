@@ -297,12 +297,45 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       output: unavailable,
     },
     settings: {
-      get: unavailable,
+      get: (key) => call("settings.get", { key }),
       update: unavailable,
       reset: unavailable,
       observe: unavailable,
     },
     ui: {
+      openOrCreateMarkdown: unavailable,
+      listMarkdownFiles: (folder) => call("ui.listMarkdownFiles", { folder }),
+      countMarkdownLines: (paths) => call("ui.countMarkdownLines", { paths }),
+      async observeMarkdownFiles(folder, listener) {
+        const id = crypto.randomUUID()
+        let active = true
+        const subscription = own({
+          dispose() {
+            if (!active) return
+            active = false
+            observers.delete(id)
+            subscriptions.delete(subscription)
+            void call("ui.unobserveMarkdownFiles", { id }).catch(() => {})
+          },
+        })
+        observers.set(id, () => {
+          if (!active) return
+          try {
+            listener()
+          } catch {
+            subscription.dispose()
+          }
+        })
+        try {
+          await call("ui.observeMarkdownFiles", { id, folder })
+          return subscription
+        } catch (cause) {
+          subscription.dispose()
+          throw cause
+        }
+      },
+      openMarkdownFile: (relativePath) =>
+        call("ui.openMarkdownFile", { relativePath }),
       notify: (message) => call("ui.notify", { message }),
       select: unavailable,
       confirm: unavailable,

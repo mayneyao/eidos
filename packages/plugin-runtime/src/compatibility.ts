@@ -42,6 +42,10 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
   }
   if (manifest.browser?.workers) features.add("browser.workers")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
+  if (manifest.workspace?.countMarkdownLines)
+    features.add("workspace.markdown-line-counts")
+  if (manifest.workspace?.watchMarkdownFiles)
+    features.add("workspace.markdown-watch")
   return [...features].sort()
 }
 export function checkPluginCompatibility(

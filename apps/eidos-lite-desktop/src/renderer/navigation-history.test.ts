@@ -24,6 +24,7 @@ describe("Eidos Lite browser navigation history", () => {
     const locations = [
       { type: "plugins" as const },
       { type: "plugins" as const, pluginId: "eidos.map" },
+      { type: "plugin-page" as const, key: "eidos.journals/overview" },
       {
         type: "record" as const,
         path: "目录/a?#.eidos",
@@ -48,6 +49,33 @@ describe("Eidos Lite browser navigation history", () => {
       parseNavigationHash("#/spaces/s/files/a/tables/t/records")
     ).toBeNull()
     expect(parseNavigationHash("#/spaces/%ZZ")).toBeNull()
+    expect(parseNavigationHash("#/spaces/s/pages/eidos.journals")).toBeNull()
+    expect(
+      parseNavigationHash("#/spaces/s/pages/eidos.journals/%ZZ")
+    ).toBeNull()
+  })
+
+  it("restores plugin pages through a direct route and browser history", async () => {
+    const page = {
+      type: "plugin-page" as const,
+      key: "eidos.journals/overview",
+    }
+    window.history.replaceState(null, "", navigationHash("s", page))
+    expect(initializeNavigationHistory("s").location).toEqual(page)
+
+    let snapshot = pushNavigationLocation(
+      readNavigationHistory("s"),
+      "s",
+      "notes/today.md"
+    )
+    snapshot = pushNavigationLocation(snapshot, "s", page)
+    expect(snapshot.location).toEqual(page)
+    const back = new Promise<void>((resolve) =>
+      window.addEventListener("popstate", () => resolve(), { once: true })
+    )
+    window.history.back()
+    await back
+    expect(readNavigationHistory("s").location).toBe("notes/today.md")
   })
 
   it("migrates old routes without adding a history entry", () => {

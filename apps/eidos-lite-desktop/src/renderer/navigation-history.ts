@@ -29,6 +29,7 @@ export type NavigationLocation =
   | VersionDiffNavigationLocation
   | RecordNavigationLocation
   | { type: "plugins"; pluginId?: string }
+  | { type: "plugin-page"; key: string }
   | { type: "file"; path: string; openWith: "source" | "wysiwyg" | "preview" }
   | { type: "whats-new"; lang?: "en" | "zh-CN" }
   | { type: "merge"; path: string; tableName?: string }
@@ -142,6 +143,10 @@ export function navigationHash(
       ? `#/spaces/${space}/plugins/${encodeURIComponent(location.pluginId)}`
       : `#/spaces/${space}/plugins`
   }
+  if (typeof location === "object" && location?.type === "plugin-page") {
+    const [pluginId, viewId] = location.key.split("/")
+    return `#/spaces/${space}/pages/${encodeURIComponent(pluginId!)}/${encodeURIComponent(viewId!)}`
+  }
   if (location === null) return spaceId ? `#/spaces/${space}` : "#/"
   if (typeof location === "string") {
     return `#/spaces/${space}/files/${encodeURIComponent(location)}`
@@ -204,6 +209,17 @@ export function parseNavigationHash(
           location: parts[1]
             ? { type: "plugins", pluginId: parts[1] }
             : { type: "plugins" },
+        }
+      }
+      if (
+        parts[0] === "pages" &&
+        parts.length === 3 &&
+        /^[a-z][a-z0-9.-]*$/.test(parts[1]!) &&
+        /^[a-z][a-z0-9-]*$/.test(parts[2]!)
+      ) {
+        return {
+          spaceId,
+          location: { type: "plugin-page", key: `${parts[1]}/${parts[2]}` },
         }
       }
       if (parts[0] === "files" && parts[1]) {

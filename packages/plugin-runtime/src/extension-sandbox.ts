@@ -163,7 +163,12 @@ function activateGuest(
           : { kind: "workspace" },
       signal: controller.signal,
       subscriptions: { add: own },
-      settings,
+      settings: {
+        get: (key) => invoke("settings.get", { key }),
+        update: (key, value) => invoke("settings.update", { key, value }),
+        reset: (key) => invoke("settings.reset", { key }),
+        observe: unavailable,
+      },
       resources: {
         text: unavailable,
         directory: unavailable,
@@ -172,6 +177,12 @@ function activateGuest(
       },
       ui: {
         notify: (message) => invoke("ui.notify", { message }),
+        listMarkdownFiles: unavailable,
+        countMarkdownLines: unavailable,
+        observeMarkdownFiles: unavailable,
+        openMarkdownFile: unavailable,
+        openOrCreateMarkdown: (relativePath) =>
+          invoke("ui.openOrCreateMarkdown", { relativePath }),
         select: unavailable,
         confirm: unavailable,
         navigate: (viewId, route) =>

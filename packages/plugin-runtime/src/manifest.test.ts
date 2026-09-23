@@ -20,6 +20,55 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("requires an explicit workspace permission for Markdown enumeration", () => {
+    const value = { ...manifest(), workspace: { listMarkdownFiles: true } }
+    expect(parseManifest(value).workspace).toEqual(value.workspace)
+    expect(() =>
+      parseManifest({ ...value, workspace: { listMarkdownFiles: false } })
+    ).toThrow()
+    expect(
+      parseManifest({
+        ...value,
+        workspace: { listMarkdownFiles: true, countMarkdownLines: true },
+      }).workspace
+    ).toEqual({ listMarkdownFiles: true, countMarkdownLines: true })
+    expect(() =>
+      parseManifest({
+        ...value,
+        workspace: { listMarkdownFiles: true, countMarkdownLines: false },
+      })
+    ).toThrow()
+    expect(
+      parseManifest({
+        ...value,
+        workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+      }).workspace
+    ).toEqual({ listMarkdownFiles: true, watchMarkdownFiles: true })
+    expect(() =>
+      parseManifest({
+        ...value,
+        workspace: { listMarkdownFiles: true, watchMarkdownFiles: false },
+      })
+    ).toThrow()
+  })
+  it("accepts a writable workspace action for Space file operations", () => {
+    const value = {
+      apiVersion: 1,
+      id: "example.journals",
+      name: "Journals",
+      version: "0.1.0",
+      requires: { pluginApi: "1.2.0" },
+      extension: "./extension.ts",
+      actions: [
+        { id: "today", title: "Today", context: "workspace", access: "write" },
+      ],
+      placements: [{ location: "command-palette", action: "today" }],
+    }
+    expect(parseManifest(value).actions?.[0]).toMatchObject({
+      context: "workspace",
+      access: "write",
+    })
+  })
   it("validates fixed credential endpoints and table context placement", () => {
     const value = {
       ...manifest(),

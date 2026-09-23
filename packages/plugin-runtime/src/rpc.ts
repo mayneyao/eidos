@@ -53,7 +53,16 @@ export interface PluginRequest {
     | "document.observe"
     | "document.unobserve"
     | "ui.notify"
+    | "ui.openOrCreateMarkdown"
+    | "ui.listMarkdownFiles"
+    | "ui.countMarkdownLines"
+    | "ui.observeMarkdownFiles"
+    | "ui.unobserveMarkdownFiles"
+    | "ui.openMarkdownFile"
     | "ui.navigate"
+    | "settings.get"
+    | "settings.update"
+    | "settings.reset"
   params: unknown
 }
 export type PluginResponse = {
@@ -121,7 +130,16 @@ export function parseRequest(value: unknown): PluginRequest {
       "document.observe",
       "document.unobserve",
       "ui.notify",
+      "ui.openOrCreateMarkdown",
+      "ui.listMarkdownFiles",
+      "ui.countMarkdownLines",
+      "ui.observeMarkdownFiles",
+      "ui.unobserveMarkdownFiles",
+      "ui.openMarkdownFile",
       "ui.navigate",
+      "settings.get",
+      "settings.update",
+      "settings.reset",
     ].includes(String(r.method))
   )
     throw new PluginError("INVALID_REQUEST", "Invalid guest request")

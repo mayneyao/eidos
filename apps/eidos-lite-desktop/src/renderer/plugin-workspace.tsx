@@ -44,6 +44,7 @@ export function PluginWorkspace({
   document,
   onDraft,
   onActionComplete,
+  onOpenFile,
   disabled = false,
   navigationVisible = true,
   navigationTarget,
@@ -53,6 +54,7 @@ export function PluginWorkspace({
   document?: { path: string; draft?: TextChange }
   onDraft(path: string, draft: TextChange | null): void
   onActionComplete?(path: string): void | Promise<void>
+  onOpenFile?(path: string): void
   disabled?: boolean
   navigationVisible?: boolean
   navigationTarget?: HTMLElement | null
@@ -141,13 +143,18 @@ export function PluginWorkspace({
   const plugins = listing?.plugins.filter((p) => p.enabled) ?? []
   const pages = plugins.flatMap(({ manifest }) =>
     (manifest.placements ?? [])
-      .filter((p) => p.location === "navigation")
-      .flatMap((p) =>
-        p.location === "navigation"
-          ? (manifest.views ?? [])
-              .filter((v) => v.id === p.view && v.context === "page")
-              .map((v) => ({ key: `${manifest.id}/${v.id}`, title: v.title }))
-          : []
+      .filter((placement) => placement.location === "navigation")
+      .flatMap((placement) =>
+        (manifest.views ?? [])
+          .filter(
+            (view) => view.id === placement.view && view.context === "page"
+          )
+          .map((view) => ({
+            key: `${manifest.id}/${view.id}`,
+            title: view.title,
+            pluginId: manifest.id,
+            pluginName: manifest.name,
+          }))
       )
   )
   const actions = plugins
@@ -374,6 +381,11 @@ export function PluginWorkspace({
                   },
                 ]
               : []),
+            ...pages.map((page) => ({
+              key: `page:${page.key}`,
+              title: page.title,
+              plugin: { id: page.pluginId, name: page.pluginName },
+            })),
             ...actions
               .filter((a) => a.palette)
               .map((a) => ({
@@ -401,6 +413,10 @@ export function PluginWorkspace({
             }
             if (key === "host/default-formatter") {
               chooseFormatter("default")
+              return
+            }
+            if (key.startsWith("page:")) {
+              onPage(key.slice("page:".length))
               return
             }
             const command = commands.find((item) => item.key === key)
@@ -466,6 +482,7 @@ export function PluginWorkspace({
             }}
             onNotification={setStatus}
             onNavigate={onPage}
+            onOpenFile={onOpenFile}
             onRetry={() => {
               void window.eidosLite
                 .openPluginExtension(id)
@@ -496,14 +513,15 @@ export function PluginPage({
   pageKey,
   onClose,
   onNavigate,
-  embedded = false,
+  onOpenFile,
+  onTitleChange,
 }: {
   pageKey: string
   onClose(): void
   onNavigate(key: string): void
-  embedded?: boolean
+  onOpenFile?(path: string): void
+  onTitleChange?(label: string): void
 }) {
-  const { t } = useEidosLiteI18n()
   const [instance, setInstance] = useState<Instance | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
@@ -520,6 +538,7 @@ export function PluginPage({
           return
         }
         setInstance(result.instance)
+        onTitleChange?.(result.instance.editor.label)
         setError(null)
       })
       .catch((error) => {
@@ -532,14 +551,6 @@ export function PluginPage({
   }, [pageKey, revision])
   return (
     <section className="plugin-page">
-      {!embedded && (
-        <header className="plugin-actions">
-          <strong>{instance?.editor.label ?? pageKey}</strong>
-          <button type="button" onClick={onClose}>
-            {t("Close")}
-          </button>
-        </header>
-      )}
       {error && <p role="alert">{error}</p>}
       {instance && (
         <PluginEditor
@@ -547,6 +558,7 @@ export function PluginPage({
           instance={instance}
           onDraft={() => {}}
           onNavigate={onNavigate}
+          onOpenFile={onOpenFile}
           onFallback={onClose}
           onRetry={() => setRevision((r) => r + 1)}
         />

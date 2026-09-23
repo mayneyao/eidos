@@ -7427,12 +7427,6 @@ body {
   }
 }
 
-.plugin-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .editor-work-content[hidden] {
   display: none;
 }

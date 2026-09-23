@@ -248,6 +248,34 @@ Example: an authorized Journals page, without a controller:
 The suggested folder name is UI guidance, never authorization. Bindings are
 chosen by the user and are not source paths or secrets in this descriptor.
 
+Lite Plugin API 1.3 adds a separate, explicitly declared read-only capability:
+`workspace: { listMarkdownFiles: true }`. After the installation review discloses
+this Space-wide filename permission, a Page View may call
+`HostUI.listMarkdownFiles(folder)` for a Space-relative folder. It returns at
+most 20,000 Markdown paths and a `truncated` flag, without file contents. The
+same Page View may call `HostUI.openMarkdownFile(path)` to ask the host to open
+an existing Markdown file, without receiving its text. Paths remain confined
+to the current Space, and symlinks and protected implementation entries are
+not traversed. This permission does not grant document read or write access.
+
+Lite Plugin API 1.4 adds `workspace.countMarkdownLines: true`, which also
+requires `listMarkdownFiles: true`. A Page View may pass up to 400 paths
+previously returned by its own `listMarkdownFiles` calls to
+`HostUI.countMarkdownLines(paths)`. The host returns each path with its count of
+non-empty lines, or `null` when a file is unavailable or exceeds the text
+preview limit. File contents never cross the plugin boundary. The installation
+review discloses this additional Space-wide metadata permission separately.
+
+Lite Plugin API 1.5 adds `workspace.watchMarkdownFiles: true`, alongside the
+required `listMarkdownFiles: true`. An active Page View may call
+`HostUI.observeMarkdownFiles(folder, listener)` for a Space-relative folder.
+It returns a disposable subscription. The host coalesces filesystem changes
+and invokes the listener when a Markdown file or containing directory changes
+under that folder; the notification contains no file paths or contents. The
+Page View must rescan with `listMarkdownFiles` to obtain current data.
+Subscriptions end when the Page View closes or the plugin is revoked. The
+installation review discloses this separate change-notification permission.
+
 ## 4. Entry points, SDK and lifecycle
 
 ```ts

@@ -23,6 +23,9 @@ import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
+  pluginSettings: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.settings, id),
+  setPluginSetting: (id, key, value) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.setSetting, id, key, value),
   openPluginTable: (key, tableId, viewId) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.table, key, tableId, viewId),
   setFormatterContext: (path, version) =>

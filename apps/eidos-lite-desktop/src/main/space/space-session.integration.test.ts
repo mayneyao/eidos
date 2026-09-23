@@ -29,6 +29,111 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("notifies a Markdown folder observer after a file changes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-watch-"))
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-watch-state-")
+    )
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      await fs.mkdir(path.join(root, "journals"))
+      session = await SpaceSession.create(root, userData, { graft })
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      let changed = false
+      const notification = new Promise<void>((resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("No Markdown change")),
+          5000
+        )
+        session!.watchMarkdownFiles("journals", () => {
+          changed = true
+          resolve()
+        })
+      })
+      await fs.writeFile(path.join(root, "journals/today.md"), "# Today\n")
+      await notification.finally(() => clearTimeout(timeout))
+      expect(changed).toBe(true)
+    } finally {
+      await session?.close().catch(() => undefined)
+      await graft.close().catch(() => undefined)
+      await fs.rm(root, { recursive: true, force: true })
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
+  it("opens or creates a Markdown journal without replacing existing content", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-journal-"))
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-journal-state-")
+    )
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      let localChanges = 0
+      const watch = session.watchMarkdownFiles("Journals", () => {
+        localChanges++
+      })
+      const journal = "Journals/2026/09/2026-09-23.md"
+      expect(await session.openOrCreateMarkdownFile(journal)).toEqual({
+        path: journal,
+        created: true,
+      })
+      expect(localChanges).toBeGreaterThan(0)
+      watch.dispose()
+      await fs.writeFile(path.join(root, journal), "# Existing entry\n")
+      expect(await session.openOrCreateMarkdownFile(journal)).toEqual({
+        path: journal,
+        created: false,
+      })
+      expect(await fs.readFile(path.join(root, journal), "utf8")).toBe(
+        "# Existing entry\n"
+      )
+      expect(await session.listMarkdownFiles("Journals")).toEqual({
+        paths: [journal],
+        truncated: false,
+      })
+      expect(await session.countMarkdownLines([journal])).toEqual([
+        { path: journal, lines: 1 },
+      ])
+      await fs.writeFile(path.join(root, journal), "one\n\n two \r\nthree\n")
+      expect(await session.countMarkdownLines([journal])).toEqual([
+        { path: journal, lines: 3 },
+      ])
+      expect(await session.listMarkdownFiles("missing")).toEqual({
+        paths: [],
+        truncated: false,
+      })
+      await expect(session.listMarkdownFiles("../outside")).rejects.toThrow()
+      await fs.symlink(
+        path.join(root, journal),
+        path.join(root, "Journals", "linked.md")
+      )
+      expect(await session.listMarkdownFiles("Journals")).toEqual({
+        paths: [journal],
+        truncated: false,
+      })
+      await expect(
+        session.openOrCreateMarkdownFile("../outside.md")
+      ).rejects.toThrow()
+      await expect(
+        session.openOrCreateMarkdownFile(".graft/private.md")
+      ).rejects.toThrow()
+      await fs.symlink(root, path.join(root, "linked"))
+      await expect(
+        session.openOrCreateMarkdownFile("linked/today.md")
+      ).rejects.toThrow()
+    } finally {
+      await session?.close().catch(() => undefined)
+      await graft.close().catch(() => undefined)
+      await fs.rm(root, { recursive: true, force: true })
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
   it("moves a Markdown folder and maintains incoming, outgoing and image references offline", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-markdown-folder-")

@@ -88,6 +88,54 @@ it("navigates commands visibly, wraps, scrolls and executes from the search inpu
   expect(HTMLDialogElement.prototype.close).toHaveBeenCalled()
   Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
 })
+it("exposes enabled page views in the command palette", async () => {
+  HTMLDialogElement.prototype.showModal = vi.fn()
+  HTMLDialogElement.prototype.close = vi.fn()
+  let openPalette!: (command: "command-palette") => void
+  Object.assign(window, {
+    eidosLite: {
+      listPlugins: async () => ({
+        plugins: [
+          {
+            enabled: true,
+            manifest: {
+              id: "example.pages",
+              name: "Pages",
+              views: [{ id: "home", title: "Home", context: "page" }],
+              placements: [{ location: "navigation", view: "home" }],
+            },
+          },
+        ],
+      }),
+      onPluginEvent: () => () => {},
+      onWorkspaceShortcutCommand: (listener: typeof openPalette) => {
+        openPalette = listener
+        return () => {}
+      },
+    },
+  })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const onPage = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginWorkspace
+        onPage={onPage}
+        onDraft={() => {}}
+        navigationVisible={false}
+      />
+    )
+  )
+  await act(async () => openPalette("command-palette"))
+  await act(async () =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'))
+      .find((button) => button.textContent?.includes("Home"))!
+      .click()
+  )
+  expect(onPage).toHaveBeenCalledExactlyOnceWith("example.pages/home")
+  await act(async () => root.unmount())
+})
 afterEach(() => {
   document.body.replaceChildren()
   vi.restoreAllMocks()
@@ -352,6 +400,7 @@ it("captures the document before asynchronous activation and routes its result t
 it("discards a late page open and closes its unused capability", async () => {
   const pending = new Map<string, (result: PluginOpenResult) => void>()
   const close = vi.fn(async () => {})
+  const onTitleChange = vi.fn()
   Object.assign(window, {
     eidosLite: {
       openPluginPage: (key: string) =>
@@ -364,7 +413,12 @@ it("discards a late page open and closes its unused capability", async () => {
   document.body.append(container)
   const root = createRoot(container)
   const render = (key: string) => (
-    <PluginPage pageKey={key} onClose={() => {}} onNavigate={() => {}} />
+    <PluginPage
+      pageKey={key}
+      onClose={() => {}}
+      onNavigate={() => {}}
+      onTitleChange={onTitleChange}
+    />
   )
   await act(async () => root.render(render("example.tools/a")))
   await act(async () => root.render(render("example.tools/b")))
@@ -375,6 +429,8 @@ it("discards a late page open and closes its unused capability", async () => {
     pending.get("example.tools/a")!({ instance: instance("old") })
   )
   expect(container.querySelector("iframe")?.title).toBe("new")
+  expect(onTitleChange).toHaveBeenCalledOnce()
+  expect(onTitleChange).toHaveBeenCalledWith("new")
   expect(close).toHaveBeenCalledWith("old")
   await act(async () => root.unmount())
 })

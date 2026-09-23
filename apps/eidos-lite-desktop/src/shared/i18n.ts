@@ -117,6 +117,12 @@ const zh: Record<string, string> = {
   Repository: "代码仓库",
   "Network Access": "网络访问",
   "Storage Quota": "存储配额",
+  "Space files": "Space 文件",
+  "Can list Markdown file names in this Space; file contents stay private.":
+    "可列出此 Space 中 Markdown 文件的名称，无法读取文件内容。",
+  "File changes": "文件变更",
+  "Can receive Markdown change notifications without changed paths or file contents.":
+    "可接收 Markdown 变更通知；通知不包含变化的路径或文件正文。",
   "Integrity (SHA-256)": "完整性校验 (SHA-256)",
   "Copied to clipboard": "已复制到剪贴板",
   "No external network access (100% offline)": "无外部网络访问（100% 离线）",

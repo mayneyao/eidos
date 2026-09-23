@@ -251,6 +251,7 @@ export function parseManifest(input: unknown): PluginManifest {
       "settings",
       "browser",
       "storage",
+      "workspace",
       "connections",
       "icon",
       "requires",
@@ -296,6 +297,26 @@ export function parseManifest(input: unknown): PluginManifest {
       Number(storage.maxBytes) > 1024 ** 3
     )
       invalid("Storage quota must be between 1 byte and 1 GiB")
+  }
+  if (m.workspace !== undefined) {
+    const workspace = record(m.workspace)
+    fields(
+      workspace,
+      ["listMarkdownFiles"],
+      ["countMarkdownLines", "watchMarkdownFiles"]
+    )
+    if (workspace.listMarkdownFiles !== true)
+      invalid("Invalid workspace Markdown listing permission")
+    if (
+      workspace.countMarkdownLines !== undefined &&
+      workspace.countMarkdownLines !== true
+    )
+      invalid("Invalid workspace Markdown line-count permission")
+    if (
+      workspace.watchMarkdownFiles !== undefined &&
+      workspace.watchMarkdownFiles !== true
+    )
+      invalid("Invalid workspace Markdown watch permission")
   }
   if (m.browser !== undefined) {
     const browser = record(m.browser)
@@ -417,9 +438,11 @@ export function parseManifest(input: unknown): PluginManifest {
       if (
         v.access !== undefined &&
         (!["read", "write"].includes(String(v.access)) ||
-          !["document", "table", ...(isView ? ["eidos"] : [])].includes(
-            String(v.context)
-          ))
+          ![
+            "document",
+            "table",
+            ...(isView ? ["eidos"] : ["workspace"]),
+          ].includes(String(v.context)))
       )
         invalid("Invalid context access")
       if (v.extensions !== undefined) {

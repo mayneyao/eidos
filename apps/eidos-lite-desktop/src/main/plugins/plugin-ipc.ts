@@ -186,6 +186,39 @@ export function registerPluginIpc(controller: WindowController): {
     caller(event)
     return store.list(currentSpace(event))
   })
+  ipcMain.handle(PLUGIN_CHANNELS.settings, (event, id: unknown) => {
+    caller(event)
+    const spaceId = currentSpace(event)
+    if (!spaceId || typeof id !== "string")
+      throw new PluginError(
+        "INVALID_REQUEST",
+        "Invalid plugin settings request"
+      )
+    return store.pluginSettings(spaceId, id)
+  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.setSetting,
+    (event, id: unknown, key: unknown, value: unknown) => {
+      caller(event)
+      const spaceId = currentSpace(event)
+      if (
+        !spaceId ||
+        typeof id !== "string" ||
+        typeof key !== "string" ||
+        !(
+          value === null ||
+          ["string", "boolean", "number"].includes(typeof value)
+        )
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin setting")
+      return store.setPluginSetting(
+        spaceId,
+        id,
+        key,
+        value as string | boolean | number | null
+      )
+    }
+  )
   ipcMain.handle(PLUGIN_CHANNELS.marketplace, (event, refresh: unknown) => {
     caller(event)
     if (refresh !== undefined && typeof refresh !== "boolean")
@@ -530,13 +563,10 @@ export function registerPluginIpc(controller: WindowController): {
         (await store.readBytes(selected.filePaths[0]))
       const pkg = decodePackage(bytes)
       assertPluginCompatibility(pkg.manifest, "eidos-lite")
-      if (
-        Object.keys(pkg.manifest.resources ?? {}).length ||
-        Object.keys(pkg.manifest.settings ?? {}).length
-      )
+      if (Object.keys(pkg.manifest.resources ?? {}).length)
         throw new PluginError(
           "UNSUPPORTED_API",
-          "Settings and named resources are not connected yet"
+          "Named resources are not connected yet"
         )
       const existing = await store.installed(pkg.manifest.id)
       let existingVersion: string | undefined
@@ -569,7 +599,7 @@ export function registerPluginIpc(controller: WindowController): {
                 .join(", ")}`
             : ""
         }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
-        detail: `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+        detail: `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.listMarkdownFiles ? "\nThis plugin can list Markdown file names throughout this Space, but cannot read their contents through this permission." : ""}${pkg.manifest.workspace?.countMarkdownLines ? "\nThis plugin can receive non-empty line counts for Markdown files it lists, but not their contents." : ""}${pkg.manifest.workspace?.watchMarkdownFiles ? "\nThis plugin can receive Markdown change notifications. The notifications contain no changed paths or file contents." : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
         buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
         defaultId: 0,
         cancelId: 0,

@@ -857,6 +857,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [pluginDetailId, setPluginDetailId] = useState<string | null>(null)
   const [pluginDetailName, setPluginDetailName] = useState<string | null>(null)
   const [pluginPage, setPluginPage] = useState<string | null>(null)
+  const [pluginPageTitle, setPluginPageTitle] = useState<{
+    key: string
+    label: string
+  } | null>(null)
   const [pluginPageRevision, setPluginPageRevision] = useState(0)
   const navigatePluginPage = (key: string) => {
     setPluginsVisible(false)
@@ -865,6 +869,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setPluginEditor(null)
     setPluginPage(key)
     setPluginPageRevision((value) => value + 1)
+    recordNavigationLocation({ type: "plugin-page", key }, false)
   }
   useEffect(() => {
     setPluginEditor((current) =>
@@ -877,6 +882,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   useEffect(() => {
     setPluginEditor(null)
     setPluginPage(null)
+    setPluginPageTitle(null)
     setPluginDetailId(null)
     setPluginDetailName(null)
   }, [space?.id])
@@ -2506,6 +2512,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             setPluginsVisible(false)
             setPluginDetailId(null)
             setPluginDetailName(null)
+            if (typeof target === "object" && target?.type === "plugin-page") {
+              setPluginPage(target.key)
+              setPluginPageRevision((value) => value + 1)
+              continue
+            }
+            setPluginPage(null)
             if (typeof target === "object" && target?.type === "whats-new")
               continue
             if (typeof target === "object" && target?.type === "merge") {
@@ -3665,7 +3677,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   )}
                 </div>
               ) : pluginPage ? (
-                <strong>{t("Plugin page")}</strong>
+                <strong>
+                  {pluginPageTitle?.key === pluginPage
+                    ? pluginPageTitle.label
+                    : ""}
+                </strong>
               ) : whatsNew.open ? (
                 <strong>RELEASE_NOTES.md</strong>
               ) : activeDocumentPath && !titlebarPresentation.pending ? (
@@ -3714,7 +3730,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 />
               ) : null}
             </div>
-            {pluginsVisible ? (
+            {pluginsVisible || pluginPage ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
@@ -4019,6 +4035,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 setTextPreview(preview)
                 setTextPreviewReloadToken((token) => token + 1)
               }}
+              onOpenFile={(path) => {
+                const entry = findSpaceEntry(space.entries, path) ?? {
+                  name: path.split("/").at(-1)!,
+                  relativePath: path,
+                  kind: "file" as const,
+                  size: 0,
+                  modifiedAtMs: Date.now(),
+                }
+                setSelectedEntry(entry)
+                void openEntry(entry)
+              }}
             />
             {pluginsVisible && (
               <section
@@ -4052,7 +4079,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   key={`${space.id}/${pluginPage}/${pluginPageRevision}`}
                   pageKey={pluginPage}
                   onNavigate={navigatePluginPage}
-                  onClose={() => setPluginPage(null)}
+                  onClose={closeCurrentPage}
+                  onTitleChange={(label) =>
+                    setPluginPageTitle({ key: pluginPage, label })
+                  }
+                  onOpenFile={(path) => {
+                    const entry = findSpaceEntry(space.entries, path) ?? {
+                      name: path.split("/").at(-1)!,
+                      relativePath: path,
+                      kind: "file" as const,
+                      size: 0,
+                      modifiedAtMs: Date.now(),
+                    }
+                    setSelectedEntry(entry)
+                    void openEntry(entry)
+                  }}
                 />
               ) : textPreview &&
                 pluginEditor?.relativePath === textPreview.relativePath ? (

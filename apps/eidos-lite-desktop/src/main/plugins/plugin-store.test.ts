@@ -26,12 +26,12 @@ it("preserves the installed version when an update requires a newer API", async 
   await expect(
     store.install(
       encodePackage(
-        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.2.0" } },
+        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.5.1" } },
         { "./csv.ts": "export default function mount() {}" }
       ),
       "a"
     )
-  ).rejects.toThrow("requires plugin API 1.2.0")
+  ).rejects.toThrow("requires plugin API 1.5.1")
   expect(await store.config()).toEqual(before)
   expect((await store.read(hash)).manifest.version).toBe("1.0.0")
 })
@@ -43,6 +43,50 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await fs.rm(directory, { recursive: true, force: true })
+})
+
+it("persists validated plugin settings per Space", async () => {
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        settings: {
+          folder: { type: "string", title: "Folder", default: "Journals" },
+          style: {
+            type: "string",
+            title: "Style",
+            default: "flat",
+            enum: ["flat", "year"],
+          },
+        },
+      },
+      { "./csv.ts": "export default function mount() {}" }
+    ),
+    "a"
+  )
+  expect(await store.pluginSettings("a", manifest.id)).toEqual({
+    folder: "Journals",
+    style: "flat",
+  })
+  await store.setPluginSetting("a", manifest.id, "folder", "Diary")
+  await store.setPluginSetting("a", manifest.id, "style", "year")
+  await expect(
+    store.setPluginSetting("a", manifest.id, "style", "unknown")
+  ).rejects.toMatchObject({ code: "INVALID_REQUEST" })
+  const restarted = new PluginStore(directory)
+  expect(await restarted.pluginSettings("a", manifest.id)).toEqual({
+    folder: "Diary",
+    style: "year",
+  })
+  await restarted.enable(manifest.id, true, "b")
+  expect(await restarted.pluginSettings("b", manifest.id)).toEqual({
+    folder: "Journals",
+    style: "flat",
+  })
+  await restarted.setPluginSetting("a", manifest.id, "folder", null)
+  expect((await restarted.pluginSettings("a", manifest.id)).folder).toBe(
+    "Journals"
+  )
 })
 
 it("installs once without implicitly enabling existing or future Spaces", async () => {

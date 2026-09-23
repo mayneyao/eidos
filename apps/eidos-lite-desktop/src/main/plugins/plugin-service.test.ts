@@ -32,6 +32,7 @@ let directory: string,
   store: PluginStore,
   service: PluginService,
   session: PluginDocumentSession,
+  markdownWatchers: Map<string, Set<() => void>>,
   sequence = 0
 beforeEach(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-plugin-test-"))
@@ -40,10 +41,47 @@ beforeEach(async () => {
   await fs.writeFile(path.join(root, "data.csv"), "name,value\na,1\n")
   store = new PluginStore(path.join(directory, "plugins"))
   service = new PluginService(store)
+  markdownWatchers = new Map()
   session = {
     canonical: { id: "space-a" },
     previewTextFile: (file) => readTextFilePreview(root, file),
     saveTextFile: (request) => saveTextFile(root, request),
+    openOrCreateMarkdownFile: async (file) => {
+      const target = path.join(root, file)
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      try {
+        await fs.writeFile(target, "", { flag: "wx" })
+        return { path: file, created: true }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+        return { path: file, created: false }
+      }
+    },
+    listMarkdownFiles: async (folder) => ({
+      paths: folder === "journals" ? ["journals/2026-09-23.md"] : [],
+      truncated: false,
+    }),
+    countMarkdownLines: async (paths) =>
+      Promise.all(
+        paths.map(async (path) => {
+          const preview = await readTextFilePreview(root, path)
+          return {
+            path,
+            lines:
+              preview.type === "text" && !preview.truncated
+                ? preview.content
+                    .split(/\r\n|\r|\n/)
+                    .filter((line) => line.trim().length > 0).length
+                : null,
+          }
+        })
+      ),
+    watchMarkdownFiles: (folder, listener) => {
+      const listeners = markdownWatchers.get(folder) ?? new Set()
+      listeners.add(listener)
+      markdownWatchers.set(folder, listeners)
+      return { dispose: () => listeners.delete(listener) }
+    },
   }
   await store.install(encodePackage(manifest, modules), "space-a")
 })
@@ -476,6 +514,18 @@ describe("Lite document-view integration", () => {
       response: { error: { code: "PERMISSION_DENIED" } },
     })
     expect(
+      await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" })
+    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+    expect(
+      await rpc(page.ticket, "ui.countMarkdownLines", { paths: [] })
+    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+    expect(
+      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+        id: "watch",
+        folder: "journals",
+      })
+    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+    expect(
       await rpc(page.ticket, "ui.notify", { message: "Hello" })
     ).toMatchObject({ notification: "Hello" })
     expect(
@@ -500,6 +550,188 @@ describe("Lite document-view integration", () => {
     await expect(
       service.openPage(1, session, "example.page/home", "x".repeat(2049))
     ).rejects.toMatchObject({ code: "INVALID_REQUEST" })
+  })
+  it("lets only a declared page enumerate Markdown names and open an existing entry", async () => {
+    await fs.mkdir(path.join(root, "journals"))
+    await fs.writeFile(
+      path.join(root, "journals/2026-09-23.md"),
+      "first line\n\nsecond line\n"
+    )
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          id: "example.journals",
+          name: "Journals",
+          version: "1.0.0",
+          requires: { pluginApi: "1.4.0" },
+          workspace: { listMarkdownFiles: true, countMarkdownLines: true },
+          settings: {
+            folder: {
+              type: "string",
+              title: "Journals folder",
+              default: "journals",
+            },
+          },
+          views: [
+            {
+              id: "overview",
+              title: "Overview",
+              context: "page",
+              entry: "./page.ts",
+            },
+          ],
+        },
+        { "./page.ts": "export default function mount() {}" }
+      ),
+      "space-a"
+    )
+    const page = (
+      await service.openPage(1, session, "example.journals/overview")
+    ).instance!
+    expect(
+      (await rpc(page.ticket, "settings.get", { key: "folder" })).response
+    ).toMatchObject({ result: "journals" })
+    expect(
+      await rpc(page.ticket, "ui.countMarkdownLines", {
+        paths: ["journals/2026-09-23.md"],
+      })
+    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    expect(
+      (await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" }))
+        .response
+    ).toMatchObject({
+      result: { paths: ["journals/2026-09-23.md"], truncated: false },
+    })
+    expect(
+      (
+        await rpc(page.ticket, "ui.countMarkdownLines", {
+          paths: ["journals/2026-09-23.md"],
+        })
+      ).response
+    ).toMatchObject({
+      result: [{ path: "journals/2026-09-23.md", lines: 2 }],
+    })
+    expect(
+      await rpc(page.ticket, "ui.countMarkdownLines", {
+        paths: [".graft/private.md"],
+      })
+    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    expect(
+      await rpc(page.ticket, "ui.countMarkdownLines", {
+        paths: Array.from({ length: 401 }, () => "journals/2026-09-23.md"),
+      })
+    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    expect(
+      await rpc(page.ticket, "ui.openMarkdownFile", {
+        relativePath: "journals/2026-09-23.md",
+      })
+    ).toMatchObject({ openFile: "journals/2026-09-23.md" })
+    expect(
+      (
+        await rpc(page.ticket, "ui.openMarkdownFile", {
+          relativePath: "../secret.md",
+        })
+      ).response
+    ).toMatchObject({ error: { code: "INVALID_REQUEST" } })
+  })
+  it("does not expose line counts to a filename-only page", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          id: "example.filename-only",
+          name: "Filename only",
+          version: "1.0.0",
+          requires: { pluginApi: "1.3.0" },
+          workspace: { listMarkdownFiles: true },
+          views: [
+            {
+              id: "overview",
+              title: "Overview",
+              context: "page",
+              entry: "./page.ts",
+            },
+          ],
+        },
+        { "./page.ts": "export default function mount() {}" }
+      ),
+      "space-a"
+    )
+    const page = (
+      await service.openPage(1, session, "example.filename-only/overview")
+    ).instance!
+    await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" })
+    expect(
+      await rpc(page.ticket, "ui.countMarkdownLines", { paths: [] })
+    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+  })
+  it("scopes Markdown change observers to a declared page and disposes them", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          id: "example.watched-journals",
+          name: "Watched Journals",
+          version: "1.0.0",
+          requires: { pluginApi: "1.5.0" },
+          workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+          views: [
+            {
+              id: "overview",
+              title: "Overview",
+              context: "page",
+              entry: "./page.ts",
+            },
+          ],
+        },
+        { "./page.ts": "export default function mount() {}" }
+      ),
+      "space-a"
+    )
+    const page = (
+      await service.openPage(1, session, "example.watched-journals/overview")
+    ).instance!
+    const events: unknown[] = []
+    const send = (event: unknown) => events.push(event)
+    expect(
+      await service.request(
+        1,
+        session,
+        page.ticket,
+        {
+          protocol: "eidos-plugin",
+          apiVersion: 1,
+          id: "observe",
+          method: "ui.observeMarkdownFiles",
+          params: { id: "listener", folder: "journals" },
+        },
+        send
+      )
+    ).toMatchObject({ response: { result: null } })
+    expect(markdownWatchers.get("journals")?.size).toBe(1)
+    markdownWatchers.get("journals")?.forEach((listener) => listener())
+    expect(events).toMatchObject([{ observation: "listener", value: null }])
+    expect(
+      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+        id: "listener",
+        folder: "journals",
+      })
+    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    expect(
+      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+        id: "escape",
+        folder: "../outside",
+      })
+    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    await rpc(page.ticket, "ui.unobserveMarkdownFiles", { id: "listener" })
+    expect(markdownWatchers.get("journals")?.size).toBe(0)
+    await rpc(page.ticket, "ui.observeMarkdownFiles", {
+      id: "again",
+      folder: "journals",
+    })
+    service.close(1, page.ticket)
+    expect(markdownWatchers.get("journals")?.size).toBe(0)
   })
   it("activates once, binds an action to its captured document and expires its handles", async () => {
     await store.install(
@@ -592,6 +824,78 @@ describe("Lite document-view integration", () => {
         () => {}
       )
     ).rejects.toMatchObject({ code: "INVALID_REQUEST" })
+  })
+  it("lets an active writable workspace action use settings and open a journal", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          id: "example.journals",
+          name: "Journals",
+          version: "1.0.0",
+          extension: "./extension.ts",
+          actions: [
+            {
+              id: "today",
+              title: "Today",
+              context: "workspace",
+              access: "write",
+            },
+          ],
+          settings: {
+            folder: { type: "string", title: "Folder", default: "Journals" },
+          },
+        },
+        {
+          "./extension.ts":
+            "export default function activate(ctx) { ctx.actions.register('today', async () => {}) }",
+        }
+      ),
+      "space-a"
+    )
+    const extension = (
+      await service.openExtension(1, session, "example.journals")
+    ).instance!
+    await rpc(extension.ticket, "extension.ready", { actions: ["today"] })
+    let announce!: (value: unknown) => void
+    const announced = new Promise<unknown>((resolve) => {
+      announce = resolve
+    })
+    const completion = service.invoke(
+      1,
+      session,
+      extension.ticket,
+      "today",
+      undefined,
+      undefined,
+      (event) => {
+        if (event.observation === "action.run") announce(event.value)
+      }
+    )
+    const { invocation } = (await announced) as { invocation: string }
+    const actionRpc = (method: string, args: unknown) =>
+      rpc(extension.ticket, method, { invocation, args })
+    expect(
+      (await actionRpc("settings.get", { key: "folder" })).response
+    ).toMatchObject({ result: "Journals" })
+    expect(
+      await actionRpc("ui.openOrCreateMarkdown", {
+        relativePath: "Journals/2026-09-23.md",
+      })
+    ).toMatchObject({
+      response: { result: { path: "Journals/2026-09-23.md", created: true } },
+      openFile: "Journals/2026-09-23.md",
+    })
+    await actionRpc("settings.update", { key: "folder", value: "Diary" })
+    expect(
+      (await actionRpc("settings.get", { key: "folder" })).response
+    ).toMatchObject({ result: "Diary" })
+    await rpc(extension.ticket, "action.complete", { invocation })
+    await completion
+    expect(
+      (await actionRpc("ui.openOrCreateMarkdown", { relativePath: "other.md" }))
+        .response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
   it("rolls back incomplete activation and revokes running actions on disable", async () => {
     await store.install(

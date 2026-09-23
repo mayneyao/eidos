@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   directory: "",
   selected: "",
   response: 1,
+  messageOptions: [] as unknown[],
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   windows: [] as {
     webContents: {
@@ -44,7 +45,10 @@ vi.mock("electron", () => ({
       canceled: false,
       filePaths: [mock.selected],
     }),
-    showMessageBox: async () => ({ response: mock.response }),
+    showMessageBox: async (...args: unknown[]) => {
+      mock.messageOptions.push(args.at(-1))
+      return { response: mock.response }
+    },
   },
 }))
 import { registerPluginIpc } from "./plugin-ipc"
@@ -97,6 +101,7 @@ beforeEach(async () => {
   mock.directory = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-ipc-"))
   mock.selected = path.join(mock.directory, "example.eidos-plugin")
   mock.response = 1
+  mock.messageOptions = []
   mock.windows = [1, 2, 3].map((id) => ({
     webContents: { id, send: vi.fn(), isDestroyed: () => false },
     isDestroyed: () => false,
@@ -171,6 +176,107 @@ it("installs in the device catalog and enables only the invoking Space", async (
         event: expect.objectContaining({ observation: "host.catalog" }),
       })
     )
+})
+
+it("installs a workspace action with per-Space settings", async () => {
+  const journalId = "example.journals"
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id: journalId,
+        name: "Journals",
+        version: "0.1.0",
+        requires: { pluginApi: "1.2.0" },
+        extension: "./extension.ts",
+        actions: [
+          {
+            id: "today",
+            title: "Open today's journal",
+            context: "workspace",
+            access: "write",
+          },
+        ],
+        placements: [{ location: "command-palette", action: "today" }],
+        settings: {
+          folder: { type: "string", title: "Folder", default: "journals" },
+        },
+      },
+      { "./extension.ts": "export default function activate() {}" }
+    )
+  )
+  expect(await call("install", 1)).toBe(true)
+  expect((await listing(1)).plugins[0].manifest.id).toBe(journalId)
+  expect(await call("settings", 1, journalId)).toEqual({ folder: "journals" })
+  await call("setSetting", 1, journalId, "folder", "Daily")
+  expect(await call("settings", 1, journalId)).toEqual({ folder: "Daily" })
+  await expect(call("settings", 2, journalId)).rejects.toThrow(
+    "Plugin disabled"
+  )
+})
+
+it("discloses the separate Markdown change-notification permission", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id: "example.watch",
+        name: "Watch",
+        version: "1.0.0",
+        requires: { pluginApi: "1.5.0" },
+        workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+        views: [
+          {
+            id: "overview",
+            title: "Overview",
+            context: "page",
+            entry: "./page.ts",
+          },
+        ],
+      },
+      { "./page.ts": "export default function mount() {}" }
+    )
+  )
+  expect(await call("install", 1)).toBe(true)
+  expect(mock.messageOptions).toContainEqual(
+    expect.objectContaining({
+      detail: expect.stringContaining(
+        "The notifications contain no changed paths or file contents."
+      ),
+    })
+  )
+})
+
+it("still rejects undeveloped named resource grants at install", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id: "example.resource",
+        name: "Resource",
+        version: "0.1.0",
+        resources: {
+          folder: {
+            kind: "directory",
+            title: "Folder",
+            include: ["**/*.md"],
+            access: ["read"],
+          },
+        },
+        views: [
+          { id: "home", title: "Home", entry: "./home.ts", context: "page" },
+        ],
+        placements: [{ location: "navigation", view: "home" }],
+      },
+      { "./home.ts": "export default function mount() {}" }
+    )
+  )
+  await expect(call("install", 1)).rejects.toThrow(
+    "Named resources are not connected yet"
+  )
 })
 
 it("global settings updates reload active instances without enabling other Spaces", async () => {

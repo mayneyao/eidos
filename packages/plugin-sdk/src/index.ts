@@ -30,6 +30,12 @@ export interface PluginManifest {
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; networkOrigins?: string[] }
   storage?: { maxBytes: number }
+  /** Explicit permission to enumerate Markdown paths in the current Space. */
+  workspace?: {
+    listMarkdownFiles: true
+    countMarkdownLines?: true
+    watchMarkdownFiles?: true
+  }
   connections?: Record<
     string,
     { title: string; url: string; configurable?: boolean }
@@ -450,6 +456,26 @@ export interface Settings {
 }
 export interface HostUI {
   notify(message: string): Promise<void>
+  /** Lists Markdown paths under a Space-relative folder, without reading contents. */
+  listMarkdownFiles(folder: string): Promise<{
+    paths: string[]
+    truncated: boolean
+  }>
+  /** Counts non-empty lines in up to 400 listed Markdown paths, without returning text. */
+  countMarkdownLines(
+    paths: string[]
+  ): Promise<Array<{ path: string; lines: number | null }>>
+  /** Invalidates a Page View when Markdown files change under a Space-relative folder. */
+  observeMarkdownFiles(
+    folder: string,
+    listener: () => void
+  ): Promise<Disposable>
+  /** Opens an existing Markdown file in the host without returning its contents. */
+  openMarkdownFile(relativePath: string): Promise<void>
+  /** Open an existing Space Markdown file, or create its parent folders and an empty file. */
+  openOrCreateMarkdown(
+    relativePath: string
+  ): Promise<{ path: string; created: boolean }>
   select(options: {
     title: string
     options: Array<{ id: string; label: string }>

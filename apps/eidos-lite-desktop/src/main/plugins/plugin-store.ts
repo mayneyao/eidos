@@ -21,6 +21,7 @@ import type {
   PluginSpaceConfig,
 } from "../../shared/plugins"
 import { PluginGrantStore } from "./plugin-grants"
+import type { SettingValue } from "@eidos.space/plugin-sdk"
 
 interface Configuration {
   routes?: Record<string, Record<string, string>>
@@ -28,6 +29,7 @@ interface Configuration {
   installed: Record<string, { hash: string }>
   spaces: Record<string, PluginSpaceConfig>
   associations?: Record<string, string>
+  settings?: Record<string, Record<string, Record<string, SettingValue>>>
 }
 export const emptyScope = (): PluginSpaceConfig => ({
   plugins: {},
@@ -181,12 +183,92 @@ export class PluginStore {
           throw new Error("Invalid plugin association")
         associations[ext] = editor
       }
-      return { version: 1, installed, spaces, routes, associations }
+      const settings: NonNullable<Configuration["settings"]> = {}
+      for (const [spaceId, plugins] of Object.entries(
+        object(value.settings ?? {})
+      )) {
+        const spaceSettings: Record<string, Record<string, SettingValue>> = {}
+        for (const [pluginId, values] of Object.entries(object(plugins))) {
+          const entries = object(values)
+          if (
+            Buffer.byteLength(JSON.stringify(entries)) > 65536 ||
+            Object.values(entries).some(
+              (entry) =>
+                !["string", "boolean", "number"].includes(typeof entry) ||
+                (typeof entry === "number" && !Number.isFinite(entry))
+            )
+          )
+            throw new Error("Invalid plugin settings")
+          spaceSettings[pluginId] = entries as Record<string, SettingValue>
+        }
+        settings[spaceId] = spaceSettings
+      }
+      return { version: 1, installed, spaces, routes, associations, settings }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
         return { version: 1, installed: {}, spaces: {}, associations: {} }
       throw error
     }
+  }
+  async pluginSettings(
+    spaceId: string,
+    pluginId: string
+  ): Promise<Record<string, SettingValue>> {
+    const binding = await this.binding(pluginId, spaceId)
+    if (!binding?.enabled)
+      throw new PluginError("PERMISSION_DENIED", "Plugin disabled")
+    const manifest = (await this.read(binding.hash)).manifest
+    const stored = (await this.config()).settings?.[spaceId]?.[pluginId] ?? {}
+    return Object.fromEntries(
+      Object.entries(manifest.settings ?? {}).map(([key, declaration]) => [
+        key,
+        this.validSetting(declaration, stored[key])
+          ? stored[key]
+          : declaration.default,
+      ])
+    )
+  }
+  private validSetting(
+    declaration: NonNullable<PluginPackage["manifest"]["settings"]>[string],
+    value: unknown
+  ): value is SettingValue {
+    if (declaration.type === "boolean") return typeof value === "boolean"
+    if (declaration.type === "number")
+      return (
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        (declaration.minimum === undefined || value >= declaration.minimum) &&
+        (declaration.maximum === undefined || value <= declaration.maximum)
+      )
+    return (
+      typeof value === "string" &&
+      Buffer.byteLength(value) <= 4096 &&
+      (!declaration.enum || declaration.enum.includes(value))
+    )
+  }
+  async setPluginSetting(
+    spaceId: string,
+    pluginId: string,
+    key: string,
+    value: SettingValue | null
+  ): Promise<void> {
+    const binding = await this.binding(pluginId, spaceId)
+    if (!binding?.enabled)
+      throw new PluginError("PERMISSION_DENIED", "Plugin disabled")
+    const declaration = (await this.read(binding.hash)).manifest.settings?.[key]
+    if (
+      !declaration ||
+      (value !== null && !this.validSetting(declaration, value))
+    )
+      throw new PluginError("INVALID_REQUEST", "Invalid plugin setting")
+    await this.update((config) => {
+      const entries = (((config.settings ??= {})[spaceId] ??= {})[pluginId] ??=
+        {})
+      if (value === null) delete entries[key]
+      else entries[key] = value
+      if (Buffer.byteLength(JSON.stringify(entries)) > 65536)
+        throw new PluginError("TOO_LARGE", "Plugin settings exceed 64 KiB")
+    })
   }
   private update(change: (config: Configuration) => void): Promise<void> {
     const next = this.writes.then(async () => {
@@ -346,6 +428,8 @@ export class PluginStore {
         for (const [extension, editor] of Object.entries(space.associations))
           if (editor.startsWith(`${id}/`)) delete space.associations[extension]
       }
+      for (const plugins of Object.values(config.settings ?? {}))
+        delete plugins[id]
       if (config.associations) {
         for (const [extension, editor] of Object.entries(config.associations))
           if (editor.startsWith(`${id}/`)) delete config.associations[extension]

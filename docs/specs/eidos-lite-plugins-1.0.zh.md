@@ -171,6 +171,29 @@ Journals 示例：
 
 entries 是逻辑名称，实际目录由用户绑定，不从源码路径或文件夹名称推导授权。
 
+Lite Plugin API 1.3 另提供需显式声明的只读能力：
+`workspace: { listMarkdownFiles: true }`。安装确认明确说明这项可枚举整个
+Space 中 Markdown 文件名的权限后，Page View 可以调用
+`HostUI.listMarkdownFiles(folder)` 列出 Space 相对目录中的 Markdown 路径。
+一次最多返回 20,000 个路径及 `truncated` 标记，不提供正文。同一 Page View
+可调用 `HostUI.openMarkdownFile(path)` 请宿主打开已存在的 Markdown 文件，
+也不会拿到正文。路径仅限当前 Space，不遍历符号链接或受保护的实现目录；
+这项权限不授予文档正文的读写能力。
+
+Lite Plugin API 1.4 增加 `workspace.countMarkdownLines: true`，同时要求
+`listMarkdownFiles: true`。Page View 可把自身通过 `listMarkdownFiles` 获得的
+最多 400 个路径传给 `HostUI.countMarkdownLines(paths)`。宿主返回每个文件的
+非空行数；文件不可用或超出文本预览上限时返回 `null`。正文不会传给插件。
+安装确认会单独说明这项可获取当前 Space 内 Markdown 行数的权限。
+
+Lite Plugin API 1.5 增加 `workspace.watchMarkdownFiles: true`，同时要求
+`listMarkdownFiles: true`。运行中的 Page View 可调用
+`HostUI.observeMarkdownFiles(folder, listener)` 订阅 Space 相对目录的变更，
+并取得可释放的订阅对象。宿主合并文件系统事件；目录内 Markdown 文件或所在目录
+发生变化时调用监听器，通知不包含文件路径或正文。Page View 需重新调用
+`listMarkdownFiles` 获取当前数据。页面关闭或插件权限撤销后订阅终止；
+安装确认会单独说明这项变更通知权限。
+
 ## 4. SDK 与生命周期
 
 Lite 将 command-palette 入口与内置操作统一放入命令面板，默认快捷键为 macOS 的

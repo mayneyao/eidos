@@ -34,6 +34,10 @@ import type { PluginStore } from "./plugin-store"
 import { diskSnapshot, type PluginDocumentSession } from "./document-host"
 export type { PluginDocumentSession } from "./document-host"
 interface Instance {
+  markdownIndex?: boolean
+  markdownLineCounts?: boolean
+  markdownWatch?: boolean
+  markdownPaths?: Set<string>
   eidos?: boolean
   tableWritable?: boolean
   table?: { tableId: string; viewId: string }
@@ -50,6 +54,8 @@ interface Instance {
   }
   invocation?: {
     id: string
+    access: "read" | "write"
+    context: "workspace" | "document" | "table"
     contextVersion?: string
     path?: string
     scope: Scope
@@ -326,6 +332,8 @@ export class PluginService {
     let timer: ReturnType<typeof setTimeout> | undefined
     const invocation: NonNullable<Instance["invocation"]> = {
       id,
+      access: declaration.access ?? "read",
+      context: declaration.context,
       ...(formatter && contextVersion ? { contextVersion, path } : {}),
       scope,
       finish: (error) => {
@@ -483,6 +491,13 @@ export class PluginService {
       owner,
       session,
       path: "",
+      markdownIndex:
+        !table && pkg.manifest.workspace?.listMarkdownFiles === true,
+      markdownLineCounts:
+        !table && pkg.manifest.workspace?.countMarkdownLines === true,
+      markdownWatch:
+        !table && pkg.manifest.workspace?.watchMarkdownFiles === true,
+      markdownPaths: !table ? new Set<string>() : undefined,
       html: viewHtml(
         pkg.modules[view.entry]!,
         table ? { kind: "table", ...table } : { kind: "page", route }
@@ -949,6 +964,17 @@ export class PluginService {
           )
         let result: unknown
         let navigation: PluginRpcResult["navigation"]
+        let openFile: string | undefined
+        if (
+          (request.method.startsWith("settings.") ||
+            request.method === "ui.openOrCreateMarkdown" ||
+            request.method === "ui.listMarkdownFiles" ||
+            request.method === "ui.countMarkdownLines" ||
+            request.method === "ui.observeMarkdownFiles" ||
+            request.method === "ui.openMarkdownFile") &&
+          binding.hash !== instance.hash
+        )
+          throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
         switch (request.method) {
           case "view.ready":
             instance.mounted?.()
@@ -1036,6 +1062,207 @@ export class PluginService {
             result = null
             break
           }
+          case "settings.get":
+          case "settings.update":
+          case "settings.reset": {
+            const p = object(params)
+            if (
+              typeof p.key !== "string" ||
+              Object.keys(p).some((key) => !["key", "value"].includes(key))
+            )
+              throw new PluginError("INVALID_REQUEST", "Invalid plugin setting")
+            if (request.method === "settings.get") {
+              if ("value" in p)
+                throw new PluginError(
+                  "INVALID_REQUEST",
+                  "Unexpected setting value"
+                )
+              const settings = await this.store.pluginSettings(
+                session.canonical.id,
+                instance.pluginId
+              )
+              if (!(p.key in settings))
+                throw new PluginError(
+                  "INVALID_REQUEST",
+                  "Unknown plugin setting"
+                )
+              result = settings[p.key]
+            } else {
+              if (request.method === "settings.reset" && "value" in p)
+                throw new PluginError(
+                  "INVALID_REQUEST",
+                  "Unexpected setting value"
+                )
+              await this.store.setPluginSetting(
+                session.canonical.id,
+                instance.pluginId,
+                p.key,
+                request.method === "settings.reset"
+                  ? null
+                  : (p.value as string | boolean | number)
+              )
+              result = null
+            }
+            break
+          }
+          case "ui.openOrCreateMarkdown": {
+            if (
+              !instance.invocation ||
+              instance.invocation.context !== "workspace" ||
+              instance.invocation.access !== "write"
+            )
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "A writable workspace action is required"
+              )
+            const p = object(params)
+            if (
+              Object.keys(p).join() !== "relativePath" ||
+              typeof p.relativePath !== "string" ||
+              Buffer.byteLength(p.relativePath) > 1024
+            )
+              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
+            const opened = await session.openOrCreateMarkdownFile(
+              p.relativePath
+            )
+            instance.invocation.scope.assertActive()
+            openFile = opened.path
+            result = opened
+            break
+          }
+          case "ui.listMarkdownFiles": {
+            if (!instance.markdownIndex)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Markdown listing was not declared for this page"
+              )
+            const p = object(params)
+            if (
+              Object.keys(p).join() !== "folder" ||
+              typeof p.folder !== "string" ||
+              Buffer.byteLength(p.folder) > 1024
+            )
+              throw new PluginError("INVALID_REQUEST", "Invalid folder")
+            let folder: string
+            try {
+              folder = p.folder ? normalizeMutableRelativePath(p.folder) : ""
+            } catch {
+              throw new PluginError("INVALID_REQUEST", "Invalid folder")
+            }
+            const listing = await session.listMarkdownFiles(folder)
+            for (const path of listing.paths) instance.markdownPaths?.add(path)
+            result = listing
+            break
+          }
+          case "ui.countMarkdownLines": {
+            if (!instance.markdownLineCounts || !instance.markdownPaths)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Markdown line counts were not declared for this page"
+              )
+            const p = object(params)
+            if (
+              Object.keys(p).join() !== "paths" ||
+              !Array.isArray(p.paths) ||
+              p.paths.length > 400 ||
+              new Set(p.paths).size !== p.paths.length ||
+              p.paths.some(
+                (path) =>
+                  typeof path !== "string" ||
+                  Buffer.byteLength(path) > 1024 ||
+                  !instance.markdownPaths!.has(path)
+              )
+            )
+              throw new PluginError("INVALID_REQUEST", "Invalid Markdown paths")
+            result = await session.countMarkdownLines(p.paths as string[])
+            break
+          }
+          case "ui.observeMarkdownFiles":
+          case "ui.unobserveMarkdownFiles": {
+            const p = object(params)
+            const observing = request.method === "ui.observeMarkdownFiles"
+            if (
+              Object.keys(p).sort().join() !==
+                (observing ? "folder,id" : "id") ||
+              typeof p.id !== "string" ||
+              !p.id ||
+              p.id.length > 128
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid Markdown observer"
+              )
+            if (!observing) {
+              instance.observations.get(p.id)?.dispose()
+              instance.observations.delete(p.id)
+              result = null
+              break
+            }
+            if (!instance.markdownWatch)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Markdown watching was not declared for this page"
+              )
+            if (
+              typeof p.folder !== "string" ||
+              Buffer.byteLength(p.folder) > 1024 ||
+              instance.observations.has(p.id) ||
+              instance.observations.size >= 64
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid Markdown observer"
+              )
+            let folder: string
+            try {
+              folder = p.folder ? normalizeMutableRelativePath(p.folder) : ""
+            } catch {
+              throw new PluginError("INVALID_REQUEST", "Invalid folder")
+            }
+            const observation = p.id
+            const subscription = session.watchMarkdownFiles(folder, () => {
+              if (!instance.scope.signal.aborted)
+                emit({
+                  protocol: PLUGIN_PROTOCOL,
+                  apiVersion: 1,
+                  observation,
+                  value: null,
+                })
+            })
+            instance.observations.set(observation, subscription)
+            instance.scope.subscriptions.add(subscription)
+            result = null
+            break
+          }
+          case "ui.openMarkdownFile": {
+            if (!instance.markdownIndex)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Markdown listing was not declared for this page"
+              )
+            const p = object(params)
+            if (
+              Object.keys(p).join() !== "relativePath" ||
+              typeof p.relativePath !== "string" ||
+              Buffer.byteLength(p.relativePath) > 1024
+            )
+              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
+            let relativePath: string
+            try {
+              relativePath = normalizeMutableRelativePath(p.relativePath)
+            } catch {
+              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
+            }
+            if (!relativePath.toLowerCase().endsWith(".md"))
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Expected a Markdown file"
+              )
+            await session.previewTextFile(relativePath)
+            openFile = relativePath
+            result = null
+            break
+          }
           case "ui.navigate": {
             const p = object(params)
             if (
@@ -1074,6 +1301,7 @@ export class PluginService {
           response: { ...base, result },
           ...(state ? { draftPath } : {}),
           ...(navigation ? { navigation } : {}),
+          ...(openFile ? { openFile } : {}),
           ...(state
             ? {
                 draft: state.dirty

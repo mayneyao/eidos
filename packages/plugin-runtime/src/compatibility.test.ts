@@ -12,11 +12,15 @@ const manifest: PluginManifest = {
   placements: [{ location: "table/view", view: "main" }],
 }
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("1.1.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("1.5.0")
   for (const [version, compatible] of [
     ["1.0.0", true],
     ["1.1.0", true],
-    ["1.1.1", false],
+    ["1.2.0", true],
+    ["1.3.0", true],
+    ["1.4.0", true],
+    ["1.5.0", true],
+    ["1.5.1", false],
     ["2.0.0", false],
   ] as const) {
     expect(
@@ -27,6 +31,20 @@ it("checks minimum API independently of SDK and plugin versions", () => {
     ).toBe(compatible)
   }
 })
+it("requires Markdown watch support independently of filename listing", () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "1.5.0" },
+    workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite")).toMatchObject({
+    compatible: true,
+  })
+  expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
+    compatible: false,
+    missingFeatures: expect.arrayContaining(["workspace.markdown-watch"]),
+  })
+})
 it("infers host features even for undeclared legacy plugins", () => {
   expect(checkPluginCompatibility(manifest, "eidos-cli").reason).toBe(
     "UNDECLARED"
@@ -35,6 +53,20 @@ it("infers host features even for undeclared legacy plugins", () => {
   expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
     compatible: false,
     missingFeatures: ["extension"],
+  })
+})
+it("infers Markdown line-count support independently of filename listing", () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "1.4.0" },
+    workspace: { listMarkdownFiles: true, countMarkdownLines: true },
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite")).toMatchObject({
+    compatible: true,
+  })
+  expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
+    compatible: false,
+    missingFeatures: expect.arrayContaining(["workspace.markdown-line-counts"]),
   })
 })
 it("uses a new envelope so old hosts cannot silently ignore minimum requirements", () => {

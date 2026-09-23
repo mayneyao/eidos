@@ -5,6 +5,7 @@ import type {
   PluginEvent,
   TextChange,
 } from "@eidos.space/plugin-runtime/rpc"
+import type { SettingValue } from "@eidos.space/plugin-sdk"
 export interface PluginBinding {
   hash: string
   enabled: boolean
@@ -56,6 +57,7 @@ export interface PluginRpcResult {
   draftPath?: string
   navigation?: { key: string; route: string }
   notification?: string
+  openFile?: string
   response: PluginResponse
   draft?: TextChange | null
 }
@@ -73,6 +75,12 @@ export interface PluginInstallTask {
   percent: number
 }
 export interface PluginApi {
+  pluginSettings(id: string): Promise<Record<string, SettingValue>>
+  setPluginSetting(
+    id: string,
+    key: string,
+    value: SettingValue | null
+  ): Promise<void>
   pluginMarketplace(refresh?: boolean): Promise<PluginMarketplace>
   pluginReadme(id: string): Promise<string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
@@ -137,6 +145,8 @@ export interface PluginApi {
   closePluginEditor(ticket: string): Promise<void>
 }
 export const PLUGIN_CHANNELS = {
+  settings: "eidos-lite:plugins-settings",
+  setSetting: "eidos-lite:plugins-set-setting",
   connection: "eidos-lite:plugins-connection",
   marketplace: "eidos-lite:plugins-marketplace",
   readme: "eidos-lite:plugins-readme",

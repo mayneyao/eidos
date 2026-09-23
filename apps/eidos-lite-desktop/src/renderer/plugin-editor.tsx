@@ -18,6 +18,7 @@ export function PluginEditor({
   onRetry,
   onNotification,
   onNavigate,
+  onOpenFile,
   onTableRequest,
   tableRevision,
   hostEvent,
@@ -29,6 +30,7 @@ export function PluginEditor({
   onRetry(): void
   onNotification?(message: string): void
   onNavigate?(key: string): void
+  onOpenFile?(path: string): void
   onTableRequest?(request: PluginRequest): Promise<unknown>
   tableRevision?: unknown
   hostEvent?: { observation: string; value: unknown }
@@ -43,6 +45,7 @@ export function PluginEditor({
     onRetry,
     onNotification,
     onNavigate,
+    onOpenFile,
     onTableRequest,
     t,
   })
@@ -51,6 +54,7 @@ export function PluginEditor({
     onRetry,
     onNotification,
     onNavigate,
+    onOpenFile,
     onTableRequest,
     t,
   }
@@ -218,6 +222,7 @@ export function PluginEditor({
             source.postMessage(result.response, "*")
             if (result.navigation)
               callbacks.current.onNavigate?.(result.navigation.key)
+            if (result.openFile) callbacks.current.onOpenFile?.(result.openFile)
           })
           .catch((cause: unknown) => {
             if (lease.current !== instance.ticket) return

@@ -364,6 +364,10 @@ export class SpaceSession {
   private readonly changeListeners = new Set<
     (snapshot: SpaceSnapshot) => void
   >()
+  private readonly markdownWatchers = new Set<{
+    folder: string
+    listener: () => void
+  }>()
   private readonly fileIssuesByPath = new Map<string, EidosFileIssue>()
   private readonly ignoreInspectionCache = new Map<
     string,
@@ -678,6 +682,7 @@ export class SpaceSession {
     )
     if (result.status === "saved") {
       this.noteLocalChange()
+      this.notifyMarkdownWatchers([request.relativePath])
       await this.freshSnapshotAndEmit()
     } else {
       this.scheduleGraftStatusRefresh()
@@ -776,6 +781,7 @@ export class SpaceSession {
       })
     )
     this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath,
@@ -796,11 +802,171 @@ export class SpaceSession {
       fs.mkdir(this.resolveUserPath(relativePath))
     )
     this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath,
       invalidatedSessionIds: [],
     }
+  }
+
+  async openOrCreateMarkdownFile(
+    requestedPath: string
+  ): Promise<{ path: string; created: boolean }> {
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    if (!relativePath.toLowerCase().endsWith(".md"))
+      throw new Error("Only Markdown files can be opened or created")
+    const parts = relativePath.split("/")
+    const name = normalizeSpaceEntryName(parts.pop()!)
+    let parent: string | null = null
+    for (const part of parts) {
+      normalizeSpaceEntryName(part)
+      const directory: string = parent ? `${parent}/${part}` : part
+      try {
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+        try {
+          await this.createFolder(parent, part)
+        } catch (createError) {
+          // Another invocation may have created the folder; revalidate it.
+          try {
+            await resolveSpaceDirectory(this.canonical.root, directory)
+          } catch {
+            throw createError
+          }
+        }
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      }
+      parent = directory
+    }
+    try {
+      await this.previewTextFile(relativePath)
+      return { path: relativePath, created: false }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    try {
+      await this.createTextFile(parent, name)
+      return { path: relativePath, created: true }
+    } catch (error) {
+      // A concurrent action can win the exclusive create; never overwrite it.
+      try {
+        await this.previewTextFile(relativePath)
+      } catch {
+        throw error
+      }
+      return { path: relativePath, created: false }
+    }
+  }
+
+  async listMarkdownFiles(
+    requestedFolder: string
+  ): Promise<{ paths: string[]; truncated: boolean }> {
+    const folder = requestedFolder
+      ? normalizeMutableRelativePath(requestedFolder)
+      : ""
+    const paths: string[] = []
+    const pending = [folder]
+    for (let cursor = 0; cursor < pending.length; cursor++) {
+      if (cursor >= 2048) return { paths: paths.sort(), truncated: true }
+      const directory = pending[cursor]!
+      let entries: SpaceTreeEntry[]
+      try {
+        entries = await listSpaceDirectory(
+          this.canonical.root,
+          directory || null,
+          { maxEntries: 100_000 }
+        )
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue
+        if (
+          error instanceof Error &&
+          error.message.startsWith("Space directory contains more than ")
+        )
+          return { paths: paths.sort(), truncated: true }
+        throw error
+      }
+      for (const entry of entries) {
+        if (entry.kind === "directory") {
+          pending.push(entry.relativePath)
+        } else if (
+          entry.kind === "file" &&
+          entry.name.toLowerCase().endsWith(".md")
+        ) {
+          paths.push(entry.relativePath)
+          if (paths.length >= 20_000)
+            return { paths: paths.sort(), truncated: true }
+        }
+      }
+    }
+    return { paths: paths.sort(), truncated: false }
+  }
+
+  watchMarkdownFiles(
+    folder: string,
+    listener: () => void
+  ): { dispose(): void } {
+    const safe = folder ? normalizeMutableRelativePath(folder) : ""
+    const watcher = { folder: safe, listener }
+    if (this.closed) throw new Error("Space is closed")
+    this.markdownWatchers.add(watcher)
+    return { dispose: () => this.markdownWatchers.delete(watcher) }
+  }
+
+  private notifyMarkdownWatchers(paths: readonly string[]): void {
+    if (this.closed || this.markdownWatchers.size === 0) return
+    const changes = paths.map(normalizedWatcherPath)
+    for (const { folder, listener } of this.markdownWatchers) {
+      if (
+        changes.length > 0 &&
+        !changes.some((changed) => {
+          const inFolder =
+            !folder || changed === folder || changed.startsWith(`${folder}/`)
+          const ancestor = !!folder && folder.startsWith(`${changed}/`)
+          return (
+            ancestor ||
+            (inFolder &&
+              (changed.toLowerCase().endsWith(".md") ||
+                changed === folder ||
+                !path.posix.extname(changed)))
+          )
+        })
+      )
+        continue
+      try {
+        listener()
+      } catch {
+        // A plugin observer must not interrupt Space watcher processing.
+      }
+    }
+  }
+
+  async countMarkdownLines(
+    paths: string[]
+  ): Promise<Array<{ path: string; lines: number | null }>> {
+    const counts: Array<{ path: string; lines: number | null }> = paths.map(
+      (path) => ({ path, lines: null })
+    )
+    let cursor = 0
+    await Promise.all(
+      Array.from({ length: Math.min(8, paths.length) }, async () => {
+        while (cursor < paths.length) {
+          const index = cursor++
+          const path = paths[index]!
+          try {
+            const preview = await this.previewTextFile(path)
+            if (preview.type === "text" && !preview.truncated)
+              counts[index]!.lines = preview.content
+                .split(/\r\n|\r|\n/)
+                .filter((line) => line.trim().length > 0).length
+          } catch {
+            // A file may disappear between listing and counting. Its count is unknown.
+          }
+        }
+      })
+    )
+    return counts
   }
 
   private prepareMarkdownLinkMove(source: string, target: string) {
@@ -864,6 +1030,7 @@ export class SpaceSession {
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
+    this.notifyMarkdownWatchers([source, target])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -908,6 +1075,7 @@ export class SpaceSession {
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
+    this.notifyMarkdownWatchers([source, target])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -960,6 +1128,7 @@ export class SpaceSession {
       })
     )
     this.noteLocalChange()
+    this.notifyMarkdownWatchers([target])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -980,6 +1149,7 @@ export class SpaceSession {
       await trash(this.resolveUserPath(source))
     })
     this.noteLocalChange()
+    this.notifyMarkdownWatchers([source])
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       invalidatedSessionIds,
@@ -1049,6 +1219,7 @@ export class SpaceSession {
       }
     })
     this.noteLocalChange()
+    this.notifyMarkdownWatchers(sources.map((source) => source.relativePath))
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: sources[0]?.relativePath,
@@ -3062,6 +3233,7 @@ export class SpaceSession {
     await this.runtimePool.destroy()
     await this.graft.close()
     this.changeListeners.clear()
+    this.markdownWatchers.clear()
     this.pendingEidosFileAssets.clear()
     this.runtimeExternalChangeState.clear()
     this.runtimeSessionByPath.clear()
@@ -3706,6 +3878,7 @@ export class SpaceSession {
     relativePaths: readonly string[]
   ): Promise<void> {
     if (this.closed) return Promise.resolve()
+    this.notifyMarkdownWatchers(relativePaths)
     return this.gate.withRuntimeRead(() =>
       this.handleStableWatcherChangeWithRuntime(relativePaths)
     )
