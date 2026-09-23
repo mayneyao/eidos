@@ -7,11 +7,13 @@ import {
   buildSpaceFileTreeModel,
   canMoveTreeDrop,
   dropTargetDirectory,
+  externalDropTargetDirectory,
   isTreeMultiSelectClick,
   parentTreePaths,
   preservedExpandedTreePaths,
   relativePathFromTreePath,
   remappedTreePaths,
+  topLevelSelectedEntries,
 } from "./space-file-tree"
 
 describe("isTreeMultiSelectClick", () => {
@@ -203,7 +205,7 @@ describe("Space file tree drag and drop", () => {
     ).toBeNull()
   })
 
-  it("allows one-item moves while rejecting no-op and multi-item drops", () => {
+  it("allows batch moves while rejecting no-op and descendant drops", () => {
     const target = {
       directoryPath: "archive/",
       flattenedSegmentPath: null,
@@ -222,6 +224,45 @@ describe("Space file tree drag and drop", () => {
         draggedPaths: ["notes/today.md", "notes/tomorrow.md"],
         target,
       })
+    ).toBe(true)
+    expect(
+      canMoveTreeDrop({
+        draggedPaths: ["notes/", "archive/today.md"],
+        target,
+      })
     ).toBe(false)
+    expect(
+      canMoveTreeDrop({
+        draggedPaths: ["archive/"],
+        target: { ...target, directoryPath: "archive/inside/" },
+      })
+    ).toBe(false)
+  })
+})
+
+describe("tree destinations", () => {
+  it("resolves external drops on folders, files, and empty root space", () => {
+    expect(externalDropTargetDirectory("docs/")).toBe("docs")
+    expect(externalDropTargetDirectory("docs/note.md")).toBe("docs")
+    expect(externalDropTargetDirectory("note.md")).toBeNull()
+    expect(externalDropTargetDirectory(null)).toBeNull()
+  })
+
+  it("does not repeat a selected folder's descendants in a batch action", () => {
+    const directory = {
+      name: "docs",
+      relativePath: "docs",
+      kind: "directory" as const,
+      size: 0,
+      modifiedAtMs: 1,
+    }
+    const child = {
+      name: "note.md",
+      relativePath: "docs/note.md",
+      kind: "file" as const,
+      size: 0,
+      modifiedAtMs: 1,
+    }
+    expect(topLevelSelectedEntries([child, directory])).toEqual([directory])
   })
 })

@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { act, type HTMLAttributes } from "react"
 import { createRoot } from "react-dom/client"
+import {
+  FileTree as PierreFileTree,
+  type FileTreeRowDecorationContext,
+} from "@pierre/trees"
 import { SpaceFileTree } from "./space-file-tree"
 import { EIDOS_LITE_SPACE_PATH_DRAG_TYPE } from "./space-path-drag"
 
@@ -68,9 +72,41 @@ it("imports external files into the root, folder, or file parent without interce
     })
     return event
   }
+  const dragOver = async (target: Element) => {
+    const event = new Event("dragover", { bubbles: true, cancelable: true })
+    Object.defineProperty(event, "dataTransfer", {
+      value: { types: ["Files"], dropEffect: "none" },
+    })
+    await act(async () => target.dispatchEvent(event))
+  }
   try {
     await render()
-    const tree = host.firstElementChild!
+    const shell = host.firstElementChild!
+    const tree = shell.firstElementChild!
+    await dragOver(tree.children[0]!)
+    expect(shell.querySelector(".space-external-drop-hint")?.textContent).toBe(
+      "Import into docs"
+    )
+    expect(tree.children[0]?.hasAttribute("data-external-drop-target")).toBe(
+      true
+    )
+    await dragOver(tree.children[1]!)
+    expect(shell.querySelector(".space-external-drop-hint")?.textContent).toBe(
+      "Import into docs"
+    )
+    expect(tree.children[0]?.hasAttribute("data-external-drop-target")).toBe(
+      true
+    )
+    expect(tree.children[1]?.hasAttribute("data-external-drop-target")).toBe(
+      false
+    )
+    await dragOver(tree)
+    expect(shell.querySelector(".space-external-drop-hint")?.textContent).toBe(
+      "Import into Space root"
+    )
+    expect(tree.children[0]?.hasAttribute("data-external-drop-target")).toBe(
+      false
+    )
     for (const [target, directory] of [
       [tree, null],
       [tree.children[0]!, "docs"],
@@ -88,6 +124,84 @@ it("imports external files into the root, folder, or file parent without interce
     expect(onImportFiles).toHaveBeenCalledTimes(3)
   } finally {
     act(() => root.unmount())
+    host.remove()
+  }
+})
+
+it("shows folder loading and a retry state after a failed lazy load", async () => {
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const decoration = vi.spyOn(PierreFileTree.prototype, "setRowDecoration")
+  let rejectFirst!: (error: Error) => void
+  let resolveRetry!: () => void
+  const onLoadDirectory = vi
+    .fn()
+    .mockReturnValueOnce(
+      new Promise<void>((_, reject) => {
+        rejectFirst = reject
+      })
+    )
+    .mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveRetry = resolve
+      })
+    )
+  const context = {
+    item: { kind: "directory", name: "docs", path: "docs/" },
+    row: {},
+  } as FileTreeRowDecorationContext
+  const currentDecoration = () => decoration.mock.lastCall?.[0]?.(context)
+  try {
+    await act(async () =>
+      root.render(
+        <SpaceFileTree
+          entries={[
+            {
+              name: "docs",
+              relativePath: "docs",
+              kind: "directory",
+              size: 0,
+              modifiedAtMs: 1,
+              childrenLoaded: false,
+            },
+          ]}
+          activePath={null}
+          renameRequest={null}
+          onSelect={vi.fn()}
+          onOpen={vi.fn()}
+          onLoadDirectory={onLoadDirectory}
+          onMove={vi.fn()}
+          onMoveError={vi.fn()}
+          onRename={vi.fn()}
+          onRenameError={vi.fn()}
+          onContextMenu={vi.fn()}
+        />
+      )
+    )
+    const folder = host.querySelector<HTMLElement>('[data-item-path="docs/"]')!
+    await act(async () => folder.click())
+    expect(onLoadDirectory).toHaveBeenCalledTimes(1)
+    expect(currentDecoration()).toMatchObject({ text: "Loading…" })
+    expect(host.querySelector('[role="status"]')?.textContent).toBe(
+      "Loading docs…"
+    )
+    await act(async () => rejectFirst(new Error("Disk unavailable")))
+    expect(currentDecoration()).toMatchObject({
+      text: "Retry",
+      title: "Disk unavailable",
+    })
+    expect(host.querySelector('[role="status"]')?.textContent).toBe(
+      "Could not load docs. Click the folder to retry."
+    )
+    await act(async () => folder.click())
+    expect(onLoadDirectory).toHaveBeenCalledTimes(2)
+    expect(currentDecoration()).toMatchObject({ text: "Loading…" })
+    await act(async () => resolveRetry())
+    expect(currentDecoration()).toBeNull()
+  } finally {
+    await act(async () => root.unmount())
+    decoration.mockRestore()
     host.remove()
   }
 })

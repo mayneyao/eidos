@@ -12,6 +12,7 @@ type PathDialogAction =
 export interface PathDialogState {
   action: PathDialogAction
   entry: SpaceTreeEntry | null
+  entries?: SpaceTreeEntry[]
   linkedNotePath?: string
 }
 
@@ -47,9 +48,14 @@ export function PathActionDialog({
       action: t("Create"),
     },
     delete: {
-      title: t("Move {name} to Trash?", {
-        name: state.entry?.name ?? t("item"),
-      }),
+      title:
+        state.entries && state.entries.length > 1
+          ? t("Move {count} items to Trash?", {
+              count: state.entries.length,
+            })
+          : t("Move {name} to Trash?", {
+              name: state.entry?.name ?? t("item"),
+            }),
       label: "",
       initial: "",
       action: t("Move to Trash"),
@@ -94,7 +100,9 @@ export function PathActionDialog({
         {destructive ? (
           <p>
             {t(
-              "The item will leave this Space and can be recovered from the system Trash."
+              state.entries && state.entries.length > 1
+                ? "These items will leave this Space and can be recovered from the system Trash."
+                : "The item will leave this Space and can be recovered from the system Trash."
             )}
           </p>
         ) : (

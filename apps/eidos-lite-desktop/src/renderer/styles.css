@@ -1704,11 +1704,45 @@ body {
   overflow: hidden;
 }
 
+.space-file-tree-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
 .space-file-tree {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.space-external-drop-hint {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  overflow: hidden;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--focus);
+  border-radius: 0.25rem;
+  color: var(--ink);
+  background: var(--lite-sidebar);
+  box-shadow: var(--elevation-shadow);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.space-file-tree-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .explorer-busy {
@@ -10524,6 +10558,13 @@ body {
   border-radius: 0.5rem;
   background: var(--surface);
   box-shadow: var(--elevation-shadow);
+}
+
+.space-context-menu-selection {
+  margin: 0;
+  padding: 0.375rem 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
 }
 
 .space-context-menu-submenu-trigger {

@@ -964,6 +964,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const titleActionRef = useRef({ path: "", spaceId: "" })
   const [contextMenu, setContextMenu] = useState<{
     entry: SpaceTreeEntry
+    entries: SpaceTreeEntry[]
     x: number
     y: number
   } | null>(null)
@@ -2928,38 +2929,46 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     }
   }, [activeFile, closeFile, recordNavigationLocation])
 
-  const moveTreeEntry = useCallback(
-    async (relativePath: string, targetDirectory: string | null) => {
+  const moveTreeEntries = useCallback(
+    async (relativePaths: string[], targetDirectory: string | null) => {
       if (Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before moving files so Markdown references can be updated safely."
         )
       setPathMutationBusy(true)
       setError(null)
-      const activePathMoved = pathMatchesPrefix(
-        activeDocumentPath,
-        relativePath
-      )
+      let activePathMoved = false
+      let moved = 0
       try {
-        const result = await window.eidosLite.movePath(
-          relativePath,
-          targetDirectory
-        )
-        await applyPathMutation(result)
-        if (result.relativePath) {
-          updateRecentFilePaths(relativePath, result.relativePath)
-        }
-        if (result.relativePath) {
-          setSelectedEntry(
-            findSpaceEntry(result.snapshot.entries, result.relativePath)
+        for (const relativePath of relativePaths) {
+          const result = await window.eidosLite.movePath(
+            relativePath,
+            targetDirectory
           )
+          await applyPathMutation(result)
+          if (result.relativePath) {
+            updateRecentFilePaths(relativePath, result.relativePath)
+            setSelectedEntry(
+              findSpaceEntry(result.snapshot.entries, result.relativePath)
+            )
+          }
+          if (pathMatchesPrefix(activeDocumentPath, relativePath)) {
+            activePathMoved = true
+          }
+          moved += 1
         }
-        if (activePathMoved) {
+      } catch (cause) {
+        if (moved > 0)
+          throw new Error(
+            `Moved ${moved} of ${relativePaths.length} items. ${errorMessage(cause)}`
+          )
+        throw cause
+      } finally {
+        if (activePathMoved && moved > 0) {
           setActiveSession(null)
           setTextPreview(null)
           recordNavigationLocation(null)
         }
-      } finally {
         setPathMutationBusy(false)
       }
     },
@@ -3019,7 +3028,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       if (!pathDialog) return
       setPathMutationBusy(true)
       setError(null)
+      let deleted = 0
+      let activePathDeleted = false
       try {
+        if (pathDialog.action === "delete" && pathDialog.entries?.length) {
+          for (const entry of pathDialog.entries) {
+            const result = await window.eidosLite.deletePath(entry.relativePath)
+            await applyPathMutation(result)
+            updateRecentFilePaths(entry.relativePath, null)
+            if (pathMatchesPrefix(activeDocumentPath, entry.relativePath)) {
+              activePathDeleted = true
+            }
+            deleted += 1
+          }
+          setPathDialog(null)
+          setSelectedEntry(null)
+          return
+        }
         let result: SpacePathMutationResult
         switch (pathDialog.action) {
           case "create-linked-note": {
@@ -3092,8 +3117,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           if (created) await openEntry(created)
         }
       } catch (cause) {
-        setError(errorMessage(cause))
+        if (deleted > 0) {
+          setPathDialog(null)
+          setSelectedEntry(null)
+        }
+        setError(
+          deleted > 0
+            ? `Moved ${deleted} of ${pathDialog.entries?.length ?? 0} items to Trash. ${errorMessage(cause)}`
+            : errorMessage(cause)
+        )
       } finally {
+        if (activePathDeleted) {
+          setActiveSession(null)
+          setTextPreview(null)
+          recordNavigationLocation(null)
+        }
         setPathMutationBusy(false)
       }
     },
@@ -3228,13 +3266,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const openEntryContextMenu = (
     entry: SpaceTreeEntry,
     x: number,
-    y: number
+    y: number,
+    entries: SpaceTreeEntry[] = [entry]
   ) => {
-    setSelectedEntry(entry)
+    setSelectedEntry(entries.length === 1 ? entry : null)
     void refreshPublicationBindings()
     void refreshPublishAccountState()
     setContextMenu({
       entry,
+      entries,
       x: Math.max(8, Math.min(x, window.innerWidth - 200)),
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
@@ -3455,12 +3495,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onSelect={setSelectedEntry}
               onOpen={(entry) => void openEntry(entry)}
               onLoadDirectory={(relativePath) => {
-                void window.eidosLite
+                return window.eidosLite
                   .loadSpaceDirectory(relativePath)
                   .then(acceptSpaceSnapshot)
-                  .catch((error) => setError(errorMessage(error)))
               }}
-              onMove={moveTreeEntry}
+              onMove={moveTreeEntries}
               onImportFiles={async (files, targetDirectory) => {
                 setPathMutationBusy(true)
                 setError(null)
@@ -3478,7 +3517,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 }
               }}
               onMoveError={(cause) =>
-                setError(`Could not move item. ${errorMessage(cause)}`)
+                setError(
+                  `Could not move selected items. ${errorMessage(cause)}`
+                )
               }
               onRename={renameTreeEntry}
               onRenameError={(cause) =>
@@ -4603,166 +4644,196 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <SpaceEntryOpenActions
-            key={contextMenu.entry.relativePath}
-            entry={contextMenu.entry}
-            selectedEditor={
-              pluginEditor?.relativePath === contextMenu.entry.relativePath
-                ? pluginEditor.editor.key
-                : "builtin"
-            }
-            editingModeShortcut={workspaceShortcutLabel(
-              "toggle-markdown-editing-mode",
-              macos,
-              keyboardShortcuts
-            )}
-            onOpen={(fileOpenMode) => {
-              void openEntry(contextMenu.entry, { fileOpenMode })
-              setContextMenu(null)
-            }}
-            onSelectPluginEditor={(editor) => {
-              void openEntry(contextMenu.entry, { pluginEditor: editor })
-              setContextMenu(null)
-            }}
-          />
-          {isPublishableEntry(contextMenu.entry) ? (
-            <button
-              type="button"
-              role="menuitem"
-              disabled={publishMenu.disabled}
-              onClick={() => {
-                if (publishMenu.disabled) return
-                if (publishTask?.status === "running") {
-                  setPublishTaskExpanded(true)
-                } else {
-                  setPublishTask(null)
-                  setPublishPanel({
-                    entry: contextMenu.entry,
-                    x: contextMenu.x,
-                    y: contextMenu.y,
-                  })
-                }
-                setContextMenu(null)
-              }}
-            >
-              {publishTask?.status === "running" ? (
-                <LoaderCircle className="spin" />
-              ) : (
-                <Upload />
-              )}{" "}
-              {publishMenu.label
-                ? t(publishMenu.label)
-                : publishTask?.status === "running"
-                  ? t("View Publish progress")
-                  : publicationBindings.some(
-                        (binding) =>
-                          binding.relativePath ===
-                          contextMenu.entry.relativePath
-                      )
-                    ? t("Manage Publish…")
-                    : t("Publish…")}
-            </button>
-          ) : null}
-          {contextMenu.entry.kind === "directory" ? (
+          {contextMenu.entries.length > 1 ? (
             <>
+              <p className="space-context-menu-selection">
+                {t("{count} items selected", {
+                  count: contextMenu.entries.length,
+                })}
+              </p>
               <button
                 type="button"
                 role="menuitem"
+                className="danger-menu-item"
                 disabled={pathMutationBusy || localInteractionBlocked}
                 onClick={() => {
                   setPathDialog({
-                    action: "create-file",
+                    action: "delete",
                     entry: contextMenu.entry,
+                    entries: contextMenu.entries,
                   })
                   setContextMenu(null)
                 }}
               >
-                <FilePlus2 /> {t("New File")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={pathMutationBusy || localInteractionBlocked}
-                onClick={() => {
-                  setPathDialog({
-                    action: "create-folder",
-                    entry: contextMenu.entry,
-                  })
-                  setContextMenu(null)
-                }}
-              >
-                <FolderPlus /> {t("New folder")}
+                <Trash2 /> {t("Move to Trash")}
               </button>
             </>
-          ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setTreeRenameRequest({
-                treePath:
-                  contextMenu.entry.kind === "directory"
-                    ? `${contextMenu.entry.relativePath}/`
-                    : contextMenu.entry.relativePath,
-                nonce: Date.now(),
-              })
-              setSidebarCollapsed(false)
-              setTextSearchVisible(false)
-              if (contextMenu.entry.relativePath === activeDocumentPath) {
-                setTreeRevealToken((value) => value + 1)
-              }
-              setContextMenu(null)
-            }}
-          >
-            <Pencil /> {t("Rename")}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              void window.eidosLite.copyPathText(
-                contextMenu.entry.relativePath,
-                "absolute"
-              )
-              setContextMenu(null)
-            }}
-          >
-            <Copy /> {t("Copy Path")}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              void window.eidosLite.copyPathText(
-                contextMenu.entry.relativePath,
-                "relative"
-              )
-              setContextMenu(null)
-            }}
-          >
-            <ClipboardCopy /> {t("Copy Relative Path")}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              void window.eidosLite.revealPath(contextMenu.entry.relativePath)
-              setContextMenu(null)
-            }}
-          >
-            <FolderOpen /> {t(fileManagerMessage(platform))}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="danger-menu-item"
-            onClick={() => {
-              setPathDialog({ action: "delete", entry: contextMenu.entry })
-              setContextMenu(null)
-            }}
-          >
-            <Trash2 /> {t("Move to Trash")}
-          </button>
+          ) : (
+            <>
+              <SpaceEntryOpenActions
+                key={contextMenu.entry.relativePath}
+                entry={contextMenu.entry}
+                selectedEditor={
+                  pluginEditor?.relativePath === contextMenu.entry.relativePath
+                    ? pluginEditor.editor.key
+                    : "builtin"
+                }
+                editingModeShortcut={workspaceShortcutLabel(
+                  "toggle-markdown-editing-mode",
+                  macos,
+                  keyboardShortcuts
+                )}
+                onOpen={(fileOpenMode) => {
+                  void openEntry(contextMenu.entry, { fileOpenMode })
+                  setContextMenu(null)
+                }}
+                onSelectPluginEditor={(editor) => {
+                  void openEntry(contextMenu.entry, { pluginEditor: editor })
+                  setContextMenu(null)
+                }}
+              />
+              {isPublishableEntry(contextMenu.entry) ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={publishMenu.disabled}
+                  onClick={() => {
+                    if (publishMenu.disabled) return
+                    if (publishTask?.status === "running") {
+                      setPublishTaskExpanded(true)
+                    } else {
+                      setPublishTask(null)
+                      setPublishPanel({
+                        entry: contextMenu.entry,
+                        x: contextMenu.x,
+                        y: contextMenu.y,
+                      })
+                    }
+                    setContextMenu(null)
+                  }}
+                >
+                  {publishTask?.status === "running" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <Upload />
+                  )}{" "}
+                  {publishMenu.label
+                    ? t(publishMenu.label)
+                    : publishTask?.status === "running"
+                      ? t("View Publish progress")
+                      : publicationBindings.some(
+                            (binding) =>
+                              binding.relativePath ===
+                              contextMenu.entry.relativePath
+                          )
+                        ? t("Manage Publish…")
+                        : t("Publish…")}
+                </button>
+              ) : null}
+              {contextMenu.entry.kind === "directory" ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={pathMutationBusy || localInteractionBlocked}
+                    onClick={() => {
+                      setPathDialog({
+                        action: "create-file",
+                        entry: contextMenu.entry,
+                      })
+                      setContextMenu(null)
+                    }}
+                  >
+                    <FilePlus2 /> {t("New File")}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={pathMutationBusy || localInteractionBlocked}
+                    onClick={() => {
+                      setPathDialog({
+                        action: "create-folder",
+                        entry: contextMenu.entry,
+                      })
+                      setContextMenu(null)
+                    }}
+                  >
+                    <FolderPlus /> {t("New folder")}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setTreeRenameRequest({
+                    treePath:
+                      contextMenu.entry.kind === "directory"
+                        ? `${contextMenu.entry.relativePath}/`
+                        : contextMenu.entry.relativePath,
+                    nonce: Date.now(),
+                  })
+                  setSidebarCollapsed(false)
+                  setTextSearchVisible(false)
+                  if (contextMenu.entry.relativePath === activeDocumentPath) {
+                    setTreeRevealToken((value) => value + 1)
+                  }
+                  setContextMenu(null)
+                }}
+              >
+                <Pencil /> {t("Rename")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void window.eidosLite.copyPathText(
+                    contextMenu.entry.relativePath,
+                    "absolute"
+                  )
+                  setContextMenu(null)
+                }}
+              >
+                <Copy /> {t("Copy Path")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void window.eidosLite.copyPathText(
+                    contextMenu.entry.relativePath,
+                    "relative"
+                  )
+                  setContextMenu(null)
+                }}
+              >
+                <ClipboardCopy /> {t("Copy Relative Path")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void window.eidosLite.revealPath(
+                    contextMenu.entry.relativePath
+                  )
+                  setContextMenu(null)
+                }}
+              >
+                <FolderOpen /> {t(fileManagerMessage(platform))}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="danger-menu-item"
+                onClick={() => {
+                  setPathDialog({ action: "delete", entry: contextMenu.entry })
+                  setContextMenu(null)
+                }}
+              >
+                <Trash2 /> {t("Move to Trash")}
+              </button>
+            </>
+          )}
         </div>
       ) : null}
       {publishPanel ? (

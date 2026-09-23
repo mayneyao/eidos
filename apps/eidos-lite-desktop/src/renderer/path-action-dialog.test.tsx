@@ -49,3 +49,37 @@ describe("linked note confirmation", () => {
     }
   )
 })
+
+it("confirms the count for a batch Trash action", async () => {
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const entries = ["a.md", "b.md"].map((name) => ({
+    name,
+    relativePath: name,
+    kind: "file" as const,
+    size: 0,
+    modifiedAtMs: 1,
+  }))
+  try {
+    await act(async () =>
+      root.render(
+        <PathActionDialog
+          state={{ action: "delete", entry: entries[0]!, entries }}
+          busy={false}
+          onSubmit={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      )
+    )
+    expect(container.querySelector("form")?.getAttribute("aria-label")).toBe(
+      "Move 2 items to Trash?"
+    )
+    expect(container.querySelector("form p")?.textContent).toContain(
+      "These items will leave this Space"
+    )
+  } finally {
+    await act(async () => root.unmount())
+    container.remove()
+  }
+})
