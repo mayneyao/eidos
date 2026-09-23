@@ -1,0 +1,83 @@
+import assert from "node:assert/strict"
+import test from "node:test"
+import { provider } from "../src/extension.ts"
+
+function context(count = 105) {
+  const controller = new AbortController()
+  const reads = [], writes = [], progress = []
+  let approved = false
+  const ctx = {
+    signal: controller.signal,
+    table: { read: async () => ({ fields: [{ id: "done", name: "Done", type: "checkbox" }] }) },
+    target: {
+      count,
+      read: async ({ offset, limit, fields }) => {
+        reads.push({ offset, limit, fields })
+        return Array.from({ length: Math.min(limit, count - offset) }, (_, i) => ({
+          id: String(offset + i), readToken: "token-" + (offset + i),
+          values: { done: offset + i === 0 },
+        }))
+      },
+      update: async (input) => {
+        assert.equal(approved, true, "declare outputs before writing")
+        writes.push(input)
+      },
+    },
+    task: {
+      preview: async (rows) => {
+        assert.equal(approved, false, "declare output scope only once")
+        assert.equal(rows.length, 1)
+        assert.deepEqual(rows[0].values, { done: true })
+        approved = true
+        return true
+      },
+      report: async (value) => { progress.push(value.completed) },
+    },
+  }
+  return { ctx, controller, reads, writes, progress }
+}
+test("all target pages are processed without rewriting already checked records", async () => {
+  const { ctx, reads, writes, progress } = context()
+  await provider.run(ctx, "done")
+  assert.deepEqual(reads.map((page) => page.offset), [0, 50, 100])
+  assert.equal(writes.length, 104)
+  assert.deepEqual(writes[0], { readToken: "token-1", values: { done: true } })
+  assert.deepEqual(progress, [50, 100, 105])
+})
+test("cancellation stops writes", async () => {
+  const { ctx, controller, writes } = context()
+  controller.abort()
+  await provider.run(ctx, "done")
+  assert.equal(writes.length, 0)
+})
+test("schema changes are rejected before writing", async () => {
+  const { ctx, writes } = context()
+  await assert.rejects(provider.run(ctx, "missing"), /no longer exists/)
+  assert.equal(writes.length, 0)
+})
+
+test("cancelling during a run preserves only completed writes", async () => {
+  const { ctx, controller, writes } = context()
+  const update = ctx.target.update
+  ctx.target.update = async (input) => {
+    await update(input)
+    controller.abort()
+  }
+  await provider.run(ctx, "done")
+  assert.equal(writes.length, 1)
+})
+
+test("declined output scope prevents all writes", async () => {
+  const { ctx, writes } = context()
+  ctx.task.preview = async () => false
+  await provider.run(ctx, "done")
+  assert.equal(writes.length, 0)
+})
+
+test("read-only checkboxes do not appear in the menu or accept writes", async () => {
+  const { ctx, writes } = context()
+  ctx.table.read = async () => ({ fields: [{ id: "done", name: "Done", type: "checkbox", writable: false }] })
+  assert.deepEqual(await provider.getItems(ctx), [])
+  await assert.rejects(provider.run(ctx, "done"), /no longer exists/)
+  assert.equal(writes.length, 0)
+})

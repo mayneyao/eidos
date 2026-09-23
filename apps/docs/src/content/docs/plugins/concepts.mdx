@@ -1,0 +1,106 @@
+---
+title: Plugin concepts
+description: Understand views, file opening modes, contexts, actions, and contribution points.
+sidebar:
+  order: 2
+---
+
+A plugin is a package that can provide several features. Choose each feature by
+answering three questions: **what does it provide, what does it operate on, and
+where does the user open it?**
+
+## Capabilities, contexts, and contribution points
+
+| Concept            | Question                      | Manifest example                      |
+| ------------------ | ----------------------------- | ------------------------------------- |
+| Capability         | What does the plugin provide? | `views`, `actions`, `formatters`      |
+| Context            | What is the feature bound to? | A view's `context: "document"`        |
+| Contribution point | Where can users access it?    | A placement's `location: "file/open"` |
+
+These are complementary declarations, not mutually exclusive plugin types.
+A plugin can provide multiple views and actions, with multiple user entry points.
+Here, “capability” describes the feature; it is not an instruction to manually
+maintain a separate API capability inventory.
+
+## Views: interfaces for different contexts
+
+A **View** is an interface mounted by the host. A view can display information
+or offer editing within its declared access and the APIs exposed by its context.
+
+```text
+View
+├── File View — an opening mode for a file
+│   ├── Document View — a regular text document, such as Markdown or CSV
+│   └── Eidos View — an .eidos structured-data file
+├── Table View — a view inside a data table, such as a chart or map
+└── Page View — an independent plugin page
+```
+
+**File View is an umbrella term**, not a new manifest context. Declare either
+`context: "document"` or `context: "eidos"` and contribute the view through
+`file/open`. There is no `context: "file"` or separate `fileViews` declaration.
+
+| View          | Manifest context | Typical placement | Data interface                          |
+| ------------- | ---------------- | ----------------- | --------------------------------------- |
+| Document View | `document`       | `file/open`       | `ctx.binding.document` (`TextDocument`) |
+| Eidos View    | `eidos`          | `file/open`       | `ctx.binding.file` (`EidosFileContext`) |
+| Table View    | `table`          | `table/view`      | `ctx.binding.table` (`TableContext`)    |
+| Page View     | `page`           | `navigation`      | `ctx.binding.route`                     |
+
+Check `ctx.binding.kind` before using a context-specific interface. Views share
+the `mount(ctx, root)` lifecycle; the binding determines the APIs available to them.
+The host must support the requested context and contribution point.
+
+### Document View and Eidos View are both file opening modes
+
+Use a **Document View** for text-based files. For example, a Markdown rich-text
+editor and a source editor present the same document differently. They use the
+host's text-document working copy rather than direct filesystem access.
+
+Use an **Eidos View** for an interface bound to an entire `.eidos` file. For
+example, Smart Actions lets users choose a table, inspect its fields, and save
+action configuration. The current `EidosFileContext` provides table discovery,
+field metadata, plugin-scoped table configuration, and declared connections.
+It does not grant arbitrary SQL or unrestricted record editing.
+
+Both appear to users as **Open with** choices. A different opening mode changes
+the interface; it does not convert the file or create another data copy.
+
+### Table View belongs inside a table
+
+Use a **Table View** to present one table's records as a chart, map, or another
+representation. It appears in the table's view controls, rather than replacing
+the opening mode for the entire `.eidos` file. A map of one table is a Table View;
+a file-wide configuration interface that selects tables is an Eidos View.
+
+### Access is separate from view type
+
+`access: "read"` and `access: "write"` describe requested access. “Editor” is a
+product description, not another View type. Declaring write access does not add
+methods that the bound context does not expose.
+
+## Actions perform operations
+
+An **Action** runs an operation, such as formatting a selection or updating
+selected table records. Its context and placement determine where it can run:
+for example, a table action can appear in `table/context`, while a workspace
+command can appear in `command-palette`. The supported combinations are defined
+by the SDK and host; contexts and placements cannot be combined arbitrarily.
+
+An action can report progress through host UI without becoming a View.
+One plugin can combine an Eidos View for configuring actions with table actions
+for executing them. Smart Actions follows this pattern.
+
+## Choose a starting point
+
+- Replace how a text file is displayed or edited: **File View → Document View**.
+- Build an interface for an `.eidos` file: **File View → Eidos View**.
+- Visualize one table's records: **Table View**.
+- Run an operation on records: **Table Action**.
+- Open a standalone plugin interface: **Page View**.
+
+User-facing file menus say **Open with**; table controls say **View**. Developer
+documentation uses View as the shared concept and specifies its context.
+
+Continue with the [development guide](/plugins/guide/) and
+[API reference](/plugins/api/) for manifest declarations and context methods.

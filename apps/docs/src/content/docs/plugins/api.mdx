@@ -22,6 +22,17 @@ Every plugin declares its capabilities in a `plugin.json` manifest file (or expo
 ```ts
 export interface PluginManifest {
   apiVersion: 1
+  requires?: { pluginApi: string }
+  settings?: Record<string, SettingDeclaration>
+  workspace?: {
+    listMarkdownFiles: true
+    countMarkdownLines?: true
+    watchMarkdownFiles?: true
+  }
+  connections?: Record<
+    string,
+    { title: string; url: string; configurable?: boolean }
+  >
   id: string
   name: string
   version: string
@@ -43,21 +54,24 @@ export interface PluginManifest {
 
 ### Fields
 
-| Field                    | Type                     | Required | Description                                                               |
-| ------------------------ | ------------------------ | -------- | ------------------------------------------------------------------------- |
-| `apiVersion`             | `1`                      | Yes      | Target host API version. Must be `1`.                                     |
-| `id`                     | `string`                 | Yes      | Unique reverse-DNS identifier (e.g. `com.example.counter`).               |
-| `name`                   | `string`                 | Yes      | Human-readable display name shown in Lite.                                |
-| `version`                | `string`                 | Yes      | Semantic version string (e.g. `0.1.0`).                                   |
-| `icon`                   | `PluginIconDefinition`   | No       | Icon paths or relative file path.                                         |
-| `extension`              | `string`                 | No       | Relative path to background extension entry (e.g. `./src/extension.ts`).  |
-| `views`                  | `ViewDeclaration[]`      | No       | Array of custom UI view declarations.                                     |
-| `actions`                | `ActionDeclaration[]`    | No       | Array of command-palette actions.                                         |
-| `formatters`             | `FormatterDeclaration[]` | No       | Array of document formatters.                                             |
-| `placements`             | `Placement[]`            | No       | UI locations where views and actions appear.                              |
-| `browser.networkOrigins` | `string[]`               | No       | Exact HTTPS origins permitted for `ctx.network.read` or iframe fetches.   |
-| `browser.workers`        | `boolean`                | No       | Enables bundled Blob Web Workers (default: `false`).                      |
-| `storage.maxBytes`       | `number`                 | No       | Storage quota in bytes for `ctx.storage` (maximum: 1 GiB / `1073741824`). |
+| Field                          | Type                     | Required | Description                                                                             |
+| ------------------------------ | ------------------------ | -------- | --------------------------------------------------------------------------------------- |
+| `apiVersion`                   | `1`                      | Yes      | Target host API version. Must be `1`.                                                   |
+| `id`                           | `string`                 | Yes      | Unique reverse-DNS identifier (e.g. `com.example.counter`).                             |
+| `name`                         | `string`                 | Yes      | Human-readable display name shown in Lite.                                              |
+| `version`                      | `string`                 | Yes      | Semantic version string (e.g. `0.1.0`).                                                 |
+| `icon`                         | `PluginIconDefinition`   | No       | Icon paths or relative file path.                                                       |
+| `extension`                    | `string`                 | No       | Relative path to background extension entry (e.g. `./src/extension.ts`).                |
+| `views`                        | `ViewDeclaration[]`      | No       | Array of custom UI view declarations.                                                   |
+| `actions`                      | `ActionDeclaration[]`    | No       | Array of command-palette actions.                                                       |
+| `formatters`                   | `FormatterDeclaration[]` | No       | Array of document formatters.                                                           |
+| `placements`                   | `Placement[]`            | No       | UI locations where views and actions appear.                                            |
+| `browser.networkOrigins`       | `string[]`               | No       | Exact HTTPS origins permitted for `ctx.network.read` or iframe fetches.                 |
+| `browser.workers`              | `boolean`                | No       | Enables bundled Blob Web Workers (default: `false`).                                    |
+| `storage.maxBytes`             | `number`                 | No       | Storage quota in bytes for `ctx.storage` (maximum: 1 GiB / `1073741824`).               |
+| `workspace.listMarkdownFiles`  | `true`                   | No       | Declares permission to list Markdown file names in the current Space (Plugin API 1.3).  |
+| `workspace.countMarkdownLines` | `true`                   | No       | Declares permission to count non-empty lines in listed Markdown files (Plugin API 1.4). |
+| `workspace.watchMarkdownFiles` | `true`                   | No       | Declares permission to receive Markdown change notifications (Plugin API 1.5).          |
 
 ### Icon definition (`PluginIconDefinition`)
 
@@ -84,7 +98,7 @@ export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table"
+  context: "page" | "document" | "table" | "eidos"
   access?: "read" | "write"
   icon?: PluginIconDefinition
   configuration?: ViewConfiguration
@@ -110,7 +124,7 @@ export interface ActionDeclaration {
   access?: "read" | "write"
   extensions?: string[]
   icon?: PluginIconDefinition
-  multiple?: boolean
+  // Legacy configuration/multiple declarations are rejected; use table.pluginConfig.
 }
 ```
 
@@ -135,6 +149,9 @@ export type Placement =
   | { location: "file/open"; view: string; extensions: string[] }
   | { location: "navigation"; view: string }
   | { location: "table/view"; view: string }
+  | { location: "table/context"; action: string }
+  | { location: "file/context"; action: string }
+  | { location: "view/toolbar"; view: string; action: string }
   | { location: "plugin/settings"; view: string }
 ```
 
@@ -193,6 +210,7 @@ Action handlers receive an `ActionContext`:
 export interface ActionContext {
   readonly binding: ActionBinding
   readonly ui: HostUI
+  readonly settings: Settings
   readonly signal: AbortSignal
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
@@ -208,6 +226,16 @@ export type ActionBinding =
 - `binding.kind === "workspace"`: Global command executed without a focused document.
 - `binding.kind === "document"`: Command executed in the context of an active text document (`binding.document`).
 - `binding.kind === "table"`: Command executed in the context of a table view (`binding.table`).
+
+For a writable workspace action, `ctx.ui.openOrCreateMarkdown(relativePath)` opens a Space-relative `.md` file. It creates missing parent folders and an empty file when needed, and preserves an existing file. The call returns `{ path, created }`. This requires `requires.pluginApi: "1.2.0"` and `access: "write"` on the action. Use local calendar dates for daily filenames, not UTC dates.
+
+With `requires.pluginApi: "1.3.0"` and `workspace: { listMarkdownFiles: true }`, a Page View can call `ctx.ui.listMarkdownFiles(folder)` to enumerate Markdown paths under a Space-relative folder. It returns `{ paths, truncated }` and never exposes file contents. `ctx.ui.openMarkdownFile(path)` opens an existing Markdown file in Lite without returning its text. Installation explicitly discloses this Space-wide filename permission. Page Views can also read their own declared settings with `ctx.settings.get(key)`.
+
+With Plugin API 1.4 and `workspace.countMarkdownLines: true`, `ctx.ui.countMarkdownLines(paths)` returns non-empty line counts for up to 400 paths previously listed by the Page View. Unavailable or oversized files return `null`. The host never returns the text; installation discloses this additional permission.
+
+With Plugin API 1.5 and `workspace.watchMarkdownFiles: true`, a Page View can subscribe with `await ctx.ui.observeMarkdownFiles(folder, listener)`. The callback receives no paths or contents; call `listMarkdownFiles` again to refresh. Dispose the returned subscription when it is no longer needed. Lite also disposes it when the page closes. Installation discloses this permission separately.
+
+Declared scalar `manifest.settings` are edited in the plugin detail page, saved per Space, and available to an active action through `ctx.settings.get(key)`, `update(key, value)`, and `reset(key)`.
 
 ---
 
@@ -269,6 +297,7 @@ export type ViewBinding =
   | { kind: "page"; route: string }
   | { kind: "document"; document: TextDocument }
   | { kind: "table"; table: TableContext }
+  | { kind: "eidos"; file: EidosFileContext }
 ```
 
 ---
@@ -281,6 +310,18 @@ Available on `ctx.ui` in both actions and views:
 export interface HostUI {
   /** Show a brief notification toast in the top-right corner. */
   notify(message: string): Promise<void>
+  /** Page View only; requires the workspace Markdown listing permission. */
+  listMarkdownFiles(
+    folder: string
+  ): Promise<{ paths: string[]; truncated: boolean }>
+  countMarkdownLines(
+    paths: string[]
+  ): Promise<Array<{ path: string; lines: number | null }>>
+  observeMarkdownFiles(
+    folder: string,
+    listener: () => void
+  ): Promise<Disposable>
+  openMarkdownFile(relativePath: string): Promise<void>
 
   /** Display a modal confirmation dialog. */
   confirm(options: {
@@ -433,3 +474,103 @@ export interface PluginNetwork {
 - Target URL must match one of the HTTPS origins declared in `browser.networkOrigins`.
 - Timeout: 20 seconds.
 - Maximum payload: 4 MiB.
+
+## New contexts and development workflow
+
+`requires.pluginApi` is the minimum plugin API contract, not the SDK npm version; `apiVersion: 1` remains unchanged.
+`context: "eidos"` is an Eidos File View. See [Plugin concepts](/plugins/concepts/).
+
+See [Development workflow](/plugins/workflow/) for EidosFileContext, TableActionProvider,
+plugin-scoped table configuration, connections, host checks, debugging, tests, and publishing.
+The installed `@eidos.space/plugin-sdk` declarations are the complete type reference.
+
+## Eidos file and table action interfaces
+
+These interfaces match SDK 0.2.0. The host creates a `TableActionContext` for each run; declare sample outputs before writing target records. See the [workflow](/plugins/workflow/) for usage.
+
+```ts
+export interface EidosFileContext {
+  readonly connections: {
+    configured(connection: string): Promise<boolean>
+    request(input: {
+      connection: string
+      body: JsonObject
+    }): Promise<JsonObject>
+  }
+  listTables(): Promise<Array<{ id: string; name: string }>>
+  readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
+  readPluginConfig(tableId: string): ReturnType<TablePluginConfig["read"]>
+  writePluginConfig(
+    tableId: string,
+    input: Parameters<TablePluginConfig["write"]>[0]
+  ): ReturnType<TablePluginConfig["write"]>
+}
+
+export interface TablePluginConfig {
+  read(): Promise<TablePluginConfigSnapshot>
+  write(input: {
+    value: JsonObject | null
+    expectedVersion: string
+  }): Promise<TablePluginConfigSnapshot>
+  /** Invalidation hint; call read() for current values. May include unrelated table changes. */
+  observe(listener: () => void): Disposable
+}
+
+export interface TablePluginConfigSnapshot {
+  value: JsonObject | null
+  version: string
+}
+
+export interface TableActionItem {
+  id: string
+  title: string
+  /** Optional monochrome 24×24 SVG paths; no external resources. */
+  icon?: { paths: string[] }
+  targets: Array<"row" | "selection" | "view">
+}
+
+export interface TableActionRecord {
+  id: string
+  values: Record<string, LogicalValue>
+  readToken: string
+}
+
+export interface TableActionContext {
+  readonly signal: AbortSignal
+  readonly table: Pick<TableContext, "tableId" | "viewId" | "read"> & {
+    pluginConfig: Pick<TableContext["pluginConfig"], "read">
+  }
+  readonly target: {
+    count: number
+    read(options: {
+      offset: number
+      limit: number
+      fields: string[]
+    }): Promise<TableActionRecord[]>
+    update(input: {
+      readToken: string
+      values: Record<string, LogicalValue>
+    }): Promise<void>
+  }
+  readonly connections: {
+    request(input: {
+      connection: string
+      body: JsonObject
+    }): Promise<JsonObject>
+  }
+  readonly task: {
+    /** Declares validated sample outputs. Lite applies runs directly and does not show a confirmation preview. */
+    preview(
+      rows: Array<{ readToken: string; values: Record<string, LogicalValue> }>
+    ): Promise<boolean>
+    report(progress: { completed: number; message?: string }): Promise<void>
+  }
+}
+
+export interface TableActionProvider {
+  getItems(
+    context: Pick<TableActionContext, "table" | "signal">
+  ): Promise<TableActionItem[]> | TableActionItem[]
+  run(context: TableActionContext, itemId: string): Promise<void>
+}
+```

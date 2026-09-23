@@ -1,0 +1,12 @@
+import type { Mount } from "@eidos.space/plugin-sdk"
+import "./style.css"
+
+const mount: Mount = (ctx, root) => {
+  if (ctx.binding.kind !== "page") throw new Error("Open the plugin navigation page")
+  const heading = document.createElement("h1")
+  heading.textContent = "Hello from your plugin"
+  const detail = document.createElement("p")
+  detail.textContent = "Route: " + ctx.binding.route
+  root.replaceChildren(heading, detail)
+}
+export default mount

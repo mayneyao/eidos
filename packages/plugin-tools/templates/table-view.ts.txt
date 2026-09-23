@@ -1,0 +1,23 @@
+import type { Mount } from "@eidos.space/plugin-sdk"
+import "./style.css"
+
+const mount: Mount = (ctx, root) => {
+  if (ctx.binding.kind !== "table") throw new Error("Add this view inside a table")
+  const table = ctx.binding.table
+  let generation = 0
+  const refresh = async () => {
+    const current = ++generation
+    try {
+      const result = await table.aggregate({ metric: { op: "count" } })
+      if (!ctx.signal.aborted && current === generation) {
+        root.textContent = result.totalRecords + " records"
+      }
+    } catch (error) {
+      if (!ctx.signal.aborted && current === generation) root.textContent = String(error)
+    }
+  }
+  root.textContent = "Loading…"
+  ctx.subscriptions.add(table.observe(() => { void refresh() }))
+  void refresh()
+}
+export default mount

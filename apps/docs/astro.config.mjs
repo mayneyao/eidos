@@ -137,7 +137,11 @@ export default defineConfig({
                 {
                   label: "Development",
                   translations: { "zh-CN": "开发指南" },
-                  items: ["plugins/guide"],
+                  items: [
+                    "plugins/concepts",
+                    "plugins/guide",
+                    "plugins/workflow",
+                  ],
                 },
                 {
                   label: "Reference",

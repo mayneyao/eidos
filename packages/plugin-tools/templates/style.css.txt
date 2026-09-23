@@ -1,13 +1,13 @@
-:root { color-scheme: light dark; font: 13px system-ui, sans-serif; }
-* { box-sizing: border-box; }
+:root { color-scheme: var(--eidos-color-scheme, light); font: 13px var(--eidos-font-family, system-ui), sans-serif; color: var(--eidos-foreground); background: var(--eidos-background); }
+* { box-sizing: border-box; scrollbar-color: var(--eidos-scrollbar-thumb) transparent; }
 body { margin: 0; }
 #app { display: flex; flex-direction: column; height: 100vh; }
-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); }
-button { font: inherit; color: ButtonText; background: ButtonFace; border: 1px solid GrayText; border-radius: 4px; padding: 4px 10px; }
-button:focus-visible, textarea:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--eidos-border); }
+button { font: inherit; color: var(--eidos-foreground); background: var(--eidos-surface-hover); border: 1px solid var(--eidos-muted); border-radius: 4px; padding: 4px 10px; }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--eidos-accent); outline-offset: -2px; }
 main { flex: 1; min-height: 0; overflow: auto; }
 table { border-collapse: collapse; }
-td, th { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 0; }
-th { padding: 4px 8px; font-weight: 400; color: GrayText; }
-textarea { display: block; font: inherit; resize: vertical; min-width: 140px; padding: 5px 8px; border: 0; color: CanvasText; background: Canvas; }
-footer { padding: 8px 14px; color: GrayText; border-top: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); }
+td, th { border: 1px solid var(--eidos-border); padding: 0; }
+th { padding: 4px 8px; font-weight: 400; color: var(--eidos-muted); }
+textarea { display: block; font: inherit; resize: vertical; min-width: 140px; padding: 5px 8px; border: 0; color: var(--eidos-foreground); background: var(--eidos-background); }
+footer { padding: 8px 14px; color: var(--eidos-muted); border-top: 1px solid var(--eidos-border); }

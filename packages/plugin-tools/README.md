@@ -5,7 +5,7 @@ Read the public [development guide](../../apps/docs/src/content/docs/plugins/gui
 workflow. This document is for repository maintainers.
 
 Rust owns the `eidos plugin` entry point. This package supplies the compiler backend
-and CSV scaffold. SDK imports are types only; runtime capabilities are injected
+and categorized starters. SDK imports are types only; runtime capabilities are injected
 through `mount(ctx, root)`. Check and pack accept directories containing `plugin.json`
 or standalone TS/JS sources, without executing plugin code or build configuration.
 
@@ -52,10 +52,12 @@ accept/rollback are not implemented; dev reports this explicitly.
 
 ## Package and example
 
-Pack creates bounded gzip JSON `{format: 1, manifest, modules}` with self-contained
+Pack creates bounded gzip JSON `{format: 1 | 2, manifest, modules}` with self-contained
 browser modules. The old HTML envelope is rejected. Installed plugins need neither
-Node nor a network connection. Lite accepts document/page views and workspace/document
-actions without named resources or settings, and rejects unsupported data capabilities.
+Node nor a network connection for bundled code. Lite supports document, Eidos,
+table and page views, actions, named resources, settings and connections according
+to the declared API contract. CLI Serve has a narrower Table View profile;
+use target checks rather than assuming host parity.
 The independent `eidos-text-tools-plugin` project in `~/workspace/eidos-plugins` demonstrates a navigation page,
 opaque routes and lazily activated commands. The extension browser smoke exercises
 the real Lite service with Chromium under Electron's Node mode:
@@ -76,3 +78,18 @@ To test the maintained React CSV plugin, run the browser smoke with `--react`.
 Set `EIDOS_CSV_PLUGIN` if its source is outside the default
 `~/workspace/eidos-plugins/eidos-csv-plugin` directory. Templates remain part of
 this tool package for `eidos plugin create`.
+
+`templates/catalog.json` and `templates/project.json` are shared by Node and Rust.
+The Rust CLI embeds the corresponding source files so creation needs no Node.js.
+When adding a source file, add its `include_str!` entry in `apps/cli/src/plugin.rs`.
+Rebuild the Rust binary before running the cross-CLI parity test:
+
+```sh
+EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
+```
+
+The test compares every starter file, compiles all templates, tests action
+pagination/cancellation, checks target-host failures, and verifies release hashes.
+See the bilingual development workflow for `templates`, `--template`, `--target`,
+checksum output and the `registry` draft helper. These additions need a new tool
+release; published 0.2.0 does not expose them.

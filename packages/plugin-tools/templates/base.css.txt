@@ -1,0 +1,8 @@
+:root { color-scheme: var(--eidos-color-scheme, light); font-family: var(--eidos-font-family, system-ui); color: var(--eidos-foreground); background: var(--eidos-background); font-size: 14px; }
+* { box-sizing: border-box; scrollbar-color: var(--eidos-scrollbar-thumb) transparent; }
+body { margin: 0; }
+#app { padding: 24px; }
+button, input, select, textarea { font: inherit; color: inherit; background: var(--eidos-background); border: 1px solid var(--eidos-border); border-radius: 5px; padding: 6px 10px; }
+button { cursor: pointer; }
+button:hover { background: var(--eidos-surface-hover); }
+:focus-visible { outline: 2px solid var(--eidos-accent); outline-offset: 2px; }

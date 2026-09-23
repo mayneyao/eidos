@@ -1,0 +1,30 @@
+{
+  "package": {
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "engines": {
+      "node": ">=22.12.0"
+    },
+    "scripts": {
+      "check": "eidos-plugin check .",
+      "pack:plugin": "eidos-plugin pack ."
+    },
+    "devDependencies": {
+      "@eidos.space/plugin-sdk": "^0.2.0",
+      "@eidos.space/plugin-tools": "^0.2.0"
+    }
+  },
+  "tsconfig": {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "ESNext",
+      "moduleResolution": "bundler",
+      "lib": ["ES2022", "DOM"],
+      "strict": true,
+      "skipLibCheck": true,
+      "noEmit": true
+    },
+    "include": ["src"]
+  }
+}

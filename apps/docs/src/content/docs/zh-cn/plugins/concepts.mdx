@@ -1,0 +1,90 @@
+---
+title: 插件核心概念
+description: 理解视图、文件打开方式、上下文、动作和贡献点之间的关系。
+sidebar:
+  order: 2
+---
+
+一个插件是可以提供多种功能的软件包。设计每项功能时，先回答三个问题：
+**提供什么能力、作用于什么对象、用户从哪里进入？**
+
+## 能力、上下文与贡献点
+
+| 概念                         | 回答的问题         | Manifest 示例                        |
+| ---------------------------- | ------------------ | ------------------------------------ |
+| 能力                         | 插件提供什么？     | `views`、`actions`、`formatters`     |
+| 上下文（Context）            | 功能绑定什么对象？ | 视图的 `context: "document"`         |
+| 贡献点（Contribution point） | 用户从哪里进入？   | placement 的 `location: "file/open"` |
+
+这三者共同描述一项功能，并不是互斥的插件类型。一个插件可以同时提供多个视图和动作，
+通过不同入口供用户使用。这里的「能力」用于解释功能，并不意味着开发者需要手工维护另一份 API 能力清单。
+
+## View：面向不同上下文的界面
+
+**View（视图）**是由宿主挂载的界面。它可以展示信息，也可以在声明的权限和上下文 API 范围内提供编辑功能。
+
+```text
+View
+├── File View — 文件的打开方式
+│   ├── Document View — 普通文本文档，例如 Markdown、CSV
+│   └── Eidos View — .eidos 结构化数据文件
+├── Table View — 数据表内部的视图，例如图表、地图
+└── Page View — 独立的插件页面
+```
+
+**File View 是统一的上层概念**，不是新增的 manifest 上下文。实际声明使用
+`context: "document"` 或 `context: "eidos"`，通过 `file/open` 提供入口。
+不存在 `context: "file"`，也不需要单独声明 `fileViews`。
+
+| 视图          | Manifest context | 典型贡献点   | 数据接口                                 |
+| ------------- | ---------------- | ------------ | ---------------------------------------- |
+| Document View | `document`       | `file/open`  | `ctx.binding.document`（`TextDocument`） |
+| Eidos View    | `eidos`          | `file/open`  | `ctx.binding.file`（`EidosFileContext`） |
+| Table View    | `table`          | `table/view` | `ctx.binding.table`（`TableContext`）    |
+| Page View     | `page`           | `navigation` | `ctx.binding.route`                      |
+
+使用具体接口前，应先检查 `ctx.binding.kind`。视图共享 `mount(ctx, root)` 生命周期，
+绑定的上下文决定可用的数据 API。宿主需要支持所声明的上下文和贡献点。
+
+### Document View 和 Eidos View 都是文件打开方式
+
+处理文本类文件时，使用 **Document View**。例如 Markdown 的富文本编辑器和源码编辑器，
+是同一份文档的不同呈现方式。它们使用宿主管理的文档工作副本，不直接访问文件系统。
+
+为整个 `.eidos` 文件提供独立界面时，使用 **Eidos View**。例如 Smart Actions 配置界面，
+让用户选择数据表、查看字段并保存动作配置。目前的 `EidosFileContext` 提供数据表发现、
+字段元数据、插件专属的数据表配置和已声明的连接接口，不提供任意 SQL 或无限制的记录编辑。
+
+两者都出现在用户的**「打开方式」**中。切换打开方式改变的是界面，不会转换文件或创建另一份数据副本。
+
+### Table View 属于数据表内部
+
+将一张数据表的记录展示为图表、地图等形式时，使用 **Table View**。它出现在表内的视图入口中，
+并不替换整个 `.eidos` 文件的打开方式。展示某张表的地图是 Table View；可以选择不同数据表的文件级配置界面是 Eidos View。
+
+### 权限与视图类型分开声明
+
+`access: "read"` 和 `access: "write"` 表示申请的访问权限。「编辑器」是功能描述，
+不是另一种 View 类型。声明写权限也不会增加上下文本身没有提供的方法。
+
+## Action：执行操作
+
+**Action（动作）**用于执行操作，例如格式化选中内容、更新选中的数据表记录。
+上下文和贡献点决定它在哪里运行：例如数据表动作可以放在 `table/context`，
+Space 级命令可以放在 `command-palette`。SDK 和宿主定义了支持的组合，不能任意搭配。
+
+动作可以通过宿主 UI 展示进度，不会因此变成 View。一个插件可以同时提供用于配置动作的
+Eidos View，以及用于执行操作的 Table Action。Smart Actions 就采用这种组合。
+
+## 如何选择
+
+- 改变文本文件的展示或编辑方式：**File View → Document View**。
+- 为 `.eidos` 文件构建独立界面：**File View → Eidos View**。
+- 可视化一张表的记录：**Table View**。
+- 对记录执行操作：**Table Action**。
+- 打开独立的插件界面：**Page View**。
+
+面向用户，文件菜单使用「打开方式」，表内入口使用「视图」；面向开发者，统一使用 View，
+再明确它绑定的上下文。
+
+接下来阅读[开发指南](/zh-cn/plugins/guide/)和 [API 参考](/zh-cn/plugins/api/)，了解具体声明与接口。

@@ -62,15 +62,21 @@ A notification toast appears: `Hello from Eidos Plugin! 🎉`. Whenever you edit
 
 ## Extension capabilities
 
+Start with [Plugin concepts](/plugins/concepts/) to distinguish capabilities,
+contexts, and contribution points. File Views are file opening modes, with
+Document Views and Eidos Views as their two forms.
+
 A plugin can combine multiple capabilities in a single `plugin.json` manifest (or single-file export):
 
-| Your feature                            | Extension point    | User entry point                         |
-| --------------------------------------- | ------------------ | ---------------------------------------- |
-| Format Markdown or text                 | Formatter provider | Format Document or Format Document With… |
-| Count words or run a document operation | Action             | Cmd+K, optionally a custom shortcut      |
-| Edit CSV, Markdown, or custom files     | Document view      | File context menu → Open with            |
-| Open an independent plugin page         | Page view          | Space plugin navigation entry            |
-| Show table records on a map or chart    | Table view         | Table view menu → New view               |
+| Your feature                             | Extension point           | User entry point                         |
+| ---------------------------------------- | ------------------------- | ---------------------------------------- |
+| Format Markdown or text                  | Formatter provider        | Format Document or Format Document With… |
+| Count words or run a document operation  | Action                    | Cmd+K, optionally a custom shortcut      |
+| Edit CSV, Markdown, or custom text files | File View → Document View | File context menu → Open with            |
+| Build an interface for an .eidos file    | File View → Eidos View    | File context menu → Open with            |
+| Run an operation on table records        | Table Action              | Table context menu                       |
+| Open an independent plugin page          | Page view                 | Space plugin navigation entry            |
+| Show table records on a map or chart     | Table view                | Table view menu → New view               |
 
 ## Two ways to develop
 

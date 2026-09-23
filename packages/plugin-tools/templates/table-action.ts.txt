@@ -1,0 +1,44 @@
+import type { Activate, TableActionProvider } from "@eidos.space/plugin-sdk"
+
+// One menu item per writable checkbox. Use field IDs only for API calls.
+export const provider: TableActionProvider = {
+  async getItems({ table }) {
+    const { fields } = await table.read()
+    return fields.filter((field) => field.type === "checkbox" && field.writable !== false && !field.isDerived).map((field) => ({
+      id: field.id,
+      title: "Mark " + field.name + " complete",
+      targets: ["row", "selection", "view"],
+    }))
+  },
+  async run(ctx, fieldId) {
+    const { fields } = await ctx.table.read()
+    if (!fields.some((field) => field.id === fieldId && field.type === "checkbox" && field.writable !== false && !field.isDerived)) {
+      throw new Error("The checkbox field no longer exists")
+    }
+    // The host freezes the target scope, including all filtered records.
+    // readToken protects against stale writes; never build your own row-ID selection.
+    let declaredOutputs = false
+    for (let offset = 0; offset < ctx.target.count; offset += 50) {
+      if (ctx.signal.aborted) return
+      const rows = await ctx.target.read({ offset, limit: 50, fields: [fieldId] })
+      if (!declaredOutputs && rows.length) {
+        // Required once before writes: declare the output scope using a real sample.
+        // Despite the legacy name, Lite does not show a preview confirmation.
+        if (!await ctx.task.preview([{ readToken: rows[0].readToken, values: { [fieldId]: true } }])) return
+        declaredOutputs = true
+      }
+      for (const row of rows) {
+        if (ctx.signal.aborted) return
+        if (row.values[fieldId] !== true) {
+          await ctx.target.update({ readToken: row.readToken, values: { [fieldId]: true } })
+        }
+      }
+      await ctx.task.report({ completed: Math.min(offset + 50, ctx.target.count) })
+    }
+    // Lite owns the task window and undo/redo for this run.
+  },
+}
+const activate: Activate = (ctx) => {
+  ctx.subscriptions.add(ctx.actions.registerTableProvider("complete", provider))
+}
+export default activate

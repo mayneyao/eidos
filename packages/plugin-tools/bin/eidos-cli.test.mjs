@@ -6,6 +6,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
 import { decodePackage } from "../dist/compiler.js"
+import { create, templateCatalog } from "./eidos-plugin.mjs"
 const binary = process.env.EIDOS_PLUGIN_CLI
 
 test(
@@ -33,6 +34,52 @@ test(
         await fs.realpath(project)
       )
       assert.notEqual(run("plugin", "create", project).status, 0)
+      for (const template of Object.keys(templateCatalog)) {
+        const rustProject = path.join(parent, "rust", template)
+        const nodeProject = path.join(parent, "node", template)
+        await fs.mkdir(path.dirname(rustProject), { recursive: true })
+        await fs.mkdir(path.dirname(nodeProject), { recursive: true })
+        const result = run(
+          "--json",
+          "plugin",
+          "create",
+          rustProject,
+          "--template",
+          template
+        )
+        assert.equal(result.status, 0, result.stdout + result.stderr)
+        await create(nodeProject, template)
+        for (const file of ["plugin.json", "package.json", "tsconfig.json"]) {
+          assert.deepEqual(
+            JSON.parse(await fs.readFile(path.join(rustProject, file))),
+            JSON.parse(await fs.readFile(path.join(nodeProject, file)))
+          )
+        }
+        for (const file of [
+          ...Object.keys(templateCatalog[template].files),
+          "README.md",
+          ".gitignore",
+        ]) {
+          assert.equal(
+            await fs.readFile(path.join(rustProject, file), "utf8"),
+            await fs.readFile(path.join(nodeProject, file), "utf8")
+          )
+        }
+        const target = run(
+          "--json",
+          "plugin",
+          "check",
+          rustProject,
+          "--target",
+          template === "table-view" ? "cli" : "lite"
+        )
+        assert.equal(target.status, 0, target.stdout + target.stderr)
+      }
+      const action = path.join(parent, "rust", "table-action")
+      assert.notEqual(
+        run("--json", "plugin", "check", action, "--target", "cli").status,
+        0
+      )
       for (const command of ["check", "pack"]) {
         const result = run("--json", "plugin", command, project)
         assert.equal(result.status, 0, result.stderr)

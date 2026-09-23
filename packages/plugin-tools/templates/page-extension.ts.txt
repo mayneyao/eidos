@@ -1,0 +1,8 @@
+import type { Activate } from "@eidos.space/plugin-sdk"
+
+const activate: Activate = (ctx) => {
+  ctx.subscriptions.add(ctx.actions.register("open", async ({ ui }) => {
+    await ui.navigate("main", "/")
+  }))
+}
+export default activate

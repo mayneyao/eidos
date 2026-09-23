@@ -10,15 +10,21 @@ Plugins run in a local, isolated sandbox without requiring network access or ext
 
 ## Extension capabilities
 
+Read [Plugin concepts](/plugins/concepts/) first for the relationship between
+View, File View, context, and placement. Document Views and Eidos Views are both
+file opening modes; Table Views belong inside a table.
+
 A plugin can combine any of these extension points in a single `plugin.json` manifest:
 
-| Your feature                            | Extension point    | User entry point                         |
-| --------------------------------------- | ------------------ | ---------------------------------------- |
-| Format Markdown or text                 | Formatter provider | Format Document or Format Document With… |
-| Count words or run a document operation | Action             | Cmd+K, optionally a custom shortcut      |
-| Edit CSV, Markdown, or custom files     | Document view      | File context menu → Open with            |
-| Open an independent plugin page         | Page view          | Space plugin navigation entry            |
-| Show table records on a map or chart    | Table view         | Table view menu → New view               |
+| Your feature                             | Extension point           | User entry point                         |
+| ---------------------------------------- | ------------------------- | ---------------------------------------- |
+| Format Markdown or text                  | Formatter provider        | Format Document or Format Document With… |
+| Count words or run a document operation  | Action                    | Cmd+K, optionally a custom shortcut      |
+| Edit CSV, Markdown, or custom text files | File View → Document View | File context menu → Open with            |
+| Build an interface for an .eidos file    | File View → Eidos View    | File context menu → Open with            |
+| Run an operation on table records        | Table Action              | Table context menu                       |
+| Open an independent plugin page          | Page view                 | Space plugin navigation entry            |
+| Show table records on a map or chart     | Table view                | Table view menu → New view               |
 
 ---
 
@@ -456,10 +462,10 @@ Use the host's semantic CSS variables to automatically match light and dark mode
 
 ```css
 .card {
-  background-color: var(--e-color-bg-subtle);
-  color: var(--e-color-text-primary);
-  border: 1px solid var(--e-color-border-subtle);
-  border-radius: var(--e-radius-md);
+  background-color: var(--eidos-surface-hover);
+  color: var(--eidos-foreground);
+  border: 1px solid var(--eidos-border);
+  border-radius: 5px;
 }
 ```
 
@@ -510,7 +516,7 @@ const bytes = await ctx.storage.read("config")
 
 ### Network requests
 
-All external network requests must be explicitly declared in `browser.networkOrigins`. Direct `eval`, Node.js APIs, and CDN scripts are blocked by the sandbox CSP.
+Declare exact HTTPS origins in `browser.networkOrigins` for `ctx.network.read`. Authenticated requests instead use manifest `connections` and host-managed credentials; see [Development workflow](/plugins/workflow/). Direct `eval`, Node.js APIs, and CDN scripts are blocked.
 
 ```json
 {
@@ -532,21 +538,21 @@ You can run scripts directly from your plugin directory or use the CLI:
 # Validate manifest metadata, TypeScript types, and dependencies
 npm run check
 # Or run directly:
-# npx eidos-plugin check .
+# npx @eidos.space/plugin-tools check .
 # eidos plugin check .
 
 # Bundle into an offline, self-contained .eidos-plugin archive
 npm run pack:plugin
 # Or specify a custom output path:
-# npx eidos-plugin pack . --out ./dist/my-plugin-0.1.0.eidos-plugin
+# npx @eidos.space/plugin-tools pack . --out ./dist/my-plugin-0.1.0.eidos-plugin
 ```
 
-Packaging creates a `<id>-<version>.eidos-plugin` archive. This is a standardized gzip-compressed JSON envelope containing `format: 1`, full manifest metadata, and bundled module sources. Users can install it directly in Eidos Lite (**Plugins → Install plugin…**) without Node.js or an internet connection.
+Packaging creates a `<id>-<version>.eidos-plugin` archive. This is a standardized gzip-compressed JSON envelope containing `format: 1 | 2`, full manifest metadata, and bundled module sources. Users can install it directly in Eidos Lite (**Plugins → Install plugin…**) without Node.js or an internet connection.
 
 ### 2. Publish to the Marketplace
 
 1. Publish `<id>-<version>.eidos-plugin` as a GitHub Release asset in your repository.
-2. Submit a PR to [the official registry](https://github.com/eidos-space/registry) updating `plugins.registry.json` with your plugin ID, version, release download URL, and SHA-256 checksum.
+2. Submit a PR to [the official registry](https://github.com/eidos-space/registry) updating `plugins.registry.json` with ID, name, description, category, repository, exact version, tag, asset filename, SHA-256, compatibility note, and the deprecated `preview: false` field. See its contribution guide or the [registry draft helper](/plugins/workflow/#prepare-a-release).
 3. Once merged, your plugin appears in the Eidos Lite Marketplace for all users.
 
 ---
@@ -555,3 +561,7 @@ Packaging creates a `<id>-<version>.eidos-plugin` archive. This is a standardize
 
 - Explore the complete [Plugin API reference](/plugins/api/) for all context methods, interfaces, and options.
 - Read the normative [Plugin 1.0 specifications](/specifications/) for underlying host contracts.
+
+## Templates, debugging, and release helpers
+
+See [Development workflow](/plugins/workflow/) for choosing a template, checking Lite/CLI compatibility, debugging, testing, and generating checksums and registry entry drafts.

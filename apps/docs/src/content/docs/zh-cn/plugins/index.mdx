@@ -60,15 +60,20 @@ export default function activate(ctx: ExtensionContext) {
 
 ## 扩展能力一览
 
+先阅读[插件核心概念](/zh-cn/plugins/concepts/)，理解能力、上下文和贡献点的区别。
+File View 统一表示文件的打开方式，包含 Document View 和 Eidos View。
+
 一个插件可以在一份配置中组合以下多种扩展能力：
 
-| 你要实现的功能                  | 使用的接口         | 用户入口                   |
-| ------------------------------- | ------------------ | -------------------------- |
-| 格式化 Markdown 或文本          | Formatter provider | 格式化文档、选择格式化程序 |
-| 统计字数、执行文档操作          | Action             | Cmd+K，可选自定义快捷键    |
-| 编辑 CSV、Markdown 或自定义文件 | Document view      | 文件右键菜单 → Open with   |
-| 打开独立的插件页面              | Page view          | 插件的导航入口             |
-| 在地图或图表上展示表格记录      | Table view         | 表格视图菜单 → 新建视图    |
+| 你要实现的功能                      | 使用的接口                | 用户入口                   |
+| ----------------------------------- | ------------------------- | -------------------------- |
+| 格式化 Markdown 或文本              | Formatter provider        | 格式化文档、选择格式化程序 |
+| 统计字数、执行文档操作              | Action                    | Cmd+K，可选自定义快捷键    |
+| 编辑 CSV、Markdown 或自定义文本文件 | File View → Document View | 文件右键菜单 → 打开方式    |
+| 为 .eidos 文件构建独立界面          | File View → Eidos View    | 文件右键菜单 → 打开方式    |
+| 对数据表记录执行操作                | Table Action              | 数据表右键菜单             |
+| 打开独立的插件页面                  | Page view                 | 插件的导航入口             |
+| 在地图或图表上展示表格记录          | Table view                | 表格视图菜单 → 新建视图    |
 
 ## 两种开发模式
 

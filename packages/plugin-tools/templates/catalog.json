@@ -1,0 +1,146 @@
+{
+  "document-view": {
+    "description": "CSV file editor with host save and undo/redo",
+    "manifest": {
+      "views": [
+        {
+          "id": "table",
+          "title": "CSV Table",
+          "entry": "./src/main.ts",
+          "context": "document",
+          "access": "write"
+        }
+      ],
+      "placements": [
+        {
+          "location": "file/open",
+          "view": "table",
+          "extensions": [".csv"]
+        }
+      ]
+    },
+    "files": {
+      "src/main.ts": "main.ts.txt",
+      "src/csv.ts": "csv.ts.txt",
+      "src/style.css": "style.css.txt"
+    }
+  },
+  "eidos-view": {
+    "description": "Browse tables and fields in an .eidos file",
+    "manifest": {
+      "requires": {
+        "pluginApi": "1.1.0"
+      },
+      "views": [
+        {
+          "id": "main",
+          "title": "File overview",
+          "entry": "./src/main.ts",
+          "context": "eidos",
+          "access": "read"
+        }
+      ],
+      "placements": [
+        {
+          "location": "file/open",
+          "extensions": [".eidos"],
+          "view": "main"
+        }
+      ]
+    },
+    "files": {
+      "src/main.ts": "eidos-view.ts.txt",
+      "src/style.css": "base.css.txt"
+    }
+  },
+  "table-view": {
+    "description": "Table record count with live invalidation",
+    "manifest": {
+      "views": [
+        {
+          "id": "main",
+          "title": "Record count",
+          "entry": "./src/main.ts",
+          "context": "table",
+          "access": "read"
+        }
+      ],
+      "placements": [
+        {
+          "location": "table/view",
+          "view": "main"
+        }
+      ]
+    },
+    "files": {
+      "src/main.ts": "table-view.ts.txt",
+      "src/style.css": "base.css.txt"
+    }
+  },
+  "table-action": {
+    "description": "Set a checkbox on target records, with progress and host undo",
+    "manifest": {
+      "requires": {
+        "pluginApi": "1.1.0"
+      },
+      "extension": "./src/extension.ts",
+      "actions": [
+        {
+          "id": "complete",
+          "title": "Mark complete",
+          "context": "table",
+          "access": "write"
+        }
+      ],
+      "placements": [
+        {
+          "location": "table/context",
+          "action": "complete"
+        }
+      ]
+    },
+    "files": {
+      "src/extension.ts": "table-action.ts.txt",
+      "tests/action.test.mjs": "action.test.mjs.txt"
+    },
+    "scripts": {
+      "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    }
+  },
+  "page": {
+    "description": "Independent page opened by a navigation entry or command",
+    "manifest": {
+      "views": [
+        {
+          "id": "main",
+          "title": "Hello page",
+          "entry": "./src/main.ts",
+          "context": "page"
+        }
+      ],
+      "placements": [
+        {
+          "location": "navigation",
+          "view": "main"
+        },
+        {
+          "location": "command-palette",
+          "action": "open"
+        }
+      ],
+      "extension": "./src/extension.ts",
+      "actions": [
+        {
+          "id": "open",
+          "title": "Open hello page",
+          "context": "workspace"
+        }
+      ]
+    },
+    "files": {
+      "src/main.ts": "page.ts.txt",
+      "src/extension.ts": "page-extension.ts.txt",
+      "src/style.css": "base.css.txt"
+    }
+  }
+}

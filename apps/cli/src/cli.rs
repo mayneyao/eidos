@@ -98,8 +98,12 @@ pub enum PluginCommand {
         #[arg(long)]
         deny: Vec<String>,
     },
-    /// Create a CSV editor project without requiring Node.js.
-    Create { directory: PathBuf },
+    /// Create a plugin project without requiring Node.js.
+    Create {
+        directory: PathBuf,
+        #[arg(long, default_value = "document-view", value_parser = ["document-view", "eidos-view", "table-view", "table-action", "page"])]
+        template: String,
+    },
     /// Validate the manifest and TypeScript using local development dependencies.
     Check(PluginProjectArgs),
     /// Connect an authoring session (requires host authoring support).
@@ -178,6 +182,9 @@ pub struct PluginProjectArgs {
     /// Output archive path for plugin pack.
     #[arg(long = "out")]
     pub output: Option<PathBuf>,
+    /// Require compatibility with a target host (plugin check only).
+    #[arg(long, value_parser = ["lite", "cli"])]
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Args)]

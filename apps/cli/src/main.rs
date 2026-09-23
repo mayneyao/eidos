@@ -113,7 +113,7 @@ mod tests {
             };
             match args.command {
                 PluginCommand::Fs { .. } => panic!("unexpected internal transport"),
-                PluginCommand::Create { directory } => {
+                PluginCommand::Create { directory, .. } => {
                     assert_eq!(directory.to_str(), Some("/tmp/my project"))
                 }
                 PluginCommand::Check(args)
