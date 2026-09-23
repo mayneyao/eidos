@@ -30,6 +30,7 @@ interface Configuration {
   spaces: Record<string, PluginSpaceConfig>
   associations?: Record<string, string>
   settings?: Record<string, Record<string, Record<string, SettingValue>>>
+  activeThemeId?: string | null
 }
 export const emptyScope = (): PluginSpaceConfig => ({
   plugins: {},
@@ -203,7 +204,20 @@ export class PluginStore {
         }
         settings[spaceId] = spaceSettings
       }
-      return { version: 1, installed, spaces, routes, associations, settings }
+      const activeThemeId =
+        typeof value.activeThemeId === "string" &&
+        installed[value.activeThemeId]
+          ? value.activeThemeId
+          : null
+      return {
+        version: 1,
+        installed,
+        spaces,
+        routes,
+        associations,
+        settings,
+        activeThemeId,
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
         return { version: 1, installed: {}, spaces: {}, associations: {} }
@@ -391,7 +405,7 @@ export class PluginStore {
     await this.update((config) => {
       const installed = !!config.installed[pkg.manifest.id]
       config.installed[pkg.manifest.id] = { hash }
-      if (spaceId && !installed)
+      if (spaceId && !installed && !pkg.manifest.theme)
         (config.spaces[spaceId] ??= emptyScope()).plugins[pkg.manifest.id] = {
           enabled: true,
         }
@@ -406,9 +420,16 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Enabling a plugin requires a Space"
       )
-    if (enabled) {
-      const binding = await this.installed(id)
-      if (binding) await this.read(binding.hash)
+    const binding = await this.installed(id)
+    if (binding) {
+      const manifest = enabled
+        ? (await this.read(binding.hash)).manifest
+        : await this.manifest(binding.hash)
+      if (manifest.theme)
+        throw new PluginError(
+          "INVALID_REQUEST",
+          "Select theme plugins through the theme picker"
+        )
     }
     await this.update((config) => {
       if (!config.installed[id])
@@ -420,6 +441,7 @@ export class PluginStore {
   async uninstall(id: string) {
     await this.resources.revokePlugin(id)
     await this.update((config) => {
+      if (config.activeThemeId === id) config.activeThemeId = null
       delete config.installed[id]
       for (const space of Object.values(config.spaces)) {
         delete space.plugins[id]
@@ -513,7 +535,9 @@ export class PluginStore {
         manifest,
         hash,
         enabled:
-          (space?.plugins[id]?.enabled ?? false) &&
+          (manifest.theme
+            ? config.activeThemeId === id
+            : (space?.plugins[id]?.enabled ?? false)) &&
           checkPluginCompatibility(manifest, "eidos-lite").compatible,
         developmentPath: this.development.get(hash),
       })
@@ -522,7 +546,23 @@ export class PluginStore {
       plugins,
       space,
       associations: config.associations ?? {},
+      activeThemeId: config.activeThemeId ?? null,
     }
+  }
+  async selectTheme(id: string | null): Promise<void> {
+    if (id !== null) {
+      const installed = await this.installed(id)
+      if (!installed)
+        throw new PluginError("INVALID_REQUEST", "Theme is not installed")
+      const pkg = await this.read(installed.hash)
+      if (!pkg.manifest.theme)
+        throw new PluginError("INVALID_REQUEST", "Plugin is not a theme")
+    }
+    await this.update((config) => {
+      if (id !== null && !config.installed[id])
+        throw new PluginError("INVALID_REQUEST", "Theme is not installed")
+      config.activeThemeId = id
+    })
   }
   async installed(id: string) {
     const binding = (await this.config()).installed[id]

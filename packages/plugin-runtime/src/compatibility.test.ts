@@ -12,7 +12,7 @@ const manifest: PluginManifest = {
   placements: [{ location: "table/view", view: "main" }],
 }
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("1.5.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("1.6.0")
   for (const [version, compatible] of [
     ["1.0.0", true],
     ["1.1.0", true],
@@ -20,7 +20,8 @@ it("checks minimum API independently of SDK and plugin versions", () => {
     ["1.3.0", true],
     ["1.4.0", true],
     ["1.5.0", true],
-    ["1.5.1", false],
+    ["1.6.0", true],
+    ["1.6.1", false],
     ["2.0.0", false],
   ] as const) {
     expect(
@@ -30,6 +31,25 @@ it("checks minimum API independently of SDK and plugin versions", () => {
       ).compatible
     ).toBe(compatible)
   }
+})
+it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
+  const theme: PluginManifest = {
+    apiVersion: 1,
+    kind: "theme",
+    id: "example.theme",
+    name: "Theme",
+    version: "1.0.0",
+    requires: { pluginApi: "1.6.0" },
+    theme: {
+      light: { "--theme-surface": "#fff" },
+      dark: { "--theme-surface": "#111" },
+    },
+  }
+  expect(checkPluginCompatibility(theme, "eidos-lite").compatible).toBe(true)
+  expect(checkPluginCompatibility(theme, "eidos-cli")).toMatchObject({
+    compatible: false,
+    missingFeatures: ["theme.lite"],
+  })
 })
 it("requires Markdown watch support independently of filename listing", () => {
   const plugin: PluginManifest = {

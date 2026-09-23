@@ -5,8 +5,10 @@ sidebar:
   order: 2
 ---
 
-Eidos Lite plugins add document formatters, command-palette actions, and custom interfaces to a Space.
-Plugins run in a local, isolated sandbox without requiring network access or external CDNs.
+Ordinary Eidos Lite plugins add document formatters, command-palette actions,
+and custom interfaces to a Space. Their code runs in a local, isolated sandbox.
+To customize the Eidos Lite host interface itself, create a separate
+[theme plugin](/plugins/workflow/#build-a-standalone-eidos-lite-theme).
 
 ## Extension capabilities
 
@@ -14,7 +16,7 @@ Read [Plugin concepts](/plugins/concepts/) first for the relationship between
 View, File View, context, and placement. Document Views and Eidos Views are both
 file opening modes; Table Views belong inside a table.
 
-A plugin can combine any of these extension points in a single `plugin.json` manifest:
+An ordinary plugin can combine any of these extension points in a single `plugin.json` manifest:
 
 | Your feature                             | Extension point           | User entry point                         |
 | ---------------------------------------- | ------------------------- | ---------------------------------------- |

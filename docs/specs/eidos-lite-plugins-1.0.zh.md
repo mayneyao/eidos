@@ -41,6 +41,9 @@ Eidos 插件规范定义了 Eidos Lite 桌面宿主下的扩展与应用开发�
 - **View**：由宿主挂载的界面，可以绑定页面、文本文档或数据表视图上下文。
 - **Action**：用户触发的操作，声明所需上下文与数据访问范围。
 
+**主题插件**是另一种独立、仅含数据的插件类型，通过受校验的语义变量和可选本地字体
+定制整个 Eidos Lite 界面。它不是 View 或 Action，也不是给单个插件界面换肤。
+
 placements 是入口位置，resources 是授权请求，settings 是配置，都不是新的插件类型。
 
 插件还可以实现宿主定义的 provider 扩展点。Formatter 为宿主的“格式化文档”提供算法，
@@ -68,6 +71,8 @@ Markdown 内嵌 renderer 插槽、宿主 DOM 或远程部署。本地静态站�
 安装流程可在确认前明确说明同时启用当前 Space；没有打开 Space 时仅安装。
 更新共享版本时保留各 Space 的启用、设置和授权，不扩大资源权限。
 卸载影响所有 Space：终止实例、清除启用和默认编辑器关联、撤销资源授权；重装不自动恢复启用或授权。
+主题插件不按 Space 启用：用户可以为整台设备选择一个已安装主题，选择跨 Space 持久生效，
+与浅色／深色／跟随系统偏好独立。安装不会自动应用；卸载正在使用的主题会恢复宿主默认样式。
 实例、设置、页面路由、资源绑定和授权均按 Space 与插件 ID 隔离，不提供跨 Space 权限或全局数据实例。
 打开顺序为显式选择 → Space 默认 → 内置。默认失效需提示并回退，显式选择失效需报错。
 安装不能自行设置默认编辑器。同步来的文件夹或 `.eidos` 中的插件引用不能自动执行代码。
@@ -83,6 +88,8 @@ Markdown 内嵌 renderer 插槽、宿主 DOM 或远程部署。本地静态站�
 ```text
 plugin.json
   apiVersion, id, name, version
+  kind?          "theme" 表示独立主题插件
+  theme?         light、dark 语义变量及可选本地字体
   icon?          矢量图标声明（SVG paths）
   extension?     动作注册入口
   views?         id, title, entry, context, access?, configuration?, icon?
@@ -95,7 +102,8 @@ plugin.json
   formatters?    文档格式化程序声明
 ```
 
-至少声明一个 view 或 action。未知字段、重复 ID、错误引用与上下文不匹配均拒绝。
+常规插件至少声明一个 view、action 或 formatter；主题插件改为要求
+`kind: "theme"`、`theme` 和最低 Plugin API `1.6.0`。未知字段、重复 ID、错误引用与上下文不匹配均拒绝。
 导入模块（包括锁定依赖的包导出）还支持 .mjs。
 入口为源码根内以 `./` 开头的 .ts/.tsx/.js/.jsx 模块，不接受绝对路径、`..`、反斜杠、
 URL、query、fragment 或导出表达式。
@@ -114,6 +122,46 @@ View context 为 page/document/table/eidos；Action context 为 workspace/docume
 命名空间并使用版本冲突检查；写入要求 `access: "write"`。宿主必须固定当前文件和
 插件身份，拒绝跨文件表以及调用方提供的 session/plugin 覆盖。不暴露文本句柄、
 文件系统句柄、记录读写或结构修改权限。
+
+### 主题插件（Lite Plugin API 1.6）
+
+主题与普通插件使用相同的 `.eidos-plugin` 分发包，也可在开发时直接加载
+`plugin.json`。`theme.light` 和 `theme.dark` 各包含 1–32 个语义变量。
+宿主根据最终浅色／深色模式选用对应变量，作用于所有 Space 的 Eidos Lite 界面；
+取消、切换或卸载主题时恢复默认值。
+
+允许的变量为 `--theme-surface`、`--theme-ink`、`--theme-accent`、
+`--theme-success`、`--theme-warning`、`--theme-danger`、`--theme-neutral`、
+`--canvas`、`--lite-sidebar`、`--sidebar-strong`、`--surface-hover`、
+`--surface-active`、`--surface-selected`、`--ink`、`--ink-muted`、
+`--ink-faint`、`--line`、`--hairline`、`--lite-accent`、`--accent-strong`、
+`--accent-contrast`、`--primary-action-hover`、`--focus`、`--control-fill`、
+`--control-border`、`--font-ui`、`--font-code`、`--font-editorial`、
+`--font-size-ui`、`--font-size-code`、`--chrome-header-height` 和
+`--control-radius`。颜色须为有效 CSS 颜色；字体族须为普通字体列表。
+字号范围 10–24 px，标题栏高度 30–64 px，控件圆角 0–16 px，也接受等值的
+`rem`／`em`。不接受 CSS 规则、选择器、`url()`、`var()`、声明及可执行表达式。
+
+最多可带四个本地字体。源码中的 `source` 为项目根目录相对的 `.woff`、
+`.woff2`、`.ttf` 或 `.otf` 路径，打包时校验并内嵌为 Data URL。
+安装包不允许远程字体地址或文件路径。主题插件不得声明模块、View、Action、
+Formatter、Placement、扩展入口、授权、设置、存储、连接、工作区或浏览器权限。
+主题没有执行上下文，不能读取用户数据或操作宿主 DOM。
+
+```json
+{
+  "apiVersion": 1,
+  "kind": "theme",
+  "requires": { "pluginApi": "1.6.0" },
+  "id": "example.slate-theme",
+  "name": "Slate",
+  "version": "1.0.0",
+  "theme": {
+    "light": { "--theme-surface": "#f7f8fa", "--theme-ink": "#19212b" },
+    "dark": { "--theme-surface": "#181d24", "--theme-ink": "#eef2f6" }
+  }
+}
+```
 
 Action 声明定义可调用的操作能力。Lite 支持下文定义的动态表格动作提供器；插件在表级命名空间中自行管理动作配置。当前 manifest 校验器不接受 Action 的 `configuration` 和 `multiple`。
 
@@ -274,7 +322,8 @@ interface PluginPackage {
 ```
 
 modules 为入口键到自包含 ESM JS 的映射，源码中的 CSS／资源随各入口打包，不产生外部运行时依赖。
-键必须恰好覆盖 view entry 和可选 extension，可共享入口；不是解压路径，不含任意附加可执行资源。
+键必须恰好覆盖 view entry 和可选 extension，可共享入口；主题包的 `modules` 为空对象。
+这些键不是解压路径，不含任意附加可执行资源。
 压缩前后总上限均为 16 MiB；解压有界、拒绝重复 JSON 键，加载前校验完整性。
 
 源码 revision 覆盖归一化清单、源码／依赖和转换目标版本；安装包 revision 为压缩字节 SHA-256。
@@ -285,7 +334,7 @@ modules 为入口键到自包含 ESM JS 的映射，源码中的 CSS／资源随
 
 宿主读取 `https://raw.githubusercontent.com/eidos-space/registry/main/plugins.registry.json`。
 目录使用 `schemaVersion: 1`，包含插件 ID、名称、描述、GitHub 仓库、固定版本、Release tag、附件名、SHA-256、预览标记、兼容性说明及可选图标。
-旧扩展和主题目录保持独立，不能作为 Lite 插件安装。
+旧扩展和旧主题目录格式仍独立于此插件注册表；未构建有效 `.eidos-plugin` 安装包的条目不能作为 Lite 插件安装。
 
 安装时重新获取在线目录，下载固定的 GitHub Release 附件，验证 SHA-256 和 manifest ID/版本，然后执行普通包校验与权限确认。
 目录上限 1 MiB，包上限 16 MiB；仅允许 HTTPS 及允许列表内的 GitHub 下载域名重定向。
@@ -702,7 +751,7 @@ L01 生命周期与诊断；G01 agent 创作及权限、代码／数据回滚边
 
 宿主从视图上下文、扩展、动作、格式化器、连接、资源、设置、存储和浏览器权限推导
 功能要求，开发者无需维护 capabilities 清单。共享定义位于
-`packages/plugin-runtime/src/compatibility-data.json`。此实现的 Lite 支持 1.1.0，
+`packages/plugin-runtime/src/compatibility-data.json`。此实现的 Lite 支持 1.6.0，
 CLI Serve 支持 1.0.0；这些标记不追溯适用于历史发行版。1.1.0 包含动态表格动作、
 表格插件配置、任务、连接和 eidos 文件视图。CLI Serve 仅实现表格视图及声明的浏览器
 权限，即使最低版本满足，也必须拒绝不支持的功能。API 版本不能代替宿主功能检查。

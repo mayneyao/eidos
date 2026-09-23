@@ -26,12 +26,12 @@ it("preserves the installed version when an update requires a newer API", async 
   await expect(
     store.install(
       encodePackage(
-        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.5.1" } },
+        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.6.1" } },
         { "./csv.ts": "export default function mount() {}" }
       ),
       "a"
     )
-  ).rejects.toThrow("requires plugin API 1.5.1")
+  ).rejects.toThrow("requires plugin API 1.6.1")
   expect(await store.config()).toEqual(before)
   expect((await store.read(hash)).manifest.version).toBe("1.0.0")
 })
@@ -101,6 +101,35 @@ it("installs once without implicitly enabling existing or future Spaces", async 
   expect(config.installed).toEqual({ [manifest.id]: { hash } })
   expect(config.spaces.a.plugins[manifest.id]).toEqual({ enabled: true })
   expect("global" in config).toBe(false)
+})
+
+it("selects one standalone theme for the device and clears it on uninstall", async () => {
+  const theme: PluginManifest = {
+    apiVersion: 1,
+    kind: "theme",
+    id: "example.paper",
+    name: "Paper",
+    version: "1.0.0",
+    requires: { pluginApi: "1.6.0" },
+    theme: {
+      light: { "--theme-surface": "#fffaf5" },
+      dark: { "--theme-surface": "#211d1b" },
+    },
+  }
+  await store.install(encodePackage(theme, {}), "a")
+  expect((await store.list("a")).plugins[0].enabled).toBe(false)
+  expect((await store.config()).spaces.a?.plugins[theme.id]).toBeUndefined()
+  await expect(store.enable(theme.id, true, "a")).rejects.toThrow(
+    "theme picker"
+  )
+  await store.install(bytes(), "a")
+  await expect(store.selectTheme(manifest.id)).rejects.toThrow("not a theme")
+  await store.selectTheme(theme.id)
+  const restarted = new PluginStore(directory)
+  expect((await restarted.list("b")).activeThemeId).toBe(theme.id)
+  expect((await restarted.list("b")).plugins[0].enabled).toBe(true)
+  await restarted.uninstall(theme.id)
+  expect((await restarted.list()).activeThemeId).toBeNull()
 })
 
 it("keeps incompatible plugins manageable after downgrading the host", async () => {

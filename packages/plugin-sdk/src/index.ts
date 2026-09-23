@@ -7,6 +7,8 @@ export type PluginIconDefinition =
 // Public type-only SDK for Eidos Plugins 1.0.
 export interface PluginManifest {
   apiVersion: 1
+  /** Omitted for ordinary executable plugins. */
+  kind?: "theme"
   id: string
   name: string
   version: string
@@ -40,6 +42,14 @@ export interface PluginManifest {
     string,
     { title: string; url: string; configurable?: boolean }
   >
+  /** Standalone Eidos Lite host theme. Theme packages contain no executable contributions. */
+  theme?: ThemeDeclaration
+}
+export interface ThemeDeclaration {
+  light: Record<string, string>
+  dark: Record<string, string>
+  /** Local font files are embedded as data URLs by the plugin packer. */
+  fonts?: Array<{ family: string; source: string; weight?: string }>
 }
 export interface ViewDeclaration {
   id: string

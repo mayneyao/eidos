@@ -491,4 +491,18 @@ mod tests {
         );
         assert!(create(&temporary.path().join("Invalid Name"), "document-view").is_err());
     }
+
+    #[test]
+    fn scaffold_creates_a_standalone_theme_without_modules() {
+        let temporary = tempfile::tempdir().unwrap();
+        let project = temporary.path().join("paper-theme");
+        create(&project, "theme").unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(project.join("plugin.json")).unwrap()).unwrap();
+        assert_eq!(manifest["kind"], "theme");
+        assert_eq!(manifest["requires"]["pluginApi"], "1.6.0");
+        assert!(manifest["theme"]["light"].is_object());
+        assert!(manifest["theme"]["dark"].is_object());
+        assert!(!project.join("src").exists());
+    }
 }

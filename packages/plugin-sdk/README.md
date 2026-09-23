@@ -4,6 +4,12 @@ Type-only public API for [Eidos Plugins 1.0](../../docs/specs/eidos-lite-plugins
 The host injects capabilities when it mounts a view or activates an extension.
 There is no runtime `connect()` and no host implementation to bundle.
 
+A standalone Eidos Lite theme uses `kind: "theme"`, `requires.pluginApi:
+"1.6.0"`, and a `theme` declaration with light/dark semantic tokens and optional
+local fonts. It is a separate plugin type that styles the Lite host across all
+Spaces. Theme plugins contain no modules, views, actions, or grants. Use the
+`theme` starter from plugin-tools and pack it as a normal `.eidos-plugin`.
+
 Lite Eidos file views can use `ctx.binding.file.connections.configured(id)` and
 `request({ connection, body })` for manifest connections with `configurable: true`.
 Users first save an HTTPS endpoint, model and encrypted API key in plugin Settings.
@@ -78,7 +84,7 @@ Hosts also derive required features from view contexts, extension/actions/format
 connections/resources/settings/storage and browser permissions. Authors do not
 maintain a capabilities list. The shared host inventory is
 `packages/plugin-runtime/src/compatibility-data.json`. This implementation advertises
-Lite 1.1.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite 1.6.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
 Contract 1.1.0 includes table action providers, table plugin configuration, tasks,
 connections and eidos file views. CLI Serve implements table views only, plus its
 declared browser permissions, and rejects unsupported contributions even if the

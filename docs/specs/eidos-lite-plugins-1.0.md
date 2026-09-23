@@ -38,6 +38,10 @@ There are exactly two UI contribution kinds:
   table-view data context.
 - **Action**: a user-invoked operation with a declared context and data authority.
 
+A **theme plugin** is a separate, data-only plugin kind. It changes the Eidos Lite
+host interface through validated semantic tokens and optional local fonts. It is
+not a View or an Action and does not style an individual plugin's UI.
+
 Placements expose contributions in host UI. Resources describe requested data
 access. Settings describe configuration. They are not additional plugin kinds.
 CSV editors, Markdown editors, Journals, personal sites, import/export operations
@@ -83,6 +87,11 @@ availability for all Spaces, ends active instances, clears their enablement and
 editor associations, and revokes resource grants. Reinstallation does not restore
 enablement or grants automatically.
 
+Theme plugins are an exception to per-Space enablement: one installed theme MAY be
+selected for the whole device. Selection is explicit, persists across Spaces,
+and is independent of the light/dark/system appearance preference. Installing a
+theme does not select it. Uninstalling the selected theme restores host defaults.
+
 Plugin instances, settings, routes, resource bindings and grants are isolated by
 Space and plugin ID. Installation MUST NOT create cross-Space execution or data
 authority, nor set default editors without an explicit user choice.
@@ -104,6 +113,7 @@ If both forms are supplied, fail rather than guess precedence.
 ```ts
 interface PluginManifest {
   apiVersion: 1
+  kind?: "theme"
   requires?: { pluginApi: string }
   id: string
   name: string
@@ -118,6 +128,12 @@ interface PluginManifest {
   resources?: Record<string, ResourceDeclaration>
   settings?: Record<string, SettingDeclaration>
   browser?: PluginBrowserConfig
+  theme?: ThemeDeclaration
+}
+interface ThemeDeclaration {
+  light: Record<string, string>
+  dark: Record<string, string>
+  fonts?: { family: string; source: string; weight?: string }[]
 }
 interface ViewDeclaration {
   id: string
@@ -154,7 +170,9 @@ type Placement =
     }
 ```
 
-At least one view/action is required. Missing collections are empty. Unknown
+An ordinary plugin requires at least one view, action or formatter. A theme
+plugin instead requires `kind: "theme"`, `theme` and a minimum Plugin API of
+`1.6.0`. Missing collections are empty. Unknown
 fields, duplicate IDs, invalid references and unsupported contexts fail before
 execution. Source entries are root-relative `./` module paths, not URLs or export
 expressions. Case-sensitive supported entry suffixes are .ts/.tsx/.js/.jsx.
@@ -174,6 +192,55 @@ contract as table-bound pluginConfig. Writes require `access: "write"`.
 The host MUST bind every request to the mounted file and plugin identity, reject
 tables outside that file, and reject guest-supplied session/plugin overrides.
 The initial API does not grant row reads, row writes, or schema mutation.
+
+### Theme plugins (Lite Plugin API 1.6)
+
+A theme is distributed in the same `.eidos-plugin` archive format as other
+plugins and may be loaded from a `plugin.json` source during development. Its
+`theme.light` and `theme.dark` maps MUST each contain 1–32 semantic token
+values. The host chooses a map using its resolved light/dark appearance and
+applies it to the Eidos Lite interface across all Spaces. The host MUST restore
+its own token defaults when the selection is cleared, changed, or uninstalled.
+
+Theme token names are limited to `--theme-surface`, `--theme-ink`,
+`--theme-accent`, `--theme-success`, `--theme-warning`, `--theme-danger`,
+`--theme-neutral`, `--canvas`, `--lite-sidebar`, `--sidebar-strong`,
+`--surface-hover`, `--surface-active`, `--surface-selected`, `--ink`,
+`--ink-muted`, `--ink-faint`, `--line`, `--hairline`, `--lite-accent`,
+`--accent-strong`, `--accent-contrast`, `--primary-action-hover`, `--focus`,
+`--control-fill`, `--control-border`, `--font-ui`, `--font-code`,
+`--font-editorial`, `--font-size-ui`, `--font-size-code`,
+`--chrome-header-height`, and `--control-radius`. The host validates values
+before applying them. Colors must be CSS color values; font families are plain
+family lists. Font sizes are 10–24 px, header height 30–64 px and control radius
+0–16 px (equivalent `rem`/`em` values are accepted). CSS rules, selectors,
+`url()`, `var()`, declarations and executable expressions are not accepted.
+
+Up to four optional fonts MAY be supplied. A source project's font `source`
+is a root-relative `.woff`, `.woff2`, `.ttf` or `.otf` path; packaging embeds
+the bytes as a data URL after validating their format. Installed packages MUST
+contain embedded font data, never remote font URLs or file paths. Font family
+names and weights are validated. Theme packages MUST NOT declare modules,
+views, actions, formatters, placements, extension, grants, settings, storage,
+connections, workspace permissions or browser permissions. A theme has no
+plugin execution context and cannot access user data or the host DOM.
+
+For example, `plugin.json` may contain:
+
+```json
+{
+  "apiVersion": 1,
+  "kind": "theme",
+  "requires": { "pluginApi": "1.6.0" },
+  "id": "example.slate-theme",
+  "name": "Slate",
+  "version": "1.0.0",
+  "theme": {
+    "light": { "--theme-surface": "#f7f8fa", "--theme-ink": "#19212b" },
+    "dark": { "--theme-surface": "#181d24", "--theme-ink": "#eef2f6" }
+  }
+}
+```
 
 An action declaration defines an invocable capability. Lite supports dynamic
 table action providers as specified below. Plugins own their action configuration in the
@@ -469,7 +536,8 @@ Manifest entry keys refer to modules in the package, not extracted paths. Each
 entry is bundled independently; imported CSS/assets are included locally in that
 entry (CSS injection/data URLs) without external dependencies at execution time. Module
 keys exactly cover declared view entries plus the optional extension, with shared
-entry keys permitted. No undeclared executable payloads or install scripts.
+entry keys permitted. A theme package has an empty `modules` map. No undeclared
+executable payloads or install scripts.
 Source-only descriptor conventions are normalized away before packaging.
 
 Compressed and uncompressed aggregate size limits are each 16 MiB. Validate
@@ -486,8 +554,9 @@ execution and local installation require neither network nor account.
 The host reads `https://raw.githubusercontent.com/eidos-space/registry/main/plugins.registry.json`.
 The versioned catalog (`schemaVersion: 1`) contains plugin IDs, names, descriptions,
 GitHub repositories, exact versions, release tags, asset names, SHA-256 checksums,
-preview flags, compatibility notes and optional manifest-format icons. Existing
-extension and theme catalogs are separate and MUST NOT be treated as Lite plugins.
+preview flags, compatibility notes and optional manifest-format icons. Legacy
+extension and theme catalog formats remain separate from this plugin registry;
+they do not become Lite plugins without a valid `.eidos-plugin` package.
 
 Installation fetches a fresh catalog, downloads the pinned GitHub Release asset,
 verifies its SHA-256 and manifest ID/version, then uses ordinary package
@@ -1300,7 +1369,7 @@ Hosts also derive required features from view contexts, extension/actions/format
 connections/resources/settings/storage and browser permissions. Authors do not
 maintain a capabilities list. The shared host inventory is
 `packages/plugin-runtime/src/compatibility-data.json`. This implementation advertises
-Lite 1.1.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite 1.6.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
 Contract 1.1.0 includes table action providers, table plugin configuration, tasks,
 connections and eidos file views. CLI Serve implements table views only, plus its
 declared browser permissions, and rejects unsupported contributions even if the

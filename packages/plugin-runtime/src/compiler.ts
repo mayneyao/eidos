@@ -17,6 +17,7 @@ import { encodePackage } from "./package"
 export { decodePackage } from "./package"
 import { loadDependencyLock } from "./dependencies"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
+import { themeFontData } from "./theme"
 
 export interface Diagnostic {
   code: string
@@ -437,12 +438,42 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
         }))
       )
     : undefined
+  const finalTheme = manifest.theme
+    ? {
+        ...manifest.theme,
+        ...(manifest.theme.fonts
+          ? {
+              fonts: await Promise.all(
+                manifest.theme.fonts.map(async (font) => {
+                  if (font.source.startsWith("data:")) return font
+                  const target = path.resolve(root, font.source)
+                  if (!within(root, target))
+                    throw new PluginError(
+                      "SOURCE_INVALID",
+                      "Theme font outside plugin root"
+                    )
+                  const bytes = await read(target)
+                  const ext = path.extname(target).slice(1).toLowerCase()
+                  const source = `data:font/${ext};base64,${bytes.toString("base64")}`
+                  if (!themeFontData(source))
+                    throw new PluginError(
+                      "SOURCE_INVALID",
+                      "Invalid or oversized theme font"
+                    )
+                  return { ...font, source }
+                })
+              ),
+            }
+          : {}),
+      }
+    : undefined
 
   const finalManifest: PluginManifest = {
     ...manifest,
     ...(finalIcon !== undefined ? { icon: finalIcon } : {}),
     ...(finalViews !== undefined ? { views: finalViews } : {}),
     ...(finalActions !== undefined ? { actions: finalActions } : {}),
+    ...(finalTheme !== undefined ? { theme: finalTheme } : {}),
   }
 
   const hash = createHash("sha256")

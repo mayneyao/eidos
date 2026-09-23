@@ -274,8 +274,12 @@ export function PluginManager({
     return matchesSearch(item.manifest.id, item.manifest.name, desc)
   })
 
-  const enabled = plugins.filter((plugin) => plugin.enabled)
-  const filteredEnabled = filteredPlugins.filter((plugin) => plugin.enabled)
+  const enabled = plugins.filter(
+    (plugin) => plugin.enabled && !plugin.manifest.theme
+  )
+  const filteredEnabled = filteredPlugins.filter(
+    (plugin) => plugin.enabled && !plugin.manifest.theme
+  )
   const visible = tab === "enabled" ? filteredEnabled : filteredPlugins
 
   const filteredBuiltins = builtins.filter((item) =>
@@ -381,6 +385,16 @@ export function PluginManager({
             if (!plugin || !manifest) return
             return run(() =>
               window.eidosLite.setPluginEnabled(manifest.id, !plugin.enabled)
+            )
+          }}
+          onSelectTheme={() => {
+            if (!plugin?.manifest.theme) return
+            return run(() =>
+              window.eidosLite.selectPluginTheme(
+                listing?.activeThemeId === plugin.manifest.id
+                  ? null
+                  : plugin.manifest.id
+              )
             )
           }}
           onUninstall={() => {
@@ -559,7 +573,7 @@ export function PluginManager({
                 {tab === "enabled"
                   ? t("Only plugins enabled in this Space appear here.")
                   : t(
-                      "Installed on this device. Enablement is managed separately in each Space."
+                      "Installed on this device. Ordinary plugins are enabled per Space; themes apply to this device."
                     )}
               </p>
               {tab === "installed" && updatablePlugins.length > 0 && (
@@ -744,9 +758,18 @@ export function PluginManager({
                               {t("Development")}
                             </span>
                           ) : null}
+                          {plugin.manifest.theme ? (
+                            <span className="plugin-pill-status">
+                              {t("Theme")}
+                            </span>
+                          ) : null}
                           {plugin.enabled ? (
                             <span className="plugin-pill-status is-enabled">
-                              {t("Enabled in this Space")}
+                              {t(
+                                plugin.manifest.theme
+                                  ? "Active theme"
+                                  : "Enabled in this Space"
+                              )}
                             </span>
                           ) : null}
                         </div>
@@ -885,9 +908,18 @@ export function PluginManager({
                               {t("Development")}
                             </span>
                           ) : null}
+                          {plugin.manifest.theme ? (
+                            <span className="plugin-pill-status">
+                              {t("Theme")}
+                            </span>
+                          ) : null}
                           {plugin.enabled ? (
                             <span className="plugin-pill-status is-enabled">
-                              {t("Enabled in this Space")}
+                              {t(
+                                plugin.manifest.theme
+                                  ? "Active theme"
+                                  : "Enabled in this Space"
+                              )}
                             </span>
                           ) : null}
                           {desc ? (

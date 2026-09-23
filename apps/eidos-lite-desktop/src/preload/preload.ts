@@ -95,6 +95,8 @@ const api: EidosLiteApi = {
   uninstallPlugin: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.uninstall, id),
   setPluginEnabled: (id, enabled) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.enable, id, enabled),
+  selectPluginTheme: (id) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.selectTheme, id),
   setPluginDefault: (extension, editor) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
   pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),

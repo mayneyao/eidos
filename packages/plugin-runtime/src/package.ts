@@ -7,6 +7,7 @@ import { parseManifest, record } from "./manifest"
 import { parseJson } from "./json"
 import { validateSource } from "./source"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
+import { themeFontData } from "./theme"
 
 export function packageHash(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")
@@ -19,6 +20,8 @@ export function parsePackage(value: unknown): PluginPackage {
   )
     invalid("Invalid plugin package envelope")
   const manifest = parseManifest(p.manifest)
+  if (manifest.theme?.fonts?.some((font) => !themeFontData(font.source)))
+    invalid("Packaged theme fonts must be embedded")
   if ((p.format === 2) !== Boolean(manifest.requires))
     invalid(
       "Packages declaring requires must use format 2; format 2 requires a minimum plugin API"

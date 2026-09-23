@@ -101,7 +101,7 @@ pub enum PluginCommand {
     /// Create a plugin project without requiring Node.js.
     Create {
         directory: PathBuf,
-        #[arg(long, default_value = "document-view", value_parser = ["document-view", "eidos-view", "table-view", "table-action", "page"])]
+        #[arg(long, default_value = "document-view", value_parser = ["document-view", "eidos-view", "table-view", "table-action", "page", "theme"])]
         template: String,
     },
     /// Validate the manifest and TypeScript using local development dependencies.

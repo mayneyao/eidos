@@ -22,7 +22,13 @@ pnpm add -D @eidos.space/plugin-sdk
 ```ts
 export interface PluginManifest {
   apiVersion: 1
+  kind?: "theme"
   requires?: { pluginApi: string }
+  theme?: {
+    light: Record<string, string>
+    dark: Record<string, string>
+    fonts?: { family: string; source: string; weight?: string }[]
+  }
   settings?: Record<string, SettingDeclaration>
   workspace?: {
     listMarkdownFiles: true
@@ -57,6 +63,8 @@ export interface PluginManifest {
 | 字段                           | 类型                     | 必填 | 说明                                                              |
 | ------------------------------ | ------------------------ | ---- | ----------------------------------------------------------------- |
 | `apiVersion`                   | `1`                      | 是   | 宿主 API 版本，目前固定为 `1`。                                   |
+| `kind`                         | `"theme"`                | 主题 | 声明独立的 Eidos Lite 宿主主题，要求 Plugin API 1.6。             |
+| `theme`                        | `ThemeDeclaration`       | 主题 | 浅色／深色语义变量表及可选的包内本地字体。                        |
 | `id`                           | `string`                 | 是   | 插件全局唯一标识（建议采用反向域名，如 `com.example.counter`）。  |
 | `name`                         | `string`                 | 是   | 在 Eidos Lite 中展示的可读名称。                                  |
 | `version`                      | `string`                 | 是   | 遵循语义化版本的版本号（如 `0.1.0`）。                            |
@@ -72,6 +80,9 @@ export interface PluginManifest {
 | `workspace.listMarkdownFiles`  | `true`                   | 否   | 声明可枚举当前 Space 内 Markdown 文件名的权限（Plugin API 1.3）。 |
 | `workspace.countMarkdownLines` | `true`                   | 否   | 声明可统计已列出 Markdown 文件非空行数的权限（Plugin API 1.4）。  |
 | `workspace.watchMarkdownFiles` | `true`                   | 否   | 声明可接收 Markdown 文件变更通知的权限（Plugin API 1.5）。        |
+
+主题插件没有可执行模块或其他贡献。主题变量定制这台设备上的 Lite 宿主界面，
+不是单个插件视图。参见[主题开发流程](/zh-cn/plugins/workflow/#制作独立的-eidos-lite-主题)。
 
 ### 图标定义 (`PluginIconDefinition`)
 

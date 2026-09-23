@@ -9,6 +9,12 @@ A plugin is a package that can provide several features. Choose each feature by
 answering three questions: **what does it provide, what does it operate on, and
 where does the user open it?**
 
+A **theme plugin** is a separate package type (`kind: "theme"`) for customizing
+the Eidos Lite host interface. It contains light and dark semantic palettes and
+optional local fonts, rather than views or actions. Users install it like any
+other plugin, then select it globally from Plugin Manager. See the
+[theme workflow](/plugins/workflow/#build-a-standalone-eidos-lite-theme).
+
 ## Capabilities, contexts, and contribution points
 
 | Concept            | Question                      | Manifest example                      |
@@ -17,7 +23,8 @@ where does the user open it?**
 | Context            | What is the feature bound to? | A view's `context: "document"`        |
 | Contribution point | Where can users access it?    | A placement's `location: "file/open"` |
 
-These are complementary declarations, not mutually exclusive plugin types.
+For ordinary plugins, these are complementary declarations, not mutually
+exclusive plugin types.
 A plugin can provide multiple views and actions, with multiple user entry points.
 Here, “capability” describes the feature; it is not an instruction to manually
 maintain a separate API capability inventory.

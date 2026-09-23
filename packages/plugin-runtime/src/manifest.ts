@@ -5,6 +5,7 @@ import type {
   SettingValue,
 } from "./contracts"
 import { invalid, PluginError } from "./errors"
+import { themeFontData, validThemeToken } from "./theme"
 
 const localId = /^[a-z][a-z0-9-]*$/
 export function record(value: unknown): Record<string, unknown> {
@@ -255,6 +256,8 @@ export function parseManifest(input: unknown): PluginManifest {
       "connections",
       "icon",
       "requires",
+      "theme",
+      "kind",
     ]
   )
   if (m.icon !== undefined) {
@@ -371,13 +374,75 @@ export function parseManifest(input: unknown): PluginManifest {
   const views = collection(m.views)
   const actions = collection(m.actions)
   const formatters = collection(m.formatters)
+  if (m.theme !== undefined) {
+    if (m.kind !== "theme") invalid("Theme packages require kind: theme")
+    const required = (m.requires as { pluginApi?: string } | undefined)
+      ?.pluginApi
+    if (!required || !/^1\.(?:[6-9]|[1-9]\d+)\.\d+$/.test(required))
+      invalid("Themes require plugin API 1.6.0 or newer")
+    const theme = record(m.theme)
+    fields(theme, ["light", "dark"], ["fonts"])
+    for (const mode of ["light", "dark"] as const) {
+      const tokens = record(theme[mode])
+      if (!Object.keys(tokens).length || Object.keys(tokens).length > 32)
+        invalid("Theme requires 1–32 tokens per appearance")
+      for (const [key, value] of Object.entries(tokens)) {
+        if (!validThemeToken(key, value)) invalid("Invalid theme token value")
+      }
+    }
+    if (theme.fonts !== undefined) {
+      if (!Array.isArray(theme.fonts) || theme.fonts.length > 4)
+        invalid("Theme supports up to four fonts")
+      for (const raw of theme.fonts) {
+        const font = record(raw)
+        fields(font, ["family", "source"], ["weight"])
+        if (
+          typeof font.family !== "string" ||
+          !/^[A-Za-z][A-Za-z0-9 -]{0,63}$/.test(font.family)
+        )
+          invalid("Invalid theme font family")
+        if (
+          font.weight !== undefined &&
+          (typeof font.weight !== "string" ||
+            !/^(normal|bold|[1-9]00)$/.test(font.weight))
+        )
+          invalid("Invalid theme font weight")
+        if (
+          typeof font.source !== "string" ||
+          (!themeFontData(font.source) &&
+            !/^\.\/(?!.*(?:\/\.\.?\/|\\|[?#]))[A-Za-z0-9_./-]+\.(woff2?|ttf|otf)$/.test(
+              font.source
+            ))
+        )
+          invalid("Invalid theme font source")
+      }
+    }
+  }
+  if (m.kind !== undefined && m.kind !== "theme") invalid("Invalid plugin kind")
+  if (m.kind === "theme" && !m.theme)
+    invalid("Theme packages require a theme declaration")
   for (const formatter of formatters) {
     fields(formatter, ["id", "title", "extensions"], [])
     text(formatter.title)
     extensions(formatter.extensions)
   }
-  if (!views.length && !actions.length && !formatters.length)
+  if (!views.length && !actions.length && !formatters.length && !m.theme)
     invalid("At least one contribution is required")
+  if (
+    m.theme &&
+    (views.length ||
+      actions.length ||
+      formatters.length ||
+      m.extension ||
+      m.placements ||
+      m.resources ||
+      m.settings ||
+      m.storage ||
+      m.workspace ||
+      m.connections ||
+      m.browser)
+  )
+    invalid("Theme packages cannot contain executable contributions or grants")
   if ((actions.length || formatters.length) && !m.extension)
     invalid("Actions require an extension entry")
   for (const [items, isView] of [

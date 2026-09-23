@@ -90,3 +90,31 @@ test("CSV example handles multiline fields, escaped quotes, empty fields and inv
   assert.throws(() => parseCsv('"unfinished'))
   assert.throws(() => parseCsv('"quoted"oops'))
 })
+test("creates and packs a standalone Lite theme without executable modules", async () => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-theme-cli-"))
+  const directory = path.join(parent, "paper-theme")
+  try {
+    await create(directory, "theme")
+    const archive = decodePackage(await fs.readFile(await pack(directory)))
+    assert.equal(archive.format, 2)
+    assert.equal(archive.manifest.kind, "theme")
+    assert.equal(archive.manifest.id, "local.paper-theme")
+    assert.deepEqual(archive.modules, {})
+    const checked = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("./eidos-plugin.mjs", import.meta.url)),
+        "check",
+        directory,
+        "--json",
+      ],
+      { encoding: "utf8" }
+    )
+    assert.equal(checked.status, 0, checked.stderr)
+    const compatibility = JSON.parse(checked.stdout).compatibility
+    assert.equal(compatibility.lite.compatible, true)
+    assert.equal(compatibility.cli.compatible, false)
+  } finally {
+    await fs.rm(parent, { recursive: true, force: true })
+  }
+})

@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "1.5.0",
+      "pluginApi": "1.6.0",
       "features": [
         "view.table",
         "view.document",
@@ -18,7 +18,8 @@
         "workspace.markdown-line-counts",
         "workspace.markdown-watch",
         "browser.workers",
-        "browser.network"
+        "browser.network",
+        "theme.lite"
       ]
     },
     "eidos-cli": {

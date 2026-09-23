@@ -24,6 +24,7 @@ export interface PluginListing {
   }[]
   space: PluginSpaceConfig | null
   associations?: Record<string, string>
+  activeThemeId?: string | null
 }
 export interface MarketplacePlugin {
   id: string
@@ -132,6 +133,7 @@ export interface PluginApi {
   installDroppedPlugin(file: File): Promise<boolean>
   uninstallPlugin(id: string): Promise<boolean>
   setPluginEnabled(id: string, enabled: boolean): Promise<void>
+  selectPluginTheme(id: string | null): Promise<void>
   setPluginDefault(extension: string, editor: string | null): Promise<void>
   pluginEditors(relativePath: string): Promise<PluginEditorChoice[]>
   openPluginEditor(
@@ -167,6 +169,7 @@ export const PLUGIN_CHANNELS = {
   installIntent: "eidos-lite:plugins-install-intent",
   uninstall: "eidos-lite:plugins-uninstall",
   enable: "eidos-lite:plugins-enable",
+  selectTheme: "eidos-lite:plugins-select-theme",
   associate: "eidos-lite:plugins-associate",
   editors: "eidos-lite:plugins-editors",
   open: "eidos-lite:plugins-open",

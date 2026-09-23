@@ -503,6 +503,20 @@ const zh: Record<string, string> = {
   "Toggle Markdown editing mode": "切换 Markdown 编辑模式",
   "Toggle Space Explorer": "切换空间资源管理器",
   "Toggle theme": "切换主题",
+  "Active theme": "当前主题",
+  "Installed theme": "已安装主题",
+  "Apply theme": "应用主题",
+  "Use default theme": "使用默认主题",
+  "This theme customizes the Eidos Lite interface on this device.":
+    "此主题会定制这台设备上的 Eidos Lite 界面。",
+  "Apply this theme to customize Eidos Lite on this device. Your light, dark, or system appearance setting still chooses the palette.":
+    "应用后，此主题会定制这台设备上的 Eidos Lite 界面。浅色、深色或跟随系统的外观设置仍决定使用哪套配色。",
+  "Theme packages contain validated colors, fonts, and layout tokens. They have no executable code, network access, or access to Space data.":
+    "主题包只包含经过校验的颜色、字体和布局变量；没有可执行代码、网络权限或 Space 数据访问权限。",
+  "No executable code": "没有可执行代码",
+  "No network access": "没有网络权限",
+  "Installed on this device. Ordinary plugins are enabled per Space; themes apply to this device.":
+    "已安装在这台设备上。普通插件按 Space 启用；主题应用于整台设备。",
   "Toggle version history": "切换版本历史",
   "Toggle Sync": "切换同步面板",
   "Toggle terminal": "切换终端",

@@ -13,6 +13,7 @@ import {
 import { flushSync } from "react-dom"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
+import type { ThemeDeclaration } from "@eidos.space/plugin-sdk"
 import {
   ArrowLeft,
   ArrowRight,
@@ -86,6 +87,7 @@ import {
   toggledAppearance,
   type ResolvedAppearance,
 } from "./app-appearance"
+import { applyPluginHostTheme } from "./plugin-host-theme"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
 import { isMarkdownTextFile } from "./text-editor-options"
@@ -251,6 +253,7 @@ function useAppTheme(): ResolvedAppearance {
   const [appearance, setAppearance] = useState<EidosLiteAppearance>(
     DEFAULT_RENDERER_PREFERENCES.appearance
   )
+  const [pluginTheme, setPluginTheme] = useState<ThemeDeclaration | null>(null)
   useEffect(() => {
     const update = () => setSystemDark(media.matches)
     media.addEventListener("change", update)
@@ -268,6 +271,36 @@ function useAppTheme(): ResolvedAppearance {
   useEffect(() => {
     applyAppearance(document.documentElement, appearance, systemDark)
   }, [appearance, systemDark])
+  useEffect(() => {
+    let generation = 0
+    const update = () => {
+      const current = ++generation
+      void window.eidosLite
+        .listPlugins()
+        .then((listing) => {
+          if (current !== generation) return
+          const selected = listing.plugins.find(
+            (plugin) => plugin.manifest.id === listing.activeThemeId
+          )
+          setPluginTheme(selected?.manifest.theme ?? null)
+        })
+        .catch(() => {
+          if (current === generation) setPluginTheme(null)
+        })
+    }
+    update()
+    const unsubscribe = window.eidosLite.onPluginEvent(({ event }) => {
+      if (event.observation === "host.catalog") update()
+    })
+    return () => {
+      generation++
+      unsubscribe()
+    }
+  }, [])
+  useEffect(
+    () => applyPluginHostTheme(document.documentElement, pluginTheme, theme),
+    [pluginTheme, theme]
+  )
   return theme
 }
 

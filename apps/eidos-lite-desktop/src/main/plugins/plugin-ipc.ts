@@ -583,6 +583,10 @@ export function registerPluginIpc(controller: WindowController): {
           ? `${existingVersion} → ${pkg.manifest.version}`
           : pkg.manifest.version
 
+      const themeReview = pkg.manifest.theme
+        ? `This package changes Eidos Lite's colors, typography and supported layout tokens when selected. It contains no executable plugin code. Installed once for this device; choose Apply theme in the plugin manager after installation.`
+        : null
+
       const review = await dialog.showMessageBox(owner, {
         type: "question",
         title: isUpdate ? "Update plugin" : "Install plugin",
@@ -599,7 +603,9 @@ export function registerPluginIpc(controller: WindowController): {
                 .join(", ")}`
             : ""
         }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
-        detail: `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.listMarkdownFiles ? "\nThis plugin can list Markdown file names throughout this Space, but cannot read their contents through this permission." : ""}${pkg.manifest.workspace?.countMarkdownLines ? "\nThis plugin can receive non-empty line counts for Markdown files it lists, but not their contents." : ""}${pkg.manifest.workspace?.watchMarkdownFiles ? "\nThis plugin can receive Markdown change notifications. The notifications contain no changed paths or file contents." : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+        detail: themeReview
+          ? `${pkg.manifest.id}\n\n${themeReview}`
+          : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.listMarkdownFiles ? "\nThis plugin can list Markdown file names throughout this Space, but cannot read their contents through this permission." : ""}${pkg.manifest.workspace?.countMarkdownLines ? "\nThis plugin can receive non-empty line counts for Markdown files it lists, but not their contents." : ""}${pkg.manifest.workspace?.watchMarkdownFiles ? "\nThis plugin can receive Markdown change notifications. The notifications contain no changed paths or file contents." : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
         buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
         defaultId: 0,
         cancelId: 0,
@@ -793,8 +799,9 @@ export function registerPluginIpc(controller: WindowController): {
       type: "question",
       title: "Uninstall plugin",
       message: `Uninstall ${manifest.name}?`,
-      detail:
-        "This removes the plugin from every Space on this device and revokes its resource grants. Your documents are kept.",
+      detail: manifest.theme
+        ? "This removes the theme from this device. Eidos Lite returns to its default appearance if this theme is active."
+        : "This removes the plugin from every Space on this device and revokes its resource grants. Your documents are kept.",
       buttons: ["Cancel", "Uninstall"],
       defaultId: 0,
       cancelId: 0,
@@ -826,6 +833,13 @@ export function registerPluginIpc(controller: WindowController): {
       catalogChanged()
     }
   )
+  ipcMain.handle(PLUGIN_CHANNELS.selectTheme, async (event, id: unknown) => {
+    caller(event)
+    if (id !== null && typeof id !== "string")
+      throw new PluginError("INVALID_REQUEST", "Invalid theme selection")
+    await store.selectTheme(id)
+    catalogChanged()
+  })
   ipcMain.handle(
     PLUGIN_CHANNELS.associate,
     async (event, extension: unknown, editor: unknown) => {

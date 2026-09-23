@@ -17,6 +17,12 @@ Enable the plugin for a test Space. Source changes reload automatically.
 Manifest/permission changes require review. A development load does not replace
 the installed package; install the archive to keep the revision after restart.
 
+The `theme` starter is different: it has a data-only `plugin.json` with light and
+dark palettes for the Eidos Lite host. After loading or installing it, open its
+detail page and choose **Apply theme**. This selection applies to every Space;
+theme plugins are not enabled per Space. Edit the palettes and pack the theme as
+a standalone `.eidos-plugin` archive. CLI Serve does not support themes.
+
 | Template      | Try it                                                                                                          |
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | document-view | Create a CSV, then Open with → CSV Table. Edit, save, undo and redo.                                            |
@@ -24,6 +30,7 @@ the installed package; install the archive to keep the revision after restart.
 | table-view    | Open a table and add Record count from its view menu.                                                           |
 | table-action  | Add a writable checkbox field, select records, and use Mark … complete in the context menu. Test Undo this run. |
 | page          | Open Hello page from plugin navigation or run Open hello page from the command palette.                         |
+| theme         | Apply the host theme in Plugin Manager; switch Lite between light and dark appearance.                          |
 
 For table-action, `npm test` exercises pagination, cancellation, and schema changes
 with a small mock context. It does not replace testing against the real host.

@@ -41,6 +41,7 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
       features.add(rule.feature)
   }
   if (manifest.browser?.workers) features.add("browser.workers")
+  if (manifest.theme) features.add("theme.lite")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
   if (manifest.workspace?.countMarkdownLines)
     features.add("workspace.markdown-line-counts")

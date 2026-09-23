@@ -57,6 +57,9 @@ pub fn check(manifest: &Value) -> Value {
     if manifest["browser"]["workers"] == true {
         features.insert("browser.workers".into());
     }
+    if manifest.get("theme").is_some_and(|value| !value.is_null()) {
+        features.insert("theme.lite".into());
+    }
     if manifest["browser"]["networkOrigins"]
         .as_array()
         .is_some_and(|v| !v.is_empty())
@@ -143,5 +146,9 @@ mod tests {
         manifest["extension"] = json!("./extension.js");
         assert_eq!(check(&manifest)["reason"], "HOST_FEATURES");
         assert!(ensure(&manifest).is_err());
+        let theme = json!({"apiVersion":1,"kind":"theme","requires":{"pluginApi":"1.6.0"},"theme":{"light":{"--theme-surface":"#fff"},"dark":{"--theme-surface":"#111"}}});
+        let result = check(&theme);
+        assert_eq!(result["reason"], "API_VERSION");
+        assert_eq!(result["missingFeatures"], json!(["theme.lite"]));
     }
 }

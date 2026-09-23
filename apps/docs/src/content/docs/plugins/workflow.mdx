@@ -30,9 +30,11 @@ npm run check
 | table-view              | Table View; table view menu          | Record count with change observation      |
 | table-action            | Table Action; table context menu     | Mark a checkbox, pagination and progress  |
 | page                    | Page View and workspace action       | Navigation page and command-palette entry |
+| theme                   | Eidos Lite host theme                | Standalone light/dark palette and fonts   |
 
-All projects use `src/`. Node and Rust use the same template catalog and source
-files. The current starters use plain TypeScript, not React. Add React explicitly
+Ordinary plugin projects use `src/`; the theme starter needs only `plugin.json`.
+Node and Rust use the same template catalog and source files. The code starters
+use plain TypeScript, not React. Add React explicitly
 using the [guide](/plugins/guide/#using-react-and-ui-components) when needed.
 Unknown options and templates are errors.
 
@@ -50,10 +52,10 @@ also fails if that profile cannot run the plugin. These profiles belong to the
 installed tool version; they do not detect the installed Lite application.
 `eidos plugin doctor` reports the actual CLI host's contract.
 
-| Host profile     | Plugin API | Supported scope                                                                                                     |
-| ---------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| Lite development | 1.5.0      | Document, Eidos, table and page views; actions, settings, Markdown filename, line-count and change-notification permissions |
-| CLI 1.4 Serve    | 1.0.0      | Table views and declared browser network/workers                                                                    |
+| Host profile     | Plugin API | Supported scope                                                                                            |
+| ---------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
+| Lite development | 1.6.0      | Document, Eidos, table and page views; actions, settings, Markdown permissions, and standalone host themes |
+| CLI 1.4 Serve    | 1.0.0      | Table views and declared browser network/workers                                                           |
 
 SDK npm version, plugin version, and host version are different from the plugin
 API contract. Keep `apiVersion: 1`; declare a minimum contract when required:
@@ -134,7 +136,34 @@ JSON body through the bound Eidos file or table action's `connections.request`.
 Do not put secrets in source, logs, record data, or portable table settings.
 Use `browser.networkOrigins` for the separate anonymous `ctx.network.read` API.
 
-## Theme and lifecycle
+## Build a standalone Eidos Lite theme
+
+```sh
+npx @eidos.space/plugin-tools create my-theme --template theme
+cd my-theme
+npm install
+npm run check -- --target lite
+npm run pack:plugin
+```
+
+Edit `plugin.json` to set `kind: "theme"`, `requires.pluginApi: "1.6.0"`, and
+the `theme.light` and `theme.dark` token maps. The starter already includes
+these fields. Tokens such as `--theme-surface`, `--theme-ink`, `--theme-accent`,
+`--lite-sidebar`, `--font-ui`, and `--control-radius` affect the **Eidos Lite
+interface**, across all Spaces. The current appearance preference still picks
+the light or dark map. See the [specification](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.md)
+for the complete token allowlist and value bounds.
+
+Optional local fonts use `theme.fonts`, for example
+`{ "family": "My Sans", "source": "./fonts/my-sans.woff2", "weight": "400" }`.
+Packing embeds the font bytes; remote fonts and arbitrary CSS are rejected.
+Theme packages have no JavaScript modules, Views, Actions, grants, or runtime
+access to files. The generated `.eidos-plugin` can be installed by file picker
+or drag and drop. In Plugin Manager, open its detail page and click **Apply
+theme**. **Use default theme** clears the selection. Installation alone does
+not apply a theme. CLI Serve does not support theme plugins.
+
+## Styling an ordinary plugin and lifecycle
 
 Use the injected `--eidos-*` tokens: background, foreground, border, accent,
 muted, surface-hover, surface-selected, font-family, color-scheme, and scrollbar-thumb

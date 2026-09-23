@@ -29,9 +29,10 @@ npm run check
 | table-view            | Table View；表内视图菜单            | 记录数量与数据变化订阅     |
 | table-action          | Table Action；表格右键菜单          | 勾选复选框、分页处理与进度 |
 | page                  | Page View 与 Space 级动作           | 导航页面与命令面板入口     |
+| theme                 | Eidos Lite 宿主主题                 | 独立的浅色／深色配色与字体 |
 
-所有模板采用 `src/` 结构。Node 和 Rust 读取同一份模板目录定义与源码。
-目前模板使用普通 TypeScript，不预装 React；需要时按[开发指南](/zh-cn/plugins/guide/)添加。
+普通插件模板采用 `src/` 结构；主题模板只需 `plugin.json`。Node 和 Rust 读取同一份模板目录定义与源码。
+代码模板使用普通 TypeScript，不预装 React；需要时按[开发指南](/zh-cn/plugins/guide/)添加。
 未知参数或模板名称会明确报错。
 
 ## 检查目标宿主
@@ -47,10 +48,10 @@ eidos plugin doctor dist/local.my-plugin-0.1.0.eidos-plugin
 这里使用安装的工具版本内置的宿主能力表，不会探测电脑上的 Lite 版本。
 `eidos plugin doctor` 检查实际安装的 CLI 所支持的契约。
 
-| 宿主能力表    | Plugin API | 支持范围                                                                         |
-| ------------- | ---------- | -------------------------------------------------------------------------------- |
-| Lite 开发版   | 1.5.0      | Document、Eidos、Table、Page View，以及动作、设置、Markdown 文件名、行数统计和变更通知等声明能力 |
-| CLI 1.4 Serve | 1.0.0      | Table View 及声明的浏览器网络、Worker 能力                                       |
+| 宿主能力表    | Plugin API | 支持范围                                                                       |
+| ------------- | ---------- | ------------------------------------------------------------------------------ |
+| Lite 开发版   | 1.6.0      | Document、Eidos、Table、Page View，以及动作、设置、Markdown 权限和独立宿主主题 |
+| CLI 1.4 Serve | 1.0.0      | Table View 及声明的浏览器网络、Worker 能力                                     |
 
 SDK npm 版本、插件版本、宿主版本与 Plugin API 契约版本不是一回事。
 保留 `apiVersion: 1`，需要新契约时声明最低要求：
@@ -122,7 +123,31 @@ manifest 的 `settings` 声明字符串、布尔值或数字偏好，由宿主�
 `connections.request` 发送 JSON 请求体。不要把密钥写进源码、日志、记录或可迁移的表配置。
 匿名 `ctx.network.read` 是另一个接口，使用 `browser.networkOrigins` 声明来源。
 
-## 主题与生命周期
+## 制作独立的 Eidos Lite 主题
+
+```sh
+npx @eidos.space/plugin-tools create my-theme --template theme
+cd my-theme
+npm install
+npm run check -- --target lite
+npm run pack:plugin
+```
+
+编辑 `plugin.json` 中的 `kind: "theme"`、`requires.pluginApi: "1.6.0"`
+以及 `theme.light`、`theme.dark` 变量表；模板已经包含这些字段。
+`--theme-surface`、`--theme-ink`、`--theme-accent`、`--lite-sidebar`、
+`--font-ui`、`--control-radius` 等变量作用于**整个 Eidos Lite 界面**，
+跨所有 Space 生效。现有的浅色／深色／跟随系统偏好仍决定使用哪套配色。
+完整变量白名单和取值范围见[插件规范](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.zh.md)。
+
+可通过 `theme.fonts` 添加本地字体，例如
+`{ "family": "My Sans", "source": "./fonts/my-sans.woff2", "weight": "400" }`。
+打包时字体会内嵌；不接受远程字体和任意 CSS。主题包没有 JavaScript 模块、
+View、Action、授权或文件访问能力。生成的 `.eidos-plugin` 可以选择文件或拖入安装。
+在插件管理器中打开主题详情，点击**应用主题**；点击**使用默认主题**可取消选择。
+安装本身不会自动应用。CLI Serve 不支持主题插件。
+
+## 普通插件的样式与生命周期
 
 使用宿主注入的 `--eidos-*` 变量：background、foreground、border、accent、muted、
 surface-hover、surface-selected、font-family、color-scheme，以及 scrollbar-thumb

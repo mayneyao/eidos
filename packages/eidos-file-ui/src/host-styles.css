@@ -38,7 +38,7 @@
   color: var(--ink);
   background: var(--canvas);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--control-radius, 4px);
   padding: 0.25rem 0.5rem;
   font: inherit;
 }
@@ -78,7 +78,7 @@
 .plugin-management-panel > .plugin-actions button,
 .plugin-error button {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--control-radius, 4px);
   padding: 0.25rem 0.5rem;
   color: var(--ink);
   background: var(--canvas);
@@ -124,6 +124,7 @@
   --font-size-ui: 0.8125rem;
   --font-size-code: 0.8125rem;
   --chrome-header-height: 2.5rem;
+  --control-radius: 0.375rem;
   --theme-contrast: 45;
   --theme-surface: light-dark(oklch(1 0 0), oklch(0.17 0.012 230));
   --theme-ink: light-dark(oklch(0.2 0.012 230), oklch(0.92 0.008 220));

@@ -62,6 +62,7 @@ export interface PluginDetailViewProps {
   onBack(): void
   onInstall?(): Promise<void> | void
   onToggleEnable(): Promise<void> | void
+  onSelectTheme?(): Promise<void> | void
   onUninstall(): Promise<void> | void
   onOpenPage?(key: string): void
   variant?: "page" | "settings"
@@ -88,6 +89,7 @@ export function PluginDetailView({
   onBack,
   onInstall,
   onToggleEnable,
+  onSelectTheme,
   onUninstall,
   onOpenPage,
   variant = "page",
@@ -101,6 +103,7 @@ export function PluginDetailView({
   const [copiedHash, setCopiedHash] = useState(false)
 
   const manifest = plugin?.manifest
+  const isTheme = manifest?.kind === "theme"
   const compatibility = manifest
     ? checkPluginCompatibility(manifest, "eidos-lite")
     : null
@@ -153,6 +156,12 @@ export function PluginDetailView({
       setActiveTab("details")
     }
   }, [marketplaceOnly, activeTab])
+
+  useEffect(() => {
+    if (isTheme && (activeTab === "features" || activeTab === "settings")) {
+      setActiveTab("details")
+    }
+  }, [isTheme, activeTab])
 
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   const [readmeLoading, setReadmeLoading] = useState(false)
@@ -242,21 +251,29 @@ export function PluginDetailView({
             ? [{ key: "properties" as const, label: t("Properties") }]
             : []),
         ]
-      : [
-          { key: "details", label: t("Details") },
-          {
-            key: "features",
-            label: t("Features"),
-            count: totalContributions > 0 ? totalContributions : undefined,
-          },
-          { key: "runtime", label: t("Runtime & Security") },
-          ...(isMobile
-            ? [{ key: "properties" as const, label: t("Properties") }]
-            : []),
-          ...(settingsView || hasConnections || hasDeclarativeSettings
-            ? [{ key: "settings" as const, label: t("Settings") }]
-            : []),
-        ]
+      : isTheme
+        ? [
+            { key: "details", label: t("Details") },
+            { key: "runtime", label: t("Runtime & Security") },
+            ...(isMobile
+              ? [{ key: "properties" as const, label: t("Properties") }]
+              : []),
+          ]
+        : [
+            { key: "details", label: t("Details") },
+            {
+              key: "features",
+              label: t("Features"),
+              count: totalContributions > 0 ? totalContributions : undefined,
+            },
+            { key: "runtime", label: t("Runtime & Security") },
+            ...(isMobile
+              ? [{ key: "properties" as const, label: t("Properties") }]
+              : []),
+            ...(settingsView || hasConnections || hasDeclarativeSettings
+              ? [{ key: "settings" as const, label: t("Settings") }]
+              : []),
+          ]
 
   const switchTab = useCallback((tabKey: DetailTab) => {
     setActiveTab(tabKey)
@@ -296,13 +313,15 @@ export function PluginDetailView({
       ? t(
           "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device."
         )
-      : hasConnections
-        ? t(
-            "This plugin uses authenticated connections configured in its settings."
-          )
-        : t(
-            "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device."
-          ))
+      : isTheme
+        ? t("This theme customizes the Eidos Lite interface on this device.")
+        : hasConnections
+          ? t(
+              "This plugin uses authenticated connections configured in its settings."
+            )
+          : t(
+              "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device."
+            ))
   const sidebarContent = (
     <div className="plugin-sidebar-content">
       {/* Identity & Properties */}
@@ -346,34 +365,38 @@ export function PluginDetailView({
             <dd>
               {builtin
                 ? t("Built-in")
-                : marketplaceOnly
-                  ? t("Marketplace")
-                  : plugin?.developmentPath
-                    ? t("Development")
-                    : t("Packaged")}
+                : isTheme
+                  ? t("Theme")
+                  : marketplaceOnly
+                    ? t("Marketplace")
+                    : plugin?.developmentPath
+                      ? t("Development")
+                      : t("Packaged")}
             </dd>
           </div>
         </dl>
       </div>
 
       {/* Capabilities count */}
-      <div className="plugin-sidebar-group">
-        <h3 className="plugin-sidebar-heading">{t("Capabilities")}</h3>
-        <dl className="plugin-prop-list">
-          <div className="plugin-prop-item">
-            <dt>{t("Views")}</dt>
-            <dd>{views.length}</dd>
-          </div>
-          <div className="plugin-prop-item">
-            <dt>{t("Actions & Commands")}</dt>
-            <dd>{actions.length}</dd>
-          </div>
-          <div className="plugin-prop-item">
-            <dt>{t("Formatters")}</dt>
-            <dd>{formatters.length}</dd>
-          </div>
-        </dl>
-      </div>
+      {!isTheme && (
+        <div className="plugin-sidebar-group">
+          <h3 className="plugin-sidebar-heading">{t("Capabilities")}</h3>
+          <dl className="plugin-prop-list">
+            <div className="plugin-prop-item">
+              <dt>{t("Views")}</dt>
+              <dd>{views.length}</dd>
+            </div>
+            <div className="plugin-prop-item">
+              <dt>{t("Actions & Commands")}</dt>
+              <dd>{actions.length}</dd>
+            </div>
+            <div className="plugin-prop-item">
+              <dt>{t("Formatters")}</dt>
+              <dd>{formatters.length}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
 
       {/* Security Summary */}
       <div className="plugin-sidebar-group">
@@ -381,12 +404,20 @@ export function PluginDetailView({
         <dl className="plugin-prop-list">
           <div className="plugin-prop-item">
             <dt>{t("Execution")}</dt>
-            <dd>{t("Isolated iframe sandbox (null origin)")}</dd>
+            <dd>
+              {t(
+                isTheme
+                  ? "No executable code"
+                  : "Isolated iframe sandbox (null origin)"
+              )}
+            </dd>
           </div>
           <div className="plugin-prop-item">
             <dt>{t("Network Access")}</dt>
             <dd>
-              {hasConnections ? (
+              {isTheme ? (
+                <span>{t("No network access")}</span>
+              ) : hasConnections ? (
                 <span>{t("Authenticated connections")}</span>
               ) : manifest?.browser?.networkOrigins?.length ? (
                 <span>{manifest.browser.networkOrigins.length} domain(s)</span>
@@ -542,7 +573,11 @@ export function PluginDetailView({
                       className="status-icon"
                       aria-hidden="true"
                     />
-                    <span>{t("Enabled in this Space")}</span>
+                    <span>
+                      {manifest?.theme
+                        ? t("Active theme")
+                        : t("Enabled in this Space")}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -551,7 +586,11 @@ export function PluginDetailView({
                       className="status-icon"
                       aria-hidden="true"
                     />
-                    <span>{t("Disabled in this Space")}</span>
+                    <span>
+                      {manifest?.theme
+                        ? t("Installed theme")
+                        : t("Disabled in this Space")}
+                    </span>
                   </>
                 )}
               </span>
@@ -616,7 +655,17 @@ export function PluginDetailView({
 
             {plugin && manifest && (
               <>
-                {spaceAvailable && (
+                {manifest.theme ? (
+                  <button
+                    className={`settings-button ${plugin.enabled ? "" : "settings-button-primary"}`}
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={plugin.enabled}
+                    onClick={() => void onSelectTheme?.()}
+                  >
+                    {plugin.enabled ? t("Use default theme") : t("Apply theme")}
+                  </button>
+                ) : spaceAvailable ? (
                   <button
                     className={`settings-button ${
                       plugin.enabled ? "" : "settings-button-primary"
@@ -628,7 +677,7 @@ export function PluginDetailView({
                   >
                     {plugin.enabled ? t("Disable") : t("Enable")}
                   </button>
-                )}
+                ) : null}
                 <button
                   className="settings-button"
                   type="button"
@@ -755,6 +804,18 @@ export function PluginDetailView({
                   <p className="plugin-detail-description">
                     {t(
                       "Install this plugin to see its views, commands, and settings."
+                    )}
+                  </p>
+                </section>
+              ) : isTheme ? (
+                <section className="plugin-section-card">
+                  <h2 className="plugin-section-title">
+                    <Info size={16} aria-hidden="true" />
+                    <span>{t("How to Use")}</span>
+                  </h2>
+                  <p className="plugin-detail-description">
+                    {t(
+                      "Apply this theme to customize Eidos Lite on this device. Your light, dark, or system appearance setting still chooses the palette."
                     )}
                   </p>
                 </section>
@@ -1062,93 +1123,111 @@ export function PluginDetailView({
           {activeTab === "runtime" && (
             <div className="plugin-tab-runtime space-y-6">
               {/* Security & Sandbox Spec */}
-              <section className="plugin-section-card">
-                <h2 className="plugin-section-title">
-                  <Shield size={16} aria-hidden="true" />
-                  <span>{t("Security & Sandbox")}</span>
-                </h2>
-                <div className="plugin-spec-grid">
-                  <div className="plugin-spec-item">
-                    <span className="plugin-spec-label">{t("Execution")}</span>
-                    <span className="plugin-spec-value">
-                      {t("Isolated iframe sandbox (null origin)")}
-                    </span>
-                  </div>
-                  <div className="plugin-spec-item">
-                    <span className="plugin-spec-label">{t("CSP Policy")}</span>
-                    <span className="plugin-spec-value">
-                      <code>sandbox="allow-scripts"</code>
-                    </span>
-                  </div>
-                  <div className="plugin-spec-item">
-                    <span className="plugin-spec-label">
-                      {t("Network Access")}
-                    </span>
-                    <span className="plugin-spec-value">
-                      {hasConnections ? (
-                        <div className="space-y-1">
-                          {Object.values(manifest?.connections ?? {}).map(
-                            (connection) => (
-                              <code
-                                key={connection.url}
-                                className="block break-all text-xs"
-                              >
-                                {connection.url}
+              {isTheme ? (
+                <section className="plugin-section-card">
+                  <h2 className="plugin-section-title">
+                    <Shield size={16} aria-hidden="true" />
+                    <span>{t("Runtime & Security")}</span>
+                  </h2>
+                  <p className="plugin-detail-description">
+                    {t(
+                      "Theme packages contain validated colors, fonts, and layout tokens. They have no executable code, network access, or access to Space data."
+                    )}
+                  </p>
+                </section>
+              ) : (
+                <section className="plugin-section-card">
+                  <h2 className="plugin-section-title">
+                    <Shield size={16} aria-hidden="true" />
+                    <span>{t("Security & Sandbox")}</span>
+                  </h2>
+                  <div className="plugin-spec-grid">
+                    <div className="plugin-spec-item">
+                      <span className="plugin-spec-label">
+                        {t("Execution")}
+                      </span>
+                      <span className="plugin-spec-value">
+                        {t("Isolated iframe sandbox (null origin)")}
+                      </span>
+                    </div>
+                    <div className="plugin-spec-item">
+                      <span className="plugin-spec-label">
+                        {t("CSP Policy")}
+                      </span>
+                      <span className="plugin-spec-value">
+                        <code>sandbox="allow-scripts"</code>
+                      </span>
+                    </div>
+                    <div className="plugin-spec-item">
+                      <span className="plugin-spec-label">
+                        {t("Network Access")}
+                      </span>
+                      <span className="plugin-spec-value">
+                        {hasConnections ? (
+                          <div className="space-y-1">
+                            {Object.values(manifest?.connections ?? {}).map(
+                              (connection) => (
+                                <code
+                                  key={connection.url}
+                                  className="block break-all text-xs"
+                                >
+                                  {connection.url}
+                                </code>
+                              )
+                            )}
+                          </div>
+                        ) : manifest?.browser?.networkOrigins?.length ? (
+                          <div className="space-y-1">
+                            {manifest.browser.networkOrigins.map((origin) => (
+                              <code key={origin} className="block text-xs">
+                                {origin}
                               </code>
-                            )
-                          )}
-                        </div>
-                      ) : manifest?.browser?.networkOrigins?.length ? (
-                        <div className="space-y-1">
-                          {manifest.browser.networkOrigins.map((origin) => (
-                            <code key={origin} className="block text-xs">
-                              {origin}
-                            </code>
-                          ))}
-                        </div>
-                      ) : (
-                        <span>
-                          {t("No external network access (100% offline)")}
+                            ))}
+                          </div>
+                        ) : (
+                          <span>
+                            {t("No external network access (100% offline)")}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="plugin-spec-item">
+                      <span className="plugin-spec-label">
+                        {t("Storage Quota")}
+                      </span>
+                      <span className="plugin-spec-value">
+                        {manifest?.storage?.maxBytes
+                          ? formatBytes(manifest.storage.maxBytes)
+                          : t("Default sandbox quota")}
+                      </span>
+                    </div>
+                    {manifest?.workspace?.listMarkdownFiles && (
+                      <div className="plugin-spec-item">
+                        <span className="plugin-spec-label">
+                          {t("Space files")}
                         </span>
-                      )}
-                    </span>
+                        <span className="plugin-spec-value">
+                          {t(
+                            "Can list Markdown file names in this Space; file contents stay private."
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {manifest?.workspace?.watchMarkdownFiles && (
+                      <div className="plugin-spec-item">
+                        <span className="plugin-spec-label">
+                          {t("File changes")}
+                        </span>
+                        <span className="plugin-spec-value">
+                          {t(
+                            "Can receive Markdown change notifications without changed paths or file contents."
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="plugin-spec-item">
-                    <span className="plugin-spec-label">
-                      {t("Storage Quota")}
-                    </span>
-                    <span className="plugin-spec-value">
-                      {manifest?.storage?.maxBytes
-                        ? formatBytes(manifest.storage.maxBytes)
-                        : t("Default sandbox quota")}
-                    </span>
-                  </div>
-                  {manifest?.workspace?.listMarkdownFiles && (
-                    <div className="plugin-spec-item">
-                      <span className="plugin-spec-label">
-                        {t("Space files")}
-                      </span>
-                      <span className="plugin-spec-value">
-                        {t(
-                          "Can list Markdown file names in this Space; file contents stay private."
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {manifest?.workspace?.watchMarkdownFiles && (
-                    <div className="plugin-spec-item">
-                      <span className="plugin-spec-label">
-                        {t("File changes")}
-                      </span>
-                      <span className="plugin-spec-value">
-                        {t(
-                          "Can receive Markdown change notifications without changed paths or file contents."
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </section>
+                </section>
+              )}
 
               {/* Package Integrity */}
               {plugin?.hash && (
