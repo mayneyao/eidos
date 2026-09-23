@@ -7924,9 +7924,43 @@ body {
 
 .text-file-editor-paste-surface {
   display: flex;
+  position: relative;
   width: 100%;
   min-width: 0;
   min-height: 0;
+}
+
+.text-file-editor-empty-prompt {
+  display: flex;
+  position: absolute;
+  z-index: 1;
+  top: 0.3rem;
+  left: 3rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: calc(100% - 3.5rem);
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.text-file-editor-paste-surface[data-line-numbers="hidden"]
+  > .text-file-editor-empty-prompt {
+  left: 1rem;
+  max-width: calc(100% - 1.5rem);
+}
+
+.text-file-editor-empty-prompt small,
+.markdown-editor-empty-prompt small {
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.markdown-editor-empty-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .text-file-editor-paste-surface > .text-file-editor-virtualizer {

@@ -2,6 +2,7 @@
 
 import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const sourceEditor = vi.hoisted(() => vi.fn())
@@ -107,6 +108,38 @@ describe("MarkdownEditorSurface", () => {
       expect.objectContaining({ content: "# Source" })
     )
     expect(wysiwygEditor).not.toHaveBeenCalled()
+  })
+
+  it("uses the same empty-document guidance in source and rich text", async () => {
+    const render = async (editingMode: "source" | "wysiwyg") => {
+      await act(async () => {
+        root.render(
+          <MarkdownEditorSurface
+            documentKey="journals/today.md"
+            relativePath="journals/today.md"
+            content=""
+            editingMode={editingMode}
+            theme="light"
+            focusShortcutLabel="⌘1"
+            onChange={vi.fn()}
+          />
+        )
+        await Promise.resolve()
+      })
+    }
+
+    await render("source")
+    expect(sourceEditor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        placeholder: "Start writing…",
+        placeholderHint: "Press ⌘1 to focus the editor",
+      })
+    )
+
+    await render("wysiwyg")
+    const richPlaceholder = wysiwygEditor.mock.lastCall?.[0].placeholder
+    expect(renderToStaticMarkup(richPlaceholder)).toContain("Start writing…")
+    expect(renderToStaticMarkup(richPlaceholder)).toContain("⌘1")
   })
 
   it("uses alias matches as labels but keeps canonical file destinations", async () => {
@@ -316,6 +349,7 @@ describe("MarkdownEditorSurface", () => {
     "toggles %s mode while preserving the current draft",
     async (editingMode) => {
       const onChange = vi.fn()
+      const onEditingModeChange = vi.fn()
       await act(async () => {
         root.render(
           createElement(MarkdownEditorSurface, {
@@ -325,6 +359,7 @@ describe("MarkdownEditorSurface", () => {
             content: "# Unsaved draft",
             editingMode,
             theme: "light",
+            onEditingModeChange,
             onChange,
           })
         )
@@ -342,6 +377,7 @@ describe("MarkdownEditorSurface", () => {
           .querySelector("[data-markdown-editing-mode]")
           ?.getAttribute("data-markdown-editing-mode")
       ).toBe(next)
+      expect(onEditingModeChange).toHaveBeenCalledWith(next)
       const props = (
         next === "source" ? sourceEditor : wysiwygEditor
       ).mock.calls.at(-1)?.[0]
@@ -350,6 +386,26 @@ describe("MarkdownEditorSurface", () => {
       )
       expect(props.autoFocus).toBe(true)
       expect(onChange).not.toHaveBeenCalled()
+
+      await act(async () => {
+        root.render(
+          createElement(MarkdownEditorSurface, {
+            documentKey: "readme.md",
+            relativePath: "readme.md",
+            assetDocumentPath: "readme.md",
+            content: "# Unsaved draft",
+            editingMode: next,
+            theme: "light",
+            onEditingModeChange,
+            onChange,
+          })
+        )
+      })
+      expect(
+        (next === "source" ? sourceEditor : wysiwygEditor).mock.calls.at(
+          -1
+        )?.[0].autoFocus
+      ).toBe(true)
     }
   )
 

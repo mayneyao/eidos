@@ -800,6 +800,8 @@ const zh: Record<string, string> = {
   Save: "保存",
   "Reload from disk": "从磁盘重新加载",
   "Empty file": "空文件",
+  "Start writing…": "开始写点什么…",
+  "Press {shortcut} to focus the editor": "按 {shortcut} 聚焦编辑区",
   "Showing the first 2 MB. The file remains unchanged on disk.":
     "仅显示前 2 MB，磁盘上的文件不会被更改。",
   "Preview unavailable": "无法预览",

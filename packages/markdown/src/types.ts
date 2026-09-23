@@ -217,7 +217,7 @@ export interface MarkdownEditorProps {
   onEfmDiagnostics?(diagnostics: readonly EfmDiagnostic[]): void
   onUnsupportedMarkdown?(features: readonly MarkdownUnsupportedFeature[]): void
   labels?: Partial<MarkdownEditorLabels>
-  placeholder?: string
+  placeholder?: ReactNode
   ariaLabel?: string
   className?: string
   theme?: MarkdownEditorTheme

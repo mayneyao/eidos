@@ -89,7 +89,9 @@ export function MarkdownEditorSurface({
   persistSourceEditorState = false,
   autoFocus = false,
   focusRequestToken = 0,
+  focusShortcutLabel,
   keyboardShortcuts,
+  onEditingModeChange,
   onChange,
 }: {
   documentKey: string
@@ -109,7 +111,9 @@ export function MarkdownEditorSurface({
   persistSourceEditorState?: boolean
   autoFocus?: boolean
   focusRequestToken?: number
+  focusShortcutLabel?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onChange(content: string): void
 }) {
   const [sessionMode, setSessionMode] =
@@ -118,8 +122,16 @@ export function MarkdownEditorSurface({
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const acceptedFocusTokenRef = useRef(focusRequestToken)
+  const previousDocumentKeyRef = useRef(documentKey)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
   const { t } = useEidosLiteI18n()
+  const emptyDocumentPrompt =
+    layout === "document" ? t("Start writing…") : undefined
+  const focusHint = focusShortcutLabel
+    ? t("Press {shortcut} to focus the editor", {
+        shortcut: focusShortcutLabel,
+      })
+    : undefined
   const markdownShortcuts = useMemo(
     () =>
       keyboardShortcuts
@@ -214,7 +226,10 @@ export function MarkdownEditorSurface({
 
   useEffect(() => {
     setSessionMode(editingMode)
-    setFocusAfterModeSwitch(false)
+    if (previousDocumentKeyRef.current !== documentKey) {
+      previousDocumentKeyRef.current = documentKey
+      setFocusAfterModeSwitch(false)
+    }
   }, [documentKey, editingMode])
   useEffect(() => {
     if (
@@ -229,8 +244,10 @@ export function MarkdownEditorSurface({
         event.detail?.relativePath !== relativePath
       )
         return
+      const nextMode = sessionMode === "source" ? "wysiwyg" : "source"
       setFocusAfterModeSwitch(true)
-      setSessionMode((mode) => (mode === "source" ? "wysiwyg" : "source"))
+      setSessionMode(nextMode)
+      onEditingModeChange?.(nextMode)
     }
     window.addEventListener("eidos-lite:toggle-markdown-editing-mode", toggle)
     return () =>
@@ -238,12 +255,21 @@ export function MarkdownEditorSurface({
         "eidos-lite:toggle-markdown-editing-mode",
         toggle
       )
-  }, [disabled, assetDocumentPath, relativePath])
+  }, [
+    disabled,
+    assetDocumentPath,
+    relativePath,
+    sessionMode,
+    onEditingModeChange,
+  ])
   const [searchFallback, setSearchFallback] = useState(false)
   useEffect(() => {
     setSearchFallback(false)
-    if (navigationTarget?.textSearch) setSessionMode("wysiwyg")
-  }, [navigationTarget?.textSearch?.requestId])
+    if (navigationTarget?.textSearch) {
+      setSessionMode("wysiwyg")
+      onEditingModeChange?.("wysiwyg")
+    }
+  }, [navigationTarget?.textSearch?.requestId, onEditingModeChange])
   useEffect(() => setAttachmentError(null), [documentKey])
 
   useEffect(() => {
@@ -289,6 +315,8 @@ export function MarkdownEditorSurface({
             persistEditorState={persistSourceEditorState}
             autoFocus={autoFocus || focusAfterModeSwitch}
             focusRequestToken={focusRequestToken}
+            placeholder={emptyDocumentPrompt}
+            placeholderHint={focusHint}
             onPasteImage={imageAttachments?.onPasteImage}
             onPasteImageError={(error) =>
               setAttachmentError(`Image paste failed: ${error.message}`)
@@ -324,8 +352,17 @@ export function MarkdownEditorSurface({
             onTextSearchUnavailable={() => {
               setSearchFallback(true)
               setSessionMode("source")
+              onEditingModeChange?.("source")
             }}
             onOpenInternalLink={onOpenInternalLink}
+            placeholder={
+              emptyDocumentPrompt ? (
+                <span className="markdown-editor-empty-prompt">
+                  <span>{emptyDocumentPrompt}</span>
+                  {focusHint ? <small>{focusHint}</small> : null}
+                </span>
+              ) : undefined
+            }
             searchNotes={searchNotes}
             readOnly={disabled}
             autoFocus={autoFocus || focusAfterModeSwitch}

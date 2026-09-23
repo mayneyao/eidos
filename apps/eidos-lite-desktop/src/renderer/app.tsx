@@ -4162,6 +4162,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     platform={platform}
                     focusRequestToken={fileSurfaceFocusRequestToken}
                     keyboardShortcuts={keyboardShortcuts}
+                    onEditingModeChange={setTextPreviewEditingMode}
                     onSaved={(file) =>
                       setTextPreview((current) =>
                         current?.relativePath === file.relativePath

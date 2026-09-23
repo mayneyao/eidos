@@ -9,12 +9,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const editorSurfaceRendered = vi.hoisted(() =>
-  vi.fn<(props: { editingMode?: string }) => void>()
+  vi.fn<
+    (props: {
+      editingMode?: string
+      onEditingModeChange?(mode: "source" | "wysiwyg"): void
+    }) => void
+  >()
 )
 
 vi.mock("./markdown-editor-surface", () => ({
   prepareMarkdownEditorSurface: vi.fn(async () => undefined),
-  MarkdownEditorSurface: (props: { editingMode?: string }) => {
+  MarkdownEditorSurface: (props: {
+    editingMode?: string
+    onEditingModeChange?(mode: "source" | "wysiwyg"): void
+  }) => {
     editorSurfaceRendered(props)
     return null
   },
@@ -31,6 +39,7 @@ describe("Markdown editability regression", () => {
   })
 
   it("opens a new Markdown file directly in WYSIWYG edit mode", async () => {
+    const onEditingModeChange = vi.fn()
     await prepareTextFilePreview({
       type: "text",
       relativePath: "editor-loader.txt",
@@ -63,6 +72,7 @@ describe("Markdown editability regression", () => {
           markdownFileEditingMode: "wysiwyg",
           theme: "light",
           platform: "darwin",
+          onEditingModeChange,
           onReveal: () => undefined,
           onSaved: () => undefined,
           onReload: () => undefined,
@@ -75,6 +85,9 @@ describe("Markdown editability regression", () => {
       expect.objectContaining({ editingMode: "wysiwyg" })
     )
     expect(host.querySelector('[data-document-preview-mode="edit"]')).toBeNull()
+
+    editorSurfaceRendered.mock.lastCall?.[0].onEditingModeChange?.("source")
+    expect(onEditingModeChange).toHaveBeenCalledWith("source")
 
     await act(async () => root.unmount())
   })

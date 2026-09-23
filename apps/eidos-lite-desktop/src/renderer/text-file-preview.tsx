@@ -28,6 +28,7 @@ import { fileManagerMessage } from "../shared/platform-copy"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useFileContentFocusRequest } from "./file-content-focus"
 import { useEidosLiteI18n } from "./i18n"
+import { workspaceShortcutLabel } from "./workspace-shortcuts"
 import {
   MarkdownEditorSurface,
   prepareMarkdownEditorSurface,
@@ -98,7 +99,9 @@ function EditableTextFile({
   markdownCompatibilityProfile = "eidos",
   navigationTarget,
   onOpenInternalLink,
+  focusShortcutLabel,
   keyboardShortcuts,
+  onEditingModeChange,
   onSaved,
   onReload,
   onDraftChange,
@@ -115,7 +118,9 @@ function EditableTextFile({
     sourceRelativePath: string,
     request: MarkdownEditorInternalLinkRequest
   ): void | Promise<void>
+  focusShortcutLabel?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -354,7 +359,9 @@ function EditableTextFile({
         persistSourceEditorState
         autoFocus={autoFocus}
         focusRequestToken={focusRequestToken}
+        focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}
+        onEditingModeChange={onEditingModeChange}
         onChange={handleChange}
       />
     </section>
@@ -493,7 +500,9 @@ function DocumentFilePreview({
   navigationTarget,
   onOpenInternalLink,
   focusRequestToken,
+  focusShortcutLabel,
   keyboardShortcuts,
+  onEditingModeChange,
   onSaved,
   onReload,
   onDraftChange,
@@ -511,8 +520,10 @@ function DocumentFilePreview({
   ): void | Promise<void>
   platform: string
   focusRequestToken: number
+  focusShortcutLabel?: string
   onReveal(): void
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
@@ -547,7 +558,9 @@ function DocumentFilePreview({
         navigationTarget={navigationTarget}
         onOpenInternalLink={onOpenInternalLink}
         focusRequestToken={focusRequestToken}
+        focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}
+        onEditingModeChange={onEditingModeChange}
         onSaved={onSaved}
         onReload={onReload}
         onDraftChange={onDraftChange}
@@ -586,6 +599,8 @@ function DocumentFilePreview({
             editingMode="source"
             autoFocus
             focusRequestToken={focusRequestToken}
+            focusShortcutLabel={focusShortcutLabel}
+            onEditingModeChange={onEditingModeChange}
             onSaved={onSaved}
             onReload={onReload}
             onDraftChange={onDraftChange}
@@ -608,6 +623,7 @@ export function TextFilePreview({
   platform,
   focusRequestToken = 0,
   keyboardShortcuts,
+  onEditingModeChange,
   onReveal,
   onSaved,
   onReload,
@@ -627,12 +643,21 @@ export function TextFilePreview({
   platform: string
   focusRequestToken?: number
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onReveal(): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
   onDraftChange(relativePath: string, draft: TextFileDraft | null): void
 }) {
   const { t } = useEidosLiteI18n()
+  const focusShortcutLabel =
+    keyboardShortcuts?.["focus-file-content"] === null
+      ? undefined
+      : workspaceShortcutLabel(
+          "focus-file-content",
+          platform === "darwin",
+          keyboardShortcuts
+        )
   const fallbackFocusRef = useRef<HTMLElement>(null)
   useFileContentFocusRequest(focusRequestToken, () =>
     fallbackFocusRef.current?.focus({ preventScroll: true })
@@ -676,7 +701,9 @@ export function TextFilePreview({
           onOpenInternalLink={onOpenInternalLink}
           platform={platform}
           focusRequestToken={focusRequestToken}
+          focusShortcutLabel={focusShortcutLabel}
           keyboardShortcuts={keyboardShortcuts}
+          onEditingModeChange={onEditingModeChange}
           onReveal={onReveal}
           onSaved={onSaved}
           onReload={onReload}
@@ -692,7 +719,9 @@ export function TextFilePreview({
         theme={theme}
         navigationTarget={navigationTarget}
         focusRequestToken={focusRequestToken}
+        focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}
+        onEditingModeChange={onEditingModeChange}
         onSaved={onSaved}
         onReload={onReload}
         onDraftChange={onDraftChange}

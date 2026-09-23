@@ -79,6 +79,8 @@ export default function PierreTextEditorSurface({
   persistEditorState = true,
   autoFocus = false,
   focusRequestToken = 0,
+  placeholder,
+  placeholderHint,
   searchTarget,
   onPasteImage,
   onPasteImageError,
@@ -90,6 +92,8 @@ export default function PierreTextEditorSurface({
   persistEditorState?: boolean
   autoFocus?: boolean
   focusRequestToken?: number
+  placeholder?: string
+  placeholderHint?: string
   searchTarget?: TextSearchTarget
   onPasteImage?: MarkdownEditorPasteImageHandler
   onPasteImageError?(error: Error): void
@@ -97,6 +101,7 @@ export default function PierreTextEditorSurface({
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
   const [searchMissing, setSearchMissing] = useState(false)
+  const [empty, setEmpty] = useState(content === "")
   const { t } = useEidosLiteI18n()
   const appliedSearch = useRef<string | null>(null)
   const revealFrame = useRef(0)
@@ -166,6 +171,7 @@ export default function PierreTextEditorSurface({
       true
     )
   }, [content])
+  useEffect(() => setEmpty(content === ""), [content])
   const createEditor = useCallback(
     (options: EditorOptions<undefined>) => {
       const persistentOptions: EditorOptions<undefined> = {
@@ -280,8 +286,17 @@ export default function PierreTextEditorSurface({
   return (
     <div
       className="text-file-editor-paste-surface"
+      data-line-numbers={
+        shouldDisableTextEditorLineNumbers(relativePath) ? "hidden" : "visible"
+      }
       onPasteCapture={handlePasteCapture}
     >
+      {placeholder && empty ? (
+        <div className="text-file-editor-empty-prompt" aria-hidden="true">
+          <span>{placeholder}</span>
+          {placeholderHint ? <small>{placeholderHint}</small> : null}
+        </div>
+      ) : null}
       {searchMissing ? (
         <p role="status">
           {t(
@@ -312,6 +327,7 @@ export default function PierreTextEditorSurface({
               },
               onChange: (nextFile) => {
                 currentContentRef.current = nextFile.contents
+                setEmpty(nextFile.contents === "")
                 onChange(nextFile.contents)
               },
             }}

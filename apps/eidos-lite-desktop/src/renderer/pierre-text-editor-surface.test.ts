@@ -97,6 +97,42 @@ vi.mock("@pierre/diffs/react", () => ({
 import PierreTextEditorSurface from "./pierre-text-editor-surface"
 
 describe("PierreTextEditorSurface", () => {
+  it("shows an empty-document prompt without writing it into the file", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "journals/today.md",
+          content: "",
+          theme: "light",
+          placeholder: "Start writing…",
+          placeholderHint: "Press ⌘1 to focus the editor",
+          onChange,
+        })
+      )
+    })
+
+    expect(host.textContent).toContain("Start writing…")
+    expect(host.textContent).toContain("⌘1")
+    expect(pierre.fileContents).toHaveBeenLastCalledWith("")
+    expect(onChange).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pierre.onEditorChange?.({ contents: "# Today" })
+    })
+    expect(host.textContent).not.toContain("Start writing…")
+
+    await act(async () => {
+      pierre.onEditorChange?.({ contents: "" })
+    })
+    expect(host.textContent).toContain("Start writing…")
+
+    await act(async () => root.unmount())
+  })
+
   it("applies a host formatting result as one undoable edit without remounting", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)
