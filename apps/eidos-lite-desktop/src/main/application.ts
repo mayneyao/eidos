@@ -18,6 +18,7 @@ import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
 import { serveMediaPreview } from "./space/media-file-preview"
 import { eidosFilePathsFromArguments } from "./launch-intent"
+import { pluginInstallIdsFromArguments } from "./plugin-install-link"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
@@ -55,7 +56,9 @@ const bootstrapState = (
     __eidosLiteBootstrapState?: {
       startedAtMs: number
       pendingOpenFiles: string[]
+      pendingOpenUrls: string[]
       handleOpenFile: (event: Electron.Event, filePath: string) => void
+      handleOpenUrl: (event: Electron.Event, url: string) => void
     }
   }
 ).__eidosLiteBootstrapState
@@ -120,6 +123,10 @@ const pendingLaunchFiles = eidosFilePathsFromArguments(
   process.argv,
   process.cwd()
 )
+const pendingPluginInstallIds = pluginInstallIdsFromArguments([
+  ...process.argv,
+  ...(bootstrapState?.pendingOpenUrls ?? []),
+])
 let launchRoutingReady = false
 let launchRoutingInFlight: Promise<void> | null = null
 
@@ -129,6 +136,7 @@ function prepareForShutdown(reason: "quit" | "update-install"): Promise<void> {
   logger.info("app.shutdown.started", { reason })
   launchRoutingReady = false
   pendingLaunchFiles.length = 0
+  pendingPluginInstallIds.length = 0
   shutdownPromise = closeIpc()
     .then(() => launchRoutingInFlight)
     .then(() => controller.closeAll())
@@ -183,6 +191,23 @@ function enqueueLaunchFiles(paths: readonly string[]): void {
   if (launchRoutingReady) void drainLaunchFiles()
 }
 
+function enqueuePluginInstallUrls(urls: readonly string[]): void {
+  if (shutdownStarted) return
+  for (const id of pluginInstallIdsFromArguments(urls)) {
+    if (!pendingPluginInstallIds.includes(id)) pendingPluginInstallIds.push(id)
+  }
+  if (launchRoutingReady) drainPluginInstalls()
+}
+
+function drainPluginInstalls(): void {
+  if (!launchRoutingReady || shutdownStarted) return
+  let id = pendingPluginInstallIds.shift()
+  while (id) {
+    controller.showPluginInstall(id)
+    id = pendingPluginInstallIds.shift()
+  }
+}
+
 function drainLaunchFiles(): Promise<void> {
   if (!launchRoutingReady) return Promise.resolve()
   if (launchRoutingInFlight) return launchRoutingInFlight
@@ -212,21 +237,32 @@ function drainLaunchFiles(): Promise<void> {
 }
 
 app.on("second-instance", (_event, commandLine, workingDirectory) => {
+  const pluginIds = pluginInstallIdsFromArguments(commandLine)
+  if (pluginIds.length > 0) enqueuePluginInstallUrls(commandLine)
   const paths = eidosFilePathsFromArguments(commandLine, workingDirectory)
   if (paths.length > 0) {
     enqueueLaunchFiles(paths)
-  } else if (!controller.focusAnyWindow() && launchRoutingReady) {
+  } else if (
+    pluginIds.length === 0 &&
+    !controller.focusAnyWindow() &&
+    launchRoutingReady
+  ) {
     controller.createWelcomeWindow()
   }
 })
 
 if (bootstrapState) {
   app.removeListener("open-file", bootstrapState.handleOpenFile)
+  app.removeListener("open-url", bootstrapState.handleOpenUrl)
   enqueueLaunchFiles(bootstrapState.pendingOpenFiles)
 }
 app.on("open-file", (event, filePath) => {
   event.preventDefault()
   enqueueLaunchFiles([filePath])
+})
+app.on("open-url", (event, url) => {
+  event.preventDefault()
+  enqueuePluginInstallUrls([url])
 })
 
 app.on("window-all-closed", () => {
@@ -238,6 +274,7 @@ app.on("activate", () => {
     app.isReady() &&
     BrowserWindow.getAllWindows().length === 0 &&
     pendingLaunchFiles.length === 0 &&
+    pendingPluginInstallIds.length === 0 &&
     !launchRoutingInFlight
   ) {
     controller.createWelcomeWindow()
@@ -351,9 +388,10 @@ void app.whenReady().then(async () => {
   launchRoutingReady = true
   if (pendingLaunchFiles.length > 0) {
     await drainLaunchFiles()
-  } else {
+  } else if (pendingPluginInstallIds.length === 0) {
     controller.createWelcomeWindow()
   }
+  drainPluginInstalls()
   const preferences = await controller.getPreferences()
   setTimeout(() => {
     void updater.start(preferences.automaticUpdates)

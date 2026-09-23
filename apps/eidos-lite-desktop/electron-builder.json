@@ -52,6 +52,12 @@
       "role": "Editor"
     }
   ],
+  "protocols": [
+    {
+      "name": "Eidos Lite plugin installation",
+      "schemes": ["eidos-lite"]
+    }
+  ],
   "mac": {
     "target": ["dmg", "zip"],
     "icon": "assets/logo.icns",

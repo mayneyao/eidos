@@ -85,6 +85,13 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(PLUGIN_CHANNELS.installProgress, handler)
   },
+  onPluginInstallIntent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: string) =>
+      listener(id)
+    ipcRenderer.on(PLUGIN_CHANNELS.installIntent, handler)
+    return () =>
+      ipcRenderer.removeListener(PLUGIN_CHANNELS.installIntent, handler)
+  },
   uninstallPlugin: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.uninstall, id),
   setPluginEnabled: (id, enabled) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.enable, id, enabled),

@@ -135,7 +135,12 @@ describe("Eidos Lite package identity", () => {
         },
       },
     })
-    expect(builder.protocols).toBeUndefined()
+    expect(builder.protocols).toEqual([
+      {
+        name: "Eidos Lite plugin installation",
+        schemes: ["eidos-lite"],
+      },
+    ])
     expect(builder.fileAssociations).toEqual([
       {
         ext: "eidos",

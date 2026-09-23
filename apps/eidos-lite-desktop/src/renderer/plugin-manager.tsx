@@ -42,6 +42,8 @@ export function PluginManager({
   selectedPluginId,
   onSelectPlugin,
   onPluginNameChange,
+  installRequest,
+  onInstallRequestHandled,
 }: {
   spaceAvailable?: boolean
   onOpenPage?(key: string): void
@@ -55,6 +57,8 @@ export function PluginManager({
   selectedPluginId?: string | null
   onSelectPlugin?(id: string | null, name?: string | null): void
   onPluginNameChange?(name: string | null): void
+  installRequest?: { id: string; sequence: number } | null
+  onInstallRequestHandled?(sequence: number): void
 }) {
   const { t } = useEidosLiteI18n()
   const buttonClass = variant === "settings" ? "settings-button" : undefined
@@ -187,6 +191,19 @@ export function PluginManager({
       return [...prev, id]
     })
   }, [])
+
+  useEffect(() => {
+    if (!installRequest) return
+    setTab("marketplace")
+    setSelected(installRequest.id)
+    installMarketplacePlugin(installRequest.id)
+    onInstallRequestHandled?.(installRequest.sequence)
+  }, [
+    installRequest,
+    installMarketplacePlugin,
+    onInstallRequestHandled,
+    setSelected,
+  ])
 
   const mountedRef = useRef(true)
   useEffect(() => {

@@ -190,9 +190,11 @@ validated as an ordinary non-symlink file. Lite first reuses the deepest open
 or recent canonical Space that contains it; an otherwise unknown file uses its
 parent folder as the Space. The file is then selected. A second launch for the
 same canonical Space focuses the existing window and reuses its three-entry
-runtime LRU. Lite does not register an unimplemented URL protocol, create a
-repository for one file inside an already known Space, or add a multi-tab
-surface.
+runtime LRU. Lite also registers `eidos-lite://plugins/install/<plugin-id>`
+for plugin installation from the community marketplace. The link opens Plugin
+settings, downloads the package from the registry, verifies it, and asks for
+confirmation before installation. Lite does not create a repository for one
+file inside an already known Space or add a multi-tab surface.
 
 Ordinary `.md` and `.markdown` files use document-local image storage. Pasting
 an image in either Source or Rich text mode writes verified raster bytes to the

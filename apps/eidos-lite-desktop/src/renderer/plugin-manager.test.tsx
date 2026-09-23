@@ -93,6 +93,22 @@ async function drop(files: File[], type = "drop") {
   expect(event.defaultPrevented).toBe(true)
 }
 
+it("starts a marketplace installation requested by a plugin link", async () => {
+  const handled = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginManager
+        variant="settings"
+        installRequest={{ id: "eidos.map", sequence: 1 }}
+        onInstallRequestHandled={handled}
+      />
+    )
+  )
+  expect(install).toHaveBeenCalledWith("eidos.map")
+  expect(handled).toHaveBeenCalledWith(1)
+  expect(container.textContent).toContain("Map view")
+})
+
 it("drops packages in the catalog and detail view, rejects mixed files and refreshes", async () => {
   const list = vi.spyOn(window.eidosLite, "listPlugins")
   await act(async () => root.render(<PluginManager />))

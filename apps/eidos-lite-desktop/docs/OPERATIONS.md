@@ -142,9 +142,15 @@ builds.
 
 ## File association and launch routing
 
-The package registers only the `.eidos` extension; it deliberately has no
-custom URL scheme. macOS `open-file` events and Windows/Linux second-instance
-arguments enter the same main-process route. The route rejects missing,
+The package registers the `.eidos` extension and the
+`eidos-lite://plugins/install/<plugin-id>` URL scheme. Plugin links are accepted
+from macOS `open-url` events, Windows/Linux second-instance arguments, and
+startup arguments. The main process accepts only the install route with a
+valid plugin ID; Plugin settings then invokes the registry installer, which
+verifies the package and asks the user to confirm before installing.
+
+macOS `open-file` events and Windows/Linux second-instance file arguments
+enter the same main-process file route. The route rejects missing,
 non-file, non-`.eidos`, and final-component symlink inputs. It prefers the
 deepest open or available recent canonical Space containing the real path and
 falls back to the parent folder only for an unknown file. It queues only a

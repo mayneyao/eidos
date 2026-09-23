@@ -135,11 +135,28 @@ export class WindowController {
     return window
   }
 
-  showSettingsWindow(): BrowserWindow {
+  showPluginInstall(id: string): BrowserWindow {
+    return this.showSettingsWindow(`/settings/plugins/${id}`, id)
+  }
+
+  showSettingsWindow(
+    route = "/settings/preferences",
+    installId?: string
+  ): BrowserWindow {
     const owner = BrowserWindow.getFocusedWindow()
     if (owner && owner !== this.settingsWindow) this.settingsOwnerWindow = owner
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.focusWindow(this.settingsWindow)
+      if (installId) {
+        if (this.settingsWindow.webContents.isLoading()) {
+          void this.loadRenderer(this.settingsWindow, route)
+        } else {
+          this.settingsWindow.webContents.send(
+            PLUGIN_CHANNELS.installIntent,
+            installId
+          )
+        }
+      }
       return this.settingsWindow
     }
     const window = this.createWindow(true, "settings")
@@ -150,7 +167,7 @@ export class WindowController {
     window.once("closed", () => {
       if (this.settingsWindow === window) this.settingsWindow = null
     })
-    void this.loadRenderer(window, "/settings/preferences")
+    void this.loadRenderer(window, route)
     return window
   }
 

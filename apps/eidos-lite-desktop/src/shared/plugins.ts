@@ -87,6 +87,7 @@ export interface PluginApi {
   onPluginInstallProgress(
     listener: (progress: PluginInstallProgress) => void
   ): () => void
+  onPluginInstallIntent(listener: (id: string) => void): () => void
   openPluginTable(
     key: string,
     tableId: string,
@@ -163,6 +164,7 @@ export const PLUGIN_CHANNELS = {
   list: "eidos-lite:plugins-list",
   install: "eidos-lite:plugins-install",
   installProgress: "eidos-lite:plugins-install-progress",
+  installIntent: "eidos-lite:plugins-install-intent",
   uninstall: "eidos-lite:plugins-uninstall",
   enable: "eidos-lite:plugins-enable",
   associate: "eidos-lite:plugins-associate",

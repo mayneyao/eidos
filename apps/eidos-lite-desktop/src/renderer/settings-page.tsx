@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PluginListing } from "../shared/plugins"
 import { PluginManager } from "./plugin-manager"
 import {
@@ -107,6 +107,20 @@ export function SettingsPage() {
     )
   }
   const [activePage, setActivePage] = useState<SettingsPageId>(readPage)
+  const installRequestSequence = useRef(0)
+  const [installRequests, setInstallRequests] = useState<
+    { id: string; sequence: number }[]
+  >(() => {
+    const parts = window.location.hash.split("/")
+    return parts[2] === "plugins" && parts[3]
+      ? [{ id: parts[3], sequence: 0 }]
+      : []
+  })
+  const handleInstallRequestHandled = useCallback((sequence: number) => {
+    setInstallRequests((requests) =>
+      requests[0]?.sequence === sequence ? requests.slice(1) : requests
+    )
+  }, [])
   useEffect(() => {
     window.history.replaceState(
       window.history.state,
@@ -120,6 +134,20 @@ export function SettingsPage() {
       window.removeEventListener("popstate", restore)
       window.removeEventListener("hashchange", restore)
     }
+  }, [])
+  useEffect(() => {
+    return window.eidosLite.onPluginInstallIntent?.((id) => {
+      setActivePage("plugins")
+      window.history.replaceState(
+        window.history.state,
+        "",
+        "#/settings/plugins"
+      )
+      setInstallRequests((requests) => [
+        ...requests,
+        { id, sequence: ++installRequestSequence.current },
+      ])
+    })
   }, [])
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
@@ -1357,6 +1385,8 @@ export function SettingsPage() {
               {activePage === "plugins" && (
                 <PluginManager
                   variant="settings"
+                  installRequest={installRequests[0] ?? null}
+                  onInstallRequestHandled={handleInstallRequestHandled}
                   builtins={[
                     {
                       id: "builtin.terminal",
