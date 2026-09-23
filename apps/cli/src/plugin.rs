@@ -86,12 +86,12 @@ try {
   if (process.env.EIDOS_PLUGIN_TOOLS) entry = path.resolve(process.env.EIDOS_PLUGIN_TOOLS);
   else {
   const pkg = require('@eidos.space/plugin-tools/package.json');
-  if (typeof pkg.version !== 'string' || !/^0\.(1|2)\.\d+$/.test(pkg.version)) throw new Error('Expected plugin-tools 0.1.x or 0.2.x');
+  if (typeof pkg.version !== 'string' || !/^0\.(1|2|3)\.\d+$/.test(pkg.version)) throw new Error('Expected plugin-tools 0.1.x, 0.2.x, or 0.3.x');
   if (target && (/^0\.1\./.test(pkg.version) || pkg.version === '0.2.0')) throw new Error('--target requires plugin-tools newer than 0.2.0. Upgrade the project dependency; older tools ignore this option.');
   entry = require.resolve('@eidos.space/plugin-tools/bin/eidos-plugin.mjs');
   }
 } catch (error) {
-  console.error('Install @eidos.space/plugin-tools 0.2.x in this project (pnpm install). ' + error.message);
+  console.error('Install @eidos.space/plugin-tools 0.3.x in this project (pnpm install). ' + error.message);
   process.exit(1);
 }
 process.argv = [process.execPath, entry, command, source, ...(output ? ['--out', output] : []), ...(json === 'true' ? ['--json'] : []), ...(target ? ['--target', target] : [])];
@@ -480,11 +480,11 @@ mod tests {
         assert_eq!(package["scripts"]["check"], "eidos-plugin check .");
         assert_eq!(
             package["devDependencies"]["@eidos.space/plugin-tools"],
-            "^0.2.0"
+            "^0.3.0"
         );
         assert_eq!(
             package["devDependencies"]["@eidos.space/plugin-sdk"],
-            "^0.2.0"
+            "^0.3.0"
         );
         assert!(project.join("plugin.json").is_file());
         fs::write(project.join("src/main.ts"), "user changes").unwrap();

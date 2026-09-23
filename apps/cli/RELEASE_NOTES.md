@@ -1,20 +1,16 @@
 ## What's new
 
-### Check plugin compatibility before running
+### Scaffold plugins with contribution templates
 
-Use `eidos plugin doctor` to see the plugin API supported by your CLI, or `eidos plugin doctor ./example.eidos-plugin` to inspect a package without installing or executing it. JSON reports include the required API and any unsupported features.
+Use `eidos plugin create <directory> --template <name>` to bootstrap new plugins from official templates, including table views, table actions, full-page views, document editors, and standalone themes. The new `theme` template sets up an offline CSS theme project ready to package for Eidos Lite.
 
-Installation and `eidos serve` now reject incompatible plugins before loading them. A rejected update preserves the installed package. New packages can declare a minimum API; existing packages remain supported when their declared features are available.
+### Validate plugins against target hosts
 
-The CLI supports table-view plugins. Desktop-only actions, connections and file-editor plugins require Eidos Lite and are rejected by the CLI.
+The `eidos plugin check` command now supports `--target <desktop|cli>`. Validate your plugin against specific host requirements and API levels before distribution to verify that declared views, actions, workspace permissions, and theme stylesheets are supported by the target environment.
 
 ## Improvements
 
-- **Plugin authoring**: New projects use Plugin SDK and Tools 0.2. The check command reports compatibility with Lite and CLI, and packaging preserves the minimum API requirement in the new package format.
-
-## Bug fixes
-
-- **Serve dark mode**: Markdown previews follow the selected application theme instead of switching back to the system appearance.
+- **Serve UI**: Embedded serve interface inherits updated semantic theme tokens and webfont rendering improvements.
 
 ## Use with an Agent
 
@@ -39,4 +35,4 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v1.4.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v1.5.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.

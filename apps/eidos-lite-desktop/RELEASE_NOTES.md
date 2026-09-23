@@ -1,19 +1,22 @@
 ## What's new
 
-### Run plugin actions on your records
+### Community marketplace and one-click install
 
-Plugins can now add actions to a table's context menu. Run an action on selected records or the current filtered set, follow its progress in a task window that can be minimized or expanded, and undo or redo supported changes without running the action again.
+Explore the new community marketplace at **[community.eidos.space](https://community.eidos.space)** to discover plugins and themes. Clicking an install button in your browser opens Eidos Lite and prompts for confirmation, making installation seamless. You can also browse the marketplace directly inside the app under **Settings → Plugins → Marketplace**.
 
-Plugins can also provide a dedicated workspace for a `.eidos` file through **Open with**. Connection settings, including endpoints, models and API keys, are managed in the plugin's settings; API keys are stored encrypted on your device.
+### Customize your appearance with theme plugins
+
+Eidos Lite now supports theme plugins to personalize colors, surfaces, typography, and corner styling across all your Spaces. Theme plugins contain only validated styles and bundled fonts with zero executable code, and can be previewed or switched at any time under **Settings → Theme**.
+
+### Space and document capabilities for plugins
+
+Plugins can now power richer workflows for Markdown notes in your Space. With user-granted permissions, plugins can index documents, inspect line counts, react to file changes, and open or create notes directly within the app. Document contents remain strictly protected within the host sandbox.
 
 ## Improvements
 
-- **Plugin installation**: Drag a `.eidos-plugin` file onto the Plugins page to install or update it.
-- **Plugin compatibility**: Eidos checks a plugin's required API before installation and execution. An incompatible update leaves the installed version intact, and incompatible plugins remain available for inspection or removal.
-- **Editor titles**: The title bar identifies the active plugin or Markdown editing mode alongside the filename.
+- **Batch file operations**: Multi-select files and folders in Space Explorer using Shift or Cmd/Ctrl to drag, move, or delete multiple items together with clear feedback.
+- **Editor title sync**: The title bar updates immediately when switching or renaming Markdown files.
 
 ## Bug fixes
 
-- **Dark mode**: Markdown in Feed and record details now follows the app's theme, even when it differs from the system appearance.
-- **History**: Diff values stay aligned with their column labels when historical column order differs.
-- **Plugin pages**: Avoid an unnecessary page scrollbar.
+- **Editor layout**: Aligns empty prompt text and cursor positioning in the Markdown editor.
