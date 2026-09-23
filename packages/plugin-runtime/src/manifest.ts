@@ -5,7 +5,7 @@ import type {
   SettingValue,
 } from "./contracts"
 import { invalid, PluginError } from "./errors"
-import { themeFontData, validThemeToken } from "./theme"
+import { parseThemeStylesheet, themeStylesheetPath } from "./theme-stylesheet"
 
 const localId = /^[a-z][a-z0-9-]*$/
 export function record(value: unknown): Record<string, unknown> {
@@ -381,42 +381,11 @@ export function parseManifest(input: unknown): PluginManifest {
     if (!required || !/^1\.(?:[6-9]|[1-9]\d+)\.\d+$/.test(required))
       invalid("Themes require plugin API 1.6.0 or newer")
     const theme = record(m.theme)
-    fields(theme, ["light", "dark"], ["fonts"])
-    for (const mode of ["light", "dark"] as const) {
-      const tokens = record(theme[mode])
-      if (!Object.keys(tokens).length || Object.keys(tokens).length > 32)
-        invalid("Theme requires 1–32 tokens per appearance")
-      for (const [key, value] of Object.entries(tokens)) {
-        if (!validThemeToken(key, value)) invalid("Invalid theme token value")
-      }
-    }
-    if (theme.fonts !== undefined) {
-      if (!Array.isArray(theme.fonts) || theme.fonts.length > 4)
-        invalid("Theme supports up to four fonts")
-      for (const raw of theme.fonts) {
-        const font = record(raw)
-        fields(font, ["family", "source"], ["weight"])
-        if (
-          typeof font.family !== "string" ||
-          !/^[A-Za-z][A-Za-z0-9 -]{0,63}$/.test(font.family)
-        )
-          invalid("Invalid theme font family")
-        if (
-          font.weight !== undefined &&
-          (typeof font.weight !== "string" ||
-            !/^(normal|bold|[1-9]00)$/.test(font.weight))
-        )
-          invalid("Invalid theme font weight")
-        if (
-          typeof font.source !== "string" ||
-          (!themeFontData(font.source) &&
-            !/^\.\/(?!.*(?:\/\.\.?\/|\\|[?#]))[A-Za-z0-9_./-]+\.(woff2?|ttf|otf)$/.test(
-              font.source
-            ))
-        )
-          invalid("Invalid theme font source")
-      }
-    }
+    fields(theme, ["stylesheet"], [])
+    if (typeof theme.stylesheet !== "string")
+      invalid("Theme stylesheet must be a CSS file path")
+    if (!themeStylesheetPath(theme.stylesheet))
+      parseThemeStylesheet(theme.stylesheet, true)
   }
   if (m.kind !== undefined && m.kind !== "theme") invalid("Invalid plugin kind")
   if (m.kind === "theme" && !m.theme)

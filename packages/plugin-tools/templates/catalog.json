@@ -4,28 +4,9 @@
     "manifest": {
       "kind": "theme",
       "requires": { "pluginApi": "1.6.0" },
-      "theme": {
-        "light": {
-          "--theme-surface": "#fffaf5",
-          "--theme-ink": "#28231f",
-          "--theme-accent": "#8b4b38",
-          "--lite-sidebar": "#f5ece3",
-          "--surface-hover": "#f4e9df",
-          "--surface-selected": "#ead4c4",
-          "--control-radius": "8px"
-        },
-        "dark": {
-          "--theme-surface": "#211d1b",
-          "--theme-ink": "#f5e9df",
-          "--theme-accent": "#dba283",
-          "--lite-sidebar": "#292321",
-          "--surface-hover": "#352e2a",
-          "--surface-selected": "#49382f",
-          "--control-radius": "8px"
-        }
-      }
+      "theme": { "stylesheet": "./theme.css" }
     },
-    "files": {}
+    "files": { "theme.css": "theme.css.txt" }
   },
   "document-view": {
     "description": "CSV file editor with host save and undo/redo",

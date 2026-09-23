@@ -46,10 +46,8 @@ export interface PluginManifest {
   theme?: ThemeDeclaration
 }
 export interface ThemeDeclaration {
-  light: Record<string, string>
-  dark: Record<string, string>
-  /** Local font files are embedded as data URLs by the plugin packer. */
-  fonts?: Array<{ family: string; source: string; weight?: string }>
+  /** Source path, replaced with validated CSS and embedded fonts when packaged. */
+  stylesheet: string
 }
 export interface ViewDeclaration {
   id: string

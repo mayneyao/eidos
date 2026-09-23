@@ -263,6 +263,20 @@ describe("Eidos File Grid adapter", () => {
     })
     expect(
       eidosFileValueToGridCell(
+        field("date"),
+        "2026-07-12",
+        false,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        '"Eidos Maple Mono", monospace'
+      )
+    ).toMatchObject({
+      themeOverride: { fontFamily: '"Eidos Maple Mono", monospace' },
+    })
+    expect(
+      eidosFileValueToGridCell(
         field("datetime"),
         "2026-01-01T00:30:00.000Z",
         false,

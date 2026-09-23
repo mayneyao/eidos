@@ -230,6 +230,7 @@ export function resolveEidosFileGridTheme(
   return {
     ...getDefaultTheme(),
     ...commonTheme,
+    fontFamily: styles?.fontFamily?.trim() || commonTheme.fontFamily,
     accentColor: primary,
     accentFg: primaryForeground,
     accentLight: accent,
@@ -264,11 +265,10 @@ export function useEidosFileGridThemeForElement(
   const [revision, setRevision] = useState(0)
   useLayoutEffect(() => {
     const source = themeSource(elementRef)
-    setRevision((current) => current + 1)
+    const refresh = () => setRevision((current) => current + 1)
+    refresh()
     if (typeof MutationObserver === "undefined") return
-    const observer = new MutationObserver(() =>
-      setRevision((current) => current + 1)
-    )
+    const observer = new MutationObserver(refresh)
     if (source) {
       observer.observe(source, {
         attributes: true,
@@ -281,7 +281,18 @@ export function useEidosFileGridThemeForElement(
         attributeFilter: ["class", "data-theme", "style"],
       })
     }
-    return () => observer.disconnect()
+    // Theme plugins add a stylesheet to <head> without changing root attributes.
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+    // Canvas text needs a redraw after a web font finishes loading.
+    document.fonts?.addEventListener("loadingdone", refresh)
+    return () => {
+      observer.disconnect()
+      document.fonts?.removeEventListener("loadingdone", refresh)
+    }
   }, [elementRef, themeName])
 
   return useMemo(

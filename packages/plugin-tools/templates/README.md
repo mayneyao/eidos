@@ -17,10 +17,11 @@ Enable the plugin for a test Space. Source changes reload automatically.
 Manifest/permission changes require review. A development load does not replace
 the installed package; install the archive to keep the revision after restart.
 
-The `theme` starter is different: it has a data-only `plugin.json` with light and
-dark palettes for the Eidos Lite host. After loading or installing it, open its
+The `theme` starter is different: its data-only `plugin.json` points to
+`theme.css`, which contains light and dark palettes for the Eidos Lite host.
+After loading or installing it, open its
 detail page and choose **Apply theme**. This selection applies to every Space;
-theme plugins are not enabled per Space. Edit the palettes and pack the theme as
+theme plugins are not enabled per Space. Edit `theme.css` and pack the theme as
 a standalone `.eidos-plugin` archive. CLI Serve does not support themes.
 
 | Template      | Try it                                                                                                          |

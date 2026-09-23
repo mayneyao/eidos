@@ -525,12 +525,25 @@ export class PluginStore {
     const plugins: PluginListing["plugins"] = []
     for (const [id, binding] of Object.entries(config.installed)) {
       const hash = this.trials.get(id) ?? binding.hash
-      const manifest = await this.manifest(hash)
-      if (manifest.id !== id)
-        throw new PluginError(
-          "INVALID_REQUEST",
-          "Plugin binding identity mismatch"
-        )
+      let manifest: PluginPackage["manifest"]
+      try {
+        manifest = await this.manifest(hash)
+        if (manifest.id !== id)
+          throw new PluginError(
+            "INVALID_REQUEST",
+            "Plugin binding identity mismatch"
+          )
+      } catch {
+        // Keep the catalog usable so an unreadable installation can be
+        // reinstalled or uninstalled. Execution reads remain strict.
+        plugins.push({
+          manifest: { apiVersion: 1, id, name: id, version: "0.0.0" },
+          hash,
+          enabled: false,
+          unavailable: true,
+        })
+        continue
+      }
       plugins.push({
         manifest,
         hash,
@@ -546,7 +559,14 @@ export class PluginStore {
       plugins,
       space,
       associations: config.associations ?? {},
-      activeThemeId: config.activeThemeId ?? null,
+      activeThemeId: plugins.some(
+        (plugin) =>
+          plugin.manifest.id === config.activeThemeId &&
+          !plugin.unavailable &&
+          plugin.manifest.theme
+      )
+        ? config.activeThemeId
+        : null,
     }
   }
   async selectTheme(id: string | null): Promise<void> {

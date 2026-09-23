@@ -9,6 +9,6 @@ await build({
   platform: "node",
   format: "esm",
   target: "node22",
-  external: ["esbuild", "typescript", "yaml"],
+  external: ["esbuild", "typescript", "yaml", "postcss"],
 })
 await fs.copyFile("../plugin-sdk/src/index.ts", "dist/contracts.ts")

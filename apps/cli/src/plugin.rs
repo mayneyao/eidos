@@ -31,6 +31,10 @@ const TEMPLATES: &[(&str, &str)] = &[
         include_str!("../../../packages/plugin-tools/templates/style.css.txt"),
     ),
     (
+        "theme.css.txt",
+        include_str!("../../../packages/plugin-tools/templates/theme.css.txt"),
+    ),
+    (
         "base.css.txt",
         include_str!("../../../packages/plugin-tools/templates/base.css.txt"),
     ),
@@ -501,8 +505,8 @@ mod tests {
             serde_json::from_slice(&fs::read(project.join("plugin.json")).unwrap()).unwrap();
         assert_eq!(manifest["kind"], "theme");
         assert_eq!(manifest["requires"]["pluginApi"], "1.6.0");
-        assert!(manifest["theme"]["light"].is_object());
-        assert!(manifest["theme"]["dark"].is_object());
+        assert_eq!(manifest["theme"]["stylesheet"], "./theme.css");
+        assert!(project.join("theme.css").exists());
         assert!(!project.join("src").exists());
     }
 }

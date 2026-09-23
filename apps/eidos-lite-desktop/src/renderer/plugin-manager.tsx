@@ -763,6 +763,11 @@ export function PluginManager({
                               {t("Theme")}
                             </span>
                           ) : null}
+                          {plugin.unavailable ? (
+                            <span className="plugin-pill-status is-disabled">
+                              {t("Unavailable")}
+                            </span>
+                          ) : null}
                           {plugin.enabled ? (
                             <span className="plugin-pill-status is-enabled">
                               {t(
@@ -911,6 +916,11 @@ export function PluginManager({
                           {plugin.manifest.theme ? (
                             <span className="plugin-pill-status">
                               {t("Theme")}
+                            </span>
+                          ) : null}
+                          {plugin.unavailable ? (
+                            <span className="plugin-pill-status is-disabled">
+                              {t("Unavailable")}
                             </span>
                           ) : null}
                           {plugin.enabled ? (

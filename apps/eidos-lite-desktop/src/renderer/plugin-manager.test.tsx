@@ -93,6 +93,43 @@ async function drop(files: File[], type = "drop") {
   expect(event.defaultPrevented).toBe(true)
 }
 
+it("lets users remove an unreadable installed plugin without trying to enable it", async () => {
+  Object.assign(window.eidosLite, {
+    listPlugins: async () => ({
+      space: { plugins: {}, associations: {} },
+      activeThemeId: null,
+      plugins: [
+        {
+          hash: "old-hash",
+          enabled: false,
+          unavailable: true,
+          manifest: {
+            apiVersion: 1,
+            id: "example.old-theme",
+            name: "example.old-theme",
+            version: "0.0.0",
+          },
+        },
+      ],
+    }),
+  })
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+  await click("Installed")
+  expect(container.textContent).toContain("Unavailable")
+  await click("example.old-theme")
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "Reinstall or uninstall"
+  )
+  expect(container.textContent).toContain("Unknown version")
+  expect(
+    [...container.querySelectorAll("button")].some(
+      (button) => button.textContent === "Enable"
+    )
+  ).toBe(false)
+  await click("Uninstall")
+  expect(uninstall).toHaveBeenCalledWith("example.old-theme")
+})
+
 it("starts a marketplace installation requested by a plugin link", async () => {
   const handled = vi.fn()
   await act(async () =>

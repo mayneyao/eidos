@@ -5,8 +5,9 @@ The host injects capabilities when it mounts a view or activates an extension.
 There is no runtime `connect()` and no host implementation to bundle.
 
 A standalone Eidos Lite theme uses `kind: "theme"`, `requires.pluginApi:
-"1.6.0"`, and a `theme` declaration with light/dark semantic tokens and optional
-local fonts. It is a separate plugin type that styles the Lite host across all
+"1.6.0"`, and `theme.stylesheet: "./theme.css"`. The CSS file contains light
+and dark semantic tokens and may include local `@font-face` rules. It is a
+separate plugin type that styles the Lite host across all
 Spaces. Theme plugins contain no modules, views, actions, or grants. Use the
 `theme` starter from plugin-tools and pack it as a normal `.eidos-plugin`.
 

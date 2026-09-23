@@ -104,9 +104,10 @@ export function PluginDetailView({
 
   const manifest = plugin?.manifest
   const isTheme = manifest?.kind === "theme"
-  const compatibility = manifest
-    ? checkPluginCompatibility(manifest, "eidos-lite")
-    : null
+  const compatibility =
+    manifest && !plugin?.unavailable
+      ? checkPluginCompatibility(manifest, "eidos-lite")
+      : null
   const marketplaceOnly = !plugin && !builtin && Boolean(marketplacePlugin)
   const pluginId = manifest?.id ?? builtin?.id ?? marketplacePlugin?.id ?? ""
   const pluginVersion =
@@ -540,7 +541,11 @@ export function PluginDetailView({
             </span>
             <span className="plugin-detail-dot">·</span>
             <span className="plugin-detail-version">
-              {builtin ? t("Built-in") : `v${pluginVersion}`}
+              {builtin
+                ? t("Built-in")
+                : plugin?.unavailable
+                  ? t("Unknown version")
+                  : `v${pluginVersion}`}
             </span>
             <span className="plugin-detail-dot">·</span>
             {hasUpdate && marketplacePlugin && (
@@ -566,7 +571,16 @@ export function PluginDetailView({
                   plugin.enabled ? "is-enabled" : "is-disabled"
                 }`}
               >
-                {plugin.enabled ? (
+                {plugin.unavailable ? (
+                  <>
+                    <CircleSlash
+                      size={12}
+                      className="status-icon"
+                      aria-hidden="true"
+                    />
+                    <span>{t("Unavailable")}</span>
+                  </>
+                ) : plugin.enabled ? (
                   <>
                     <CheckCircle2
                       size={12}
@@ -655,7 +669,7 @@ export function PluginDetailView({
 
             {plugin && manifest && (
               <>
-                {manifest.theme ? (
+                {plugin.unavailable ? null : manifest.theme ? (
                   <button
                     className={`settings-button ${plugin.enabled ? "" : "settings-button-primary"}`}
                     type="button"
@@ -722,6 +736,11 @@ export function PluginDetailView({
       {error && (
         <p role="alert" className="plugin-manager-error">
           {error}
+        </p>
+      )}
+      {plugin?.unavailable && (
+        <p role="alert" className="plugin-manager-error">
+          {t("Installed plugin cannot be read. Reinstall or uninstall it.")}
         </p>
       )}
       {compatibility && !compatibility.compatible && (

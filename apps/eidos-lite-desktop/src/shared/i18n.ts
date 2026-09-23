@@ -135,6 +135,10 @@ const zh: Record<string, string> = {
   Formatters: "格式化程序",
   Placements: "挂载点",
   "Enabled in this Space": "当前 Space 已启用",
+  Unavailable: "不可用",
+  "Unknown version": "版本未知",
+  "Installed plugin cannot be read. Reinstall or uninstall it.":
+    "无法读取已安装的插件。请重新安装或卸载。",
   Installed: "已安装",
   Marketplace: "插件市场",
   "Enable plugins for this Space. Install once, use across Spaces.":

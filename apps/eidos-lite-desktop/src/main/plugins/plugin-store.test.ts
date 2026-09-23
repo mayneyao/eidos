@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { gzipSync } from "node:zlib"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { encodePackage, packageHash } from "@eidos.space/plugin-runtime/package"
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
@@ -112,8 +113,9 @@ it("selects one standalone theme for the device and clears it on uninstall", asy
     version: "1.0.0",
     requires: { pluginApi: "1.6.0" },
     theme: {
-      light: { "--theme-surface": "#fffaf5" },
-      dark: { "--theme-surface": "#211d1b" },
+      stylesheet:
+        ':root[data-theme="light"] { --theme-surface: #fffaf5; }\n' +
+        ':root[data-theme="dark"] { --theme-surface: #211d1b; }',
     },
   }
   await store.install(encodePackage(theme, {}), "a")
@@ -161,6 +163,83 @@ it("keeps incompatible plugins manageable after downgrading the host", async () 
   )
   await restarted.uninstall(manifest.id)
   expect((await restarted.list("a")).plugins).toEqual([])
+})
+
+it("keeps the plugin list usable when an installed theme has the removed manifest format", async () => {
+  await store.install(bytes(), "a")
+  const id = "example.old-theme"
+  const oldTheme = gzipSync(
+    Buffer.from(
+      JSON.stringify({
+        format: 2,
+        manifest: {
+          apiVersion: 1,
+          kind: "theme",
+          id,
+          name: "Old Theme",
+          version: "0.1.0",
+          requires: { pluginApi: "1.6.0" },
+          theme: {
+            light: { "--theme-surface": "#fff" },
+            dark: { "--theme-surface": "#111" },
+          },
+        },
+        modules: {},
+      })
+    )
+  )
+  const hash = packageHash(oldTheme)
+  await fs.writeFile(
+    path.join(directory, "packages", `${hash}.eidos-plugin`),
+    oldTheme
+  )
+  const config = await store.config()
+  config.installed[id] = { hash }
+  config.activeThemeId = id
+  await fs.writeFile(
+    path.join(directory, "config.json"),
+    JSON.stringify(config)
+  )
+
+  const listing = await new PluginStore(directory).list("a")
+  expect(listing.plugins).toHaveLength(2)
+  expect(
+    listing.plugins.find((plugin) => plugin.manifest.id === manifest.id)
+  ).toMatchObject({ enabled: true })
+  expect(
+    listing.plugins.find((plugin) => plugin.manifest.id === id)
+  ).toMatchObject({ enabled: false, unavailable: true })
+  expect(listing.activeThemeId).toBeNull()
+  await expect(new PluginStore(directory).read(hash)).rejects.toThrow(
+    "Unknown or missing fields"
+  )
+  await store.install(
+    encodePackage(
+      {
+        apiVersion: 1,
+        kind: "theme",
+        id,
+        name: "Old Theme",
+        version: "0.2.0",
+        requires: { pluginApi: "1.6.0" },
+        theme: {
+          stylesheet:
+            ':root[data-theme="light"] { --theme-surface: #fff; }\n' +
+            ':root[data-theme="dark"] { --theme-surface: #111; }',
+        },
+      },
+      {}
+    )
+  )
+  const repaired = await store.list("a")
+  expect(repaired.activeThemeId).toBe(id)
+  const repairedTheme = repaired.plugins.find(
+    (plugin) => plugin.manifest.id === id
+  )
+  expect(repairedTheme?.enabled).toBe(true)
+  expect(repairedTheme?.unavailable).toBeUndefined()
+  await store.uninstall(id)
+  expect((await store.list("a")).plugins).toHaveLength(1)
 })
 
 it("discovers editors from verified metadata without repeatedly parsing bundles", async () => {

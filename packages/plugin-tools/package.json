@@ -35,6 +35,7 @@
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/plugin-sdk": "workspace:^",
     "esbuild": "0.28.1",
+    "postcss": "8.5.28",
     "typescript": "^5.8.3",
     "yaml": "2.9.0"
   }

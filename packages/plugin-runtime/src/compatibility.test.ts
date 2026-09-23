@@ -40,10 +40,7 @@ it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
     name: "Theme",
     version: "1.0.0",
     requires: { pluginApi: "1.6.0" },
-    theme: {
-      light: { "--theme-surface": "#fff" },
-      dark: { "--theme-surface": "#111" },
-    },
+    theme: { stylesheet: "./theme.css" },
   }
   expect(checkPluginCompatibility(theme, "eidos-lite").compatible).toBe(true)
   expect(checkPluginCompatibility(theme, "eidos-cli")).toMatchObject({

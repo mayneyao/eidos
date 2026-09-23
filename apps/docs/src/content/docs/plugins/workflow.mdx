@@ -146,17 +146,18 @@ npm run check -- --target lite
 npm run pack:plugin
 ```
 
-Edit `plugin.json` to set `kind: "theme"`, `requires.pluginApi: "1.6.0"`, and
-the `theme.light` and `theme.dark` token maps. The starter already includes
-these fields. Tokens such as `--theme-surface`, `--theme-ink`, `--theme-accent`,
+The starter keeps `plugin.json` small: `kind: "theme"` and
+`theme.stylesheet: "./theme.css"`. Edit `theme.css` to set light and dark
+`:root[data-theme="…"]` rules. Tokens such as `--theme-surface`, `--theme-ink`, `--theme-accent`,
 `--lite-sidebar`, `--font-ui`, and `--control-radius` affect the **Eidos Lite
 interface**, across all Spaces. The current appearance preference still picks
-the light or dark map. See the [specification](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.md)
+the light or dark rule. See the [specification](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.md)
 for the complete token allowlist and value bounds.
 
-Optional local fonts use `theme.fonts`, for example
-`{ "family": "My Sans", "source": "./fonts/my-sans.woff2", "weight": "400" }`.
-Packing embeds the font bytes; remote fonts and arbitrary CSS are rejected.
+Optional local fonts use `@font-face` in `theme.css`, for example
+`@font-face { font-family: "My Sans"; src: url("./fonts/my-sans.woff2"); font-weight: 400; }`.
+Packing embeds the font bytes. CSS is limited to the two appearance rules and
+up to four local `@font-face` rules; remote resources are rejected.
 Theme packages have no JavaScript modules, Views, Actions, grants, or runtime
 access to files. The generated `.eidos-plugin` can be installed by file picker
 or drag and drop. In Plugin Manager, open its detail page and click **Apply

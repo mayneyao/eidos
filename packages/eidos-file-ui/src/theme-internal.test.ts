@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
-import { resolveEidosFileGridTheme } from "./theme-internal"
+import { act, createElement, useRef } from "react"
+import { createRoot } from "react-dom/client"
+import {
+  resolveEidosFileGridTheme,
+  useEidosFileGridThemeForElement,
+} from "./theme-internal"
 
 describe("Eidos File Grid theme adapter", () => {
   it("keeps fallback colors compatible with Glide Canvas", () => {
@@ -11,6 +16,62 @@ describe("Eidos File Grid theme adapter", () => {
     expect(darkTheme.bgCell).toBe("rgb(20, 25, 31)")
     expect(Object.values(lightTheme).join(" ")).not.toContain("oklch(")
     expect(Object.values(darkTheme).join(" ")).not.toContain("oklch(")
+  })
+
+  it("uses the editor root font for Canvas text", () => {
+    const root = document.createElement("section")
+    root.dataset.eidosFileRoot = ""
+    root.style.fontFamily = '"Eidos Maple Mono", sans-serif'
+    document.body.append(root)
+
+    expect(resolveEidosFileGridTheme("light", root).fontFamily).toBe(
+      '"Eidos Maple Mono", sans-serif'
+    )
+
+    root.remove()
+  })
+
+  it("updates the Canvas font when a theme stylesheet is installed or removed", async () => {
+    const host = document.createElement("section")
+    host.dataset.eidosFileRoot = ""
+    document.body.append(host)
+    const baseline = document.createElement("style")
+    baseline.textContent =
+      '[data-eidos-file-root] { font-family: "Default Font", sans-serif; }'
+    document.head.append(baseline)
+    const root = createRoot(host)
+
+    function Probe() {
+      const ref = useRef<HTMLDivElement>(null)
+      const theme = useEidosFileGridThemeForElement("light", ref)
+      return createElement("div", { ref, "data-font": theme.fontFamily })
+    }
+
+    try {
+      await act(async () => root.render(createElement(Probe)))
+      expect(host.firstElementChild?.getAttribute("data-font")).toBe(
+        '"Default Font", sans-serif'
+      )
+
+      const stylesheet = document.createElement("style")
+      stylesheet.textContent =
+        '[data-eidos-file-root] { font-family: "Eidos Maple Mono", sans-serif; }'
+      await act(async () => {
+        document.head.append(stylesheet)
+      })
+      expect(host.firstElementChild?.getAttribute("data-font")).toBe(
+        '"Eidos Maple Mono", sans-serif'
+      )
+
+      await act(async () => stylesheet.remove())
+      expect(host.firstElementChild?.getAttribute("data-font")).toBe(
+        '"Default Font", sans-serif'
+      )
+    } finally {
+      await act(async () => root.unmount())
+      baseline.remove()
+      host.remove()
+    }
   })
 
   it("resolves Canvas colors from the active Eidos File theme root", () => {

@@ -160,7 +160,8 @@ export function eidosFileValueToGridCell(
   row?: EidosFileRow,
   unavailableRelationTitle = "Unavailable record",
   allowWrapping = false,
-  timeZone?: string
+  timeZone?: string,
+  codeFontFamily?: string
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const elementType = eidosFileLookupListElementType(field)
@@ -172,7 +173,8 @@ export function eidosFileValueToGridCell(
         row,
         unavailableRelationTitle,
         allowWrapping,
-        timeZone
+        timeZone,
+        codeFontFamily
       )
       return { ...cell, allowOverlay: false }
     }
@@ -184,7 +186,8 @@ export function eidosFileValueToGridCell(
         row,
         unavailableRelationTitle,
         allowWrapping,
-        timeZone
+        timeZone,
+        codeFontFamily
       )
       return { ...cell, allowOverlay: false }
     }
@@ -239,7 +242,8 @@ export function eidosFileValueToGridCell(
       row,
       unavailableRelationTitle,
       allowWrapping,
-      timeZone
+      timeZone,
+      codeFontFamily
     )
     return { ...cell, allowOverlay: false }
   }
@@ -331,7 +335,9 @@ export function eidosFileValueToGridCell(
       allowOverlay: !cellReadonly,
       readonly: cellReadonly,
       copyData: typeof value === "string" ? value : "",
-      themeOverride: { fontFamily: EIDOS_FILE_GRID_MONO_FONT_FAMILY },
+      themeOverride: {
+        fontFamily: codeFontFamily ?? EIDOS_FILE_GRID_MONO_FONT_FAMILY,
+      },
       data: {
         kind: "date-picker-cell",
         date,
@@ -417,7 +423,7 @@ export function eidosFileValueToGridCell(
     displayData: text,
     themeOverride:
       field.type === "row-id"
-        ? { fontFamily: EIDOS_FILE_GRID_MONO_FONT_FAMILY }
+        ? { fontFamily: codeFontFamily ?? EIDOS_FILE_GRID_MONO_FONT_FAMILY }
         : undefined,
   }
 }

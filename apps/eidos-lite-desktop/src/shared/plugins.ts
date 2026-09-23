@@ -21,12 +21,14 @@ export interface PluginListing {
     hash: string
     enabled: boolean
     developmentPath?: string
+    unavailable?: boolean
   }[]
   space: PluginSpaceConfig | null
   associations?: Record<string, string>
   activeThemeId?: string | null
 }
 export interface MarketplacePlugin {
+  kind?: "theme"
   id: string
   name: string
   description: string

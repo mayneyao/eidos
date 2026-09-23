@@ -81,8 +81,9 @@ export interface PluginManifest {
 | `workspace.countMarkdownLines` | `true`                   | No       | Declares permission to count non-empty lines in listed Markdown files (Plugin API 1.4). |
 | `workspace.watchMarkdownFiles` | `true`                   | No       | Declares permission to receive Markdown change notifications (Plugin API 1.5).          |
 
-A theme plugin contains no executable modules or other contributions. Its tokens
-customize the Lite host on this device, rather than an individual plugin view.
+A theme plugin contains no executable modules or other contributions. Its
+`theme.stylesheet` points to a CSS file with light and dark semantic token rules
+for the Lite host on this device, rather than an individual plugin view.
 See the [theme workflow](/plugins/workflow/#build-a-standalone-eidos-lite-theme).
 
 ### Icon definition (`PluginIconDefinition`)

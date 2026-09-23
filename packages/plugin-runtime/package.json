@@ -16,7 +16,10 @@
     "./working-copy": "./src/working-copy.ts",
     "./lifecycle": "./src/lifecycle.ts",
     "./resource-grants": "./src/resource-grants.ts",
-    "./compiler": { "types": "./src/compiler.ts", "default": "./dist/compiler.js" }
+    "./compiler": {
+      "types": "./src/compiler.ts",
+      "default": "./dist/compiler.js"
+    }
   },
   "scripts": {
     "build": "node build.mjs",
@@ -25,12 +28,17 @@
     "typecheck:tsgo": "tsgo --noEmit"
   },
   "dependencies": {
-    "@eidos.space/plugin-sdk": "workspace:*",
     "@eidos.space/eidos-file": "workspace:*",
-    "esbuild": "0.28.1",
-    "typescript": "^5.8.3",
+    "@eidos.space/plugin-sdk": "workspace:*",
     "chokidar": "5.0.0",
+    "esbuild": "0.28.1",
+    "postcss": "8.5.28",
+    "typescript": "^5.8.3",
     "yaml": "2.9.0"
   },
-  "devDependencies": { "@types/node": "^24.12.2", "jsdom": "^26.1.0", "vitest": "^4.1.11" }
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "jsdom": "^26.1.0",
+    "vitest": "^4.1.11"
+  }
 }

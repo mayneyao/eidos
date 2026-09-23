@@ -18,6 +18,7 @@ export { decodePackage } from "./package"
 import { loadDependencyLock } from "./dependencies"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
 import { themeFontData } from "./theme"
+import { parseThemeStylesheet, themeStylesheetPath } from "./theme-stylesheet"
 
 export interface Diagnostic {
   code: string
@@ -438,34 +439,43 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
         }))
       )
     : undefined
-  const finalTheme = manifest.theme
-    ? {
-        ...manifest.theme,
-        ...(manifest.theme.fonts
-          ? {
-              fonts: await Promise.all(
-                manifest.theme.fonts.map(async (font) => {
-                  if (font.source.startsWith("data:")) return font
-                  const target = path.resolve(root, font.source)
-                  if (!within(root, target))
-                    throw new PluginError(
-                      "SOURCE_INVALID",
-                      "Theme font outside plugin root"
-                    )
-                  const bytes = await read(target)
-                  const ext = path.extname(target).slice(1).toLowerCase()
-                  const source = `data:font/${ext};base64,${bytes.toString("base64")}`
-                  if (!themeFontData(source))
-                    throw new PluginError(
-                      "SOURCE_INVALID",
-                      "Invalid or oversized theme font"
-                    )
-                  return { ...font, source }
-                })
-              ),
-            }
-          : {}),
-      }
+  const sourceTheme = manifest.theme
+  const finalTheme = sourceTheme
+    ? await (async () => {
+        if (!themeStylesheetPath(sourceTheme.stylesheet))
+          throw new PluginError(
+            "SOURCE_INVALID",
+            "Theme source must name a CSS file"
+          )
+        const target = path.resolve(root, sourceTheme.stylesheet)
+        if (!within(root, target))
+          throw new PluginError(
+            "SOURCE_INVALID",
+            "Theme CSS outside plugin root"
+          )
+        const css = (await read(target)).toString("utf8")
+        const parsed = parseThemeStylesheet(css)
+        for (const font of parsed.fonts) {
+          const fontFile = path.resolve(path.dirname(target), font.path)
+          if (!within(root, fontFile))
+            throw new PluginError(
+              "SOURCE_INVALID",
+              "Theme font outside plugin root"
+            )
+          const bytes = await read(fontFile)
+          const ext = path.extname(fontFile).slice(1).toLowerCase()
+          const source = `data:font/${ext};base64,${bytes.toString("base64")}`
+          if (!themeFontData(source))
+            throw new PluginError(
+              "SOURCE_INVALID",
+              "Invalid or oversized theme font"
+            )
+          font.source.value = `url("${source}")`
+        }
+        const stylesheet = parsed.root.toString()
+        parseThemeStylesheet(stylesheet, true)
+        return { stylesheet }
+      })()
     : undefined
 
   const finalManifest: PluginManifest = {

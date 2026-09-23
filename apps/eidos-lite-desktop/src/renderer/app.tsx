@@ -298,8 +298,8 @@ function useAppTheme(): ResolvedAppearance {
     }
   }, [])
   useEffect(
-    () => applyPluginHostTheme(document.documentElement, pluginTheme, theme),
-    [pluginTheme, theme]
+    () => applyPluginHostTheme(document.documentElement, pluginTheme),
+    [pluginTheme]
   )
   return theme
 }

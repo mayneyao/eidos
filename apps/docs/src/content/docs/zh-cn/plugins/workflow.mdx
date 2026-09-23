@@ -133,16 +133,18 @@ npm run check -- --target lite
 npm run pack:plugin
 ```
 
-编辑 `plugin.json` 中的 `kind: "theme"`、`requires.pluginApi: "1.6.0"`
-以及 `theme.light`、`theme.dark` 变量表；模板已经包含这些字段。
+模板把 `plugin.json` 保持为简短的 `kind: "theme"` 和
+`theme.stylesheet: "./theme.css"` 声明。在 `theme.css` 中编辑浅色、深色的
+`:root[data-theme="…"]` 规则。
 `--theme-surface`、`--theme-ink`、`--theme-accent`、`--lite-sidebar`、
 `--font-ui`、`--control-radius` 等变量作用于**整个 Eidos Lite 界面**，
 跨所有 Space 生效。现有的浅色／深色／跟随系统偏好仍决定使用哪套配色。
 完整变量白名单和取值范围见[插件规范](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.zh.md)。
 
-可通过 `theme.fonts` 添加本地字体，例如
-`{ "family": "My Sans", "source": "./fonts/my-sans.woff2", "weight": "400" }`。
-打包时字体会内嵌；不接受远程字体和任意 CSS。主题包没有 JavaScript 模块、
+可在 `theme.css` 中通过 `@font-face` 添加本地字体，例如
+`@font-face { font-family: "My Sans"; src: url("./fonts/my-sans.woff2"); font-weight: 400; }`。
+打包时字体会内嵌；CSS 只接受两套外观规则和最多四个本地字体规则，不接受远程资源。
+主题包没有 JavaScript 模块、
 View、Action、授权或文件访问能力。生成的 `.eidos-plugin` 可以选择文件或拖入安装。
 在插件管理器中打开主题详情，点击**应用主题**；点击**使用默认主题**可取消选择。
 安装本身不会自动应用。CLI Serve 不支持主题插件。

@@ -196,11 +196,12 @@ The initial API does not grant row reads, row writes, or schema mutation.
 ### Theme plugins (Lite Plugin API 1.6)
 
 A theme is distributed in the same `.eidos-plugin` archive format as other
-plugins and may be loaded from a `plugin.json` source during development. Its
-`theme.light` and `theme.dark` maps MUST each contain 1–32 semantic token
-values. The host chooses a map using its resolved light/dark appearance and
-applies it to the Eidos Lite interface across all Spaces. The host MUST restore
-its own token defaults when the selection is cleared, changed, or uninstalled.
+plugins and may be loaded from a `plugin.json` source during development. New
+themes declare `theme.stylesheet: "./theme.css"`; the CSS file MUST contain one
+`:root[data-theme="light"]` rule and one `:root[data-theme="dark"]` rule, each
+with 1–32 semantic token declarations. The host's resolved appearance selects
+the matching rule across all Spaces. The host MUST remove theme styles when
+the selection is cleared, changed, or uninstalled.
 
 Theme token names are limited to `--theme-surface`, `--theme-ink`,
 `--theme-accent`, `--theme-success`, `--theme-warning`, `--theme-danger`,
@@ -213,14 +214,17 @@ Theme token names are limited to `--theme-surface`, `--theme-ink`,
 `--chrome-header-height`, and `--control-radius`. The host validates values
 before applying them. Colors must be CSS color values; font families are plain
 family lists. Font sizes are 10–24 px, header height 30–64 px and control radius
-0–16 px (equivalent `rem`/`em` values are accepted). CSS rules, selectors,
-`url()`, `var()`, declarations and executable expressions are not accepted.
+0–16 px (equivalent `rem`/`em` values are accepted). Other selectors,
+properties, at-rules, `url()` or `var()` token values, and `!important` are not
+accepted.
 
-Up to four optional fonts MAY be supplied. A source project's font `source`
-is a root-relative `.woff`, `.woff2`, `.ttf` or `.otf` path; packaging embeds
-the bytes as a data URL after validating their format. Installed packages MUST
-contain embedded font data, never remote font URLs or file paths. Font family
-names and weights are validated. Theme packages MUST NOT declare modules,
+Up to four optional `@font-face` rules MAY be supplied. Each rule accepts only
+`font-family`, `src`, and optional `font-weight` and `font-display` (`swap`,
+`fallback`, or `optional`). The source MUST be a quoted,
+relative `.woff`, `.woff2`, `.ttf`, or `.otf` URL resolved from the CSS file.
+Packaging embeds and validates the font bytes. Installed packages MUST contain
+embedded font data, never remote font URLs or file paths. Theme packages MUST
+NOT declare modules,
 views, actions, formatters, placements, extension, grants, settings, storage,
 connections, workspace permissions or browser permissions. A theme has no
 plugin execution context and cannot access user data or the host DOM.
@@ -235,10 +239,20 @@ For example, `plugin.json` may contain:
   "id": "example.slate-theme",
   "name": "Slate",
   "version": "1.0.0",
-  "theme": {
-    "light": { "--theme-surface": "#f7f8fa", "--theme-ink": "#19212b" },
-    "dark": { "--theme-surface": "#181d24", "--theme-ink": "#eef2f6" }
-  }
+  "theme": { "stylesheet": "./theme.css" }
+}
+```
+
+The corresponding `theme.css` contains:
+
+```css
+:root[data-theme="light"] {
+  --theme-surface: #f7f8fa;
+  --theme-ink: #19212b;
+}
+:root[data-theme="dark"] {
+  --theme-surface: #181d24;
+  --theme-ink: #eef2f6;
 }
 ```
 

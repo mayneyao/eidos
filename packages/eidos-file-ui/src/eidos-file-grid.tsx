@@ -537,6 +537,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     () => ({ ...defaultTheme, ...gridTheme }),
     [defaultTheme, gridTheme]
   )
+  const codeFontFamily = useMemo(() => {
+    if (typeof document === "undefined") return undefined
+    const source =
+      containerRef.current?.closest<HTMLElement>("[data-eidos-file-root]") ??
+      document.documentElement
+    return (
+      getComputedStyle(source).getPropertyValue("--font-code").trim() ||
+      undefined
+    )
+  }, [defaultTheme])
   const searchHighlightColor = themeColorWithAlpha(theme.accentColor, 0.14)
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
@@ -1280,7 +1290,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         row,
         t("Unavailable record"),
         view?.properties?.textWrapping === true,
-        timeZone
+        timeZone,
+        codeFontFamily
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -1398,6 +1409,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       attachmentThumbnails,
       activateUrl,
       cacheRevision,
+      codeFontFamily,
       fields,
       gridWriteLocked,
       onImportFiles,

@@ -13,34 +13,25 @@ const theme = {
   name: "Papyrus",
   version: "1.0.0",
   requires: { pluginApi: "1.6.0" },
-  theme: {
-    light: {
-      "--theme-surface": "#fffaf5",
-      "--font-ui": "Papyrus UI, system-ui",
-      "--control-radius": "8px",
-    },
-    dark: {
-      "--theme-surface": "#211d1b",
-      "--font-ui": "Papyrus UI, system-ui",
-      "--control-radius": "8px",
-    },
-  },
+  theme: { stylesheet: "./styles/theme.css" },
 }
 
-it("accepts a standalone data-only theme and rejects host CSS or executable code", () => {
+const css =
+  '@font-face { font-family: "Papyrus UI"; src: url("./ui.woff2") format("woff2"); font-weight: 400; font-display: swap; }\n' +
+  ':root[data-theme="light"] { --theme-surface: #fffaf5; --font-ui: "Papyrus UI", system-ui; }\n' +
+  ':root[data-theme="dark"] { --theme-surface: #211d1b; --font-ui: "Papyrus UI", system-ui; }\n'
+
+it("accepts a CSS stylesheet entry and rejects the old manifest maps", () => {
   expect(parseManifest(theme).theme).toEqual(theme.theme)
-  expect(
-    decodePackage(encodePackage(parseManifest(theme), {})).modules
-  ).toEqual({})
-  for (const change of [
-    { light: { "--unknown": "red" } },
-    { light: { "--theme-surface": "url(https://example.com/x)" } },
-    { light: { "--theme-surface": "red; display: none" } },
-    { light: { "--control-radius": "999px" } },
-  ])
-    expect(() =>
-      parseManifest({ ...theme, theme: { ...theme.theme, ...change } })
-    ).toThrow()
+  expect(() =>
+    parseManifest({
+      ...theme,
+      theme: {
+        light: { "--theme-surface": "#fff" },
+        dark: { "--theme-surface": "#111" },
+      },
+    })
+  ).toThrow()
   expect(() => parseManifest({ ...theme, extension: "./main.ts" })).toThrow()
   expect(() =>
     parseManifest({ ...theme, browser: { workers: true } })
@@ -48,18 +39,7 @@ it("accepts a standalone data-only theme and rejects host CSS or executable code
   expect(() =>
     parseManifest({ ...theme, requires: { pluginApi: "1.5.0" } })
   ).toThrow()
-  expect(() =>
-    encodePackage(
-      {
-        ...parseManifest(theme),
-        theme: {
-          ...theme.theme,
-          fonts: [{ family: "Papyrus UI", source: "./ui.woff2" }],
-        },
-      },
-      {}
-    )
-  ).toThrow("embedded")
+  expect(() => encodePackage(parseManifest(theme), {})).toThrow()
 })
 
 let directory: string | undefined
@@ -68,26 +48,40 @@ afterEach(async () => {
   directory = undefined
 })
 
-it("packs a local font into a standalone offline theme archive", async () => {
-  directory = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-theme-"))
+it("packs CSS and a local font into a standalone offline archive", async () => {
+  directory = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-css-theme-"))
+  await fs.mkdir(path.join(directory, "styles"))
+  await fs.writeFile(path.join(directory, "plugin.json"), JSON.stringify(theme))
+  await fs.writeFile(path.join(directory, "styles/theme.css"), css)
   await fs.writeFile(
-    path.join(directory, "plugin.json"),
-    JSON.stringify({
-      ...theme,
-      theme: {
-        ...theme.theme,
-        fonts: [{ family: "Papyrus UI", source: "./ui.woff2" }],
-      },
-    })
+    path.join(directory, "styles/ui.woff2"),
+    Buffer.from("wOF2mock")
   )
-  await fs.writeFile(path.join(directory, "ui.woff2"), Buffer.from("wOF2mock"))
   const compiled = await compilePlugin(directory)
-  expect(compiled.program.modules).toEqual({})
-  expect(compiled.program.manifest.theme?.fonts?.[0].source).toMatch(
-    /^data:font\/woff2;base64,/
+  const packaged = decodePackage(compiled.bytes)
+  expect(packaged.modules).toEqual({})
+  expect(packaged.manifest.theme?.stylesheet).toContain(
+    'url("data:font/woff2;base64,'
   )
-  expect(decodePackage(compiled.bytes).manifest.theme?.fonts).toHaveLength(1)
+  expect(packaged.manifest.theme?.stylesheet).toContain(
+    ':root[data-theme="dark"]'
+  )
   expect(compiled.dependencies).toContain(
-    path.join(await fs.realpath(directory), "ui.woff2")
+    path.join(await fs.realpath(directory), "styles/ui.woff2")
   )
+})
+
+it("rejects CSS that can style arbitrary elements or load remote data", () => {
+  const base =
+    ':root[data-theme="light"] { --theme-surface: #fff; }\n' +
+    ':root[data-theme="dark"] { --theme-surface: #111; }'
+  for (const stylesheet of [
+    `${base}\nbutton { display: none; }`,
+    `@import url("https://example.com/theme.css");\n${base}`,
+    base.replace("#fff", "url(https://example.com/x)"),
+    `${base}\n@font-face { font-family: Remote; src: url("https://example.com/font.woff2"); }`,
+    base.replace("--theme-surface", "--unknown"),
+    base.replace("#fff", "red !important"),
+  ])
+    expect(() => parseManifest({ ...theme, theme: { stylesheet } })).toThrow()
 })

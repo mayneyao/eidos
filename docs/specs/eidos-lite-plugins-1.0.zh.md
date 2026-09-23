@@ -126,9 +126,11 @@ View context 为 page/document/table/eidos；Action context 为 workspace/docume
 ### 主题插件（Lite Plugin API 1.6）
 
 主题与普通插件使用相同的 `.eidos-plugin` 分发包，也可在开发时直接加载
-`plugin.json`。`theme.light` 和 `theme.dark` 各包含 1–32 个语义变量。
-宿主根据最终浅色／深色模式选用对应变量，作用于所有 Space 的 Eidos Lite 界面；
-取消、切换或卸载主题时恢复默认值。
+`plugin.json`。新主题在 `plugin.json` 中声明 `theme.stylesheet: "./theme.css"`；
+CSS 文件须分别包含一个 `:root[data-theme="light"]` 和
+`:root[data-theme="dark"]` 规则，每个规则含 1–32 个语义变量。
+宿主根据最终浅色／深色模式应用对应规则，作用于所有 Space 的 Eidos Lite 界面；
+取消、切换或卸载主题时移除主题样式。
 
 允许的变量为 `--theme-surface`、`--theme-ink`、`--theme-accent`、
 `--theme-success`、`--theme-warning`、`--theme-danger`、`--theme-neutral`、
@@ -140,10 +142,13 @@ View context 为 page/document/table/eidos；Action context 为 workspace/docume
 `--font-size-ui`、`--font-size-code`、`--chrome-header-height` 和
 `--control-radius`。颜色须为有效 CSS 颜色；字体族须为普通字体列表。
 字号范围 10–24 px，标题栏高度 30–64 px，控件圆角 0–16 px，也接受等值的
-`rem`／`em`。不接受 CSS 规则、选择器、`url()`、`var()`、声明及可执行表达式。
+`rem`／`em`。不接受其他选择器、属性或 at-rule，变量值不能使用
+`url()`、`var()` 或 `!important`。
 
-最多可带四个本地字体。源码中的 `source` 为项目根目录相对的 `.woff`、
-`.woff2`、`.ttf` 或 `.otf` 路径，打包时校验并内嵌为 Data URL。
+最多可带四个 `@font-face` 规则，每个规则只能声明 `font-family`、`src`
+以及可选的 `font-weight`、`font-display`（`swap`、`fallback` 或 `optional`）。
+`src` 须是相对于 CSS 文件的带引号本地 URL，扩展名为
+`.woff`、`.woff2`、`.ttf` 或 `.otf`；打包时校验并内嵌为 Data URL。
 安装包不允许远程字体地址或文件路径。主题插件不得声明模块、View、Action、
 Formatter、Placement、扩展入口、授权、设置、存储、连接、工作区或浏览器权限。
 主题没有执行上下文，不能读取用户数据或操作宿主 DOM。
@@ -156,10 +161,20 @@ Formatter、Placement、扩展入口、授权、设置、存储、连接、工�
   "id": "example.slate-theme",
   "name": "Slate",
   "version": "1.0.0",
-  "theme": {
-    "light": { "--theme-surface": "#f7f8fa", "--theme-ink": "#19212b" },
-    "dark": { "--theme-surface": "#181d24", "--theme-ink": "#eef2f6" }
-  }
+  "theme": { "stylesheet": "./theme.css" }
+}
+```
+
+对应的 `theme.css`：
+
+```css
+:root[data-theme="light"] {
+  --theme-surface: #f7f8fa;
+  --theme-ink: #19212b;
+}
+:root[data-theme="dark"] {
+  --theme-surface: #181d24;
+  --theme-ink: #eef2f6;
 }
 ```
 

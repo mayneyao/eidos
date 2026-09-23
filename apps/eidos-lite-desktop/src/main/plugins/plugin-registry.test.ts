@@ -19,8 +19,8 @@ const entry = {
   tag: "v1.0.0",
   asset: "test.map-1.0.0.eidos-plugin",
   sha256: "a".repeat(64),
-  preview: true,
-  compatibility: "Preview",
+  preview: false,
+  compatibility: "Requires Eidos Lite",
 }
 const dirs: string[] = []
 async function directory() {
@@ -43,6 +43,24 @@ it("rejects duplicate IDs and unsafe repository paths", () => {
       plugins: [{ ...entry, repo: "../map" }],
     })
   ).toThrow()
+})
+it("accepts published themes and rejects mismatched theme metadata", () => {
+  const { preview: _preview, ...withoutPreview } = entry
+  expect(
+    parsePluginRegistry({
+      schemaVersion: 1,
+      plugins: [{ ...withoutPreview, category: "themes", kind: "theme" }],
+    })[0]
+  ).toMatchObject({ id: entry.id, kind: "theme", preview: false })
+  for (const plugin of [
+    { ...withoutPreview, category: "themes" },
+    { ...withoutPreview, category: "other", kind: "theme" },
+    { ...withoutPreview, preview: true },
+  ]) {
+    expect(() =>
+      parsePluginRegistry({ schemaVersion: 1, plugins: [plugin] })
+    ).toThrow("Invalid registry identity")
+  }
 })
 it("bounds downloads and refuses off-domain redirects", async () => {
   await expect(
@@ -96,7 +114,10 @@ it("checks both checksum and manifest identity", async () => {
     })
   )
   const sha256 = createHash("sha256").update(bytes).digest("hex")
-  let item = { ...entry, sha256 }
+  let item: typeof entry & { category?: string; kind?: string } = {
+    ...entry,
+    sha256,
+  }
   const fetcher = vi.fn<typeof fetch>(async (url) =>
     String(url).includes("raw.githubusercontent")
       ? Response.json({ schemaVersion: 1, plugins: [item] })
@@ -113,6 +134,8 @@ it("checks both checksum and manifest identity", async () => {
     asset: "test.other-1.0.0.eidos-plugin",
   }
   await expect(registry.download(item.id)).rejects.toThrow("identity")
+  item = { ...entry, sha256, category: "themes", kind: "theme" }
+  await expect(registry.download(item.id)).rejects.toThrow("kind")
 })
 
 it("fetches and caches plugin README markdown from GitHub", async () => {

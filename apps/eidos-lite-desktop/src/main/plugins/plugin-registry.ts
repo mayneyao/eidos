@@ -57,7 +57,9 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
       !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(String(p.tag)) ||
       p.asset !== `${p.id}-${p.version}.eidos-plugin` ||
       !/^[a-f0-9]{64}$/.test(String(p.sha256)) ||
-      typeof p.preview !== "boolean"
+      (p.preview !== undefined && p.preview !== false) ||
+      (p.kind !== undefined && p.kind !== "theme") ||
+      (p.kind === "theme") !== (p.category === "themes")
     )
       throw new Error("Invalid registry identity")
     ids.add(String(p.id))
@@ -112,8 +114,9 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
       tag: p.tag,
       asset: p.asset,
       sha256: p.sha256,
-      preview: p.preview,
+      preview: false,
       compatibility: p.compatibility,
+      ...(p.kind === "theme" ? { kind: "theme" } : {}),
       ...(p.icon ? { icon: p.icon } : {}),
     } as MarketplacePlugin
   })
@@ -266,6 +269,8 @@ export class PluginRegistry {
     const pkg = decodePackage(bytes)
     if (pkg.manifest.id !== entry.id || pkg.manifest.version !== entry.version)
       throw new Error("Plugin identity does not match the registry")
+    if ((pkg.manifest.kind === "theme") !== (entry.kind === "theme"))
+      throw new Error("Plugin kind does not match the registry")
     return bytes
   }
   async readme(id: string): Promise<string | null> {

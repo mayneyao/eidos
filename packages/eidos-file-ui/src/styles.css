@@ -55,7 +55,13 @@
     color: var(--foreground);
     background: var(--background);
     color-scheme: light;
-    font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+    font-family: var(
+      --font-ui,
+      "Aptos",
+      "Segoe UI Variable",
+      "Segoe UI",
+      sans-serif
+    );
   }
 
   [data-eidos-file-root][data-theme="dark"] {
