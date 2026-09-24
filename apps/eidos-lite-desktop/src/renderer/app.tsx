@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -268,7 +269,7 @@ function useAppTheme(): ResolvedAppearance {
     )
   }, [])
   const theme = resolveAppearance(appearance, systemDark)
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAppearance(document.documentElement, appearance, systemDark)
   }, [appearance, systemDark])
   useEffect(() => {
@@ -297,7 +298,7 @@ function useAppTheme(): ResolvedAppearance {
       unsubscribe()
     }
   }, [])
-  useEffect(
+  useLayoutEffect(
     () => applyPluginHostTheme(document.documentElement, pluginTheme),
     [pluginTheme]
   )

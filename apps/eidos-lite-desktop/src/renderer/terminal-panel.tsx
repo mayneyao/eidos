@@ -92,6 +92,12 @@ function terminalTheme(
   element: HTMLElement,
   colorScheme: "light" | "dark"
 ): ITheme {
+  const doc = element.ownerDocument
+  const root = doc.documentElement
+  if (root.dataset.theme !== colorScheme) {
+    root.dataset.theme = colorScheme
+    root.style.colorScheme = colorScheme
+  }
   const color = (property: string, fallback: string) =>
     resolvedCssColor(element, property, fallback, colorScheme)
   const background = color("--canvas", "#1e1e1e")
@@ -391,7 +397,54 @@ function TerminalSessionViewport({
     const mount =
       hostRef.current?.querySelector<HTMLElement>(".terminal-emulator")
     if (!terminal || !mount) return
-    terminal.options.theme = terminalTheme(mount, theme)
+
+    let cancelled = false
+    const updateTerminalTheme = () => {
+      if (cancelled) return
+      terminal.options.theme = terminalTheme(mount, theme)
+      const fontFamily =
+        window.getComputedStyle(mount).getPropertyValue("--font-code").trim() ||
+        '"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace'
+      if (terminal.options.fontFamily !== fontFamily) {
+        terminal.options.fontFamily = fontFamily
+        fitAddonRef.current?.fit()
+      }
+    }
+
+    updateTerminalTheme()
+
+    const doc = mount.ownerDocument
+    const observer = new MutationObserver(() => {
+      observer.takeRecords()
+      updateTerminalTheme()
+    })
+    observer.observe(doc.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme"],
+    })
+    if (doc.head) {
+      observer.observe(doc.head, {
+        childList: true,
+        subtree: true,
+      })
+    }
+
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(() => {
+        if (
+          !cancelled &&
+          activeRef.current &&
+          terminalRef.current === terminal
+        ) {
+          fitAddonRef.current?.fit()
+        }
+      })
+    }
+
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
   }, [theme])
 
   useEffect(() => {

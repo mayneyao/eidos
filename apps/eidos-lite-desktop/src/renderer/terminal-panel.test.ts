@@ -447,3 +447,203 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
+
+it("synchronizes terminal theme palette and font family with installed theme plugins and dark mode transitions", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const frames = new Map<number, FrameRequestCallback>()
+  let nextFrame = 0
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    const id = ++nextFrame
+    frames.set(id, callback)
+    queueMicrotask(() => {
+      const current = frames.get(id)
+      if (!current) return
+      frames.delete(id)
+      current(performance.now())
+    })
+    return id
+  })
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+    frames.delete(id)
+  })
+  class MockResizeObserver {
+    observe() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", MockResizeObserver)
+
+  const startTerminal = vi.fn().mockResolvedValue({
+    id: "terminal-theme-test-session",
+    shell: "/bin/zsh",
+  })
+  const closeTerminal = vi.fn().mockResolvedValue(undefined)
+  const windowEidosLite = {
+    listTerminalShells: vi.fn().mockResolvedValue(["/bin/zsh"]),
+    startTerminal,
+    writeTerminal: vi.fn(),
+    writeTerminalPath: vi.fn().mockResolvedValue(undefined),
+    resizeTerminal: vi.fn(),
+    closeTerminal,
+    onTerminalData: vi.fn().mockReturnValue(() => {}),
+    onTerminalExit: vi.fn().mockReturnValue(() => {}),
+    openExternalUrl: vi.fn().mockResolvedValue(undefined),
+    writeClipboardText: vi.fn().mockResolvedValue(undefined),
+  }
+  vi.stubGlobal("eidosLite", windowEidosLite)
+  ;(window as unknown as { eidosLite: typeof windowEidosLite }).eidosLite =
+    windowEidosLite
+
+  const themeStyle = document.createElement("style")
+  themeStyle.dataset.eidosPluginTheme = ""
+  themeStyle.textContent =
+    ':root[data-theme="light"] { --theme-surface: rgb(251, 248, 244); --theme-ink: rgb(43, 39, 38); }\n' +
+    ':root[data-theme="dark"] { --theme-surface: rgb(35, 30, 29); --theme-ink: rgb(241, 232, 227); }'
+  document.head.appendChild(themeStyle)
+
+  document.documentElement.dataset.theme = "light"
+  document.documentElement.style.colorScheme = "light"
+
+  const nativeGetComputedStyle = window.getComputedStyle.bind(window)
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+    const styledElement = element as HTMLElement
+    if (styledElement.style?.color?.startsWith("var(")) {
+      const isPluginActive = Boolean(
+        document.head.querySelector("style[data-eidos-plugin-theme]")
+      )
+      const currentTheme = document.documentElement.dataset.theme
+      if (isPluginActive) {
+        if (styledElement.style.color.includes("--canvas")) {
+          return {
+            color:
+              currentTheme === "dark"
+                ? "rgb(35, 30, 29)"
+                : "rgb(251, 248, 244)",
+          } as CSSStyleDeclaration
+        }
+        if (styledElement.style.color.includes("--ink")) {
+          return {
+            color:
+              currentTheme === "dark"
+                ? "rgb(241, 232, 227)"
+                : "rgb(43, 39, 38)",
+          } as CSSStyleDeclaration
+        }
+      } else {
+        if (styledElement.style.color.includes("--canvas")) {
+          return {
+            color:
+              currentTheme === "dark"
+                ? "rgb(12, 18, 21)"
+                : "rgb(255, 255, 255)",
+          } as CSSStyleDeclaration
+        }
+        if (styledElement.style.color.includes("--ink")) {
+          return {
+            color:
+              currentTheme === "dark"
+                ? "rgb(220, 220, 220)"
+                : "rgb(20, 20, 20)",
+          } as CSSStyleDeclaration
+        }
+      }
+      return {
+        color:
+          currentTheme === "dark" ? "rgb(220, 220, 220)" : "rgb(20, 20, 20)",
+      } as CSSStyleDeclaration
+    }
+    const computed = nativeGetComputedStyle(element)
+    const isPluginActive = Boolean(
+      document.head.querySelector("style[data-eidos-plugin-theme]")
+    )
+    return new Proxy(computed, {
+      get(target, prop) {
+        if (prop === "getPropertyValue") {
+          return (name: string) => {
+            if (name === "--font-code") {
+              return isPluginActive
+                ? "Eidos Maple Mono, monospace"
+                : "SFMono-Regular, monospace"
+            }
+            return target.getPropertyValue(name)
+          }
+        }
+        return Reflect.get(target, prop)
+      },
+    })
+  })
+
+  const host = document.createElement("div")
+  document.body.appendChild(host)
+  const root = createRoot(host)
+
+  await act(async () => {
+    root.render(
+      createElement(TerminalPanel, {
+        layout: "bottom",
+        layoutShortcutLabel: "—",
+        open: true,
+        spaceName: "Test Space",
+        theme: "light",
+        onClose: vi.fn(),
+        onCycleLayout: vi.fn(),
+      })
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  const terminal = xtermState.instances.at(-1)
+  expect(terminal).toBeDefined()
+  expect((terminal?.options.theme as { background?: string }).background).toBe(
+    "rgb(251, 248, 244)"
+  )
+  expect((terminal?.options.theme as { foreground?: string }).foreground).toBe(
+    "rgb(43, 39, 38)"
+  )
+  expect(terminal?.options.fontFamily).toBe("Eidos Maple Mono, monospace")
+
+  // Transition to dark mode while theme plugin is active
+  await act(async () => {
+    document.documentElement.dataset.theme = "dark"
+    document.documentElement.style.colorScheme = "dark"
+    root.render(
+      createElement(TerminalPanel, {
+        layout: "bottom",
+        layoutShortcutLabel: "—",
+        open: true,
+        spaceName: "Test Space",
+        theme: "dark",
+        onClose: vi.fn(),
+        onCycleLayout: vi.fn(),
+      })
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  expect((terminal?.options.theme as { background?: string }).background).toBe(
+    "rgb(35, 30, 29)"
+  )
+  expect((terminal?.options.theme as { foreground?: string }).foreground).toBe(
+    "rgb(241, 232, 227)"
+  )
+
+  // Dynamically remove theme plugin (user switches to default theme without toggling dark/light)
+  await act(async () => {
+    themeStyle.remove()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  expect((terminal?.options.theme as { background?: string }).background).toBe(
+    "rgb(12, 18, 21)"
+  )
+  expect(terminal?.options.fontFamily).toBe("SFMono-Regular, monospace")
+
+  await act(async () => root.unmount())
+  host.remove()
+  delete document.documentElement.dataset.theme
+  themeStyle.remove()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
