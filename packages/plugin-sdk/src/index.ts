@@ -53,7 +53,7 @@ export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table" | "eidos"
+  context: "page" | "document" | "table" | "eidos" | "media"
   access?: "read" | "write"
   /** Host-rendered, per-table-view configuration stored in view.properties.plugin. */
   configuration?: ViewConfiguration
@@ -133,11 +133,30 @@ export interface CommonContext extends Lifetime {
   readonly settings: Settings
   readonly ui: HostUI
 }
+export interface MediaFileContext {
+  readonly path: string
+  readonly name: string
+  readonly baseName: string
+  readonly extension: string
+  readonly mimeType: string
+  readonly size: number
+  getMediaUrl(): Promise<string>
+  readSidecarText(
+    extensionOrName: string
+  ): Promise<{ text: string; path: string } | null>
+  listSidecars(
+    extensions?: string[]
+  ): Promise<
+    Array<{ name: string; path: string; extension: string; size: number }>
+  >
+}
+
 export type ViewBinding =
   | { kind: "eidos"; file: EidosFileContext }
   | { kind: "page"; route: string }
   | { kind: "document"; document: TextDocument }
   | { kind: "table"; table: TableContext }
+  | { kind: "media"; media: MediaFileContext }
 export interface ViewContext extends CommonContext {
   readonly binding: ViewBinding
   readonly storage: PluginStorage

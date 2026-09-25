@@ -82,6 +82,54 @@ beforeEach(async () => {
       markdownWatchers.set(folder, listeners)
       return { dispose: () => listeners.delete(listener) }
     },
+    previewMediaFile: async (file) => ({
+      path: file,
+      name: path.basename(file),
+      baseName: path.parse(file).name,
+      extension: path.extname(file),
+      mimeType: "video/mp4",
+      size: (await fs.stat(path.join(root, file))).size,
+      previewUrl: `eidos-space-media://preview/test-${file}`,
+    }),
+    readSidecarText: async (file, extOrName) => {
+      const dir = path.dirname(file)
+      const base = path.parse(file).name
+      const name = extOrName.startsWith(".") ? `${base}${extOrName}` : extOrName
+      const rel = dir === "." ? name : `${dir}/${name}`
+      try {
+        const text = await fs.readFile(path.join(root, rel), "utf8")
+        return { text, path: rel }
+      } catch {
+        return null
+      }
+    },
+    listSidecars: async (file, extensions) => {
+      const dir = path.dirname(file)
+      const base = path.parse(file).name
+      const fullDir = path.join(root, dir === "." ? "" : dir)
+      const files = await fs.readdir(fullDir).catch(() => [])
+      const results: Array<{
+        name: string
+        path: string
+        extension: string
+        size: number
+      }> = []
+      for (const f of files) {
+        if (f.startsWith(`${base}.`) && f !== path.basename(file)) {
+          const ext = path.extname(f)
+          if (!extensions || extensions.includes(ext)) {
+            const stat = await fs.stat(path.join(fullDir, f))
+            results.push({
+              name: f,
+              path: dir === "." ? f : `${dir}/${f}`,
+              extension: ext,
+              size: stat.size,
+            })
+          }
+        }
+      }
+      return results
+    },
   }
   await store.install(encodePackage(manifest, modules), "space-a")
 })
@@ -1107,5 +1155,79 @@ describe("Lite document-view integration", () => {
       editor: null,
       warning: expect.any(String),
     })
+  })
+  it("opens media views, issues media stream URL, and reads scoped sidecar files", async () => {
+    const videoManifest: PluginManifest = {
+      apiVersion: 1,
+      id: "example.player",
+      name: "Player",
+      version: "1.0.0",
+      views: [
+        {
+          id: "video",
+          title: "Video Player",
+          context: "media",
+          entry: "./player.ts",
+          access: "read",
+        },
+      ],
+      placements: [
+        { location: "file/open", view: "video", extensions: [".mp4"] },
+      ],
+    }
+    const videoModules = {
+      "./player.ts":
+        "export default function mount(ctx, root) { root.textContent = 'Player' }",
+    }
+    await store.install(encodePackage(videoManifest, videoModules), "space-a")
+    await fs.writeFile(path.join(root, "movie.mp4"), "fake-video-bytes")
+    await fs.writeFile(
+      path.join(root, "movie.srt"),
+      "1\n00:00:01,000 --> 00:00:02,000\nHello"
+    )
+    await fs.writeFile(
+      path.join(root, "movie.en.srt"),
+      "1\n00:00:01,000 --> 00:00:02,000\nHello English"
+    )
+    await fs.writeFile(path.join(root, "other.srt"), "other subtitles")
+
+    const openResult = await service.open(
+      1,
+      session,
+      "movie.mp4",
+      "example.player/video"
+    )
+    expect(openResult.instance).not.toBeNull()
+    const ticket = openResult.instance!.ticket
+
+    // Test media.url
+    const urlResult = await rpc(ticket, "media.url")
+    expect(urlResult.response).toMatchObject({
+      result: "eidos-space-media://preview/test-movie.mp4",
+    })
+
+    // Test media.readSidecarText
+    const sidecarResult = await rpc(ticket, "media.readSidecarText", {
+      extension: ".srt",
+    })
+    expect(sidecarResult.response).toMatchObject({
+      result: {
+        text: "1\n00:00:01,000 --> 00:00:02,000\nHello",
+        path: "movie.srt",
+      },
+    })
+
+    // Test media.listSidecars
+    const listResult = await rpc(ticket, "media.listSidecars", {
+      extensions: [".srt"],
+    })
+    expect(listResult.response).toMatchObject({
+      result: expect.arrayContaining([
+        expect.objectContaining({ name: "movie.srt", extension: ".srt" }),
+        expect.objectContaining({ name: "movie.en.srt", extension: ".srt" }),
+      ]),
+    })
+    const listData = (listResult.response as { result: unknown[] }).result
+    expect(listData.some((f: any) => f.name === "other.srt")).toBe(false)
   })
 })

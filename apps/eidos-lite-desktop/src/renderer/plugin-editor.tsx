@@ -141,7 +141,8 @@ export function PluginEditor({
       // participate in the close/save barrier; otherwise closing would deadlock.
       const track = (operation: Promise<void>) =>
         (request.method.startsWith("table.") ||
-          request.method.startsWith("eidos.")) &&
+          request.method.startsWith("eidos.") ||
+          request.method.startsWith("media.")) &&
         request.method !== "table.target.update" &&
         request.method !== "table.pluginConfig.write" &&
         request.method !== "eidos.pluginConfig.write"
@@ -329,7 +330,8 @@ export function PluginEditor({
                 )
               )
           }}
-          allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; usb 'none'; serial 'none'; bluetooth 'none'"
+          allow="fullscreen; camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; usb 'none'; serial 'none'; bluetooth 'none'"
+          allowFullScreen
           onError={() => setError(t("Plugin failed to load."))}
         />
       )}

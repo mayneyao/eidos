@@ -9,7 +9,7 @@ import type {
   EidosFileContext,
 } from "./contracts"
 export const SANDBOX_CSP =
-  "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
+  "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
 export function sandboxCsp(browser?: PluginManifest["browser"]): string {
   const origins = browser?.networkOrigins?.join(" ")
   return SANDBOX_CSP.replace(
@@ -17,12 +17,18 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
     browser?.workers ? "worker-src blob:" : "worker-src 'none'"
   )
     .replace(
-      "connect-src 'none'",
-      origins ? `connect-src ${origins}` : "connect-src 'none'"
+      "connect-src eidos-space-media:",
+      origins
+        ? `connect-src eidos-space-media: ${origins}`
+        : "connect-src eidos-space-media:"
     )
     .replace(
-      "img-src data:",
-      `img-src data: blob:${origins ? ` ${origins}` : ""}`
+      "img-src data: eidos-space-media:",
+      `img-src data: eidos-space-media: blob:${origins ? ` ${origins}` : ""}`
+    )
+    .replace(
+      "media-src blob: eidos-space-media: eidos-media: data:",
+      `media-src blob: eidos-space-media: eidos-media: data:${origins ? ` ${origins}` : ""}`
     )
 }
 type BrowserBinding =
@@ -30,6 +36,15 @@ type BrowserBinding =
   | { kind: "document" }
   | { kind: "page"; route: string }
   | { kind: "table"; tableId: string; viewId: string }
+  | {
+      kind: "media"
+      path: string
+      name: string
+      baseName: string
+      extension: string
+      mimeType: string
+      size: number
+    }
 
 /** Serialized trusted bootstrap. It must not close over host/module objects. */
 function bootstrap(mount: Mount, binding: BrowserBinding) {
@@ -248,46 +263,64 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       remove: (key) => call("storage.remove", { key }),
     },
     binding:
-      binding.kind === "eidos"
+      binding.kind === "media"
         ? {
-            kind: "eidos",
-            file: {
-              connections: {
-                configured: (connection: string) =>
-                  call("eidos.connection.status", { connection }),
-                request: (input) => call("eidos.connection.request", input),
-              },
-              listTables: () => call("eidos.tables"),
-              readTable: (tableId: string) => call("eidos.table", { tableId }),
-              readPluginConfig: (tableId: string) =>
-                call("eidos.pluginConfig.read", { tableId }),
-              writePluginConfig: (tableId: string, input) =>
-                call("eidos.pluginConfig.write", { tableId, ...input }),
-            } satisfies EidosFileContext,
+            kind: "media",
+            media: {
+              path: binding.path,
+              name: binding.name,
+              baseName: binding.baseName,
+              extension: binding.extension,
+              mimeType: binding.mimeType,
+              size: binding.size,
+              getMediaUrl: () => call("media.url"),
+              readSidecarText: (extensionOrName: string) =>
+                call("media.readSidecarText", { extension: extensionOrName }),
+              listSidecars: (extensions?: string[]) =>
+                call("media.listSidecars", { extensions }),
+            },
           }
-        : binding.kind === "document"
-          ? { kind: "document", document }
-          : binding.kind === "table"
-            ? {
-                kind: "table",
-                table: {
-                  tableId: binding.tableId,
-                  viewId: binding.viewId,
-                  pluginConfig: {
-                    read: () => call("table.pluginConfig.read"),
-                    write: (input) => call("table.pluginConfig.write", input),
+        : binding.kind === "eidos"
+          ? {
+              kind: "eidos",
+              file: {
+                connections: {
+                  configured: (connection: string) =>
+                    call("eidos.connection.status", { connection }),
+                  request: (input) => call("eidos.connection.request", input),
+                },
+                listTables: () => call("eidos.tables"),
+                readTable: (tableId: string) =>
+                  call("eidos.table", { tableId }),
+                readPluginConfig: (tableId: string) =>
+                  call("eidos.pluginConfig.read", { tableId }),
+                writePluginConfig: (tableId: string, input) =>
+                  call("eidos.pluginConfig.write", { tableId, ...input }),
+              } satisfies EidosFileContext,
+            }
+          : binding.kind === "document"
+            ? { kind: "document", document }
+            : binding.kind === "table"
+              ? {
+                  kind: "table",
+                  table: {
+                    tableId: binding.tableId,
+                    viewId: binding.viewId,
+                    pluginConfig: {
+                      read: () => call("table.pluginConfig.read"),
+                      write: (input) => call("table.pluginConfig.write", input),
+                      observe: observeTable,
+                    },
+                    read: () => call("table.read"),
+                    getPage: (options) => call("table.page", options),
+                    aggregate: (options) => call("table.aggregate", options),
+                    updateProperties: (properties) =>
+                      call("table.properties", properties),
+                    openRecord: (rowId) => call("table.openRecord", { rowId }),
                     observe: observeTable,
-                  },
-                  read: () => call("table.read"),
-                  getPage: (options) => call("table.page", options),
-                  aggregate: (options) => call("table.aggregate", options),
-                  updateProperties: (properties) =>
-                    call("table.properties", properties),
-                  openRecord: (rowId) => call("table.openRecord", { rowId }),
-                  observe: observeTable,
-                } satisfies TableContext,
-              }
-            : binding,
+                  } satisfies TableContext,
+                }
+              : binding,
     signal: controller.signal,
     subscriptions: { add: own },
     resources: {
@@ -388,6 +421,20 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
 
 export function documentViewHtml(code: string): string {
   return viewHtml(code, { kind: "document" })
+}
+
+export function mediaViewHtml(
+  code: string,
+  info: {
+    path: string
+    name: string
+    baseName: string
+    extension: string
+    mimeType: string
+    size: number
+  }
+): string {
+  return viewHtml(code, { kind: "media", ...info })
 }
 
 export function viewHtml(code: string, binding: BrowserBinding): string {

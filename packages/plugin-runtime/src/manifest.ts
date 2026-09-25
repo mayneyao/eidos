@@ -435,7 +435,7 @@ export function parseManifest(input: unknown): PluginManifest {
           isView ? "page" : "workspace",
           "document",
           "table",
-          ...(isView ? ["eidos"] : []),
+          ...(isView ? ["eidos", "media"] : []),
         ].includes(String(v.context))
       )
         invalid("Invalid contribution context")
@@ -472,10 +472,11 @@ export function parseManifest(input: unknown): PluginManifest {
       if (
         v.access !== undefined &&
         (!["read", "write"].includes(String(v.access)) ||
+          (v.context === "media" && v.access !== "read") ||
           ![
             "document",
             "table",
-            ...(isView ? ["eidos"] : ["workspace"]),
+            ...(isView ? ["eidos", "media"] : ["workspace"]),
           ].includes(String(v.context)))
       )
         invalid("Invalid context access")
@@ -511,7 +512,12 @@ export function parseManifest(input: unknown): PluginManifest {
                 navigation: "page",
                 "plugin/settings": "page",
                 "table/view": "table",
-                "file/open": view.context === "eidos" ? "eidos" : "document",
+                "file/open":
+                  view.context === "eidos"
+                    ? "eidos"
+                    : view.context === "media"
+                      ? "media"
+                      : "document",
               } as const
             )[p.location]
         )

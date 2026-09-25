@@ -627,7 +627,10 @@ export class PluginStore {
           const editor = manifest.views?.find(
             (view) =>
               view.id === placement.view &&
-              view.context === (extension === ".eidos" ? "eidos" : "document")
+              (view.context === "media"
+                ? true
+                : view.context ===
+                  (extension === ".eidos" ? "eidos" : "document"))
           )
           if (editor)
             choices.push({

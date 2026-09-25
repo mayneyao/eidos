@@ -18,6 +18,7 @@ import {
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
 import {
   documentViewHtml,
+  mediaViewHtml,
   viewHtml,
   sandboxCsp,
 } from "@eidos.space/plugin-runtime/sandbox"
@@ -39,6 +40,8 @@ interface Instance {
   markdownWatch?: boolean
   markdownPaths?: Set<string>
   eidos?: boolean
+  media?: boolean
+  mediaPreviewUrl?: string
   tableWritable?: boolean
   table?: { tableId: string; viewId: string }
   csp?: string
@@ -541,18 +544,39 @@ export class PluginService {
     if (!binding?.enabled)
       throw new PluginError("PERMISSION_DENIED", "Plugin disabled")
     const pkg = await this.store.read(binding.hash)
+    const isEidos = safe.toLowerCase().endsWith(".eidos")
     const view = pkg.manifest.views?.find(
       (view) =>
         `${id}/${view.id}` === selected.editor!.key &&
-        view.context ===
-          (safe.toLowerCase().endsWith(".eidos") ? "eidos" : "document")
+        (view.context === "media"
+          ? true
+          : view.context === (isEidos ? "eidos" : "document"))
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "View is unavailable")
     const eidos = view.context === "eidos"
-    const copy = eidos
-      ? undefined
-      : await this.documentCopy(session, safe, draft)
+    const media = view.context === "media"
+    let mediaInfo:
+      | {
+          path: string
+          name: string
+          baseName: string
+          extension: string
+          mimeType: string
+          size: number
+          previewUrl: string
+        }
+      | undefined
+    if (media) {
+      if (!session.previewMediaFile)
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Media view unavailable in this session"
+        )
+      mediaInfo = await session.previewMediaFile(safe)
+    }
+    const copy =
+      eidos || media ? undefined : await this.documentCopy(session, safe, draft)
     for (const [ticket, old] of this.instances)
       if (old.owner === owner && old.session !== session)
         this.close(owner, ticket)
@@ -571,10 +595,14 @@ export class PluginService {
       scope,
       copy,
       eidos,
+      media,
+      mediaPreviewUrl: mediaInfo?.previewUrl,
       tableWritable: view.access === "write",
       html: eidos
         ? viewHtml(pkg.modules[view.entry]!, { kind: "eidos" })
-        : documentViewHtml(pkg.modules[view.entry]!),
+        : media
+          ? mediaViewHtml(pkg.modules[view.entry]!, mediaInfo!)
+          : documentViewHtml(pkg.modules[view.entry]!),
       csp: sandboxCsp(pkg.manifest.browser),
       document: copy?.bind(scope, view.access ?? "read"),
       pluginId: id,
@@ -962,6 +990,11 @@ export class PluginService {
             "PERMISSION_DENIED",
             "This contribution has no document binding"
           )
+        if (request.method.startsWith("media.") && !instance.media)
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "This contribution has no media binding"
+          )
         let result: unknown
         let navigation: PluginRpcResult["navigation"]
         let openFile: string | undefined
@@ -980,6 +1013,43 @@ export class PluginService {
             instance.mounted?.()
             result = null
             break
+          case "media.url":
+            result = instance.mediaPreviewUrl ?? ""
+            break
+          case "media.readSidecarText": {
+            const p = object(params)
+            if (typeof p.extension !== "string" || !p.extension)
+              throw new PluginError("INVALID_REQUEST", "Invalid extension")
+            if (!session.readSidecarText)
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "Sidecar reading unavailable"
+              )
+            result = await session.readSidecarText(instance.path, p.extension)
+            break
+          }
+          case "media.listSidecars": {
+            const p = params ? object(params) : {}
+            const extensions =
+              p.extensions === undefined
+                ? undefined
+                : Array.isArray(p.extensions) &&
+                    p.extensions.every((e) => typeof e === "string")
+                  ? (p.extensions as string[])
+                  : (() => {
+                      throw new PluginError(
+                        "INVALID_REQUEST",
+                        "Invalid extensions filter"
+                      )
+                    })()
+            if (!session.listSidecars)
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "Sidecar listing unavailable"
+              )
+            result = await session.listSidecars(instance.path, extensions)
+            break
+          }
           case "document.read":
             result = await doc!.read()
             break

@@ -63,6 +63,9 @@ export interface PluginRequest {
     | "settings.get"
     | "settings.update"
     | "settings.reset"
+    | "media.url"
+    | "media.readSidecarText"
+    | "media.listSidecars"
   params: unknown
 }
 export type PluginResponse = {
@@ -140,6 +143,9 @@ export function parseRequest(value: unknown): PluginRequest {
       "settings.get",
       "settings.update",
       "settings.reset",
+      "media.url",
+      "media.readSidecarText",
+      "media.listSidecars",
     ].includes(String(r.method))
   )
     throw new PluginError("INVALID_REQUEST", "Invalid guest request")
@@ -150,6 +156,7 @@ export function parseRequest(value: unknown): PluginRequest {
       "document.save",
       "document.undo",
       "document.redo",
+      "media.url",
     ].includes(String(r.method)) &&
     r.params !== null &&
     !(r.params && typeof r.params === "object" && "invocation" in r.params)

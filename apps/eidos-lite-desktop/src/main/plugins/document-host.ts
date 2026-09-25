@@ -6,9 +6,30 @@ import type {
 import type { DiskSnapshot } from "@eidos.space/plugin-runtime/working-copy"
 import { PluginError } from "@eidos.space/plugin-runtime/rpc"
 import type { Disposable } from "@eidos.space/plugin-sdk"
+export interface MediaFilePreviewResult {
+  path: string
+  name: string
+  baseName: string
+  extension: string
+  mimeType: string
+  size: number
+  previewUrl: string
+}
+
 export interface PluginDocumentSession {
   canonical: { id: string }
   previewTextFile(path: string): Promise<TextFilePreviewResult>
+  previewMediaFile?(path: string): Promise<MediaFilePreviewResult>
+  readSidecarText?(
+    path: string,
+    extensionOrName: string
+  ): Promise<{ text: string; path: string } | null>
+  listSidecars?(
+    path: string,
+    extensions?: string[]
+  ): Promise<
+    Array<{ name: string; path: string; extension: string; size: number }>
+  >
   saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>
   openOrCreateMarkdownFile(
     path: string

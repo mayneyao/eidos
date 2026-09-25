@@ -181,10 +181,39 @@ describe("manifest and offline envelope", () => {
         ],
       })
     ).toThrow()
+  })
+  it("supports media views with file/open placements for media extensions", () => {
+    const value = manifest()
+    const media = {
+      ...value,
+      views: [
+        {
+          id: "player",
+          title: "Player",
+          entry: "./main.ts",
+          context: "media",
+          access: "read",
+        },
+      ],
+      placements: [
+        {
+          location: "file/open",
+          view: "player",
+          extensions: [".mp4", ".webm"],
+        },
+      ],
+    }
+    expect(parseManifest(media).views?.[0]?.context).toBe("media")
     expect(() =>
       parseManifest({
-        ...file,
-        placements: [{ location: "table/view", view: "csv" }],
+        ...media,
+        views: [{ ...media.views[0], access: "write" }],
+      })
+    ).toThrow()
+    expect(() =>
+      parseManifest({
+        ...media,
+        placements: [{ location: "navigation", view: "player" }],
       })
     ).toThrow()
   })

@@ -64,6 +64,7 @@ import type {
   GraftTransferProgress,
 } from "../../shared/graft-sdk-contracts"
 import {
+  EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX,
   EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
   RUNTIME_MUTATION_METHODS,
 } from "../../shared/contracts"
@@ -121,7 +122,14 @@ import {
 import { SpacePathIndex } from "./path-search"
 import { SpaceWatcher } from "./space-watcher"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
-import { readTextFilePreview, saveTextFile } from "./text-file-preview"
+import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
+import {
+  decodeText,
+  readTextFilePreview,
+  saveTextFile,
+} from "./text-file-preview"
+import { PluginError } from "@eidos.space/plugin-runtime/rpc"
+import type { MediaFilePreviewResult } from "../plugins/document-host"
 import {
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
@@ -673,6 +681,137 @@ export class SpaceSession {
     }
   }
 
+  async previewMediaFile(
+    relativePath: string
+  ): Promise<MediaFilePreviewResult> {
+    this.prioritizeLocalWork()
+    const safe = normalizeMutableRelativePath(relativePath)
+    const canonicalRoot = await fs.realpath(this.canonical.root)
+    const candidate = resolveSpacePath(canonicalRoot, safe)
+    const pathStats = await fs.lstat(candidate).catch(() => null)
+    if (!pathStats?.isFile() || pathStats.isSymbolicLink()) {
+      throw new PluginError("DOCUMENT_UNAVAILABLE", "Media file is unavailable")
+    }
+    const resolved = await fs.realpath(candidate).catch(() => null)
+    if (resolved !== path.resolve(candidate)) {
+      throw new PluginError("DOCUMENT_UNAVAILABLE", "Media file is unavailable")
+    }
+    const mediaType = detectMediaFileType(safe)
+    const mimeType = mediaType?.mimeType ?? "application/octet-stream"
+    const previewUrl = issueMediaPreviewUrl(canonicalRoot, safe, mimeType)
+    return {
+      path: safe,
+      name: path.basename(safe),
+      baseName: path.parse(safe).name,
+      extension: path.extname(safe),
+      mimeType,
+      size: pathStats.size,
+      previewUrl,
+    }
+  }
+
+  async readSidecarText(
+    relativePath: string,
+    extensionOrName: string
+  ): Promise<{ text: string; path: string } | null> {
+    this.prioritizeLocalWork()
+    const safe = normalizeMutableRelativePath(relativePath)
+    if (typeof extensionOrName !== "string" || !extensionOrName.trim()) {
+      throw new PluginError("INVALID_REQUEST", "Invalid sidecar identifier")
+    }
+    if (/[\\/\u0000-\u001f]|\.\./.test(extensionOrName)) {
+      throw new PluginError(
+        "INVALID_REQUEST",
+        "Sidecar identifier cannot traverse paths"
+      )
+    }
+    const dir = path.dirname(safe)
+    const baseName = path.parse(safe).name
+    let sidecarFileName: string
+    if (extensionOrName.startsWith(".")) {
+      sidecarFileName = `${baseName}${extensionOrName}`
+    } else if (extensionOrName.startsWith(`${baseName}.`)) {
+      sidecarFileName = extensionOrName
+    } else {
+      sidecarFileName = `${baseName}.${extensionOrName}`
+    }
+    const sidecarRelative =
+      dir === "." ? sidecarFileName : `${dir}/${sidecarFileName}`
+    const canonicalRoot = await fs.realpath(this.canonical.root)
+    const candidate = resolveSpacePath(canonicalRoot, sidecarRelative)
+    const pathStats = await fs.lstat(candidate).catch(() => null)
+    if (!pathStats?.isFile() || pathStats.isSymbolicLink()) {
+      return null
+    }
+    const resolved = await fs.realpath(candidate).catch(() => null)
+    if (resolved !== path.resolve(candidate)) {
+      return null
+    }
+    if (pathStats.size > EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX) {
+      throw new PluginError("TOO_LARGE", "Sidecar text exceeds limit")
+    }
+    const buffer = await fs.readFile(candidate)
+    const decoded = decodeText(buffer, false)
+    if (!decoded) {
+      throw new PluginError(
+        "DOCUMENT_UNAVAILABLE",
+        "Sidecar is not an ordinary text file"
+      )
+    }
+    return {
+      text: decoded.content,
+      path: sidecarRelative,
+    }
+  }
+
+  async listSidecars(
+    relativePath: string,
+    filterExtensions?: string[]
+  ): Promise<
+    Array<{ name: string; path: string; extension: string; size: number }>
+  > {
+    this.prioritizeLocalWork()
+    const safe = normalizeMutableRelativePath(relativePath)
+    const dir = path.dirname(safe)
+    const baseName = path.parse(safe).name
+    const selfName = path.basename(safe)
+    const canonicalRoot = await fs.realpath(this.canonical.root)
+    const dirCandidate =
+      dir === "." ? canonicalRoot : resolveSpacePath(canonicalRoot, dir)
+    const entries = await fs
+      .readdir(dirCandidate, { withFileTypes: true })
+      .catch(() => [])
+    const prefix = `${baseName}.`
+    const results: Array<{
+      name: string
+      path: string
+      extension: string
+      size: number
+    }> = []
+    const allowed = filterExtensions?.map((e) =>
+      e.startsWith(".") ? e.toLowerCase() : `.${e.toLowerCase()}`
+    )
+    for (const entry of entries) {
+      if (!entry.isFile() || entry.isSymbolicLink()) continue
+      if (!entry.name.startsWith(prefix) || entry.name === selfName) continue
+      const ext = path.extname(entry.name).toLowerCase()
+      if (allowed && !allowed.includes(ext)) continue
+      const entryRelPath = dir === "." ? entry.name : `${dir}/${entry.name}`
+      const stat = await fs
+        .stat(path.join(dirCandidate, entry.name))
+        .catch(() => null)
+      if (stat) {
+        results.push({
+          name: entry.name,
+          path: entryRelPath,
+          extension: ext,
+          size: stat.size,
+        })
+      }
+    }
+    return results
+  }
+
   async saveTextFile(
     request: TextFileSaveRequest
   ): Promise<TextFileSaveResult> {
@@ -730,7 +869,8 @@ export class SpaceSession {
 
   async createEidosFile(
     parentRelativePath: string | null,
-    requestedName: string
+    requestedName: string,
+    template?: "blank" | "files-index"
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
     const safeName = normalizeSpaceEntryName(requestedName)
@@ -743,7 +883,8 @@ export class SpaceSession {
     const created = await this.gate.withMutation(async () => {
       return await this.runtimePool.create(
         relativePath,
-        path.basename(name, ".eidos")
+        path.basename(name, ".eidos"),
+        { template }
       )
     })
     this.runtimeSessionByPath.set(relativePath, created.sessionId)
