@@ -29,13 +29,15 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::cli::{
-    AccountArgs, ApplyArgs, CardSizeArg, CollectArgs, Command, ContextArgs, CreateArgs,
-    FieldAddArgs, FieldArgs, FieldCommand, FieldDeleteArgs, FieldRenameArgs, FieldUpdateArgs,
-    FileArgs, FormulaAddArgs, FormulaArgs, FormulaCommand, FormulaDeleteArgs, FormulaPreviewArgs,
-    FormulaUpdateArgs, LookupAddArgs, LookupArgs, LookupCommand, LookupDeleteArgs,
-    LookupUpdateArgs, PublishArgs, QueryArgs, RelationAddArgs, RelationArgs, RelationCommand,
-    RelationUpdateArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs, RowUpdateArgs,
-    RowUpsertArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs, SkillsArgs, SkillsCommand,
+    AccountArgs, ApplyArgs, CardSizeArg, CloudCommand, CloudNamespaceArgs, CollectArgs, Command,
+    ContextArgs, CreateArgs, DataCommand, DataMutateArgs, DataNamespaceArgs, FieldAddArgs,
+    FieldArgs, FieldCommand, FieldDeleteArgs, FieldRenameArgs, FieldUpdateArgs, FileArgs,
+    FileCommand, FileNamespaceArgs, FormulaAddArgs, FormulaArgs, FormulaCommand, FormulaDeleteArgs,
+    FormulaPreviewArgs, FormulaUpdateArgs, LookupAddArgs, LookupArgs, LookupCommand,
+    LookupDeleteArgs, LookupUpdateArgs, PublishArgs, QueryArgs, RelationAddArgs, RelationArgs,
+    RelationCommand, RelationUpdateArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowMutateArgs,
+    RowUpdateArgs, RowUpsertArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, SchemaCommand,
+    SchemaNamespaceArgs, SelfCommand, SelfNamespaceArgs, ServeArgs, SkillsArgs, SkillsCommand,
     StandardViewTypeArg, TableArgs, TableCommand, TableCreateArgs, TableDeleteArgs,
     TableRenameArgs, TableUpdateArgs, UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
     ViewArgs, ViewCommand, ViewCreateArgs, ViewDeleteArgs, ViewInspectArgs, ViewListArgs,
@@ -61,7 +63,16 @@ impl CommandOutput {
 
 pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
     match command {
+        // 2.0 Core Namespaces
+        Command::File(args) => run_file(*args),
+        Command::Schema(args) => run_schema(*args),
+        Command::Data(args) => run_data(*args),
+        Command::Serve(args) => serve_file(args),
+        Command::Cloud(args) => run_cloud(*args, show_progress),
+        Command::Self_(args) => run_self(*args),
         Command::Plugin(args) => crate::plugin::run(args, show_progress),
+
+        // Hidden 1.x compatibility commands:
         Command::Login(args) => login(args),
         Command::Whoami(args) => whoami(args),
         Command::Logout(args) => logout(args),
@@ -70,7 +81,6 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Create(args) => create(args),
         Command::Inspect(args) => inspect(args),
         Command::Tables(args) => tables(args),
-        Command::Schema(args) => schema(args),
         Command::Context(args) => context(args),
         Command::Query(args) => query(args),
         Command::Apply(args) => apply(args),
@@ -85,9 +95,205 @@ pub fn run(command: Command, show_progress: bool) -> Result<CommandOutput> {
         Command::Relation(args) => relation(*args),
         Command::Formula(args) => formula(*args),
         Command::Lookup(args) => lookup(*args),
-        Command::Serve(args) => serve_file(args),
         Command::Publish(args) => publish_file(args, show_progress),
         Command::Collect(args) => collect_form(args, show_progress),
+    }
+}
+
+fn run_file(args: FileNamespaceArgs) -> Result<CommandOutput> {
+    match args.command {
+        FileCommand::New(args) => create(args),
+        FileCommand::Inspect(args) => {
+            if args.full {
+                validate_file(ValidateArgs {
+                    file: args.file,
+                    level: ValidationLevelArg::Full,
+                    diagnostics_limit: 100,
+                })
+            } else {
+                inspect(FileArgs { file: args.file })
+            }
+        }
+        FileCommand::Validate(args) => validate_file(args),
+    }
+}
+
+fn run_schema(args: SchemaNamespaceArgs) -> Result<CommandOutput> {
+    match args.command {
+        SchemaCommand::Dump(args) => schema(args),
+        SchemaCommand::Apply(args) => schema_apply(args),
+        SchemaCommand::Table(args) => table(*args),
+        SchemaCommand::Field(args) => field(*args),
+        SchemaCommand::View(args) => view(*args),
+    }
+}
+
+fn run_data(args: DataNamespaceArgs) -> Result<CommandOutput> {
+    match args.command {
+        DataCommand::Query(args) => {
+            let table = args.table_opt.or(args.table);
+            if args.compact {
+                context(ContextArgs {
+                    file: args.file,
+                    table,
+                    where_json: args.where_clause,
+                    sort: args.sort,
+                    search: args.search,
+                    search_fields: vec![],
+                    fields: args.fields,
+                    limit: args.limit.unwrap_or(20),
+                    offset: args.offset.unwrap_or(0),
+                    full: args.full,
+                })
+            } else {
+                let table = table.ok_or_else(|| {
+                    AppError::invalid_request(
+                        "table name or stable ID is required for data query (or use --compact)",
+                    )
+                })?;
+                query(QueryArgs {
+                    file: args.file,
+                    table,
+                    where_json: args.where_clause,
+                    sort: args.sort,
+                    search: args.search,
+                    search_fields: vec![],
+                    fields: args.fields,
+                    limit: args.limit.unwrap_or(100),
+                    offset: args.offset.unwrap_or(0),
+                })
+            }
+        }
+        DataCommand::Mutate(args) => run_data_mutate(args),
+        DataCommand::Asset(args) => crate::attachment::run(args),
+    }
+}
+
+fn run_data_mutate(args: DataMutateArgs) -> Result<CommandOutput> {
+    if args.match_expr.is_some() || args.set.is_some() {
+        let match_value = match args.match_expr {
+            Some(expr) => read_json_source(&expr)?,
+            None => json!({}),
+        };
+        let set_value = match args.set {
+            Some(expr) => read_json_source(&expr)?,
+            None => {
+                return Err(AppError::invalid_request(
+                    "--set is required when mutating matched rows",
+                ));
+            }
+        };
+        let table = args.table.ok_or_else(|| {
+            AppError::invalid_request("table is required for matched row updates")
+        })?;
+        let mut request = json!({
+            "table": table,
+            "match": match_value,
+            "set": set_value,
+        });
+        if let Some(expect) = args.expect {
+            request["expect"] = json!(expect);
+        }
+        if !args.returning.is_empty() {
+            request["returning"] = json!(args.returning);
+        }
+        if let Some(rev) = args.expected_revision {
+            request["revision"] = json!(rev);
+        }
+        let serialized =
+            serde_json::to_string(&request).map_err(|e| AppError::internal(e.to_string()))?;
+        apply(ApplyArgs {
+            file: args.file,
+            request: serialized,
+        })
+    } else if let Some(insert_str) = args.insert {
+        let table = args
+            .table
+            .ok_or_else(|| AppError::invalid_request("table is required when inserting rows"))?;
+        let expected_revision = match args.expected_revision {
+            Some(rev) => rev,
+            None => {
+                let conn = open_file(&args.file, false)?;
+                let meta = load_file_meta(&conn)?;
+                meta.revision.to_string()
+            }
+        };
+        if let Some(key) = args.key {
+            let key = key
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            rows_upsert(
+                args.file,
+                RowUpsertArgs {
+                    table,
+                    key,
+                    values: insert_str,
+                    expected_revision,
+                    dry_run: args.dry_run,
+                },
+            )
+        } else {
+            rows_add(
+                args.file,
+                RowAddArgs {
+                    table,
+                    values: insert_str,
+                    expected_revision,
+                },
+            )
+        }
+    } else if let Some(payload_str) = args.payload {
+        let payload = read_json_source(&payload_str)?;
+        if payload.get("changes").is_some() {
+            let table = args.table.ok_or_else(|| {
+                AppError::invalid_request("table is required for row mutation batches")
+            })?;
+            let expected_revision = match args.expected_revision {
+                Some(rev) => rev,
+                None => {
+                    let conn = open_file(&args.file, false)?;
+                    let meta = load_file_meta(&conn)?;
+                    meta.revision.to_string()
+                }
+            };
+            rows_mutate(
+                args.file,
+                RowMutateArgs {
+                    table,
+                    changes: payload_str,
+                    expected_revision,
+                    dry_run: args.dry_run,
+                },
+            )
+        } else {
+            apply(ApplyArgs {
+                file: args.file,
+                request: payload_str,
+            })
+        }
+    } else {
+        Err(AppError::invalid_request(
+            "specify --insert, --match and --set, or a JSON payload for data mutate",
+        ))
+    }
+}
+
+fn run_cloud(args: CloudNamespaceArgs, show_progress: bool) -> Result<CommandOutput> {
+    match args.command {
+        CloudCommand::Login(args) => login(args),
+        CloudCommand::Whoami(args) => whoami(args),
+        CloudCommand::Logout(args) => logout(args),
+        CloudCommand::Publish(args) => publish_file(args, show_progress),
+        CloudCommand::Collect(args) => collect_form(args, show_progress),
+    }
+}
+
+fn run_self(args: SelfNamespaceArgs) -> Result<CommandOutput> {
+    match args.command {
+        SelfCommand::Upgrade(args) => upgrade(args),
+        SelfCommand::Skill(args) => skills(args),
     }
 }
 
@@ -2309,6 +2515,7 @@ fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
 fn table(args: TableArgs) -> Result<CommandOutput> {
     let TableArgs { file, command } = args;
     match command {
+        TableCommand::List(_) => tables(FileArgs { file }),
         TableCommand::Create(args) => table_create(args, file),
         TableCommand::Update(args) => table_update(args, file),
         TableCommand::Rename(args) => table_rename(args, file),
@@ -2461,10 +2668,116 @@ fn table_delete(args: TableDeleteArgs, file: PathBuf) -> Result<CommandOutput> {
 fn field(args: FieldArgs) -> Result<CommandOutput> {
     let FieldArgs { file, command } = args;
     match command {
-        FieldCommand::Add(args) => field_add(args, file),
-        FieldCommand::Update(args) => field_update(args, file),
+        FieldCommand::Add(args) => {
+            if args.field_type == "formula" || args.formula.is_some() {
+                formula_add(
+                    file,
+                    FormulaAddArgs {
+                        table: args.table,
+                        name: args.name,
+                        formula: args.formula.ok_or_else(|| {
+                            AppError::invalid_request("--formula is required for formula fields")
+                        })?,
+                        result_type: args.result_type.unwrap_or_else(|| "text".to_string()),
+                        settings: args.settings,
+                        position: None,
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                )
+            } else if args.field_type == "relation" || args.target_table.is_some() {
+                relation_add(
+                    RelationAddArgs {
+                        table: args.table,
+                        name: args.name,
+                        target_table: args.target_table.ok_or_else(|| {
+                            AppError::invalid_request(
+                                "--target-table is required for relation fields",
+                            )
+                        })?,
+                        cardinality: args.cardinality.unwrap_or_else(|| "many".to_string()),
+                        on_delete: args.on_delete.unwrap_or_else(|| "detach".to_string()),
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                    file,
+                )
+            } else if args.field_type == "lookup" || args.relation_field.is_some() {
+                lookup_add(
+                    file,
+                    LookupAddArgs {
+                        table: args.table,
+                        name: args.name,
+                        relation_field: args.relation_field.ok_or_else(|| {
+                            AppError::invalid_request(
+                                "--relation-field is required for lookup fields",
+                            )
+                        })?,
+                        target_field: args.target_field.ok_or_else(|| {
+                            AppError::invalid_request(
+                                "--target-field is required for lookup fields",
+                            )
+                        })?,
+                        aggregate: args.aggregate.unwrap_or_else(|| "values".to_string()),
+                        distinct: false,
+                        settings: args.settings,
+                        position: None,
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                )
+            } else {
+                field_add(args, file)
+            }
+        }
+        FieldCommand::Update(args) => {
+            if let Some(formula) = args.formula {
+                formula_update(
+                    file,
+                    FormulaUpdateArgs {
+                        reference: args.reference,
+                        table: args.table,
+                        formula,
+                        result_type: args.result_type.unwrap_or_else(|| "text".to_string()),
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                )
+            } else if args.target_table.is_some() || args.cardinality.is_some() {
+                relation_update(
+                    RelationUpdateArgs {
+                        reference: args.reference,
+                        table: args.table,
+                        target_table: args.target_table,
+                        cardinality: args.cardinality,
+                        on_delete: args.on_delete,
+                        confirm_lossy: false,
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                    file,
+                )
+            } else if args.relation_field.is_some() && args.target_field.is_some() {
+                lookup_update(
+                    file,
+                    LookupUpdateArgs {
+                        reference: args.reference,
+                        table: args.table,
+                        relation_field: args.relation_field.unwrap(),
+                        target_field: args.target_field.unwrap(),
+                        aggregate: args.aggregate.unwrap_or_else(|| "values".to_string()),
+                        distinct: false,
+                        expected_revision: args.expected_revision,
+                        dry_run: args.dry_run,
+                    },
+                )
+            } else {
+                field_update(args, file)
+            }
+        }
         FieldCommand::Rename(args) => field_rename(args, file),
         FieldCommand::Delete(args) => field_delete(args, file),
+        FieldCommand::Preview(args) => formula_preview(file, args),
     }
 }
 
@@ -2477,6 +2790,7 @@ fn field_add(args: FieldAddArgs, file: PathBuf) -> Result<CommandOutput> {
         definition,
         expected_revision,
         dry_run,
+        ..
     } = args;
     if matches!(field_type.as_str(), "formula" | "lookup") {
         let definition = definition.ok_or_else(|| {
@@ -2536,6 +2850,7 @@ fn field_update(args: FieldUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
         confirm_lossy,
         expected_revision,
         dry_run,
+        ..
     } = args;
     let (field, tables, _) = field_reference_info(&file, &reference, table.as_deref())?;
     let mut leaves = Vec::new();

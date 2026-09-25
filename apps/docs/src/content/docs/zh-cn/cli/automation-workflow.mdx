@@ -1,53 +1,50 @@
 ---
 title: 安全自动化工作流
-description: 发现上下文、执行带 revision 检查的修改，并校验结果。
+description: 读取上下文，执行带版本检查的修改，再校验结果。
 sidebar:
   order: 10
 ---
 
-可靠的写入顺序是 **context → apply → validate**。它让 Agent 或脚本只读取有界上下文，
-避免基于过期数据写入，并证明提交后的文件仍满足指定 validation level。
+最可靠的写入顺序是：**读取上下文（context）→ 应用修改（mutate / apply）→ 校验文件（validate）**。
+它能让智能体或脚本获得受限的数据视图，避免基于过期数据写入，并确保提交后的文件仍然满足指定的校验级别。
 
-以下自动化命令都显式传入 `--json`。默认输出面向人类阅读，不属于机器合同。
+下面所有自动化命令都显式传入 `--json`。默认输出是面向人工阅读的，不是机器契约。
 
 ## 0. 初始化 Eidos Skill
 
-独立 CLI 已经内置智能体工作流使用的 Skill。可以初始化到当前 Space / 项目，也可以
-安装到当前用户、供所有项目使用：
+独立 CLI 已经内置智能体工作流所需的 Skill。安装到当前 Space / 项目，或为当前用户全局安装：
 
 ```bash
-eidos skills init
-eidos skills init --global
+eidos self skill init
+eidos self skill init --global
 ```
 
-不需要 Node.js、`npm` 或 `npx`。要初始化其他 Space，可使用 `--space <DIR>`；如果已有
-Skill 文件被编辑，命令会停止，只有显式传入 `--force` 才会覆盖。
+不需要 Node.js、`npm` 或 `npx`。使用 `eidos self skill init --space <DIR>` 可指定其他 Space；
+如果文件存在本地修改，必须显式传入 `--force` 才会覆盖。
 
-## 1. 读取有界上下文
+## 1. 读取受限上下文
 
 ```bash
-eidos --json context tracker.eidos Tasks \
+eidos --json data query tracker.eidos Tasks \
+  --compact \
   --fields Title,Status \
   --limit 50
 ```
 
-`context` 返回文件 revision、紧凑 schema 与 logical rows。只有需要 stable ID、
-system field、settings、relations 和保存视图时才添加 `--full`。
-
-筛选使用可移植 JSON，字段可以用名称或 stable ID：
+`--compact` 返回文件版本、紧凑 Schema 和逻辑行数据。传入 `--fields` 可限制返回的字段，传入 `--where` 可过滤数据行：
 
 ```bash
-eidos --json context tracker.eidos Tasks \
+eidos --json data query tracker.eidos Tasks \
+  --compact \
   --where '{"op":"ne","field":"Status","value":"done"}' \
   --fields Title,Status
 ```
 
-`ne` 是 `eq` 的 Boolean complement，因此 Status 为空也会匹配。需要排除空值时，再添加
-`is-not-null` 规则。
+`ne` 是 `eq` 的布尔补集，因此空的 Status 也会匹配。如果需要排除空值，可添加 `is-not-null` 规则。
 
-## 2. 执行精确修改
+## 2. 精确应用修改
 
-把请求保存为 `request.json`，或通过 stdin 传入：
+将请求保存为 `request.json` 或通过标准输入传入：
 
 ```json
 {
@@ -61,73 +58,72 @@ eidos --json context tracker.eidos Tasks \
 ```
 
 ```bash
-eidos --json apply tracker.eidos request.json
+eidos --json data mutate tracker.eidos request.json
 ```
 
-`revision` 拒绝过期工作；`expect` 防止修改范围意外扩大。CLI 在提交前校验 proposed final
-state，并返回 `returning` 指定的记录。
-
-## 3. 校验已提交文件
+也可以直接使用内联的变更参数：
 
 ```bash
-eidos --json validate tracker.eidos --level full
+eidos --json data mutate tracker.eidos \
+  --table Tasks \
+  --match '{"_id":"019..."}' \
+  --set '{"Status":"doing"}' \
+  --expected-revision 1
 ```
 
-任一步返回非零 exit status，都应视为整个工作流失败。不要根据猜测或不完整解析继续执行。
+`revision` / `--expected-revision` 会拒绝基于过期数据的操作。CLI 在提交前会校验拟修改的最终状态，并返回修改后的记录行。
 
-## 面向智能体的记录与 Schema 意图命令
-
-常见 Schema 修改应优先使用意图命令，而不是手写底层 operation JSON。Table 和 Field
-可以使用显示名称或 stable ID；CLI 会在带 revision 检查的事务中先完成解析：
+## 3. 校验已提交的文件
 
 ```bash
-eidos --json field add tracker.eidos \
+eidos --json file validate tracker.eidos --level full
+```
+
+任何一步返回非零退出状态码都应视为工作流失败。切勿基于推测或部分解析的输出继续执行。
+
+## 面向智能体的字段与表结构意图命令
+
+对于常见的 Schema 修改，建议直接使用 `schema` 下的意图命令，而不是手写原始操作 JSON。表和字段可以用名称或稳定 ID 引用；CLI 会在带版本检查的事务前自动解析：
+
+```bash
+eidos --json schema field add tracker.eidos \
   --table Tasks --name Due --type date \
   --expected-revision 1 --dry-run
 
-eidos --json relation add tracker.eidos \
-  --table Tasks --name Owners --target-table People \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name Owners --type relation --target-table People \
   --cardinality many --on-delete detach \
   --expected-revision 2
 
-eidos --json table update tracker.eidos Tasks \
+eidos --json schema table update tracker.eidos Tasks \
   --record-label Title --content-field Notes --dry-run
 
-eidos --json field update tracker.eidos Estimate \
+eidos --json schema field update tracker.eidos Estimate \
   --table Tasks --type integer --dry-run
 
-eidos --json relation update tracker.eidos Owners \
+eidos --json schema field update tracker.eidos Owners \
   --table Tasks --cardinality one --dry-run
 ```
 
-`table update` 覆盖名称、设置、记录标签、Markdown 内容字段、位置和默认表修改。
-`field update` 覆盖名称、设置、位置、记录标签选择、存储类型转换和原子化选项改名。
-字段转换默认使用编辑器相同的推荐策略；先检查 dry-run 分类，只有确定接受
-`explicit-lossy` 影响时才在正式提交中添加 `--confirm-lossy`。File 字段不能转换，
-应使用 attachment 命令。`relation update` 用于修改 forward Relation 的目标表、基数或
-删除策略。CLI 不暴露字段 Nullable 设置。
+`table update` 覆盖名称、设置、记录标题字段、Markdown 正文字段、位置以及默认表修改。`field update` 覆盖名称、设置、位置、标题字段选择、存储类型转换和原子选项重命名。转换默认采用编辑器推荐的策略；请检查 dry-run 的分类，只有明确要执行 `explicit-lossy` 时才传入 `--confirm-lossy`。File 字段使用附件命令管理，不能直接转换类型。对关联字段执行 `schema field update` 可更改其目标、基数或删除策略。字段的非空约束故意不对外暴露。
 
-当调用方拥有稳定的业务键、但还没有 Row ID 时，使用 `rows upsert`。它接受一个对象或
-对象数组：匹配到一条记录就更新，没有匹配就新增。业务键必须是存储字段、值不能为空，
-并且最多只能匹配一条已有记录：
+当调用方持有稳定的业务键但没有 Row ID 时，使用 `data mutate --key`。它接受单个对象或对象数组，更新单条匹配的行，并在无匹配时新建行。业务键必须是已存储的非空字段，且最多只能匹配一行现有数据：
 
 ```bash
-eidos --json rows upsert tracker.eidos \
+eidos --json data mutate tracker.eidos \
   --table Tasks \
   --key "External ID" \
-  --values '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
+  --insert '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
   --expected-revision 3 \
   --dry-run
 ```
 
-返回结果中的 `plan` 会标明每一项是 `create` 还是 `update`；dry-run 产生的 Row ID
-只是临时规划 ID。去掉 `--dry-run` 后，整个数组只提交一个 revision。输入数组中有重复
-业务键，或业务键匹配多条已有记录时，CLI 会拒绝请求且不修改文件。
+返回结果中包含 `plan`，指明每个输入的行是 `create` 还是 `update`；dry-run 的 Row ID 是临时的，请使用真正提交时返回的 ID。去掉 `--dry-run` 即可在单次版本更新中提交整批操作。输入的键重复或匹配多条现有数据时，将直接拒绝且不修改文件。
 
-当一次操作需要在同一张表中混合新增、更新和删除时，使用 `rows mutate`：
+当单个原子批次需要为同一张表混合创建、更新和删除时，使用 `data mutate --changes`：
 
 ```bash
-eidos --json rows mutate tracker.eidos \
+eidos --json data mutate tracker.eidos \
   --table Tasks \
   --expected-revision 4 \
   --changes '[
@@ -137,105 +133,84 @@ eidos --json rows mutate tracker.eidos \
   ]'
 ```
 
-`rows mutate` 复用 Runtime 的 RowChange 合同，所有修改要么全部提交，要么全部回滚。
-需要查看计划时添加 `--dry-run`。当智能体已经掌握完整的 stable ID mutation document
-时，仍可使用低层的 `rows add/update/delete`、`schema-apply` 和 `view-apply`。
+`data mutate` 复用 Runtime 的 RowChange 契约，要么全部成功，要么完全不执行。使用 `--dry-run` 可在不更改版本的前提下检查结果。低级别的 `schema apply` 和 `schema view apply` 命令在智能体已经持有完整稳定 ID 变更文档时依然可用。
 
 ## 附件自动化
 
-不要先复制本地文件、再手工拼 File 字段 JSON。`attachment import` 会把字节暂存到受管的
-`assets/` 目录，生成规范的 ID、媒体类型、文件大小和 URI，在 revision 检查下更新精确单元格；
-如果修改失败，还会清理暂存文件和已经暴露的目标文件：
+不要手动复制本地文件并组装 File 字段的 JSON。`data asset import` 命令会在受管的 `assets/` 目录中暂存文件字节，提取规范元数据，执行带版本检查的单元格更新，并在修改失败时清理暂存文件：
 
 ```bash
-eidos --json attachment import tracker.eidos \
+eidos --json data asset import tracker.eidos \
   --table Tasks --row 019... --field Files \
   --source /absolute/path/report.pdf \
   --expected-revision 5
 ```
 
-重复 `--source` 可以在一次 revision 中导入多个文件。只有需要替换整个单元格时才添加
-`--replace`。如果文件已经位于 `.eidos` 文件所在目录之下，可使用 `attachment attach` 并传入
-`--uri assets/name.ext` 原地关联，不再复制。
+重复传入 `--source` 可执行单次原子多文件导入。只有要整体替换单元格时才传入 `--replace`。如果文件已经位于 `.eidos` 文件所在目录的同级或下级目录中，可使用 `data asset attach` 传入 `--uri assets/name.ext` 直接引用，避免复制。
 
-使用 `attachment detach --entry 019...` 删除精确 entry ID，或显式使用 `--all`。detach 与
-replace 都会保留物理文件，因为其他记录可能仍引用它。下面的命令可检查本地路径、字节数、
-媒体类型、软链接以及未引用的受管文件：
+通过 `data asset detach --entry 019...` 移除特定条目，或使用 `--all` 移除全部。分离和替换都会保留物理磁盘文件，因为其他记录可能仍在使用。检查本地路径、字节大小、媒体类型、符号链接及未引用的孤立受管文件：
 
 ```bash
-eidos --json attachment verify tracker.eidos --diagnostics-limit 100
+eidos --json data asset verify tracker.eidos --diagnostics-limit 100
 ```
 
-引用损坏时命令返回非零状态。孤儿文件只作为 warning 报告，CLI 不会自动删除。遇到
-`stale-revision` 时，应重新读取目标记录并重新规划，不能直接重放旧的附件修改。
+存在断开的引用会导致命令非零退出。孤立素材仅作警告，绝不会被自动删除。遇到 `stale-revision` 时，应重新读取目标行并重新规划，切勿重放旧的附件修改。
 
-## Runtime Formula 与 Lookup
+## Runtime 公式与查找
 
-派生字段应使用 canonical Runtime。提交 Formula 前先预览表达式；返回结果包含推导出的类型、
-依赖字段、诊断信息以及可选的样例值：
+使用规范的 Runtime 计算派生字段。在提交前先预览公式源码；结果中会包含推断类型、依赖关系、诊断信息和可选样本值：
 
-Formula 使用固定的 SQLite 3.45 scalar-expression 子集。精确 function whitelist 与
-syntax 见 [Formula 表达式](/zh-cn/user-guide/formula/)；不要提交任意 SQL，也不要自行
-创造 function alias。
+公式使用受限的 SQLite 3.45 标量表达式子集。请参考[公式表达式](/zh-cn/user-guide/formula/)了解白名单函数和语法，不要传入任意 SQL 或自创别名。
 
 ```bash
-eidos --json formula preview tracker.eidos \
+eidos --json schema field preview tracker.eidos \
   --table Tasks --name Total \
   --formula '"Estimate" * 2' --type integer
 ```
 
-Formula 的创建和更新都经过带 revision 检查的 Runtime preflight：
+带版本检查和 Runtime 预检地创建或更新公式：
 
 ```bash
-eidos --json formula add tracker.eidos \
-  --table Tasks --name Total \
-  --formula '"Estimate" * 2' --type integer \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name Total --type formula \
+  --formula '"Estimate" * 2' --result-type integer \
   --expected-revision 4 --dry-run
 
-eidos --json formula update tracker.eidos Total \
-  --table Tasks --formula '"Estimate" + 1' --type integer \
+eidos --json schema field update tracker.eidos Total \
+  --table Tasks --formula '"Estimate" + 1' --result-type integer \
   --expected-revision 4
 ```
 
-Relation 和目标 Field 已存在后，再创建 Lookup：
+在 Relation 和目标字段就绪后创建 Lookup：
 
 ```bash
-eidos --json lookup add tracker.eidos \
-  --table Tasks --name OwnerScore \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name OwnerScore --type lookup \
   --relation-field Owners --target-field Score \
   --aggregate sum --expected-revision 5
 ```
 
-`table create` 的初始 fields 数组可以包含 Formula，并会走相同的 Runtime preflight 路径。
-Relation 和 Lookup 需要在引用的 Schema 已存在后再添加。
+`schema table create` 可在初始字段数组中包含公式字段，并使用相同的预检逻辑。Relation 和 Lookup 字段则在依赖的 Schema 存在后添加。
 
-Lookup 聚合支持 `values`、`first`、`count`、`sum`、`average`、`min` 和 `max`；需要去重时添加
-`--distinct`。当表中包含 Formula、Lookup 或 inverse Relation 时，`query` 和 `context` 会自动
-通过 Runtime 计算，因此派生字段可以投影、筛选和排序。派生字段不能通过 rows mutation 直接写入。
-Runtime 会在提交前拒绝无效类型、缺失目标、过期 plan 和依赖循环。删除 Formula 或 Lookup
-属于显式有损操作：先用 dry-run 预览，确认影响后再添加 `--confirm-lossy` 提交。
+Lookup 聚合方式支持 `values`、`first`、`count`、`sum`、`average`、`min` 和 `max`；需要去重时添加 `--distinct`。当表中包含公式、查找或反向关联时，`data query` 会自动对其求值，因此派生字段也可以被投影、过滤和排序。派生字段在行修改中是只读的。Runtime 会在提交前拒绝无效类型、缺失目标、过期规划和循环依赖。删除公式或查找属于显式破坏性操作：应先预览并在确认影响后传入 `--confirm-lossy`。
 
-## 低层操作
+## 低级别操作
 
-Schema change 支持在提交前通过真实 transaction path 执行 dry run。
+Schema 修改在提交前支持基于真实事务路径的 dry-run 执行：
 
 ```bash
-eidos --json schema-apply tracker.eidos \
+eidos --json schema apply tracker.eidos \
   --expected-revision 1 \
   --op @schema-change.json \
   --dry-run
 ```
 
-`schema-apply` 也支持 Runtime Schema batch，并会在设置、位置、记录标签、类型转换、
-选项改名、Relation、Formula 和 Lookup 操作中解析 Table/Field 名称。不同 CLI 进程不会
-共享 Runtime mutation token，因此已提交修改没有跨命令 `undo`；需要恢复时，应在获得
-用户授权后使用 Eidos Lite/Graft 历史或已知良好的文件副本。
+`schema apply` 也接受 Runtime Schema 批次，并在设置、位置、标题字段、类型转换、选项重命名、关联、公式与查找操作中自动解析表名与字段名。CLI 每次调用不共享 Runtime 变更 Token，因此已提交的修改无法跨命令撤销（`undo`）；请使用 Eidos Lite / Graft 历史记录或已知完好的文件副本进行恢复。
 
-从 `schema` 输出中取得稳定的 Table ID 与 `date` / `datetime` Field ID，即可创建
-Calendar View：
+基于 `schema dump` 输出中的稳定表 ID 和日期/时间字段 ID 创建日历视图：
 
 ```bash
-eidos --json view-apply tracker.eidos - <<'JSON'
+eidos --json schema view apply tracker.eidos - <<'JSON'
 {
   "expectedRevision": "2",
   "changes": [{
@@ -252,6 +227,4 @@ eidos --json view-apply tracker.eidos - <<'JSON'
 JSON
 ```
 
-CLI 分配 View ID，并通过 `createdViews` 返回。持久化 View document 中的 query 与
-layout 引用必须使用稳定 Field ID，不能使用显示名称。`update-view` 可以显式修改名称、
-类型、query、layout 与 position；`delete-view` 删除指定的稳定 View ID。
+CLI 会分配视图 ID 并在 `createdViews` 中返回。视图查询与布局中的引用使用稳定的字段 ID，持久化的视图文档不接受显示名称。`schema view update` 支持显式名称、类型、查询、布局和位置补丁；`schema view delete` 按稳定 ID 删除视图。

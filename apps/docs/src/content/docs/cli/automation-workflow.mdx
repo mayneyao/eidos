@@ -18,29 +18,28 @@ The standalone CLI bundles the Skill used by Agent workflows. Initialize it in
 the current Space/project, or install it for the current user and all projects:
 
 ```bash
-eidos skills init
-eidos skills init --global
+eidos self skill init
+eidos self skill init --global
 ```
 
-No Node.js, `npm`, or `npx` is required. Use `--space <DIR>` for another Space;
+No Node.js, `npm`, or `npx` is required. Use `eidos self skill init --space <DIR>` for another Space;
 the command refuses to replace edited Skill files unless `--force` is explicit.
 
 ## 1. Read a bounded context
 
 ```bash
-eidos --json context tracker.eidos Tasks \
+eidos --json data query tracker.eidos Tasks \
+  --compact \
   --fields Title,Status \
   --limit 50
 ```
 
-`context` returns file revision, compact schema, and logical rows. Add `--full`
-only when stable IDs, system fields, settings, relations, and saved views are
-needed.
-
-Filters use portable JSON and may reference fields by name or stable ID:
+`--compact` returns the file revision, compact schema, and logical rows. Pass `--fields`
+to restrict returned columns, and `--where` to filter rows:
 
 ```bash
-eidos --json context tracker.eidos Tasks \
+eidos --json data query tracker.eidos Tasks \
+  --compact \
   --where '{"op":"ne","field":"Status","value":"done"}' \
   --fields Title,Status
 ```
@@ -64,17 +63,25 @@ Save a request as `request.json` or pass it on stdin:
 ```
 
 ```bash
-eidos --json apply tracker.eidos request.json
+eidos --json data mutate tracker.eidos request.json
 ```
 
-`revision` rejects stale work. `expect` prevents an unexpectedly broad update.
-The CLI validates the proposed final state before commit and returns the rows
-requested by `returning`.
+Alternatively, use inline mutation flags directly:
+
+```bash
+eidos --json data mutate tracker.eidos \
+  --table Tasks \
+  --match '{"_id":"019..."}' \
+  --set '{"Status":"doing"}' \
+  --expected-revision 1
+```
+
+`revision` / `--expected-revision` rejects stale work. The CLI validates the proposed final state before commit and returns the modified rows.
 
 ## 3. Validate the committed file
 
 ```bash
-eidos --json validate tracker.eidos --level full
+eidos --json file validate tracker.eidos --level full
 ```
 
 Treat a nonzero exit status at any step as a failed workflow. Do not continue
@@ -82,27 +89,27 @@ from guessed or partially parsed output.
 
 ## Agent-facing row and schema intent
 
-For common schema changes, use the intent commands instead of assembling raw
+For common schema changes, use the intent commands under `schema` instead of assembling raw
 operation JSON. Table and Field references may be display names or stable IDs;
 the CLI resolves them before the revision-checked transaction:
 
 ```bash
-eidos --json field add tracker.eidos \
+eidos --json schema field add tracker.eidos \
   --table Tasks --name Due --type date \
   --expected-revision 1 --dry-run
 
-eidos --json relation add tracker.eidos \
-  --table Tasks --name Owners --target-table People \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name Owners --type relation --target-table People \
   --cardinality many --on-delete detach \
   --expected-revision 2
 
-eidos --json table update tracker.eidos Tasks \
+eidos --json schema table update tracker.eidos Tasks \
   --record-label Title --content-field Notes --dry-run
 
-eidos --json field update tracker.eidos Estimate \
+eidos --json schema field update tracker.eidos Estimate \
   --table Tasks --type integer --dry-run
 
-eidos --json relation update tracker.eidos Owners \
+eidos --json schema field update tracker.eidos Owners \
   --table Tasks --cardinality one --dry-run
 ```
 
@@ -111,20 +118,20 @@ position, and default-Table changes. `field update` covers name, settings,
 position, record-label selection, stored-type conversion, and atomic option
 renames. Conversion uses the editor's recommended policies by default; review
 the dry-run classification and pass `--confirm-lossy` only for an intentional
-`explicit-lossy` commit. File Fields use attachment commands and cannot be
-converted. `relation update` changes a forward Relation's target, cardinality,
+`explicit-lossy` commit. File Fields use asset commands and cannot be
+converted. `schema field update` on a relation changes its target, cardinality,
 or deletion policy. Field nullability is intentionally not exposed.
 
-Use `rows upsert` when a caller has a stable business key but not a Row ID.
+Use `data mutate --key` when a caller has a stable business key but not a Row ID.
 It accepts one object or an array, updates the single matching row, and
 creates a row when no match exists. The key must contain stored, non-null
 Fields and identify at most one existing row:
 
 ```bash
-eidos --json rows upsert tracker.eidos \
+eidos --json data mutate tracker.eidos \
   --table Tasks \
   --key "External ID" \
-  --values '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
+  --insert '[{"External ID":"task-1","Title":"Ship CLI","Status":"doing"}]' \
   --expected-revision 3 \
   --dry-run
 ```
@@ -135,11 +142,11 @@ Remove `--dry-run` to commit the entire batch as one revision. Duplicate input
 keys and keys matching multiple existing rows are rejected without changing
 the File.
 
-Use `rows mutate` when a single atomic batch must mix creates, updates, and
+Use `data mutate --changes` when a single atomic batch must mix creates, updates, and
 deletes for one Table:
 
 ```bash
-eidos --json rows mutate tracker.eidos \
+eidos --json data mutate tracker.eidos \
   --table Tasks \
   --expected-revision 4 \
   --changes '[
@@ -149,21 +156,19 @@ eidos --json rows mutate tracker.eidos \
   ]'
 ```
 
-`rows mutate` reuses the Runtime RowChange contract and either applies every
+`data mutate` reuses the Runtime RowChange contract and either applies every
 change or none. Use `--dry-run` to inspect the result without changing the
-revision. The lower-level `rows add/update/delete`, `schema-apply`, and
-`view-apply` commands remain available when an Agent already owns the exact
-stable-ID mutation document.
+revision. The lower-level `schema apply` and `schema view apply` commands remain available when an Agent already owns the exact stable-ID mutation document.
 
 ## Attachment automation
 
 Do not copy a local file and hand-build the File-field JSON. The
-`attachment import` command stages the bytes in the managed `assets/` folder, derives canonical
+`data asset import` command stages the bytes in the managed `assets/` folder, derives canonical
 metadata, updates the exact cell with a revision check, and cleans staged or
 visible files when the mutation fails:
 
 ```bash
-eidos --json attachment import tracker.eidos \
+eidos --json data asset import tracker.eidos \
   --table Tasks --row 019... --field Files \
   --source /absolute/path/report.pdf \
   --expected-revision 5
@@ -171,16 +176,16 @@ eidos --json attachment import tracker.eidos \
 
 Repeat `--source` for one atomic multi-file import. Use `--replace` only when
 the whole cell should be replaced. If a file already exists below the
-directory containing the `.eidos` file, use `attachment attach` with
+directory containing the `.eidos` file, use `data asset attach` with
 `--uri assets/name.ext` to reference it without copying.
 
-Remove exact entry IDs with `attachment detach --entry 019...`, or explicitly
+Remove exact entry IDs with `data asset detach --entry 019...`, or explicitly
 use `--all`. Detach and replace retain physical files because other records may
 still reference them. Check local paths, byte counts, media types, symlinks,
 and unreferenced managed files with:
 
 ```bash
-eidos --json attachment verify tracker.eidos --diagnostics-limit 100
+eidos --json data asset verify tracker.eidos --diagnostics-limit 100
 ```
 
 Broken references make the command exit nonzero. Orphaned assets are warnings
@@ -198,7 +203,7 @@ Formula uses a fixed SQLite 3.45 scalar-expression subset. See
 and syntax; do not send arbitrary SQL or invent function aliases.
 
 ```bash
-eidos --json formula preview tracker.eidos \
+eidos --json schema field preview tracker.eidos \
   --table Tasks --name Total \
   --formula '"Estimate" * 2' --type integer
 ```
@@ -206,32 +211,32 @@ eidos --json formula preview tracker.eidos \
 Create or update a Formula with revision-checked Runtime preflight:
 
 ```bash
-eidos --json formula add tracker.eidos \
-  --table Tasks --name Total \
-  --formula '"Estimate" * 2' --type integer \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name Total --type formula \
+  --formula '"Estimate" * 2' --result-type integer \
   --expected-revision 4 --dry-run
 
-eidos --json formula update tracker.eidos Total \
-  --table Tasks --formula '"Estimate" + 1' --type integer \
+eidos --json schema field update tracker.eidos Total \
+  --table Tasks --formula '"Estimate" + 1' --result-type integer \
   --expected-revision 4
 ```
 
 Create a Lookup after its Relation and target Field exist:
 
 ```bash
-eidos --json lookup add tracker.eidos \
-  --table Tasks --name OwnerScore \
+eidos --json schema field add tracker.eidos \
+  --table Tasks --name OwnerScore --type lookup \
   --relation-field Owners --target-field Score \
   --aggregate sum --expected-revision 5
 ```
 
-`table create` may include Formula fields in its initial field array and uses
+`schema table create` may include Formula fields in its initial field array and uses
 the same Runtime preflight path. Relation and Lookup fields are added after
 their referenced schema exists.
 
 Lookup aggregates are `values`, `first`, `count`, `sum`, `average`, `min`,
-and `max`; add `--distinct` when distinct values are required. `query` and
-`context` automatically evaluate Formula, Lookup, and inverse Relation Fields
+and `max`; add `--distinct` when distinct values are required. `data query`
+automatically evaluates Formula, Lookup, and inverse Relation Fields
 when a Table contains them, so derived Fields may be projected, filtered, and
 sorted. Derived Fields are read-only in row mutations. Runtime rejects invalid
 types, missing targets, stale plans, and dependency cycles before commit.
@@ -244,23 +249,23 @@ Schema changes support dry-run execution against the real transaction path
 before commit.
 
 ```bash
-eidos --json schema-apply tracker.eidos \
+eidos --json schema apply tracker.eidos \
   --expected-revision 1 \
   --op @schema-change.json \
   --dry-run
 ```
 
-`schema-apply` also accepts Runtime schema batches and resolves Table and Field
+`schema apply` accepts Runtime schema batches and resolves Table and Field
 names in settings, position, record-label, conversion, option-rename, Relation,
 Formula, and Lookup operations. CLI invocations do not share Runtime mutation
 tokens, so committed changes have no cross-command `undo`; use authorized
 Eidos Lite/Graft history or a known-good File copy for recovery.
 
 Create a Calendar View from the stable Table and date/datetime Field IDs in
-`schema` output:
+`schema dump` output:
 
 ```bash
-eidos --json view-apply tracker.eidos - <<'JSON'
+eidos --json schema view apply tracker.eidos - <<'JSON'
 {
   "expectedRevision": "2",
   "changes": [{
@@ -279,5 +284,5 @@ JSON
 
 The CLI allocates the View ID and returns it under `createdViews`. View query
 and layout references use stable Field IDs; display names are not accepted in
-the persisted View document. `update-view` supports explicit name, type,
-query, layout, and position patches; `delete-view` removes the stable View ID.
+the persisted View document. `schema view update` supports explicit name, type,
+query, layout, and position patches; `schema view delete` removes the stable View ID.

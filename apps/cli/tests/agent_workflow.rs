@@ -1679,3 +1679,91 @@ fn agent_skill_can_be_initialized_in_a_space_without_npx() {
     let forced = success(&["skills", "init", "--path", &root, "--force"]);
     assert_eq!(forced["changed"], true);
 }
+
+#[test]
+fn cli_v2_namespaced_workflow() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("v2-tracker.eidos");
+    let file = path_string(&file);
+
+    // 1. file new
+    let created = success(&[
+        "file",
+        "new",
+        &file,
+        "--title",
+        "V2 Project Tracker",
+        "--table",
+        "Tasks",
+        "--fields",
+        r#"[{"name":"Title","type":"text"}]"#,
+    ]);
+    assert_eq!(created["file"]["revision"], "1");
+
+    // 2. file inspect
+    let inspected = success(&["file", "inspect", &file]);
+    assert_eq!(inspected["file"]["title"], "V2 Project Tracker");
+
+    // 3. schema dump
+    let schema_dump = success(&["schema", "dump", &file]);
+    assert_eq!(schema_dump["tables"].as_array().unwrap().len(), 1);
+
+    // 4. schema table list
+    let table_list = success(&["schema", "table", "list", &file]);
+    assert_eq!(table_list["tables"].as_array().unwrap().len(), 1);
+
+    // 5. schema field add
+    let field_add = success(&[
+        "schema", "field", "add", &file, "--table", "Tasks", "--name", "Status", "--type", "text",
+    ]);
+    assert_eq!(field_add["result"]["revision"], "2");
+
+    // 6. schema field preview (formula)
+    let preview = success(&[
+        "schema",
+        "field",
+        "preview",
+        &file,
+        "--table",
+        "Tasks",
+        "--name",
+        "Calc",
+        "--formula",
+        "1 + 1",
+        "--type",
+        "integer",
+    ]);
+    assert_eq!(preview["valid"], true);
+
+    // 7. schema view list
+    let views = success(&["schema", "view", "list", &file]);
+    assert!(views["views"].is_array());
+
+    // 8. data mutate (--insert)
+    let mutate = success(&[
+        "data",
+        "mutate",
+        &file,
+        "--table",
+        "Tasks",
+        "--insert",
+        r#"{"Title":"Task 1","Status":"todo"}"#,
+    ]);
+    assert!(mutate["revision"].is_string() || mutate["result"]["revision"].is_string());
+
+    // 9. data query
+    let rows = success(&["data", "query", &file, "--table", "Tasks"]);
+    assert_eq!(rows["rows"].as_array().unwrap().len(), 1);
+
+    // 10. data query --compact
+    let compact = success(&["data", "query", &file, "--compact"]);
+    assert_eq!(compact["compact"], true);
+    assert_eq!(compact["table"]["name"], "Tasks");
+
+    // 11. self skill init
+    let skill_dir = dir.path().join("skill_test");
+    let skill_path = path_string(&skill_dir);
+    let skill_init = success(&["self", "skill", "init", "--path", &skill_path]);
+    assert_eq!(skill_init["skill"], "eidos");
+    assert_eq!(skill_init["changed"], true);
+}

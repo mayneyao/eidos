@@ -5,9 +5,22 @@ sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components"
 
 `eidos` 命令行工具直接操作本地 `.eidos` 文件，不依赖 Eidos Lite 或后台服务。
+
+<Aside type="note" title="Eidos CLI 2.0">
+Eidos CLI 2.0 将命令重构为更清晰、原子化的命名空间：
+- **`file`**：文件级操作（`new`、`inspect`、`validate`、`repair`）
+- **`schema`**：关系结构（`dump`、`apply`、`table`、`field`、`view`）
+- **`data`**：行与记录（`query`、`mutate`、`compact`、`asset`）
+- **`serve`**：本地 / 局域网 Web 编辑器
+- **`cloud`**：账户与远程服务（`login`、`whoami`、`logout`、`publish`、`collect`）
+- **`self`**：CLI 自身维护与 Skill（`skill`、`upgrade`）
+- **`plugin`**：本地插件包管理（`list`、`install`、`remove`、`inspect`）
+
+传统的 1.x 扁平命令（`eidos create`、`eidos context`、`eidos rows` 等）作为隐藏别名保留，以保持向后兼容。
+</Aside>
 
 ## 安装
 
@@ -21,29 +34,41 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
 ## 基础使用
 
-新的工作流建议使用命令优先的写法：
+新工作流推荐使用带命名空间的语法：
 
 ```bash
-eidos inspect tracker.eidos
-eidos context tracker.eidos Tasks --fields Title,Status --limit 50
-eidos validate tracker.eidos --level full
+eidos file inspect tracker.eidos
+eidos data query tracker.eidos Tasks --fields Title,Status --limit 50
+eidos file validate tracker.eidos --level full
 ```
 
 命令默认输出便于阅读的结果。脚本或智能体需要稳定的结构化结果时，添加 `--json`：
 
 ```bash
-eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
+eidos --json data query tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
 运行 `eidos --help` 查看所有命令；运行 `eidos <命令> --help` 查看某个命令的参数。
 
-## 开发文件编辑器插件
+## 文件编辑器插件
 
-使用 `eidos plugin create`、`check`、`pack` 为 Eidos Lite 构建离线文件编辑器。
-安装 Eidos CLI 和 Node.js 后，即可创建插件项目并安装依赖。
+使用 `eidos plugin` 检查和管理本地安装的插件：
+
+```bash
+eidos plugin list
+eidos plugin install ./my-plugin.eidos-plugin
+eidos plugin remove com.example.plugin
+```
+
+要创建和打包新插件，请使用 `@eidos.space/plugin-tools`：
+
+```bash
+npx @eidos.space/plugin-tools create my-plugin
+npx @eidos.space/plugin-tools check
+npx @eidos.space/plugin-tools pack
+```
+
 完整的 CSV 编辑器教程见 [Plugin 开发指南](/zh-cn/plugins/guide/)。
-
-`plugin dev` 尚未提供开发会话。开发时使用 Lite 的「加载开发源码」获得热重载。
 
 ## 初始化智能体 Skill
 
@@ -51,13 +76,13 @@ CLI 已经内置 Eidos Skill，智能体配置不需要 Node.js、`npm` 或 `npx
 
 ```bash
 # 安装到当前 Space / 项目。
-eidos skills init
+eidos self skill init
 
 # 安装到当前用户，供所有项目使用。
-eidos skills init --global
+eidos self skill init --global
 ```
 
-要初始化其他 Space，可使用 `eidos skills init --space <DIR>`。命令会写入标准的
+要初始化其他 Space，可使用 `eidos self skill init --space <DIR>`。命令会写入标准的
 `.agents/skills/eidos` 目录，可以安全重复执行；如果文件已有本地修改，必须显式传入
 `--force` 才会更新。初始化后请新建一个智能体任务。
 
@@ -85,5 +110,5 @@ eidos skills init --global
 Space 历史或同步时，请使用 Eidos Lite。
 
 面向智能体的工作流可继续阅读[安全自动化指南](/zh-cn/cli/automation-workflow/)，其中包含
-Schema 意图命令、Runtime-backed Formula/Lookup、基于业务键的 `rows upsert`，以及混合
-`rows mutate` 的原子批量操作和安全的 File 字段附件导入、校验流程。
+Schema 意图命令、Runtime-backed Formula/Lookup、基于业务键的变更，以及混合
+变更的原子批量操作和安全的 File 字段附件导入、校验流程。

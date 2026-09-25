@@ -10,7 +10,7 @@ Lite hosts. It is useful when you want a visual UI while keeping a terminal-owne
 file workflow.
 
 ```bash
-eidos create tracker.eidos \
+eidos file new tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
@@ -189,5 +189,5 @@ row creation before sending edits that depend on its authoritative Row ID.
 
 The Serve process must still be the file's only physical writer. Stop it
 before opening the same path in another write-capable host or SQLite tool.
-After a session, `eidos validate tracker.eidos --level full` provides an
+After a session, `eidos file validate tracker.eidos --level full` provides an
 independent integrity check.

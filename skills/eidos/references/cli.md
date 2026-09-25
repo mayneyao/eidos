@@ -54,10 +54,10 @@ The Eidos Skill ships inside the CLI. It does not require Node.js, `npm`, or
 
 ```bash
 # Install for the current Space/project.
-eidos skills init
+eidos self skill init
 
 # Install for the current user and all projects.
-eidos skills init --global
+eidos self skill init --global
 ```
 
 Use `--space <DIR>` (an alias for `--path <DIR>`) to initialize a different
@@ -71,10 +71,10 @@ replace those edits.
 Upgrade a standalone installation to the latest stable release:
 
 ```bash
-eidos upgrade
+eidos self upgrade
 ```
 
-Select an exact release with `eidos upgrade --version <semver>`. The command
+Select an exact release with `eidos self upgrade --version <semver>`. The command
 verifies the release checksum and the downloaded binary's version before it
 replaces the current executable. It refuses downgrades unless `--force` is
 explicitly passed. Windows finalizes the replacement immediately after the
@@ -84,24 +84,23 @@ explicitly requests a CLI upgrade.
 ## Inspection and creation
 
 ```bash
-eidos --json inspect file.eidos
-eidos --json tables file.eidos
-eidos --json schema file.eidos
-eidos --json schema file.eidos Tasks
+eidos --json file inspect file.eidos
+eidos --json schema dump file.eidos
+eidos --json schema dump file.eidos Tasks
 ```
 
-`inspect` returns file identity, title, revision, counts, and capability flags. `schema` returns logical tables, fields, relations, formulas, lookups, and views. Revisions are canonical decimal strings.
+`file inspect` returns file identity, title, revision, counts, and capability flags. `schema dump` returns logical tables, fields, relations, formulas, lookups, and views. Revisions are canonical decimal strings.
 
 Create an empty file:
 
 ```bash
-eidos --json create tracker.eidos
+eidos --json file new tracker.eidos
 ```
 
 Create a file with an initial table:
 
 ```bash
-eidos --json create tracker.eidos \
+eidos --json file new tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[
@@ -116,10 +115,10 @@ Creation refuses to overwrite an existing path.
 
 ## Compact agent context
 
-Combine the File revision, compact field definitions, and a bounded row query:
+Combine the File revision, compact field definitions, and a bounded row query using `data query --compact`:
 
 ```bash
-eidos --json context file.eidos Tasks \
+eidos --json data query file.eidos Tasks --compact \
   --fields Title,Status,Estimate \
   --where '{"op":"in","field":"Status","values":["todo","doing"]}' \
   --limit 50
@@ -129,12 +128,12 @@ Omit the table when the File has a default table or exactly one table. When
 several tables exist without a default, the response lists table summaries
 with `requiresTable: true`. Add `--full` to include stable schema IDs, system
 fields, complete settings, relations, and views. Query options use the same
-grammar as `query`.
+grammar as `data query`.
 
 ## Query
 
 ```bash
-eidos --json query file.eidos Tasks \
+eidos --json data query file.eidos Tasks \
   --where '{"op":"eq","field":"Status","value":"doing"}' \
   --sort '[{"field":"Estimate","direction":"desc","nulls":"last"}]' \
   --fields Title,Status,Estimate \
@@ -145,7 +144,7 @@ eidos --json query file.eidos Tasks \
 Search requires explicit fields:
 
 ```bash
-eidos --json query file.eidos Tasks --search ship --search-fields Title,Notes
+eidos --json data query file.eidos Tasks --search ship --search-fields Title,Notes
 ```
 
 Filter nodes accept `field` or `fieldId`:

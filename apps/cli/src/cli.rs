@@ -22,62 +22,238 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Create, check, develop, and package Eidos Lite plugins.
+    /// Manage .eidos container lifecycle and file integrity.
+    File(Box<FileNamespaceArgs>),
+    /// Define and mutate tables, fields, formulas, relations, and saved views.
+    Schema(Box<SchemaNamespaceArgs>),
+    /// Query, evaluate, mutate rows, and manage attachments.
+    Data(Box<DataNamespaceArgs>),
+    /// Serve a local web editor for one file over HTTP.
+    Serve(ServeArgs),
+    /// Manage cloud publishing, form collection, and SaaS accounts.
+    Cloud(Box<CloudNamespaceArgs>),
+    /// Manage the Eidos CLI binary and agent skills.
+    #[command(name = "self")]
+    Self_(Box<SelfNamespaceArgs>),
+    /// Search, list, install, and uninstall plugins.
     Plugin(PluginArgs),
+
+    // Hidden backward compatibility aliases for 1.x flat invocations
+    #[command(hide = true)]
+    Create(CreateArgs),
+    #[command(hide = true)]
+    Inspect(FileArgs),
+    #[command(hide = true)]
+    Tables(FileArgs),
+    #[command(hide = true)]
+    Context(ContextArgs),
+    #[command(hide = true)]
+    Query(QueryArgs),
+    #[command(hide = true)]
+    Apply(ApplyArgs),
+    #[command(hide = true)]
+    Rows(RowsArgs),
+    #[command(hide = true)]
+    Attachment(AttachmentArgs),
+    #[command(hide = true)]
+    Validate(ValidateArgs),
+    #[command(name = "schema-apply", hide = true)]
+    SchemaApply(SchemaApplyArgs),
+    #[command(name = "view-apply", hide = true)]
+    ViewApply(ViewApplyArgs),
+    #[command(hide = true)]
+    View(Box<ViewArgs>),
+    #[command(hide = true)]
+    Table(Box<TableArgs>),
+    #[command(hide = true)]
+    Field(Box<FieldArgs>),
+    #[command(hide = true)]
+    Relation(Box<RelationArgs>),
+    #[command(hide = true)]
+    Formula(Box<FormulaArgs>),
+    #[command(hide = true)]
+    Lookup(Box<LookupArgs>),
+    #[command(hide = true)]
+    Publish(PublishArgs),
+    #[command(hide = true)]
+    Collect(CollectArgs),
+    #[command(hide = true)]
+    Login(AccountArgs),
+    #[command(hide = true)]
+    Whoami(AccountArgs),
+    #[command(hide = true)]
+    Logout(AccountArgs),
+    #[command(hide = true)]
+    Upgrade(UpgradeArgs),
+    #[command(hide = true)]
+    Skills(SkillsArgs),
+}
+
+// ==================== 2.0 Core Namespaces ====================
+
+#[derive(Debug, Args)]
+pub struct FileNamespaceArgs {
+    #[command(subcommand)]
+    pub command: FileCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FileCommand {
+    /// Create a new Eidos File, optionally with an initial table.
+    New(CreateArgs),
+    /// Inspect file identity, revision, capabilities, and integrity.
+    Inspect(FileInspectArgs),
+    /// Validate file structure, schema, content, and references.
+    Validate(ValidateArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct FileInspectArgs {
+    /// Target .eidos file.
+    pub file: PathBuf,
+    /// Run full cumulative validation of file structure, schema, and rows.
+    #[arg(long)]
+    pub full: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct SchemaNamespaceArgs {
+    #[command(subcommand)]
+    pub command: SchemaCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SchemaCommand {
+    /// Dump the complete logical schema or one table.
+    Dump(SchemaArgs),
+    /// Apply one revision-checked schema operation or patch.
+    Apply(SchemaApplyArgs),
+    /// Manage tables (list, create, update, delete).
+    Table(Box<TableArgs>),
+    /// Manage fields, formulas, relations, and lookups (list, add, update, delete, preview).
+    Field(Box<FieldArgs>),
+    /// Manage saved views (list, inspect, create, update, delete, apply).
+    View(Box<ViewArgs>),
+}
+
+#[derive(Debug, Args)]
+pub struct DataNamespaceArgs {
+    #[command(subcommand)]
+    pub command: DataCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DataCommand {
+    /// Query logical rows from one table, with optional compact agent context or ad-hoc eval.
+    Query(DataQueryArgs),
+    /// Mutate, add, update, upsert, or apply row changes atomically.
+    Mutate(DataMutateArgs),
+    /// Import, attach, detach, or verify File-field attachments.
+    Asset(AttachmentArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct DataQueryArgs {
+    /// Target .eidos file.
+    pub file: PathBuf,
+    /// Table name or stable ID. If omitted, uses default or only table.
+    pub table: Option<String>,
+    /// Table name or stable ID passed via --table.
+    #[arg(long = "table")]
+    pub table_opt: Option<String>,
+    /// Filter expression or JSON query.
+    #[arg(long = "where")]
+    pub where_clause: Option<String>,
+    /// Sort expressions.
+    #[arg(long = "sort")]
+    pub sort: Option<String>,
+    /// Maximum rows to return.
+    #[arg(long = "limit")]
+    pub limit: Option<u32>,
+    /// Row offset.
+    #[arg(long = "offset")]
+    pub offset: Option<u32>,
+    /// Fields to return.
+    #[arg(long = "fields", value_delimiter = ',')]
+    pub fields: Vec<String>,
+    /// Search keyword.
+    #[arg(long = "search")]
+    pub search: Option<String>,
+    /// Compact format tailored for LLM Agent context (replaces eidos context).
+    #[arg(long = "compact")]
+    pub compact: bool,
+    /// Include stable schema IDs and system fields (used with --compact).
+    #[arg(long = "full")]
+    pub full: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DataMutateArgs {
+    /// Target .eidos file.
+    pub file: PathBuf,
+    /// Table name or stable ID.
+    #[arg(long)]
+    pub table: Option<String>,
+    /// Mutation payload JSON, @file, or - for stdin.
+    pub payload: Option<String>,
+    /// Insert row values JSON (single object or array).
+    #[arg(long)]
+    pub insert: Option<String>,
+    /// Match expression for update (e.g. '{"_id":"..."}').
+    #[arg(long = "match")]
+    pub match_expr: Option<String>,
+    /// Set values for update.
+    #[arg(long = "set")]
+    pub set: Option<String>,
+    /// Expected match count for apply.
+    #[arg(long)]
+    pub expect: Option<u64>,
+    /// Stable business key for upsert.
+    #[arg(long)]
+    pub key: Option<String>,
+    /// Fields to return after mutation.
+    #[arg(long = "returning", value_delimiter = ',')]
+    pub returning: Vec<String>,
+    /// Expected current File revision.
+    #[arg(long)]
+    pub expected_revision: Option<String>,
+    /// Resolve, validate, and roll back without changing the File.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CloudNamespaceArgs {
+    #[command(subcommand)]
+    pub command: CloudCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CloudCommand {
     /// Sign in to Eidos and store a renewable CLI session securely.
     Login(AccountArgs),
     /// Show the Eidos account currently available to the CLI.
     Whoami(AccountArgs),
     /// Remove the stored Eidos CLI session from this device.
     Logout(AccountArgs),
-    /// Upgrade this Eidos CLI installation from a verified release.
-    Upgrade(UpgradeArgs),
-    /// Install the Eidos Agent Skill from this CLI into a project or user scope.
-    Skills(SkillsArgs),
-    /// Create a new Eidos File, optionally with an initial table.
-    Create(CreateArgs),
-    /// Inspect file identity, revision, and capabilities.
-    Inspect(FileArgs),
-    /// List tables in a file.
-    Tables(FileArgs),
-    /// Read the complete logical schema or one table.
-    Schema(SchemaArgs),
-    /// Read compact schema and rows for one agent working context.
-    Context(ContextArgs),
-    /// Query logical rows from one table.
-    Query(QueryArgs),
-    /// Match and update rows with revision checking and pre-commit validation.
-    Apply(ApplyArgs),
-    /// Add, update, or delete rows atomically.
-    Rows(RowsArgs),
-    /// Import, attach, detach, or verify File-field attachments.
-    Attachment(AttachmentArgs),
-    /// Validate file identity, structure, and content.
-    Validate(ValidateArgs),
-    /// Apply one revision-checked schema operation.
-    #[command(name = "schema-apply")]
-    SchemaApply(SchemaApplyArgs),
-    /// Create, update, delete, or reorder saved Views atomically.
-    #[command(name = "view-apply")]
-    ViewApply(ViewApplyArgs),
-    /// Create and manage saved Views using user-facing options.
-    View(Box<ViewArgs>),
-    /// Create, rename, or delete Tables using user-facing options.
-    Table(Box<TableArgs>),
-    /// Add, rename, or delete Fields using user-facing options.
-    Field(Box<FieldArgs>),
-    /// Create forward Relation Fields using user-facing options.
-    Relation(Box<RelationArgs>),
-    /// Preview and manage Formula Fields through the Eidos Runtime.
-    Formula(Box<FormulaArgs>),
-    /// Manage Lookup Fields through the Eidos Runtime.
-    Lookup(Box<LookupArgs>),
-    /// Serve a local web editor for one file over HTTP.
-    Serve(ServeArgs),
     /// Publish an immutable Eidos File or Markdown document.
     Publish(PublishArgs),
     /// Import committed responses from a published Form into its Eidos File.
     Collect(CollectArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SelfNamespaceArgs {
+    #[command(subcommand)]
+    pub command: SelfCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SelfCommand {
+    /// Upgrade this Eidos CLI installation from a verified release.
+    Upgrade(UpgradeArgs),
+    /// Manage the Eidos Agent Skill.
+    Skill(SkillsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -99,16 +275,20 @@ pub enum PluginCommand {
         deny: Vec<String>,
     },
     /// Create a plugin project without requiring Node.js.
+    #[command(hide = true)]
     Create {
         directory: PathBuf,
         #[arg(long, default_value = "document-view", value_parser = ["document-view", "eidos-view", "table-view", "table-action", "page", "theme"])]
         template: String,
     },
     /// Validate the manifest and TypeScript using local development dependencies.
+    #[command(hide = true)]
     Check(PluginProjectArgs),
     /// Connect an authoring session (requires host authoring support).
+    #[command(hide = true)]
     Dev(PluginProjectArgs),
     /// Build a self-contained .eidos-plugin package.
+    #[command(hide = true)]
     Pack(PluginProjectArgs),
     /// Install a plugin from the registry or a local .eidos-plugin package.
     Install(PluginInstallArgs),
@@ -924,6 +1104,8 @@ pub struct TableArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum TableCommand {
+    /// List tables in a file.
+    List(TableListArgs),
     /// Create a Table with stored Fields.
     Create(TableCreateArgs),
     /// Update a Table's metadata and record presentation settings.
@@ -933,6 +1115,9 @@ pub enum TableCommand {
     /// Delete a Table by name or stable ID.
     Delete(TableDeleteArgs),
 }
+
+#[derive(Debug, Args, Default)]
+pub struct TableListArgs {}
 
 #[derive(Debug, Args)]
 pub struct TableCreateArgs {
@@ -1033,6 +1218,8 @@ pub enum FieldCommand {
     Rename(FieldRenameArgs),
     /// Delete a Field by name or stable ID.
     Delete(FieldDeleteArgs),
+    /// Preview and validate a Formula without writing.
+    Preview(FormulaPreviewArgs),
 }
 
 #[derive(Debug, Args)]
@@ -1052,6 +1239,30 @@ pub struct FieldAddArgs {
     /// Relation or other Field definition JSON object. Accepts inline JSON, @path, or - for stdin.
     #[arg(long)]
     pub definition: Option<String>,
+    /// Formula source text (when type is formula).
+    #[arg(long)]
+    pub formula: Option<String>,
+    /// Declared result type (when type is formula).
+    #[arg(long = "result-type")]
+    pub result_type: Option<String>,
+    /// Target Table (when type is relation).
+    #[arg(long = "target-table")]
+    pub target_table: Option<String>,
+    /// Relation cardinality: one or many (when type is relation).
+    #[arg(long)]
+    pub cardinality: Option<String>,
+    /// Target deletion policy: restrict, detach, or preserve (when type is relation).
+    #[arg(long = "on-delete")]
+    pub on_delete: Option<String>,
+    /// Relation Field name or ID (when type is lookup).
+    #[arg(long = "relation-field")]
+    pub relation_field: Option<String>,
+    /// Target Field name or ID (when type is lookup).
+    #[arg(long = "target-field")]
+    pub target_field: Option<String>,
+    /// Lookup aggregate: values, first, count, sum, average, min, or max (when type is lookup).
+    #[arg(long)]
+    pub aggregate: Option<String>,
     /// Expected current File revision. Defaults to the revision read by this command.
     #[arg(long)]
     pub expected_revision: Option<String>,
@@ -1097,6 +1308,21 @@ pub struct FieldUpdateArgs {
     /// JSON array of option renames with from, to, and optional collision (reject or merge).
     #[arg(long)]
     pub rename_options: Option<String>,
+    /// Replacement Formula source text (when updating a formula field).
+    #[arg(long)]
+    pub formula: Option<String>,
+    /// Declared result type (when updating a formula field).
+    #[arg(long = "result-type")]
+    pub result_type: Option<String>,
+    /// Relation Field name or ID (when updating a lookup field).
+    #[arg(long = "relation-field")]
+    pub relation_field: Option<String>,
+    /// Target Field name or ID (when updating a lookup field).
+    #[arg(long = "target-field")]
+    pub target_field: Option<String>,
+    /// Lookup aggregate: values, first, count, sum, average, min, or max (when updating a lookup field).
+    #[arg(long)]
+    pub aggregate: Option<String>,
     /// Confirm the mutation when Runtime preflight classifies it as explicitly lossy.
     #[arg(long)]
     pub confirm_lossy: bool,
@@ -1422,6 +1648,13 @@ pub struct LookupDeleteArgs {
 }
 
 const COMMANDS: &[&str] = &[
+    "file",
+    "schema",
+    "data",
+    "cloud",
+    "self",
+    "serve",
+    "plugin",
     "create",
     "inspect",
     "tables",
@@ -1441,9 +1674,12 @@ const COMMANDS: &[&str] = &[
     "formula",
     "lookup",
     "skills",
-    "plugin",
-    "serve",
     "publish",
+    "collect",
+    "login",
+    "whoami",
+    "logout",
+    "upgrade",
 ];
 
 /// Accept the ergonomic `eidos file.eidos query ...` form while keeping the
@@ -1484,10 +1720,26 @@ pub fn normalize_args(mut args: Vec<OsString>) -> Vec<OsString> {
 }
 
 fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
+    if let Some(schema_idx) = args.iter().position(|val| val == "schema") {
+        let is_subcommand = args
+            .get(schema_idx + 1)
+            .map(|val| {
+                let s = val.to_string_lossy();
+                matches!(
+                    s.as_ref(),
+                    "dump" | "apply" | "table" | "field" | "view" | "-h" | "--help"
+                )
+            })
+            .unwrap_or(false);
+        if !is_subcommand {
+            args.insert(schema_idx + 1, OsString::from("dump"));
+        }
+    }
+
     for (command, subcommands) in [
         (
             "view",
-            ["list", "inspect", "create", "update", "delete"].as_slice(),
+            ["list", "inspect", "create", "update", "delete", "apply"].as_slice(),
         ),
         (
             "rows",
@@ -1497,8 +1749,14 @@ fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
             "attachment",
             ["import", "attach", "detach", "verify"].as_slice(),
         ),
-        ("table", ["create", "update", "rename", "delete"].as_slice()),
-        ("field", ["add", "update", "rename", "delete"].as_slice()),
+        (
+            "table",
+            ["list", "create", "update", "rename", "delete"].as_slice(),
+        ),
+        (
+            "field",
+            ["list", "add", "update", "rename", "delete", "preview"].as_slice(),
+        ),
         ("relation", ["add", "update"].as_slice()),
         ("formula", ["preview", "add", "update", "delete"].as_slice()),
         ("lookup", ["add", "update", "delete"].as_slice()),

@@ -9,7 +9,7 @@ sidebar:
 保留终端文件工作流，同时使用可视化 UI 的场景。
 
 ```bash
-eidos create tracker.eidos \
+eidos file new tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
@@ -170,5 +170,5 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 Serve 仍会先提交建行，再发送依赖其权威 Row ID 的后续编辑。
 
 Serve 进程仍必须是该文件唯一的物理 writer。使用其他可写 Host 或 SQLite 工具打开同一路径
-前，先停止服务。会话结束后，可以用 `eidos validate tracker.eidos --level full` 做独立完整性
+前，先停止服务。会话结束后，可以用 `eidos file validate tracker.eidos --level full` 做独立完整性
 校验。

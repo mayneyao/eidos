@@ -38,20 +38,20 @@ The standalone CLI includes the Eidos Skill. No Node.js or `npx` is required:
 
 ```bash
 # Current Space/project
-eidos skills init
+eidos self skill init
 
 # Current user, for all projects
-eidos skills init --global
+eidos self skill init --global
 ```
 
-Use `--space <DIR>` to target another Space. The initializer keeps the Skill
+Use `eidos self skill init --space <DIR>` to target another Space. The initializer keeps the Skill
 aligned with the installed CLI and will not overwrite local edits without
 `--force`.
 
 ## 2. Create a file with a table
 
 ```bash
-eidos create example.eidos \
+eidos file new example.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
@@ -77,7 +77,7 @@ the paired URL printed in the terminal. Stop it with <kbd>Ctrl</kbd> +
 <Aside type="tip" title="Verify the result">
 
 ```bash
-eidos example.eidos validate --level full
+eidos file validate example.eidos --level full
 ```
 
 </Aside>

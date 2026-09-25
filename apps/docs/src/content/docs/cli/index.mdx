@@ -5,10 +5,23 @@ sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components"
 
 The `eidos` CLI works directly with local `.eidos` files. It does not require Eidos Lite or a
 background service.
+
+<Aside type="note" title="Eidos CLI 2.0">
+Eidos CLI 2.0 reorganizes commands into clear, atomic namespaces:
+- **`file`**: File-level operations (`new`, `inspect`, `validate`, `repair`)
+- **`schema`**: Relational structure (`dump`, `apply`, `table`, `field`, `view`)
+- **`data`**: Rows and records (`query`, `mutate`, `compact`, `asset`)
+- **`serve`**: Local/LAN web editor
+- **`cloud`**: Account and remote services (`login`, `whoami`, `logout`, `publish`, `collect`)
+- **`self`**: CLI maintenance and skills (`skill`, `upgrade`)
+- **`plugin`**: Local plugin package management (`list`, `install`, `remove`, `inspect`)
+
+Legacy 1.x flat commands (`eidos create`, `eidos context`, `eidos rows`, etc.) remain available as hidden aliases for backward compatibility.
+</Aside>
 
 ## Install
 
@@ -22,30 +35,42 @@ background service.
 
 ## Basics
 
-Use command-first syntax for new workflows:
+Use command-first namespaced syntax:
 
 ```bash
-eidos inspect tracker.eidos
-eidos context tracker.eidos Tasks --fields Title,Status --limit 50
-eidos validate tracker.eidos --level full
+eidos file inspect tracker.eidos
+eidos data query tracker.eidos Tasks --fields Title,Status --limit 50
+eidos file validate tracker.eidos --level full
 ```
 
 Commands print readable output by default. Add `--json` when a script or Agent needs the stable
 machine-readable result:
 
 ```bash
-eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
+eidos --json data query tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
 Use `eidos --help` to list commands, and `eidos <command> --help` for the options of one command.
 
-## Develop file editor plugins
+## File editor plugins
 
-Use `eidos plugin create`, `check`, and `pack` to build an offline file
-editor for Eidos Lite. Install Eidos CLI and Node.js, then create a project and install its dependencies. Follow the
-[plugin development guide](/plugins/guide/) for a complete CSV editor walkthrough.
+Use `eidos plugin` to inspect and manage locally installed plugins:
 
-`plugin dev` does not yet provide an authoring session. Use Lite's **Load development source** for hot reload.
+```bash
+eidos plugin list
+eidos plugin install ./my-plugin.eidos-plugin
+eidos plugin remove com.example.plugin
+```
+
+To create and package new plugins, use `@eidos.space/plugin-tools`:
+
+```bash
+npx @eidos.space/plugin-tools create my-plugin
+npx @eidos.space/plugin-tools check
+npx @eidos.space/plugin-tools pack
+```
+
+Follow the [plugin development guide](/plugins/guide/) for a complete CSV editor walkthrough.
 
 ## Initialize the Agent Skill
 
@@ -54,13 +79,13 @@ The CLI bundles the Eidos Skill, so an Agent setup does not need Node.js,
 
 ```bash
 # Install in the current Space/project.
-eidos skills init
+eidos self skill init
 
 # Install for the current user and all projects.
-eidos skills init --global
+eidos self skill init --global
 ```
 
-Use `eidos skills init --space <DIR>` for another Space. The command writes the
+Use `eidos self skill init --space <DIR>` for another Space. The command writes the
 standard `.agents/skills/eidos` layout, is safe to repeat, and refuses to
 replace locally edited files unless `--force` is explicit. Start a new Agent
 task after initialization.
@@ -89,5 +114,5 @@ The CLI manages Eidos Files, not Eidos Lite Spaces or local history. Use Eidos L
 folder navigation, Space history, or Sync.
 
 For Agent workflows, the [safe automation guide](/cli/automation-workflow/) also covers intent
-commands for schema changes, Runtime-backed Formula/Lookup Fields, business-key `rows upsert`, and
-atomic mixed `rows mutate` batches, plus safe File-field attachment import and verification.
+commands for schema changes, Runtime-backed Formula/Lookup Fields, business-key mutations, and
+atomic mixed mutation batches, plus safe File-field attachment import and verification.

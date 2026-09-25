@@ -36,19 +36,19 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 
 ```bash
 # 当前 Space / 项目
-eidos skills init
+eidos self skill init
 
 # 当前用户，供所有项目使用
-eidos skills init --global
+eidos self skill init --global
 ```
 
-使用 `--space <DIR>` 可以指定其他 Space。初始化器会让 Skill 与已安装的 CLI 保持一致；
+使用 `eidos self skill init --space <DIR>` 可以指定其他 Space。初始化器会让 Skill 与已安装的 CLI 保持一致；
 如果文件存在本地修改，只有显式传入 `--force` 才会覆盖。
 
 ## 2. 创建带数据表的文件
 
 ```bash
-eidos create example.eidos \
+eidos file new example.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
@@ -72,7 +72,7 @@ eidos serve example.eidos --open
 <Aside type="tip" title="校验结果">
 
 ```bash
-eidos example.eidos validate --level full
+eidos file validate example.eidos --level full
 ```
 
 </Aside>
