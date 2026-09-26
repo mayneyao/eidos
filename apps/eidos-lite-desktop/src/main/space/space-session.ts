@@ -381,6 +381,7 @@ export class SpaceSession {
   private readonly markdownWatchers = new Set<{
     folder: string
     listener: () => void
+    allFiles?: boolean
   }>()
   private readonly fileIssuesByPath = new Map<string, EidosFileIssue>()
   private readonly ignoreInspectionCache = new Map<
@@ -1120,7 +1121,11 @@ export class SpaceSession {
   }
 
   watchFiles(folder: string, listener: () => void): { dispose(): void } {
-    return this.watchMarkdownFiles(folder, listener)
+    const safe = folder ? normalizeMutableRelativePath(folder) : ""
+    const watcher = { folder: safe, listener, allFiles: true }
+    if (this.closed) throw new Error("Space is closed")
+    this.markdownWatchers.add(watcher)
+    return { dispose: () => this.markdownWatchers.delete(watcher) }
   }
 
   async saveTextFile(
@@ -1369,7 +1374,7 @@ export class SpaceSession {
   private notifyMarkdownWatchers(paths: readonly string[]): void {
     if (this.closed || this.markdownWatchers.size === 0) return
     const changes = paths.map(normalizedWatcherPath)
-    for (const { folder, listener } of this.markdownWatchers) {
+    for (const { folder, listener, allFiles } of this.markdownWatchers) {
       if (
         changes.length > 0 &&
         !changes.some((changed) => {
@@ -1379,7 +1384,8 @@ export class SpaceSession {
           return (
             ancestor ||
             (inFolder &&
-              (changed.toLowerCase().endsWith(".md") ||
+              (allFiles ||
+                changed.toLowerCase().endsWith(".md") ||
                 changed === folder ||
                 !path.posix.extname(changed)))
           )

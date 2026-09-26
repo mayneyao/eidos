@@ -28,6 +28,32 @@ afterEach(async () => {
 })
 
 describe("plugin file mutations", () => {
+  it("watches all file types while preserving Markdown filtering and disposal", async () => {
+    const all = vi.fn(),
+      markdown = vi.fn(),
+      nested = vi.fn(),
+      sibling = vi.fn()
+    const subscription = session.watchFiles("", all)
+    session.watchMarkdownFiles("", markdown)
+    session.watchFiles("notes", nested)
+    session.watchFiles("notes-other", sibling)
+    await fs.mkdir(path.join(root, "notes"))
+    await session.writeTextFile("notes/data.json", "{}")
+    await session.writeBinaryFile("notes/image.png", Buffer.from([0, 1]))
+    await session.renameFile("notes/data.json", "notes/data.csv")
+    await session.deleteFile("notes/image.png")
+    expect(all).toHaveBeenCalledTimes(4)
+    expect(nested).toHaveBeenCalledTimes(4)
+    expect(markdown).not.toHaveBeenCalled()
+    expect(sibling).not.toHaveBeenCalled()
+    await session.writeTextFile("notes/note.md", "hello")
+    expect(markdown).toHaveBeenCalledOnce()
+    subscription.dispose()
+    await session.writeTextFile("notes/more.json", "{}")
+    expect(all).toHaveBeenCalledTimes(5)
+    expect(nested).toHaveBeenCalledTimes(6)
+  })
+
   it("writes regular text and binary files, including shorter replacements", async () => {
     await session.writeTextFile("test.txt", "long original")
     await session.writeTextFile("test.txt", "new")
