@@ -1,117 +1,75 @@
 ---
-title: Start with an Eidos File
-description: Understand the file model and complete a first table-to-view workflow.
+title: Getting Started with Eidos Files
+description: Master the core workflow of tables, fields, records, and views to effortlessly organize your structured data.
 sidebar:
   order: 10
 ---
 
-An Eidos File is a SQLite-backed document with a defined data model. You can
-copy it like an ordinary file, inspect it with familiar SQLite tools, and edit
-it through any conforming Eidos Runtime without changing its meaning.
+An **Eidos File** (`.eidos` file) is a self-contained, lightweight, and capable local structured document. You can back it up, copy it across drives, or send it to friends just like a standard document, and open it locally in milliseconds without an internet connection.
 
-## Understand the parts
+---
 
-| Part   | Meaning                                                                                        |
-| ------ | ---------------------------------------------------------------------------------------------- |
-| Table  | A typed collection of records, such as Tasks or Books                                          |
-| Field  | A property shared by records, such as Status, Due date, or Rating                              |
-| Record | One row with a stable identity                                                                 |
-| View   | A saved presentation of a table, including visible fields, filters, sorts, and view properties |
+## 1. Core Elements of a File
 
-The file also owns stable IDs, revision metadata, relations, derived-field
-definitions, and attachment references. Applications use these to preserve
-meaning across renames, different views, and different devices.
+An `.eidos` file is composed of several intuitive building blocks:
 
-Grid, Gallery, Kanban, and Calendar are views over the same records. Editing a record in
-one view changes the record, so the result is visible in every other view.
+| Element | Description | Example |
+| :--- | :--- | :--- |
+| **Table** | A dedicated collection of records representing one type of entity | `Tasks`, `Customers`, `Books` |
+| **Field** | The columns of your table, defining properties and data formats | `Title` (Text), `Priority` (Select), `Due Date` (Date) |
+| **Record** | A single row in a table representing a specific item | A specific task, a customer contact, a book |
+| **View** | A distinct saved layout and filter preset for the same table | Table Grid, Kanban Board, Card Gallery, Calendar |
 
-## Choose how to open it
+:::tip[Edits in One View Update Everywhere]
+All views (Grid, Kanban, Gallery, etc.) are different lenses focusing on the exact same underlying records. If you drag a card from "In Progress" to "Done" in a Kanban board, switching back to the Grid view will immediately reflect the new status. There are never duplicated or out-of-sync copies.
+:::
 
-| Host       | Best for                                                       |
-| ---------- | -------------------------------------------------------------- |
-| Web Editor | Opening or creating one file without installing an application |
-| CLI Serve  | Editing one local file through a browser UI                    |
-| Eidos Lite | Managing a folder with files, local history, and optional Sync |
-| Eidos CLI  | Scripts, validation, repeatable imports, and automation        |
+---
 
-All Hosts use the same File and Runtime semantics. They differ in file access,
-asset acquisition, save flow, and optional history services.
+## 2. Create Your First Table
 
-## Create the first table
+When opening an `.eidos` file, you can use the default table or click the **+** button in the table tab bar:
 
-In the Web Editor, choose **New** or a template. In the CLI, create the first
-table as part of the file command:
+1. **Name Your Table**: Give it a clear, descriptive name (e.g. `Tasks`). A best practice is to keep each table focused on a single type of entity rather than mixing customers and receipts together.
+2. **Choose the Record Label Field**:
+   - Every table designates one primary column as its "Record Label Field" (usually the first column).
+   - This serves as the display title for records when viewing them as cards on a Kanban board or linking them across tables.
+   - Choose a field that humans immediately recognize, such as **Task Name**, **Full Name**, or **Book Title**, rather than an internal ID or timestamp.
 
-```bash
-eidos file new tasks.eidos \
-  --table Tasks \
-  --label-field Title \
-  --fields '[{"name":"Title","type":"text"},{"name":"Priority","type":"select"}]'
-```
+---
 
-Every table has one Record Label Field. This is the human-readable value Eidos
-uses in record details, cards, and relations. Choose a field that identifies a
-record to a person—such as **Title**, **Name**, or **Order number**—rather than
-an internal status or timestamp.
+## 3. Entering Data & Adding Custom Columns
 
-Continue in the editor:
+### Quick Record Entry
+- Click **Add record** at the bottom of the table, or press <kbd>⌘</kbd> + <kbd>Enter</kbd> on macOS (<kbd>Ctrl</kbd> + <kbd>Enter</kbd> on Windows/Linux) to insert a new row below and immediately start typing.
+- Navigate seamlessly with keyboard shortcuts: press <kbd>Tab</kbd> to move to the next cell, and <kbd>Enter</kbd> to save.
 
-1. Add fields for the properties you actually query or display.
-2. Create a record and fill its Record Label first.
-3. Add a Select option catalog for controlled states such as Todo, Doing, and Done.
-4. Create a second view when you need a different filter, sort, or layout.
+### Add Custom Fields
+Click the **+** button on the far right of the table header:
+- Enter a column name (such as "Priority").
+- Select a field type (such as **Select**).
+- Add preset options (e.g. "High", "Medium", "Low") and pick distinct colors.
+- Optionally configure a **Default Option**: every newly created record will automatically be assigned this default value.
 
-For the complete field-type guide, see [Tables and fields](/user-guide/tables-and-fields/).
+For an exhaustive guide on all field options, see [Tables and Fields](/user-guide/tables-and-fields/).
 
-For a Select field, open field properties to choose an optional **Default
-option**. Eidos assigns it only when a create action omits that field. Clearing
-the value explicitly suppresses the default. Existing rows and imported CSV
-rows are not backfilled. Renaming the option keeps the default attached to it;
-deleting the option clears the default.
+---
 
-## Enter and inspect records
+## 4. One-Click Switch: From Table to Kanban Board
 
-Grid is the fastest place to enter repeated values. Open a record when a long
-text value, relation, or attachment needs more space than a cell. Record
-details and cards edit the same underlying row, so there is no separate “card
-copy” to reconcile later.
+Once you have entered some records, you can create tailored views for your workflow:
 
-Relation fields store stable target record IDs and display the target table's
-current Record Label. A label rename changes presentation, not the relation.
-See [Records and editing](/user-guide/records-and-editing/) for linking,
-attachments, multi-cell paste, and undo behavior.
+1. Click the **+** button in the view bar.
+2. Select **Kanban** as the view type.
+3. Select which single-select field to group columns by (e.g. "Status" or "Priority").
+4. Click create, and your spreadsheet instantly transforms into an interactive card board!
+5. Drag and drop cards across columns to update their status properties in real time.
 
-## Build a focused view
+For advanced filtering, sorting, and gallery layouts, see [Views and Querying](/user-guide/views-and-querying/).
 
-A view remembers its filters, sort order, visible fields, and layout. Search is
-temporary: clearing the search box returns to the saved view.
+---
 
-Date and Datetime filters include before/after, inclusive boundaries, a
-two-ended range, and relative conditions. A relative condition combines past,
-future, or the current period with day, week, month, or year. It stays relative
-when saved in a view instead of becoming a fixed date.
+## 5. Instant Local Saving & Portability
 
-Use [Views, search, filters, and sorts](/user-guide/views-and-querying/) for
-filter groups, multiple sorts, visible fields, Grid/Gallery/Kanban/Calendar layout, and
-examples such as “open work updated this month.”
-
-## Know when the file is saved
-
-The editor surface is shared, but saving is Host-specific:
-
-- Direct-file Web mode writes only after browser permission and conflict checks.
-- Imported-copy Web mode requires **Save As** or downloading a copy.
-- CLI Serve and successful CLI mutations write to the path you opened.
-- Eidos Lite writes the local file; local history and Sync are separate layers.
-
-Before closing, check the save state and understand which copy is durable. The
-full matrix is in [Data location and safety](/user-guide/data-safety/).
-
-## A practical first-file checklist
-
-- The table name describes one kind of thing.
-- The Record Label Field makes every row recognizable.
-- Controlled states use Select or Multi-select instead of inconsistent text.
-- Dates use Date when time-of-day does not matter and Datetime when it does.
-- A saved view expresses the workflow; temporary search is not mistaken for a view.
-- Important files have an ordinary backup outside the active working copy.
+- **Automatic Persistence**: Eidos Lite saves your changes continuously. Every keystroke and drag operation is written directly to the `.eidos` file on your drive, so you never have to remember to click "Save".
+- **Completely Portable**: When you close Eidos Lite, you can copy the `.eidos` file to a USB thumb drive or send it via email; it remains an entirely self-contained database with all your tables, fields, and views intact.

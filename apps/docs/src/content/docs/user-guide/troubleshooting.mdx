@@ -1,72 +1,52 @@
 ---
-title: Troubleshoot Eidos Lite
-description: Start with the message you see in Eidos Lite and try the relevant next step.
+title: Troubleshooting & FAQs
+description: Practical solutions to common prompts, keyboard shortcuts reference, and diagnostic logging.
 sidebar:
   order: 80
 ---
 
-## A Space or file will not open
+If you encounter unexpected prompts or questions while using Eidos Lite, refer to this guide to resolve them quickly.
 
-Confirm that the folder is still in its original location and that your account can read and write it. If another application, file-sync tool, or backup tool is changing the Space, pause it and try opening the Space again.
+---
 
-An `.eidos` file must be a valid Eidos File. Renaming an ordinary SQLite database with an `.eidos` extension does not convert it.
+## 1. Frequently Encountered Questions
 
-## A file is busy or locked
+### "File is in use or locked"
+- **Cause**: Another window, an external SQLite utility, or a backup tool holds an exclusive lock on that `.eidos` file.
+- **Solution**: Close any external programs or duplicate windows accessing the file, wait two seconds, and re-open it in Eidos Lite.
 
-Close other Eidos windows, SQLite tools, or preview apps that have the same `.eidos` file open, then try again. Do not let two applications write to the same file at once.
+### Space folder or file cannot be opened
+- **Check Paths & Permissions**: Verify that the folder has not been moved, renamed, or trashed in your operating system's file manager.
+- **Valid File Format**: `.eidos` files contain specialized database schemas. Renaming an arbitrary blank text file to `.eidos` will not make it readable.
 
-## Versions asks you to save changes first
+### "Please save current changes first" when restoring or syncing
+- **Solution**: Click the clock icon in the top right to open Versions. Under **Changes**, click **Save version** (or discard temporary edits). Once saved, proceed with your restore or sync operation.
 
-Restore and Sync require a saved version of the current work:
+### Accidental deletion: how to recover lost files?
+1. **Operating System Trash**: Files deleted from the Eidos Lite sidebar are sent to your operating system's Trash or Recycle Bin first. You can restore them from there.
+2. **Restore from Versions**: If you have versioning enabled, click the clock icon, locate an earlier snapshot containing the file in **History**, and click restore.
 
-1. Open **Versions** from the top-right corner.
-2. Review the work under **Changes**.
-3. Select **Save version**.
-4. Try the original action again.
+---
 
-If you do not need the changes, you can discard them from **Changes**, but the discarded work cannot be recovered from the current working state.
+## 2. Keyboard Shortcuts Cheat Sheet
 
-## The Versions button is unavailable
+| Shortcut (macOS) | Shortcut (Windows/Linux) | Action |
+| :--- | :--- | :--- |
+| <kbd>⌘</kbd> + <kbd>N</kbd> | <kbd>Ctrl</kbd> + <kbd>N</kbd> | Open New File dialog |
+| <kbd>⌘</kbd> + <kbd>Enter</kbd> | <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Add new row below and begin editing |
+| <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> | <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> | Navigate to next / previous cell |
+| <kbd>Space</kbd> | <kbd>Space</kbd> | Toggle checkbox in selected cell |
+| <kbd>Esc</kbd> | <kbd>Esc</kbd> | Cancel cell editing and restore previous value |
+| <kbd>⌘</kbd> + <kbd>Z</kbd> | <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo last action |
+| <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> | <kbd>Ctrl</kbd> + <kbd>Y</kbd> | Redo |
 
-Confirm that Eidos Lite can write to the Space folder, then reopen the Space. If it is still unavailable, check **Settings → Updates** and restart Eidos Lite.
+---
 
-## Sync says access is required
+## 3. Diagnostics & Contacting Support
 
-Signing in does not start a paid Sync period. Open **Settings → Account & Services**, then activate a monthly or annual period with Credits or open the pricing page to subscribe by card. No application or invitation is required.
+If you encounter an issue that cannot be resolved:
 
-If you just completed card checkout, wait for the payment confirmation and refresh the account state before trying again.
-
-The local Space is unaffected and remains available offline.
-
-## Sync cannot continue
-
-Follow the main action shown in the Sync panel:
-
-- **Review changes** — save a local version or resolve conflicts between Local and Hosted.
-- **Manage storage** — clear cloud storage or change the plan.
-- **Try again** — check the network connection and retry.
-- **Sign in again** — the session expired and needs a new sign-in.
-
-Do not delete the local Space to clear a Sync state. If there is a conflict and you are unsure what to keep, create recovery copies first.
-
-## Publish is unavailable
-
-Make sure that you are signed in and that Publish is available for the account. Verified accounts can publish public Markdown with Publish Free; Eidos Files, Forms, password access, and private access require Publish Pro. Activate Pro with Credits from the account page or subscribe by card from pricing. Eidos Lite currently publishes `.eidos`, `.md`, and `.markdown` files; folders and other formats do not offer Publish.
-
-## A published attachment is missing
-
-Make sure that the attachment still exists in the source file's folder or one of its subfolders. If it was moved or renamed, update its reference in the source and publish again.
-
-## Find a deleted file
-
-Ordinary files deleted from Eidos Lite move to the system Trash. Check the Trash first; if the file is not there, restore it from Version history or an independent backup.
-
-## If the problem remains
-
-Open **Settings → About**:
-
-1. Select **Copy diagnostics**.
-2. If needed, select **Show logs folder**.
-3. Open a [GitHub issue](https://github.com/mayneyao/eidos/issues), describe the action and message you saw, and include the diagnostics.
-
-Review logs before sharing them. Remove private file names, paths, or account details.
+1. Open **Settings → About**.
+2. Click **Copy diagnostics**.
+3. If requested by the team, click **Show logs folder** to find detailed application logs.
+4. Visit [GitHub Issues](https://github.com/mayneyao/eidos/issues) and submit your feedback along with the diagnostic snippet.

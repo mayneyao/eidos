@@ -1,46 +1,53 @@
 ---
-title: Core concepts
-description: Eidos File, Runtime, Host, Space, shared UI, history, and Sync.
+title: Core Concepts
+description: Understand Spaces, Eidos Files, multiple views, and the local-first philosophy.
 sidebar:
   order: 40
 ---
 
-## Eidos File
+Before diving into Eidos Lite, understanding these core concepts will help you effortlessly build personal databases, notes, and workflows.
 
-An Eidos File is a SQLite application file with canonical metadata and data
-objects. Its Runtime maps those objects to typed tables, fields, records,
-relations, formulas, and saved views. A `.eidos` extension alone does not make
-an arbitrary SQLite database a valid Eidos File.
+---
 
-## Runtime
+## 1. Space (Your Workspace)
 
-Runtime owns logical meaning: query, filter, sort, Formula, Lookup, Relation,
-conversion, revision, mutation, and validation behavior. A host must call
-Runtime instead of reimplementing those rules in UI code or raw SQL.
+**A Space is simply an ordinary local folder on your computer.**
 
-## Host and Adapter
+- **Never proprietary**: Eidos Lite does not trap your files inside a locked database. You can open and inspect this folder in your operating system (Finder or File Explorer) at any time.
+- **Mix and match**: In the same Space, you can store `.eidos` database files, Markdown notes, PDFs, images, and other everyday files side by side.
+- **Portable**: You can move or copy your Space folder to an external SSD, USB drive, or cloud backup, and everything remains completely intact.
 
-A host is the environment around Runtime. The browser handles file permission
-and recovery; Lite handles folders, local processes, and native file dialogs;
-CLI Serve handles one local file over HTTP. Adapters connect Runtime to SQLite
-and platform capabilities without changing data semantics.
+---
 
-## Space
+## 2. Eidos File (`.eidos` Documents)
 
-In Eidos Lite, a Space is an ordinary folder chosen by the user. It can contain
-several Eidos Files and other files. Space describes a desktop working context,
-not a new database format.
+**An `.eidos` file is a lightweight, self-contained structured document.**
 
-## Shared UI
+- **Single-file portability**: Each `.eidos` file packages your tables, field definitions, records, and view layouts into a single standalone file.
+- **Offline first, instant response**: Open and edit thousands of records locally in milliseconds, with zero network lag and no mandatory sign-in.
+- **Easy sharing**: Just like sharing a regular spreadsheet or text document, you can email or transfer an `.eidos` file to a colleague, who can open it immediately with all views and layouts preserved.
 
-`@eidos.space/eidos-file-ui` supplies the editor shared by Web, Lite, and CLI
-Serve. Grid, Gallery, Kanban, Calendar, record editing, query controls, and theme roles
-are shared implementations.
+---
 
-## Graft, history, and Sync
+## 3. Multiple Views
 
-Graft provides version history for SQLite-backed files and Spaces. Eidos Lite
-can connect that local history to an optional authenticated remote. Local files
-remain usable while offline or signed out.
+**Inspect the exact same data from different perspectives.**
 
-For exact ownership rules, read the [specification suite](/specifications/).
+In traditional tools, creating a board or gallery often requires duplicating data. In Eidos:
+
+- **Table Grid**: Designed for high-density editing, rapid data entry, and multi-column comparisons.
+- **Kanban Board**: Group records into visual columns by single-select fields (e.g. "To Do", "In Progress", "Done") with drag-and-drop status updates.
+- **Card Gallery**: Feature cover images or attachment thumbnails to build a visual card showcase.
+- **Calendar**: Plot dates and milestones directly onto a clean monthly or weekly calendar.
+
+All views point to the exact same underlying records. Edits made in one view update across all other views in real time, with **zero duplicated copies**.
+
+---
+
+## 4. Local-First & Data Ownership
+
+**Your data stays strictly under your control.**
+
+- **Always usable offline**: You don't need to create an account or connect to a cloud service for everyday use.
+- **Built-in version history**: Snapshots let you travel back in time to any previous state without needing an account.
+- **Optional cloud superpowers**: When you need to work across multiple laptops, enable Sync. When you want to share a note or form with others, publish it as a live web page with one click.

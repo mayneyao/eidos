@@ -1,62 +1,55 @@
 ---
-title: Data, attachments, and backups
-description: Understand where Eidos Lite saves data and what you need to back up.
+title: Data, Attachments & Backups
+description: Learn where your data and attachments are stored, and how to safely perform physical backups.
 sidebar:
   order: 60
 ---
 
-Eidos Lite works directly with files on your computer. Opening a Space means opening an ordinary folder, and edits are saved to the original files in that folder.
+Eidos Lite is built on a strict **local-first** architecture. Opening a Space simply opens an ordinary folder on your computer. All edits are saved directly to local files on your drive.
 
-Local work does not require an account, and opening or editing a file does not upload it automatically.
+Local use requires no account registration, and your data is never silently uploaded to the cloud.
 
-## What an `.eidos` file contains
+---
 
-An `.eidos` file stores structured data such as Tables, Fields, Records, and Views. It is a standard SQLite file that you can copy, move, and back up like any other file.
+## 1. Where Is Your Data Stored?
 
-Images, PDFs, and other attachments remain separate files in the Space. They are **not stored inside the `.eidos` file**. The Eidos File records where to find them, so copying only the `.eidos` file may leave its attachments behind.
+### `.eidos` Files (Structured Documents)
+An `.eidos` file stores your tables, fields, records, formulas, and view definitions. It is a completely self-contained file that you can copy, rename, or transfer just like any standard document.
 
-When moving work that includes attachments, move the whole Space or preserve the same folder structure.
+### Attachments & Images
+To prevent large binary files from inflating databases and causing lag, attachments are handled cleanly alongside documents:
+- **Files & Media Attachments**: PDFs, photos, and videos added to tables are stored as standalone files within your Space directory. The `.eidos` database only holds clean relative paths pointing to them.
+- **Images Pasted into Markdown**: When pasting an image into a `.md` note in Eidos Lite, the file is automatically saved into an `assets/` subfolder next to your document (e.g. `assets/image.png`), with standard relative links inserted into the text. This ensures your notes remain 100% portable and render perfectly in any other external Markdown editor.
 
-## Images in Markdown documents
+:::tip[Golden Rule for Moving & Sharing]
+If your workspace contains images or attachments, **always move or copy the entire Space folder** rather than just a lone `.eidos` file to ensure all relative paths remain intact.
+:::
 
-When you paste an image into a `.md` or `.markdown` document in Eidos Lite,
-Lite saves the image in an `assets` folder beside that document and inserts a
-portable relative reference such as `assets/diagram.png`. Source and Rich text
-editing use the same storage rule. Existing relative image references are also
-resolved from the Markdown document's folder.
+---
 
-Names are made portable and collisions create a new name instead of replacing
-an existing file. Pasted images are limited to 64 MiB and their actual bytes
-must be a supported raster image. Deleting a reference or its Markdown document
-does not automatically delete files from `assets`; remove unused images
-explicitly after checking that no other document uses them.
+## 2. Safely Backing Up Your Space
 
-These images are ordinary Space files. Versions and Sync cover them with the
-rest of the Space, and Markdown Publish includes referenced local images. This
-document-local rule applies to ordinary Markdown files; a table's Content field
-does not acquire a filesystem attachment folder from this setting.
+Because a Space is an ordinary folder on your hard drive, backing it up is straightforward:
 
-## Back up a Space
+1. Ensure recent edits are complete.
+2. In your file manager (macOS Finder or Windows File Explorer), right-click and copy your entire Space folder.
+3. Paste the copy onto an external SSD, USB drive, NAS, or your operating system's automatic backup destination (like macOS Time Machine).
+4. Periodically backing up your Space ensures peace of mind against accidental deletion or hardware failure.
 
-The safest approach is to back up the whole Space folder:
+---
 
-1. Wait for the current edit to finish saving.
-2. Copy the whole Space folder in Finder or your file manager.
-3. Keep the copy on another drive or in a backup location you trust.
-4. Occasionally open the backup copy to confirm that it works.
+## 3. Versions vs Sync vs Physical Backups
 
-CSV is useful for exchanging table data, but it is not a complete backup. It does not preserve Views, Relations, Formulas, or attachment references.
+Users often wonder about the distinction between these three tools:
 
-## Versions, Sync, and backups
+| Tool | Purpose | Can It Replace Physical Backups? |
+| :--- | :--- | :--- |
+| **Local Versions** | Preserves historical snapshots on your machine, letting you travel back in time. | **No**. Versions live on the exact same drive as your active files; drive failure will impact both. |
+| **Cloud Sync** | Automatically mirrors changes across multiple computers (e.g. laptop and desktop). | **No**. Sync replicates deletions and unwanted edits in real time. |
+| **Physical Backup** | Copies the whole Space onto an isolated secondary drive or storage medium. | **The Ultimate Safeguard**. This is your only true defense against computer loss or hardware disaster. |
 
-- **Versions** help you return a Space to an earlier state.
-- **Sync** helps you continue working across your own devices.
-- **Backups** preserve another copy if a computer is lost, a drive fails, or the whole Space is deleted.
+---
 
-They solve different problems. Keep an independent backup even when Versions or Sync is enabled.
+## 4. Avoiding Multi-App Lock Conflicts
 
-## Avoid file conflicts
-
-Do not modify the same `.eidos` file in more than one application at a time. If Eidos Lite says that a file is busy, locked, or changed outside the app, close the other application before reopening the file.
-
-SQLite tools can read an `.eidos` file. Before writing to it directly, close Eidos Lite and make a backup. For normal edits, use Eidos Lite or the Eidos CLI.
+`.eidos` files use standard filesystem locking to protect data integrity. Avoid opening and writing to the same `.eidos` file in two different applications (e.g. two separate windows or external SQLite editors) at the exact same moment. If Eidos Lite alerts you that a file is in use or locked, simply close other programs and re-open the document.

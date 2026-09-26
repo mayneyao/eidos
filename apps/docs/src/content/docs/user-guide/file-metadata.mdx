@@ -1,0 +1,108 @@
+---
+title: File Metadata Management
+description: Manage custom metadata directly on local files within the current folder, where nested folders stay independent while sharing underlying attributes.
+sidebar:
+  label: File Metadata Management
+  order: 60
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+When organizing local videos, design assets, photos, or contracts, operating system file managers typically only show filenames and modification dates. They offer no native way to tag files, assign ratings, track review statuses, or jot down notes.
+
+**File Metadata Management** presents an ordinary local folder as a structured table. Every custom attribute you enter is saved directly to the physical file itself, giving you an effortless way to categorize, tag, and filter your local digital assets.
+
+---
+
+## 1. Quick Start
+
+Getting started takes just three steps:
+
+1. **Create a file**: In the Eidos Lite sidebar, click New File (shortcut: `Cmd/Ctrl + N`), and choose **Eidos** as the file type.
+2. **Enable management**: Check the **File Metadata Management** toggle. The default filename is `files.eidos` (feel free to rename it), then click **Create**.
+3. **Start tagging**: Open the created table and click the **+ (Add Column)** button on the right side of the header. Enter a property name (such as "Status", "Rating", or "Tags") and start recording metadata directly on your files as you would in a spreadsheet.
+
+---
+
+## 2. Daily Workflow & File Safety
+
+- **Zero duplication, safe and lossless**: All physical files remain in their original disk folders. Eidos never creates redundant copies that waste disk space, nor does it alter the raw contents of your files.
+- **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table detects the changes and updates in real time without requiring manual refreshes.
+- **Instant full-screen previews**: Click on any file name or attachment icon in a record to view images, videos, or documents directly without leaving your current workspace.
+
+---
+
+## 3. Scope of Management
+
+**An `.eidos` file with File Metadata Management enabled manages strictly the single folder in which it resides.**
+
+It does not scan across unrelated directories or walk up the parent hierarchy. Every file maintains a clear local boundary: its containing folder is its entire scope.
+
+<FileTree>
+
+- Movies/
+  - **files.eidos** Manages files only in this folder
+  - Interstellar.mkv
+  - Dune.mp4
+  - Poster.jpg
+  - Notes.pdf
+
+</FileTree>
+
+---
+
+## 4. Nested Folders & Shared Attribute Mechanics
+
+Complex project structures often contain nested subfolders (for example, a project folder containing dedicated asset subfolders). When both a parent folder and a subfolder create their own `files.eidos`:
+
+<FileTree>
+
+- Creative-Project/
+  - **files.eidos** Manages root folder files
+  - Project-Plan.pdf
+  - Budget.xlsx
+  - Visual-Assets/
+    - **files.eidos** Manages subfolder files independently
+    - Hero-Poster.png
+    - Brand-Logo.svg
+    - Illustration.jpg
+  - References/
+    - Competitive-Review.md
+    - Moodboard.png
+
+</FileTree>
+
+### Independent layouts and configurations
+The `.eidos` file in the parent folder and the one in the subfolder are **completely separate documents**:
+Layouts, view styles, filter criteria, and sort rules are fully isolated between the two files. Subfolders without an `.eidos` file remain completely unaffected.
+
+### Shared underlying metadata on physical files
+Because custom attributes are recorded directly in physical file extended attributes:
+- **Same field names read the same underlying data**: When both tables define a field with the **exact same name** (such as `tags`, `rating`, or `status`), they read and write the exact same underlying file attribute.
+- **Live two-way consistency**: If you assign a rating to a file while working inside the subfolder, opening that same file in the parent folder will reflect the updated rating immediately.
+
+### Important precautions
+
+1. **Edits to shared fields take effect immediately**: For any given file, editing an attribute updates the physical file directly, meaning all views displaying that file will reflect the updated value.
+2. **Moving files preserves attributes**: Moving a file from one directory to another preserves its metadata. As long as the destination folder's database includes a field with the matching name, it will instantly display the file's existing metadata.
+3. **Difference between "Deleting a column" and "Clearing a cell value"**:
+   - **Deleting a column (field)** in the database removes that column from your current table layout; **it does not delete or alter the file's stored metadata**.
+   - **Clearing the content of a cell** explicitly removes that attribute value from the physical file's system metadata.
+4. **Attribute portability**:
+   - File metadata is saved to native extended attributes supported by all modern operating systems and filesystems (macOS APFS, Linux ext4, Windows NTFS). Metadata is preserved when working on internal drives, external SSDs, or syncing via Graft version control.
+   - If files are transferred using third-party tools that strip extended attributes (such as sending individual files over instant messaging apps) or copied onto basic FAT32 media, the extended attributes may be ignored by the operating system.
+
+---
+
+## 5. Built-in System Fields
+
+The system automatically extracts physical file properties (read-only):
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | Text | Physical filename (e.g. `Photo.jpg`) |
+| `path` | Text | Relative path from the folder root, serving as the record title and primary key |
+| `extension` | Text / Select | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`) |
+| `size` | Text / Integer | File size (formatted automatically as KB, MB, or GB) |
+| `mimetype` | Text | Media type (e.g. `image/jpeg`, `video/mp4`), useful for filtering media types |
+| `file` | Attachment | Local file handle providing instant thumbnails and full-screen previews |

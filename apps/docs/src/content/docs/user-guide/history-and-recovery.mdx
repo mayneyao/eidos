@@ -1,70 +1,69 @@
 ---
-title: Versions and recovery
-description: Save versions of a Space, review changes, and restore an earlier version.
+title: Versions & Time Machine Recovery
+description: Snapshot Space history locally, view visual diffs, and restore to any past state with one click.
 sidebar:
   order: 70
 ---
 
-Versions record the state of the whole Space, including its `.eidos` files and ordinary files. Save a version after completing a meaningful set of changes, such as “Organized customer records” or “Before publishing.”
+**Versions** is Eidos Lite's built-in local time machine for your entire Space. It captures immutable snapshots of your `.eidos` tables, Markdown notes, and assets at key milestones.
 
-Versions stay local and do not require an account.
+All version data is stored strictly on your local disk. **No account sign-in or internet connection is required.**
 
-## Turn on Versions
+---
 
-1. Open a Space.
-2. Select the **Versions** button—the clock icon—in the top-right corner.
-3. Select **Enable versioning**.
+## 1. Enable Versioning
 
-Eidos Lite saves the current Space as its first version. The next time you open the panel, it shows **Changes** and **History**.
+1. Open any Space in Eidos Lite.
+2. Click the **Versions** button (clock icon) in the top-right corner.
+3. Click **Enable versioning**.
 
-## Exclude files from Versions
+Eidos Lite immediately captures the initial state of your entire Space as its first snapshot. Subsequently, opening the Versions panel presents two primary tabs: **Changes** and **History**.
 
-Add a `.gitignore` or `.graftignore` file to the Space when generated files, caches, secrets, or other local-only content should stay out of version management. Eidos Lite reads these files from the Space root and from nested directories. Matching files that are not already tracked do not appear under **Changes** and are not added to new Versions.
+---
 
-Both files use Git's ignore-pattern syntax. Use `.gitignore` when the rules should also apply to Git, or `.graftignore` for Eidos Lite's version management only. When both files in the same directory match a path, the `.graftignore` rule takes precedence; rules in deeper directories take precedence over rules inherited from parent directories.
+## 2. Saving a Version Snapshot
 
-For example:
+Whenever you complete a meaningful milestone (e.g. "Finalized August client invoices" or "Completed project brief draft"):
+
+1. Click the clock icon in the top right.
+2. In the **Changes** list, review the files that have been created, modified, or deleted.
+3. In the **Version note** field at the bottom, type a concise summary (e.g. "Release ready draft").
+4. Click **Save version**.
+
+The changes are instantly committed to your timeline in **History**, ready to be referenced whenever needed.
+
+---
+
+## 3. Reviewing Historical Diffs
+
+1. Open the Versions panel and switch to the **History** tab.
+2. Browse the chronological timeline showing commit timestamps and notes.
+3. Click any milestone to see which files changed.
+4. Click on an individual file to inspect visual side-by-side diffs for tables and text documents.
+5. Browsing historical changes never modifies your current working files.
+
+---
+
+## 4. One-Click Space Rollback
+
+If recent edits were a mistake or you accidentally deleted important files, you can restore your whole Space to any prior point in time:
+
+1. Open the **History** tab and select the version you wish to restore.
+2. Click **Restore this version**.
+3. Confirm by clicking **Restore Space** in the confirmation dialog.
+
+Eidos Lite instantly restores all files in your folder to that exact milestone. For maximum safety, the system automatically creates a safeguard snapshot of your current state just before rolling back, meaning **you can even undo the restoration if you change your mind**.
+
+---
+
+## 5. Excluding Large or Temporary Files
+
+If your Space contains large cache directories, build outputs, or dependencies (like `node_modules`) that shouldn't inflate version history, create a `.gitignore` or `.graftignore` file in your Space root:
 
 ```text
 node_modules/
 *.tmp
-private/
+cache/
 ```
 
-Ignore rules do not delete local files. A path that was already tracked before a matching rule was added remains under version management, and its existing history is preserved.
-
-## Save a version
-
-1. Finish a group of edits, then open **Versions**.
-2. Review the changed files under **Changes**.
-3. Add an optional **Version note**, such as “Added August invoices.”
-4. Select **Save version**.
-
-The saved version now appears under **History**.
-
-:::tip
-To let Eidos Lite save a version after local activity settles, turn on **Settings → Spaces → Automatic versions**.
-:::
-
-## Review an earlier change
-
-1. Open **Versions** and switch to **History**.
-2. Select a version to see which files changed.
-3. Select a file to inspect supported text or table differences.
-
-Reviewing History does not change the current files.
-
-## Restore an earlier version
-
-Restoring returns the **whole Space** to the selected version, not only the file currently open.
-
-1. Check **Changes** for unsaved work. If there is any, save it as a version first.
-2. Open **History** and select the version you want.
-3. Select **Restore this version**.
-4. Confirm with **Restore Space**.
-
-Eidos Lite saves another version to record the restore. You can still return to the state from before the restore.
-
-## Versions are not backups
-
-Version history lives on the same computer as the Space. A lost device or failed drive can affect both. Back up the whole Space as described in [Data, attachments, and backups](/user-guide/data-safety/).
+Files matching these patterns will be ignored in the Changes tab and kept out of your historical snapshots.

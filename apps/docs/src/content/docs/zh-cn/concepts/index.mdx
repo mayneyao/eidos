@@ -1,41 +1,53 @@
 ---
 title: 核心概念
-description: Eidos File、Runtime、Host、Space、共享 UI、历史与同步。
+description: 了解 Space、Eidos File、多重视图与本地优先的设计理念。
 sidebar:
   order: 40
 ---
 
-## Eidos File
+在使用 Eidos Lite 前，了解以下几个核心概念，能帮助你更轻松地构建属于自己的个人数据库与工作空间。
 
-Eidos File 是带规范 metadata 与 data object 的 SQLite application file。Runtime
-把它们映射为带类型的表、字段、记录、关系、公式和保存的视图。只有 `.eidos` 扩展名，不能让
-任意 SQLite 数据库自动成为有效的 Eidos File。
+---
 
-## Runtime
+## 1. Space（工作空间）
 
-Runtime 拥有 logical meaning：query、filter、sort、Formula、Lookup、Relation、
-conversion、revision、mutation 与 validation 行为。Host 必须调用 Runtime，不能在 UI
-代码或 raw SQL 中重复实现这些规则。
+**Space 就是你电脑上的一个普通本地文件夹。**
 
-## Host 与 Adapter
+- **绝不封闭**：Eidos Lite 不会把你的文件封锁在私有数据库中。你可以随时在系统文件管理器（Finder 或资源管理器）中直接打开这个文件夹。
+- **混合存放**：在同一个 Space 里，你可以同时存放 `.eidos` 表格文件、Markdown 笔记、PDF 资料、图片以及各种日常文件。
+- **随心移动**：你可以把整个 Space 文件夹拷贝到移动硬盘、U 盘或备份到任何地方，所有内容依然完好如初。
 
-Host 是 Runtime 周围的运行环境。浏览器负责文件授权与恢复；Lite 负责文件夹、本地进程与原生
-文件对话框；CLI Serve 通过 HTTP 处理一个本地文件。Adapter 把 Runtime 连接到 SQLite 与
-平台能力，但不能改变数据语义。
+---
 
-## Space
+## 2. Eidos File（`.eidos` 文件）
 
-在 Eidos Lite 中，Space 是用户选择的普通文件夹，可以包含多个 Eidos File 和其他文件。
-Space 描述桌面工作上下文，不是新的数据库格式。
+**`.eidos` 是一份轻巧独立的本地结构化数据文档。**
 
-## 共享 UI
+- **单文件便携**：每份 `.eidos` 文件都将你的数据表、字段定义、记录内容和视图排版完整封装在一个独立的文件中。
+- **离线可用，毫秒响应**：无需联网，在本地即可极速打开并编辑海量数据，没有任何网络延迟或账号依赖。
+- **随时分享**：就像发送一份普通的文档一样，你可以把一个 `.eidos` 文件直接发给朋友或同事，对方打开即可完整查看你的表格与视图。
 
-`@eidos.space/eidos-file-ui` 是 Web、Lite 与 CLI Serve 共用的编辑器。Grid、
-Gallery、Kanban、记录编辑、查询控件和主题角色都是共享实现。
+---
 
-## Graft、历史与同步
+## 3. 多重视图（Views）
 
-Graft 为 SQLite 文件和 Space 提供版本历史。Eidos Lite 可以把本地历史连接到可选的认证远端。
-离线或退出账号时，本地文件仍然可用。
+**同一份数据，你可以从不同的视角去观察和使用它。**
 
-精确的 ownership 规则见[规范套件](/zh-cn/specifications/)。
+在传统工作流中，想要制作看板或画廊往往需要重复录入数据。而在 Eidos 中：
+
+- **表格明细（Grid）**：适合批量录入、多列数据对比与快捷键操作。
+- **任务看板（Kanban）**：按“进行中”、“已完成”等单选状态将卡片分列陈列，支持拖拽流转。
+- **视觉画廊（Gallery）**：将图片或文件作为封面，打造成沉浸式的卡片墙。
+- **时间日历（Calendar）**：根据截止日期或日程安排，以月历或周历直观呈现。
+
+所有的视图都直接指向同一份底层数据。在一个视图中修改了内容，其他视图会自动同步更新，**绝不会产生多余的数据副本**。
+
+---
+
+## 4. 本地优先与数据主权（Local-First）
+
+**你的数据永远属于你自己。**
+
+- **永久离线可用**：日常使用不需要注册账号，也不依赖任何云端服务器。
+- **安全与版本时光机**：内置免登录的本地版本控制功能，让你随时可以回到任意历史时刻。
+- **按需扩展云端服务**：当你需要在多台电脑之间无缝流转时，可自由开启设备间同步（Sync）；需要与他人共享内容时，可一键发布（Publish）为在线网页。

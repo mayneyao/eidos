@@ -77,6 +77,7 @@ export default defineConfig({
                     "user-guide/records-and-editing",
                     "user-guide/views-and-querying",
                     "user-guide/import-and-export",
+                    "user-guide/file-metadata",
                   ],
                 },
                 {

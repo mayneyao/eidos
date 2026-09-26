@@ -1,86 +1,102 @@
 ---
-title: Eidos Lite
-description: 安装桌面应用，使用本地 Space，并按需使用同步或发布服务。
+title: Eidos Lite 用户指南
+description: 安装桌面应用，管理本地 Space，使用结构化表格、多重视图以及同步发布服务。
 sidebar:
   order: 1
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos Lite 是用于管理 Space 的桌面应用。Space 就是一个普通文件夹，可以同时存放 `.eidos`
-文件和其他文件。本地使用不需要账户，也不依赖网络连接。
+**Eidos Lite** 是为你电脑上的文件夹提供结构化数据管理、多重视图与笔记编辑能力的桌面应用。
 
-## 安装
+你的 Space 就是一个普通的本地文件夹，可以自由混合存放 `.eidos` 表格、Markdown 文档、图片与各种日常文件。本地使用完全免登录，断网也能流畅使用。
+
+## 快速起步
 
 <CardGrid>
   <LinkCard
-    title="安装 Eidos Lite"
-    description="下载应用，创建或打开 Space，并建立第一份 Eidos File。"
+    title="安装与界面概览"
+    description="下载应用，认识主界面布局，并开启第一个 Space。"
     href="/zh-cn/getting-started/eidos-lite/"
   />
   <LinkCard
-    title="使用 Web 编辑器"
-    description="只需要打开一个 Eidos File 时，可以直接在浏览器中使用。"
+    title="核心概念"
+    description="理解 Space、Eidos File、多重视图与本地优先的设计理念。"
+    href="/zh-cn/concepts/"
+  />
+  <LinkCard
+    title="Web 浏览器版"
+    description="无需安装客户端，直接在浏览器中打开并编辑单个 Eidos 文件。"
     href="/zh-cn/getting-started/browser/"
   />
 </CardGrid>
 
-## 基础使用
+## 结构化数据与表格
 
 <CardGrid>
   <LinkCard
     title="从一份 Eidos File 开始"
-    description="创建文件，完成从数据表到视图的第一条工作流。"
+    description="理解数据表、字段、记录与多重视图的核心工作流。"
     href="/zh-cn/user-guide/eidos-file-basics/"
   />
   <LinkCard
-    title="数据表与字段"
-    description="选择字段类型，组织数据表结构。"
+    title="数据表与字段设计"
+    description="掌握文本、单选、评分、日期与跨表关联等丰富字段类型。"
     href="/zh-cn/user-guide/tables-and-fields/"
   />
   <LinkCard
-    title="记录与编辑"
-    description="添加、编辑、关联、附加、复制和删除记录。"
+    title="记录与日常编辑"
+    description="键盘高效流转、展开卡片详情、拖拽添加附件与撤销重做。"
     href="/zh-cn/user-guide/records-and-editing/"
   />
   <LinkCard
-    title="视图与查询"
-    description="使用视图、搜索、筛选和排序查看同一份数据。"
+    title="多重视图与高级筛选"
+    description="在表格、看板、画廊与日历之间自由切换，搭配多条件筛选。"
     href="/zh-cn/user-guide/views-and-querying/"
   />
   <LinkCard
+    title="公式与自动计算"
+    description="使用直观的表达式与内置函数实现自动统计与文本拼接。"
+    href="/zh-cn/user-guide/formula/"
+  />
+  <LinkCard
+    title="文件元数据管理"
+    description="在当前文件夹直接以表格管理文件属性，多层级文件夹各自独立。"
+    href="/zh-cn/user-guide/file-metadata/"
+  />
+  <LinkCard
     title="导入与导出"
-    description="导入 CSV 数据，或导出数据表和视图。"
+    description="从 CSV 一键迁移数据，将视图或整表导出为标准 CSV。"
     href="/zh-cn/user-guide/import-and-export/"
   />
 </CardGrid>
 
-## 进阶使用
+## 数据安全与云端服务
 
 <CardGrid>
   <LinkCard
-    title="数据、附件与备份"
-    description="了解数据保存在哪里，以及应该备份哪些文件。"
+    title="数据、附件与物理备份"
+    description="了解数据与附件保存在哪里，以及如何安全地进行物理备份。"
     href="/zh-cn/user-guide/data-safety/"
   />
   <LinkCard
-    title="版本与恢复"
-    description="保存版本、查看改动并恢复之前的内容。"
+    title="版本与时光机恢复"
+    description="本地免登录保存 Space 历史快照，随时一键回滚任意状态。"
     href="/zh-cn/user-guide/history-and-recovery/"
   />
   <LinkCard
-    title="在设备间同步"
-    description="在自己的另一台设备上继续使用同一个 Space。"
+    title="在设备间同步（Sync）"
+    description="开启云同步服务，在多台电脑之间无缝使用同一个 Space。"
     href="/zh-cn/user-guide/sync/"
   />
   <LinkCard
-    title="发布文件与表单"
-    description="选择文件，设置网址和权限，然后发布到网上。"
+    title="发布文件与表单（Publish）"
+    description="将文档、表格或表单一键生成在线网页，随时与他人分享。"
     href="/zh-cn/user-guide/publishing/"
   />
   <LinkCard
-    title="Eidos Lite 故障排查"
-    description="根据界面提示找到可以立即尝试的解决方法。"
+    title="常见问题与快捷键"
+    description="常见交互提示的解决方法、常用快捷键速查与诊断指引。"
     href="/zh-cn/user-guide/troubleshooting/"
   />
 </CardGrid>

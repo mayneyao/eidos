@@ -1,6 +1,6 @@
 ---
-title: Publish files and forms
-description: Choose a file, set its web address and access, and publish it online.
+title: Publish Documents & Forms
+description: Publish Space files or form views as beautiful live web pages to share with anyone.
 sidebar:
   order: 85
   badge:
@@ -10,64 +10,51 @@ sidebar:
 
 import { Badge } from "@astrojs/starlight/components"
 
-<Badge text="Free for public Markdown · Pro for more" variant="note" />
+<Badge text="Markdown Public Free · Advanced Features with Pro" variant="note" />
 
-Eidos Publish shares one selected file from a Space. After publishing, it has a stable web address, and Eidos Lite and your computer do not need to remain online.
+**Eidos Publish** lets you instantly publish a single Markdown document, read-only data table, or response-collection form from your Space into a standalone web page accessible in any browser.
 
-Verified accounts can use Publish Free for up to 10 active public Markdown pages sharing 100 MiB. Publishing Eidos Files or Forms, or using password and private access, requires Publish Pro. Activate Pro with 9 Credits for a monthly period or 90 Credits for an annual period from the [Publish account page](https://eidos.space/account?tab=publish), or subscribe by card from [pricing](https://eidos.space/pricing#publish). Credits renewal is optional and stays off until you explicitly enable it. Local use of Eidos Lite does not require a subscription.
+Once published, your computer does not need to stay online, and visitors do not need to install software or register an account to view your shared links.
 
-You can publish:
+---
 
-- An `.eidos` file as a read-only interactive file or as one of its Form Views with Publish Pro.
-- A `.md` or `.markdown` file as a public page with Publish Free, or with the additional access options in Publish Pro.
+## 1. Publish a Document in Seconds
 
-Publish and Sync are enabled separately. Enabling one does not automatically enable the other.
+1. In the sidebar file tree, right-click the file you wish to publish (`.md` notes or `.eidos` files).
+2. Select **Publish…** from the context menu.
+3. **Custom URL (Slug)**: Enter your preferred URL path (e.g. `project-roadmap`).
+4. **Access Control**:
+   - **Public**: Anyone with the link can view.
+   - **Password**: Visitors must enter your password to view.
+   - **Private**: Accessible only to the signed-in publisher.
+5. Click **Publish**. Within seconds, a live link is generated—ready to be copied and shared with clients or colleagues.
 
-## Publish a file
+:::tip[Visitors Cannot Alter Your Local Files]
+When publishing an `.eidos` table, visitors enjoy an interactive read-only experience. They can filter, sort, and browse cards, but can never modify your underlying local files.
+:::
 
-1. Right-click the file in the Space Explorer.
-2. Choose **Publish…**.
-3. Set the web path under **Resource slug**.
-4. Choose an option under **Access**.
-5. Select **Publish**.
+---
 
-When publishing finishes, copy the link or open the page from the progress panel.
+## 2. Publish Forms to Collect Responses
 
-For an `.eidos` file, **Interactive Eidos File** under **Publish as** lets visitors browse its data and Views without changing your local file.
+If your `.eidos` table includes a **Form view**, you can publish it online to collect survey results, bug reports, or event registrations:
 
-## Choose who can open it
+1. Right-click the `.eidos` file and select **Publish…**.
+2. Under **Publish as**, select the desired Form view.
+3. Configure submission permissions and your custom URL slug, then click **Publish**.
+4. Anyone on a mobile or desktop browser can fill out and submit the form.
+5. **Collect Responses**: In Eidos Lite, right-click the file, select **Manage Publish…**, and click **Collect now** to import new online submissions directly into your local table!
 
-- **Public** — anyone with the link.
-- **Password** — anyone with the password you set.
-- **Private** — only you, while signed in as the publisher.
+---
 
-Password and Private access depend on the current Publish plan.
+## 3. Updating and Unpublishing
 
-## Update published content
+- **Intentional Updates**: Local edits are kept local until you are ready, preventing drafts from prematurely leaking. Right-click the file, open **Manage Publish…**, and click republish. **Your existing web URL remains identical.**
+- **Instant Takedown**: You can pause or unpublish any link anytime from the Manage Publish dialog.
 
-Editing the local file does not automatically update the published copy. To update it:
+---
 
-1. Right-click the original file.
-2. Choose **Manage Publish…**.
-3. Find the existing resource and select its Republish action.
+## 4. Plans & Capabilities
 
-The original web address stays the same.
-
-## Publish a Form
-
-If an `.eidos` file contains a Form View, you can publish that Form:
-
-1. Right-click the `.eidos` file and choose **Publish…**.
-2. Under **Publish as**, choose the Form.
-3. Choose who can respond and whether one account may submit more than once.
-4. Set the web path and access, then select **Publish**.
-
-Responses first stay in the Publish service; they are not written to the local file automatically. To import them, open **Manage Publish…** and select **Collect now** beside the Form.
-
-Republish after changing the Form's questions or Fields so the online Form receives the update.
-
-## How attachments are published
-
-Attachments remain separate files in the Space; they are not stored inside the `.eidos` file. During publishing, Eidos finds attachments referenced by the source and uploads the files that are needed.
-
-Keep attachments in the source file's folder or one of its subfolders, and preserve their relative paths. Publishing includes only the selected source and its referenced attachments—not the whole Space.
+- **Publish Free**: Available to all verified Eidos accounts. Publish up to 10 active public Markdown pages.
+- **Publish Pro**: Unlocks interactive `.eidos` files, online form collections, and password protection. Manage subscriptions on your [Account Dashboard](https://eidos.space/account) or [Pricing Page](https://eidos.space/pricing#publish).
