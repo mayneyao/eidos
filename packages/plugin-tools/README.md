@@ -4,8 +4,8 @@ Read the public [development guide](../../apps/docs/src/content/docs/plugins/gui
 ([中文](../../apps/docs/src/content/docs/zh-cn/plugins/guide.mdx)) for the installed
 workflow. This document is for repository maintainers.
 
-Rust owns the `eidos plugin` entry point. This package supplies the compiler backend
-and categorized starters. SDK imports are types only; runtime capabilities are injected
+This package owns plugin creation, checking, development and packaging. CLI 2.0
+retains hidden aliases for older authoring commands. SDK imports are types only; runtime capabilities are injected
 through `mount(ctx, root)`. Check and pack accept directories containing `plugin.json`
 or standalone TS/JS sources, without executing plugin code or build configuration.
 
@@ -55,7 +55,7 @@ accept/rollback are not implemented; dev reports this explicitly.
 Pack creates bounded gzip JSON `{format: 1 | 2, manifest, modules}` with self-contained
 browser modules. The old HTML envelope is rejected. Installed plugins need neither
 Node nor a network connection for bundled code. Lite supports document, Eidos,
-table and page views, actions, named resources, settings and connections according
+table, media and page views, actions, scoped filesystem access, settings and connections according
 to the declared API contract. CLI Serve has a narrower Table View profile;
 use target checks rather than assuming host parity.
 The independent `eidos-text-tools-plugin` project in `~/workspace/eidos-plugins` demonstrates a navigation page,

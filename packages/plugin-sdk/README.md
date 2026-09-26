@@ -4,6 +4,17 @@ Type-only public API for [Eidos Plugins 1.0](../../docs/specs/eidos-lite-plugins
 The host injects capabilities when it mounts a view or activates an extension.
 There is no runtime `connect()` and no host implementation to bundle.
 
+## 0.4.0 migration
+
+This SDK targets the executable plugin API 2.0 introduced in Eidos Lite 0.19.0.
+Declare `requires: { "pluginApi": "2.0.0" }`, replace `ctx.resources` and media
+sidecar methods with `ctx.fs`, and use `ctx.ui.openFile` for file navigation.
+Space-wide access requires `workspace.files`; access to an opened file remains
+scoped to that file and its allowed companions. Pure API 1.6 themes remain
+supported. CLI Serve retains its narrower API 1.0 table-view contract.
+
+Use matching `@eidos.space/plugin-tools@0.4.0` to create and check new projects.
+
 A standalone Eidos Lite theme uses `kind: "theme"`, `requires.pluginApi:
 "1.6.0"`, and `theme.stylesheet: "./theme.css"`. The CSS file contains light
 and dark semantic tokens and may include local `@font-face` rules. It is a
