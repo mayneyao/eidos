@@ -46,6 +46,7 @@ try {
       id: "local.reference",
       name: "Reference",
       version: "1.0.0",
+      requires: { pluginApi: "2.0.0" },
       extension: "./extension.ts",
       actions: [
         {

@@ -36,6 +36,7 @@ try {
       id: "local.smoke",
       name: "CSV smoke",
       version: "1.0.0",
+      requires: { pluginApi: "2.0.0" },
       views: [
         {
           id: "csv",
