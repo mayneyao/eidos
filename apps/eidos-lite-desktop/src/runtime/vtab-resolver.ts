@@ -6,12 +6,23 @@ import type { DatabaseSync } from "node:sqlite"
 export function assertPortableFsMeta(database: DatabaseSync): void {
   try {
     const result = database.prepare("SELECT fs_meta_root_mode() AS mode").get()
-    if (result?.mode === "database") return
+    const capabilities = database
+      .prepare("SELECT fs_meta_capabilities() AS capabilities")
+      .get()
+    const supported: unknown = JSON.parse(String(capabilities?.capabilities))
+    if (
+      result?.mode === "database" &&
+      Array.isArray(supported) &&
+      ["storage-keys", "metadata-rollback", "database-relative-uris"].every(
+        (capability) => supported.includes(capability)
+      )
+    )
+      return
   } catch {
     /* Older extensions do not expose the capability probe. */
   }
   throw new Error(
-    "The fs_meta extension is too old: database-relative paths and SQL quote decoding are required. Update the native extension."
+    "The fs_meta extension is too old: portable paths, storage keys, metadata rollback and database-relative attachment URIs are required. Update the native extension."
   )
 }
 

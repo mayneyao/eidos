@@ -580,6 +580,45 @@ function uniqueSortFields(
   })
 }
 
+function replaceVirtualTableFields(sql: string, fields: string): string {
+  const declaration = sql.match(
+    /^CREATE\s+VIRTUAL\s+TABLE\s+(?:"(?:[^"]|"")*"|'(?:[^']|'')*'|`(?:[^`]|``)*`|\[[^\]]*\]|[^\s(]+)\s+USING\s+\w+\s*\(/i
+  )
+  const start = declaration ? declaration[0].length - 1 : -1
+  const end = sql.lastIndexOf(")")
+  if (start < 0 || end < start)
+    throw new EidosFileError(
+      "invalid-schema",
+      "Invalid virtual table declaration"
+    )
+  const args: string[] = []
+  let argument = "",
+    quote = ""
+  for (const character of sql.slice(start + 1, end)) {
+    if (quote) {
+      argument += character
+      if (character === quote) quote = ""
+    } else if (character === "'" || character === '"' || character === "`") {
+      quote = character
+      argument += character
+    } else if (character === ",") {
+      args.push(argument)
+      argument = ""
+    } else argument += character
+  }
+  args.push(argument)
+  if (quote)
+    throw new EidosFileError(
+      "invalid-schema",
+      "Unterminated virtual table argument"
+    )
+  const replacement = `fields = '${fields.replaceAll("'", "''")}'`
+  const index = args.findIndex((arg) => /^\s*fields\s*=/i.test(arg))
+  if (index < 0) args.push(replacement)
+  else args[index] = replacement
+  return `${sql.slice(0, start + 1)}${args.join(",")}${sql.slice(end)}`
+}
+
 function assertCursorRowId(value: string, label = "Cursor Row ID"): string {
   if (typeof value !== "string" || value.length === 0 || value.includes("\0")) {
     throw new EidosFileError("invalid-query", `${label} is invalid`)
@@ -1238,6 +1277,7 @@ function storedViewQueryStatus(
 
 export class EidosFileRuntime {
   private mutationDepth = 0
+  private virtualFieldCleanup: Array<{ tableId: string; key: string }> = []
   private mutationInstant: string | null = null
   private readonly rowMutationUndoEntries = new Map<
     string,
@@ -1370,7 +1410,7 @@ export class EidosFileRuntime {
 
     const allFields = this.listFields(tableId)
     const customFields = allFields.filter((f) => {
-      if (f.settings?.isSystem === true) return false
+      if (!f.physicalName || f.settings?.isSystem === true) return false
       if (f.systemRole !== null) return false
       const name = (f.physicalName ?? f.name).toLowerCase()
       if (
@@ -1395,53 +1435,30 @@ export class EidosFileRuntime {
       return true
     })
 
-    const fieldsSql = customFields
-      .map((f) => {
-        const colName = f.physicalName ?? f.name
-        const typeStr = f.type as string
-        const sqlType =
-          typeStr === "integer" ||
-          typeStr === "rating" ||
-          typeStr === "boolean" ||
-          typeStr === "checkbox"
-            ? "INTEGER"
-            : typeStr === "number" || typeStr === "float"
-              ? "REAL"
-              : "TEXT"
-        return `${colName} ${sqlType}`
-      })
-      .join(", ")
-
-    const match = schemaRow.sql.match(
-      /^(CREATE\s+VIRTUAL\s+TABLE\s+(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:\[[^\]]+\])|(?:\S+))\s+USING\s+([a-zA-Z0-9_]+)\s*\()([\s\S]*?)(\)\s*;?)$/i
-    )
-
-    let newSql: string
-    if (match) {
-      const prefix = match[1]
-      const args = match[3]
-      const suffix = match[4]
-      const fieldsRegex = /\bfields\s*=\s*(?:'[^']*'|"[^"]*")/i
-      let newArgs: string
-      if (fieldsRegex.test(args)) {
-        newArgs = args.replace(fieldsRegex, `fields = '${fieldsSql}'`)
-      } else {
-        const trimmed = args.trim()
-        if (trimmed.length > 0) {
-          newArgs = `${trimmed}, fields = '${fieldsSql}'`
-        } else {
-          newArgs = `fields = '${fieldsSql}'`
-        }
+    const fieldsSql = customFields.map((f) => {
+      const colName = f.physicalName ?? f.name
+      const typeStr = f.type as string
+      const sqlType =
+        typeStr === "integer" ||
+        typeStr === "rating" ||
+        typeStr === "boolean" ||
+        typeStr === "checkbox"
+          ? "INTEGER"
+          : typeStr === "number" || typeStr === "float"
+            ? "REAL"
+            : "TEXT"
+      return {
+        name: colName,
+        type: sqlType,
+        key: String(f.settings?.vtabStorageKey ?? colName),
       }
-      newSql = `${prefix}${newArgs}${suffix}`
-    } else {
-      const row = this.tableRow(tableId)
-      const settings = jsonObject(row.settings_json)
-      const moduleName = String(settings.vtabModule ?? "fs_meta")
-      const vtabConfig = (settings.vtabConfig as Record<string, string>) ?? {}
-      const root = vtabConfig.root ?? "."
-      newSql = `CREATE VIRTUAL TABLE ${quoteIdentifier(tableName)} USING ${moduleName}(root = '${root}', fields = '${fieldsSql}');`
-    }
+    })
+    // Keep storage identity independent from the display/SQL column name.
+
+    const newSql = replaceVirtualTableFields(
+      schemaRow.sql,
+      JSON.stringify(fieldsSql)
+    )
 
     this.connection.exec(`DROP TABLE ${quoteIdentifier(tableName)};`)
     this.connection.exec(newSql)
@@ -1774,6 +1791,19 @@ export class EidosFileRuntime {
         this.mutationDepth += 1
         try {
           const operationResult = operation()
+          // Finish DDL before touching external metadata: dropped vtabs cannot
+          // retain rollback journals. Cleanup belongs to the final table instance.
+          for (const { tableId, key } of this.virtualFieldCleanup) {
+            const table = this.connection.get<{ physical_name: string }>(
+              `SELECT physical_name FROM ${EIDOS_FILE_TABLES_TABLE} WHERE id = ?`,
+              [tableId]
+            )
+            if (table)
+              this.connection.run(
+                `UPDATE ${quoteIdentifier(table.physical_name)} SET "__fs_meta_remove_key" = ?`,
+                [key]
+              )
+          }
           const totalChangesAfter =
             this.connection.get<{ total: number | bigint }>(
               "SELECT total_changes() AS total"
@@ -1803,6 +1833,7 @@ export class EidosFileRuntime {
       if (clearRowUndoAfterCommit) this.clearRowMutationUndoEntries()
       return result
     } finally {
+      this.virtualFieldCleanup = []
       this.nestedMutationInvalidatesRowUndo = previousInvalidation
     }
   }
@@ -2377,6 +2408,9 @@ export class EidosFileRuntime {
       physicalName,
       settings: {
         ...presentationSettings(input),
+        ...(this.isVirtualTable(tableId) && physicalName
+          ? { vtabStorageKey: `field_${id.replaceAll("-", "")}` }
+          : {}),
         ...(input.type === "rating" ? { display: { kind: "rating" } } : {}),
       },
       input,
@@ -2575,6 +2609,9 @@ export class EidosFileRuntime {
       }
 
       let settings = field.settings ? { ...field.settings } : {}
+      if (this.isVirtualTable(tableId) && field.physicalName) {
+        settings.vtabStorageKey ??= field.physicalName
+      }
       if (changes.property !== undefined) {
         settings = {
           ...settings,
@@ -2835,44 +2872,7 @@ export class EidosFileRuntime {
         )
       }
       if (this.isVirtualTable(tableId) && physicalName !== field.physicalName) {
-        const oldCol = field.physicalName
-        const newCol = physicalName
-        let rowsToMigrate: Array<{ id: string; val: EidosFileSqlPrimitive }> =
-          []
-        if (oldCol && newCol) {
-          try {
-            rowsToMigrate = this.connection.query<{
-              id: string
-              val: EidosFileSqlPrimitive
-            }>(
-              `SELECT "_id" AS id, ${quoteIdentifier(oldCol)} AS val
-                 FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-                WHERE ${quoteIdentifier(oldCol)} IS NOT NULL`
-            )
-            if (rowsToMigrate.length > 0) {
-              this.connection.run(
-                `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-                    SET ${quoteIdentifier(oldCol)} = NULL
-                  WHERE ${quoteIdentifier(oldCol)} IS NOT NULL`
-              )
-            }
-          } catch {
-            rowsToMigrate = []
-          }
-        }
-
         this.syncVirtualTableSchema(tableId)
-
-        if (newCol && rowsToMigrate.length > 0) {
-          for (const row of rowsToMigrate) {
-            this.connection.run(
-              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-                  SET ${quoteIdentifier(newCol)} = ?
-                WHERE "_id" = ?`,
-              [row.val, row.id]
-            )
-          }
-        }
       }
       return this.fieldByKey(tableId, fieldId)
     })
@@ -3348,17 +3348,6 @@ export class EidosFileRuntime {
             "Virtual table does not support altering schema"
           )
         }
-        if (field.physicalName) {
-          try {
-            this.connection.run(
-              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-                  SET ${quoteIdentifier(field.physicalName)} = NULL
-                WHERE ${quoteIdentifier(field.physicalName)} IS NOT NULL`
-            )
-          } catch {
-            // Ignore if column cannot be updated
-          }
-        }
       } else {
         if (field.physicalName) {
           this.connection.exec(
@@ -3372,6 +3361,12 @@ export class EidosFileRuntime {
       )
       if (isVirtual) {
         this.syncVirtualTableSchema(tableId)
+        if (field.physicalName) {
+          this.virtualFieldCleanup.push({
+            tableId,
+            key: String(field.settings?.vtabStorageKey ?? field.physicalName),
+          })
+        }
       }
       return result.changes > 0
     })

@@ -210,6 +210,14 @@ the `name` (file name) field.
 
 ### 5.3. Built-in `file` Attachment Field
 
+Custom fields retain the canonical `physical_name = name` mapping. Their
+`settings_json.vtabStorageKey` identifies the external attribute independently;
+renaming a field MUST preserve that key and MUST NOT erase or migrate its values.
+Legacy fields without a key use their original physical name. New custom fields
+use unique keys so recreating a deleted name cannot revive old values. The native
+`fields` argument accepts a JSON array of `{name, type, key}` definitions; names
+are SQL identifiers, while `key` selects the metadata envelope entry.
+
 For filesystem virtual tables (`fs_meta`), a built-in field with `type: "file"` (physical column `file TEXT`) is provided:
 
 1. The `file` column evaluates dynamically to a canonical Eidos File attachment JSON array:
@@ -226,7 +234,9 @@ For filesystem virtual tables (`fs_meta`), a built-in field with `type: "file"` 
    ```
 2. For directories, the `file` column evaluates to `NULL`.
 3. The attachment `id` is a deterministic UUIDv7 derived from the file's relative path, ensuring stable resolution across query cycles and re-scans.
-4. The attachment `uri` is the relative POSIX path, with non-ASCII or unsafe characters percent-encoded.
+4. The attachment `uri` is relative to the owning database directory, including
+   the configured scan-root prefix, with non-ASCII or unsafe characters percent-encoded.
+   Row IDs remain relative to the scan root. In-memory databases retain scan-root-relative URIs.
 5. In Gallery View, setting `layout_json.coverField` to this field ID enables automatic card cover rendering for image files directly from the local disk.
 6. The host Runtime resolves `uri` relative to the containing directory of `files.eidos` using the existing `resolveEidosFileAttachment` protocol.
 
@@ -272,6 +282,15 @@ When `mutateRows` is called:
 
 ### 6.3. Revision Postconditions
 
+Normal transaction and savepoint rollback MUST restore external metadata bytes,
+including the absence of an envelope. Schema changes finish before retired keys
+are removed using the final virtual-table instance, so failed field deletion can
+roll back both the schema and metadata. Dropping a virtual table with pending
+metadata writes MUST fail rather than discard its rollback journal. These are
+in-process rollback guarantees: xattr/ADS writes are not part of SQLite's durable
+journal, so abrupt process termination and independent external writers are not
+covered by SQLite crash atomicity. Hosts MUST NOT claim otherwise.
+
 - Metadata transactions modifying `eidos__views`, `eidos__fields`, or table settings
   MUST increment `eidos__meta.revision` and update `eidos__meta.updated_at` as specified
   by Eidos File Format 1.0 Section 14.
@@ -310,7 +329,8 @@ The `fs_meta` profile defines standard behavior for filesystem metadata virtual 
   `fs_meta_root_mode()` to return `database` before using the native extension.
 - **`namespace`**: The extended attribute namespace key. MUST default to
   `space.eidos.meta`.
-- **`fields`**: Comma-separated list of user custom field definitions (name and SQLite affinity).
+- **`fields`**: JSON array of `{name, type, key}` custom field definitions. Legacy
+  comma-separated name/affinity definitions remain readable, using the name as key.
 
 ### 8.2. Default Field Mapping
 

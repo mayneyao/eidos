@@ -183,7 +183,7 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
    ```
 2. 当目标路径为目录时，`file` 列评估为 `NULL`。
 3. 附件 `id` 是基于相对路径生成的确定性 UUIDv7，确保在重扫、过滤和重新查询时 ID 保持稳定不变。
-4. 附件 `uri` 为相对 POSIX 路径，其中的非 ASCII 或不安全字符均按 URI 规范进行百分比转义编码。
+4. 附件 `uri` 为相对于数据库所在目录的 POSIX 路径，包含扫描目录前缀；非 ASCII 或不安全字符进行百分比转义。
 5. 在画廊视图（Gallery View）中，将 `layout_json.coverField` 指向此 `file` 字段 ID，画廊卡片即可直接从本地磁盘加载并渲染图片封面预览。
 6. 宿主运行时通过既有的 `resolveEidosFileAttachment` 机制，自动将 `uri` 解析为相对于 `files.eidos` 所在目录的本地物理文件。
 
@@ -223,6 +223,17 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 
 ### 6.3. 版本号递增规则
 
+普通事务及保存点回滚必须恢复外部属性的原始字节，包括原先不存在属性的状态。
+字段保留 `physical_name = name` 的规范映射，通过 `settings_json.vtabStorageKey`
+标识独立、稳定的外部属性键。重命名不得清空或迁移属性；旧字段默认使用原物理名称，
+新字段使用唯一键。原生 `fields` 参数接受 `{name, type, key}` 的 JSON 数组，支持带空格及引号的名称。
+删除属性键必须在 schema 修改结束后由最终虚表实例执行，以支持整体回滚；
+含未提交属性写入的虚表不得直接 DROP 而丢弃回滚日志。
+此保证仅覆盖进程内回滚：xattr/ADS 不属于 SQLite 的持久日志，不保证进程突然退出或外部并发写入时的崩溃原子性。
+
+附件 URI 相对于所属数据库目录生成，包含扫描根目录前缀；行 ID 仍相对于扫描根目录。
+内存数据库的附件 URI 保持相对于扫描根目录。
+
 - 任何修改 `eidos__views`、`eidos__fields` 或表配置的元数据事务，**必须**按照 Eidos 文件格式 1.0 第 14 节递增 `eidos__meta.revision` 并更新时间戳。
 - 纯粹修改外部扩展属性（如修改标签）的单元格变更，若未引起 `.eidos` SQLite 数据页物理变更，可由事务协调器决定是否递增轻量修订号。
 
@@ -246,7 +257,7 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 
 - **`root`**：扫描目录的路径，相对于所属 `.eidos` 数据库所在目录（包括附加数据库），而非宿主进程工作目录。默认为 `'.'`。Lite 新建文件保存相对路径；已有绝对路径保留明确绑定，不自动迁移。SQL 字符串参数必须解码双写的引号分隔符。Lite 使用原生扩展前要求 `fs_meta_root_mode()` 返回 `database`。
 - **`namespace`**：操作系统扩展属性的命名空间键，默认**必须**为 `space.eidos.meta`。
-- **`fields`**：用户自定义字段列表声明（包含字段名与 SQLite 亲和类型）。
+- **`fields`**：`{name, type, key}` 的 JSON 数组。旧版逗号分隔的字段名和类型声明继续兼容，使用字段名作为属性键。
 
 ### 8.2. 默认字段映射表
 

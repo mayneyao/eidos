@@ -3868,7 +3868,10 @@ export class EidosRuntimeService implements RuntimeClient {
             "UPDATE eidos__fields SET position=?, settings_json=? WHERE id=?",
             [
               parseSignedInt64(leaf.field.position, "position"),
-              canonicalizeEidosFileJson(leaf.field.settings ?? {}),
+              canonicalizeEidosFileJson({
+                ...field.settings,
+                ...leaf.field.settings,
+              }),
               field.id!,
             ]
           )

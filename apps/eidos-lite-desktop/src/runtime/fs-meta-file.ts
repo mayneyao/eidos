@@ -91,12 +91,12 @@ export function createFsMetaEidosFile(
     `).run(featureConfig)
 
     // 3. Virtual table creation DDL
-    const fieldsSql = customFields
-      .map((f) => {
+    const fieldsSql = JSON.stringify(
+      customFields.map((f) => {
         const sqlType = f.type === "integer" ? "INTEGER" : "TEXT"
-        return `${f.name} ${sqlType}`
+        return { name: f.name, type: sqlType, key: f.name }
       })
-      .join(", ")
+    )
     const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
     db.exec(
       `CREATE VIRTUAL TABLE "${tableName.replaceAll('"', '""')}" USING fs_meta(root = ${sqlString(root)}, namespace = ${sqlString(namespace)}, fields = ${sqlString(fieldsSql)});`

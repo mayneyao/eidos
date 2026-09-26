@@ -4,9 +4,16 @@ import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
 import { DatabaseSync } from "node:sqlite"
 import { afterEach, describe, expect, it } from "vitest"
-import { decodeEidosFileValues } from "@eidos.space/eidos-file"
+import {
+  decodeEidosFileValues,
+  EidosFileRuntime,
+  ConnectionPortEidosFileConnection,
+} from "@eidos.space/eidos-file"
+import { NodeSqliteConnectionPort } from "@eidos.space/eidos-file/node-sqlite"
 import { createFsMetaEidosFile } from "./fs-meta-file"
 import { openEidosLiteFileRuntime } from "./eidos-file-runtime"
+import { resolveVTabExtensionPath } from "./vtab-resolver"
+import { resolveEidosFileAttachment } from "../main/space/eidos-file-attachments"
 
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
@@ -15,6 +22,164 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     for (const runtime of runtimes.splice(0)) await runtime.close()
     for (const root of roots.splice(0))
       fs.rmSync(root, { recursive: true, force: true })
+  })
+  it("keeps storage keys and values stable across display-name changes", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-fields-"))
+    )
+    roots.push(root)
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file, { tableName: "Files (review)" })
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const rating = fields.find((field) => field.name === "rating")!
+    await runtime.source.updateRow(table.id, "proof.txt", { [rating.id!]: 4 })
+    const renamed = await runtime.source.updateField(table.id, rating.id!, {
+      name: "Owner's rating",
+    })
+    expect(
+      renamed.tables[0]!.fields.find((field) => field.id === rating.id)
+        ?.settings?.vtabStorageKey
+    ).toBe("rating")
+    expect(
+      (await runtime.source.getRow(table.id, "proof.txt"))?.[rating.id!]
+    ).toBe("4")
+    for (const name of [
+      "Review status",
+      "Owner's notes",
+      '备注 "类型", 分类',
+    ]) {
+      const snapshot = await runtime.source.addField(table.id, {
+        name,
+        type: "text",
+      })
+      const field = snapshot.tables[0]!.fields.find(
+        (field) => field.name === name
+      )!
+      await runtime.source.updateRow(table.id, "proof.txt", {
+        [field.id!]: "reviewed",
+      })
+      expect(
+        (await runtime.source.getRow(table.id, "proof.txt"))?.[field.id!]
+      ).toBe("reviewed")
+    }
+    await runtime.close()
+    runtimes.splice(runtimes.indexOf(runtime), 1)
+    const reopened = await openEidosLiteFileRuntime(file)
+    runtimes.push(reopened)
+    expect(
+      (await reopened.source.getRow(table.id, "proof.txt"))?.[rating.id!]
+    ).toBe("4")
+  })
+
+  it("restores exact external metadata on rollback and nested savepoints", () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-rollback-"))
+    )
+    roots.push(root)
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const db = new DatabaseSync(file, { allowExtension: true })
+    try {
+      db.loadExtension(resolveVTabExtensionPath("fs_meta")!)
+      db.exec("UPDATE files SET rating=4 WHERE _id='proof.txt'")
+      db.exec(
+        "BEGIN; UPDATE files SET rating=1 WHERE _id='proof.txt'; ROLLBACK;"
+      )
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(4)
+      db.exec(
+        "BEGIN; UPDATE files SET rating=2 WHERE _id='proof.txt'; SAVEPOINT nested; UPDATE files SET rating=3 WHERE _id='proof.txt'; ROLLBACK TO nested; RELEASE nested; COMMIT;"
+      )
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(2)
+      db.exec("BEGIN; UPDATE files SET rating=NULL WHERE _id='proof.txt';")
+      expect(() => db.exec("DROP TABLE files")).toThrow()
+      db.exec("ROLLBACK")
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(2)
+      const declaration = String(
+        db.prepare("SELECT sql FROM sqlite_master WHERE name='files'").get()
+          ?.sql
+      )
+      db.exec(
+        `BEGIN; DROP TABLE files; ${declaration}; UPDATE files SET __fs_meta_remove_key='rating'; ROLLBACK;`
+      )
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(2)
+      db.exec(
+        "BEGIN; SAVEPOINT outermost; UPDATE files SET rating=5 WHERE _id='proof.txt'; RELEASE outermost; ROLLBACK;"
+      )
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(2)
+      const core = new EidosFileRuntime(
+        new ConnectionPortEidosFileConnection(new NodeSqliteConnectionPort(db))
+      )
+      const table = core.listTables()[0]!
+      const rating = core
+        .listFields(table.id)
+        .find((field) => field.name === "rating")!
+      const tags = core
+        .listFields(table.id)
+        .find((field) => field.name === "tags")!
+      expect(() =>
+        core.applyCanonicalMutation(() => {
+          core.deleteField(table.id, rating.id!)
+          core.deleteField(table.id, tags.id!)
+          throw new Error("abort schema batch")
+        })
+      ).toThrow("abort schema batch")
+      expect(
+        db.prepare("SELECT rating FROM files WHERE _id='proof.txt'").get()
+          ?.rating
+      ).toBe(2)
+      core.applyCanonicalMutation(() => {
+        core.deleteField(table.id, rating.id!)
+        core.deleteField(table.id, tags.id!)
+      })
+      expect(
+        core
+          .listFields(table.id)
+          .some((field) => field.id === rating.id || field.id === tags.id)
+      ).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  it("resolves gallery attachments relative to the database for nested roots", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-assets-"))
+    )
+    roots.push(root)
+    const folder = "O'Brien photos"
+    fs.mkdirSync(path.join(root, folder))
+    fs.writeFileSync(path.join(root, folder, "proof.txt"), "proof")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file, { root: folder })
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const field = fields.find((field) => field.name === "file")!
+    const row = await runtime.source.getRow(table.id, "proof.txt")
+    const entry = decodeEidosFileValues(row![field.id!] as string)[0]!
+    expect(decodeURIComponent(entry.uri)).toBe(`${folder}/proof.txt`)
+    await expect(
+      resolveEidosFileAttachment(root, "files.eidos", entry, "preview")
+    ).resolves.toBeDefined()
   })
   it.each([".", 'O\'Brien "资料"'])(
     "keeps metadata readable and writable after moving a folder (root %s)",

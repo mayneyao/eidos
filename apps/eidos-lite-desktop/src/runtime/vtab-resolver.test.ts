@@ -9,6 +9,14 @@ it("requires the portable root capability instead of trusting a binary filename"
     database.function("fs_meta_root_mode", () => "cwd")
     expect(() => assertPortableFsMeta(database)).toThrow("too old")
     database.function("fs_meta_root_mode", () => "database")
+    expect(() => assertPortableFsMeta(database)).toThrow("too old")
+    database.function("fs_meta_capabilities", () =>
+      JSON.stringify([
+        "storage-keys",
+        "metadata-rollback",
+        "database-relative-uris",
+      ])
+    )
     expect(() => assertPortableFsMeta(database)).not.toThrow()
   } finally {
     database.close()
