@@ -1645,6 +1645,7 @@ export type RuntimeWorkerRequest =
       requestId: number
       filePath: string
       title: string
+      template?: "blank" | "files-index"
     }
   | {
       type: "open"
@@ -1799,7 +1800,8 @@ export interface EidosLiteApi extends PluginApi {
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(
     parentRelativePath: string | null,
-    name: string
+    name: string,
+    template?: "blank" | "files-index"
   ): Promise<SpacePathMutationResult>
   createTextFile(
     parentRelativePath: string | null,

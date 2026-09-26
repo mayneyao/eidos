@@ -183,6 +183,7 @@ jobs:
         run: |
           pnpm --filter @eidos.space/eidos-lite-desktop build:release
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:publish-engine
+          pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
           pnpm --filter @eidos.space/eidos-lite-desktop exec electron-builder \
             --publish never \
             --config electron-builder.json

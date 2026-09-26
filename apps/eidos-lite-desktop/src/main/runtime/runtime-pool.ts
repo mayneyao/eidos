@@ -200,7 +200,8 @@ export class RuntimePool {
 
   async create(
     relativePath: string,
-    title: string
+    title: string,
+    options?: { template?: "blank" | "files-index" }
   ): Promise<OpenEidosFileResult> {
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     if (path.extname(filePath).toLowerCase() !== ".eidos") {
@@ -232,7 +233,11 @@ export class RuntimePool {
     }
     this.entriesBySession.set(entry.sessionId, entry)
     try {
-      const snapshot = await this.ensureResident(entry, title)
+      const snapshot = await this.ensureResident(
+        entry,
+        title,
+        options?.template
+      )
       if (!snapshot) throw new Error("Eidos File runtime did not create")
       entry.canonicalPath = await fs.realpath(filePath)
       const fileStats = await fs.stat(entry.canonicalPath)
@@ -716,16 +721,18 @@ export class RuntimePool {
 
   private ensureResident(
     entry: RuntimeEntry,
-    createTitle?: string
+    createTitle?: string,
+    createTemplate?: "blank" | "files-index"
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     return this.withResidencyLock(() =>
-      this.ensureResidentLocked(entry, createTitle)
+      this.ensureResidentLocked(entry, createTitle, createTemplate)
     )
   }
 
   private async ensureResidentLocked(
     entry: RuntimeEntry,
-    createTitle?: string
+    createTitle?: string,
+    createTemplate?: "blank" | "files-index"
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     await this.closingEntries.get(entry)
     if (entry.closed || !this.entriesBySession.has(entry.sessionId)) {
@@ -748,7 +755,7 @@ export class RuntimePool {
       }
       await this.closeEntry(this.requireEntry(sessionId))
     }
-    return this.spawnAndOpen(entry, createTitle)
+    return this.spawnAndOpen(entry, createTitle, false, createTemplate)
   }
 
   private residentCount(): number {
@@ -774,7 +781,8 @@ export class RuntimePool {
   private async spawnAndOpen(
     entry: RuntimeEntry,
     createTitle?: string,
-    readOnly = false
+    readOnly = false,
+    createTemplate?: "blank" | "files-index"
   ): Promise<RuntimeCalls["getSnapshot"]["result"]> {
     if (entry.child) throw new Error("Eidos File runtime is already open")
     const child = utilityProcess.fork(this.workerPath, [], {
@@ -820,6 +828,7 @@ export class RuntimePool {
               requestId: entry.nextRequestId++,
               filePath: entry.filePath,
               title: createTitle,
+              template: createTemplate,
             }
       )) as RuntimeCalls["getSnapshot"]["result"]
     } catch (error) {

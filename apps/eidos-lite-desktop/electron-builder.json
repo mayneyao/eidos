@@ -36,6 +36,11 @@
       "from": "resources/publish-engine",
       "to": "publish-engine",
       "filter": ["**/*"]
+    },
+    {
+      "from": "resources/vtab",
+      "to": "vtab",
+      "filter": ["**/*"]
     }
   ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",

@@ -636,6 +636,27 @@ const zh: Record<string, string> = {
   Create: "创建",
   "Use .eidos for an Eidos File. Another extension, such as .md or .txt, creates an empty text file. Names without an extension use .eidos.":
     "使用 .eidos 创建 Eidos 文件；输入其他后缀（如 .md 或 .txt）将创建空白文本文件。未输入后缀时会使用 .eidos。",
+  "Eidos Table": "Eidos 表格",
+  "Folder Index": "文件夹索引",
+  "File Table": "文件元数据管理",
+  "File Metadata Management": "文件元数据管理",
+  "Manage folder file metadata": "管理当前文件夹的文件元数据",
+  Note: "文本笔记",
+  "Scans files in this folder into an interactive table. Includes image galleries, file size, mimetype, and customizable tags and rating columns.":
+    "自动扫描当前文件夹中的文件并生成表格视图。内置图片画廊、文件大小、mimetype，以及可自定义的标签与评分元数据。",
+  "Manage file metadata directly in the current folder with custom fields and visual views.":
+    "在当前文件夹中通过自定义字段与视图直接管理文件元数据。",
+  "Turns the current folder into a multi-dimensional table to manage file metadata with custom fields.":
+    "在当前文件夹中通过自定义字段与视图直接管理文件元数据。",
+  "Turns the folder containing this .eidos file into an interactive database.":
+    "将当前文件夹转化为多维表格，通过自定义字段直接管理文件元数据。",
+  "Turns the folder containing this .eidos file into a multi-dimensional table. Manage custom metadata like tags and ratings with gallery views and filters.":
+    "将文件表格 .eidos 所在的文件夹转化为多维表格。支持管理标签与评分等文件元数据，提供画廊视图与属性筛选。",
+  "Creates a blank Eidos table document. Supports custom fields, relational tables, and multiple views.":
+    "创建标准的空白 Eidos 表格文件，可自由添加数据表、自定义字段与多种视图。",
+  "Creates a plain text or Markdown note document in the current folder.":
+    "在当前文件夹中创建纯文本或 Markdown 笔记文档。",
+  "Learn more in documentation": "查看文档了解使用方式与原理",
   "Rename {name}": "重命名 {name}",
   "New name": "新名称",
   Rename: "重命名",

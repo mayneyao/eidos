@@ -325,7 +325,8 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         throw new Error("Runtime already has an open Eidos File")
       openedRuntime = await createEidosLiteFileRuntime(
         request.filePath,
-        request.title
+        request.title,
+        { template: request.template }
       )
       source = openedRuntime.source
       return openedRuntime.initialSnapshot

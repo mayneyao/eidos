@@ -1182,12 +1182,13 @@ export function registerIpc(
   })
   ipcMain.handle(
     IPC_CHANNELS.createEidosFile,
-    (event, parentRelativePath: unknown, name: unknown) =>
+    (event, parentRelativePath: unknown, name: unknown, template: unknown) =>
       controller
         .requireSession(event.sender)
         .createEidosFile(
           optionalRelativePath(parentRelativePath),
-          requiredString(name, "file name")
+          requiredString(name, "file name"),
+          template === "files-index" ? "files-index" : "blank"
         )
   )
   ipcMain.handle(

@@ -207,10 +207,16 @@ describe("Eidos Lite package identity", () => {
         to: "publish-engine",
         filter: ["**/*"],
       },
+      {
+        from: "resources/vtab",
+        to: "vtab",
+        filter: ["**/*"],
+      },
     ])
     expect(scripts["prepare:publish-engine"]).toBe(
       "node scripts/prepare-publish-engine.mjs"
     )
+    expect(scripts["prepare:vtab"]).toBe("node scripts/prepare-vtab.mjs")
     expect(scripts["prepare:terminal"]).toBe(
       "node scripts/prepare-terminal.mjs"
     )
@@ -234,6 +240,7 @@ describe("Eidos Lite package identity", () => {
       "package:release:linux",
     ]) {
       expect(scripts[scriptName]).toContain("prepare:publish-engine")
+      expect(scripts[scriptName]).toContain("prepare:vtab")
     }
     expect(scripts["test:graft:cli"]).toBeUndefined()
     expect(scripts["graft:install"]).toBeUndefined()
@@ -247,6 +254,9 @@ describe("Eidos Lite package identity", () => {
     ).rejects.toThrow()
     await expect(
       fs.access(path.join(appRoot, "scripts/prepare-publish-engine.mjs"))
+    ).resolves.toBeUndefined()
+    await expect(
+      fs.access(path.join(appRoot, "scripts/prepare-vtab.mjs"))
     ).resolves.toBeUndefined()
   })
 
@@ -374,7 +384,11 @@ describe("Eidos Lite package identity", () => {
       "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}"
     )
     expect(macReleaseStep).toContain("prepare:publish-engine")
+    expect(macReleaseStep).toContain("prepare:vtab")
     expect(macReleaseStep?.indexOf("prepare:publish-engine")).toBeLessThan(
+      macReleaseStep?.indexOf("electron-builder") ?? -1
+    )
+    expect(macReleaseStep?.indexOf("prepare:vtab")).toBeLessThan(
       macReleaseStep?.indexOf("electron-builder") ?? -1
     )
     expect(workflow).toContain("Build unsigned Windows release")

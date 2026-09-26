@@ -10,6 +10,7 @@ dist-sqlite-ext
 dist-cli
 dist-*
 apps/eidos-lite-desktop/resources/publish-engine/
+apps/eidos-lite-desktop/resources/vtab/
 
 # Vite may name a generated CLI Serve chunk `dist-<hash>.js`. It must remain
 # tracked because the release binary embeds only files present in Git.

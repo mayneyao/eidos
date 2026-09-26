@@ -37,6 +37,8 @@ import {
   EIDOS_LITE_CSV_FILE_BYTES_MAX,
   type EidosLiteCsvOperationProgress,
 } from "../shared/contracts"
+import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
+import { createFsMetaEidosFile } from "./fs-meta-file"
 
 const MAX_CSV_ROWS = 2_000_000
 const MAX_CSV_COLUMNS = 500
@@ -824,9 +826,27 @@ function findEidosFileEntry(
 
 export async function createEidosLiteFileRuntime(
   filePath: string,
-  title: string
+  title: string,
+  options?: { template?: "blank" | "files-index" }
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
+  const baseName = path.basename(filePath).toLowerCase()
+  if (
+    options?.template === "files-index" ||
+    baseName === "files.eidos" ||
+    baseName === "_files.eidos" ||
+    baseName === "_fs_meta.eidos"
+  ) {
+    createFsMetaEidosFile(filePath, {
+      title:
+        title === "_files" || title === "_fs_meta" || title === "files"
+          ? "Files"
+          : title,
+      tableName: "files",
+      root: ".",
+    })
+    return openEidosLiteFileRuntime(filePath)
+  }
   const connection = new NodeSqliteConnectionPort(
     new DatabaseSync(filePath, {
       allowExtension: false,
@@ -864,6 +884,44 @@ export async function createEidosLiteFileRuntime(
   }
 }
 
+function loadDeclaredVTabExtensions(database: DatabaseSync): void {
+  const hasFeatures = database
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eidos__features'"
+    )
+    .get()
+  if (!hasFeatures) return
+
+  const rows = database
+    .prepare(
+      "SELECT name, required FROM eidos__features WHERE name LIKE 'vtab:%'"
+    )
+    .all() as Array<{ name: string; required: number }>
+
+  for (const row of rows) {
+    const moduleName = row.name.replace(/^vtab:/, "")
+    const extPath = resolveVTabExtensionPath(moduleName)
+    if (!extPath) {
+      if (row.required === 1)
+        throw new Error(
+          `Required virtual table extension is unavailable: ${moduleName}`
+        )
+      continue
+    }
+    try {
+      database.enableLoadExtension(true)
+      database.loadExtension(extPath)
+      if (moduleName === "fs_meta") assertPortableFsMeta(database)
+    } catch (cause) {
+      throw new Error(`Could not load virtual table extension: ${moduleName}`, {
+        cause,
+      })
+    } finally {
+      database.enableLoadExtension(false)
+    }
+  }
+}
+
 export async function openEidosLiteFileRuntime(
   filePath: string,
   options: { readOnly?: boolean } = {}
@@ -873,18 +931,18 @@ export async function openEidosLiteFileRuntime(
     throw new Error(`Not a SQLite file: ${filePath}`)
   }
   const readOnly = options.readOnly ?? false
-  const connection = new NodeSqliteConnectionPort(
-    new DatabaseSync(filePath, {
-      allowExtension: false,
-      defensive: true,
-      enableDoubleQuotedStringLiterals: false,
-      enableForeignKeyConstraints: true,
-      readOnly,
-      timeout: 5_000,
-    }),
-    { readOnly }
-  )
+  const database = new DatabaseSync(filePath, {
+    allowExtension: true,
+    defensive: true,
+    enableDoubleQuotedStringLiterals: false,
+    enableForeignKeyConstraints: true,
+    readOnly,
+    timeout: 5_000,
+  })
+
+  const connection = new NodeSqliteConnectionPort(database, { readOnly })
   try {
+    loadDeclaredVTabExtensions(database)
     const binding = await Runtime.open(
       connection,
       environment(),

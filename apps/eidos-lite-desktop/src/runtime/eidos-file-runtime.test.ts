@@ -13,6 +13,41 @@ import {
   createEidosLiteFileRuntime,
   openEidosLiteFileRuntime,
 } from "./eidos-file-runtime"
+import * as vtabResolver from "./vtab-resolver"
+
+it.each(["unknown", "fs_meta"])(
+  "reports an unavailable required %s extension and closes the database",
+  async (moduleName) => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-required-vtab-"))
+    const filePath = path.join(root, "data.eidos")
+    try {
+      const runtime = await createEidosLiteFileRuntime(filePath, "Data")
+      await runtime.close()
+      const db = new DatabaseSync(filePath)
+      db.prepare(
+        "INSERT INTO eidos__features (name, version, required, config_json) VALUES (?, '1.0.0', 1, '{}')"
+      ).run(`vtab:${moduleName}`)
+      db.close()
+      const resolve = vi
+        .spyOn(vtabResolver, "resolveVTabExtensionPath")
+        .mockReturnValue(null)
+      try {
+        await expect(openEidosLiteFileRuntime(filePath)).rejects.toThrow(
+          `Required virtual table extension is unavailable: ${moduleName}`
+        )
+      } finally {
+        resolve.mockRestore()
+      }
+      const reopened = new DatabaseSync(filePath)
+      reopened.exec("BEGIN EXCLUSIVE; DELETE FROM eidos__features; COMMIT")
+      reopened.close()
+      const recovered = await openEidosLiteFileRuntime(filePath)
+      await recovered.close()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+)
 
 describe("Eidos Lite Runtime 1.0 editor adapter", () => {
   it("validates a legacy Eidos File without materializing disposable indexes", async () => {
@@ -139,7 +174,7 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
 
   it("finds persisted File entries by stable ID and rejects unknown IDs", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-files-"))
-    const filePath = path.join(root, "files.eidos")
+    const filePath = path.join(root, "entries.eidos")
     const opened = await createEidosLiteFileRuntime(filePath, "Files")
     try {
       let snapshot = await opened.source.getSnapshot()
@@ -164,6 +199,38 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
 
       expect(opened.findFileEntry(entry.id)).toEqual(entry)
       expect(opened.findFileEntry(createEidosFileUuid())).toBeNull()
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("creates virtual table files catalog when named _files.eidos or files.eidos", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-files-under-"))
+    const filePath = path.join(root, "files.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "Files")
+    try {
+      const snapshot = await opened.source.getSnapshot()
+      expect(snapshot.tables).toHaveLength(1)
+      expect(snapshot.tables[0]!.table.name).toBe("files")
+      expect(snapshot.tables[0]!.table.settings?.tableType).toBe("virtual")
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("creates virtual table files catalog with custom name when template is files-index", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-custom-files-"))
+    const filePath = path.join(root, "my-assets.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "My Assets", {
+      template: "files-index",
+    })
+    try {
+      const snapshot = await opened.source.getSnapshot()
+      expect(snapshot.tables).toHaveLength(1)
+      expect(snapshot.tables[0]!.table.name).toBe("files")
+      expect(snapshot.tables[0]!.table.settings?.tableType).toBe("virtual")
     } finally {
       await opened.close()
       await rm(root, { recursive: true, force: true })
