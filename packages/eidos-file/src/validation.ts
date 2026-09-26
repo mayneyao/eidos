@@ -52,6 +52,8 @@ export type EidosFileValidationLevel =
   | "semantic"
   | "full"
 
+const SUPPORTED_VTAB_MODULES = new Set(["fs_meta"])
+
 interface MetaRow {
   singleton: number
   format_major: number
@@ -735,6 +737,56 @@ export function validateEidosFile(
     }
   }
 
+  // Check capabilities before inspecting virtual table schemas: SQLite may call
+  // xConnect during PRAGMA table_list/table_info and throw for an absent module.
+  if (sqliteTables.has(EIDOS_FILE_FEATURES_TABLE)) {
+    const loadedModules = new Set(
+      connection
+        .query<{ name: string }>("PRAGMA module_list")
+        .map((row) => row.name)
+    )
+    for (const feature of connection.query<{
+      name: string
+      required: number
+      config_json: string
+    }>(
+      `SELECT name, required, config_json FROM ${EIDOS_FILE_FEATURES_TABLE}`
+    )) {
+      if (!isCanonicalEidosFileJson(feature.config_json)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Feature ${feature.name} has non-canonical config_json`
+        )
+      }
+      const moduleName = feature.name.startsWith("vtab:")
+        ? feature.name.slice(5)
+        : null
+      if (
+        feature.required === 1 &&
+        (!moduleName ||
+          !SUPPORTED_VTAB_MODULES.has(moduleName) ||
+          !loadedModules.has(moduleName))
+      ) {
+        add(
+          errors,
+          "unsupported-feature",
+          `Required feature is unavailable in this runtime: ${feature.name}`
+        )
+      }
+    }
+  }
+
+  if (errors.some((issue) => issue.code === "unsupported-feature")) {
+    return {
+      valid: errors.length === 0,
+      metadata,
+      tables: [],
+      errors,
+      warnings,
+    }
+  }
+
   for (const [tableName, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
     if (!sqliteTables.has(tableName)) continue
     const columns = new Map(
@@ -806,31 +858,6 @@ export function validateEidosFile(
         `${tableName} has the wrong WITHOUT ROWID mode`,
         tableName
       )
-    }
-  }
-
-  if (sqliteTables.has(EIDOS_FILE_FEATURES_TABLE)) {
-    for (const feature of connection.query<{
-      name: string
-      required: number
-      config_json: string
-    }>(
-      `SELECT name, required, config_json FROM ${EIDOS_FILE_FEATURES_TABLE}`
-    )) {
-      if (!isCanonicalEidosFileJson(feature.config_json)) {
-        add(
-          errors,
-          "invalid-schema",
-          `Feature ${feature.name} has non-canonical config_json`
-        )
-      }
-      if (feature.required === 1) {
-        add(
-          errors,
-          "unsupported-feature",
-          `Unknown required feature: ${feature.name}`
-        )
-      }
     }
   }
 
@@ -926,6 +953,8 @@ export function validateEidosFile(
         )
       }
       const tableObject = sqliteTables.get(row.physical_name)
+      const isVirtualTable =
+        settings.tableType === "virtual" || Boolean(settings.vtabModule)
       if (!tableObject) {
         add(
           errors,
@@ -933,6 +962,15 @@ export function validateEidosFile(
           `Missing user table ${row.physical_name}`,
           row.physical_name
         )
+      } else if (isVirtualTable) {
+        if (!/\bVIRTUAL\b/i.test(tableObject.sql ?? "")) {
+          add(
+            errors,
+            "invalid-schema",
+            `Virtual table ${row.physical_name} must be a SQLite virtual table`,
+            row.physical_name
+          )
+        }
       } else if (!/\bSTRICT\b/i.test(tableObject.sql ?? "")) {
         add(
           errors,
@@ -1353,6 +1391,10 @@ export function validateEidosFile(
     { table: string; fragments: string[] }
   >()
   for (const [tableId, table] of tableRowsById) {
+    const tableSettings = tableSettingsById.get(tableId) ?? {}
+    const isVirtual =
+      tableSettings.tableType === "virtual" || Boolean(tableSettings.vtabModule)
+    if (isVirtual) continue
     expectedTriggers.set(
       `eidos__row_id_immutable__${tableId.replace(/-/g, "")}`,
       {
@@ -1610,17 +1652,28 @@ export function validateEidosFile(
           )
         }
       }
-      if (
-        physicalColumns.get("_id") !== "TEXT" ||
-        !declaresBinaryText(
-          sqliteTables.get(table.physical_name)?.sql ?? null,
-          "_id"
-        )
-      ) {
+      const isVirtual =
+        tableSettingsById.get(table.id)?.tableType === "virtual" ||
+        Boolean(tableSettingsById.get(table.id)?.vtabModule)
+      if (!isVirtual) {
+        if (
+          physicalColumns.get("_id") !== "TEXT" ||
+          !declaresBinaryText(
+            sqliteTables.get(table.physical_name)?.sql ?? null,
+            "_id"
+          )
+        ) {
+          add(
+            errors,
+            "invalid-schema",
+            `User table ${table.name}._id must use canonical UUIDv7 TEXT COLLATE BINARY`
+          )
+        }
+      } else if (physicalColumns.get("_id") !== "TEXT") {
         add(
           errors,
           "invalid-schema",
-          `User table ${table.name}._id must use canonical UUIDv7 TEXT COLLATE BINARY`
+          `Virtual table ${table.name}._id must be TEXT`
         )
       }
       for (const field of fields) {
@@ -1642,6 +1695,7 @@ export function validateEidosFile(
             )
           }
           if (
+            !isVirtual &&
             !["row-id", "created-time", "last-edited-time"].includes(
               field.type
             ) &&
@@ -2291,7 +2345,10 @@ export function validateEidosFile(
           const value = row[field.physicalName!]
           if (value === null || value === undefined) continue
           if (field.type === "row-id") {
-            if (!isEidosFileUuid(value)) {
+            const isVirtual =
+              tableSettingsById.get(tableId)?.tableType === "virtual" ||
+              Boolean(tableSettingsById.get(tableId)?.vtabModule)
+            if (!isVirtual && !isEidosFileUuid(value)) {
               add(
                 errors,
                 "invalid-value",

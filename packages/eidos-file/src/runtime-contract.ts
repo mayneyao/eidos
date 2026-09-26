@@ -182,6 +182,7 @@ export type RuntimeErrorCode =
   | "unknown-commit"
   | "closed"
   | "fatal"
+  | "table-mutation-not-supported"
 
 export interface RuntimeError {
   code: RuntimeErrorCode

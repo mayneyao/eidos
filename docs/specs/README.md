@@ -60,6 +60,7 @@ Semantic ownership is one-way. In particular:
 | UI                      | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
 | UI standard Views       | [Eidos Standard Views 1.0](./eidos-standard-views-1.0.md)               | [中文](./eidos-standard-views-1.0.zh.md)        |
 | Portable content syntax | [Eidos Flavored Markdown 1.0](./eidos-flavored-markdown-1.0.md)         | [中文](./eidos-flavored-markdown-1.0.zh.md)     |
+| Virtual Tables profile  | [Eidos Virtual Tables 1.0](./eidos-virtual-tables-1.0.md)               | [中文](./eidos-virtual-tables-1.0.zh.md)        |
 
 ## Document organization
 

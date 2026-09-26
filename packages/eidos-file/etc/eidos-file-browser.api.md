@@ -1702,6 +1702,8 @@ export interface EidosFileTableInfo {
     // @deprecated (undocumented)
     rawTableName: string;
     // (undocumented)
+    settings?: Record<string, unknown>;
+    // (undocumented)
     updatedAt: string;
 }
 
@@ -2822,7 +2824,7 @@ export interface RuntimeError {
 }
 
 // @public (undocumented)
-export type RuntimeErrorCode = "invalid-request" | "unsupported" | "not-found" | "already-exists" | "invalid-value" | "invalid-query" | "invalid-formula" | "cycle" | "constraint" | "stale-revision" | "conflict" | "forbidden" | "lossy-confirmation-required" | "invalid-plan" | "plan-expired" | "resource-limit" | "cancelled" | "deadline-exceeded" | "busy" | "corrupt-file" | "adapter-error" | "unknown-commit" | "closed" | "fatal";
+export type RuntimeErrorCode = "invalid-request" | "unsupported" | "not-found" | "already-exists" | "invalid-value" | "invalid-query" | "invalid-formula" | "cycle" | "constraint" | "stale-revision" | "conflict" | "forbidden" | "lossy-confirmation-required" | "invalid-plan" | "plan-expired" | "resource-limit" | "cancelled" | "deadline-exceeded" | "busy" | "corrupt-file" | "adapter-error" | "unknown-commit" | "closed" | "fatal" | "table-mutation-not-supported";
 
 // @public (undocumented)
 export interface RuntimeEvent {

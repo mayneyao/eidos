@@ -304,7 +304,11 @@ export function EidosFileFieldMenu({
             <div className="my-1 h-px bg-border" role="separator" />
             <MenuItem
               destructive
-              disabled={!canEditStructure || state.field.valueKind === "system"}
+              disabled={
+                !canEditStructure ||
+                state.field.valueKind === "system" ||
+                state.field.settings?.isSystem === true
+              }
               onClick={() => run(() => onDelete(state.field))}
             >
               <Trash2 className="h-3.5 w-3.5" />

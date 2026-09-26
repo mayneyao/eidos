@@ -59,6 +59,15 @@ describe("Eidos File field capabilities", () => {
         field("formula", { valueKind: "derived", isDerived: true })
       )
     ).toBe(false)
+    expect(
+      isEidosFileFieldWritable(field("text", { settings: { isSystem: true } }))
+    ).toBe(false)
+    expect(
+      isEidosFileFieldWritable(field("text", { settings: { readOnly: true } }))
+    ).toBe(false)
+    expect(
+      isEidosFileFieldWritable(field("text", { settings: { writable: false } }))
+    ).toBe(false)
   })
 
   it("offers only scalar Fields and eligible Formula results as Record Labels", () => {

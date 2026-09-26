@@ -30,6 +30,7 @@ export type EidosFileErrorCode =
   | "view-not-found"
   | "file-exists"
   | "file-not-found"
+  | "table-mutation-not-supported"
 
 export class EidosFileError extends Error {
   constructor(

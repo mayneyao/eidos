@@ -46,12 +46,14 @@ import {
 function OptionRow({
   option,
   disabled,
+  allowRename = true,
   onRename,
   onColor,
   onDelete,
 }: {
   option: EidosFileSelectOption
   disabled: boolean
+  allowRename?: boolean
   onRename: (value: string) => boolean
   onColor: (color: string) => void
   onDelete: () => void
@@ -134,8 +136,12 @@ function OptionRow({
       </Popover>
       <Input
         value={value}
-        disabled={disabled}
-        className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs shadow-none hover:border-border focus-visible:border-ring"
+        disabled={disabled || !allowRename}
+        className={cn(
+          "h-7 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs shadow-none hover:border-border focus-visible:border-ring",
+          !allowRename &&
+            "cursor-default select-none hover:border-transparent focus-visible:ring-0 text-muted-foreground"
+        )}
         aria-label={t("{option} option value", { option: option.value })}
         onChange={(event) => setValue(event.target.value)}
         onBlur={commitName}
@@ -170,11 +176,13 @@ function sameOptionValue(left: string, right: string): boolean {
 export function EidosFileOptionsEditor({
   options: sourceOptions,
   disabled,
+  allowRename = true,
   onChange,
   className,
 }: {
   options: EidosFileSelectOption[]
   disabled: boolean
+  allowRename?: boolean
   onChange: (
     options: EidosFileSelectOption[],
     valueChanges?: EidosFileOptionValueChange[]
@@ -262,6 +270,7 @@ export function EidosFileOptionsEditor({
                   key={option.value}
                   option={option}
                   disabled={disabled}
+                  allowRename={allowRename}
                   onRename={(name) => {
                     if (
                       options.some(
@@ -354,16 +363,22 @@ export function EidosFileOptionsEditor({
 export function EidosFileSelectOptionsEditor({
   field,
   disabled,
+  allowRename = true,
   onChange,
 }: {
   field: EidosFileFieldInfo
   disabled: boolean
+  allowRename?: boolean
   onChange: (
     property: Record<string, unknown>,
     optionValueChanges?: EidosFileOptionValueChange[]
   ) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
+  const systemReadOnly =
+    field.valueKind === "system" ||
+    field.settings?.isSystem === true ||
+    field.settings?.readOnly === true
   const [defaultOptionsOpen, setDefaultOptionsOpen] = useState(false)
   const options = useMemo(() => eidosFileSelectOptions(field), [field])
   const defaultOption = useMemo(
@@ -420,9 +435,10 @@ export function EidosFileSelectOptionsEditor({
       <EidosFileOptionsEditor
         options={options}
         disabled={disabled}
+        allowRename={allowRename && !systemReadOnly}
         onChange={save}
       />
-      {field.type === "select" ? (
+      {field.type === "select" && !systemReadOnly ? (
         <div className="mt-3 grid gap-1.5 border-t pt-3 text-xs">
           <span className="font-medium">{t("Default option")}</span>
           <EidosFileCommandCombobox

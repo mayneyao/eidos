@@ -268,7 +268,7 @@ export function eidosFileValueToGridCell(
     const selected = typeof value === "string" ? value : null
     return {
       kind: GridCellKind.Custom,
-      allowOverlay: true,
+      allowOverlay: !readonly,
       readonly,
       copyData: selected ?? "",
       data: {
@@ -286,7 +286,7 @@ export function eidosFileValueToGridCell(
     )
     return {
       kind: GridCellKind.Custom,
-      allowOverlay: true,
+      allowOverlay: !readonly,
       readonly,
       copyData: values.join(","),
       data: {
@@ -353,7 +353,7 @@ export function eidosFileValueToGridCell(
       },
     }
   }
-  if (field.type === "number") {
+  if (field.type === "number" || field.type === "integer") {
     const number =
       value === null ||
       value === undefined ||
@@ -414,11 +414,12 @@ export function eidosFileValueToGridCell(
       data: text,
     }
   }
+  const cellReadonly = readonly || isOptionalEidosFileSystemField(field)
   return {
     kind: GridCellKind.Text,
-    allowOverlay: true,
+    allowOverlay: !cellReadonly,
     allowWrapping,
-    readonly: readonly || isOptionalEidosFileSystemField(field),
+    readonly: cellReadonly,
     data: text,
     displayData: text,
     themeOverride:

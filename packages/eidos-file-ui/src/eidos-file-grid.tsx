@@ -238,7 +238,9 @@ export interface EidosFileGridProps {
   loadColumnStats?: (
     configs: EidosFileColumnStatConfig[]
   ) => Promise<EidosFileColumnStatResult[]>
-  onAddRow: () => EidosFileGridAppendResult | Promise<EidosFileGridAppendResult>
+  onAddRow?: () =>
+    | EidosFileGridAppendResult
+    | Promise<EidosFileGridAppendResult>
   onCellEdit: (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -714,6 +716,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
   const gridWriteLocked =
     disabled || failedMutation !== null || rowCommandInFlight
+  const canInsertRow =
+    (table.table.settings?.capabilities as Record<string, unknown> | undefined)
+      ?.insert !== false && Boolean(onAddRow)
+  const canDeleteRow =
+    (table.table.settings?.capabilities as Record<string, unknown> | undefined)
+      ?.delete !== false
+  const canAlterSchema =
+    (table.table.settings?.capabilities as Record<string, unknown> | undefined)
+      ?.alterSchema !== false
   const freezeColumns = eidosFileViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
@@ -1228,14 +1239,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridConfig = useMemo(
     () => ({
       ...defaultConfig,
-      trailingRowOptions: {
-        ...defaultConfig.trailingRowOptions,
-        hint: t("New"),
-      },
+      trailingRowOptions: canInsertRow
+        ? {
+            ...defaultConfig.trailingRowOptions,
+            hint: t("New"),
+          }
+        : undefined,
       rowMarkers: showRowMarkers ? defaultConfig.rowMarkers : "none",
       ...eidosFileGridScrollbarConfig(hasHorizontalScroll),
     }),
-    [hasHorizontalScroll, showRowMarkers, t]
+    [canInsertRow, hasHorizontalScroll, showRowMarkers, t]
   )
 
   useLayoutEffect(() => {
@@ -1873,6 +1886,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
 
   const appendRow = useCallback(async () => {
+    if (!onAddRow || !canInsertRow) return undefined
     const generation = generationRef.current
     try {
       const result = await onAddRow()
@@ -1969,7 +1983,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       onError?.(error)
       return undefined
     }
-  }, [onAddRow, onError, refreshColumnStats, releaseDraftRowPins])
+  }, [canInsertRow, onAddRow, onError, refreshColumnStats, releaseDraftRowPins])
 
   const handleGridSelectionChange = useCallback(
     (selection: GridSelection) => {
@@ -2659,7 +2673,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ) {
         markExplicitDraftLeave()
       }
-      if (gridWriteLocked) return
+      if (gridWriteLocked || !canInsertRow) return
       const bindings = keyboardShortcuts?.newRecord ?? [
         "Meta+Enter",
         "Control+Enter",
@@ -2676,6 +2690,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       void gridRef.current?.appendRow(newRecordTargetColumn, true)
     },
     [
+      canInsertRow,
       gridWriteLocked,
       keyboardShortcuts?.newRecord,
       markExplicitDraftLeave,
@@ -2812,7 +2827,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           gridSelection={history.gridSelection ?? undefined}
           onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
           onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
-          onDelete={gridWriteLocked ? undefined : onDeleteSelection}
+          onDelete={
+            gridWriteLocked || !canDeleteRow ? undefined : onDeleteSelection
+          }
           onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
           onCellActivated={onEditFormula ? onCellActivated : undefined}
           onHeaderClicked={onHeaderClicked}
@@ -2820,9 +2837,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCellContextMenu={onCellContextMenu}
           onColumnResize={onColumnResize}
           onColumnMoved={onColumnMoved}
-          onRowAppended={gridWriteLocked ? undefined : appendRow}
+          onRowAppended={
+            gridWriteLocked || !canInsertRow ? undefined : appendRow
+          }
           rightElement={
-            !gridWriteLocked && onAddField ? (
+            !gridWriteLocked && canAlterSchema && onAddField ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -2912,7 +2931,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           sortDirection={fieldSortDirection}
           frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
           canUpdateView={!gridWriteLocked && Boolean(view && onViewUpdate)}
-          canEditStructure={!gridWriteLocked}
+          canEditStructure={!gridWriteLocked && canAlterSchema}
           statType={fieldStatType}
           onOpenChange={(open) => {
             if (!open) setFieldMenu(null)
@@ -2979,7 +2998,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           open={cellMenu !== null}
           selectionCount={cellMenu ? rowRangeCount(cellMenu.rowRanges) : 0}
           cellText={cellIsEmpty ? "" : cellText}
-          canDelete={!gridWriteLocked && Boolean(onRequestDeleteRows)}
+          canDelete={
+            !gridWriteLocked && canDeleteRow && Boolean(onRequestDeleteRows)
+          }
           onOpenChange={(open) => {
             if (open) return
             const shouldRestoreFocus = cellMenuOpenedFromKeyboardRef.current

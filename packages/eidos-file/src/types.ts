@@ -27,6 +27,7 @@ export interface EidosFileTableInfo {
   description: string | null
   /** Optional ordinary Text Field rendered as the record's primary Markdown content. */
   contentFieldId?: string | null
+  settings?: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }

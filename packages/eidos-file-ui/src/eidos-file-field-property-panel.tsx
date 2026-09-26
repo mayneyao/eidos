@@ -99,11 +99,16 @@ export function EidosFileFieldPropertyPanel({
   const skipNameCommitRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
-  const systemReadOnly = field.valueKind === "system"
+  const systemReadOnly =
+    field.valueKind === "system" ||
+    field.settings?.isSystem === true ||
+    field.settings?.readOnly === true
   const numberProperty = useMemo(() => eidosFileNumberProperty(field), [field])
   const urlDisplaysImage = eidosFileUrlDisplaysImage(field)
   const mutable =
     field.valueKind === "source" &&
+    field.settings?.isSystem !== true &&
+    field.settings?.readOnly !== true &&
     field.type !== "file" &&
     MUTABLE_BASE_FIELD_TYPES.some((type) => type === field.type)
   const mutableTypes = MUTABLE_BASE_FIELD_TYPES.filter(
@@ -691,7 +696,9 @@ export function EidosFileFieldPropertyPanel({
           </details>
         </div>
       </ScrollArea>
-      {!isRecordLabel && field.valueKind !== "system" ? (
+      {!isRecordLabel &&
+      field.valueKind !== "system" &&
+      field.settings?.isSystem !== true ? (
         <footer className="border-t p-2">
           <Button
             type="button"

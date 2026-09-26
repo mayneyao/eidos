@@ -21,6 +21,13 @@ export function isEidosFileRecordLabelField(
  * older custom editor data sources safe while they migrate to `writable`.
  */
 export function isEidosFileFieldWritable(field: EidosFileFieldInfo): boolean {
+  if (
+    field.settings?.writable === false ||
+    field.settings?.readOnly === true ||
+    field.settings?.isSystem === true
+  ) {
+    return false
+  }
   if (typeof field.writable === "boolean") return field.writable
   if (field.systemRole != null || field.isDerived) return false
   if (field.valueKind === "source") return true

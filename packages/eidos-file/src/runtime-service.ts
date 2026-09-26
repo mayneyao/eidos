@@ -748,7 +748,23 @@ export class EidosRuntimeService implements RuntimeClient {
               "rowIds must be unique and within rowsByIdMax"
             )
           }
-          request.rowIds.forEach((id) => assertEidosFileUuid(id, "Row ID"))
+          const table = this.core.getTable(request.tableId)
+          const isVirtual =
+            table.settings?.tableType === "virtual" ||
+            typeof table.settings?.vtabModule === "string"
+          request.rowIds.forEach((id) => {
+            if (isVirtual) {
+              if (
+                typeof id !== "string" ||
+                id.length === 0 ||
+                id.includes("\0")
+              ) {
+                throw runtimeError("invalid-request", "Row ID is invalid")
+              }
+            } else {
+              assertEidosFileUuid(id, "Row ID")
+            }
+          })
           assertProjection(request.projection)
           return this.getRowsByIdDirect(
             request.tableId,
@@ -944,9 +960,26 @@ export class EidosRuntimeService implements RuntimeClient {
               "rowIds must be unique and within formulaPreviewRowsMax"
             )
           }
-          request.rowIds?.forEach((id) =>
-            assertEidosFileUuid(id, "Formula preview Row ID")
-          )
+          const table = this.core.getTable(request.tableId)
+          const isVirtual =
+            table.settings?.tableType === "virtual" ||
+            typeof table.settings?.vtabModule === "string"
+          request.rowIds?.forEach((id) => {
+            if (isVirtual) {
+              if (
+                typeof id !== "string" ||
+                id.length === 0 ||
+                id.includes("\0")
+              ) {
+                throw runtimeError(
+                  "invalid-request",
+                  "Formula preview Row ID is invalid"
+                )
+              }
+            } else {
+              assertEidosFileUuid(id, "Formula preview Row ID")
+            }
+          })
           const name =
             request.fieldId === undefined
               ? request.candidateName
@@ -1073,10 +1106,32 @@ export class EidosRuntimeService implements RuntimeClient {
           request.expectedRevision,
           String(current.revision)
         )
+        const table = this.core.getTable(request.tableId)
+        const isVirtual =
+          table.settings?.tableType === "virtual" ||
+          typeof table.settings?.vtabModule === "string"
+        const tableCaps =
+          (table.settings?.capabilities as Record<string, unknown>) ?? {}
+        const canInsert =
+          typeof tableCaps.insert === "boolean" ? tableCaps.insert : !isVirtual
+        const canDelete =
+          typeof tableCaps.delete === "boolean" ||
+          tableCaps.delete === "clear_meta"
+            ? tableCaps.delete !== false
+            : true
+        const canUpdate =
+          typeof tableCaps.update === "boolean" ? tableCaps.update : true
+
         const clientKeys = new Set<string>()
         const rowIds = new Set<string>()
         for (const change of request.changes) {
           if (change.kind === "create") {
+            if (!canInsert) {
+              throw runtimeError(
+                "table-mutation-not-supported",
+                "Virtual table does not support row creation"
+              )
+            }
             if (!change.clientKey || clientKeys.has(change.clientKey)) {
               throw runtimeError(
                 "invalid-request",
@@ -1085,7 +1140,32 @@ export class EidosRuntimeService implements RuntimeClient {
             }
             clientKeys.add(change.clientKey)
           } else {
-            assertEidosFileUuid(change.rowId, "Row ID")
+            if (change.kind === "delete" && !canDelete) {
+              throw runtimeError(
+                "table-mutation-not-supported",
+                "Virtual table does not support row deletion"
+              )
+            }
+            if (change.kind === "update" && !canUpdate) {
+              throw runtimeError(
+                "table-mutation-not-supported",
+                "Virtual table does not support row updates"
+              )
+            }
+            if (isVirtual) {
+              if (
+                typeof change.rowId !== "string" ||
+                change.rowId.length === 0 ||
+                change.rowId.includes("\0")
+              ) {
+                throw runtimeError(
+                  "invalid-request",
+                  "Row ID must be a non-empty string without null bytes"
+                )
+              }
+            } else {
+              assertEidosFileUuid(change.rowId, "Row ID")
+            }
             if (rowIds.has(change.rowId)) {
               throw runtimeError(
                 "invalid-request",
@@ -3231,7 +3311,7 @@ export class EidosRuntimeService implements RuntimeClient {
             })
             break
           }
-          if (field.systemRole) {
+          if (field.systemRole || field.settings?.isSystem === true) {
             forbid("dependency-blocked", "System Fields cannot be deleted", {
               fieldId: leaf.fieldId,
             })
@@ -3510,6 +3590,7 @@ export class EidosRuntimeService implements RuntimeClient {
           if (
             !field ||
             field.systemRole ||
+            field.settings?.isSystem === true ||
             !field.physicalName ||
             ["formula", "lookup"].includes(field.type)
           ) {
@@ -3823,9 +3904,13 @@ export class EidosRuntimeService implements RuntimeClient {
         }
         case "set-field-settings": {
           const field = this.field(leaf.fieldId)
+          const settings = {
+            ...(field.settings ?? {}),
+            ...leaf.settings,
+          }
           this.core.connection.run(
             "UPDATE eidos__fields SET settings_json=? WHERE id=?",
-            [canonicalizeEidosFileJson(leaf.settings), leaf.fieldId]
+            [canonicalizeEidosFileJson(settings), leaf.fieldId]
           )
           affectedTableIds.add(field.tableId)
           affectedFieldIds.add(leaf.fieldId)
@@ -4300,6 +4385,13 @@ function csvImportFieldType(
 function fieldWritable(
   field: ReturnType<EidosFileRuntime["listFields"]>[number]
 ): boolean {
+  if (
+    field.settings?.writable === false ||
+    field.settings?.readOnly === true ||
+    field.settings?.isSystem === true
+  ) {
+    return false
+  }
   const relation =
     field.type === "relation" ? relationDefinition(field) : undefined
   return (
@@ -4663,13 +4755,9 @@ function logicalValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
     case "checkbox":
       return typeof value === "boolean"
     case "row-id":
-      if (typeof value !== "string") return false
-      try {
-        assertEidosFileUuid(value, "Row ID")
-        return true
-      } catch {
-        return false
-      }
+      return (
+        typeof value === "string" && value.length > 0 && !value.includes("\0")
+      )
     case "text":
     case "url":
     case "select":
@@ -5655,6 +5743,7 @@ function mapRuntimeFailure(error: unknown): RuntimeError {
         "view-not-found": "not-found",
         "file-exists": "already-exists",
         "file-not-found": "not-found",
+        "table-mutation-not-supported": "table-mutation-not-supported",
       } satisfies Record<EidosFileErrorCode, RuntimeErrorCode>
     )[error.code]
     return runtimeError(code, error.message, {

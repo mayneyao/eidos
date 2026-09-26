@@ -580,6 +580,13 @@ function uniqueSortFields(
   })
 }
 
+function assertCursorRowId(value: string, label = "Cursor Row ID"): string {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\0")) {
+    throw new EidosFileError("invalid-query", `${label} is invalid`)
+  }
+  return value
+}
+
 function compileKeysetAfter(
   sorts: Array<{ field: EidosFileFieldInfo; sort: EidosFileSort }>,
   values: EidosFileSqlPrimitive[],
@@ -634,7 +641,7 @@ function compileKeysetAfter(
     }
   })
   finalParts.push('"__base_rowid" > ?')
-  params.push(assertEidosFileUuid(lastId, "Cursor Row ID"))
+  params.push(assertCursorRowId(lastId, "Cursor Row ID"))
   branches.push(`(${finalParts.join(" AND ")})`)
   return { sql: `(${branches.join(" OR ")})`, params }
 }
@@ -691,7 +698,7 @@ function compileKeysetBefore(
     }
   })
   finalParts.push('"__base_rowid" < ?')
-  params.push(assertEidosFileUuid(firstId, "Row ID"))
+  params.push(assertCursorRowId(firstId, "Row ID"))
   branches.push(`(${finalParts.join(" AND ")})`)
   return { sql: `(${branches.join(" OR ")})`, params }
 }
@@ -1319,6 +1326,146 @@ export class EidosFileRuntime {
     return row
   }
 
+  private isVirtualTable(tableId: string): boolean {
+    const row = this.tableRow(tableId)
+    const settings = jsonObject(row.settings_json)
+    return (
+      settings.tableType === "virtual" ||
+      typeof settings.vtabModule === "string"
+    )
+  }
+
+  private tableCapabilities(tableId: string): {
+    insert: boolean
+    delete: boolean | "clear_meta"
+    update: boolean
+    alterSchema: boolean
+  } {
+    const row = this.tableRow(tableId)
+    const settings = jsonObject(row.settings_json)
+    const caps = (settings.capabilities as Record<string, unknown>) ?? {}
+    const isVirt =
+      settings.tableType === "virtual" ||
+      typeof settings.vtabModule === "string"
+    return {
+      insert: typeof caps.insert === "boolean" ? caps.insert : !isVirt,
+      delete:
+        typeof caps.delete === "boolean" || caps.delete === "clear_meta"
+          ? (caps.delete as boolean | "clear_meta")
+          : true,
+      update: typeof caps.update === "boolean" ? caps.update : true,
+      alterSchema:
+        typeof caps.alterSchema === "boolean" ? caps.alterSchema : true,
+    }
+  }
+
+  private syncVirtualTableSchema(tableId: string): void {
+    const table = this.getTable(tableId)
+    const tableName = table.physicalName ?? table.rawTableName
+    const schemaRow = this.connection.get<{ sql: string }>(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName]
+    )
+    if (!schemaRow || !schemaRow.sql) return
+
+    const allFields = this.listFields(tableId)
+    const customFields = allFields.filter((f) => {
+      if (f.settings?.isSystem === true) return false
+      if (f.systemRole !== null) return false
+      const name = (f.physicalName ?? f.name).toLowerCase()
+      if (
+        [
+          "_id",
+          "id",
+          "name",
+          "extension",
+          "size",
+          "_created_at",
+          "_updated_at",
+          "mtime",
+          "path",
+          "is_dir",
+          "file",
+          "mimetype",
+          "mime_type",
+        ].includes(name)
+      ) {
+        return false
+      }
+      return true
+    })
+
+    const fieldsSql = customFields
+      .map((f) => {
+        const colName = f.physicalName ?? f.name
+        const typeStr = f.type as string
+        const sqlType =
+          typeStr === "integer" ||
+          typeStr === "rating" ||
+          typeStr === "boolean" ||
+          typeStr === "checkbox"
+            ? "INTEGER"
+            : typeStr === "number" || typeStr === "float"
+              ? "REAL"
+              : "TEXT"
+        return `${colName} ${sqlType}`
+      })
+      .join(", ")
+
+    const match = schemaRow.sql.match(
+      /^(CREATE\s+VIRTUAL\s+TABLE\s+(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:\[[^\]]+\])|(?:\S+))\s+USING\s+([a-zA-Z0-9_]+)\s*\()([\s\S]*?)(\)\s*;?)$/i
+    )
+
+    let newSql: string
+    if (match) {
+      const prefix = match[1]
+      const args = match[3]
+      const suffix = match[4]
+      const fieldsRegex = /\bfields\s*=\s*(?:'[^']*'|"[^"]*")/i
+      let newArgs: string
+      if (fieldsRegex.test(args)) {
+        newArgs = args.replace(fieldsRegex, `fields = '${fieldsSql}'`)
+      } else {
+        const trimmed = args.trim()
+        if (trimmed.length > 0) {
+          newArgs = `${trimmed}, fields = '${fieldsSql}'`
+        } else {
+          newArgs = `fields = '${fieldsSql}'`
+        }
+      }
+      newSql = `${prefix}${newArgs}${suffix}`
+    } else {
+      const row = this.tableRow(tableId)
+      const settings = jsonObject(row.settings_json)
+      const moduleName = String(settings.vtabModule ?? "fs_meta")
+      const vtabConfig = (settings.vtabConfig as Record<string, string>) ?? {}
+      const root = vtabConfig.root ?? "."
+      newSql = `CREATE VIRTUAL TABLE ${quoteIdentifier(tableName)} USING ${moduleName}(root = '${root}', fields = '${fieldsSql}');`
+    }
+
+    this.connection.exec(`DROP TABLE ${quoteIdentifier(tableName)};`)
+    this.connection.exec(newSql)
+    this.schemaCache = undefined
+  }
+
+  private assertRowId(
+    tableId: string,
+    rowId: string,
+    label = "Row ID"
+  ): string {
+    if (this.isVirtualTable(tableId)) {
+      if (
+        typeof rowId !== "string" ||
+        rowId.length === 0 ||
+        rowId.includes("\0")
+      ) {
+        throw new EidosFileError("invalid-value", `${label} is invalid`)
+      }
+      return rowId
+    }
+    return assertEidosFileUuid(rowId, label)
+  }
+
   private fieldRows(tableId: string): FieldRow[] {
     return this.connection.query<FieldRow>(
       `SELECT * FROM ${EIDOS_FILE_FIELDS_TABLE}
@@ -1429,6 +1576,14 @@ export class EidosFileRuntime {
         position: row.position,
         settings,
         property,
+        writable:
+          settings.writable !== false &&
+          settings.readOnly !== true &&
+          settings.isSystem !== true &&
+          !row.system_role &&
+          type !== "formula" &&
+          type !== "lookup" &&
+          !(type === "relation" && relation?.direction === "inverse"),
         storageCodec:
           type === "relation" && relation?.direction === "forward"
             ? "relation"
@@ -1505,29 +1660,28 @@ export class EidosFileRuntime {
           left.position - right.position ||
           uuid(left.id).localeCompare(uuid(right.id))
       )
-      .map((row) => ({
-        ...(() => {
-          const settings = jsonObject(row.settings_json)
-          return {
-            icon: typeof settings.icon === "string" ? settings.icon : null,
-            description:
-              typeof settings.description === "string"
-                ? settings.description
-                : null,
-            contentFieldId:
-              typeof settings.contentFieldId === "string"
-                ? settings.contentFieldId
-                : null,
-          }
-        })(),
-        id: uuid(row.id),
-        name: row.name,
-        physicalName: row.physical_name,
-        rawTableName: row.physical_name,
-        position: row.position,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }))
+      .map((row) => {
+        const settings = jsonObject(row.settings_json)
+        return {
+          icon: typeof settings.icon === "string" ? settings.icon : null,
+          description:
+            typeof settings.description === "string"
+              ? settings.description
+              : null,
+          contentFieldId:
+            typeof settings.contentFieldId === "string"
+              ? settings.contentFieldId
+              : null,
+          settings,
+          id: uuid(row.id),
+          name: row.name,
+          physicalName: row.physical_name,
+          rawTableName: row.physical_name,
+          position: row.position,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }
+      })
   }
 
   getTable(tableId: string): EidosFileTableInfo {
@@ -1546,6 +1700,7 @@ export class EidosFileRuntime {
         typeof settings.contentFieldId === "string"
           ? settings.contentFieldId
           : null,
+      settings,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -2256,11 +2411,21 @@ export class EidosFileRuntime {
           "A Lookup cannot be the Record Label Field in Eidos File 1.0"
         )
       }
-      const definition = fieldColumnSql(prepared)
-      if (definition) {
-        this.connection.exec(
-          `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} ADD COLUMN ${definition}`
-        )
+      const isVirtual = this.isVirtualTable(tableId)
+      if (isVirtual) {
+        if (!this.tableCapabilities(tableId).alterSchema) {
+          throw new EidosFileError(
+            "table-mutation-not-supported",
+            "Virtual table does not support altering schema"
+          )
+        }
+      } else {
+        const definition = fieldColumnSql(prepared)
+        if (definition) {
+          this.connection.exec(
+            `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} ADD COLUMN ${definition}`
+          )
+        }
       }
       this.insertFieldMetadata(
         tableId,
@@ -2295,6 +2460,9 @@ export class EidosFileRuntime {
           `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET layout_json = ?, updated_at = ? WHERE id = ?`,
           [canonicalizeEidosFileJson(layout), this.operationInstant(), view.id]
         )
+      }
+      if (isVirtual) {
+        this.syncVirtualTableSchema(tableId)
       }
       return this.fieldByKey(tableId, id)
     })
@@ -2366,9 +2534,19 @@ export class EidosFileRuntime {
         if (field.physicalName) {
           physicalName = name
           if (physicalName !== field.physicalName) {
-            this.connection.exec(
-              `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} RENAME COLUMN ${quoteIdentifier(field.physicalName)} TO ${quoteIdentifier(physicalName)}`
-            )
+            const isVirtual = this.isVirtualTable(tableId)
+            if (isVirtual) {
+              if (!this.tableCapabilities(tableId).alterSchema) {
+                throw new EidosFileError(
+                  "table-mutation-not-supported",
+                  "Virtual table does not support altering schema"
+                )
+              }
+            } else {
+              this.connection.exec(
+                `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} RENAME COLUMN ${quoteIdentifier(field.physicalName)} TO ${quoteIdentifier(physicalName)}`
+              )
+            }
           }
         }
         const formulaRows = this.connection.query<{
@@ -2396,9 +2574,12 @@ export class EidosFileRuntime {
         }
       }
 
-      let settings = field.settings ?? {}
+      let settings = field.settings ? { ...field.settings } : {}
       if (changes.property !== undefined) {
-        settings = presentationSettingsObject(changes.property)
+        settings = {
+          ...settings,
+          ...presentationSettingsObject(changes.property),
+        }
       }
       if (changes.optionValueChanges && changes.optionValueChanges.length > 0) {
         if (field.type !== "select" && field.type !== "multi-select") {
@@ -2652,6 +2833,46 @@ export class EidosFileRuntime {
               SET label_field_id = ?, updated_at = ? WHERE id = ?`,
           [fieldId, now, tableId]
         )
+      }
+      if (this.isVirtualTable(tableId) && physicalName !== field.physicalName) {
+        const oldCol = field.physicalName
+        const newCol = physicalName
+        let rowsToMigrate: Array<{ id: string; val: EidosFileSqlPrimitive }> =
+          []
+        if (oldCol && newCol) {
+          try {
+            rowsToMigrate = this.connection.query<{
+              id: string
+              val: EidosFileSqlPrimitive
+            }>(
+              `SELECT "_id" AS id, ${quoteIdentifier(oldCol)} AS val
+                 FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                WHERE ${quoteIdentifier(oldCol)} IS NOT NULL`
+            )
+            if (rowsToMigrate.length > 0) {
+              this.connection.run(
+                `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                    SET ${quoteIdentifier(oldCol)} = NULL
+                  WHERE ${quoteIdentifier(oldCol)} IS NOT NULL`
+              )
+            }
+          } catch {
+            rowsToMigrate = []
+          }
+        }
+
+        this.syncVirtualTableSchema(tableId)
+
+        if (newCol && rowsToMigrate.length > 0) {
+          for (const row of rowsToMigrate) {
+            this.connection.run(
+              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                  SET ${quoteIdentifier(newCol)} = ?
+                WHERE "_id" = ?`,
+              [row.val, row.id]
+            )
+          }
+        }
       }
       return this.fieldByKey(tableId, fieldId)
     })
@@ -3045,7 +3266,7 @@ export class EidosFileRuntime {
     const table = this.getTable(tableId)
     const field = this.fieldByKey(tableId, fieldKey)
     if (!field.id) return false
-    if (field.valueKind === "system") {
+    if (field.valueKind === "system" || field.settings?.isSystem === true) {
       throw new EidosFileError(
         "protected-field",
         "System Fields cannot be deleted"
@@ -3119,15 +3340,39 @@ export class EidosFileRuntime {
       }
       this.removeFieldFromViewLayouts(tableId, field.id!)
       if (field.type === "relation") this.dropRelationTriggers(field.id!)
-      if (field.physicalName) {
-        this.connection.exec(
-          `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} DROP COLUMN ${quoteIdentifier(field.physicalName)}`
-        )
+      const isVirtual = this.isVirtualTable(tableId)
+      if (isVirtual) {
+        if (!this.tableCapabilities(tableId).alterSchema) {
+          throw new EidosFileError(
+            "table-mutation-not-supported",
+            "Virtual table does not support altering schema"
+          )
+        }
+        if (field.physicalName) {
+          try {
+            this.connection.run(
+              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                  SET ${quoteIdentifier(field.physicalName)} = NULL
+                WHERE ${quoteIdentifier(field.physicalName)} IS NOT NULL`
+            )
+          } catch {
+            // Ignore if column cannot be updated
+          }
+        }
+      } else {
+        if (field.physicalName) {
+          this.connection.exec(
+            `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} DROP COLUMN ${quoteIdentifier(field.physicalName)}`
+          )
+        }
       }
       const result = this.connection.run(
         `DELETE FROM ${EIDOS_FILE_FIELDS_TABLE} WHERE id = ?`,
         [field.id!]
       )
+      if (isVirtual) {
+        this.syncVirtualTableSchema(tableId)
+      }
       return result.changes > 0
     })
   }
@@ -4075,7 +4320,7 @@ export class EidosFileRuntime {
     rowId: string,
     query: EidosFileRowQuery = {}
   ): number | null {
-    const id = assertEidosFileUuid(rowId, "Row ID")
+    const id = this.assertRowId(tableId, rowId, "Row ID")
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
     const source = this.logicalSource(
@@ -4120,7 +4365,7 @@ export class EidosFileRuntime {
     rowId: string,
     query: EidosFileRowQuery = {}
   ): RecordNeighbors {
-    const id = assertEidosFileUuid(rowId, "Row ID")
+    const id = this.assertRowId(tableId, rowId, "Row ID")
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
     const source = this.logicalSource(
@@ -4172,7 +4417,7 @@ export class EidosFileRuntime {
     const source = this.logicalSource(tableId)
     const row = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
       `WITH logical AS (${source.sql}) SELECT * FROM logical WHERE "__base_rowid" = ?`,
-      [assertEidosFileUuid(rowId, "Row ID")]
+      [this.assertRowId(tableId, rowId, "Row ID")]
     )
     if (!row) return null
     return Object.fromEntries(
@@ -4235,7 +4480,9 @@ export class EidosFileRuntime {
         "getLogicalRowsByIds accepts at most 500 Row IDs"
       )
     }
-    const ids = rowIds.map((rowId) => assertEidosFileUuid(rowId, "Row ID"))
+    const ids = rowIds.map((rowId) =>
+      this.assertRowId(tableId, rowId, "Row ID")
+    )
     const fields = this.listFields(tableId)
     const requested = options.fields
       ? options.fields.map((id) => this.fieldByKey(tableId, id))
@@ -5046,7 +5293,13 @@ export class EidosFileRuntime {
     for (const [key, value] of Object.entries(row)) {
       if (key === "_id" || key === "id" || key.endsWith("__display")) continue
       const field = this.fieldByKey(tableId, key)
-      if (!field.physicalName || field.valueKind === "system") {
+      if (
+        !field.physicalName ||
+        field.valueKind === "system" ||
+        field.settings?.writable === false ||
+        field.settings?.readOnly === true ||
+        field.settings?.isSystem === true
+      ) {
         throw new EidosFileError(
           "protected-field",
           `Field ${field.name} is read-only`
@@ -5093,11 +5346,18 @@ export class EidosFileRuntime {
     allowUnresolvedRelations: boolean,
     applyCreateDefaults: boolean
   ): string {
+    const caps = this.tableCapabilities(tableId)
+    if (!caps.insert) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row creation"
+      )
+    }
     const table = this.getTable(tableId)
     const requestedId = row._id ?? row.id
     const rowId =
       typeof requestedId === "string"
-        ? assertEidosFileUuid(requestedId, "Row ID")
+        ? this.assertRowId(tableId, requestedId, "Row ID")
         : this.allocateId()
     const now = this.operationInstant()
     const changes = this.rowChanges(
@@ -5132,6 +5392,13 @@ export class EidosFileRuntime {
     rows: readonly EidosFileRow[]
   ): string[] {
     if (rows.length === 0) return []
+    const caps = this.tableCapabilities(tableId)
+    if (!caps.insert) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row creation"
+      )
+    }
     const table = this.getTable(tableId)
     const fields = this.listFields(tableId)
     const fieldByKey = new Map<string, EidosFileFieldInfo>()
@@ -5160,7 +5427,7 @@ export class EidosFileRuntime {
       const requestedId = row._id ?? row.id
       const rowId =
         typeof requestedId === "string"
-          ? assertEidosFileUuid(requestedId, "Row ID")
+          ? this.assertRowId(tableId, requestedId, "Row ID")
           : this.allocateId()
       const keys = Object.keys(row).filter(
         (key) => key !== "_id" && key !== "id" && !key.endsWith("__display")
@@ -5176,7 +5443,13 @@ export class EidosFileRuntime {
               `Eidos File Field not found: ${key}`
             )
           }
-          if (!field.physicalName || field.valueKind === "system") {
+          if (
+            !field.physicalName ||
+            field.valueKind === "system" ||
+            field.settings?.writable === false ||
+            field.settings?.readOnly === true ||
+            field.settings?.isSystem === true
+          ) {
             throw new EidosFileError(
               "protected-field",
               `Field ${field.name} is read-only`
@@ -5270,10 +5543,17 @@ export class EidosFileRuntime {
   }
 
   updateRows(tableId: string, updates: EidosFileRowUpdate[]): EidosFileRow[] {
+    const caps = this.tableCapabilities(tableId)
+    if (!caps.update) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row updates"
+      )
+    }
     const table = this.getTable(tableId)
     const ids = this.mutate(() => {
       for (const update of updates) {
-        const rowId = assertEidosFileUuid(update.rowId, "Row ID")
+        const rowId = this.assertRowId(tableId, update.rowId, "Row ID")
         const changes = this.rowChanges(tableId, update.changes, true)
         if (changes.length === 0) continue
         const assignments = [
@@ -5382,7 +5662,7 @@ export class EidosFileRuntime {
     rowIds: string[]
   ): RowDeletionUndoState {
     const ids = Array.from(
-      new Set(rowIds.map((id) => assertEidosFileUuid(id, "Row ID")))
+      new Set(rowIds.map((id) => this.assertRowId(tableId, id, "Row ID")))
     )
     const table = this.getTable(tableId)
     const physicalTable = table.physicalName ?? table.rawTableName
@@ -5745,7 +6025,7 @@ export class EidosFileRuntime {
   deleteRows(tableId: string, rowIds: string[]): string[] {
     if (rowIds.length === 0) return []
     const ids = Array.from(
-      new Set(rowIds.map((id) => assertEidosFileUuid(id, "Row ID")))
+      new Set(rowIds.map((id) => this.assertRowId(tableId, id, "Row ID")))
     )
     if (ids.length > 500) {
       throw new EidosFileError(
@@ -5841,7 +6121,7 @@ export class EidosFileRuntime {
         : Array.from(
             new Set(
               input.rowIds.map((rowId) =>
-                assertEidosFileUuid(rowId, "Formula preview Row ID")
+                this.assertRowId(tableId, rowId, "Formula preview Row ID")
               )
             )
           ).slice(0, 100)
@@ -5976,7 +6256,10 @@ export class EidosFileRuntime {
       const field = this.fieldByKey(tableId, fieldId)
       if (
         field.isDerived ||
-        (field.valueKind === "system" && field.type !== "row-id")
+        (field.valueKind === "system" && field.type !== "row-id") ||
+        field.settings?.writable === false ||
+        field.settings?.readOnly === true ||
+        field.settings?.isSystem === true
       ) {
         throw new EidosFileError(
           "invalid-value",
@@ -6011,11 +6294,30 @@ export class EidosFileRuntime {
         "mutateRows accepts at most 500 row operations per atomic batch"
       )
     }
+    const caps = this.tableCapabilities(input.tableId)
+    if (input.insert?.length && !caps.insert) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row creation"
+      )
+    }
+    if (input.delete?.length && !caps.delete) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row deletion"
+      )
+    }
+    if (input.update?.length && !caps.update) {
+      throw new EidosFileError(
+        "table-mutation-not-supported",
+        "Virtual table does not support row updates"
+      )
+    }
     const table = this.getTable(input.tableId)
     const result = this.mutate(() => {
       const operationInstant = this.operationInstant()
       const deleteIds = (input.delete ?? []).map((id) =>
-        assertEidosFileUuid(id, "Row ID")
+        this.assertRowId(input.tableId, id, "Row ID")
       )
       const deleteSet = new Set(deleteIds)
       if (deleteSet.size !== deleteIds.length) {
@@ -6035,7 +6337,7 @@ export class EidosFileRuntime {
       }
 
       const preparedUpdates = (input.update ?? []).map((update) => {
-        const rowId = assertEidosFileUuid(update.id, "Row ID")
+        const rowId = this.assertRowId(input.tableId, update.id, "Row ID")
         const requestedChanges = this.rowChanges(
           input.tableId,
           this.logicalMutationFields(input.tableId, update.fields),

@@ -13,6 +13,9 @@ import {
 } from "./node-sqlite"
 import { EidosFileRuntime } from "./runtime"
 import { Runtime } from "./runtime-service"
+import { ConnectionPortEidosFileConnection } from "./connection-port"
+import { initializeEidosFileSchema } from "./schema"
+import { validateEidosFile } from "./validation"
 import type { EidosRuntimeService } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -47,6 +50,42 @@ const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
 })
+
+it.runIf(supportsElectron43NodeSqlite).each(["vtab:unknown", "vtab:fs_meta"])(
+  "rejects unavailable required feature %s before querying its schema",
+  (feature) => {
+    const database = new DatabaseSync(":memory:")
+    const connection = new ConnectionPortEidosFileConnection(
+      new NodeSqliteConnectionPort(database)
+    )
+    try {
+      initializeEidosFileSchema(connection, { title: "Capabilities" })
+      database
+        .prepare(
+          "INSERT INTO eidos__features (name, version, required, config_json) VALUES (?, '1.0.0', 1, '{}')"
+        )
+        .run(feature)
+      expect(validateEidosFile(connection, { level: "identity" }).valid).toBe(
+        true
+      )
+      for (const level of ["structural", "full"] as const) {
+        expect(validateEidosFile(connection, { level })).toMatchObject({
+          valid: false,
+          errors: [
+            expect.objectContaining({
+              code: "unsupported-feature",
+              message: expect.stringContaining(feature),
+            }),
+          ],
+        })
+      }
+      database.exec("UPDATE eidos__features SET required = 0")
+      expect(validateEidosFile(connection).valid).toBe(true)
+    } finally {
+      database.close()
+    }
+  }
+)
 
 describe.runIf(supportsElectron43NodeSqlite)(
   "NodeSqliteConnectionPort EA-Connection-1.0",

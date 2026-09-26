@@ -1123,6 +1123,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       const kind =
         changes.type === "rating" ? "integer" : (changes.type ?? field.kind)
       const settings = {
+        ...(field.settings ?? {}),
         ...property,
         ...(changes.type === "rating"
           ? {
@@ -2072,6 +2073,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         typeof table.settings.contentFieldId === "string"
           ? table.settings.contentFieldId
           : null,
+      settings: table.settings,
       createdAt: "",
       updatedAt: "",
     }
@@ -2083,6 +2085,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): EidosFileFieldInfo {
     const property = this.editorFieldProperty(field)
     const derived = field.kind === "formula" || field.kind === "lookup"
+    const readOnly =
+      field.settings.readOnly === true ||
+      field.settings.writable === false ||
+      field.settings.isSystem === true
     return {
       id: field.id,
       tableId: field.tableId,
@@ -2093,7 +2099,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       physicalName: null,
       systemRole: field.systemRole,
       nullable: field.nullable,
-      writable: field.writable,
+      writable: field.writable && !readOnly,
       isRecordLabel: table.labelFieldId === field.id,
       position: Number(field.position),
       settings: field.settings,
