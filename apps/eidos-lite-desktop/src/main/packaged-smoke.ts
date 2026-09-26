@@ -44,6 +44,7 @@ const enforcePackagedPerformance = shouldEnforcePackagedPerformance()
 
 interface RendererSmokeResult {
   fileMetadataTable?: boolean
+  releaseNotes?: boolean
   performance: {
     coldStartMs: number
     budgets: {
@@ -2201,6 +2202,51 @@ export async function runPackagedSmoke(
         `Space lifecycle recovery failed: ${JSON.stringify(report.lifecycleRecovery)}`
       )
     }
+    // Exercise the bundled read-only document and its local language switch.
+    // Keep this after runtime/performance probes so navigation cannot warm them.
+    await fs.mkdir(path.dirname(resultPath), { recursive: true })
+    const notesLanguage = await window.webContents.executeJavaScript(
+      `window.eidosLite.getPreferences().then(value => value.language)`
+    )
+    for (const locale of ["en", "zh"] as const) {
+      await window.webContents.executeJavaScript(`
+        (async () => {
+          if (${JSON.stringify(locale)} === "en") {
+            history.pushState(null, "", "#/whats-new?lang=en")
+            window.dispatchEvent(new Event("eidos-lite:navigation"))
+          } else {
+            const link = document.querySelector('.whats-new-page a[href="#whats-new-zh"]')
+            if (!link) throw new Error("Missing release notes language switch")
+            link.click()
+          }
+          const deadline = Date.now() + 10000
+          const heading = ${JSON.stringify(locale === "en" ? "What's new" : "新功能")}
+          while (Date.now() < deadline) {
+            const page = document.querySelector(".whats-new-page")
+            if (page?.getBoundingClientRect().height > 0 &&
+                [...page.querySelectorAll("h2")].some(node => node.textContent === heading)) {
+              if (page.querySelector('[contenteditable="true"]'))
+                throw new Error("Release notes must be read-only")
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+              return
+            }
+            await new Promise(resolve => setTimeout(resolve, 50))
+          }
+          throw new Error("Bundled release notes did not render: " + heading)
+        })()
+      `)
+      const screenshot = await window.webContents.capturePage()
+      await fs.writeFile(
+        path.join(path.dirname(resultPath), `release-notes-${locale}.png`),
+        screenshot.toPNG()
+      )
+    }
+    const notesLanguageAfter = await window.webContents.executeJavaScript(
+      `window.eidosLite.getPreferences().then(value => value.language)`
+    )
+    if (notesLanguageAfter !== notesLanguage)
+      throw new Error("Release notes switch changed the app language")
+    report.releaseNotes = true
     if (report.inlineError) failures.push(`UI: ${report.inlineError}`)
     if (failures.length) throw new Error(failures.join("\n"))
     await fs.mkdir(path.dirname(resultPath), { recursive: true })

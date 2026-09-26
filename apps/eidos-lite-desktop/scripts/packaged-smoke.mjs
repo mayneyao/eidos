@@ -319,6 +319,7 @@ try {
     report.probes?.length !== 3 ||
     report.runtimeCache?.residentPaths?.length > 3 ||
     report.fileMetadataTable !== true ||
+    report.releaseNotes !== true ||
     Object.values(report.fileLifecycle ?? {}).some((value) => value !== true) ||
     Object.values(report.textEditor ?? {}).some((value) => value !== true) ||
     Object.values(report.lifecycleRecovery ?? {}).some(
@@ -364,6 +365,22 @@ try {
     throw new Error(`Invalid packaged smoke report: ${JSON.stringify(report)}`)
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+  if (process.env.EIDOS_LITE_SMOKE_EVIDENCE_DIRECTORY) {
+    const evidenceDirectory = path.resolve(
+      process.env.EIDOS_LITE_SMOKE_EVIDENCE_DIRECTORY
+    )
+    await fs.mkdir(evidenceDirectory, { recursive: true })
+    for (const name of [
+      "result.json",
+      "release-notes-en.png",
+      "release-notes-zh.png",
+    ]) {
+      await fs.copyFile(
+        path.join(temporaryRoot, name),
+        path.join(evidenceDirectory, name)
+      )
+    }
+  }
 } finally {
   await fs.rm(temporaryRoot, {
     recursive: true,
