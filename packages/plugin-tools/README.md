@@ -5,7 +5,7 @@ Read the public [development guide](../../apps/docs/src/content/docs/plugins/gui
 workflow. This document is for repository maintainers.
 
 This package owns plugin creation, checking, development and packaging. CLI 2.0
-retains hidden aliases for older authoring commands. SDK imports are types only; runtime capabilities are injected
+rejects the old authoring commands with migration instructions. SDK imports are types only; runtime capabilities are injected
 through `mount(ctx, root)`. Check and pack accept directories containing `plugin.json`
 or standalone TS/JS sources, without executing plugin code or build configuration.
 
@@ -20,10 +20,9 @@ pnpm --filter @eidos.space/plugin-tools build
 cd apps/cli
 cargo build --locked
 cd ../..
-export EIDOS_PLUGIN_TOOLS="$PWD/packages/plugin-tools/bin/eidos-plugin.mjs"
-apps/cli/target/debug/eidos plugin create /tmp/my-csv-editor
-apps/cli/target/debug/eidos plugin check /tmp/my-csv-editor
-apps/cli/target/debug/eidos plugin pack /tmp/my-csv-editor --out /tmp/my-csv-editor.eidos-plugin
+node packages/plugin-tools/bin/eidos-plugin.mjs create /tmp/my-csv-editor
+node packages/plugin-tools/bin/eidos-plugin.mjs check /tmp/my-csv-editor
+node packages/plugin-tools/bin/eidos-plugin.mjs pack /tmp/my-csv-editor --out /tmp/my-csv-editor.eidos-plugin
 EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
 ```
 
@@ -31,7 +30,7 @@ The bridge requires Node.js >=22.12. `@eidos.space/plugin-tools` bundles its
 compiler backend into `dist/compiler.js` and its SDK contract into `dist/contracts.ts`
 via `build.mjs` and is published to npm
 alongside `@eidos.space/plugin-sdk`. Developers can use `npx @eidos.space/plugin-tools create`
-or the Rust `eidos plugin` CLI interchangeably. Dependency-free compilation uses
+for authoring; `eidos plugin doctor` inspects CLI host compatibility. Dependency-free compilation uses
 the built-in SDK types; third-party dependencies require a matching lockfile and local install.
 
 ## Lite development
@@ -77,19 +76,19 @@ Maintained plugins live outside this repository in `~/workspace/eidos-plugins`.
 To test the maintained React CSV plugin, run the browser smoke with `--react`.
 Set `EIDOS_CSV_PLUGIN` if its source is outside the default
 `~/workspace/eidos-plugins/eidos-csv-plugin` directory. Templates remain part of
-this tool package for `eidos plugin create`.
+this tool package for `npx @eidos.space/plugin-tools create`.
 
-`templates/catalog.json` and `templates/project.json` are shared by Node and Rust.
-The Rust CLI embeds the corresponding source files so creation needs no Node.js.
-When adding a source file, add its `include_str!` entry in `apps/cli/src/plugin.rs`.
-Rebuild the Rust binary before running the cross-CLI parity test:
+`templates/catalog.json` and `templates/project.json` define the starters.
+Build the Rust binary before testing CLI migration errors and compatibility
+inspection of packages produced by this tool:
 
 ```sh
 EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
 ```
 
-The test compares every starter file, compiles all templates, tests action
+The tests compile all templates, test action
 pagination/cancellation, checks target-host failures, and verifies release hashes.
 See the bilingual development workflow for `templates`, `--template`, `--target`,
 checksum output and the `registry` draft helper. These additions need a new tool
-release; published 0.2.0 does not expose them.
+release. Version 0.4.0 generates API 2.0 Lite projects with matching SDK dependencies;
+the CLI table-view starter retains its API 1.0 contract.
