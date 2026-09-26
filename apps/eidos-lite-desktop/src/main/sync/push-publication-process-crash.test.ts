@@ -216,6 +216,9 @@ describe("push publication process crash recovery", () => {
         await session?.close()
         await fs.rm(root, { recursive: true, force: true })
       }
-    }
+    },
+    // The child has its own 10-second startup deadline; allow recovery and
+    // cleanup to finish after it instead of timing out the parent first.
+    20_000
   )
 })

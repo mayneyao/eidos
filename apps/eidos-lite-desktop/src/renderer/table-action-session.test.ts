@@ -130,6 +130,8 @@ describe("table action authority with native Runtime", () => {
       await f.close()
     }
   })
+  // This integration fixture creates 1,105 rows before exercising capture.
+  // Performance budgets are enforced by the separate performance suite.
   it("captures unloaded records, uses exclusive range ends and freezes identity", async () => {
     const f = await fixture(1105)
     try {
@@ -147,7 +149,7 @@ describe("table action authority with native Runtime", () => {
     } finally {
       await f.close()
     }
-  })
+  }, 15_000)
   it("writes multiple fields atomically, allows later rows and undoes a whole run", async () => {
     const f = await fixture()
     try {
