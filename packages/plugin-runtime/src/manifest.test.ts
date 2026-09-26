@@ -20,34 +20,28 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
-  it("requires an explicit workspace permission for Markdown enumeration", () => {
-    const value = { ...manifest(), workspace: { listMarkdownFiles: true } }
-    expect(parseManifest(value).workspace).toEqual(value.workspace)
+  it("validates explicit workspace files permission", () => {
+    const value = { ...manifest(), workspace: { files: true } }
+    expect(parseManifest(value).workspace).toEqual({ files: true })
     expect(() =>
-      parseManifest({ ...value, workspace: { listMarkdownFiles: false } })
+      parseManifest({ ...value, workspace: { files: false } })
     ).toThrow()
     expect(
       parseManifest({
         ...value,
-        workspace: { listMarkdownFiles: true, countMarkdownLines: true },
+        workspace: { files: { read: true } },
       }).workspace
-    ).toEqual({ listMarkdownFiles: true, countMarkdownLines: true })
-    expect(() =>
-      parseManifest({
-        ...value,
-        workspace: { listMarkdownFiles: true, countMarkdownLines: false },
-      })
-    ).toThrow()
+    ).toEqual({ files: { read: true } })
     expect(
       parseManifest({
         ...value,
-        workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+        workspace: { files: { read: true, write: true } },
       }).workspace
-    ).toEqual({ listMarkdownFiles: true, watchMarkdownFiles: true })
+    ).toEqual({ files: { read: true, write: true } })
     expect(() =>
       parseManifest({
         ...value,
-        workspace: { listMarkdownFiles: true, watchMarkdownFiles: false },
+        workspace: { files: { read: false, write: false } },
       })
     ).toThrow()
   })
@@ -216,6 +210,45 @@ describe("manifest and offline envelope", () => {
         placements: [{ location: "navigation", view: "player" }],
       })
     ).toThrow()
+  })
+  it("supports file views and file actions with file/open placements", () => {
+    const value = manifest()
+    const filePlugin = {
+      ...value,
+      extension: "./ext.ts",
+      views: [
+        {
+          id: "viewer",
+          title: "Viewer",
+          entry: "./main.ts",
+          context: "file",
+          access: "write",
+        },
+      ],
+      actions: [
+        {
+          id: "inspect",
+          title: "Inspect",
+          context: "file",
+          access: "read",
+        },
+      ],
+      placements: [
+        {
+          location: "file/open",
+          view: "viewer",
+          extensions: [".mp4", ".pdf", ".eidos", ".custom"],
+        },
+        {
+          location: "file/context",
+          action: "inspect",
+        },
+      ],
+    }
+    const parsed = parseManifest(filePlugin)
+    expect(parsed.views?.[0]?.context).toBe("file")
+    expect(parsed.actions?.[0]?.context).toBe("file")
+    expect(parsed.placements?.[0]?.location).toBe("file/open")
   })
   it("round trips a self-contained entry without accepting prototype HTML", () => {
     const m = parseManifest(manifest())

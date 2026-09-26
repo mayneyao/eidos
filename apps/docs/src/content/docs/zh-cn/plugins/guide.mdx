@@ -1,45 +1,23 @@
 ---
 title: 插件开发指南
-description: 分步教程：创建、测试并打包支持格式化、快捷命令、自定义视图及 React 的离线 Eidos Lite 插件。
+description: 分步教程：创建、测试并打包支持文件视图、快捷命令、React 界面与本地文件系统的 Eidos Lite 插件。
 sidebar:
   order: 2
 ---
 
-普通 Eidos Lite 插件可以为 Space 增加文档格式化工具、快捷指令和自定义界面。
-它们的代码在隔离的本地沙箱中运行，全设备安装一份，并按 Space 分别启用。
-如需定制 Eidos Lite 宿主界面本身，请制作独立的
-[主题插件](/zh-cn/plugins/workflow/#制作独立的-eidos-lite-主题)。
-
-## 扩展能力一览
-
-先阅读[插件核心概念](/zh-cn/plugins/concepts/)，了解 View、File View、上下文与贡献点的关系。
-Document View 和 Eidos View 都是文件打开方式；Table View 属于数据表内部。
-
-普通插件可以在同一份 `plugin.json` 清单中组合以下能力：
-
-| 你要实现的功能                      | 使用的接口                | 用户入口                   |
-| ----------------------------------- | ------------------------- | -------------------------- |
-| 格式化 Markdown 或文本              | Formatter provider        | 格式化文档、选择格式化程序 |
-| 统计字数、执行文档操作              | Action                    | Cmd+K，可选自定义快捷键    |
-| 编辑 CSV、Markdown 或自定义文本文件 | File View → Document View | 文件右键菜单 → 打开方式    |
-| 为 .eidos 文件构建独立界面          | File View → Eidos View    | 文件右键菜单 → 打开方式    |
-| 对数据表记录执行操作                | Table Action              | 数据表右键菜单             |
-| 打开独立的插件页面                  | Page view                 | 插件的导航入口             |
-| 在地图或图表上展示表格记录          | Table view                | 表格视图菜单 → 新建视图    |
+Eidos Lite 插件可以为各类文件提供自定义编辑器与查看器、在侧边栏挂载独立页面，或在命令面板中添加快捷指令。插件拥有完整的本地文件系统访问能力（`ctx.fs`）、私有存储、受限网络请求与宿主交互接口。
 
 ---
 
-## 快速上手：创建并运行你的第一个插件
+## 快速上手：创建你的第一个插件工程
 
 ### 1. 准备环境
 
 确保已安装 **Node.js 22.12 或更新版本**以及常用的包管理器（npm、pnpm 或 yarn）。同时安装 [Eidos Lite](https://eidos.space/download) 用于本地运行和调试。
 
-### 2. 脚手架初始化
+### 2. 初始化工程
 
-你可以选择以下任意一种方式创建插件项目：
-
-**方式一：使用 npm / npx（推荐，无需预装额外工具）**
+通过官方脚手架初始化插件：
 
 ```bash
 npx @eidos.space/plugin-tools create my-plugin
@@ -47,522 +25,241 @@ cd my-plugin
 npm install # 或 pnpm install
 ```
 
-**方式二：使用 Eidos CLI**
-
-```bash
-eidos plugin create my-plugin
-cd my-plugin
-pnpm install
-```
-
-生成的项目目录结构如下：
+生成的标准目录结构如下：
 
 ```text
 my-plugin/
-├── plugin.json       # 声明插件能力、视图与入口的清单配置
+├── plugin.json       # 声明插件元数据、视图与入口的清单文件
 ├── package.json      # 项目依赖与 npm scripts
 ├── tsconfig.json     # 严格模式 TypeScript 配置
 └── src/
-    ├── main.ts       # 视图挂载入口源码
-    ├── csv.ts        # 业务解析逻辑
+    ├── main.tsx      # 视图挂载入口源码
     └── style.css     # 样式表
 ```
 
-脚手架已在 `package.json` 中配置好官方发布的开发依赖与开箱即用的 scripts：
-
-- `@eidos.space/plugin-sdk`: 包含插件 1.0 规范的完整 TypeScript 契约与接口。
-- `@eidos.space/plugin-tools`: 提供 `eidos-plugin check`（源码校验）与 `eidos-plugin pack`（自包含打包）命令。
-- `npm run check`: 运行 `eidos-plugin check .`，执行静态校验。
-- `npm run pack:plugin`: 运行 `eidos-plugin pack .`，打包输出离线 `.eidos-plugin`。
+脚手架已在 `package.json` 中配置好官方工具链：
+- `@eidos.space/plugin-sdk`: 插件 1.0 的完整 TypeScript 规范与接口类型。
+- `npm run check`: 执行静态语法、类型与清单校验（`eidos-plugin check .`）。
+- `npm run pack:plugin`: 打包输出用于分发的自包含离线安装包（`.eidos-plugin`）。
 
 ### 3. 在 Eidos Lite 中即时加载与调试
 
 调试插件**无需提前打包或 build**，Eidos Lite 内置编译器支持实时动态编译：
 
-1. 启动 **Eidos Lite**，打开任意 Space。
-2. 点击顶部工具栏中的 **Plugins** 图标（位于搜索与更多菜单之间）。
-3. 点击 **Load development source…**（加载开发源码），选中项目的 `plugin.json`（或单文件 `.ts`）。
-4. 检查权限并点击启用插件。
-5. 在 Space 中找到或新建一个 `.csv` 文件，右键点击并选择 **Open with → CSV Table**。
+1. 启动 **Eidos Lite**，进入任意 Space。
+2. 点击顶部工具栏中的 **Plugins** 图标（位于搜索框与更多菜单之间）。
+3. 点击 **Load development source…**（加载开发源码），选中项目的 `plugin.json`。
+4. 确认权限声明并在当前 Space 中启用。
+5. 在 Space 中找到对应扩展名的文件，右键点击并选择 **Open with → 你的插件视图**。
 
-当你在编辑器中修改 `src/` 下的代码并保存时，Eidos Lite 会自动重新编译并热重载视图！
-
----
-
-## 核心概念：清单与生命周期
-
-### 清单配置 (`plugin.json`)
-
-清单文件声明插件的元数据、所需权限和扩展点配置：
-
-```json
-{
-  "apiVersion": 1,
-  "id": "example.my-plugin",
-  "name": "My Plugin",
-  "version": "0.1.0",
-  "extension": "./src/extension.ts",
-  "views": [],
-  "actions": [],
-  "formatters": [],
-  "placements": []
-}
-```
-
-- `apiVersion`: 当前固定为 `1`，遵循 Plugin 1.0 契约。
-- `id`: 全局唯一标识符（如 `vendor.feature`）。
-- `extension`: 后台控制模块入口，插件激活时执行。
-- `views`: 自定义 UI 界面列表。
-- `placements`: 告知宿主在界面的哪些入口展示这些视图和操作。
-
-### 纯类型 SDK
-
-核心 SDK **仅包含 TypeScript 类型**：
-
-```ts
-import type { ExtensionContext, ViewContext } from "@eidos.space/plugin-sdk"
-```
-
-所有的运行时能力均由宿主在激活或挂载时动态注入到 `ctx` 上下文中。没有 SDK 运行时体积负担，也没有 `connect()` 初始化开销。
-
-- **后台生命周期：** Action 和 Formatter 的 `extension` 默认导出 `activate(ctx: ExtensionContext)` 函数。
-- **视图生命周期：** 每个 View 的 `entry` 默认导出 `mount(ctx: ViewContext, root: HTMLElement)` 函数。
-- **资源清理：** 监听器、定时器请通过返回 `{ dispose() { ... } }` 或调用 `ctx.subscriptions.add(...)` 在卸载时清理。
-
-### 品牌 Logo 与功能图标（Icons & Branding）
-
-插件体系清晰区分**插件品牌标识**与**具体功能图标**：
-
-- **插件 Logo (`manifest.icon`)**：代表整个插件的品牌，展示在插件市场列表、插件详情面板以及 Space 插件管理设置中。
-- **视图/动作图标 (`view.icon` / `action.icon`)**：代表特定视图或操作的功能（如脑图、表格、格式化等），展示在文件右键「打开方式」（Open with）菜单、视图 Tab 栏以及命令面板中。若未单独设置 `view.icon`，系统会自动回退使用 `manifest.icon`；若均未提供，则自动生成优雅的主题首字母占位符。
-
-图标支持以下 3 种声明格式：
-
-```json
-{
-  "icon": {
-    "paths": ["M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"]
-  }
-}
-```
-
-1. **内联单色 SVG 路径对象**（推荐）：`{ "paths": ["..."] }`，由宿主按照设计系统当前主题色（`currentColor`）自动渲染，像素严格对齐且零额外网络开销。
-2. **本地文件相对路径**：如 `"./assets/logo.svg"` 或 `"./assets/view.png"`。在执行 `eidos-plugin pack` 打包时，打包器会自动将其读取并转为 Base64 Data URL 内嵌在包内，保持离线自包含。
-3. **Data URL 字符串**：如 `"data:image/svg+xml;base64,..."`。
-
-### 文件关联与全局默认编辑器
-
-通过在 `placements` 中声明 `location: "file/open"`，插件视图可以注册为特定文件扩展名的编辑器：
-
-```json
-"placements": [
-  { "location": "file/open", "view": "table", "extensions": [".csv"] }
-]
-```
-
-- **右键即用**：在 Space 文件列表中右键点击 `.csv` 文件，光标移至 **Open with**（打开方式），即可看到带独立功能图标的插件视图选项。
-- **全局默认编辑器设置**：在 Eidos Lite 偏好设置 **Settings → Files**（设置 → 文件）中，系统会集中展示 Markdown、HTML 以及所有已安装插件声明的文件扩展名。用户可以在下拉菜单中为 `.csv` 等文件全局选定默认编辑器，后续双击即可直接通过该插件打开。
-
-### 插件的安装位置
-
-插件按设备安装一次，按 Space 分别启用：
-
-- Eidos Lite 与 `eidos serve` 统一使用 `~/.eidos/plugins`（Windows 下为 `%USERPROFILE%\\.eidos\\plugins`）。
-- 设置环境变量 `EIDOS_HOME` 可迁移整个存储目录。
-- 存储目录内包含内容寻址的归档（`packages/<sha256>.eidos-plugin`）、设备配置文件（`config.json`），以及插件私有数据（`data/<plugin-id>/`）。
+当你在代码编辑器中修改 `src/` 下的代码并保存时，Eidos Lite 会自动重编译并热重载视图！
 
 ---
 
-## 扩展能力实战
+## 核心能力实战
 
-### 1. 文档格式化（Formatters）
+### 1. 自定义文件视图 (`context: "file"`)
 
-Formatter 接收编辑器文本并返回格式化后的文本。撤销／重做、选区管理和文件保存由宿主全权托管。
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "apiVersion": 1,
-  "id": "example.typography",
-  "name": "Typography",
-  "version": "0.1.0",
-  "extension": "./src/extension.ts",
-  "formatters": [
-    {
-      "id": "trim",
-      "title": "Trim trailing whitespace",
-      "extensions": [".md", ".txt"]
-    }
-  ]
-}
-```
-
-在 `src/extension.ts` 中实现：
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(ctx: ExtensionContext) {
-  ctx.formatters.register("trim", {
-    format({ text, signal }) {
-      signal.throwIfAborted()
-      return { text: text.replace(/[ \t]+(?=\r\n|\r|\n|$)/g, "") }
-    },
-  })
-}
-```
-
-触发方式：
-
-- 按 <kbd>Cmd</kbd>+<kbd>K</kbd> 选择 **格式化文档**（Format Document）。
-- 快捷键：macOS 为 <kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd>，Windows 为 <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>。
-
-### 2. 命令与快捷键（Actions）
-
-Action 用于从命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd>）或快捷键触发自定义业务逻辑。
+文件视图可以接管任意文件格式（如文本、音视频、自定义二进制文件或 `.eidos` SQLite 数据包）的展示与交互。
 
 在 `plugin.json` 中声明：
 
 ```json
 {
   "apiVersion": 1,
-  "id": "example.text-tools",
-  "name": "Text Tools",
-  "version": "0.1.0",
-  "extension": "./src/extension.ts",
-  "actions": [
-    {
-      "id": "count",
-      "title": "Count characters",
-      "context": "document",
-      "access": "read",
-      "extensions": [".md", ".txt"]
-    }
-  ],
-  "placements": [
-    { "location": "command-palette", "action": "count" },
-    { "location": "keybinding", "action": "count", "key": "Mod+Alt+C" }
-  ]
-}
-```
-
-在 `src/extension.ts` 中实现：
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(ctx: ExtensionContext) {
-  ctx.actions.register("count", async ({ binding, ui }) => {
-    if (binding.kind !== "document") return
-    const snapshot = await binding.document.read()
-    await ui.notify(`字符数统计：${Array.from(snapshot.text).length}`)
-  })
-}
-```
-
-### 3. 自定义文件视图（Document View）
-
-文件视图可以接管特定扩展名文件的预览或编辑（通过右键菜单 **Open with** 打开）。
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "apiVersion": 1,
-  "id": "example.markdown-viewer",
-  "name": "Markdown Preview",
+  "id": "example.file-viewer",
+  "name": "Custom File Viewer",
   "version": "0.1.0",
   "views": [
     {
-      "id": "preview",
-      "title": "Rich Preview",
-      "entry": "./src/preview.ts",
-      "context": "document",
+      "id": "viewer",
+      "title": "Custom Viewer",
+      "entry": "./src/main.tsx",
+      "context": "file",
       "access": "write"
     }
   ],
   "placements": [
-    { "location": "file/open", "view": "preview", "extensions": [".md"] }
+    {
+      "location": "file/open",
+      "view": "viewer",
+      "extensions": [".json", ".dat", ".mp4"]
+    }
   ]
 }
 ```
 
-在 `src/preview.ts` 中实现：
-
-```ts
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-
-export default async function mount(ctx: ViewContext, root: HTMLElement) {
-  if (ctx.binding.kind !== "document") return
-  const file = ctx.binding.document
-
-  // 监听来自宿主或其他编辑器的修改
-  const observation = await file.observe((snapshot) => {
-    root.textContent = snapshot.text
-  })
-  ctx.subscriptions.add(observation.subscription)
-
-  // 首次渲染
-  root.textContent = observation.snapshot.text
-
-  return {
-    dispose() {
-      root.replaceChildren()
-    },
-  }
-}
-```
-
-编辑文档内容：
-
-```ts
-const before = await file.read()
-const result = await file.edit({
-  text: nextText,
-  expectedVersion: before.version,
-  label: "修改内容",
-})
-if (result.status === "stale") {
-  // 版本冲突协调处理
-}
-```
-
-### 4. 独立插件页面（Page View）
-
-独立页面为 Space 侧边栏添加导航入口：
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "views": [
-    {
-      "id": "home",
-      "title": "控制面板",
-      "context": "page",
-      "entry": "./src/page.ts"
-    }
-  ],
-  "placements": [{ "location": "navigation", "view": "home" }]
-}
-```
-
-在 `src/page.ts` 中实现：
-
-```ts
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-
-export default function mount(ctx: ViewContext, root: HTMLElement) {
-  if (ctx.binding.kind !== "page") return
-
-  root.innerHTML = `
-    <div style="padding: 24px;">
-      <h1>插件控制面板</h1>
-      <p>当前子路由：${ctx.binding.route || "/"}</p>
-    </div>
-  `
-
-  return {
-    dispose() {
-      root.replaceChildren()
-    },
-  }
-}
-```
-
-### 5. 表格视图（Table View）
-
-表格视图可以用图表、地图或画廊等形式展现 `.eidos` 表格数据。
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "views": [
-    {
-      "id": "map",
-      "title": "地图视图",
-      "entry": "./src/map.ts",
-      "context": "table",
-      "access": "read"
-    }
-  ],
-  "placements": [{ "location": "table/view", "view": "map" }]
-}
-```
-
-在 `src/map.ts` 中实现：
-
-```ts
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-
-export default async function mount(ctx: ViewContext, root: HTMLElement) {
-  if (ctx.binding.kind !== "table") return
-  const table = ctx.binding.table
-
-  // 读取视图与字段定义
-  const meta = await table.read()
-
-  // 分页获取符合宿主当前搜索、筛选与排序的记录
-  const page = await table.getPage({ offset: 0, limit: 100 })
-
-  // SQLite 服务端加速的分组聚合计算
-  const aggregates = await table.aggregate({
-    metric: { op: "count" },
-    groupBy: { fieldId: "category" },
-  })
-
-  // 监听表格数据变化
-  const unsubscribe = await table.observe(() => {
-    // 记录变更时重新渲染
-  })
-  ctx.subscriptions.add(unsubscribe)
-
-  return {
-    dispose() {
-      root.replaceChildren()
-    },
-  }
-}
-```
-
----
-
-## 使用 React 与界面组件
-
-插件可以使用 React、Vue、Svelte 或原生 DOM。使用 React 时：
-
-```bash
-pnpm add react react-dom
-pnpm add -D @types/react @types/react-dom
-```
-
-在 `src/main.tsx` 中挂载：
+在 `src/main.tsx` 中挂载 React 界面：
 
 ```tsx
-import { createRoot } from "react-dom/client"
 import type { ViewContext } from "@eidos.space/plugin-sdk"
-import { App } from "./app"
+import React, { useEffect, useState } from "react"
+import { createRoot } from "react-dom/client"
 import "./style.css"
 
-export default function mount(ctx: ViewContext, element: HTMLElement) {
-  const root = createRoot(element)
-  root.render(<App context={ctx} />)
+function App({ ctx }: { ctx: ViewContext }) {
+  const [content, setContent] = useState<string>("")
+  const file = ctx.file!
+
+  useEffect(() => {
+    // 使用 ctx.fs 读取当前文件文本或二进制
+    ctx.fs.readText(file.path).then(setContent).catch(console.error)
+  }, [file.path])
+
+  const handleSave = async () => {
+    await ctx.fs.writeText(file.path, content)
+    await ctx.ui.notify("文件保存成功！")
+  }
+
+  return (
+    <div className="viewer-container">
+      <header className="header">
+        <h3>{file.name} ({file.size} bytes)</h3>
+        <button onClick={handleSave}>保存</button>
+      </header>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+      />
+    </div>
+  )
+}
+
+export default function mount(ctx: ViewContext, root: HTMLElement) {
+  const reactRoot = createRoot(root)
+  reactRoot.render(<App ctx={ctx} />)
+
   return {
     dispose() {
-      root.unmount()
+      reactRoot.unmount()
     },
   }
 }
 ```
 
-### 主题适配
-
-使用宿主语义 CSS 变量，无需额外编写亮色与暗色模式逻辑：
-
-```css
-.card {
-  background-color: var(--eidos-surface-hover);
-  color: var(--eidos-foreground);
-  border: 1px solid var(--eidos-border);
-  border-radius: 5px;
-}
-```
-
-### 离线沙箱与第三方库开发避坑指南
-
-Eidos 插件运行在严格隔离且无外部网络的 iframe 沙箱中。为了确保第三方 UI 组件库（如 `@glideapps/glide-data-grid`、图表库、富文本编辑器等）正常渲染，建议遵循以下实践：
-
-1. **务必显式引入组件库样式**：
-   许多基于现代零运行时 CSS（如 Linaria、Vanilla Extract）或纯 CSS 的组件库，其核心布局与绝对定位规则保存在独立 `.css` 文件中。
-   - **务必在入口 `main.tsx` 或 `style.css` 顶部通过 `@import` 引入组件库 CSS**。
-   - 如果遗漏核心 CSS，会导致宿主容器高度坍塌（计算高度为 `0px`），组件内部测量逻辑（如 `ResizeObserver` / `useResizeDetector`）将误判尺寸为 0，从而直接跳过 `<canvas>` 或 DOM 内容挂载，导致“工具栏正常但中间内容完全空白”。
-2. **纯净 ESM 依赖与避免动态 require**：
-   - 宿主打包器会将代码和依赖静态编译为自包含 ESM 模块。
-   - 避免在浏览器端源码中编写 CommonJS 风格的动态 `require()`，统一使用标准静态 `import`。
-3. **严格遵守文档并发与冲突协议**：
-   - 插件通过 `const snapshot = await ctx.binding.document.read()` 获取当前快照及版本号 `snapshot.version`。
-   - 编辑时调用 `await ctx.binding.document.edit({ text, expectedVersion: snapshot.version, label: "修改单元格" })`。
-   - 如果返回 `{ status: "stale" }`，说明该文件在编辑期间已被外部（或宿主内置编辑器）修改。插件应重新读取最新快照进行合并或提醒用户，避免盲目覆盖。
-
 ---
 
-## 离线存储与网络权限
+### 2. 文件系统操作与伴随文件 (`ctx.fs`)
 
-### 离线私有存储
+`ctx.fs` 向插件提供完备的本地文件操作能力。在文件视图中，支持直接读写二进制数据、伴随文件探测与流式多媒体播放。
 
-插件可以使用独立的二进制持久化键值存储，跨重启和重新加载保留：
-
-在 `plugin.json` 中申请配额：
-
-```json
-{
-  "storage": { "maxBytes": 536870912 }
-}
-```
-
-在代码中存取：
+#### ① 二进制读写与大文件处理
+`ctx.fs.readBinary(path)` 与 `ctx.fs.writeBinary(path, data)` 支持最高 16 MiB 的二进制数据，直接处理图片、音视频分片或自定义二进制数据包：
 
 ```ts
-// 写入数据
-await ctx.storage.write(
-  "config",
-  new TextEncoder().encode(JSON.stringify({ dark: true }))
-)
+// 读取二进制数据
+const bytes = await ctx.fs.readBinary("assets/logo.png")
 
-// 读取数据
-const bytes = await ctx.storage.read("config")
+// 写入二进制数据
+const payload = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+await ctx.fs.writeBinary("data/output.bin", payload)
 ```
 
-### 网络请求
+#### ② 伴随媒体文件探测与流式播放
+针对音视频与字幕伴随场景，使用 `ctx.fs.getUrl()` 与 `ctx.fs.list()`：
 
-沙箱禁止动态 `eval`。使用 `ctx.network.read` 时，在 `browser.networkOrigins` 中声明精确 HTTPS 来源。带密钥的连接请求使用 `connections` 声明并由宿主管理凭据，见[开发工作流](/zh-cn/plugins/workflow/)。
+```ts
+// 1. 获取音视频的高性能特权协议流式地址（支持 206 Partial Content 范围拖拽播放）
+const streamUrl = await ctx.fs.getUrl("movie.mp4")
+
+// 2. 枚举同级目录下的伴随字幕文件
+const companions = await ctx.fs.list(undefined, { extensions: [".srt", ".vtt"] })
+
+// 3. 读取伴随字幕内容
+if (companions.length > 0) {
+  const srtText = await ctx.fs.readText(companions[0].path)
+}
+```
+
+#### ③ 文件变更实时监听 (`watch`)
+```ts
+const watcher = await ctx.fs.watch("data", () => {
+  console.log("目录内文件发生变更，自动重新加载数据")
+})
+
+// 自动随页面卸载注销监听
+ctx.subscriptions.add(watcher)
+```
+
+---
+
+### 3. 快捷命令与动作 (`actions`)
+
+通过命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd>）或快捷键触发操作。
+
+在 `plugin.json` 中声明：
 
 ```json
 {
-  "browser": {
-    "networkOrigins": ["https://api.example.com"]
-  }
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "stat-workspace",
+      "title": "统计 Space 文件总览",
+      "context": "workspace"
+    }
+  ],
+  "placements": [
+    { "location": "command-palette", "action": "stat-workspace" },
+    { "location": "keybinding", "action": "stat-workspace", "key": "Mod+Alt+S" }
+  ]
+}
+```
+
+在 `src/extension.ts` 中实现：
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("stat-workspace", async ({ fs, ui }) => {
+    const files = await fs.list()
+    await ui.notify(`当前 Space 根目录包含 ${files.length} 个文件。`)
+  })
 }
 ```
 
 ---
 
-## 打包与插件市场分发
+### 4. 独立功能页面 (`context: "page"`)
 
-### 1. 校验与打包
+用于在 Space 侧边栏构建常驻的看板或工具应用。
 
-你可以在插件工程中直接使用 npm scripts，也可以调用 CLI：
+在 `plugin.json` 中声明：
 
-```bash
-# 校验清单元数据、TypeScript 类型与模块依赖
-npm run check
-# 或者直接调用：
-# npx @eidos.space/plugin-tools check .
-# eidos plugin check .
-
-# 打包为离线自包含的 .eidos-plugin 归档
-npm run pack:plugin
-# 或者自定义输出位置：
-# npx @eidos.space/plugin-tools pack . --out ./dist/my-plugin-0.1.0.eidos-plugin
+```json
+{
+  "workspace": { "files": true },
+  "views": [
+    {
+      "id": "dashboard",
+      "title": "日记管理看板",
+      "context": "page",
+      "entry": "./src/dashboard.tsx"
+    }
+  ],
+  "placements": [
+    { "location": "navigation", "view": "dashboard" }
+  ]
+}
 ```
 
-打包器执行后将自动生成 `<id>-<version>.eidos-plugin` 文件。该文件本质是经过 gzip 压缩的标准化 JSON 包，内含 `format: 1 | 2`、完整 `manifest` 元数据以及编译自包含的模块代码。用户在 Eidos Lite 中点击 **Plugins → Install plugin…** 即可直接导入，无需安装 Node.js 或连接互联网。
-
-### 2. 发布到官方插件市场
-
-1. 将 `<id>-<version>.eidos-plugin` 作为 GitHub Release 附件发布。
-2. 向 [官方注册中心](https://github.com/eidos-space/registry) 提交 PR，在 `plugins.registry.json` 中登记 ID、名称、描述、分类、仓库、精确版本、标签、附件名、SHA-256、兼容性说明和已弃用的 `preview: false` 字段。参阅贡献指南或[注册条目生成工具](/zh-cn/plugins/workflow/)。
-3. 合并后，所有 Eidos Lite 用户即可在插件市场中直接浏览与安装。
+页面挂载后将显示在 Space 左侧主导航中。声明了 `workspace: { "files": true }` 的页面可以使用 `ctx.fs` 在全 Space 范围内索引或创建文件（例如自动创建每日日记）。
 
 ---
 
-## 下一步
+### 5. 校验与打包发布
 
-- 查阅完整的 [插件 API 参考](/zh-cn/plugins/api/) 了解所有上下文方法、接口及参数细节。
-- 阅读 [Plugin 1.0 规范](/zh-cn/specifications/) 了解底层宿主契约。
+在工程根目录下执行静态类型与规范检查：
 
-## 分类模板、调试与发布辅助
+```bash
+npm run check
+```
 
-参阅[开发工作流](/zh-cn/plugins/workflow/)，选择模板，检查 Lite/CLI 兼容性，并生成发布校验和与注册表条目草稿。
+打包生成 `.eidos-plugin` 离线分发文件：
+
+```bash
+npm run pack:plugin
+```
+
+打包完成后，产物位于 `dist/<plugin-id>-<version>.eidos-plugin`。用户可以直接双击或在 Eidos Lite 插件管理器中拖拽安装该归档。

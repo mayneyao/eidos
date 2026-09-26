@@ -1,113 +1,89 @@
 ---
-title: Plugin concepts
-description: Understand views, file opening modes, contexts, actions, and contribution points.
+title: Plugin Concepts
+description: Essential concepts of Eidos plugins, including spaces, files, views, actions, context objects, and placements.
 sidebar:
   order: 2
 ---
 
-A plugin is a package that can provide several features. Choose each feature by
-answering three questions: **what does it provide, what does it operate on, and
-where does the user open it?**
+Eidos plugins are sandboxed modules that extend Eidos Lite with custom file editors and viewers, independent panels, keyboard commands, and table visualizations.
 
-A **theme plugin** is a separate package type (`kind: "theme"`) for customizing
-the Eidos Lite host interface. Its CSS file contains light and dark semantic
-palettes and optional local fonts, rather than views or actions. Users install it like any
-other plugin, then select it globally from Plugin Manager. See the
-[theme workflow](/plugins/workflow/#build-a-standalone-eidos-lite-theme).
+Before building a plugin, familiarize yourself with these core concepts:
 
-## Capabilities, contexts, and contribution points
+---
 
-| Concept            | Question                      | Manifest example                      |
-| ------------------ | ----------------------------- | ------------------------------------- |
-| Capability         | What does the plugin provide? | `views`, `actions`, `formatters`      |
-| Context            | What is the feature bound to? | A view's `context: "document"`        |
-| Contribution point | Where can users access it?    | A placement's `location: "file/open"` |
+## 1. Spaces and Files
 
-For ordinary plugins, these are complementary declarations, not mutually
-exclusive plugin types.
-A plugin can provide multiple views and actions, with multiple user entry points.
-Here, “capability” describes the feature; it is not an instruction to manually
-maintain a separate API capability inventory.
+Eidos operates directly on your local filesystem and organizes content across two levels:
 
-## Views: interfaces for different contexts
+- **Space (Workspace)**: The root folder of an opened project or vault. Plugins can add navigation pages to the sidebar or register global commands.
+- **File**: Any physical file within the Space (e.g. `.md`, `.csv`, `.png`, `.mp4`, or `.eidos`). Plugins can provide custom views or actions for specific file extensions.
+  - **.eidos Files**: Structured SQLite database packages that contain one or more data tables (Tables) and view configurations.
 
-A **View** is an interface mounted by the host. A view can display information
-or offer editing within its declared access and the APIs exposed by its context.
+---
 
-```text
-View
-├── File View — an opening mode for a file
-│   ├── Document View — a regular text document, such as Markdown or CSV
-│   └── Eidos View — an .eidos structured-data file
-├── Table View — a view inside a data table, such as a chart or map
-└── Page View — an independent plugin page
-```
+## 2. Plugin Capabilities
 
-**File View is an umbrella term**, not a new manifest context. Declare either
-`context: "document"` or `context: "eidos"` and contribute the view through
-`file/open`. There is no `context: "file"` or separate `fileViews` declaration.
+Plugins declare their capabilities in the `plugin.json` manifest:
 
-| View          | Manifest context | Typical placement | Data interface                          |
-| ------------- | ---------------- | ----------------- | --------------------------------------- |
-| Document View | `document`       | `file/open`       | `ctx.binding.document` (`TextDocument`) |
-| Eidos View    | `eidos`          | `file/open`       | `ctx.binding.file` (`EidosFileContext`) |
-| Table View    | `table`          | `table/view`      | `ctx.binding.table` (`TableContext`)    |
-| Page View     | `page`           | `navigation`      | `ctx.binding.route`                     |
+### Views
+Views are visual interfaces embedded in Eidos Lite, built using standard frontend libraries (React, Vue, or vanilla DOM):
+- **File Views (`context: "file"`)**: Custom editors or viewers for specific file extensions, accessed via the file's **Open with** menu.
+- **Independent Pages (`context: "page"`)**: Standalone application dashboards or panels, accessible from the Space's left sidebar navigation.
+- **Table Views (`context: "table"`)**: Custom visualizations embedded inside an `.eidos` data table (e.g. charts, kanban boards, calendars, or maps).
 
-Check `ctx.binding.kind` before using a context-specific interface. Views share
-the `mount(ctx, root)` lifecycle; the binding determines the APIs available to them.
-The host must support the requested context and contribution point.
+### Actions
+Actions are executable commands or background tasks triggered via shortcuts or context menus:
+- **Global Actions (`context: "workspace"`)**: Registered in the global Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>).
+- **File Actions (`context: "file"`)**: Added to the context menu of files in the file explorer.
+- **Table Actions (`context: "table"`)**: Added to the context menu of tables or record selections for batch processing.
 
-### Document View and Eidos View are both file opening modes
+### Themes
+Theme packages (`kind: "theme"`) customize the light and dark appearance of the entire Eidos Lite host interface using semantic CSS variables.
 
-Use a **Document View** for text-based files. For example, a Markdown rich-text
-editor and a source editor present the same document differently. They use the
-host's text-document working copy rather than direct filesystem access.
+---
 
-Use an **Eidos View** for an interface bound to an entire `.eidos` file. For
-example, Smart Actions lets users choose a table, inspect its fields, and save
-action configuration. The current `EidosFileContext` provides table discovery,
-field metadata, plugin-scoped table configuration, and declared connections.
-It does not grant arbitrary SQL or unrestricted record editing.
+## 3. The Context Object (`ctx`) & File Contributions
 
-Both appear to users as **Open with** choices. A different opening mode changes
-the interface; it does not convert the file or create another data copy.
+When Eidos Lite mounts a view or runs an action, it passes a context object `ctx` to the entry function.
 
-### Table View belongs inside a table
+### Base Capabilities
+All views and actions have access to a set of core capabilities on `ctx`:
 
-Use a **Table View** to present one table's records as a chart, map, or another
-representation. It appears in the table's view controls, rather than replacing
-the opening mode for the entire `.eidos` file. A map of one table is a Table View;
-a file-wide configuration interface that selects tables is an Eidos View.
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `ctx.fs` | `PluginFileSystem` | Complete filesystem access: read/write text and binary files, list directories, rename, delete, watch file changes, and obtain streaming media URLs. |
+| `ctx.storage` | `PluginStorage` | Isolated persistent key-value storage for plugin data. |
+| `ctx.network` | `PluginNetwork` | Make restricted HTTPS requests to domains declared in the manifest. |
+| `ctx.settings` | `PluginSettings` | Read, update, and observe user-configured settings for the plugin. |
+| `ctx.ui` | `HostUI` | Interact with the host: display toast notifications, show confirmation dialogues, open pickers, open files, and navigate routes. |
+| `ctx.signal` | `AbortSignal` | Automatically aborts pending async work when the view unmounts or action is cancelled. |
+| `ctx.subscriptions` | `SubscriptionDisposer` | Disposer collection for event listeners and timers, automatically cleaned up on unmount. |
 
-### Access is separate from view type
+### Specialized Interfaces & File Contribution Points
+When targeting a physical file, all file views have access to `ctx.file` for file path, name, and size. In addition, specific file types have specialized context objects and contribution points:
 
-`access: "read"` and `access: "write"` describe requested access. “Editor” is a
-product description, not another View type. Declaring write access does not add
-methods that the bound context does not expose.
+- **Text Documents (`.md`, `.txt`, `.csv`, etc.)**:
+  - **Specialized Interface `ctx.editor`**: Document reading, draft editing, saving, and external conflict detection.
+  - **Special Contribution Point: Formatters (`formatters`)**: A specialized contribution point for text files declared in the manifest `formatters` array and implemented via `ctx.formatters.register`, hooked directly into the system's **Format Document** command (<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd> / <kbd>Cmd</kbd>+<kbd>K</kbd>).
+- **`.eidos` Database Files**:
+  - **Specialized Interfaces `ctx.table` & `ctx.eidos`**: Table discovery, schema inspection, paginated row queries, and SQLite server-side aggregation.
+  - **Special Contribution Points**: Embedded table views (`table/view`) and dynamic batch actions for table records (`table/context`).
 
-## Actions perform operations
+---
 
-An **Action** runs an operation, such as formatting a selection or updating
-selected table records. Its context and placement determine where it can run:
-for example, a table action can appear in `table/context`, while a workspace
-command can appear in `command-palette`. The supported combinations are defined
-by the SDK and host; contexts and placements cannot be combined arbitrarily.
+## 4. UI Placements (`placements`)
 
-An action can report progress through host UI without becoming a View.
-One plugin can combine an Eidos View for configuring actions with table actions
-for executing them. Smart Actions follows this pattern.
+The `placements` array defines where your plugin's views and actions appear in the Eidos Lite UI:
 
-## Choose a starting point
-
-- Replace how a text file is displayed or edited: **File View → Document View**.
-- Build an interface for an `.eidos` file: **File View → Eidos View**.
-- Visualize one table's records: **Table View**.
-- Run an operation on records: **Table Action**.
-- Open a standalone plugin interface: **Page View**.
-
-User-facing file menus say **Open with**; table controls say **View**. Developer
-documentation uses View as the shared concept and specifies its context.
-
-Continue with the [development guide](/plugins/guide/) and
-[API reference](/plugins/api/) for manifest declarations and context methods.
+| Location (`location`) | Target | Context Requirement | Description |
+| :--- | :--- | :--- | :--- |
+| `"file/open"` | View | `context: "file"` | Registered under the file's **Open with** context menu. |
+| `"navigation"` | View | `context: "page"` | Appears as a top-level page in the Space sidebar navigation. |
+| `"plugin/settings"` | View | `context: "page"` | Embedded in the plugin's details page within Settings. |
+| `"table/view"` | View | `context: "table"` | Appears in the table's view switcher menu (e.g. New View). |
+| `"command-palette"` | Action | `context: "workspace" \| "file"` | Registered in the Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>). |
+| `"file/context"` | Action | `context: "file"` | Appears in the context menu for files in the file explorer. |
+| `"table/context"` | Action | `context: "table"` | Appears in the context menu for table records or row selections. |
+| `"view/toolbar"` | Action | Matches view context | Added to the header toolbar of a specific view. |
+| `"keybinding"` | Action | Target action | Binds a custom keyboard shortcut to trigger the action. |
+| `"Format Document"` | Formatter | `formatters` | Specialized formatting contribution point for text files, hooked into Format Document commands and shortcuts. |

@@ -303,23 +303,22 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.workspace !== undefined) {
     const workspace = record(m.workspace)
-    fields(
-      workspace,
-      ["listMarkdownFiles"],
-      ["countMarkdownLines", "watchMarkdownFiles"]
-    )
-    if (workspace.listMarkdownFiles !== true)
-      invalid("Invalid workspace Markdown listing permission")
-    if (
-      workspace.countMarkdownLines !== undefined &&
-      workspace.countMarkdownLines !== true
-    )
-      invalid("Invalid workspace Markdown line-count permission")
-    if (
-      workspace.watchMarkdownFiles !== undefined &&
-      workspace.watchMarkdownFiles !== true
-    )
-      invalid("Invalid workspace Markdown watch permission")
+    fields(workspace, [], ["files"])
+    if (workspace.files !== undefined) {
+      if (typeof workspace.files === "boolean") {
+        if (workspace.files !== true)
+          invalid("Invalid workspace files permission")
+      } else {
+        const files = record(workspace.files)
+        fields(files, [], ["read", "write"])
+        if (files.read !== undefined && typeof files.read !== "boolean")
+          invalid("Invalid workspace files read permission")
+        if (files.write !== undefined && typeof files.write !== "boolean")
+          invalid("Invalid workspace files write permission")
+        if (files.read === false && files.write === false)
+          invalid("Invalid workspace files permission")
+      }
+    }
   }
   if (m.browser !== undefined) {
     const browser = record(m.browser)
@@ -378,7 +377,13 @@ export function parseManifest(input: unknown): PluginManifest {
     if (m.kind !== "theme") invalid("Theme packages require kind: theme")
     const required = (m.requires as { pluginApi?: string } | undefined)
       ?.pluginApi
-    if (!required || !/^1\.(?:[6-9]|[1-9]\d+)\.\d+$/.test(required))
+    if (
+      !required ||
+      !(
+        Number(required.split(".")[0]) >= 2 ||
+        /^1\.(?:[6-9]|[1-9]\d+)\.\d+$/.test(required)
+      )
+    )
       invalid("Themes require plugin API 1.6.0 or newer")
     const theme = record(m.theme)
     fields(theme, ["stylesheet"], [])
@@ -433,6 +438,7 @@ export function parseManifest(input: unknown): PluginManifest {
       if (
         ![
           isView ? "page" : "workspace",
+          "file",
           "document",
           "table",
           ...(isView ? ["eidos", "media"] : []),
@@ -474,6 +480,7 @@ export function parseManifest(input: unknown): PluginManifest {
         (!["read", "write"].includes(String(v.access)) ||
           (v.context === "media" && v.access !== "read") ||
           ![
+            "file",
             "document",
             "table",
             ...(isView ? ["eidos", "media"] : ["workspace"]),
@@ -481,8 +488,8 @@ export function parseManifest(input: unknown): PluginManifest {
       )
         invalid("Invalid context access")
       if (v.extensions !== undefined) {
-        if (v.context !== "document")
-          invalid("Only document actions have extensions")
+        if (v.context !== "document" && v.context !== "file")
+          invalid("Only document or file actions have extensions")
         extensions(v.extensions)
       }
     }
@@ -517,7 +524,9 @@ export function parseManifest(input: unknown): PluginManifest {
                     ? "eidos"
                     : view.context === "media"
                       ? "media"
-                      : "document",
+                      : view.context === "file"
+                        ? "file"
+                        : "document",
               } as const
             )[p.location]
         )
@@ -526,6 +535,10 @@ export function parseManifest(input: unknown): PluginManifest {
           if (view?.context === "eidos") {
             if (strings(p.extensions).join() !== ".eidos")
               invalid("Eidos views require only .eidos")
+          } else if (view?.context === "file") {
+            for (const ext of strings(p.extensions)) {
+              if (!/^\.[a-z0-9]{1,16}$/.test(ext)) invalid("Invalid extension")
+            }
           } else extensions(p.extensions)
         }
         break
@@ -550,8 +563,12 @@ export function parseManifest(input: unknown): PluginManifest {
         if (!action) invalid("Unknown action")
         if (p.location === "table/context" && action.context !== "table")
           invalid("Table action requires table context")
-        if (p.location === "file/context" && action.context !== "document")
-          invalid("File action requires document context")
+        if (
+          p.location === "file/context" &&
+          action.context !== "document" &&
+          action.context !== "file"
+        )
+          invalid("File action requires document or file context")
         if (
           p.location === "view/toolbar" &&
           (!view ||

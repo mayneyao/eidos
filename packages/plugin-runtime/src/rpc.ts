@@ -53,19 +53,22 @@ export interface PluginRequest {
     | "document.observe"
     | "document.unobserve"
     | "ui.notify"
-    | "ui.openOrCreateMarkdown"
-    | "ui.listMarkdownFiles"
-    | "ui.countMarkdownLines"
-    | "ui.observeMarkdownFiles"
-    | "ui.unobserveMarkdownFiles"
-    | "ui.openMarkdownFile"
+    | "ui.openFile"
     | "ui.navigate"
     | "settings.get"
     | "settings.update"
     | "settings.reset"
-    | "media.url"
-    | "media.readSidecarText"
-    | "media.listSidecars"
+    | "fs.readText"
+    | "fs.writeText"
+    | "fs.readBinary"
+    | "fs.writeBinary"
+    | "fs.delete"
+    | "fs.rename"
+    | "fs.list"
+    | "fs.stat"
+    | "fs.url"
+    | "fs.watch"
+    | "fs.unwatch"
   params: unknown
 }
 export type PluginResponse = {
@@ -133,19 +136,22 @@ export function parseRequest(value: unknown): PluginRequest {
       "document.observe",
       "document.unobserve",
       "ui.notify",
-      "ui.openOrCreateMarkdown",
-      "ui.listMarkdownFiles",
-      "ui.countMarkdownLines",
-      "ui.observeMarkdownFiles",
-      "ui.unobserveMarkdownFiles",
-      "ui.openMarkdownFile",
+      "ui.openFile",
       "ui.navigate",
       "settings.get",
       "settings.update",
       "settings.reset",
-      "media.url",
-      "media.readSidecarText",
-      "media.listSidecars",
+      "fs.readText",
+      "fs.writeText",
+      "fs.readBinary",
+      "fs.writeBinary",
+      "fs.delete",
+      "fs.rename",
+      "fs.list",
+      "fs.stat",
+      "fs.url",
+      "fs.watch",
+      "fs.unwatch",
     ].includes(String(r.method))
   )
     throw new PluginError("INVALID_REQUEST", "Invalid guest request")
@@ -156,7 +162,6 @@ export function parseRequest(value: unknown): PluginRequest {
       "document.save",
       "document.undo",
       "document.redo",
-      "media.url",
     ].includes(String(r.method)) &&
     r.params !== null &&
     !(r.params && typeof r.params === "object" && "invocation" in r.params)

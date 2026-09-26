@@ -35,10 +35,15 @@ import type { PluginStore } from "./plugin-store"
 import { diskSnapshot, type PluginDocumentSession } from "./document-host"
 export type { PluginDocumentSession } from "./document-host"
 interface Instance {
-  markdownIndex?: boolean
-  markdownLineCounts?: boolean
-  markdownWatch?: boolean
-  markdownPaths?: Set<string>
+  workspaceFiles?: boolean | { read?: boolean; write?: boolean }
+  file?: {
+    path: string
+    name: string
+    baseName: string
+    extension: string
+    mimeType?: string
+    size: number
+  }
   eidos?: boolean
   media?: boolean
   mediaPreviewUrl?: string
@@ -58,7 +63,7 @@ interface Instance {
   invocation?: {
     id: string
     access: "read" | "write"
-    context: "workspace" | "document" | "table"
+    context: "workspace" | "document" | "file" | "table"
     contextVersion?: string
     path?: string
     scope: Scope
@@ -69,7 +74,7 @@ interface Instance {
   }
   owner: number
   session: PluginDocumentSession
-  path: string
+  path?: string
   html: string
   resource: string
   scope: Scope
@@ -187,6 +192,7 @@ export class PluginService {
       owner,
       session,
       path: "",
+      workspaceFiles: pkg.manifest.workspace?.files,
       html: extensionHtml(
         pkg.modules[pkg.manifest.extension]!,
         (pkg.manifest.actions ?? []).map((a) => a.id),
@@ -434,6 +440,21 @@ export class PluginService {
             applying: false,
           }
         }
+      } else if (declaration.context === "file") {
+        if (!path)
+          throw new PluginError("DOCUMENT_UNAVAILABLE", "Select a file first")
+        const safe = normalizeMutableRelativePath(path)
+        invocation.path = safe
+        if (
+          declaration.extensions?.length &&
+          !declaration.extensions.some((ext) =>
+            safe.toLowerCase().endsWith(ext)
+          )
+        )
+          throw new PluginError(
+            "DOCUMENT_UNAVAILABLE",
+            "Action does not match this file"
+          )
       } else if (declaration.context !== "workspace")
         throw new PluginError("UNSUPPORTED_API", "Action context unsupported")
       scope.assertActive()
@@ -449,7 +470,12 @@ export class PluginService {
               text: invocation.format!.text,
               path: invocation.path!,
             }
-          : { invocation: id, action, kind: declaration.context },
+          : {
+              invocation: id,
+              action,
+              kind: declaration.context,
+              ...(invocation.path ? { path: invocation.path } : {}),
+            },
       })
     } catch (error) {
       invocation.finish(
@@ -493,14 +519,7 @@ export class PluginService {
     this.instances.set(ticket, {
       owner,
       session,
-      path: "",
-      markdownIndex:
-        !table && pkg.manifest.workspace?.listMarkdownFiles === true,
-      markdownLineCounts:
-        !table && pkg.manifest.workspace?.countMarkdownLines === true,
-      markdownWatch:
-        !table && pkg.manifest.workspace?.watchMarkdownFiles === true,
-      markdownPaths: !table ? new Set<string>() : undefined,
+      workspaceFiles: pkg.manifest.workspace?.files,
       html: viewHtml(
         pkg.modules[view.entry]!,
         table ? { kind: "table", ...table } : { kind: "page", route }
@@ -548,13 +567,14 @@ export class PluginService {
     const view = pkg.manifest.views?.find(
       (view) =>
         `${id}/${view.id}` === selected.editor!.key &&
-        (view.context === "media"
-          ? true
-          : view.context === (isEidos ? "eidos" : "document"))
+        (view.context === "file" ||
+          view.context === "media" ||
+          view.context === (isEidos ? "eidos" : "document"))
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "View is unavailable")
-    const eidos = view.context === "eidos"
+    const isFileContext = view.context === "file"
+    const eidos = view.context === "eidos" || (isFileContext && isEidos)
     const media = view.context === "media"
     let mediaInfo:
       | {
@@ -573,10 +593,23 @@ export class PluginService {
           "DOCUMENT_UNAVAILABLE",
           "Media view unavailable in this session"
         )
-      mediaInfo = await session.previewMediaFile(safe)
+      mediaInfo = await session.previewMediaFile(safe).catch(() => undefined)
+    } else if (isFileContext && session.previewMediaFile) {
+      mediaInfo = await session.previewMediaFile(safe).catch(() => undefined)
     }
     const copy =
-      eidos || media ? undefined : await this.documentCopy(session, safe, draft)
+      view.context === "document"
+        ? await this.documentCopy(session, safe, draft)
+        : isFileContext && !isEidos
+          ? await this.documentCopy(session, safe, draft).catch(() => undefined)
+          : undefined
+    const fileInfo = mediaInfo ?? {
+      path: safe,
+      name: path.basename(safe),
+      baseName: path.parse(safe).name,
+      extension: path.extname(safe),
+      size: copy ? copy.snapshot().text.length : 0,
+    }
     for (const [ticket, old] of this.instances)
       if (old.owner === owner && old.session !== session)
         this.close(owner, ticket)
@@ -591,18 +624,22 @@ export class PluginService {
       owner,
       session,
       path: safe,
+      file: fileInfo,
+      workspaceFiles: pkg.manifest.workspace?.files,
       resource,
       scope,
       copy,
       eidos,
-      media,
+      media: !!mediaInfo,
       mediaPreviewUrl: mediaInfo?.previewUrl,
       tableWritable: view.access === "write",
       html: eidos
-        ? viewHtml(pkg.modules[view.entry]!, { kind: "eidos" })
+        ? viewHtml(pkg.modules[view.entry]!, { kind: "eidos", file: fileInfo })
         : media
           ? mediaViewHtml(pkg.modules[view.entry]!, mediaInfo!)
-          : documentViewHtml(pkg.modules[view.entry]!),
+          : isFileContext
+            ? viewHtml(pkg.modules[view.entry]!, { kind: "file", ...fileInfo })
+            : documentViewHtml(pkg.modules[view.entry]!, fileInfo),
       csp: sandboxCsp(pkg.manifest.browser),
       document: copy?.bind(scope, view.access ?? "read"),
       pluginId: id,
@@ -990,45 +1027,401 @@ export class PluginService {
             "PERMISSION_DENIED",
             "This contribution has no document binding"
           )
-        if (request.method.startsWith("media.") && !instance.media)
-          throw new PluginError(
-            "PERMISSION_DENIED",
-            "This contribution has no media binding"
-          )
         let result: unknown
         let navigation: PluginRpcResult["navigation"]
         let openFile: string | undefined
         if (
           (request.method.startsWith("settings.") ||
-            request.method === "ui.openOrCreateMarkdown" ||
-            request.method === "ui.listMarkdownFiles" ||
-            request.method === "ui.countMarkdownLines" ||
-            request.method === "ui.observeMarkdownFiles" ||
-            request.method === "ui.openMarkdownFile") &&
+            request.method.startsWith("fs.") ||
+            request.method === "ui.openFile") &&
           binding.hash !== instance.hash
         )
           throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
+        const hasWorkspaceFiles =
+          instance.workspaceFiles === true ||
+          (typeof instance.workspaceFiles === "object" &&
+            instance.workspaceFiles.read !== false) ||
+          instance.invocation?.context === "workspace"
+        const hasWorkspaceWrite =
+          instance.workspaceFiles === true ||
+          (typeof instance.workspaceFiles === "object" &&
+            instance.workspaceFiles.write === true) ||
+          (instance.invocation?.context === "workspace" &&
+            instance.invocation?.access === "write")
+        const activeFilePath = instance.invocation?.path || instance.path
+        const isFileView = !!activeFilePath
         switch (request.method) {
           case "view.ready":
             instance.mounted?.()
             result = null
             break
-          case "media.url":
-            result = instance.mediaPreviewUrl ?? ""
-            break
-          case "media.readSidecarText": {
-            const p = object(params)
-            if (typeof p.extension !== "string" || !p.extension)
-              throw new PluginError("INVALID_REQUEST", "Invalid extension")
-            if (!session.readSidecarText)
+          case "fs.url": {
+            const p = params ? object(params) : {}
+            const target =
+              typeof p.path === "string" && p.path.trim() ? p.path : undefined
+            if (!session.previewMediaFile)
               throw new PluginError(
                 "DOCUMENT_UNAVAILABLE",
-                "Sidecar reading unavailable"
+                "Media preview unavailable in this session"
               )
-            result = await session.readSidecarText(instance.path, p.extension)
+            if (!target && isFileView) {
+              if (instance.mediaPreviewUrl) {
+                result = { url: instance.mediaPreviewUrl }
+              } else {
+                const info = await session.previewMediaFile(activeFilePath)
+                result = { url: info.previewUrl }
+              }
+            } else if (target) {
+              if (hasWorkspaceFiles) {
+                const norm = normalizeMutableRelativePath(target)
+                const info = await session.previewMediaFile(norm)
+                result = { url: info.previewUrl }
+              } else if (isFileView) {
+                const info = await session.previewMediaFile(
+                  activeFilePath,
+                  target
+                )
+                result = { url: info.previewUrl }
+              } else {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Workspace file access was not declared"
+                )
+              }
+            } else {
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Target file path is required"
+              )
+            }
             break
           }
-          case "media.listSidecars": {
+          case "fs.readText": {
+            const p = object(params)
+            if (typeof p.path !== "string" || !p.path.trim())
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
+            let targetPath: string
+            if (hasWorkspaceFiles) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (isFileView) {
+              const currentDir = path.dirname(activeFilePath)
+              if (
+                /[\\/\u0000-\u001f]|\.\./.test(p.path) &&
+                p.path.includes("/")
+              ) {
+                try {
+                  const norm = normalizeMutableRelativePath(p.path)
+                  if (
+                    currentDir === "."
+                      ? norm.includes("/")
+                      : !norm.startsWith(`${currentDir}/`)
+                  ) {
+                    throw new PluginError(
+                      "PERMISSION_DENIED",
+                      "Access outside file directory denied"
+                    )
+                  }
+                  targetPath = norm
+                } catch (e) {
+                  if (e instanceof PluginError) throw e
+                  throw new PluginError("INVALID_REQUEST", "Invalid file path")
+                }
+              } else {
+                if (session.readSidecarText) {
+                  const sidecar = await session.readSidecarText(
+                    activeFilePath,
+                    p.path
+                  )
+                  if (sidecar) {
+                    result = { text: sidecar.text }
+                    break
+                  }
+                }
+                const filename = p.path.startsWith("./")
+                  ? p.path.slice(2)
+                  : p.path
+                targetPath =
+                  currentDir === "." ? filename : `${currentDir}/${filename}`
+              }
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace file access was not declared"
+              )
+            }
+            if (session.readTextFile) {
+              result = { text: await session.readTextFile(targetPath) }
+            } else {
+              const preview = await session.previewTextFile(targetPath)
+              if (preview.type !== "text" || preview.truncated) {
+                throw new PluginError(
+                  "DOCUMENT_UNAVAILABLE",
+                  "File is unavailable or too large"
+                )
+              }
+              result = { text: preview.content }
+            }
+            break
+          }
+          case "fs.writeText": {
+            const p = object(params)
+            if (typeof p.path !== "string" || typeof p.content !== "string")
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid write arguments"
+              )
+            let targetPath: string
+            if (hasWorkspaceWrite) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (
+              isFileView &&
+              (instance.tableWritable ||
+                (instance.invocation && instance.invocation.access === "write"))
+            ) {
+              const currentDir = path.dirname(activeFilePath)
+              const filename = p.path.startsWith("./")
+                ? p.path.slice(2)
+                : p.path
+              if (/[\\/\u0000-\u001f]|\.\./.test(filename)) {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Access outside file directory denied"
+                )
+              }
+              targetPath =
+                currentDir === "." ? filename : `${currentDir}/${filename}`
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            if (!session.writeTextFile) {
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "File writing unavailable"
+              )
+            }
+            await session.writeTextFile(targetPath, p.content)
+            result = null
+            break
+          }
+          case "fs.readBinary": {
+            const p = object(params)
+            if (typeof p.path !== "string" || !p.path.trim())
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
+            let targetPath: string
+            if (hasWorkspaceFiles) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (isFileView) {
+              const currentDir = path.dirname(activeFilePath)
+              const filename = p.path.startsWith("./")
+                ? p.path.slice(2)
+                : p.path
+              if (/[\\/\u0000-\u001f]|\.\./.test(filename)) {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Access outside file directory denied"
+                )
+              }
+              targetPath =
+                currentDir === "." ? filename : `${currentDir}/${filename}`
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace file access was not declared"
+              )
+            }
+            if (!session.readBinaryFile) {
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "Binary read unavailable"
+              )
+            }
+            const buf = await session.readBinaryFile(targetPath)
+            result = { data: Buffer.from(buf).toString("base64") }
+            break
+          }
+          case "fs.writeBinary": {
+            if (!hasWorkspaceWrite && !isFileView) {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            const p = object(params)
+            if (typeof p.path !== "string" || typeof p.data !== "string")
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid write arguments"
+              )
+            let targetPath: string
+            if (hasWorkspaceWrite) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (
+              isFileView &&
+              (instance.tableWritable ||
+                (instance.invocation && instance.invocation.access === "write"))
+            ) {
+              const currentDir = path.dirname(activeFilePath)
+              const filename = p.path.startsWith("./")
+                ? p.path.slice(2)
+                : p.path
+              if (/[\\/\u0000-\u001f]|\.\./.test(filename)) {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Access outside file directory denied"
+                )
+              }
+              targetPath =
+                currentDir === "." ? filename : `${currentDir}/${filename}`
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            if (!session.writeBinaryFile) {
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "Binary write unavailable"
+              )
+            }
+            const buf = Buffer.from(p.data, "base64")
+            await session.writeBinaryFile(targetPath, buf)
+            result = null
+            break
+          }
+          case "fs.delete": {
+            if (!hasWorkspaceWrite && !isFileView) {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            const p = object(params)
+            if (typeof p.path !== "string" || !p.path.trim())
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
+            let targetPath: string
+            if (hasWorkspaceWrite) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (
+              isFileView &&
+              (instance.tableWritable ||
+                (instance.invocation && instance.invocation.access === "write"))
+            ) {
+              const currentDir = path.dirname(activeFilePath)
+              const filename = p.path.startsWith("./")
+                ? p.path.slice(2)
+                : p.path
+              if (/[\\/\u0000-\u001f]|\.\./.test(filename)) {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Access outside file directory denied"
+                )
+              }
+              targetPath =
+                currentDir === "." ? filename : `${currentDir}/${filename}`
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            if (!session.deleteFile) {
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "File deletion unavailable"
+              )
+            }
+            await session.deleteFile(targetPath)
+            result = null
+            break
+          }
+          case "fs.rename": {
+            if (!hasWorkspaceWrite && !isFileView) {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            const p = object(params)
+            if (typeof p.oldPath !== "string" || typeof p.newPath !== "string")
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid rename arguments"
+              )
+            let oldTarget: string
+            let newTarget: string
+            if (hasWorkspaceWrite) {
+              try {
+                oldTarget = normalizeMutableRelativePath(p.oldPath)
+                newTarget = normalizeMutableRelativePath(p.newPath)
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid file path")
+              }
+            } else if (
+              isFileView &&
+              (instance.tableWritable ||
+                (instance.invocation && instance.invocation.access === "write"))
+            ) {
+              const currentDir = path.dirname(activeFilePath)
+              const oldFile = p.oldPath.startsWith("./")
+                ? p.oldPath.slice(2)
+                : p.oldPath
+              const newFile = p.newPath.startsWith("./")
+                ? p.newPath.slice(2)
+                : p.newPath
+              if (
+                /[\\/\u0000-\u001f]|\.\./.test(oldFile) ||
+                /[\\/\u0000-\u001f]|\.\./.test(newFile)
+              ) {
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Access outside file directory denied"
+                )
+              }
+              oldTarget =
+                currentDir === "." ? oldFile : `${currentDir}/${oldFile}`
+              newTarget =
+                currentDir === "." ? newFile : `${currentDir}/${newFile}`
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace write access was not declared"
+              )
+            }
+            if (!session.renameFile) {
+              throw new PluginError(
+                "DOCUMENT_UNAVAILABLE",
+                "File rename unavailable"
+              )
+            }
+            await session.renameFile(oldTarget, newTarget)
+            result = null
+            break
+          }
+          case "fs.list": {
             const p = params ? object(params) : {}
             const extensions =
               p.extensions === undefined
@@ -1042,12 +1435,180 @@ export class PluginService {
                         "Invalid extensions filter"
                       )
                     })()
-            if (!session.listSidecars)
+            if (hasWorkspaceFiles) {
+              const folder =
+                typeof p.folder === "string" && p.folder.trim()
+                  ? normalizeMutableRelativePath(p.folder)
+                  : ""
+              if (session.listFiles) {
+                result = await session.listFiles(folder, { extensions })
+              } else {
+                result = []
+              }
+            } else if (isFileView) {
+              const currentDir = path.dirname(activeFilePath)
+              if (p.folder && typeof p.folder === "string") {
+                const requested = normalizeMutableRelativePath(p.folder)
+                if (
+                  requested !== currentDir &&
+                  !(currentDir === "." && requested === "")
+                ) {
+                  throw new PluginError(
+                    "PERMISSION_DENIED",
+                    "Access outside file directory denied"
+                  )
+                }
+              }
+              if (session.listSidecars) {
+                const sidecars = await session.listSidecars(
+                  activeFilePath,
+                  extensions
+                )
+                result = sidecars.map((s) => ({
+                  path: s.path,
+                  name: s.name,
+                  extension: s.extension,
+                  size: s.size,
+                  isDirectory: false,
+                }))
+              } else if (session.listFiles) {
+                result = await session.listFiles(
+                  currentDir === "." ? "" : currentDir,
+                  { extensions }
+                )
+              } else {
+                result = []
+              }
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace file access was not declared"
+              )
+            }
+            break
+          }
+          case "fs.stat": {
+            const p = object(params)
+            if (typeof p.path !== "string" || !p.path.trim())
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
+            let targetPath: string
+            if (hasWorkspaceFiles) {
+              try {
+                targetPath = normalizeMutableRelativePath(p.path)
+              } catch {
+                result = null
+                break
+              }
+            } else if (isFileView) {
+              const currentDir = path.dirname(activeFilePath)
+              const filename = p.path.startsWith("./")
+                ? p.path.slice(2)
+                : p.path
+              if (
+                /[\\/\u0000-\u001f]|\.\./.test(filename) &&
+                filename.includes("/")
+              ) {
+                try {
+                  const norm = normalizeMutableRelativePath(p.path)
+                  if (
+                    currentDir === "."
+                      ? norm.includes("/")
+                      : !norm.startsWith(`${currentDir}/`)
+                  ) {
+                    throw new PluginError(
+                      "PERMISSION_DENIED",
+                      "Access outside file directory denied"
+                    )
+                  }
+                  targetPath = norm
+                } catch (e) {
+                  if (e instanceof PluginError) throw e
+                  result = null
+                  break
+                }
+              } else {
+                targetPath =
+                  currentDir === "." ? filename : `${currentDir}/${filename}`
+              }
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace file access was not declared"
+              )
+            }
+            if (session.statFile) {
+              result = await session.statFile(targetPath)
+            } else {
+              result = null
+            }
+            break
+          }
+          case "fs.watch":
+          case "fs.unwatch": {
+            const p = object(params)
+            const watching = request.method === "fs.watch"
+            if (
+              Object.keys(p).sort().join() !== (watching ? "id,path" : "id") ||
+              typeof p.id !== "string" ||
+              !p.id ||
+              p.id.length > 128
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid watcher request"
+              )
+            if (!watching) {
+              instance.observations.get(p.id)?.dispose()
+              instance.observations.delete(p.id)
+              result = null
+              break
+            }
+            if (
+              typeof p.path !== "string" ||
+              Buffer.byteLength(p.path) > 1024 ||
+              instance.observations.has(p.id) ||
+              instance.observations.size >= 64
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid watcher request"
+              )
+            let folder: string
+            if (hasWorkspaceFiles) {
+              try {
+                folder = p.path ? normalizeMutableRelativePath(p.path) : ""
+              } catch {
+                throw new PluginError("INVALID_REQUEST", "Invalid folder path")
+              }
+            } else if (isFileView) {
+              const currentDir = path.dirname(activeFilePath)
+              folder = currentDir === "." ? "" : currentDir
+            } else {
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "Workspace file access was not declared"
+              )
+            }
+            const observation = p.id
+            const watchFn = session.watchFiles
+            if (!watchFn) {
               throw new PluginError(
                 "DOCUMENT_UNAVAILABLE",
-                "Sidecar listing unavailable"
+                "File watching unavailable"
               )
-            result = await session.listSidecars(instance.path, extensions)
+            }
+            const subscription = watchFn.call(session, folder, () => {
+              if (!instance.scope.signal.aborted)
+                emit({
+                  protocol: PLUGIN_PROTOCOL,
+                  apiVersion: 1,
+                  observation,
+                  value: null,
+                })
+            })
+            instance.observations.set(observation, subscription)
+            instance.scope.subscriptions.add(subscription)
+            result = null
             break
           }
           case "document.read":
@@ -1175,160 +1736,20 @@ export class PluginService {
             }
             break
           }
-          case "ui.openOrCreateMarkdown": {
-            if (
-              !instance.invocation ||
-              instance.invocation.context !== "workspace" ||
-              instance.invocation.access !== "write"
-            )
-              throw new PluginError(
-                "PERMISSION_DENIED",
-                "A writable workspace action is required"
-              )
+          case "ui.openFile": {
             const p = object(params)
             if (
               Object.keys(p).join() !== "relativePath" ||
               typeof p.relativePath !== "string" ||
               Buffer.byteLength(p.relativePath) > 1024
             )
-              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
-            const opened = await session.openOrCreateMarkdownFile(
-              p.relativePath
-            )
-            instance.invocation.scope.assertActive()
-            openFile = opened.path
-            result = opened
-            break
-          }
-          case "ui.listMarkdownFiles": {
-            if (!instance.markdownIndex)
-              throw new PluginError(
-                "PERMISSION_DENIED",
-                "Markdown listing was not declared for this page"
-              )
-            const p = object(params)
-            if (
-              Object.keys(p).join() !== "folder" ||
-              typeof p.folder !== "string" ||
-              Buffer.byteLength(p.folder) > 1024
-            )
-              throw new PluginError("INVALID_REQUEST", "Invalid folder")
-            let folder: string
-            try {
-              folder = p.folder ? normalizeMutableRelativePath(p.folder) : ""
-            } catch {
-              throw new PluginError("INVALID_REQUEST", "Invalid folder")
-            }
-            const listing = await session.listMarkdownFiles(folder)
-            for (const path of listing.paths) instance.markdownPaths?.add(path)
-            result = listing
-            break
-          }
-          case "ui.countMarkdownLines": {
-            if (!instance.markdownLineCounts || !instance.markdownPaths)
-              throw new PluginError(
-                "PERMISSION_DENIED",
-                "Markdown line counts were not declared for this page"
-              )
-            const p = object(params)
-            if (
-              Object.keys(p).join() !== "paths" ||
-              !Array.isArray(p.paths) ||
-              p.paths.length > 400 ||
-              new Set(p.paths).size !== p.paths.length ||
-              p.paths.some(
-                (path) =>
-                  typeof path !== "string" ||
-                  Buffer.byteLength(path) > 1024 ||
-                  !instance.markdownPaths!.has(path)
-              )
-            )
-              throw new PluginError("INVALID_REQUEST", "Invalid Markdown paths")
-            result = await session.countMarkdownLines(p.paths as string[])
-            break
-          }
-          case "ui.observeMarkdownFiles":
-          case "ui.unobserveMarkdownFiles": {
-            const p = object(params)
-            const observing = request.method === "ui.observeMarkdownFiles"
-            if (
-              Object.keys(p).sort().join() !==
-                (observing ? "folder,id" : "id") ||
-              typeof p.id !== "string" ||
-              !p.id ||
-              p.id.length > 128
-            )
-              throw new PluginError(
-                "INVALID_REQUEST",
-                "Invalid Markdown observer"
-              )
-            if (!observing) {
-              instance.observations.get(p.id)?.dispose()
-              instance.observations.delete(p.id)
-              result = null
-              break
-            }
-            if (!instance.markdownWatch)
-              throw new PluginError(
-                "PERMISSION_DENIED",
-                "Markdown watching was not declared for this page"
-              )
-            if (
-              typeof p.folder !== "string" ||
-              Buffer.byteLength(p.folder) > 1024 ||
-              instance.observations.has(p.id) ||
-              instance.observations.size >= 64
-            )
-              throw new PluginError(
-                "INVALID_REQUEST",
-                "Invalid Markdown observer"
-              )
-            let folder: string
-            try {
-              folder = p.folder ? normalizeMutableRelativePath(p.folder) : ""
-            } catch {
-              throw new PluginError("INVALID_REQUEST", "Invalid folder")
-            }
-            const observation = p.id
-            const subscription = session.watchMarkdownFiles(folder, () => {
-              if (!instance.scope.signal.aborted)
-                emit({
-                  protocol: PLUGIN_PROTOCOL,
-                  apiVersion: 1,
-                  observation,
-                  value: null,
-                })
-            })
-            instance.observations.set(observation, subscription)
-            instance.scope.subscriptions.add(subscription)
-            result = null
-            break
-          }
-          case "ui.openMarkdownFile": {
-            if (!instance.markdownIndex)
-              throw new PluginError(
-                "PERMISSION_DENIED",
-                "Markdown listing was not declared for this page"
-              )
-            const p = object(params)
-            if (
-              Object.keys(p).join() !== "relativePath" ||
-              typeof p.relativePath !== "string" ||
-              Buffer.byteLength(p.relativePath) > 1024
-            )
-              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
             let relativePath: string
             try {
               relativePath = normalizeMutableRelativePath(p.relativePath)
             } catch {
-              throw new PluginError("INVALID_REQUEST", "Invalid Markdown path")
+              throw new PluginError("INVALID_REQUEST", "Invalid file path")
             }
-            if (!relativePath.toLowerCase().endsWith(".md"))
-              throw new PluginError(
-                "INVALID_REQUEST",
-                "Expected a Markdown file"
-              )
-            await session.previewTextFile(relativePath)
             openFile = relativePath
             result = null
             break

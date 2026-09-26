@@ -3,12 +3,17 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { encodePackage } from "@eidos.space/plugin-runtime/package"
-import type { PluginManifest, TextSnapshot } from "@eidos.space/plugin-sdk"
+import type {
+  FileStat,
+  PluginManifest,
+  TextSnapshot,
+} from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
 import { PluginService, type PluginDocumentSession } from "./plugin-service"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
 const manifest: PluginManifest = {
   apiVersion: 1,
+  requires: { pluginApi: "2.0.0" },
   id: "example.csv",
   name: "CSV",
   version: "1.0.0",
@@ -46,66 +51,133 @@ beforeEach(async () => {
     canonical: { id: "space-a" },
     previewTextFile: (file) => readTextFilePreview(root, file),
     saveTextFile: (request) => saveTextFile(root, request),
-    openOrCreateMarkdownFile: async (file) => {
+    readTextFile: async (file: string) => {
+      const target = path.join(root, file)
+      return await fs.readFile(target, "utf8")
+    },
+    writeTextFile: async (file: string, content: string) => {
       const target = path.join(root, file)
       await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, content, "utf8")
+    },
+    readBinaryFile: async (file: string) => {
+      const target = path.join(root, file)
+      return await fs.readFile(target)
+    },
+    writeBinaryFile: async (file: string, data: Uint8Array) => {
+      const target = path.join(root, file)
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, data)
+    },
+    deleteFile: async (file: string) => {
+      const target = path.join(root, file)
+      await fs.rm(target, { force: true })
+    },
+    renameFile: async (oldFile: string, newFile: string) => {
+      const from = path.join(root, oldFile)
+      const to = path.join(root, newFile)
+      await fs.mkdir(path.dirname(to), { recursive: true })
+      await fs.rename(from, to)
+    },
+    statFile: async (file: string) => {
+      const target = path.join(root, file)
       try {
-        await fs.writeFile(target, "", { flag: "wx" })
-        return { path: file, created: true }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-        return { path: file, created: false }
+        const stat = await fs.stat(target)
+        return {
+          path: file,
+          name: path.basename(file),
+          extension: path.extname(file),
+          size: stat.size,
+          isDirectory: stat.isDirectory(),
+        }
+      } catch {
+        return null
       }
     },
-    listMarkdownFiles: async (folder) => ({
-      paths: folder === "journals" ? ["journals/2026-09-23.md"] : [],
-      truncated: false,
-    }),
-    countMarkdownLines: async (paths) =>
-      Promise.all(
-        paths.map(async (path) => {
-          const preview = await readTextFilePreview(root, path)
-          return {
-            path,
-            lines:
-              preview.type === "text" && !preview.truncated
-                ? preview.content
-                    .split(/\r\n|\r|\n/)
-                    .filter((line) => line.trim().length > 0).length
-                : null,
+    listFiles: async (folder: string, options?: { extensions?: string[] }) => {
+      const target = folder ? path.join(root, folder) : root
+      const entries = await fs
+        .readdir(target, { withFileTypes: true })
+        .catch(() => [])
+      const results: FileStat[] = []
+      for (const entry of entries) {
+        if (entry.isFile()) {
+          const ext = path.extname(entry.name)
+          if (!options?.extensions || options.extensions.includes(ext)) {
+            const stat = await fs.stat(path.join(target, entry.name))
+            const rel = folder ? `${folder}/${entry.name}` : entry.name
+            results.push({
+              path: rel,
+              name: entry.name,
+              extension: ext,
+              size: stat.size,
+              isDirectory: false,
+            })
           }
-        })
-      ),
-    watchMarkdownFiles: (folder, listener) => {
+        }
+      }
+      return results
+    },
+    watchFiles: (folder: string, listener: () => void) => {
       const listeners = markdownWatchers.get(folder) ?? new Set()
       listeners.add(listener)
       markdownWatchers.set(folder, listeners)
       return { dispose: () => listeners.delete(listener) }
     },
-    previewMediaFile: async (file) => ({
-      path: file,
-      name: path.basename(file),
-      baseName: path.parse(file).name,
-      extension: path.extname(file),
-      mimeType: "video/mp4",
-      size: (await fs.stat(path.join(root, file))).size,
-      previewUrl: `eidos-space-media://preview/test-${file}`,
-    }),
+    previewMediaFile: async (file, identifier) => {
+      let target = file
+      if (identifier) {
+        const dir = path.dirname(file)
+        const base = path.parse(file).name
+        const rootBase = base.split(".")[0]!
+        let name = identifier.startsWith(".")
+          ? `${base}${identifier}`
+          : identifier
+        let candidate = dir === "." ? name : `${dir}/${name}`
+        const exists = await fs
+          .stat(path.join(root, candidate))
+          .catch(() => null)
+        if (!exists && identifier.startsWith(".")) {
+          name = `${rootBase}${identifier}`
+          candidate = dir === "." ? name : `${dir}/${name}`
+        }
+        target = candidate
+      } else if (!file.endsWith(".mp4") && !file.endsWith(".mov")) {
+        const dir = path.dirname(file)
+        const base = path.parse(file).name
+        const rootBase = base.split(".")[0]!
+        target = dir === "." ? `${rootBase}.mp4` : `${dir}/${rootBase}.mp4`
+      }
+      return {
+        path: target,
+        name: path.basename(target),
+        baseName: path.parse(target).name,
+        extension: path.extname(target),
+        mimeType: "video/mp4",
+        size: (await fs.stat(path.join(root, target))).size,
+        previewUrl: `eidos-space-media://preview/test-${target}`,
+      }
+    },
     readSidecarText: async (file, extOrName) => {
       const dir = path.dirname(file)
       const base = path.parse(file).name
-      const name = extOrName.startsWith(".") ? `${base}${extOrName}` : extOrName
-      const rel = dir === "." ? name : `${dir}/${name}`
-      try {
-        const text = await fs.readFile(path.join(root, rel), "utf8")
-        return { text, path: rel }
-      } catch {
-        return null
+      const rootBase = base.split(".")[0]!
+      const candidates = extOrName.startsWith(".")
+        ? [`${base}${extOrName}`, `${rootBase}${extOrName}`]
+        : [extOrName]
+      for (const name of candidates) {
+        const rel = dir === "." ? name : `${dir}/${name}`
+        try {
+          const text = await fs.readFile(path.join(root, rel), "utf8")
+          return { text, path: rel }
+        } catch {}
       }
+      return null
     },
     listSidecars: async (file, extensions) => {
       const dir = path.dirname(file)
       const base = path.parse(file).name
+      const rootBase = base.split(".")[0]!
       const fullDir = path.join(root, dir === "." ? "" : dir)
       const files = await fs.readdir(fullDir).catch(() => [])
       const results: Array<{
@@ -115,7 +187,10 @@ beforeEach(async () => {
         size: number
       }> = []
       for (const f of files) {
-        if (f.startsWith(`${base}.`) && f !== path.basename(file)) {
+        if (
+          (f.startsWith(`${base}.`) || f.startsWith(`${rootBase}.`)) &&
+          f !== path.basename(file)
+        ) {
           const ext = path.extname(f)
           if (!extensions || extensions.includes(ext)) {
             const stat = await fs.stat(path.join(fullDir, f))
@@ -216,6 +291,7 @@ it("opens Eidos views without text access and scopes config writes to writable i
 it("binds table action instances and credential authority to the live Space and package", async () => {
   const plugin: PluginManifest = {
     apiVersion: 1,
+    requires: { pluginApi: "2.0.0" },
     id: "example.smart",
     name: "Smart",
     version: "1.0.0",
@@ -333,6 +409,7 @@ describe("Lite document-view integration", () => {
   it("authorizes table adapters only for live table instances in their owning Space", async () => {
     const tableManifest: PluginManifest = {
       apiVersion: 1,
+      requires: { pluginApi: "2.0.0" },
       id: "example.map",
       name: "Map",
       version: "1.0.0",
@@ -403,6 +480,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.format",
           name: "Format",
           version: "1.0.0",
@@ -539,6 +617,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.page",
           name: "Page",
           version: "1.0.0",
@@ -562,15 +641,15 @@ describe("Lite document-view integration", () => {
       response: { error: { code: "PERMISSION_DENIED" } },
     })
     expect(
-      await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" })
+      await rpc(page.ticket, "fs.list", { folder: "journals" })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
     expect(
-      await rpc(page.ticket, "ui.countMarkdownLines", { paths: [] })
+      await rpc(page.ticket, "fs.stat", { path: "journals/2026-09-23.md" })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
     expect(
-      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+      await rpc(page.ticket, "fs.watch", {
         id: "watch",
-        folder: "journals",
+        path: "journals",
       })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
     expect(
@@ -599,7 +678,7 @@ describe("Lite document-view integration", () => {
       service.openPage(1, session, "example.page/home", "x".repeat(2049))
     ).rejects.toMatchObject({ code: "INVALID_REQUEST" })
   })
-  it("lets only a declared page enumerate Markdown names and open an existing entry", async () => {
+  it("lets a page with workspace.files list files, read content, stat files, and open a file", async () => {
     await fs.mkdir(path.join(root, "journals"))
     await fs.writeFile(
       path.join(root, "journals/2026-09-23.md"),
@@ -609,11 +688,11 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.journals",
           name: "Journals",
           version: "1.0.0",
-          requires: { pluginApi: "1.4.0" },
-          workspace: { listMarkdownFiles: true, countMarkdownLines: true },
+          workspace: { files: true },
           settings: {
             folder: {
               type: "string",
@@ -641,58 +720,64 @@ describe("Lite document-view integration", () => {
       (await rpc(page.ticket, "settings.get", { key: "folder" })).response
     ).toMatchObject({ result: "journals" })
     expect(
-      await rpc(page.ticket, "ui.countMarkdownLines", {
-        paths: ["journals/2026-09-23.md"],
-      })
-    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
-    expect(
-      (await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" }))
-        .response
+      (await rpc(page.ticket, "fs.list", { folder: "journals" })).response
     ).toMatchObject({
-      result: { paths: ["journals/2026-09-23.md"], truncated: false },
+      result: expect.arrayContaining([
+        expect.objectContaining({ path: "journals/2026-09-23.md" }),
+      ]),
     })
     expect(
       (
-        await rpc(page.ticket, "ui.countMarkdownLines", {
-          paths: ["journals/2026-09-23.md"],
+        await rpc(page.ticket, "fs.readText", {
+          path: "journals/2026-09-23.md",
         })
       ).response
     ).toMatchObject({
-      result: [{ path: "journals/2026-09-23.md", lines: 2 }],
+      result: { text: "first line\n\nsecond line\n" },
     })
     expect(
-      await rpc(page.ticket, "ui.countMarkdownLines", {
-        paths: [".graft/private.md"],
-      })
-    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+      (
+        await rpc(page.ticket, "fs.stat", {
+          path: "journals/2026-09-23.md",
+        })
+      ).response
+    ).toMatchObject({
+      result: expect.objectContaining({
+        path: "journals/2026-09-23.md",
+        name: "2026-09-23.md",
+        extension: ".md",
+      }),
+    })
     expect(
-      await rpc(page.ticket, "ui.countMarkdownLines", {
-        paths: Array.from({ length: 401 }, () => "journals/2026-09-23.md"),
-      })
-    ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+      (
+        await rpc(page.ticket, "fs.stat", {
+          path: ".graft/private.md",
+        })
+      ).response
+    ).toMatchObject({ result: null })
     expect(
-      await rpc(page.ticket, "ui.openMarkdownFile", {
+      await rpc(page.ticket, "ui.openFile", {
         relativePath: "journals/2026-09-23.md",
       })
     ).toMatchObject({ openFile: "journals/2026-09-23.md" })
     expect(
       (
-        await rpc(page.ticket, "ui.openMarkdownFile", {
+        await rpc(page.ticket, "ui.openFile", {
           relativePath: "../secret.md",
         })
       ).response
     ).toMatchObject({ error: { code: "INVALID_REQUEST" } })
   })
-  it("does not expose line counts to a filename-only page", async () => {
+  it("does not expose write access to a read-only files page", async () => {
     await store.install(
       encodePackage(
         {
           apiVersion: 1,
-          id: "example.filename-only",
-          name: "Filename only",
+          requires: { pluginApi: "2.0.0" },
+          id: "example.read-only-files",
+          name: "Read only files",
           version: "1.0.0",
-          requires: { pluginApi: "1.3.0" },
-          workspace: { listMarkdownFiles: true },
+          workspace: { files: { read: true, write: false } },
           views: [
             {
               id: "overview",
@@ -707,23 +792,30 @@ describe("Lite document-view integration", () => {
       "space-a"
     )
     const page = (
-      await service.openPage(1, session, "example.filename-only/overview")
+      await service.openPage(1, session, "example.read-only-files/overview")
     ).instance!
-    await rpc(page.ticket, "ui.listMarkdownFiles", { folder: "journals" })
     expect(
-      await rpc(page.ticket, "ui.countMarkdownLines", { paths: [] })
+      (await rpc(page.ticket, "fs.list", { folder: "journals" })).response
+    ).toMatchObject({
+      result: expect.any(Array),
+    })
+    expect(
+      await rpc(page.ticket, "fs.writeText", {
+        path: "journals/new.md",
+        content: "hello",
+      })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
   })
-  it("scopes Markdown change observers to a declared page and disposes them", async () => {
+  it("scopes file change observers to a declared page and disposes them", async () => {
     await store.install(
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.watched-journals",
           name: "Watched Journals",
           version: "1.0.0",
-          requires: { pluginApi: "1.5.0" },
-          workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+          workspace: { files: true },
           views: [
             {
               id: "overview",
@@ -751,8 +843,8 @@ describe("Lite document-view integration", () => {
           protocol: "eidos-plugin",
           apiVersion: 1,
           id: "observe",
-          method: "ui.observeMarkdownFiles",
-          params: { id: "listener", folder: "journals" },
+          method: "fs.watch",
+          params: { id: "listener", path: "journals" },
         },
         send
       )
@@ -761,22 +853,22 @@ describe("Lite document-view integration", () => {
     markdownWatchers.get("journals")?.forEach((listener) => listener())
     expect(events).toMatchObject([{ observation: "listener", value: null }])
     expect(
-      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+      await rpc(page.ticket, "fs.watch", {
         id: "listener",
-        folder: "journals",
+        path: "journals",
       })
     ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
     expect(
-      await rpc(page.ticket, "ui.observeMarkdownFiles", {
+      await rpc(page.ticket, "fs.watch", {
         id: "escape",
-        folder: "../outside",
+        path: "../outside",
       })
     ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
-    await rpc(page.ticket, "ui.unobserveMarkdownFiles", { id: "listener" })
+    await rpc(page.ticket, "fs.unwatch", { id: "listener" })
     expect(markdownWatchers.get("journals")?.size).toBe(0)
-    await rpc(page.ticket, "ui.observeMarkdownFiles", {
+    await rpc(page.ticket, "fs.watch", {
       id: "again",
-      folder: "journals",
+      path: "journals",
     })
     service.close(1, page.ticket)
     expect(markdownWatchers.get("journals")?.size).toBe(0)
@@ -786,6 +878,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.actions",
           name: "Actions",
           version: "1.0.0",
@@ -878,6 +971,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.journals",
           name: "Journals",
           version: "1.0.0",
@@ -927,11 +1021,30 @@ describe("Lite document-view integration", () => {
       (await actionRpc("settings.get", { key: "folder" })).response
     ).toMatchObject({ result: "Journals" })
     expect(
-      await actionRpc("ui.openOrCreateMarkdown", {
+      (await actionRpc("fs.stat", { path: "Journals/2026-09-23.md" })).response
+    ).toMatchObject({ result: null })
+    expect(
+      await actionRpc("fs.writeText", {
+        path: "Journals/2026-09-23.md",
+        content: "hello journal",
+      })
+    ).toMatchObject({
+      response: { result: null },
+    })
+    expect(
+      (await actionRpc("fs.stat", { path: "Journals/2026-09-23.md" })).response
+    ).toMatchObject({
+      result: {
+        path: "Journals/2026-09-23.md",
+        name: "2026-09-23.md",
+        isDirectory: false,
+      },
+    })
+    expect(
+      await actionRpc("ui.openFile", {
         relativePath: "Journals/2026-09-23.md",
       })
     ).toMatchObject({
-      response: { result: { path: "Journals/2026-09-23.md", created: true } },
       openFile: "Journals/2026-09-23.md",
     })
     await actionRpc("settings.update", { key: "folder", value: "Diary" })
@@ -941,7 +1054,7 @@ describe("Lite document-view integration", () => {
     await rpc(extension.ticket, "action.complete", { invocation })
     await completion
     expect(
-      (await actionRpc("ui.openOrCreateMarkdown", { relativePath: "other.md" }))
+      (await actionRpc("fs.writeText", { path: "other.md", content: "" }))
         .response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
@@ -950,6 +1063,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
           id: "example.action",
           name: "Action",
           version: "1.0.0",
@@ -1159,6 +1273,7 @@ describe("Lite document-view integration", () => {
   it("opens media views, issues media stream URL, and reads scoped sidecar files", async () => {
     const videoManifest: PluginManifest = {
       apiVersion: 1,
+      requires: { pluginApi: "2.0.0" },
       id: "example.player",
       name: "Player",
       version: "1.0.0",
@@ -1200,25 +1315,22 @@ describe("Lite document-view integration", () => {
     expect(openResult.instance).not.toBeNull()
     const ticket = openResult.instance!.ticket
 
-    // Test media.url
-    const urlResult = await rpc(ticket, "media.url")
+    // Test fs.url
+    const urlResult = await rpc(ticket, "fs.url")
     expect(urlResult.response).toMatchObject({
-      result: "eidos-space-media://preview/test-movie.mp4",
+      result: { url: "eidos-space-media://preview/test-movie.mp4" },
     })
 
-    // Test media.readSidecarText
-    const sidecarResult = await rpc(ticket, "media.readSidecarText", {
-      extension: ".srt",
+    // Test fs.readText
+    const textResult = await rpc(ticket, "fs.readText", {
+      path: "movie.srt",
     })
-    expect(sidecarResult.response).toMatchObject({
-      result: {
-        text: "1\n00:00:01,000 --> 00:00:02,000\nHello",
-        path: "movie.srt",
-      },
+    expect(textResult.response).toMatchObject({
+      result: { text: "1\n00:00:01,000 --> 00:00:02,000\nHello" },
     })
 
-    // Test media.listSidecars
-    const listResult = await rpc(ticket, "media.listSidecars", {
+    // Test fs.list
+    const listResult = await rpc(ticket, "fs.list", {
       extensions: [".srt"],
     })
     expect(listResult.response).toMatchObject({
@@ -1227,7 +1339,304 @@ describe("Lite document-view integration", () => {
         expect.objectContaining({ name: "movie.en.srt", extension: ".srt" }),
       ]),
     })
-    const listData = (listResult.response as { result: unknown[] }).result
-    expect(listData.some((f: any) => f.name === "other.srt")).toBe(false)
+  })
+
+  it("allows document views to list files, read companion text, and stream companion media", async () => {
+    const subtitleManifest: PluginManifest = {
+      apiVersion: 1,
+      requires: { pluginApi: "2.0.0" },
+      id: "example.subtitle",
+      name: "Subtitle Editor",
+      version: "1.0.0",
+      views: [
+        {
+          id: "subtitles",
+          title: "Subtitle Editor",
+          context: "document",
+          entry: "./editor.ts",
+          access: "read",
+        },
+      ],
+      placements: [
+        { location: "file/open", view: "subtitles", extensions: [".srt"] },
+      ],
+    }
+    const subtitleModules = {
+      "./editor.ts":
+        "export default function mount(ctx, root) { root.textContent = 'Subtitles' }",
+    }
+    await store.install(
+      encodePackage(subtitleManifest, subtitleModules),
+      "space-a"
+    )
+    await fs.writeFile(path.join(root, "movie.mp4"), "fake-video-bytes")
+    await fs.writeFile(
+      path.join(root, "movie.srt"),
+      "1\n00:00:01,000 --> 00:00:02,000\nHello"
+    )
+    await fs.writeFile(
+      path.join(root, "movie.en.srt"),
+      "1\n00:00:01,000 --> 00:00:02,000\nHello English"
+    )
+
+    // Open document view on movie.srt
+    const openResult = await service.open(
+      1,
+      session,
+      "movie.srt",
+      "example.subtitle/subtitles"
+    )
+    expect(openResult.instance).not.toBeNull()
+    const ticket = openResult.instance!.ticket
+
+    // 1. List files from document view
+    const listResult = await rpc(ticket, "fs.list")
+    expect(listResult.response).toMatchObject({
+      result: expect.arrayContaining([
+        expect.objectContaining({ name: "movie.mp4" }),
+        expect.objectContaining({ name: "movie.en.srt" }),
+      ]),
+    })
+
+    // 2. Read companion text file
+    const textResult = await rpc(ticket, "fs.readText", {
+      path: "movie.en.srt",
+    })
+    expect(textResult.response).toMatchObject({
+      result: { text: "1\n00:00:01,000 --> 00:00:02,000\nHello English" },
+    })
+
+    // 3. Get companion media URL with explicit path
+    const mediaResult = await rpc(ticket, "fs.url", {
+      path: "movie.mp4",
+    })
+    expect(mediaResult.response).toMatchObject({
+      result: { url: "eidos-space-media://preview/test-movie.mp4" },
+    })
+
+    // 4. Get companion media URL auto-detected
+    const autoMediaResult = await rpc(ticket, "fs.url")
+    expect(autoMediaResult.response).toMatchObject({
+      result: { url: "eidos-space-media://preview/test-movie.mp4" },
+    })
+
+    // 5. Open document view on movie.en.srt (multi-segment name)
+    const openEnResult = await service.open(
+      1,
+      session,
+      "movie.en.srt",
+      "example.subtitle/subtitles"
+    )
+    expect(openEnResult.instance).not.toBeNull()
+    const ticketEn = openEnResult.instance!.ticket
+
+    // Verify movie.en.srt finds movie.mp4 with explicit path
+    const mediaEnResult = await rpc(ticketEn, "fs.url", {
+      path: "movie.mp4",
+    })
+    expect(mediaEnResult.response).toMatchObject({
+      result: { url: "eidos-space-media://preview/test-movie.mp4" },
+    })
+
+    // Verify removed legacy sidecars.* method is rejected as invalid
+    await expect(rpc(ticket, "sidecars.mediaUrl")).rejects.toThrow(
+      "Invalid guest request"
+    )
+  })
+
+  it("supports orthogonal fs operations: readBinary, writeBinary, delete, and rename", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
+          id: "example.file-manager",
+          name: "File Manager",
+          version: "1.0.0",
+          workspace: { files: true },
+          views: [
+            {
+              id: "manager",
+              title: "Manager",
+              context: "page",
+              entry: "./page.ts",
+            },
+          ],
+        },
+        { "./page.ts": "export default function mount() {}" }
+      ),
+      "space-a"
+    )
+    const page = (
+      await service.openPage(1, session, "example.file-manager/manager")
+    ).instance!
+
+    // 1. fs.writeBinary
+    const originalBytes = Buffer.from([0x00, 0xff, 0x42, 0x13, 0x37])
+    const base64Data = originalBytes.toString("base64")
+    const writeRes = await rpc(page.ticket, "fs.writeBinary", {
+      path: "bin/test.dat",
+      data: base64Data,
+    })
+    expect(writeRes.response).toMatchObject({ result: null })
+
+    // Verify stat
+    const statRes = await rpc(page.ticket, "fs.stat", { path: "bin/test.dat" })
+    expect(statRes.response).toMatchObject({
+      result: expect.objectContaining({
+        path: "bin/test.dat",
+        size: 5,
+        isDirectory: false,
+      }),
+    })
+
+    // 2. fs.readBinary
+    const readRes = await rpc(page.ticket, "fs.readBinary", {
+      path: "bin/test.dat",
+    })
+    expect(readRes.response).toMatchObject({
+      result: { data: base64Data },
+    })
+
+    // 3. fs.rename
+    const renameRes = await rpc(page.ticket, "fs.rename", {
+      oldPath: "bin/test.dat",
+      newPath: "bin/renamed.dat",
+    })
+    expect(renameRes.response).toMatchObject({ result: null })
+
+    const oldStat = await rpc(page.ticket, "fs.stat", { path: "bin/test.dat" })
+    expect(oldStat.response).toMatchObject({ result: null })
+
+    const newStat = await rpc(page.ticket, "fs.stat", {
+      path: "bin/renamed.dat",
+    })
+    expect(newStat.response).toMatchObject({
+      result: expect.objectContaining({ path: "bin/renamed.dat", size: 5 }),
+    })
+
+    // 4. fs.delete
+    const deleteRes = await rpc(page.ticket, "fs.delete", {
+      path: "bin/renamed.dat",
+    })
+    expect(deleteRes.response).toMatchObject({ result: null })
+
+    const deletedStat = await rpc(page.ticket, "fs.stat", {
+      path: "bin/renamed.dat",
+    })
+    expect(deletedStat.response).toMatchObject({ result: null })
+  })
+
+  it("supports context: file for views and actions", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
+          id: "example.file-viewer",
+          name: "File Viewer",
+          version: "1.0.0",
+          extension: "./extension.ts",
+          views: [
+            {
+              id: "viewer",
+              title: "Viewer",
+              context: "file",
+              entry: "./viewer.ts",
+              access: "write",
+            },
+          ],
+          actions: [
+            {
+              id: "process-file",
+              title: "Process File",
+              context: "file",
+              access: "write",
+            },
+          ],
+          placements: [
+            {
+              location: "file/open",
+              view: "viewer",
+              extensions: [".bin"],
+            },
+            {
+              location: "file/context",
+              action: "process-file",
+            },
+          ],
+        },
+        {
+          "./viewer.ts": "export default function mount() {}",
+          "./extension.ts":
+            "export default function activate(ctx) { ctx.actions.register('process-file', async () => {}) }",
+        }
+      ),
+      "space-a"
+    )
+
+    await fs.writeFile(path.join(root, "sample.bin"), Buffer.from([1, 2, 3]))
+
+    // 1. Open file view
+    const openResult = await service.open(
+      1,
+      session,
+      "sample.bin",
+      "example.file-viewer/viewer"
+    )
+    expect(openResult.instance).not.toBeNull()
+    const ticket = openResult.instance!.ticket
+
+    // Verify HTML has mount context with kind: "file"
+    const instanceRecord = service.instances.get(ticket)!
+    expect(instanceRecord.html).toContain('"kind":"file"')
+
+    // View can read binary file
+    const readBinaryRes = await rpc(ticket, "fs.readBinary", {
+      path: "sample.bin",
+    })
+    expect(readBinaryRes.response).toMatchObject({
+      result: { data: Buffer.from([1, 2, 3]).toString("base64") },
+    })
+
+    // 2. Action with context: "file"
+    const extension = (
+      await service.openExtension(1, session, "example.file-viewer")
+    ).instance!
+    await rpc(extension.ticket, "extension.ready", {
+      actions: ["process-file"],
+    })
+
+    let announce!: (value: unknown) => void
+    const announced = new Promise<unknown>((resolve) => {
+      announce = resolve
+    })
+    const completion = service.invoke(
+      1,
+      session,
+      extension.ticket,
+      "process-file",
+      "sample.bin",
+      undefined,
+      (event) => {
+        if (event.observation === "action.run") announce(event.value)
+      }
+    )
+
+    const announcedAction = (await announced) as {
+      invocation: string
+      action: string
+      kind: string
+      path: string
+    }
+    expect(announcedAction).toMatchObject({
+      action: "process-file",
+      kind: "file",
+      path: "sample.bin",
+    })
+    await rpc(extension.ticket, "action.complete", {
+      invocation: announcedAction.invocation,
+    })
+    await completion
   })
 })

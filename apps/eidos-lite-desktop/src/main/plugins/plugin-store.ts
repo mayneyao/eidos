@@ -627,9 +627,9 @@ export class PluginStore {
           const editor = manifest.views?.find(
             (view) =>
               view.id === placement.view &&
-              (view.context === "media"
-                ? true
-                : view.context ===
+              (view.context === "file" ||
+                view.context === "media" ||
+                view.context ===
                   (extension === ".eidos" ? "eidos" : "document"))
           )
           if (editor)

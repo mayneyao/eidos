@@ -7,6 +7,8 @@ import type {
   PluginManifest,
   TableContext,
   EidosFileContext,
+  FileStat,
+  FileContext,
 } from "./contracts"
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -32,8 +34,8 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
     )
 }
 type BrowserBinding =
-  | { kind: "eidos" }
-  | { kind: "document" }
+  | { kind: "eidos"; file?: FileContext }
+  | { kind: "document"; file?: FileContext }
   | { kind: "page"; route: string }
   | { kind: "table"; tableId: string; viewId: string }
   | {
@@ -43,6 +45,15 @@ type BrowserBinding =
       baseName: string
       extension: string
       mimeType: string
+      size: number
+    }
+  | {
+      kind: "file"
+      path: string
+      name: string
+      baseName: string
+      extension: string
+      mimeType?: string
       size: number
     }
 
@@ -226,7 +237,107 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
   const unavailable = async (): Promise<never> => {
     throw error("UNSUPPORTED_API", "This host has not enabled this capability")
   }
+  const file: FileContext | undefined =
+    binding.kind === "media" || binding.kind === "file"
+      ? {
+          path: binding.path,
+          name: binding.name,
+          baseName: binding.baseName,
+          extension: binding.extension,
+          mimeType: binding.mimeType,
+          size: binding.size,
+        }
+      : "file" in binding && binding.file
+        ? binding.file
+        : undefined
   const context: ViewContext = {
+    file,
+    fs: {
+      async readText(filePath: string): Promise<string> {
+        const res = await call<{ text: string }>("fs.readText", {
+          path: filePath,
+        })
+        return res.text
+      },
+      writeText(filePath: string, content: string): Promise<void> {
+        return call("fs.writeText", { path: filePath, content })
+      },
+      async readBinary(filePath: string): Promise<Uint8Array> {
+        const res = await call<{ data: string }>("fs.readBinary", {
+          path: filePath,
+        })
+        return Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0))
+      },
+      writeBinary(filePath: string, content: Uint8Array): Promise<void> {
+        if (content.byteLength > 16 * 1024 * 1024)
+          return Promise.reject(
+            error("INVALID_REQUEST", "Binary data exceeds 16 MiB")
+          )
+        let binary = ""
+        for (let offset = 0; offset < content.length; offset += 8192)
+          binary += String.fromCharCode(
+            ...content.subarray(offset, offset + 8192)
+          )
+        return call("fs.writeBinary", { path: filePath, data: btoa(binary) })
+      },
+      delete(filePath: string): Promise<void> {
+        return call("fs.delete", { path: filePath })
+      },
+      rename(oldPath: string, newPath: string): Promise<void> {
+        return call("fs.rename", { oldPath, newPath })
+      },
+      list(
+        folder?: string,
+        options?: { extensions?: string[] }
+      ): Promise<FileStat[]> {
+        return call("fs.list", {
+          ...(folder !== undefined ? { folder } : {}),
+          ...(options?.extensions !== undefined
+            ? { extensions: options.extensions }
+            : {}),
+        })
+      },
+      stat(filePath: string): Promise<FileStat | null> {
+        return call("fs.stat", { path: filePath })
+      },
+      async getUrl(filePath?: string): Promise<string> {
+        const res = await call<{ url: string }>("fs.url", {
+          ...(filePath !== undefined ? { path: filePath } : {}),
+        })
+        return res.url
+      },
+      async watch(
+        pathOrFolder: string,
+        listener: () => void
+      ): Promise<Disposable> {
+        const id = crypto.randomUUID()
+        let active = true
+        const subscription = own({
+          dispose() {
+            if (!active) return
+            active = false
+            observers.delete(id)
+            subscriptions.delete(subscription)
+            void call("fs.unwatch", { id }).catch(() => {})
+          },
+        })
+        observers.set(id, () => {
+          if (!active) return
+          try {
+            listener()
+          } catch {
+            subscription.dispose()
+          }
+        })
+        try {
+          await call("fs.watch", { id, path: pathOrFolder })
+          return subscription
+        } catch (cause) {
+          subscription.dispose()
+          throw cause
+        }
+      },
+    },
     network: {
       async read(request) {
         const result = await call<{
@@ -266,69 +377,94 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       binding.kind === "media"
         ? {
             kind: "media",
-            media: {
-              path: binding.path,
-              name: binding.name,
-              baseName: binding.baseName,
-              extension: binding.extension,
-              mimeType: binding.mimeType,
-              size: binding.size,
-              getMediaUrl: () => call("media.url"),
-              readSidecarText: (extensionOrName: string) =>
-                call("media.readSidecarText", { extension: extensionOrName }),
-              listSidecars: (extensions?: string[]) =>
-                call("media.listSidecars", { extensions }),
-            },
+            media: file!,
           }
-        : binding.kind === "eidos"
+        : binding.kind === "file"
           ? {
-              kind: "eidos",
-              file: {
-                connections: {
-                  configured: (connection: string) =>
-                    call("eidos.connection.status", { connection }),
-                  request: (input) => call("eidos.connection.request", input),
-                },
-                listTables: () => call("eidos.tables"),
-                readTable: (tableId: string) =>
-                  call("eidos.table", { tableId }),
-                readPluginConfig: (tableId: string) =>
-                  call("eidos.pluginConfig.read", { tableId }),
-                writePluginConfig: (tableId: string, input) =>
-                  call("eidos.pluginConfig.write", { tableId, ...input }),
-              } satisfies EidosFileContext,
+              kind: "file",
+              file: file!,
             }
-          : binding.kind === "document"
-            ? { kind: "document", document }
-            : binding.kind === "table"
-              ? {
-                  kind: "table",
-                  table: {
-                    tableId: binding.tableId,
-                    viewId: binding.viewId,
-                    pluginConfig: {
-                      read: () => call("table.pluginConfig.read"),
-                      write: (input) => call("table.pluginConfig.write", input),
+          : binding.kind === "eidos"
+            ? {
+                kind: "eidos",
+                file: {
+                  connections: {
+                    configured: (connection: string) =>
+                      call("eidos.connection.status", { connection }),
+                    request: (input) => call("eidos.connection.request", input),
+                  },
+                  listTables: () => call("eidos.tables"),
+                  readTable: (tableId: string) =>
+                    call("eidos.table", { tableId }),
+                  readPluginConfig: (tableId: string) =>
+                    call("eidos.pluginConfig.read", { tableId }),
+                  writePluginConfig: (tableId: string, input) =>
+                    call("eidos.pluginConfig.write", { tableId, ...input }),
+                } satisfies EidosFileContext,
+              }
+            : binding.kind === "document"
+              ? { kind: "document", document }
+              : binding.kind === "table"
+                ? {
+                    kind: "table",
+                    table: {
+                      tableId: binding.tableId,
+                      viewId: binding.viewId,
+                      pluginConfig: {
+                        read: () => call("table.pluginConfig.read"),
+                        write: (input) =>
+                          call("table.pluginConfig.write", input),
+                        observe: observeTable,
+                      },
+                      read: () => call("table.read"),
+                      getPage: (options) => call("table.page", options),
+                      aggregate: (options) => call("table.aggregate", options),
+                      updateProperties: (properties) =>
+                        call("table.properties", properties),
+                      openRecord: (rowId) =>
+                        call("table.openRecord", { rowId }),
                       observe: observeTable,
-                    },
-                    read: () => call("table.read"),
-                    getPage: (options) => call("table.page", options),
-                    aggregate: (options) => call("table.aggregate", options),
-                    updateProperties: (properties) =>
-                      call("table.properties", properties),
-                    openRecord: (rowId) => call("table.openRecord", { rowId }),
-                    observe: observeTable,
-                  } satisfies TableContext,
-                }
-              : binding,
+                    } satisfies TableContext,
+                  }
+                : binding,
+    editor: binding.kind === "document" ? document : undefined,
+    table:
+      binding.kind === "table"
+        ? {
+            tableId: binding.tableId,
+            viewId: binding.viewId,
+            pluginConfig: {
+              read: () => call("table.pluginConfig.read"),
+              write: (input) => call("table.pluginConfig.write", input),
+              observe: observeTable,
+            },
+            read: () => call("table.read"),
+            getPage: (options) => call("table.page", options),
+            aggregate: (options) => call("table.aggregate", options),
+            updateProperties: (properties) =>
+              call("table.properties", properties),
+            openRecord: (rowId) => call("table.openRecord", { rowId }),
+            observe: observeTable,
+          }
+        : undefined,
+    eidos:
+      binding.kind === "eidos"
+        ? {
+            connections: {
+              configured: (connection: string) =>
+                call("eidos.connection.status", { connection }),
+              request: (input) => call("eidos.connection.request", input),
+            },
+            listTables: () => call("eidos.tables"),
+            readTable: (tableId: string) => call("eidos.table", { tableId }),
+            readPluginConfig: (tableId: string) =>
+              call("eidos.pluginConfig.read", { tableId }),
+            writePluginConfig: (tableId: string, input) =>
+              call("eidos.pluginConfig.write", { tableId, ...input }),
+          }
+        : undefined,
     signal: controller.signal,
     subscriptions: { add: own },
-    resources: {
-      text: unavailable,
-      directory: unavailable,
-      eidos: unavailable,
-      output: unavailable,
-    },
     settings: {
       get: (key) => call("settings.get", { key }),
       update: unavailable,
@@ -336,40 +472,8 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       observe: unavailable,
     },
     ui: {
-      openOrCreateMarkdown: unavailable,
-      listMarkdownFiles: (folder) => call("ui.listMarkdownFiles", { folder }),
-      countMarkdownLines: (paths) => call("ui.countMarkdownLines", { paths }),
-      async observeMarkdownFiles(folder, listener) {
-        const id = crypto.randomUUID()
-        let active = true
-        const subscription = own({
-          dispose() {
-            if (!active) return
-            active = false
-            observers.delete(id)
-            subscriptions.delete(subscription)
-            void call("ui.unobserveMarkdownFiles", { id }).catch(() => {})
-          },
-        })
-        observers.set(id, () => {
-          if (!active) return
-          try {
-            listener()
-          } catch {
-            subscription.dispose()
-          }
-        })
-        try {
-          await call("ui.observeMarkdownFiles", { id, folder })
-          return subscription
-        } catch (cause) {
-          subscription.dispose()
-          throw cause
-        }
-      },
-      openMarkdownFile: (relativePath) =>
-        call("ui.openMarkdownFile", { relativePath }),
       notify: (message) => call("ui.notify", { message }),
+      openFile: (relativePath) => call("ui.openFile", { relativePath }),
       select: unavailable,
       confirm: unavailable,
       navigate: (viewId, route) =>
@@ -377,8 +481,6 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
           viewId,
           ...(route === undefined ? {} : { route }),
         }),
-      resolveAsset: unavailable,
-      openLink: unavailable,
     },
   }
   window.addEventListener(
@@ -419,8 +521,8 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
     })
 }
 
-export function documentViewHtml(code: string): string {
-  return viewHtml(code, { kind: "document" })
+export function documentViewHtml(code: string, file?: FileContext): string {
+  return viewHtml(code, { kind: "document", ...(file ? { file } : {}) })
 }
 
 export function mediaViewHtml(

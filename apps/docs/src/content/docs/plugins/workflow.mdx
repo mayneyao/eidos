@@ -1,220 +1,240 @@
 ---
-title: Plugin development workflow
-description: Choose a starter, check host compatibility, debug, test, and prepare a registry submission.
+title: Plugin Development Workflow
+description: Project templates, host compatibility checks, .eidos database interaction, dynamic table actions, and theme development.
 sidebar:
   order: 4
 ---
 
-The template selector, target checks, checksum output, and registry helper below
-are implemented in the current source checkout. They require the next
-plugin-tools / CLI release; published plugin-tools 0.2.0 does not include them.
-Before release, build plugin-tools in this repository and run its
-`bin/eidos-plugin.mjs` directly. Source examples and APIs use SDK 0.2.0.
+This guide covers advanced development workflows: selecting starter templates, checking host compatibility, interacting with `.eidos` SQLite database packages, building dynamic table action providers, creating standalone themes, and publishing bundles.
 
-## Choose a starter
+---
+
+## 1. Choose a Scaffold Template
+
+The official tooling provides templates tailored for different development scenarios:
 
 ```sh
+# List all available templates
 npx @eidos.space/plugin-tools templates
-npx @eidos.space/plugin-tools create my-plugin --template table-action
-# Equivalent project creation, with no Node.js needed for this step:
-eidos plugin create my-plugin --template table-action
+
+# Create a project with a specific template
+npx @eidos.space/plugin-tools create my-plugin --template file-view
+
+# Or use the eidos CLI (equivalent command)
+eidos plugin create my-plugin --template file-view
+
 cd my-plugin
 npm install
 npm run check
 ```
 
-| Template                | Capability and entry point           | Example                                   |
-| ----------------------- | ------------------------------------ | ----------------------------------------- |
-| document-view (default) | File View → Document View; Open with | CSV editing, save and undo/redo           |
-| eidos-view              | File View → Eidos View; Open with    | Tables and fields in an .eidos file       |
-| table-view              | Table View; table view menu          | Record count with change observation      |
-| table-action            | Table Action; table context menu     | Mark a checkbox, pagination and progress  |
-| page                    | Page View and workspace action       | Navigation page and command-palette entry |
-| theme                   | Eidos Lite host theme                | Standalone light/dark palette and fonts   |
+| Template | Target Scenario | Core Capabilities & APIs |
+| :--- | :--- | :--- |
+| **file-view** (Recommended) | Custom views for physical files (Open with menu) | `context: "file"`, `ctx.file`, `ctx.fs`, optional React UI |
+| **table-view** | Internal table views (New view inside a table) | `context: "table"`, `ctx.table` record queries & SQLite aggregation |
+| **table-action** | Batch operations on table records (Table context menu) | `registerTableProvider`, task progress, and read-token safe updates |
+| **page** | Standalone top-level panels (Sidebar navigation) | `context: "page"`, `navigation`, `workspace.files` |
+| **theme** | Eidos Lite host appearance customization | `kind: "theme"`, semantic color palettes, offline embedded fonts |
 
-Ordinary plugin projects use `src/`; the theme starter needs only `plugin.json`.
-Node and Rust use the same template catalog and source files. The code starters
-use plain TypeScript, not React. Add React explicitly
-using the [guide](/plugins/guide/#using-react-and-ui-components) when needed.
-Unknown options and templates are errors.
+---
 
-## Check the intended host
+## 2. Check Host Compatibility
+
+Eidos Lite and CLI Serve support different scopes of plugin features. Before releasing, run static compatibility checks using the built-in toolchain:
 
 ```sh
+# Perform full verification against Eidos Lite Desktop
 npm run check -- --target lite
-npm run check -- --target cli --json
-eidos plugin check . --target cli
-eidos plugin doctor dist/local.my-plugin-0.1.0.eidos-plugin
+
+# Perform verification against Eidos CLI Serve Web
+npm run check -- --target cli
+
+# Output JSON diagnostics (ideal for CI/CD integration)
+npm run check -- --json
 ```
 
-An ordinary check validates code and reports both host profiles. A target check
-also fails if that profile cannot run the plugin. These profiles belong to the
-installed tool version; they do not detect the installed Lite application.
-`eidos plugin doctor` reports the actual CLI host's contract.
+| Host Profile | Supported Scope |
+| :--- | :--- |
+| **Eidos Lite (Desktop)** | Full capability support: File Views, Page Views, Table Views, Actions, Formatters, full `ctx.fs` primitives, private storage, controlled network, and standalone host themes. |
+| **Eidos CLI (Serve Web)** | Focused on table visualization: Table Views, declared Web Workers, and browser network origins. |
 
-| Host profile     | Plugin API | Supported scope                                                                                            |
-| ---------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
-| Lite development | 1.6.0      | Document, Eidos, table and page views; actions, settings, Markdown permissions, and standalone host themes |
-| CLI 1.4 Serve    | 1.0.0      | Table views and declared browser network/workers                                                           |
-
-SDK npm version, plugin version, and host version are different from the plugin
-API contract. Keep `apiVersion: 1`; declare a minimum contract when required:
-
-```json
-{ "requires": { "pluginApi": "1.1.0" } }
-```
-
-The tools derive required features from declarations. Authors do not maintain a
-separate capability list. Packages with `requires` use envelope format 2; legacy
-packages without it use format 1. Let the packer produce the envelope.
-
-## Configure an .eidos file
-
-Narrow `ctx.binding.kind === "eidos"` before using `ctx.binding.file`.
-The bound file supports:
-
-- `listTables()`: table IDs and names.
-- `readTable(tableId)`: field metadata.
-- `readPluginConfig(tableId)`: this plugin's table configuration and version.
-- `writePluginConfig(tableId, { value, expectedVersion })`: version-checked configuration writes.
-- `connections.configured(id)` and `connections.request({ connection, body })`.
-
-Configuration belongs to the plugin's namespace in the table settings JSON.
-It moves with the .eidos file. Keep credentials out of this configuration.
-This context does not provide arbitrary SQL or general record mutation.
-
-## Dynamic table actions
-
-Register a `TableActionProvider` with
-`ctx.actions.registerTableProvider(actionId, provider)` during activation.
-The manifest action uses `context: "table"`, `access: "write"`, and the
-`table/context` placement. The returned registration is disposable.
-
-- `getItems({ table, signal })` returns items with `id`, `title`, optional SVG
-  path icon, and `targets` (`row`, `selection`, `view`).
-- `run(ctx, itemId)` executes the selected item. Read current schema and
-  `table.pluginConfig.read()` instead of keeping a stale menu snapshot.
-- `ctx.target.count` and `target.read({ offset, limit, fields })` traverse
-  the frozen target scope, including all filtered records. Do not substitute
-  only the rows currently loaded in the grid.
-- `target.update({ readToken, values })` writes through the host with stale-read
-  protection. Do not replace it with direct SQL.
-- Check `ctx.signal` between reads and writes. Await writes and propagate failures.
-- `ctx.task.report({ completed, message })` updates the host-owned task window.
-  Lite provides run undo/redo. A completed count includes unchanged records.
-- Before the first write, call `task.preview(rows)` once with 1–3 real read tokens
-  and validated sample outputs to declare the output fields. Subsequent writes
-  must stay within those fields; sample records must match the declared values.
-  The call is required despite its legacy name: current Lite applies runs directly,
-  without a confirmation-preview step. Stop if it returns false.
-
-Legacy action-level `configuration` and `multiple` declarations are rejected.
-The plugin owns its action list; store its definitions in table plugin configuration.
-
-## Settings and authenticated connections
-
-Manifest `settings` declares scalar string, boolean, or number preferences.
-The host renders these settings; `ctx.settings` provides get/update/reset/observe.
-For per-table configuration use `table.pluginConfig` or the bound Eidos file API.
-
-Declare named `connections` for authenticated requests:
+Executable plugins for the current Eidos Lite must declare API 2.0.0:
 
 ```json
 {
-  "connections": {
-    "service": {
-      "title": "My service",
-      "url": "https://api.example.com/endpoint",
-      "configurable": true
-    }
-  }
+  "requires": { "pluginApi": "2.0.0" }
 }
 ```
 
-The host handles connection configuration and credentials. The plugin sends a
-JSON body through the bound Eidos file or table action's `connections.request`.
-Do not put secrets in source, logs, record data, or portable table settings.
-Use `browser.networkOrigins` for the separate anonymous `ctx.network.read` API.
+---
 
-## Build a standalone Eidos Lite theme
+API 1.x executable plugins must migrate file access to `ctx.fs`, navigation to
+`ctx.ui.openFile`, and Space permissions to `workspace.files`. Old resource
+declarations and Markdown-specific helpers are no longer supported. Installed
+incompatible plugins remain visible and removable. Pure API 1.6.0 themes remain
+compatible. CLI Serve continues to use API 1.0.0 for its table-only scope.
 
-```sh
+## 3. Working with `.eidos` Data Files
+
+When a plugin view opens an `.eidos` file, the `ctx.eidos` interface allows you to inspect tables, read field schemas, and persist table-level configuration:
+
+```ts
+// 1. List all tables contained in the current .eidos file
+const tables = await ctx.eidos.listTables()
+
+// 2. Read field definitions and metadata for a specific table
+const { fields } = await ctx.eidos.readTable(tables[0].id)
+
+// 3. Read the plugin's persistent private configuration stored on the table
+const config = await ctx.eidos.readPluginConfig(tables[0].id)
+
+// 4. Safely save table configuration with optimistic concurrency (moves and syncs with the .eidos file)
+await ctx.eidos.writePluginConfig(tables[0].id, {
+  value: { customFilter: "status = 'done'" },
+  expectedVersion: config.version,
+})
+```
+
+---
+
+## 4. Dynamic Table Actions (`registerTableProvider`)
+
+For workflows requiring deep integration with table context menus or bulk record processing, register a dynamic table action provider during extension activation:
+
+Declare the action in `plugin.json`:
+
+```json
+{
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "batch-processor",
+      "title": "Batch Process Records",
+      "context": "table",
+      "access": "write"
+    }
+  ],
+  "placements": [
+    { "location": "table/context", "action": "batch-processor" }
+  ]
+}
+```
+
+Implement the provider in `src/extension.ts`:
+
+```ts
+import type { ExtensionContext, TableActionProvider } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  const provider: TableActionProvider = {
+    // Dynamically produce menu items
+    getItems({ table, signal }) {
+      return [
+        {
+          id: "uppercase-names",
+          title: "Convert Selected Text to Uppercase",
+          targets: ["row", "selection"],
+        },
+      ]
+    },
+
+    // Execute the selected action item
+    async run(actionCtx, itemId) {
+      const { target, task, signal } = actionCtx
+
+      // 1. Read target rows in batches with read tokens
+      const rows = await target.read({ offset: 0, limit: 100, fields: ["name"] })
+
+      // 2. Declare sample output fields (Lite applies directly)
+      await task.preview(rows)
+
+      // 3. Update records in a loop
+      for (let i = 0; i < rows.length; i++) {
+        signal.throwIfAborted()
+        const row = rows[i]
+        const currentName = String(row.values["name"] || "")
+
+        await target.update({
+          readToken: row.readToken,
+          values: { name: currentName.toUpperCase() },
+        })
+
+        // Report task progress to the host UI
+        await task.report({
+          completed: i + 1,
+          message: `Processing row ${i + 1}/${rows.length}...`,
+        })
+      }
+    },
+  }
+
+  const registration = ctx.actions.registerTableProvider("batch-processor", provider)
+  ctx.subscriptions.add(registration)
+}
+```
+
+---
+
+## 5. Build Standalone Eidos Lite Themes
+
+Beyond functional plugins, you can create theme packages that customize the entire desktop host interface:
+
+```bash
 npx @eidos.space/plugin-tools create my-theme --template theme
 cd my-theme
-npm install
 npm run check -- --target lite
 npm run pack:plugin
 ```
 
-The starter keeps `plugin.json` small: `kind: "theme"` and
-`theme.stylesheet: "./theme.css"`. Edit `theme.css` to set light and dark
-`:root[data-theme="…"]` rules. Tokens such as `--theme-surface`, `--theme-ink`, `--theme-accent`,
-`--lite-sidebar`, `--font-ui`, and `--control-radius` affect the **Eidos Lite
-interface**, across all Spaces. The current appearance preference still picks
-the light or dark rule. See the [specification](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.md)
-for the complete token allowlist and value bounds.
-
-Optional local fonts use `@font-face` in `theme.css`, for example
-`@font-face { font-family: "My Sans"; src: url("./fonts/my-sans.woff2"); font-weight: 400; }`.
-Packing embeds the font bytes. CSS is limited to the two appearance rules and
-up to four local `@font-face` rules; remote resources are rejected.
-Theme packages have no JavaScript modules, Views, Actions, grants, or runtime
-access to files. The generated `.eidos-plugin` can be installed by file picker
-or drag and drop. In Plugin Manager, open its detail page and click **Apply
-theme**. **Use default theme** clears the selection. Installation alone does
-not apply a theme. CLI Serve does not support theme plugins.
-
-## Styling an ordinary plugin and lifecycle
-
-Use the injected `--eidos-*` tokens: background, foreground, border, accent,
-muted, surface-hover, surface-selected, font-family, color-scheme, and scrollbar-thumb
-(with hover/active variants). Starters include theme-aware CSS.
+Define semantic light and dark variables in `theme.css`:
 
 ```css
-:root {
-  color-scheme: var(--eidos-color-scheme, light);
-  font-family: var(--eidos-font-family, system-ui);
-  background: var(--eidos-background);
+:root[data-theme="light"] {
+  --theme-surface: #f7f8fa;
+  --theme-ink: #19212b;
+  --theme-accent: #2563eb;
+  --lite-sidebar: #f1f3f7;
+  --control-radius: 8px;
+}
+
+:root[data-theme="dark"] {
+  --theme-surface: #181d24;
+  --theme-ink: #eef2f6;
+  --theme-accent: #3b82f6;
+  --lite-sidebar: #13171c;
+  --control-radius: 8px;
+}
+```
+
+- **Semantic token coverage**: Surface backgrounds, text colors, accent highlights, sidebar styling, control radius, and typography tokens.
+- **Offline embedded fonts**: Use `@font-face` to declare local `.woff2` or `.ttf` font files; packing automatically inlines them as Base64 Data URLs.
+- **Pure static & secure**: Theme packages contain zero executable JavaScript code. Once installed, users can activate the theme globally in Eidos Lite settings.
+
+---
+
+## 6. View Styling & Design System Variables
+
+When styling custom view interfaces, use the injected design system CSS variables to blend seamlessly with the user's active theme:
+
+```css
+.viewer-container {
+  background-color: var(--eidos-background);
   color: var(--eidos-foreground);
+  font-family: var(--eidos-font-family, system-ui);
+  border: 1px solid var(--eidos-border);
 }
-* {
-  scrollbar-color: var(--eidos-scrollbar-thumb) transparent;
+
+button.primary {
+  background-color: var(--eidos-accent);
+  color: #ffffff;
+  border-radius: var(--eidos-control-radius, 6px);
 }
 ```
 
-Register subscriptions for cleanup, honor abort signals, and discard late async
-responses after navigation. Use textContent for data-derived text.
+---
 
-## Debug and test
+## 7. Debugging, Testing, and Publishing
 
-1. Run `npm run check -- --json` for source diagnostics.
-2. Load `plugin.json` through Lite's **Load development source** and enable it
-   in a test Space. Source edits reload; declaration changes require review.
-3. Read the host error banner for loading/permission errors. Where developer
-   tools are available, inspect the plugin iframe console and source-mapped stack.
-   Catch event-handler promise failures and display useful errors in the plugin UI.
-4. Development reloads do not update the installed archive. Package and install
-   to test restart behavior. `plugin dev` currently reports that authoring
-   sessions are unavailable; it is not a standalone preview server.
-
-The table-action starter includes `npm test` with a small mock context for paging,
-cancellation and schema changes. Test the real host separately: one row, explicit
-selection, all filtered records, concurrent edits, cancellation, partial failure,
-undo/redo, reload, and dark mode. There is no complete mock-host package yet.
-
-## Prepare a release
-
-```sh
-npm run pack:plugin
-npx @eidos.space/plugin-tools registry dist/local.my-plugin-0.1.0.eidos-plugin --repo owner/repository --category automation --description "Describe the user benefit" --compatibility "Requires Eidos Lite 0.17.0 or later."
-```
-
-Packing writes the archive and an adjacent `.sha256` file. The registry helper
-hashes the exact archive and prints a submission draft with ID, name, category,
-repository, version, tag, asset, checksum and compatibility. Supply a truthful
-description and host requirements; adjust the default `v<version>` tag if needed.
-The deprecated `preview: false` field remains for registry compatibility.
-
-Upload the immutable archive to GitHub Releases, then submit the entry to
-[eidos-space/registry](https://github.com/eidos-space/registry).
-The helper does not upload files, publish a release, or open a PR.
+1. **Structured diagnostics**: Run `npm run check` to instantly catch missing declarations, unmapped entry points, or TypeScript errors.
+2. **Live hot-reload debugging**: In the Eidos Lite toolbar, click **Plugins → Load development source…** and select your project directory. Code edits hot-reload automatically within seconds upon saving.
+3. **Packaging for distribution**: Run `npm run pack:plugin` to produce a self-contained `.eidos-plugin` bundle and its SHA-256 checksum in `dist/`. The archive can be shared directly with users or submitted to the official plugin registry.

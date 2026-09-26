@@ -180,17 +180,17 @@ Formatter、Placement、扩展入口、授权、设置、存储、连接、工�
 
 Action 声明定义可调用的操作能力。Lite 支持下文定义的动态表格动作提供器；插件在表级命名空间中自行管理动作配置。当前 manifest 校验器不接受 Action 的 `configuration` 和 `multiple`。
 
-| placement       | 目标约束                                               |
-| --------------- | ------------------------------------------------------ |
-| navigation      | page view                                              |
-| file/open       | document view 声明文本扩展名；eidos view 仅声明 .eidos |
-| table/view      | table view                                             |
-| plugin/settings | page view，置于插件详情设置区域                        |
-| command-palette | action，有符合条件的上下文才启用                       |
-| file/context    | document action                                        |
-| table/context   | table action，出现在网格/表格右键上下文菜单            |
-| view/toolbar    | 与目标 view 上下文匹配的 action；page 对应 workspace   |
-| keybinding      | action，系统与宿主快捷键优先，冲突需可见               |
+| placement       | 目标约束                                                             |
+| --------------- | -------------------------------------------------------------------- |
+| navigation      | page view                                                            |
+| file/open       | file view / document view 声明支持的扩展名；eidos view 仅声明 .eidos |
+| table/view      | table view                                                           |
+| plugin/settings | page view，置于插件详情设置区域                                      |
+| command-palette | action，有符合条件的上下文才启用                                     |
+| file/context    | file action / document action                                        |
+| table/context   | table action，出现在网格/表格右键上下文菜单                          |
+| view/toolbar    | 与目标 view 上下文匹配的 action；page 对应 workspace                 |
+| keybinding      | action，系统与宿主快捷键优先，冲突需可见                             |
 
 快捷键使用宿主的修饰键记法，例如 `Mod+Alt+F`；`Mod` 在 macOS 为 Command，
 其他平台为 Control，`mac` 可覆盖 macOS 绑定，`linux` 可覆盖 Linux 绑定，未覆盖的平台使用 `key`。只有已启用且上下文匹配的 Action
@@ -234,28 +234,17 @@ Journals 示例：
 
 entries 是逻辑名称，实际目录由用户绑定，不从源码路径或文件夹名称推导授权。
 
-Lite Plugin API 1.3 另提供需显式声明的只读能力：
-`workspace: { listMarkdownFiles: true }`。安装确认明确说明这项可枚举整个
-Space 中 Markdown 文件名的权限后，Page View 可以调用
-`HostUI.listMarkdownFiles(folder)` 列出 Space 相对目录中的 Markdown 路径。
-一次最多返回 20,000 个路径及 `truncated` 标记，不提供正文。同一 Page View
-可调用 `HostUI.openMarkdownFile(path)` 请宿主打开已存在的 Markdown 文件，
-也不会拿到正文。路径仅限当前 Space，不遍历符号链接或受保护的实现目录；
-这项权限不授予文档正文的读写能力。
+Lite Plugin API 提供显式声明的工作区文件访问能力：
+`workspace: { files: boolean | { read?: boolean; write?: boolean } }`。
+声明 `workspace.files` 并经用户安装确认后，页面视图、动作及自定义视图可通过 `ctx.fs`
+在整个 Space 范围内读取（以及若声明 `write: true` 时写入）文件。插件可列出目录、
+读取正文、写入文件、获取文件状态并监听文件变更。
 
-Lite Plugin API 1.4 增加 `workspace.countMarkdownLines: true`，同时要求
-`listMarkdownFiles: true`。Page View 可把自身通过 `listMarkdownFiles` 获得的
-最多 400 个路径传给 `HostUI.countMarkdownLines(paths)`。宿主返回每个文件的
-非空行数；文件不可用或超出文本预览上限时返回 `null`。正文不会传给插件。
-安装确认会单独说明这项可获取当前 Space 内 Markdown 行数的权限。
+未声明 `workspace.files` 时，文件级视图（`document`、`media`、`file`、`eidos`）
+依然可以使用 `ctx.fs`，但其作用域严格限制在绑定文件所在的同级目录及其同名伴随文件内。
+越出文件所在目录的路径访问将被拒绝。
 
-Lite Plugin API 1.5 增加 `workspace.watchMarkdownFiles: true`，同时要求
-`listMarkdownFiles: true`。运行中的 Page View 可调用
-`HostUI.observeMarkdownFiles(folder, listener)` 订阅 Space 相对目录的变更，
-并取得可释放的订阅对象。宿主合并文件系统事件；目录内 Markdown 文件或所在目录
-发生变化时调用监听器，通知不包含文件路径或正文。Page View 需重新调用
-`listMarkdownFiles` 获取当前数据。页面关闭或插件权限撤销后订阅终止；
-安装确认会单独说明这项变更通知权限。
+所有文件操作仅限当前 Space，禁止路径穿越（`..`）以及访问内部实现目录（`.graft` 等）。
 
 ## 4. SDK 与生命周期
 
@@ -289,9 +278,7 @@ export default function activate(ctx: ExtensionContext) {
 ```
 
 上面是两个独立入口，不应复制为一个具有两个默认导出的文件。入口可以异步，返回可选 Disposable。
-ViewContext 有 binding、resources、settings、ui、signal、subscriptions；
-ActionContext 有同样的公共能力，binding 由触发时捕获（支持 workspace、document 以及带有 table、可选 rowId、instanceId、actionTitle 与 config 的 table 绑定）；ExtensionContext 只有动作注册、
-设置和生命周期，没有数据或导航能力，避免激活时隐藏访问数据。
+ViewContext 与 ActionContext 统一继承 CommonContext，具有完整的正交基础能力：文件系统操作（fs，包括文本与二进制读写、删除、重命名）、持久存储（storage）、网络（network）、设置（settings）、界面交互（ui）与生命周期（signal、subscriptions）；ViewContext 另有 binding，并根据物理目标正交附加 file（文件元信息）、editor（文本编辑器）、table（表格上下文）与 eidos（Eidos 数据引擎上下文）；ActionContext 在触发时捕获对应 binding 与目标（支持 workspace、file、document、table）；ExtensionContext 专用于动作注册、设置与生命周期管理。
 
 不能注册未声明或重复动作。激活完成前必须注册全部声明动作，注册先暂存，成功后统一生效；
 失败撤回所有资源。动作控制器按插件 revision × Space 会话懒加载，视图每次挂载独立运行。
@@ -381,6 +368,17 @@ Manifest 可声明 `{ location: "plugin/settings", view: "<view-id>" }`，把已
 
 配置版本不支持或插件缺失时保留元数据，显示不可用或只读表格回退，并允许打开独立标准视图。
 打开 `.eidos` 不能自动安装或执行插件。这利用已有自定义视图能力，不改变 File Format schema。
+
+媒体视图（`context: "media"`）绑定打开的媒体文件（`FileContext`）。宿主不将大文件二进制全部读入内存，也不在 IPC 间克隆音视频 buffer；而是通过特权协议 `eidos-space-media:` 提供原生 HTTP Range 范围请求与流式播放支持。媒体视图可在「设置 → 文件」中配置为默认打开方式。
+
+所有文件级视图（`context: "media"`、`context: "document"` 及 `context: "eidos"`）均提供 `ctx.file`（`FileContext`）获取文件元数据，以及 `ctx.fs`（`PluginFileSystem`）进行同级目录与伴随文件访问：
+
+- `ctx.fs.getUrl(path?: string): Promise<string>`：解析获取 `eidos-space-media:` 流式播放 URL。在媒体视图中省略 `path` 默认播放当前文件；在文档视图中可传入 `path` 指定或自动探测同名伴随音视频。
+- `ctx.fs.list(folder?: string, options?: { extensions?: string[] }): Promise<FileStat[]>`：枚举目录下伴随文件（`FileStat[]`），可按扩展名过滤。
+- `ctx.fs.readText(path: string): Promise<string>`：直接读取文本文件内容（受 2 MiB 预览上限保护）。
+- `ctx.fs.stat(path: string): Promise<FileStat | null>`：获取文件状态与元数据。
+
+未声明 `workspace.files` 时，文件访问严格限制在当前文件同级目录及伴随文件，禁止向外路径遍历（`..`）。
 
 ## 7. 授权资源
 
@@ -766,14 +764,20 @@ L01 生命周期与诊断；G01 agent 创作及权限、代码／数据回滚边
 
 宿主从视图上下文、扩展、动作、格式化器、连接、资源、设置、存储和浏览器权限推导
 功能要求，开发者无需维护 capabilities 清单。共享定义位于
-`packages/plugin-runtime/src/compatibility-data.json`。此实现的 Lite 支持 1.6.0，
+`packages/plugin-runtime/src/compatibility-data.json`。此实现的 Lite 支持 2.0.0，
 CLI Serve 支持 1.0.0；这些标记不追溯适用于历史发行版。1.1.0 包含动态表格动作、
 表格插件配置、任务、连接和 eidos 文件视图。CLI Serve 仅实现表格视图及声明的浏览器
 权限，即使最低版本满足，也必须拒绝不支持的功能。API 版本不能代替宿主功能检查。
 
+Lite 可执行插件必须声明 API 2.0.0。API 1.x 及未声明版本的可执行插件在安装或执行前被拒绝，
+已安装的旧插件仍可查看和卸载。纯 API 1.6.0 主题的样式契约未改变，继续兼容。
+API 2.0 删除 `ctx.resources`、Markdown 专用 `ctx.ui` 方法和媒体伴随文件方法；
+作者必须迁移到 `ctx.fs`、`ctx.ui.openFile` 和 `workspace.files` 权限。
+即使声明 API 2.0，旧资源声明也会被拒绝。
+
 声明最低版本的包必须使用格式 2，格式 2 必须包含该声明，格式 1 不得包含。
 旧版 Lite 和 CLI 安装器因此会拒绝新包，而不是忽略字段继续执行。历史 CLI Serve
-直接加载本地包时未检查格式，此路径无法追溯保护，必须升级 CLI。未声明的格式 1 旧包仍可在功能满足
+直接加载本地包时未检查格式，此路径无法追溯保护，必须升级 CLI。在 CLI Serve 中，未声明的格式 1 旧包仍可在功能满足
 时加载，诊断结果标为未声明。静态清单无法证明任意动态调用的兼容性，使用新 API 时
 作者仍需提高最低版本。兼容检查与权限授权独立，不引入日期兼容机制。
 

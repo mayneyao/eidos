@@ -9,12 +9,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-it("delivers Markdown invalidations and stops after disposal", async () => {
+it("delivers file change invalidations and stops after disposal", async () => {
   vi.stubGlobal("Uint8Array", new TextEncoder().encode("").constructor)
   const requests: Array<{
     id: string
     method: string
-    params: { id?: string; folder?: string }
+    params: { id?: string; path?: string }
   }> = []
   vi.spyOn(window, "postMessage").mockImplementation((value) => {
     const request = value as (typeof requests)[number]
@@ -36,7 +36,7 @@ it("delivers Markdown invalidations and stops after disposal", async () => {
   const html = viewHtml(
     `export default async function(ctx) {
       let subscription;
-      subscription = await ctx.ui.observeMarkdownFiles('journals', () => {
+      subscription = await ctx.fs.watch('journals', () => {
         document.body.dataset.events += 'change;';
         subscription.dispose();
       });
@@ -50,10 +50,8 @@ it("delivers Markdown invalidations and stops after disposal", async () => {
     html.slice(html.indexOf("<script>") + 8, html.indexOf("</script>"))
   )
   await vi.waitFor(() => expect(document.body.dataset.ready).toBe("yes"))
-  const registration = requests.find(
-    (request) => request.method === "ui.observeMarkdownFiles"
-  )
-  expect(registration?.params.folder).toBe("journals")
+  const registration = requests.find((request) => request.method === "fs.watch")
+  expect(registration?.params.path).toBe("journals")
   const invalidate = () =>
     window.dispatchEvent(
       new MessageEvent("message", {
@@ -71,7 +69,7 @@ it("delivers Markdown invalidations and stops after disposal", async () => {
   expect(document.body.dataset.events).toBe("change;")
   expect(requests).toContainEqual(
     expect.objectContaining({
-      method: "ui.unobserveMarkdownFiles",
+      method: "fs.unwatch",
       params: { id: registration!.params.id },
     })
   )

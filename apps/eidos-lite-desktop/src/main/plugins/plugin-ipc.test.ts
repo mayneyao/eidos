@@ -83,6 +83,7 @@ async function packageVersion(version: string) {
     encodePackage(
       {
         apiVersion: 1,
+        requires: { pluginApi: "2.0.0" },
         id,
         name: "CSV",
         version,
@@ -185,10 +186,10 @@ it("installs a workspace action with per-Space settings", async () => {
     encodePackage(
       {
         apiVersion: 1,
+        requires: { pluginApi: "2.0.0" },
         id: journalId,
         name: "Journals",
         version: "0.1.0",
-        requires: { pluginApi: "1.2.0" },
         extension: "./extension.ts",
         actions: [
           {
@@ -216,17 +217,17 @@ it("installs a workspace action with per-Space settings", async () => {
   )
 })
 
-it("discloses the separate Markdown change-notification permission", async () => {
+it("discloses the workspace file access permission", async () => {
   await fs.writeFile(
     mock.selected,
     encodePackage(
       {
         apiVersion: 1,
+        requires: { pluginApi: "2.0.0" },
         id: "example.watch",
         name: "Watch",
         version: "1.0.0",
-        requires: { pluginApi: "1.5.0" },
-        workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+        workspace: { files: true },
         views: [
           {
             id: "overview",
@@ -243,7 +244,7 @@ it("discloses the separate Markdown change-notification permission", async () =>
   expect(mock.messageOptions).toContainEqual(
     expect.objectContaining({
       detail: expect.stringContaining(
-        "The notifications contain no changed paths or file contents."
+        "This plugin can read and write files throughout this Space."
       ),
     })
   )
@@ -255,6 +256,7 @@ it("still rejects undeveloped named resource grants at install", async () => {
     encodePackage(
       {
         apiVersion: 1,
+        requires: { pluginApi: "2.0.0" },
         id: "example.resource",
         name: "Resource",
         version: "0.1.0",
@@ -275,7 +277,7 @@ it("still rejects undeveloped named resource grants at install", async () => {
     )
   )
   await expect(call("install", 1)).rejects.toThrow(
-    "Named resources are not connected yet"
+    "does not support this plugin's features: resources"
   )
 })
 

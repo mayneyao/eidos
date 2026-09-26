@@ -10,6 +10,7 @@ import { PluginStore } from "./plugin-store"
 
 const manifest: PluginManifest = {
   apiVersion: 1,
+  requires: { pluginApi: "2.0.0" },
   id: "example.csv",
   name: "CSV",
   version: "1.0.0",
@@ -27,12 +28,12 @@ it("preserves the installed version when an update requires a newer API", async 
   await expect(
     store.install(
       encodePackage(
-        { ...manifest, version: "2.0.0", requires: { pluginApi: "1.6.1" } },
+        { ...manifest, version: "2.0.0", requires: { pluginApi: "2.0.1" } },
         { "./csv.ts": "export default function mount() {}" }
       ),
       "a"
     )
-  ).rejects.toThrow("requires plugin API 1.6.1")
+  ).rejects.toThrow("requires plugin API 2.0.1")
   expect(await store.config()).toEqual(before)
   expect((await store.read(hash)).manifest.version).toBe("1.0.0")
 })
@@ -137,7 +138,7 @@ it("selects one standalone theme for the device and clears it on uninstall", asy
 it("keeps incompatible plugins manageable after downgrading the host", async () => {
   await store.install(bytes(), "a")
   const future = encodePackage(
-    { ...manifest, requires: { pluginApi: "2.0.0" } },
+    { ...manifest, requires: { pluginApi: "3.0.0" } },
     { "./csv.ts": "export default function mount() {}" }
   )
   const hash = packageHash(future)
@@ -408,6 +409,7 @@ it("distinguishes view icon from plugin logo and falls back to manifest icon", a
   const customViewIconPkg = encodePackage(
     {
       apiVersion: 1,
+      requires: { pluginApi: "2.0.0" },
       id: "example.mindmap",
       name: "Mindmap Plugin",
       version: "1.0.0",

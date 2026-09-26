@@ -1,95 +1,89 @@
 ---
-title: 插件核心概念
-description: 理解视图、文件打开方式、上下文、动作和贡献点之间的关系。
+title: 核心概念
+description: 了解 Eidos 插件的基本概念：空间与文件、视图与动作、上下文对象以及界面贡献点。
 sidebar:
   order: 2
 ---
 
-一个插件是可以提供多种功能的软件包。设计每项功能时，先回答三个问题：
-**提供什么能力、作用于什么对象、用户从哪里进入？**
+Eidos 插件是运行在本地沙箱中的扩展模块，能够为 Eidos Lite 增加自定义文件视图、独立面板、快捷指令以及数据表功能。
 
-**主题插件**是独立的插件类型（`kind: "theme"`），用于定制整个 Eidos Lite
-宿主界面。它包含浅色、深色语义配色和可选本地字体，不提供 View 或 Action。
-用户像安装普通插件一样安装主题，然后在插件管理器中全局应用。
-参见[主题开发流程](/zh-cn/plugins/workflow/#制作独立的-eidos-lite-主题)。
+在开发插件前，了解以下几个核心概念：
 
-## 能力、上下文与贡献点
+---
 
-| 概念                         | 回答的问题         | Manifest 示例                        |
-| ---------------------------- | ------------------ | ------------------------------------ |
-| 能力                         | 插件提供什么？     | `views`、`actions`、`formatters`     |
-| 上下文（Context）            | 功能绑定什么对象？ | 视图的 `context: "document"`         |
-| 贡献点（Contribution point） | 用户从哪里进入？   | placement 的 `location: "file/open"` |
+## 1. 空间与文件 (Spaces and Files)
 
-对于普通插件，这三者共同描述一项功能，并不是互斥的插件类型。一个插件可以同时提供多个视图和动作，
-通过不同入口供用户使用。这里的「能力」用于解释功能，并不意味着开发者需要手工维护另一份 API 能力清单。
+Eidos 基于本地文件系统运行，主要包含两层结构：
 
-## View：面向不同上下文的界面
+- **Space (工作区)**：用户打开的顶层工作区目录。插件可以挂载侧边栏独立页面，或注册全局命令。
+- **File (物理文件)**：工作区内的具体文件（如 `.md`、`.csv`、`.png`、`.mp4` 以及 `.eidos` 等）。插件可以为指定扩展名提供自定义视图或文件操作。
+  - **.eidos 文件**：基于 SQLite 的结构化数据文件，内部可包含多张数据表（Table）与视图配置。
 
-**View（视图）**是由宿主挂载的界面。它可以展示信息，也可以在声明的权限和上下文 API 范围内提供编辑功能。
+---
 
-```text
-View
-├── File View — 文件的打开方式
-│   ├── Document View — 普通文本文档，例如 Markdown、CSV
-│   └── Eidos View — .eidos 结构化数据文件
-├── Table View — 数据表内部的视图，例如图表、地图
-└── Page View — 独立的插件页面
-```
+## 2. 插件能力类型
 
-**File View 是统一的上层概念**，不是新增的 manifest 上下文。实际声明使用
-`context: "document"` 或 `context: "eidos"`，通过 `file/open` 提供入口。
-不存在 `context: "file"`，也不需要单独声明 `fileViews`。
+插件通过清单文件 `plugin.json` 声明其提供的能力：
 
-| 视图          | Manifest context | 典型贡献点   | 数据接口                                 |
-| ------------- | ---------------- | ------------ | ---------------------------------------- |
-| Document View | `document`       | `file/open`  | `ctx.binding.document`（`TextDocument`） |
-| Eidos View    | `eidos`          | `file/open`  | `ctx.binding.file`（`EidosFileContext`） |
-| Table View    | `table`          | `table/view` | `ctx.binding.table`（`TableContext`）    |
-| Page View     | `page`           | `navigation` | `ctx.binding.route`                      |
+### 视图 (Views)
+视图是嵌入在宿主中的交互界面，由前端技术（如 React、Vue 或原生 DOM）构建：
+- **文件视图 (`context: "file"`)**：作为特定文件类型的编辑器或查看器，挂载在文件的“打开方式”菜单中。
+- **独立页面 (`context: "page"`)**：作为常驻功能面板，展示在 Space 左侧主导航栏中。
+- **数据表视图 (`context: "table"`)**：嵌入在 `.eidos` 数据表内部，提供表格记录的自定义可视化（如看板、日历、图表）。
 
-使用具体接口前，应先检查 `ctx.binding.kind`。视图共享 `mount(ctx, root)` 生命周期，
-绑定的上下文决定可用的数据 API。宿主需要支持所声明的上下文和贡献点。
+### 动作 (Actions)
+动作是无界面的命令或后台任务，可通过快捷键或菜单触发：
+- **全局动作 (`context: "workspace"`)**：注册到全局快捷命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>）。
+- **文件动作 (`context: "file"`)**：注册到文件列表的右键菜单中。
+- **数据表动作 (`context: "table"`)**：注册到表格右键菜单或批量操作中（支持动态操作提供器）。
 
-### Document View 和 Eidos View 都是文件打开方式
+### 主题 (Themes)
+独立主题包（`kind: "theme"`），通过语义 CSS 变量定制整个 Eidos Lite 宿主界面的浅色与深色外观。
 
-处理文本类文件时，使用 **Document View**。例如 Markdown 的富文本编辑器和源码编辑器，
-是同一份文档的不同呈现方式。它们使用宿主管理的文档工作副本，不直接访问文件系统。
+---
 
-为整个 `.eidos` 文件提供独立界面时，使用 **Eidos View**。例如 Smart Actions 配置界面，
-让用户选择数据表、查看字段并保存动作配置。目前的 `EidosFileContext` 提供数据表发现、
-字段元数据、插件专属的数据表配置和已声明的连接接口，不提供任意 SQL 或无限制的记录编辑。
+## 3. 上下文对象 (`ctx`) 与文件专有贡献点
 
-两者都出现在用户的**「打开方式」**中。切换打开方式改变的是界面，不会转换文件或创建另一份数据副本。
+当宿主挂载视图或执行动作时，会向入口函数传入一个上下文对象 `ctx`。
 
-### Table View 属于数据表内部
+### 基础通用能力
+所有视图与动作均可通过 `ctx` 访问以下基础能力：
 
-将一张数据表的记录展示为图表、地图等形式时，使用 **Table View**。它出现在表内的视图入口中，
-并不替换整个 `.eidos` 文件的打开方式。展示某张表的地图是 Table View；可以选择不同数据表的文件级配置界面是 Eidos View。
+| 属性 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `ctx.fs` | `PluginFileSystem` | 完整的文件系统接口：读写文本与二进制文件、列出目录、重命名、删除、监听文件变化、获取流式媒体播放地址等。 |
+| `ctx.storage` | `PluginStorage` | 插件专属的离线键值存储，数据持久化保存在本地。 |
+| `ctx.network` | `PluginNetwork` | 向清单中声明的白名单域名发起受限 HTTPS 网络请求。 |
+| `ctx.settings` | `PluginSettings` | 读取、更新及监听用户在设置界面中配置的插件参数。 |
+| `ctx.ui` | `HostUI` | 宿主交互接口：弹出通知、确认弹窗、单选/多选输入框、打开文件及路由跳转。 |
+| `ctx.signal` | `AbortSignal` | 随视图卸载或动作取消自动触发的中断信号。 |
+| `ctx.subscriptions` | `SubscriptionDisposer` | 资源管理器，注册的事件监听或定时器会在上下文销毁时自动清理。 |
 
-### 权限与视图类型分开声明
+### 文件的专有接口与特殊贡献点
+针对具体物理文件时，所有文件视图均可访问 `ctx.file` 获取文件路径、名称及大小。此外，特定文件类型还拥有专有的上下文接口与贡献点：
 
-`access: "read"` 和 `access: "write"` 表示申请的访问权限。「编辑器」是功能描述，
-不是另一种 View 类型。声明写权限也不会增加上下文本身没有提供的方法。
+- **文本文件（`.md`、`.txt`、`.csv` 等）**：
+  - **专有接口 `ctx.editor`**：提供文档草稿读取、内容编辑与冲突同步机制。
+  - **特殊贡献点：格式化程序 (`formatters`)**：作为文本文件的专属贡献点，声明在清单的 `formatters` 数组中，并由 `ctx.formatters.register` 提供排版逻辑，直接挂载到系统的“格式化文档”指令（<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd> / <kbd>Cmd</kbd>+<kbd>K</kbd>）。
+- **`.eidos` 数据文件**：
+  - **专有接口 `ctx.table` 与 `ctx.eidos`**：提供数据表结构发现、记录分页拉取以及 SQLite 服务端聚合计算。
+  - **特殊贡献点**：支持贡献数据表内嵌视图（`table/view`）以及针对表格记录的动态批量动作（`table/context`）。
 
-## Action：执行操作
+---
 
-**Action（动作）**用于执行操作，例如格式化选中内容、更新选中的数据表记录。
-上下文和贡献点决定它在哪里运行：例如数据表动作可以放在 `table/context`，
-Space 级命令可以放在 `command-palette`。SDK 和宿主定义了支持的组合，不能任意搭配。
+## 4. 界面挂载点 (`placements`)
 
-动作可以通过宿主 UI 展示进度，不会因此变成 View。一个插件可以同时提供用于配置动作的
-Eidos View，以及用于执行操作的 Table Action。Smart Actions 就采用这种组合。
+`placements` 声明插件功能在 Eidos Lite 界面中的具体入口位置：
 
-## 如何选择
-
-- 改变文本文件的展示或编辑方式：**File View → Document View**。
-- 为 `.eidos` 文件构建独立界面：**File View → Eidos View**。
-- 可视化一张表的记录：**Table View**。
-- 对记录执行操作：**Table Action**。
-- 打开独立的插件界面：**Page View**。
-
-面向用户，文件菜单使用「打开方式」，表内入口使用「视图」；面向开发者，统一使用 View，
-再明确它绑定的上下文。
-
-接下来阅读[开发指南](/zh-cn/plugins/guide/)和 [API 参考](/zh-cn/plugins/api/)，了解具体声明与接口。
+| 挂载点 (`location`) | 适用能力 | 上下文要求 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `"file/open"` | View | `context: "file"` | 注册为指定文件扩展名的“打开方式（Open with）”。 |
+| `"navigation"` | View | `context: "page"` | 挂载到 Space 左侧主导航栏中，作为独立的一级页面入口。 |
+| `"plugin/settings"` | View | `context: "page"` | 嵌入到当前插件的设置详情面板中，提供自定义配置 UI。 |
+| `"table/view"` | View | `context: "table"` | 挂载到数据表内部的视图切换菜单中（如新建图表、看板视图）。 |
+| `"command-palette"` | Action | `context: "workspace" \| "file"` | 注册到全局快捷命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>）。 |
+| `"file/context"` | Action | `context: "file"` | 挂载到文件列表的右键菜单中。 |
+| `"table/context"` | Action | `context: "table"` | 挂载到数据表格右键或选区操作菜单中。 |
+| `"view/toolbar"` | Action | 与视图上下文匹配 | 挂载到特定视图顶部的工具栏中。 |
+| `"keybinding"` | Action | 对应 action | 绑定自定义键盘快捷键。 |
+| `"Format Document"` | Formatter | `formatters` | 文本文件的特殊格式化贡献点，注册到系统格式化指令与快捷键中。 |

@@ -12,17 +12,19 @@ const manifest: PluginManifest = {
   placements: [{ location: "table/view", view: "main" }],
 }
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("1.6.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("2.0.0")
   for (const [version, compatible] of [
-    ["1.0.0", true],
-    ["1.1.0", true],
-    ["1.2.0", true],
-    ["1.3.0", true],
-    ["1.4.0", true],
-    ["1.5.0", true],
-    ["1.6.0", true],
+    ["1.0.0", false],
+    ["1.1.0", false],
+    ["1.2.0", false],
+    ["1.3.0", false],
+    ["1.4.0", false],
+    ["1.5.0", false],
+    ["1.6.0", false],
     ["1.6.1", false],
-    ["2.0.0", false],
+    ["2.0.0", true],
+    ["2.0.1", false],
+    ["3.0.0", false],
   ] as const) {
     expect(
       checkPluginCompatibility(
@@ -43,23 +45,61 @@ it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
     theme: { stylesheet: "./theme.css" },
   }
   expect(checkPluginCompatibility(theme, "eidos-lite").compatible).toBe(true)
+  const modernTheme = decodePackage(
+    encodePackage(
+      {
+        ...theme,
+        requires: { pluginApi: "2.0.0" },
+        theme: {
+          stylesheet:
+            ':root[data-theme="light"] { --theme-surface: #fff; } :root[data-theme="dark"] { --theme-surface: #111; }',
+        },
+      },
+      {}
+    )
+  )
+  expect(
+    checkPluginCompatibility(modernTheme.manifest, "eidos-lite").compatible
+  ).toBe(true)
   expect(checkPluginCompatibility(theme, "eidos-cli")).toMatchObject({
     compatible: false,
     missingFeatures: ["theme.lite"],
   })
 })
-it("requires Markdown watch support independently of filename listing", () => {
+it("requires workspace files support for Space file access", () => {
   const plugin: PluginManifest = {
     ...manifest,
-    requires: { pluginApi: "1.5.0" },
-    workspace: { listMarkdownFiles: true, watchMarkdownFiles: true },
+    requires: { pluginApi: "2.0.0" },
+    workspace: { files: true },
   }
   expect(checkPluginCompatibility(plugin, "eidos-lite")).toMatchObject({
     compatible: true,
   })
   expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
     compatible: false,
-    missingFeatures: expect.arrayContaining(["workspace.markdown-watch"]),
+    missingFeatures: expect.arrayContaining(["workspace.files"]),
+  })
+})
+it("rejects undeclared executables and removed resources in Lite", () => {
+  expect(checkPluginCompatibility(manifest, "eidos-lite")).toMatchObject({
+    compatible: false,
+    reason: "API_VERSION",
+  })
+  expect(
+    checkPluginCompatibility(
+      {
+        ...manifest,
+        requires: { pluginApi: "2.0.0" },
+        resources: {
+          notes: { kind: "text", title: "Notes", access: ["read"] },
+        },
+      },
+      "eidos-lite"
+    )
+  ).toMatchObject({
+    compatible: false,
+    reason: "HOST_FEATURES",
+    missingFeatures: ["resources"],
   })
 })
 it("infers host features even for undeclared legacy plugins", () => {
@@ -70,20 +110,6 @@ it("infers host features even for undeclared legacy plugins", () => {
   expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
     compatible: false,
     missingFeatures: ["extension"],
-  })
-})
-it("infers Markdown line-count support independently of filename listing", () => {
-  const plugin: PluginManifest = {
-    ...manifest,
-    requires: { pluginApi: "1.4.0" },
-    workspace: { listMarkdownFiles: true, countMarkdownLines: true },
-  }
-  expect(checkPluginCompatibility(plugin, "eidos-lite")).toMatchObject({
-    compatible: true,
-  })
-  expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
-    compatible: false,
-    missingFeatures: expect.arrayContaining(["workspace.markdown-line-counts"]),
   })
 })
 it("uses a new envelope so old hosts cannot silently ignore minimum requirements", () => {

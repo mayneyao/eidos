@@ -43,10 +43,6 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
   if (manifest.browser?.workers) features.add("browser.workers")
   if (manifest.theme) features.add("theme.lite")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
-  if (manifest.workspace?.countMarkdownLines)
-    features.add("workspace.markdown-line-counts")
-  if (manifest.workspace?.watchMarkdownFiles)
-    features.add("workspace.markdown-watch")
   return [...features].sort()
 }
 export function checkPluginCompatibility(
@@ -74,6 +70,12 @@ export function checkPluginCompatibility(
       "UNSUPPORTED_PROTOCOL",
       "Unsupported plugin protocol; update your host."
     )
+  if (host === "eidos-lite" && !manifest.theme && requiredApi === null) {
+    return result(
+      "API_VERSION",
+      "This plugin must declare plugin API 2.0.0 and migrate to ctx.fs before it can run in Eidos Lite."
+    )
+  }
   if (requiredApi !== null) {
     const required = version(requiredApi),
       supported = version(info.pluginApiVersion)!
@@ -82,14 +84,22 @@ export function checkPluginCompatibility(
         "INVALID_REQUIREMENT",
         "Invalid minimum plugin API version."
       )
+    // Themes contain no executable code; the 1.6 stylesheet contract is unchanged.
+    const legacyTheme =
+      host === "eidos-lite" &&
+      Boolean(manifest.theme) &&
+      required[0] === 1 &&
+      required[1] === 6 &&
+      required[2] === 0
     if (
-      required[0] !== supported[0] ||
-      required[1]! > supported[1]! ||
-      (required[1] === supported[1] && required[2]! > supported[2]!)
+      !legacyTheme &&
+      (required[0] !== supported[0] ||
+        required[1]! > supported[1]! ||
+        (required[1] === supported[1] && required[2]! > supported[2]!))
     )
       return result(
         "API_VERSION",
-        `This plugin requires plugin API ${requiredApi}; ${host} supports ${info.pluginApiVersion}. Update the host to a compatible release.`
+        `This plugin requires plugin API ${requiredApi}; ${host} supports ${info.pluginApiVersion}. Install a compatible plugin version or migrate its source to the supported API.`
       )
   }
   if (missingFeatures.length)

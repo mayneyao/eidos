@@ -129,6 +129,7 @@ import {
   saveTextFile,
 } from "./text-file-preview"
 import { PluginError } from "@eidos.space/plugin-runtime/rpc"
+import type { FileStat } from "@eidos.space/plugin-sdk"
 import type { MediaFilePreviewResult } from "../plugins/document-host"
 import {
   importMarkdownDocumentImage,
@@ -681,13 +682,82 @@ export class SpaceSession {
     }
   }
 
+  private companionCandidates(safe: string, identifier: string): string[] {
+    if (typeof identifier !== "string" || !identifier.trim()) {
+      throw new PluginError("INVALID_REQUEST", "Invalid companion identifier")
+    }
+    if (/[\\/\u0000-\u001f]|\.\./.test(identifier)) {
+      throw new PluginError(
+        "INVALID_REQUEST",
+        "Companion identifier cannot traverse paths"
+      )
+    }
+    const dir = path.dirname(safe)
+    const baseName = path.parse(safe).name
+    const rootBase = baseName.split(".")[0]!
+    const names: string[] = []
+    if (identifier.startsWith(".")) {
+      names.push(`${baseName}${identifier}`)
+      if (rootBase !== baseName) {
+        names.push(`${rootBase}${identifier}`)
+      }
+    } else if (
+      identifier.startsWith(`${baseName}.`) ||
+      (rootBase !== baseName && identifier.startsWith(`${rootBase}.`))
+    ) {
+      names.push(identifier)
+    } else {
+      names.push(`${baseName}.${identifier}`)
+      if (rootBase !== baseName) {
+        names.push(`${rootBase}.${identifier}`)
+      }
+    }
+    return names.map((name) => (dir === "." ? name : `${dir}/${name}`))
+  }
+
   async previewMediaFile(
-    relativePath: string
+    relativePath: string,
+    identifier?: string
   ): Promise<MediaFilePreviewResult> {
     this.prioritizeLocalWork()
     const safe = normalizeMutableRelativePath(relativePath)
     const canonicalRoot = await fs.realpath(this.canonical.root)
-    const candidate = resolveSpacePath(canonicalRoot, safe)
+
+    let targetRelative = safe
+    if (identifier !== undefined) {
+      const candidates = this.companionCandidates(safe, identifier)
+      let found: string | null = null
+      for (const candidateRel of candidates) {
+        const candidatePath = resolveSpacePath(canonicalRoot, candidateRel)
+        const pathStats = await fs.lstat(candidatePath).catch(() => null)
+        if (!pathStats?.isFile() || pathStats.isSymbolicLink()) continue
+        const resolved = await fs.realpath(candidatePath).catch(() => null)
+        if (resolved !== path.resolve(candidatePath)) continue
+        found = candidateRel
+        break
+      }
+      if (!found) {
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Media file is unavailable"
+        )
+      }
+      targetRelative = found
+    } else if (!detectMediaFileType(safe)) {
+      const sidecars = await this.listSidecars(safe)
+      const match = sidecars.find(
+        (s) => detectMediaFileType(s.path) !== undefined
+      )
+      if (!match) {
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "No companion media file found"
+        )
+      }
+      targetRelative = match.path
+    }
+
+    const candidate = resolveSpacePath(canonicalRoot, targetRelative)
     const pathStats = await fs.lstat(candidate).catch(() => null)
     if (!pathStats?.isFile() || pathStats.isSymbolicLink()) {
       throw new PluginError("DOCUMENT_UNAVAILABLE", "Media file is unavailable")
@@ -696,14 +766,18 @@ export class SpaceSession {
     if (resolved !== path.resolve(candidate)) {
       throw new PluginError("DOCUMENT_UNAVAILABLE", "Media file is unavailable")
     }
-    const mediaType = detectMediaFileType(safe)
+    const mediaType = detectMediaFileType(targetRelative)
     const mimeType = mediaType?.mimeType ?? "application/octet-stream"
-    const previewUrl = issueMediaPreviewUrl(canonicalRoot, safe, mimeType)
+    const previewUrl = issueMediaPreviewUrl(
+      canonicalRoot,
+      targetRelative,
+      mimeType
+    )
     return {
-      path: safe,
-      name: path.basename(safe),
-      baseName: path.parse(safe).name,
-      extension: path.extname(safe),
+      path: targetRelative,
+      name: path.basename(targetRelative),
+      baseName: path.parse(targetRelative).name,
+      extension: path.extname(targetRelative),
       mimeType,
       size: pathStats.size,
       previewUrl,
@@ -716,52 +790,36 @@ export class SpaceSession {
   ): Promise<{ text: string; path: string } | null> {
     this.prioritizeLocalWork()
     const safe = normalizeMutableRelativePath(relativePath)
-    if (typeof extensionOrName !== "string" || !extensionOrName.trim()) {
-      throw new PluginError("INVALID_REQUEST", "Invalid sidecar identifier")
-    }
-    if (/[\\/\u0000-\u001f]|\.\./.test(extensionOrName)) {
-      throw new PluginError(
-        "INVALID_REQUEST",
-        "Sidecar identifier cannot traverse paths"
-      )
-    }
-    const dir = path.dirname(safe)
-    const baseName = path.parse(safe).name
-    let sidecarFileName: string
-    if (extensionOrName.startsWith(".")) {
-      sidecarFileName = `${baseName}${extensionOrName}`
-    } else if (extensionOrName.startsWith(`${baseName}.`)) {
-      sidecarFileName = extensionOrName
-    } else {
-      sidecarFileName = `${baseName}.${extensionOrName}`
-    }
-    const sidecarRelative =
-      dir === "." ? sidecarFileName : `${dir}/${sidecarFileName}`
+    const candidates = this.companionCandidates(safe, extensionOrName)
     const canonicalRoot = await fs.realpath(this.canonical.root)
-    const candidate = resolveSpacePath(canonicalRoot, sidecarRelative)
-    const pathStats = await fs.lstat(candidate).catch(() => null)
-    if (!pathStats?.isFile() || pathStats.isSymbolicLink()) {
-      return null
+
+    for (const candidateRel of candidates) {
+      const candidatePath = resolveSpacePath(canonicalRoot, candidateRel)
+      const pathStats = await fs.lstat(candidatePath).catch(() => null)
+      if (!pathStats?.isFile() || pathStats.isSymbolicLink()) {
+        continue
+      }
+      const resolved = await fs.realpath(candidatePath).catch(() => null)
+      if (resolved !== path.resolve(candidatePath)) {
+        continue
+      }
+      if (pathStats.size > EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX) {
+        throw new PluginError("TOO_LARGE", "Sidecar text exceeds limit")
+      }
+      const buffer = await fs.readFile(candidatePath)
+      const decoded = decodeText(buffer, false)
+      if (!decoded) {
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Sidecar is not an ordinary text file"
+        )
+      }
+      return {
+        text: decoded.content,
+        path: candidateRel,
+      }
     }
-    const resolved = await fs.realpath(candidate).catch(() => null)
-    if (resolved !== path.resolve(candidate)) {
-      return null
-    }
-    if (pathStats.size > EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX) {
-      throw new PluginError("TOO_LARGE", "Sidecar text exceeds limit")
-    }
-    const buffer = await fs.readFile(candidate)
-    const decoded = decodeText(buffer, false)
-    if (!decoded) {
-      throw new PluginError(
-        "DOCUMENT_UNAVAILABLE",
-        "Sidecar is not an ordinary text file"
-      )
-    }
-    return {
-      text: decoded.content,
-      path: sidecarRelative,
-    }
+    return null
   }
 
   async listSidecars(
@@ -774,6 +832,7 @@ export class SpaceSession {
     const safe = normalizeMutableRelativePath(relativePath)
     const dir = path.dirname(safe)
     const baseName = path.parse(safe).name
+    const rootBase = baseName.split(".")[0]!
     const selfName = path.basename(safe)
     const canonicalRoot = await fs.realpath(this.canonical.root)
     const dirCandidate =
@@ -782,6 +841,7 @@ export class SpaceSession {
       .readdir(dirCandidate, { withFileTypes: true })
       .catch(() => [])
     const prefix = `${baseName}.`
+    const rootPrefix = `${rootBase}.`
     const results: Array<{
       name: string
       path: string
@@ -793,7 +853,11 @@ export class SpaceSession {
     )
     for (const entry of entries) {
       if (!entry.isFile() || entry.isSymbolicLink()) continue
-      if (!entry.name.startsWith(prefix) || entry.name === selfName) continue
+      if (entry.name === selfName) continue
+      const matchesPrefix =
+        entry.name.startsWith(prefix) ||
+        (rootBase !== baseName && entry.name.startsWith(rootPrefix))
+      if (!matchesPrefix) continue
       const ext = path.extname(entry.name).toLowerCase()
       if (allowed && !allowed.includes(ext)) continue
       const entryRelPath = dir === "." ? entry.name : `${dir}/${entry.name}`
@@ -810,6 +874,250 @@ export class SpaceSession {
       }
     }
     return results
+  }
+
+  async readTextFile(requestedPath: string): Promise<string> {
+    this.prioritizeLocalWork()
+    const preview = await this.previewTextFile(requestedPath)
+    if (preview.type !== "text") {
+      throw new PluginError(
+        "DOCUMENT_UNAVAILABLE",
+        "File is not a readable text file"
+      )
+    }
+    if (preview.truncated) {
+      throw new PluginError("TOO_LARGE", "File exceeds the 2 MB text limit")
+    }
+    return preview.content
+  }
+
+  async writeTextFile(requestedPath: string, content: string): Promise<void> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    if (Buffer.byteLength(content) > 2 * 1024 * 1024) {
+      throw new PluginError("TOO_LARGE", "Text exceeds the 2 MB limit")
+    }
+    const parts = relativePath.split("/")
+    const name = normalizeSpaceEntryName(parts.pop()!)
+    let parent: string | null = null
+    for (const part of parts) {
+      normalizeSpaceEntryName(part)
+      const directory: string = parent ? `${parent}/${part}` : part
+      try {
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+        try {
+          await this.createFolder(parent, part)
+        } catch (createError) {
+          try {
+            await resolveSpaceDirectory(this.canonical.root, directory)
+          } catch {
+            throw createError
+          }
+        }
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      }
+      parent = directory
+    }
+    const fullPath = this.resolveUserPath(relativePath)
+    await this.gate.withMutation(() =>
+      fs.writeFile(fullPath, content, { encoding: "utf8" })
+    )
+    this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
+    await this.freshSnapshotAndEmit()
+  }
+
+  async readBinaryFile(requestedPath: string): Promise<Buffer> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    const canonicalRoot = await fs.realpath(this.canonical.root)
+    const candidate = resolveSpacePath(canonicalRoot, relativePath)
+    const stats = await fs.lstat(candidate).catch(() => null)
+    if (!stats || stats.isSymbolicLink() || stats.isDirectory()) {
+      throw new PluginError("DOCUMENT_UNAVAILABLE", "Cannot read file")
+    }
+    const resolved = await fs.realpath(candidate).catch(() => null)
+    if (resolved !== path.resolve(candidate)) {
+      throw new PluginError("PERMISSION_DENIED", "Symlinks are rejected")
+    }
+    if (stats.size > 16 * 1024 * 1024) {
+      throw new PluginError("TOO_LARGE", "Binary file exceeds the 16 MB limit")
+    }
+    return await fs.readFile(resolved)
+  }
+
+  async writeBinaryFile(requestedPath: string, buffer: Buffer): Promise<void> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    if (buffer.length > 16 * 1024 * 1024) {
+      throw new PluginError("TOO_LARGE", "Binary data exceeds the 16 MB limit")
+    }
+    const parts = relativePath.split("/")
+    const name = normalizeSpaceEntryName(parts.pop()!)
+    let parent: string | null = null
+    for (const part of parts) {
+      normalizeSpaceEntryName(part)
+      const directory: string = parent ? `${parent}/${part}` : part
+      try {
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+        try {
+          await this.createFolder(parent, part)
+        } catch (createError) {
+          try {
+            await resolveSpaceDirectory(this.canonical.root, directory)
+          } catch {
+            throw createError
+          }
+        }
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      }
+      parent = directory
+    }
+    const fullPath = this.resolveUserPath(relativePath)
+    await this.gate.withMutation(() => fs.writeFile(fullPath, buffer))
+    this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
+    await this.freshSnapshotAndEmit()
+  }
+
+  async deleteFile(requestedPath: string): Promise<void> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    const fullPath = this.resolveUserPath(relativePath)
+    const stats = await fs.lstat(fullPath).catch(() => null)
+    if (!stats) return
+    if (stats.isDirectory()) {
+      throw new PluginError(
+        "PERMISSION_DENIED",
+        "Cannot delete directory directly"
+      )
+    }
+    await this.gate.withMutation(async () => {
+      await this.closeAndEvictRuntimeSessions(relativePath)
+      await fs.unlink(fullPath)
+    })
+    this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
+    await this.freshSnapshotAndEmit()
+  }
+
+  async renameFile(oldPath: string, newPath: string): Promise<void> {
+    this.prioritizeLocalWork()
+    const source = normalizeMutableRelativePath(oldPath)
+    const target = normalizeMutableRelativePath(newPath)
+    const sourceFull = this.resolveUserPath(source)
+    const stats = await fs.lstat(sourceFull).catch(() => null)
+    if (!stats)
+      throw new PluginError(
+        "DOCUMENT_UNAVAILABLE",
+        "Source file does not exist"
+      )
+    if (source === target) return
+    const targetParts = target.split("/")
+    targetParts.pop()
+    let parent: string | null = null
+    for (const part of targetParts) {
+      normalizeSpaceEntryName(part)
+      const directory: string = parent ? `${parent}/${part}` : part
+      try {
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+        try {
+          await this.createFolder(parent, part)
+        } catch (createError) {
+          try {
+            await resolveSpaceDirectory(this.canonical.root, directory)
+          } catch {
+            throw createError
+          }
+        }
+        await resolveSpaceDirectory(this.canonical.root, directory)
+      }
+      parent = directory
+    }
+    const targetFull = this.resolveUserPath(target)
+    await this.gate.withMutation(async () => {
+      await this.closeAndEvictRuntimeSessions(source)
+      await fs.rename(sourceFull, targetFull)
+    })
+    this.noteLocalChange()
+    this.notifyMarkdownWatchers([source, target])
+    await this.freshSnapshotAndEmit()
+  }
+
+  async statFile(requestedPath: string): Promise<FileStat | null> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    const canonicalRoot = await fs.realpath(this.canonical.root)
+    const candidate = resolveSpacePath(canonicalRoot, relativePath)
+    const stats = await fs.lstat(candidate).catch(() => null)
+    if (!stats || stats.isSymbolicLink()) return null
+    const resolved = await fs.realpath(candidate).catch(() => null)
+    if (resolved !== path.resolve(candidate)) return null
+    return {
+      path: relativePath,
+      name: path.basename(relativePath),
+      extension: path.extname(relativePath).toLowerCase(),
+      size: stats.size,
+      isDirectory: stats.isDirectory(),
+    }
+  }
+
+  async listFiles(
+    requestedFolder: string,
+    options?: { extensions?: string[] }
+  ): Promise<FileStat[]> {
+    this.prioritizeLocalWork()
+    const folder = requestedFolder
+      ? normalizeMutableRelativePath(requestedFolder)
+      : ""
+    const results: FileStat[] = []
+    const pending = [folder]
+    const allowed = options?.extensions?.map((e) =>
+      e.startsWith(".") ? e.toLowerCase() : `.${e.toLowerCase()}`
+    )
+    for (let cursor = 0; cursor < pending.length; cursor++) {
+      if (cursor >= 2048) break
+      const directory = pending[cursor]!
+      let entries: SpaceTreeEntry[]
+      try {
+        entries = await listSpaceDirectory(
+          this.canonical.root,
+          directory || null,
+          { maxEntries: 100_000 }
+        )
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue
+        break
+      }
+      for (const entry of entries) {
+        if (entry.kind === "directory") {
+          pending.push(entry.relativePath)
+        } else {
+          const ext = path.extname(entry.name).toLowerCase()
+          if (allowed && !allowed.includes(ext)) continue
+          results.push({
+            path: entry.relativePath,
+            name: entry.name,
+            extension: ext,
+            size: entry.size,
+            isDirectory: false,
+          })
+          if (results.length >= 20_000) break
+        }
+      }
+      if (results.length >= 20_000) break
+    }
+    return results.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  watchFiles(folder: string, listener: () => void): { dispose(): void } {
+    return this.watchMarkdownFiles(folder, listener)
   }
 
   async saveTextFile(

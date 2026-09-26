@@ -1,23 +1,21 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "1.6.0",
+      "pluginApi": "2.0.0",
       "features": [
         "view.table",
         "view.document",
         "view.eidos",
         "view.page",
         "view.media",
+        "view.file",
         "extension",
         "actions",
         "formatters",
         "connections",
-        "resources",
         "settings",
         "storage",
-        "workspace.markdown-index",
-        "workspace.markdown-line-counts",
-        "workspace.markdown-watch",
+        "workspace.files",
         "browser.workers",
         "browser.network",
         "theme.lite"
@@ -36,6 +34,6 @@
     { "key": "resources", "feature": "resources" },
     { "key": "settings", "feature": "settings" },
     { "key": "storage", "feature": "storage" },
-    { "key": "workspace", "feature": "workspace.markdown-index" }
+    { "key": "workspace", "feature": "workspace.files" }
   ]
 }

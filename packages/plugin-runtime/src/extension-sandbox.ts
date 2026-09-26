@@ -2,10 +2,12 @@ import type {
   Activate,
   ActionContext,
   Disposable,
+  FileContext,
   TextDocument,
   FormatterProvider,
   TableActionProvider,
   TableActionContext,
+  FileStat,
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
@@ -85,7 +87,8 @@ function activateGuest(
   const run = async (value: {
     invocation: string
     action: string
-    kind: "workspace" | "document"
+    kind: "workspace" | "document" | "file"
+    path?: string
   }) => {
     const controller = new AbortController(),
       subscriptions = new Set<Disposable>()
@@ -156,33 +159,162 @@ function activateGuest(
         }
       },
     }
+    const fs = {
+      async readText(filePath: string): Promise<string> {
+        const res = await invoke<{ text: string }>("fs.readText", {
+          path: filePath,
+        })
+        return res.text
+      },
+      writeText(filePath: string, content: string): Promise<void> {
+        return invoke("fs.writeText", { path: filePath, content })
+      },
+      async readBinary(filePath: string): Promise<Uint8Array> {
+        const res = await invoke<{ data: string }>("fs.readBinary", {
+          path: filePath,
+        })
+        return Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0))
+      },
+      writeBinary(filePath: string, content: Uint8Array): Promise<void> {
+        if (content.byteLength > 16 * 1024 * 1024)
+          return Promise.reject(
+            failure("INVALID_REQUEST", "Binary data exceeds 16 MiB")
+          )
+        let binary = ""
+        for (let offset = 0; offset < content.length; offset += 8192)
+          binary += String.fromCharCode(
+            ...content.subarray(offset, offset + 8192)
+          )
+        return invoke("fs.writeBinary", { path: filePath, data: btoa(binary) })
+      },
+      delete(filePath: string): Promise<void> {
+        return invoke("fs.delete", { path: filePath })
+      },
+      rename(oldPath: string, newPath: string): Promise<void> {
+        return invoke("fs.rename", { oldPath, newPath })
+      },
+      list(
+        folder?: string,
+        options?: { extensions?: string[] }
+      ): Promise<FileStat[]> {
+        return invoke("fs.list", {
+          ...(folder !== undefined ? { folder } : {}),
+          ...(options?.extensions !== undefined
+            ? { extensions: options.extensions }
+            : {}),
+        })
+      },
+      stat(filePath: string): Promise<FileStat | null> {
+        return invoke("fs.stat", { path: filePath })
+      },
+      async getUrl(filePath?: string): Promise<string> {
+        const res = await invoke<{ url: string }>("fs.url", {
+          ...(filePath !== undefined ? { path: filePath } : {}),
+        })
+        return res.url
+      },
+      async watch(
+        pathOrFolder: string,
+        listener: () => void
+      ): Promise<Disposable> {
+        const id = crypto.randomUUID()
+        let active = true
+        const subscription = own({
+          dispose() {
+            if (!active) return
+            active = false
+            observers.delete(id)
+            subscriptions.delete(subscription)
+            void invoke("fs.unwatch", { id }).catch(() => {})
+          },
+        })
+        observers.set(id, () => {
+          if (!active) return
+          try {
+            listener()
+          } catch {
+            subscription.dispose()
+          }
+        })
+        try {
+          await invoke("fs.watch", { id, path: pathOrFolder })
+          return subscription
+        } catch (cause) {
+          subscription.dispose()
+          throw cause
+        }
+      },
+    }
+    const fileContext: FileContext | undefined = value.path
+      ? {
+          path: value.path,
+          name: value.path.split("/").pop() || value.path,
+          baseName: (value.path.split("/").pop() || value.path).replace(
+            /\.[^.]+$/,
+            ""
+          ),
+          extension: value.path.includes(".")
+            ? "." + value.path.split(".").pop()
+            : "",
+          size: 0,
+        }
+      : undefined
     const ctx: ActionContext = {
       binding:
-        value.kind === "document"
-          ? { kind: "document", document }
-          : { kind: "workspace" },
+        value.kind === "file" && fileContext
+          ? { kind: "file", file: fileContext }
+          : value.kind === "document"
+            ? { kind: "document", document }
+            : { kind: "workspace" },
+      file: fileContext,
+      editor: value.kind === "document" ? document : undefined,
       signal: controller.signal,
       subscriptions: { add: own },
+      fs,
+      storage: {
+        list: (prefix = "") => invoke("storage.list", { prefix }),
+        async read(key) {
+          const res = await invoke<string | null>("storage.read", { key })
+          return res === null
+            ? null
+            : Uint8Array.from(atob(res), (c) => c.charCodeAt(0))
+        },
+        write(key, val) {
+          if (val.byteLength > 4 * 1024 * 1024)
+            return Promise.reject(
+              failure("INVALID_REQUEST", "Storage object exceeds 4 MiB")
+            )
+          let binary = ""
+          for (let offset = 0; offset < val.length; offset += 8192)
+            binary += String.fromCharCode(
+              ...val.subarray(offset, offset + 8192)
+            )
+          return invoke("storage.write", { key, data: btoa(binary) })
+        },
+        remove: (key) => invoke("storage.remove", { key }),
+      },
+      network: {
+        async read(request) {
+          const res = await invoke<{
+            data: string
+            status: number
+            etag?: string
+          }>("network.read", request)
+          return {
+            ...res,
+            data: Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0)),
+          }
+        },
+      },
       settings: {
         get: (key) => invoke("settings.get", { key }),
-        update: (key, value) => invoke("settings.update", { key, value }),
+        update: (key, val) => invoke("settings.update", { key, value: val }),
         reset: (key) => invoke("settings.reset", { key }),
         observe: unavailable,
       },
-      resources: {
-        text: unavailable,
-        directory: unavailable,
-        eidos: unavailable,
-        output: unavailable,
-      },
       ui: {
         notify: (message) => invoke("ui.notify", { message }),
-        listMarkdownFiles: unavailable,
-        countMarkdownLines: unavailable,
-        observeMarkdownFiles: unavailable,
-        openMarkdownFile: unavailable,
-        openOrCreateMarkdown: (relativePath) =>
-          invoke("ui.openOrCreateMarkdown", { relativePath }),
+        openFile: (relativePath) => invoke("ui.openFile", { relativePath }),
         select: unavailable,
         confirm: unavailable,
         navigate: (viewId, route) =>
@@ -190,8 +322,6 @@ function activateGuest(
             viewId,
             ...(route === undefined ? {} : { route }),
           }),
-        resolveAsset: unavailable,
-        openLink: unavailable,
       },
     }
     let error: string | undefined

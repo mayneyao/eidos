@@ -11,6 +11,7 @@
   "document-view": {
     "description": "CSV file editor with host save and undo/redo",
     "manifest": {
+      "requires": { "pluginApi": "2.0.0" },
       "views": [
         {
           "id": "table",
@@ -38,7 +39,7 @@
     "description": "Browse tables and fields in an .eidos file",
     "manifest": {
       "requires": {
-        "pluginApi": "1.1.0"
+        "pluginApi": "2.0.0"
       },
       "views": [
         {
@@ -63,8 +64,9 @@
     }
   },
   "table-view": {
-    "description": "Table record count with live invalidation",
+    "description": "CLI Serve table record count with live invalidation (use API 2.0.0 for Lite)",
     "manifest": {
+      "requires": { "pluginApi": "1.0.0" },
       "views": [
         {
           "id": "main",
@@ -90,7 +92,7 @@
     "description": "Set a checkbox on target records, with progress and host undo",
     "manifest": {
       "requires": {
-        "pluginApi": "1.1.0"
+        "pluginApi": "2.0.0"
       },
       "extension": "./src/extension.ts",
       "actions": [
@@ -119,6 +121,7 @@
   "page": {
     "description": "Independent page opened by a navigation entry or command",
     "manifest": {
+      "requires": { "pluginApi": "2.0.0" },
       "views": [
         {
           "id": "main",

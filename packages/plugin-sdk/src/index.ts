@@ -28,16 +28,15 @@ export interface PluginManifest {
   actions?: ActionDeclaration[]
   formatters?: FormatterDeclaration[]
   placements?: Placement[]
-  resources?: Record<string, ResourceDeclaration>
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; networkOrigins?: string[] }
   storage?: { maxBytes: number }
-  /** Explicit permission to enumerate Markdown paths in the current Space. */
+  /** Explicit permission to access files in the current Space. */
   workspace?: {
-    listMarkdownFiles: true
-    countMarkdownLines?: true
-    watchMarkdownFiles?: true
+    files?: boolean | { read?: boolean; write?: boolean }
   }
+  /** @deprecated Legacy resource declarations. Use workspace.files instead. */
+  resources?: Record<string, ResourceDeclaration>
   connections?: Record<
     string,
     { title: string; url: string; configurable?: boolean }
@@ -45,6 +44,17 @@ export interface PluginManifest {
   /** Standalone Eidos Lite host theme. Theme packages contain no executable contributions. */
   theme?: ThemeDeclaration
 }
+/** @deprecated Legacy resource declaration. Use workspace.files and ctx.fs instead. */
+export type ResourceDeclaration =
+  | { kind: "text"; title: string; access: Array<"read" | "write"> }
+  | {
+      kind: "directory"
+      title: string
+      access: Array<"read" | "write" | "create" | "delete" | "list">
+      include: string[]
+    }
+  | { kind: "output"; title: string; access: ["write"] }
+
 export interface ThemeDeclaration {
   /** Source path, replaced with validated CSS and embedded fonts when packaged. */
   stylesheet: string
@@ -53,7 +63,7 @@ export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table" | "eidos" | "media"
+  context: "page" | "file" | "document" | "media" | "eidos" | "table"
   access?: "read" | "write"
   /** Host-rendered, per-table-view configuration stored in view.properties.plugin. */
   configuration?: ViewConfiguration
@@ -81,7 +91,7 @@ export interface ActionConfiguration {
 export interface ActionDeclaration {
   id: string
   title: string
-  context: "workspace" | "document" | "table"
+  context: "workspace" | "file" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
   /** @deprecated Reserved legacy design; rejected by current hosts. Use table.pluginConfig. */
@@ -129,39 +139,61 @@ export interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 export interface CommonContext extends Lifetime {
-  readonly resources: GrantedResources
+  readonly fs: PluginFileSystem
+  readonly storage: PluginStorage
+  readonly network: PluginNetwork
   readonly settings: Settings
   readonly ui: HostUI
 }
-export interface MediaFileContext {
+export interface FileStat {
+  readonly path: string
+  readonly name: string
+  readonly extension: string
+  readonly size: number
+  readonly isDirectory: boolean
+}
+
+export interface PluginFileSystem {
+  /** Reads the text content of a file in the Space (up to 2 MiB). */
+  readText(path: string): Promise<string>
+  /** Writes text to a file in the Space, creating parent directories if needed. */
+  writeText(path: string, content: string): Promise<void>
+  /** Reads the binary content of a file in the Space (up to 16 MiB). */
+  readBinary(path: string): Promise<Uint8Array>
+  /** Writes binary data to a file in the Space (up to 16 MiB). */
+  writeBinary(path: string, content: Uint8Array): Promise<void>
+  /** Deletes a file in the Space. */
+  delete(path: string): Promise<void>
+  /** Renames or moves a file within the Space. */
+  rename(oldPath: string, newPath: string): Promise<void>
+  /**
+   * Lists files under a Space folder.
+   * In a file-backed view without workspace permission, defaults to companion files in the current directory.
+   */
+  list(
+    folder?: string,
+    options?: { extensions?: string[] }
+  ): Promise<FileStat[]>
+  /** Returns metadata for a file, or null if the file does not exist. */
+  stat(path: string): Promise<FileStat | null>
+  /**
+   * Returns a streaming URL (eidos-space-media:) for a file.
+   * In a media or file-backed view, path is optional and defaults to the current file.
+   */
+  getUrl(path?: string): Promise<string>
+  /** Watches a folder or file for changes. */
+  watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
+}
+
+export interface FileContext {
   readonly path: string
   readonly name: string
   readonly baseName: string
   readonly extension: string
-  readonly mimeType: string
+  readonly mimeType?: string
   readonly size: number
-  getMediaUrl(): Promise<string>
-  readSidecarText(
-    extensionOrName: string
-  ): Promise<{ text: string; path: string } | null>
-  listSidecars(
-    extensions?: string[]
-  ): Promise<
-    Array<{ name: string; path: string; extension: string; size: number }>
-  >
 }
 
-export type ViewBinding =
-  | { kind: "eidos"; file: EidosFileContext }
-  | { kind: "page"; route: string }
-  | { kind: "document"; document: TextDocument }
-  | { kind: "table"; table: TableContext }
-  | { kind: "media"; media: MediaFileContext }
-export interface ViewContext extends CommonContext {
-  readonly binding: ViewBinding
-  readonly storage: PluginStorage
-  readonly network: PluginNetwork
-}
 /** Anonymous bounded HTTPS GETs to manifest-declared network origins. */
 export interface PluginNetwork {
   read(request: {
@@ -176,6 +208,22 @@ export interface PluginStorage {
   write(key: string, value: Uint8Array): Promise<void>
   remove(key: string): Promise<void>
 }
+
+export type ViewBinding =
+  | { kind: "eidos"; file: EidosFileContext }
+  | { kind: "page"; route: string }
+  | { kind: "document"; document: TextDocument }
+  | { kind: "table"; table: TableContext }
+  | { kind: "media"; media: FileContext }
+  | { kind: "file"; file: FileContext }
+
+export interface ViewContext extends CommonContext {
+  readonly binding: ViewBinding
+  readonly file?: FileContext
+  readonly editor?: TextDocument
+  readonly table?: TableContext
+  readonly eidos?: EidosFileContext
+}
 export interface TableActionInstance {
   id: string
   pluginId: string
@@ -185,6 +233,7 @@ export interface TableActionInstance {
 }
 export type ActionBinding =
   | { kind: "workspace" }
+  | { kind: "file"; file: FileContext }
   | { kind: "document"; document: TextDocument }
   | {
       kind: "table"
@@ -196,6 +245,9 @@ export type ActionBinding =
     }
 export interface ActionContext extends CommonContext {
   readonly binding: ActionBinding
+  readonly file?: FileContext
+  readonly editor?: TextDocument
+  readonly table?: TableContext
 }
 export interface ExtensionContext extends Lifetime {
   readonly formatters: {
@@ -271,34 +323,6 @@ export interface PluginPackage {
   format: 1 | 2
   manifest: PluginManifest
   modules: Record<string, string> // entry key -> self-contained ESM JavaScript
-}
-
-export type ResourceDeclaration =
-  | { kind: "text"; title: string; access: Array<"read" | "write"> }
-  | {
-      kind: "directory"
-      title: string
-      include: string[]
-      access: Array<"list" | "read" | "create" | "write" | "delete">
-    }
-  | { kind: "eidos"; title: string; access: Array<"read" | "write"> }
-  | { kind: "output"; title: string; access: ["write"] }
-export interface GrantedResources {
-  text(id: string): Promise<TextDocument>
-  directory(id: string): Promise<TextDirectory>
-  eidos(id: string): Promise<EidosResource>
-  output(id: string): Promise<OutputDirectory>
-}
-
-export interface TextDirectory {
-  list(options?: { cursor?: string; limit?: number }): Promise<{
-    files: Array<{ path: string }>
-    nextCursor?: string
-  }>
-  openText(path: string): Promise<TextDocument>
-  createText(path: string, text: string): Promise<TextDocument>
-  deleteText(path: string, expectedRevision: string): Promise<void>
-  inspect(path: string): Promise<{ revision: string }>
 }
 
 export interface TextSnapshot {
@@ -448,21 +472,6 @@ export interface TableAggregateResult {
   totalRecords: number
 }
 
-export interface OutputDirectory {
-  begin(): Promise<OutputBatch>
-}
-export interface OutputBatch extends Disposable {
-  write(path: string, bytes: Uint8Array, mediaType: string): Promise<void>
-  commit(): Promise<{
-    status: "complete" | "partial" | "cancelled" | "failed"
-    files: Array<
-      | { path: string; status: "written" }
-      | { path: string; status: "failed"; code: string; message: string }
-      | { path: string; status: "skipped" }
-    >
-  }>
-}
-
 export type SettingValue = boolean | string | number
 export type SettingDeclaration = { title: string; description?: string } & (
   | { type: "boolean"; default: boolean }
@@ -483,26 +492,6 @@ export interface Settings {
 }
 export interface HostUI {
   notify(message: string): Promise<void>
-  /** Lists Markdown paths under a Space-relative folder, without reading contents. */
-  listMarkdownFiles(folder: string): Promise<{
-    paths: string[]
-    truncated: boolean
-  }>
-  /** Counts non-empty lines in up to 400 listed Markdown paths, without returning text. */
-  countMarkdownLines(
-    paths: string[]
-  ): Promise<Array<{ path: string; lines: number | null }>>
-  /** Invalidates a Page View when Markdown files change under a Space-relative folder. */
-  observeMarkdownFiles(
-    folder: string,
-    listener: () => void
-  ): Promise<Disposable>
-  /** Opens an existing Markdown file in the host without returning its contents. */
-  openMarkdownFile(relativePath: string): Promise<void>
-  /** Open an existing Space Markdown file, or create its parent folders and an empty file. */
-  openOrCreateMarkdown(
-    relativePath: string
-  ): Promise<{ path: string; created: boolean }>
   select(options: {
     title: string
     options: Array<{ id: string; label: string }>
@@ -511,12 +500,9 @@ export interface HostUI {
     title: string
     message: string
   }): Promise<{ status: "confirmed" | "cancelled" }>
+  /** Opens an existing file in the host editor or viewer. */
+  openFile(relativePath: string): Promise<void>
   navigate(viewId: string, route?: string): Promise<void>
-  resolveAsset(document: TextDocument, relativePath: string): Promise<string>
-  openLink(
-    document: TextDocument,
-    relativePath: string
-  ): Promise<{ status: "opened" | "cancelled" }>
 }
 
 export type ObserverErrorHandler = (error: {

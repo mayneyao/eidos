@@ -1,13 +1,13 @@
 ---
-title: Plugin API reference
-description: Complete API reference for @eidos.space/plugin-sdk and Eidos Lite host capabilities.
+title: Plugin API Reference
+description: Complete reference for @eidos.space/plugin-sdk interfaces, CommonContext, filesystem primitives, and host methods.
 sidebar:
   order: 3
 ---
 
-This reference documents the types and interfaces provided by `@eidos.space/plugin-sdk` (Plugin 1.0).
+This document provides a comprehensive reference for `@eidos.space/plugin-sdk` types, interfaces, and host capabilities.
 
-Install the type declarations in your project:
+Install the TypeScript types in your plugin project:
 
 ```bash
 pnpm add -D @eidos.space/plugin-sdk
@@ -15,465 +15,249 @@ pnpm add -D @eidos.space/plugin-sdk
 
 ---
 
-## Manifest (`PluginManifest`)
+## Plugin Manifest (`PluginManifest`)
 
-Every plugin declares its capabilities in a `plugin.json` manifest file (or exports `manifest` from a standalone `.ts` / `.js` file).
+Every plugin declares its metadata, permissions, and extension points in `plugin.json` (or exports a `manifest` object from a standalone `.ts` / `.js` file).
 
 ```ts
 export interface PluginManifest {
   apiVersion: 1
-  kind?: "theme"
+  id: string
+  name: string
+  version: string
+  icon?: PluginIconDefinition
   requires?: { pluginApi: string }
-  theme?: {
-    light: Record<string, string>
-    dark: Record<string, string>
-    fonts?: { family: string; source: string; weight?: string }[]
+
+  // Contribution declarations
+  views?: ViewDeclaration[]
+  actions?: ActionDeclaration[]
+  formatters?: FormatterDeclaration[]
+  placements?: Placement[]
+
+  // Background extension entry
+  extension?: string
+
+  // Permissions and resource configurations
+  workspace?: {
+    files?: boolean | { read?: boolean; write?: boolean }
   }
   settings?: Record<string, SettingDeclaration>
-  workspace?: {
-    listMarkdownFiles: true
-    countMarkdownLines?: true
-    watchMarkdownFiles?: true
+  storage?: { maxBytes: number }
+  browser?: {
+    workers?: boolean
+    networkOrigins?: string[]
   }
   connections?: Record<
     string,
     { title: string; url: string; configurable?: boolean }
   >
-  id: string
-  name: string
-  version: string
-  icon?: PluginIconDefinition
-  extension?: string
-  views?: ViewDeclaration[]
-  actions?: ActionDeclaration[]
-  formatters?: FormatterDeclaration[]
-  placements?: Placement[]
-  browser?: {
-    workers?: boolean
-    networkOrigins?: string[]
-  }
-  storage?: {
-    maxBytes: number
-  }
+
+  // Standalone host theme
+  kind?: "theme"
+  theme?: ThemeDeclaration
 }
 ```
 
 ### Fields
 
-| Field                          | Type                     | Required | Description                                                                             |
-| ------------------------------ | ------------------------ | -------- | --------------------------------------------------------------------------------------- |
-| `apiVersion`                   | `1`                      | Yes      | Target host API version. Must be `1`.                                                   |
-| `kind`                         | `"theme"`                | Theme    | Declares a standalone Eidos Lite host theme. Requires Plugin API 1.6.                   |
-| `theme`                        | `ThemeDeclaration`       | Theme    | Light/dark semantic token maps and optional bundled local fonts.                        |
-| `id`                           | `string`                 | Yes      | Unique reverse-DNS identifier (e.g. `com.example.counter`).                             |
-| `name`                         | `string`                 | Yes      | Human-readable display name shown in Lite.                                              |
-| `version`                      | `string`                 | Yes      | Semantic version string (e.g. `0.1.0`).                                                 |
-| `icon`                         | `PluginIconDefinition`   | No       | Icon paths or relative file path.                                                       |
-| `extension`                    | `string`                 | No       | Relative path to background extension entry (e.g. `./src/extension.ts`).                |
-| `views`                        | `ViewDeclaration[]`      | No       | Array of custom UI view declarations.                                                   |
-| `actions`                      | `ActionDeclaration[]`    | No       | Array of command-palette actions.                                                       |
-| `formatters`                   | `FormatterDeclaration[]` | No       | Array of document formatters.                                                           |
-| `placements`                   | `Placement[]`            | No       | UI locations where views and actions appear.                                            |
-| `browser.networkOrigins`       | `string[]`               | No       | Exact HTTPS origins permitted for `ctx.network.read` or iframe fetches.                 |
-| `browser.workers`              | `boolean`                | No       | Enables bundled Blob Web Workers (default: `false`).                                    |
-| `storage.maxBytes`             | `number`                 | No       | Storage quota in bytes for `ctx.storage` (maximum: 1 GiB / `1073741824`).               |
-| `workspace.listMarkdownFiles`  | `true`                   | No       | Declares permission to list Markdown file names in the current Space (Plugin API 1.3).  |
-| `workspace.countMarkdownLines` | `true`                   | No       | Declares permission to count non-empty lines in listed Markdown files (Plugin API 1.4). |
-| `workspace.watchMarkdownFiles` | `true`                   | No       | Declares permission to receive Markdown change notifications (Plugin API 1.5).          |
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `apiVersion` | `1` | Plugin host API contract version (currently `1`). |
+| `id` | `string` | Unique identifier (recommended reverse domain notation, e.g. `com.example.viewer`). |
+| `name` | `string` | Human-readable plugin display name. |
+| `version` | `string` | Semantic version string (e.g. `0.1.0`). |
+| `icon` | `PluginIconDefinition` | Plugin brand icon (SVG paths object, relative file path, or Data URL). |
+| `requires.pluginApi` | `string` | Minimum host API contract. Current Lite executable plugins require `"2.0.0"`; pure `"1.6.0"` themes remain supported. |
+| `extension` | `string` | Background module entrypoint (e.g. `"./src/extension.ts"`). Required if `actions` or `formatters` are declared. |
+| `views` | `ViewDeclaration[]` | User interface view contributions. |
+| `actions` | `ActionDeclaration[]` | Command and shortcut contributions. |
+| `formatters` | `FormatterDeclaration[]` | Document formatting provider contributions. |
+| `placements` | `Placement[]` | UI entrypoint mappings for views and actions. |
+| `workspace.files` | `boolean \| { read?: boolean; write?: boolean }` | Permission grant for Space-wide filesystem read/write access. |
+| `settings` | `Record<string, SettingDeclaration>` | Declarations for plugin settings rendered in the plugin configuration panel. |
+| `storage.maxBytes` | `number` | Private persistent storage quota in bytes (up to 1 GiB). |
+| `browser.networkOrigins`| `string[]` | Whitelisted HTTPS origins for anonymous network requests. |
+| `kind` / `theme` | `"theme"` / `ThemeDeclaration` | Declares a standalone Eidos Lite host theme (contains no executable code). |
 
-A theme plugin contains no executable modules or other contributions. Its
-`theme.stylesheet` points to a CSS file with light and dark semantic token rules
-for the Lite host on this device, rather than an individual plugin view.
-See the [theme workflow](/plugins/workflow/#build-a-standalone-eidos-lite-theme).
+---
 
-### Icon definition (`PluginIconDefinition`)
+## Declarations & Placements
 
-Defines plugin brand logos, view-specific icons, or command-palette action icons:
-
-```ts
-export type PluginIconDefinition =
-  | string
-  | { paths: string[] }
-  | { src: string }
-  | { file: string }
-```
-
-- **Inline monochrome SVG paths**: `{ paths: ["M12 2L2 7l10 5 10-5-10-5z..."] }`, rendered using the current theme text color (`currentColor`) with pixel-perfect alignment.
-- **Local relative path**: e.g. `"./icon.svg"`, `"./assets/view.png"`, automatically inlined as a Data URL during packaging.
-- **Data URL string**: e.g. `"data:image/svg+xml;base64,..."`.
-
-### View declaration (`ViewDeclaration`)
-
-Declares UI page or editor views in `manifest.views`:
+### View Declaration (`ViewDeclaration`)
 
 ```ts
 export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table" | "eidos"
+  context: "file" | "page" | "table" | "document" | "media" | "eidos"
   access?: "read" | "write"
   icon?: PluginIconDefinition
   configuration?: ViewConfiguration
 }
 ```
 
-- `id`: Unique identifier within the plugin.
-- `title`: Human-readable title displayed in the UI.
-- `entry`: Relative path to view source entry (e.g. `./src/main.ts`).
-- `context`: Target context (`"page"` for navigation views, `"document"` for file editors, `"table"` for table views).
-- `access`: File access permission (`"read"` or `"write"`).
-- `icon`: View-specific functional icon (used in the **Open with** menu and view tabs). Falls back to `manifest.icon` if omitted.
+- `context`: Physical entity target. Standard values are `"file"` (opened on workspace files) and `"page"` (standalone panel). `"document"`, `"media"`, and `"eidos"` are supported for compatibility.
+- `access`: File access level (`"read"` or `"write"`, defaults to `"read"`).
+- `configuration`: Used with `context: "table"`, declaring view settings schema stored in `view.properties.plugin`.
 
-### Action declaration (`ActionDeclaration`)
-
-Declares command-palette actions or keyboard shortcut handlers in `manifest.actions`:
+### Action Declaration (`ActionDeclaration`)
 
 ```ts
 export interface ActionDeclaration {
   id: string
   title: string
-  context: "workspace" | "document" | "table"
+  context: "workspace" | "file" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
   icon?: PluginIconDefinition
-  // Legacy configuration/multiple declarations are rejected; use table.pluginConfig.
 }
 ```
 
-- `icon`: Dedicated icon shown next to the action in the Command Palette. Falls back to `manifest.icon` if omitted.
+- `context`: Target scope. `"workspace"` for global Space commands; `"file"` for file-targeted context actions.
+- `extensions`: File extensions filter when the action is targeted at specific formats.
 
----
-
-## Placements (`Placement`)
-
-Placements link declared views and actions to host UI entry points:
+### Placements (`Placement`)
 
 ```ts
 export type Placement =
   | { location: "command-palette"; action: string }
-  | {
-      location: "keybinding"
-      action: string
-      key: string
-      mac?: string
-      linux?: string
-    }
   | { location: "file/open"; view: string; extensions: string[] }
   | { location: "navigation"; view: string }
   | { location: "table/view"; view: string }
-  | { location: "table/context"; action: string }
   | { location: "file/context"; action: string }
+  | { location: "table/context"; action: string }
   | { location: "view/toolbar"; view: string; action: string }
+  | { location: "keybinding"; action: string; key: string; mac?: string; linux?: string }
   | { location: "plugin/settings"; view: string }
 ```
 
-| Location            | Associated With | Description                                                                  |
-| ------------------- | --------------- | ---------------------------------------------------------------------------- |
-| `"command-palette"` | Action          | Displays action in the <kbd>Cmd</kbd>+<kbd>K</kbd> command palette.          |
-| `"keybinding"`      | Action          | Binds action to a keyboard shortcut (e.g. `Mod+Alt+C`).                      |
-| `"file/open"`       | View            | Registers view under right-click **Open with** for specific file extensions. |
-| `"navigation"`      | View            | Adds a navigation entry in the Space sidebar.                                |
-| `"table/view"`      | View            | Registers view under **Table view menu → New view**.                         |
-| `"plugin/settings"` | View            | Embeds view inside the plugin's detail page in the Space plugin manager.     |
+| Location | Target | Description |
+| :--- | :--- | :--- |
+| `"command-palette"` | Action | Injected into the global Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>). |
+| `"file/open"` | View | Injected into file right-click menu **Open with**, claiming matching `extensions`. |
+| `"navigation"` | View | Mounted as a primary item in the Space left navigation sidebar. |
+| `"table/view"` | View | Mounted in the table view switcher menu (New View). |
+| `"file/context"` | Action | Injected into the file list right-click context menu. |
+| `"table/context"` | Action | Injected into the table row/selection context menu (supports dynamic providers). |
+| `"view/toolbar"` | Action | Displayed on the top toolbar of a specific view. |
+| `"keybinding"` | Action | Binds a global or scoped keyboard shortcut (e.g. `"Mod+Alt+F"`). |
+| `"plugin/settings"` | View | Embedded inside the plugin's configuration detail panel. |
 
 ---
 
-## Extension entry point (`activate`)
+## First-Class Primitives (`CommonContext`)
 
-Plugins with actions or formatters specify `extension` in `plugin.json` pointing to a module that default-exports `activate`:
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(
-  ctx: ExtensionContext
-): void | { dispose(): void } {
-  // Register actions and formatters here
-}
-```
-
-### `ExtensionContext`
+Both `ViewContext` and `ActionContext` inherit the complete set of first-class capabilities via `CommonContext`:
 
 ```ts
-export interface ExtensionContext {
-  readonly actions: {
-    register(
-      id: string,
-      handler: (ctx: ActionContext) => void | Promise<void>
-    ): Disposable
-  }
-  readonly formatters: {
-    register(id: string, provider: FormatterProvider): Disposable
-  }
-  readonly signal: AbortSignal
-  readonly subscriptions: {
-    add<T extends Disposable>(value: T): T
-  }
-}
-```
-
----
-
-## Actions (`ActionContext`)
-
-Action handlers receive an `ActionContext`:
-
-```ts
-export interface ActionContext {
-  readonly binding: ActionBinding
-  readonly ui: HostUI
+export interface CommonContext extends Lifetime {
+  readonly fs: PluginFileSystem
+  readonly storage: PluginStorage
+  readonly network: PluginNetwork
   readonly settings: Settings
+  readonly ui: HostUI
+}
+
+export interface Lifetime {
   readonly signal: AbortSignal
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
-
-export type ActionBinding =
-  | { kind: "workspace" }
-  | { kind: "document"; document: TextDocument }
-  | { kind: "table"; table: TableContext; rowId?: string }
 ```
 
-### `ActionBinding`
+### Complete Filesystem Operations (`ctx.fs`)
 
-- `binding.kind === "workspace"`: Global command executed without a focused document.
-- `binding.kind === "document"`: Command executed in the context of an active text document (`binding.document`).
-- `binding.kind === "table"`: Command executed in the context of a table view (`binding.table`).
-
-For a writable workspace action, `ctx.ui.openOrCreateMarkdown(relativePath)` opens a Space-relative `.md` file. It creates missing parent folders and an empty file when needed, and preserves an existing file. The call returns `{ path, created }`. This requires `requires.pluginApi: "1.2.0"` and `access: "write"` on the action. Use local calendar dates for daily filenames, not UTC dates.
-
-With `requires.pluginApi: "1.3.0"` and `workspace: { listMarkdownFiles: true }`, a Page View can call `ctx.ui.listMarkdownFiles(folder)` to enumerate Markdown paths under a Space-relative folder. It returns `{ paths, truncated }` and never exposes file contents. `ctx.ui.openMarkdownFile(path)` opens an existing Markdown file in Lite without returning its text. Installation explicitly discloses this Space-wide filename permission. Page Views can also read their own declared settings with `ctx.settings.get(key)`.
-
-With Plugin API 1.4 and `workspace.countMarkdownLines: true`, `ctx.ui.countMarkdownLines(paths)` returns non-empty line counts for up to 400 paths previously listed by the Page View. Unavailable or oversized files return `null`. The host never returns the text; installation discloses this additional permission.
-
-With Plugin API 1.5 and `workspace.watchMarkdownFiles: true`, a Page View can subscribe with `await ctx.ui.observeMarkdownFiles(folder, listener)`. The callback receives no paths or contents; call `listMarkdownFiles` again to refresh. Dispose the returned subscription when it is no longer needed. Lite also disposes it when the page closes. Installation discloses this permission separately.
-
-Declared scalar `manifest.settings` are edited in the plugin detail page, saved per Space, and available to an active action through `ctx.settings.get(key)`, `update(key, value)`, and `reset(key)`.
-
----
-
-## Document formatters (`FormatterProvider`)
-
-Formatters register via `ctx.formatters.register(id, provider)`.
+Plugins run locally in isolated sandboxes. `ctx.fs` provides complete local filesystem primitives:
 
 ```ts
-export interface FormatterProvider {
-  format(input: FormatterInput): { text: string } | Promise<{ text: string }>
-}
+export interface PluginFileSystem {
+  /** Reads the text content of a file (subject to a 2 MiB preview limit). */
+  readText(path: string): Promise<string>
 
-export interface FormatterInput {
-  text: string
-  path: string
-  signal: AbortSignal
+  /** Writes text to a file. Missing parent directories are created automatically. */
+  writeText(path: string, content: string): Promise<void>
+
+  /** Reads binary data from a file (supports up to 16 MiB images, media, models, etc.). */
+  readBinary(path: string): Promise<Uint8Array>
+
+  /** Writes binary data to a file (up to 16 MiB). Missing parent directories are created automatically. */
+  writeBinary(path: string, content: Uint8Array): Promise<void>
+
+  /** Deletes a file within the Space. */
+  delete(path: string): Promise<void>
+
+  /** Renames or moves a file within the Space. */
+  rename(oldPath: string, newPath: string): Promise<void>
+
+  /**
+   * Lists files in a directory.
+   * If folder is omitted in a file view, defaults to the directory of the opened file.
+   * Optionally filtered by options.extensions.
+   */
+  list(folder?: string, options?: { extensions?: string[] }): Promise<FileStat[]>
+
+  /** Inspects file or directory metadata. Returns null if missing or inaccessible. */
+  stat(path: string): Promise<FileStat | null>
+
+  /**
+   * Returns a privileged native streaming protocol URL (eidos-space-media:).
+   * Supports HTTP Range requests and instantaneous seek. If path is omitted, defaults to the current file.
+   */
+  getUrl(path?: string): Promise<string>
+
+  /** Watches a file or directory for live change events. Disposed automatically on unmount. */
+  watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
 }
 ```
 
-The host calls `format()` when the user runs **Format Document** (<kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd> / <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>). Return `{ text }` containing the transformed string.
+#### Security and Scoping Rules
+- **Companion File Scope**: In file views or actions without `workspace.files: true`, `ctx.fs` operations are strictly confined to the directory of the opened file and companion files (e.g. `movie.srt` next to `movie.mp4`).
+- **Space-Wide Access**: Declaring `workspace.files: true` grants permission to read and write anywhere within the active Space.
+- **Sandbox Isolation**: Traversal outside the Space (`..`) and access to internal directories (such as `.graft`) are strictly rejected.
 
----
-
-## Views (`mount`)
-
-Each declared view specifies an `entry` file that default-exports a `mount` function:
-
-```ts
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-
-export default function mount(
-  ctx: ViewContext,
-  root: HTMLElement
-): void | { dispose(): void } | Promise<void | { dispose(): void }> {
-  root.textContent = "Hello View"
-  return {
-    dispose() {
-      root.replaceChildren()
-    },
-  }
-}
-```
-
-### `ViewContext`
-
-```ts
-export interface ViewContext {
-  readonly binding: ViewBinding
-  readonly ui: HostUI
-  readonly storage: PluginStorage
-  readonly network: PluginNetwork
-  readonly signal: AbortSignal
-  readonly subscriptions: {
-    add<T extends Disposable>(value: T): T
-  }
-}
-
-export type ViewBinding =
-  | { kind: "page"; route: string }
-  | { kind: "document"; document: TextDocument }
-  | { kind: "table"; table: TableContext }
-  | { kind: "eidos"; file: EidosFileContext }
-```
-
----
-
-## Host UI (`HostUI`)
-
-Available on `ctx.ui` in both actions and views:
+### Host User Interface (`ctx.ui`)
 
 ```ts
 export interface HostUI {
-  /** Show a brief notification toast in the top-right corner. */
+  /** Displays a toast notification in the host interface. */
   notify(message: string): Promise<void>
-  /** Page View only; requires the workspace Markdown listing permission. */
-  listMarkdownFiles(
-    folder: string
-  ): Promise<{ paths: string[]; truncated: boolean }>
-  countMarkdownLines(
-    paths: string[]
-  ): Promise<Array<{ path: string; lines: number | null }>>
-  observeMarkdownFiles(
-    folder: string,
-    listener: () => void
-  ): Promise<Disposable>
-  openMarkdownFile(relativePath: string): Promise<void>
 
-  /** Display a modal confirmation dialog. */
-  confirm(options: {
-    title: string
-    message: string
-  }): Promise<{ status: "confirmed" | "cancelled" }>
-
-  /** Show a quick-pick modal list. */
+  /** Displays a modal selection dialog. */
   select(options: {
     title: string
     options: Array<{ id: string; label: string }>
   }): Promise<{ status: "selected"; id: string } | { status: "cancelled" }>
 
-  /** Navigate to a sub-route within a declared page view. */
+  /** Displays a modal confirmation dialog. */
+  confirm(options: {
+    title: string
+    message: string
+  }): Promise<{ status: "confirmed" | "cancelled" }>
+
+  /** Requests the host to open a relative file path in its default or associated editor. */
+  openFile(relativePath: string): Promise<void>
+
+  /** Navigates internally between declared page views of this plugin. */
   navigate(viewId: string, route?: string): Promise<void>
 }
 ```
 
----
+### Plugin Storage (`ctx.storage`)
 
-## Text documents (`TextDocument`)
-
-Available on `ctx.binding.document` when `binding.kind === "document"`:
-
-```ts
-export interface TextDocument {
-  /** Read current document text snapshot. */
-  read(): Promise<TextSnapshot>
-
-  /** Subscribe to text changes from the host or other editors. */
-  observe(
-    listener: (state: TextSnapshot) => void
-  ): Promise<{ snapshot: TextSnapshot; subscription: Disposable }>
-
-  /** Apply an in-memory draft edit with optimistic concurrency checking. */
-  edit(change: {
-    text: string
-    expectedVersion: string
-    label?: string
-  }): Promise<{ status: "applied" | "stale"; snapshot: TextSnapshot }>
-
-  /** Explicitly persist current draft to disk. */
-  save(): Promise<{ status: "saved" | "conflict"; snapshot: TextSnapshot }>
-
-  /** Undo the last edit. */
-  undo(): Promise<TextSnapshot>
-
-  /** Redo the last undone edit. */
-  redo(): Promise<TextSnapshot>
-}
-
-export interface TextSnapshot {
-  text: string
-  version: string
-  encoding: "utf-8" | "utf-16le" | "utf-16be"
-  bom: boolean
-  dirty: boolean
-  conflicted: boolean
-}
-```
-
----
-
-## Tables (`TableContext`)
-
-Available on `ctx.binding.table` when `binding.kind === "table"`:
-
-```ts
-export interface TableContext {
-  readonly tableId: string
-  readonly viewId: string
-
-  /** Read bound view metadata, column names, and field schemas. */
-  read(): Promise<TableViewSnapshot>
-
-  /** Fetch paginated row records respecting host filters, sorting, and search. */
-  getPage(options: { offset: number; limit: number }): Promise<EidosFileRowPage>
-
-  /** Run SQLite-accelerated grouped aggregation on the server. */
-  aggregate(options: TableAggregateOptions): Promise<TableAggregateResult>
-
-  /** Update view configuration stored under properties.plugin. */
-  updateProperties(properties: Record<string, unknown>): Promise<void>
-
-  /** Open a record card modal in the host UI. */
-  openRecord(rowId: string): Promise<void>
-
-  /** Subscribe to table data mutations. */
-  observe(listener: () => void): Disposable
-}
-```
-
-### Table aggregations
-
-```ts
-export interface TableAggregateOptions {
-  groupBy?: {
-    fieldId: string
-    dateInterval?: "exact" | "day" | "month" | "year"
-  }
-  metric: {
-    fieldId?: string
-    op: "count" | "sum" | "average" | "min" | "max"
-  }
-  sort?: "label" | "value-desc" | "value-asc"
-}
-```
-
----
-
-## Offline storage (`PluginStorage`)
-
-Private, persistent binary storage for this plugin on the current device (shared across Spaces):
+Private binary key-value persistence on the local device, shared across Spaces for the same plugin:
 
 ```ts
 export interface PluginStorage {
-  /** Write a binary Uint8Array value for a given key. */
   write(key: string, value: Uint8Array): Promise<void>
-
-  /** Read bytes for a given key, or null if absent. */
   read(key: string): Promise<Uint8Array | null>
-
-  /** List stored keys and sizes matching an optional prefix. */
   list(prefix?: string): Promise<Array<{ key: string; size: number }>>
-
-  /** Delete a key. */
   remove(key: string): Promise<void>
 }
 ```
 
-- Keys: ASCII strings up to 100 characters.
-- Max object size: 4 MiB.
-- Total quota: bounded by `storage.maxBytes` in manifest (max 1 GiB).
+### Network Requests (`ctx.network`)
 
----
-
-## Network requests (`PluginNetwork`)
-
-Anonymous, bounded HTTPS requests to origins declared in `browser.networkOrigins`:
+Performs restricted HTTPS requests to whitelisted domains declared in `browser.networkOrigins`:
 
 ```ts
 export interface PluginNetwork {
@@ -484,106 +268,161 @@ export interface PluginNetwork {
 }
 ```
 
-- Target URL must match one of the HTTPS origins declared in `browser.networkOrigins`.
-- Timeout: 20 seconds.
-- Maximum payload: 4 MiB.
+### Settings (`ctx.settings`)
 
-## New contexts and development workflow
-
-`requires.pluginApi` is the minimum plugin API contract, not the SDK npm version; `apiVersion: 1` remains unchanged.
-`context: "eidos"` is an Eidos File View. See [Plugin concepts](/plugins/concepts/).
-
-See [Development workflow](/plugins/workflow/) for EidosFileContext, TableActionProvider,
-plugin-scoped table configuration, connections, host checks, debugging, tests, and publishing.
-The installed `@eidos.space/plugin-sdk` declarations are the complete type reference.
-
-## Eidos file and table action interfaces
-
-These interfaces match SDK 0.2.0. The host creates a `TableActionContext` for each run; declare sample outputs before writing target records. See the [workflow](/plugins/workflow/) for usage.
+Manages plugin settings declared in `manifest.settings` (persisted per Space):
 
 ```ts
-export interface EidosFileContext {
-  readonly connections: {
-    configured(connection: string): Promise<boolean>
-    request(input: {
-      connection: string
-      body: JsonObject
-    }): Promise<JsonObject>
-  }
-  listTables(): Promise<Array<{ id: string; name: string }>>
-  readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
-  readPluginConfig(tableId: string): ReturnType<TablePluginConfig["read"]>
-  writePluginConfig(
-    tableId: string,
-    input: Parameters<TablePluginConfig["write"]>[0]
-  ): ReturnType<TablePluginConfig["write"]>
+export interface Settings {
+  get(key: string): Promise<SettingValue>
+  update(key: string, value: SettingValue): Promise<void>
+  reset(key: string): Promise<void>
+  observe(
+    listener: (values: Record<string, SettingValue>) => void,
+    onError?: ObserverErrorHandler
+  ): Promise<{ values: Record<string, SettingValue>; subscription: Disposable }>
 }
+```
 
-export interface TablePluginConfig {
-  read(): Promise<TablePluginConfigSnapshot>
-  write(input: {
-    value: JsonObject | null
-    expectedVersion: string
-  }): Promise<TablePluginConfigSnapshot>
-  /** Invalidation hint; call read() for current values. May include unrelated table changes. */
+---
+
+## Views (`ViewContext` & `mount`)
+
+Each view entrypoint exports a default `mount` function:
+
+```ts
+import type { ViewContext, Disposable } from "@eidos.space/plugin-sdk"
+
+export default function mount(
+  ctx: ViewContext,
+  root: HTMLElement
+): void | Disposable | Promise<void | Disposable> {
+  root.textContent = "Hello View"
+  return {
+    dispose() {
+      root.replaceChildren()
+    },
+  }
+}
+```
+
+### `ViewContext` Structure
+
+```ts
+export interface ViewContext extends CommonContext {
+  readonly binding: ViewBinding
+
+  // Available according to the opened file type:
+  readonly file?: FileContext       // Available for all file views
+  readonly editor?: TextDocument     // Available when viewing text files
+  readonly table?: TableContext       // Available when viewing .eidos tables
+  readonly eidos?: EidosFileContext   // Available when viewing .eidos files
+}
+```
+
+### File Metadata (`ctx.file`)
+
+Available in any view opened through `file/open`:
+
+```ts
+export interface FileContext {
+  readonly path: string      // Space-relative path (e.g. "notes/todo.md")
+  readonly name: string      // Full filename (e.g. "todo.md")
+  readonly baseName: string  // Filename without extension (e.g. "todo")
+  readonly extension: string // Extension (e.g. ".md")
+  readonly size: number      // File size in bytes
+  readonly mimeType?: string // Optional media MIME type
+}
+```
+
+### Text Editor Operations (`ctx.editor`)
+
+When viewing text files, `ctx.editor` provides working-copy coordination:
+
+```ts
+export interface TextDocument {
+  read(): Promise<TextSnapshot>
+  observe(listener: (state: TextSnapshot) => void): Promise<{ snapshot: TextSnapshot; subscription: Disposable }>
+  edit(change: { text: string; expectedVersion: string; label?: string }): Promise<{ status: "applied" | "stale"; snapshot: TextSnapshot }>
+  save(): Promise<{ status: "saved" | "conflict"; snapshot: TextSnapshot }>
+  undo(): Promise<TextSnapshot>
+  redo(): Promise<TextSnapshot>
+}
+```
+
+### Database Tables and `.eidos` Context (`ctx.table` & `ctx.eidos`)
+
+Available when viewing `.eidos` SQLite database files or embedded table views:
+
+```ts
+export interface TableContext {
+  readonly tableId: string
+  readonly viewId: string
+  readonly pluginConfig: TablePluginConfig
+  read(): Promise<TableViewSnapshot>
+  getPage(options: { offset: number; limit: number }): Promise<EidosFileRowPage>
+  aggregate(options: TableAggregateOptions): Promise<TableAggregateResult>
+  updateProperties(properties: Record<string, unknown>): Promise<void>
+  openRecord(rowId: string): Promise<void>
   observe(listener: () => void): Disposable
 }
 
-export interface TablePluginConfigSnapshot {
-  value: JsonObject | null
-  version: string
-}
-
-export interface TableActionItem {
-  id: string
-  title: string
-  /** Optional monochrome 24×24 SVG paths; no external resources. */
-  icon?: { paths: string[] }
-  targets: Array<"row" | "selection" | "view">
-}
-
-export interface TableActionRecord {
-  id: string
-  values: Record<string, LogicalValue>
-  readToken: string
-}
-
-export interface TableActionContext {
-  readonly signal: AbortSignal
-  readonly table: Pick<TableContext, "tableId" | "viewId" | "read"> & {
-    pluginConfig: Pick<TableContext["pluginConfig"], "read">
-  }
-  readonly target: {
-    count: number
-    read(options: {
-      offset: number
-      limit: number
-      fields: string[]
-    }): Promise<TableActionRecord[]>
-    update(input: {
-      readToken: string
-      values: Record<string, LogicalValue>
-    }): Promise<void>
-  }
-  readonly connections: {
-    request(input: {
-      connection: string
-      body: JsonObject
-    }): Promise<JsonObject>
-  }
-  readonly task: {
-    /** Declares validated sample outputs. Lite applies runs directly and does not show a confirmation preview. */
-    preview(
-      rows: Array<{ readToken: string; values: Record<string, LogicalValue> }>
-    ): Promise<boolean>
-    report(progress: { completed: number; message?: string }): Promise<void>
-  }
-}
-
-export interface TableActionProvider {
-  getItems(
-    context: Pick<TableActionContext, "table" | "signal">
-  ): Promise<TableActionItem[]> | TableActionItem[]
-  run(context: TableActionContext, itemId: string): Promise<void>
+export interface EidosFileContext {
+  listTables(): Promise<Array<{ id: string; name: string }>>
+  readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
+  readPluginConfig(tableId: string): Promise<TablePluginConfigSnapshot>
+  writePluginConfig(tableId: string, input: { value: JsonObject | null; expectedVersion: string }): Promise<TablePluginConfigSnapshot>
 }
 ```
+
+---
+
+## Actions & Background Extension (`activate` & `ActionContext`)
+
+Plugins with actions or formatters specify an `extension` entry in `plugin.json`:
+
+```ts
+import type { ExtensionContext } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  ctx.actions.register("format-markdown", async (actionCtx) => {
+    // actionCtx provides full CommonContext
+  })
+}
+```
+
+### `ExtensionContext`
+
+```ts
+export interface ExtensionContext extends Lifetime {
+  readonly actions: {
+    register(id: string, handler: (ctx: ActionContext) => void | Promise<void>): Disposable
+    registerTableProvider(id: string, provider: TableActionProvider): Disposable
+  }
+  readonly formatters: {
+    register(id: string, provider: FormatterProvider): Disposable
+  }
+  readonly settings: Settings
+}
+```
+
+### `ActionContext`
+
+```ts
+export interface ActionContext extends CommonContext {
+  readonly binding: ActionBinding
+  readonly file?: FileContext
+  readonly editor?: TextDocument
+  readonly table?: TableContext
+}
+```
+
+### Formatter Provider (`FormatterProvider`)
+
+```ts
+export interface FormatterProvider {
+  format(input: { text: string; path: string; signal: AbortSignal }): { text: string } | Promise<{ text: string }>
+}
+```
+
+Triggered automatically when the user invokes **Format Document** (<kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd> / <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>).

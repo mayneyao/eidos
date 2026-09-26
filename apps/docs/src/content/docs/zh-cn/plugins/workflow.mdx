@@ -1,201 +1,239 @@
 ---
 title: 插件开发工作流
-description: 选择模板、检查宿主兼容性、调试测试，并准备注册表提交。
+description: 工程模板、宿主兼容性检查、.eidos 数据库交互、动态表格动作与主题开发。
 sidebar:
   order: 4
 ---
 
-本文的分类模板、目标宿主检查、校验和输出与注册条目工具已在当前源码中实现，
-需要下一次 plugin-tools / CLI 发版后使用；已发布的 plugin-tools 0.2.0 尚不包含这些功能。
-发版前可在本仓库构建 plugin-tools，直接运行其 `bin/eidos-plugin.mjs`。
-示例代码与接口使用 SDK 0.2.0。
+本文档介绍进阶开发流程：从模板创建、宿主兼容性检查、与 `.eidos` SQLite 数据包交互、动态表格动作，到制作独立主题与打包发布。
 
-## 选择模板
+---
+
+## 1. 选择脚手架模板
+
+官方脚手架提供多种面向不同开发场景的预设模板：
 
 ```sh
+# 查看所有可用模板
 npx @eidos.space/plugin-tools templates
-npx @eidos.space/plugin-tools create my-plugin --template table-action
-# 等价的项目创建方式，这一步不需要 Node.js：
-eidos plugin create my-plugin --template table-action
+
+# 使用特定模板创建项目
+npx @eidos.space/plugin-tools create my-plugin --template file-view
+
+# 或者使用 eidos CLI（效果完全相同）
+eidos plugin create my-plugin --template file-view
+
 cd my-plugin
 npm install
 npm run check
 ```
 
-| 模板                  | 能力与入口                          | 示例                       |
-| --------------------- | ----------------------------------- | -------------------------- |
-| document-view（默认） | File View → Document View；打开方式 | CSV 编辑、保存、撤销重做   |
-| eidos-view            | File View → Eidos View；打开方式    | 浏览 .eidos 文件的表与字段 |
-| table-view            | Table View；表内视图菜单            | 记录数量与数据变化订阅     |
-| table-action          | Table Action；表格右键菜单          | 勾选复选框、分页处理与进度 |
-| page                  | Page View 与 Space 级动作           | 导航页面与命令面板入口     |
-| theme                 | Eidos Lite 宿主主题                 | 独立的浅色／深色配色与字体 |
+| 模板 | 目标场景 | 核心能力与接口 |
+| :--- | :--- | :--- |
+| **file-view**（推荐） | 物理文件自定义视图（右键打开方式） | `context: "file"`，`ctx.file`，`ctx.fs`，可选 React UI |
+| **table-view** | 数据表内部视图（表内新建视图） | `context: "table"`，`ctx.table` 记录拉取与 SQLite 聚合 |
+| **table-action** | 数据表格批量操作（表格右键上下文） | `registerTableProvider`，任务进度与读取令牌安全更新 |
+| **page** | 独立一级面板（侧边栏导航） | `context: "page"`，`navigation`，`workspace.files` |
+| **theme** | Eidos Lite 宿主主题定制 | `kind: "theme"`，语义配色与离线内嵌字体 |
 
-普通插件模板采用 `src/` 结构；主题模板只需 `plugin.json`。Node 和 Rust 读取同一份模板目录定义与源码。
-代码模板使用普通 TypeScript，不预装 React；需要时按[开发指南](/zh-cn/plugins/guide/)添加。
-未知参数或模板名称会明确报错。
+---
 
-## 检查目标宿主
+## 2. 检查宿主兼容性
+
+Eidos Lite 与 CLI Serve 对插件特性的支持范围有所不同。在打包发布前，使用内置工具链进行兼容性静态校验：
 
 ```sh
+# 针对 Eidos Lite 桌面端进行完整校验
 npm run check -- --target lite
-npm run check -- --target cli --json
-eidos plugin check . --target cli
-eidos plugin doctor dist/local.my-plugin-0.1.0.eidos-plugin
+
+# 针对 Eidos CLI Serve 网页端进行校验
+npm run check -- --target cli
+
+# 输出 JSON 格式诊断信息（便于 CI/CD 集成）
+npm run check -- --json
 ```
 
-普通检查验证源码，并展示两个宿主的兼容性。指定目标后，该宿主不支持插件时命令会失败。
-这里使用安装的工具版本内置的宿主能力表，不会探测电脑上的 Lite 版本。
-`eidos plugin doctor` 检查实际安装的 CLI 所支持的契约。
+| 宿主 | 支持范围 |
+| :--- | :--- |
+| **Eidos Lite (桌面端)** | 全功能支持：File View、Page View、Table View、Action、Formatter、完整 `ctx.fs` 原语、私有存储、受限网络与独立主题。 |
+| **Eidos CLI (Serve 网页端)** | 专注于数据表可视化：Table View 及声明的 Web Worker 与浏览器网络能力。 |
 
-| 宿主能力表    | Plugin API | 支持范围                                                                       |
-| ------------- | ---------- | ------------------------------------------------------------------------------ |
-| Lite 开发版   | 1.6.0      | Document、Eidos、Table、Page View，以及动作、设置、Markdown 权限和独立宿主主题 |
-| CLI 1.4 Serve | 1.0.0      | Table View 及声明的浏览器网络、Worker 能力                                     |
-
-SDK npm 版本、插件版本、宿主版本与 Plugin API 契约版本不是一回事。
-保留 `apiVersion: 1`，需要新契约时声明最低要求：
-
-```json
-{ "requires": { "pluginApi": "1.1.0" } }
-```
-
-工具从声明推导所需能力，开发者不用另填能力清单。含 `requires` 的包使用格式 2，
-不含该字段的旧包使用格式 1；由打包工具生成，不需要手工拼包。
-
-## 配置 .eidos 文件
-
-先判断 `ctx.binding.kind === "eidos"`，再使用 `ctx.binding.file`：
-
-- `listTables()`：获取表 ID 与名称。
-- `readTable(tableId)`：获取字段元数据。
-- `readPluginConfig(tableId)`：读取当前插件的表配置与版本。
-- `writePluginConfig(tableId, { value, expectedVersion })`：带版本检查的配置写入。
-- `connections.configured(id)` 与 `connections.request({ connection, body })`。
-
-配置保存在数据表 settings JSON 的插件命名空间，随 .eidos 文件迁移。
-不要将凭据放入这些配置。该上下文不提供任意 SQL 或通用记录修改。
-
-## 动态数据表动作
-
-在激活入口调用 `ctx.actions.registerTableProvider(actionId, provider)`。
-manifest 动作声明 `context: "table"`、`access: "write"` 和 `table/context` 贡献点。
-注册结果可以释放，应加入 subscriptions。
-
-- `getItems({ table, signal })` 返回包含 `id`、`title`、可选 SVG 路径图标和
-  `targets`（`row`、`selection`、`view`）的菜单项。
-- `run(ctx, itemId)` 执行菜单项。重新读取字段结构及 `table.pluginConfig.read()`，
-  不要使用已经过期的菜单快照。
-- 通过 `ctx.target.count` 与 `target.read({ offset, limit, fields })` 遍历冻结的目标范围。
-  全选可以包含所有筛选记录，不能只处理 Grid 已加载的记录。
-- 使用 `target.update({ readToken, values })` 写入，宿主负责过期读取检查；不要绕过接口直接执行 SQL。
-- 在读取和写入之间检查 `ctx.signal`。等待写入完成，并向上传递失败。
-- `ctx.task.report({ completed, message })` 更新宿主任务窗口。Lite 提供本次任务的撤销重做。
-  completed 应包含不需要修改的已处理记录。
-- 第一次写入前，必须调用一次 `task.preview(rows)`，用 1–3 个真实读取令牌及已验证的样本输出
-  声明输出字段。后续写入不能超出这些字段，样本记录的写入值必须与声明一致。
-  该调用虽然保留旧名称，但当前 Lite 直接应用，不再展示确认预览；返回 false 时停止执行。
-
-旧的动作级 `configuration` 和 `multiple` 声明会被拒绝。
-动作列表归插件管理，定义保存在表的插件配置中。
-
-## 插件设置与带凭据的连接
-
-manifest 的 `settings` 声明字符串、布尔值或数字偏好，由宿主生成设置界面；
-`ctx.settings` 提供 get/update/reset/observe。每张表的配置使用 `table.pluginConfig`
-或 Eidos 文件上下文的配置接口。
-
-带凭据的请求声明为具名 `connections`：
+当前 Eidos Lite 的可执行插件必须声明 API 2.0.0：
 
 ```json
 {
-  "connections": {
-    "service": {
-      "title": "My service",
-      "url": "https://api.example.com/endpoint",
-      "configurable": true
-    }
-  }
+  "requires": { "pluginApi": "2.0.0" }
 }
 ```
 
-连接配置与凭据由宿主管理。通过 Eidos 文件或表动作上下文的
-`connections.request` 发送 JSON 请求体。不要把密钥写进源码、日志、记录或可迁移的表配置。
-匿名 `ctx.network.read` 是另一个接口，使用 `browser.networkOrigins` 声明来源。
+---
 
-## 制作独立的 Eidos Lite 主题
+API 1.x 可执行插件需要将文件访问迁移到 `ctx.fs`，导航迁移到 `ctx.ui.openFile`，
+Space 权限迁移到 `workspace.files`。旧资源声明和 Markdown 专用方法不再支持。
+已安装的不兼容插件仍可查看和卸载。纯 API 1.6.0 主题继续兼容。
+CLI Serve 的表格视图范围仍使用 API 1.0.0。
 
-```sh
+## 3. 操作 `.eidos` 数据文件
+
+当插件视图打开 `.eidos` 文件时，可以通过 `ctx.eidos` 接口读取数据表元数据并持久化保存插件的表级配置：
+
+```ts
+// 1. 列出当前 .eidos 文件中包含的所有数据表
+const tables = await ctx.eidos.listTables()
+
+// 2. 读取指定数据表的字段定义元数据
+const { fields } = await ctx.eidos.readTable(tables[0].id)
+
+// 3. 读取当前插件在数据表上的持久化私有配置
+const config = await ctx.eidos.readPluginConfig(tables[0].id)
+
+// 4. 基于版本控制安全保存表配置（随 .eidos 文件一起移动和同步）
+await ctx.eidos.writePluginConfig(tables[0].id, {
+  value: { customFilter: "status = 'done'" },
+  expectedVersion: config.version,
+})
+```
+
+---
+
+## 4. 动态数据表动作 (`registerTableProvider`)
+
+对于需要深度集成在数据表格右键或批量处理记录的场景，可在扩展激活中注册动态动作提供器：
+
+在 `plugin.json` 中声明：
+
+```json
+{
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "batch-processor",
+      "title": "批量处理记录",
+      "context": "table",
+      "access": "write"
+    }
+  ],
+  "placements": [
+    { "location": "table/context", "action": "batch-processor" }
+  ]
+}
+```
+
+在 `src/extension.ts` 中实现：
+
+```ts
+import type { ExtensionContext, TableActionProvider } from "@eidos.space/plugin-sdk"
+
+export default function activate(ctx: ExtensionContext) {
+  const provider: TableActionProvider = {
+    // 动态生成菜单项列表
+    getItems({ table, signal }) {
+      return [
+        {
+          id: "uppercase-names",
+          title: "将选中文本转换为大写",
+          targets: ["row", "selection"],
+        },
+      ]
+    },
+
+    // 执行具体选中的动作
+    async run(actionCtx, itemId) {
+      const { target, task, signal } = actionCtx
+
+      // 1. 分批读取目标行（带只读 token）
+      const rows = await target.read({ offset: 0, limit: 100, fields: ["name"] })
+
+      // 2. 声明样本输出字段（Lite 直接应用）
+      await task.preview(rows)
+
+      // 3. 循环批量更新
+      for (let i = 0; i < rows.length; i++) {
+        signal.throwIfAborted()
+        const row = rows[i]
+        const currentName = String(row.values["name"] || "")
+
+        await target.update({
+          readToken: row.readToken,
+          values: { name: currentName.toUpperCase() },
+        })
+
+        // 报告任务处理进度
+        await task.report({
+          completed: i + 1,
+          message: `正在处理第 ${i + 1}/${rows.length} 条记录...`,
+        })
+      }
+    },
+  }
+
+  const registration = ctx.actions.registerTableProvider("batch-processor", provider)
+  ctx.subscriptions.add(registration)
+}
+```
+
+---
+
+## 5. 制作独立的 Eidos Lite 主题
+
+除了功能性插件，你还可以制作定制整个桌面宿主外观的主题包：
+
+```bash
 npx @eidos.space/plugin-tools create my-theme --template theme
 cd my-theme
-npm install
 npm run check -- --target lite
 npm run pack:plugin
 ```
 
-模板把 `plugin.json` 保持为简短的 `kind: "theme"` 和
-`theme.stylesheet: "./theme.css"` 声明。在 `theme.css` 中编辑浅色、深色的
-`:root[data-theme="…"]` 规则。
-`--theme-surface`、`--theme-ink`、`--theme-accent`、`--lite-sidebar`、
-`--font-ui`、`--control-radius` 等变量作用于**整个 Eidos Lite 界面**，
-跨所有 Space 生效。现有的浅色／深色／跟随系统偏好仍决定使用哪套配色。
-完整变量白名单和取值范围见[插件规范](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-lite-plugins-1.0.zh.md)。
-
-可在 `theme.css` 中通过 `@font-face` 添加本地字体，例如
-`@font-face { font-family: "My Sans"; src: url("./fonts/my-sans.woff2"); font-weight: 400; }`。
-打包时字体会内嵌；CSS 只接受两套外观规则和最多四个本地字体规则，不接受远程资源。
-主题包没有 JavaScript 模块、
-View、Action、授权或文件访问能力。生成的 `.eidos-plugin` 可以选择文件或拖入安装。
-在插件管理器中打开主题详情，点击**应用主题**；点击**使用默认主题**可取消选择。
-安装本身不会自动应用。CLI Serve 不支持主题插件。
-
-## 普通插件的样式与生命周期
-
-使用宿主注入的 `--eidos-*` 变量：background、foreground、border、accent、muted、
-surface-hover、surface-selected、font-family、color-scheme，以及 scrollbar-thumb
-和它的 hover/active 变体。模板已带有基础主题样式。
+在 `theme.css` 中定义浅色与深色语义色彩变量：
 
 ```css
-:root {
-  color-scheme: var(--eidos-color-scheme, light);
-  font-family: var(--eidos-font-family, system-ui);
-  background: var(--eidos-background);
+:root[data-theme="light"] {
+  --theme-surface: #f7f8fa;
+  --theme-ink: #19212b;
+  --theme-accent: #2563eb;
+  --lite-sidebar: #f1f3f7;
+  --control-radius: 8px;
+}
+
+:root[data-theme="dark"] {
+  --theme-surface: #181d24;
+  --theme-ink: #eef2f6;
+  --theme-accent: #3b82f6;
+  --lite-sidebar: #13171c;
+  --control-radius: 8px;
+}
+```
+
+- **语义变量范围**：涵盖表面背景、字体色彩、高亮强调、边栏、圆角与字号规范。
+- **离线内嵌字体**：可通过 `@font-face` 引入本地 `.woff2` / `.ttf` 字体文件，打包时自动内嵌为 Base64 Data URL。
+- **纯静态安全**：主题包不包含任何 JavaScript 可执行代码，安装后在宿主设置中全局选用。
+
+---
+
+## 6. 视图样式与设计系统变量
+
+编写插件视图 UI 时，优先使用宿主注入的设计系统 CSS 变量，确保与用户当前主题无缝融合：
+
+```css
+.viewer-container {
+  background-color: var(--eidos-background);
   color: var(--eidos-foreground);
+  font-family: var(--eidos-font-family, system-ui);
+  border: 1px solid var(--eidos-border);
 }
-* {
-  scrollbar-color: var(--eidos-scrollbar-thumb) transparent;
+
+button.primary {
+  background-color: var(--eidos-accent);
+  color: #ffffff;
+  border-radius: var(--eidos-control-radius, 6px);
 }
 ```
 
-订阅需要注册清理，异步操作需要响应取消；导航离开后不要让迟到的响应更新界面。
-展示数据文本使用 textContent。
+---
 
-## 调试与测试
+## 7. 调试、测试与发布
 
-1. 使用 `npm run check -- --json` 获取结构化源码诊断。
-2. 在 Lite 的「加载开发源码」中选择 `plugin.json`，在测试 Space 启用。
-   修改源码会重载；修改声明需要重新确认权限。
-3. 加载或授权失败时查看宿主错误提示。在宿主提供开发者工具时，查看插件 iframe
-   的控制台和带 source map 的堆栈。事件回调中的异步异常需要捕获并在插件界面解释。
-4. 开发重载不会更新已安装归档。测试重启行为前，应打包安装。
-   `plugin dev` 目前明确提示开发会话不可用，并不是独立预览服务器。
-
-table-action 模板提供 `npm test`，用小型 mock 上下文覆盖分页、取消和字段变化。
-仍需在真实宿主测试：单条记录、指定选择、筛选后全选、并发编辑、取消、部分失败、
-撤销重做、重载与深色主题。目前尚无完整的 mock-host 工具包。
-
-## 准备发布
-
-```sh
-npm run pack:plugin
-npx @eidos.space/plugin-tools registry dist/local.my-plugin-0.1.0.eidos-plugin --repo owner/repository --category automation --description "描述用户可以完成什么" --compatibility "Requires Eidos Lite 0.17.0 or later."
-```
-
-打包生成归档及相邻的 `.sha256` 文件。registry 命令对实际归档计算哈希，
-输出包含 ID、名称、分类、仓库、版本、标签、附件名、校验和与兼容性说明的提交草稿。
-描述和宿主要求需如实填写；默认标签为 `v<version>`，使用不同标签时请调整。
-保留已弃用的 `preview: false` 字段是为了兼容注册表格式。
-
-将不可变的归档上传到 GitHub Release，再向
-[eidos-space/registry](https://github.com/eidos-space/registry) 提交条目。
-工具不会自动上传、发版或创建 PR。
+1. **结构化诊断**：运行 `npm run check`，快速捕获清单遗漏、未定义入口或 TypeScript 类型错误。
+2. **热重载调试**：在 Eidos Lite 工具栏中点击 **Plugins → Load development source…** 加载本地源码目录。修改保存代码后，视图自动秒级热重载。
+3. **打包分发**：运行 `npm run pack:plugin`，在 `dist/` 目录下生成 `.eidos-plugin` 自包含安装包及其 SHA-256 校验和文件，可直接分发给用户或提交至插件官方注册表。

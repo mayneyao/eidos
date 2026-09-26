@@ -139,7 +139,7 @@ interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "document" | "table" | "eidos"
+  context: "page" | "file" | "document" | "table" | "eidos" | "media"
   access?: "read" | "write"
   configuration?: ViewConfiguration
   icon?: PluginIconDefinition
@@ -147,7 +147,7 @@ interface ViewDeclaration {
 interface ActionDeclaration {
   id: string
   title: string
-  context: "workspace" | "document" | "table"
+  context: "workspace" | "file" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
   icon?: PluginIconDefinition
@@ -329,33 +329,20 @@ Example: an authorized Journals page, without a controller:
 The suggested folder name is UI guidance, never authorization. Bindings are
 chosen by the user and are not source paths or secrets in this descriptor.
 
-Lite Plugin API 1.3 adds a separate, explicitly declared read-only capability:
-`workspace: { listMarkdownFiles: true }`. After the installation review discloses
-this Space-wide filename permission, a Page View may call
-`HostUI.listMarkdownFiles(folder)` for a Space-relative folder. It returns at
-most 20,000 Markdown paths and a `truncated` flag, without file contents. The
-same Page View may call `HostUI.openMarkdownFile(path)` to ask the host to open
-an existing Markdown file, without receiving its text. Paths remain confined
-to the current Space, and symlinks and protected implementation entries are
-not traversed. This permission does not grant document read or write access.
+Lite Plugin API provides an explicitly declared workspace file access capability:
+`workspace: { files: boolean | { read?: boolean; write?: boolean } }`.
+When `workspace.files` is granted, views and actions can read (and if `write: true`,
+write) files throughout the Space via `ctx.fs`. Page views, actions, and custom views
+can list directory files, read file text, write files, check file stats, and watch
+directory file changes.
 
-Lite Plugin API 1.4 adds `workspace.countMarkdownLines: true`, which also
-requires `listMarkdownFiles: true`. A Page View may pass up to 400 paths
-previously returned by its own `listMarkdownFiles` calls to
-`HostUI.countMarkdownLines(paths)`. The host returns each path with its count of
-non-empty lines, or `null` when a file is unavailable or exceeds the text
-preview limit. File contents never cross the plugin boundary. The installation
-review discloses this additional Space-wide metadata permission separately.
+When `workspace.files` is not declared, file-backed views (`document`, `media`, `file`,
+`eidos`) still have access to `ctx.fs`, but its scope is strictly confined to the directory
+of the bound file and companion files sharing its base name. Paths outside the file's
+directory are rejected.
 
-Lite Plugin API 1.5 adds `workspace.watchMarkdownFiles: true`, alongside the
-required `listMarkdownFiles: true`. An active Page View may call
-`HostUI.observeMarkdownFiles(folder, listener)` for a Space-relative folder.
-It returns a disposable subscription. The host coalesces filesystem changes
-and invokes the listener when a Markdown file or containing directory changes
-under that folder; the notification contains no file paths or contents. The
-Page View must rescan with `listMarkdownFiles` to obtain current data.
-Subscriptions end when the Page View closes or the plugin is revoked. The
-installation review discloses this separate change-notification permission.
+All file operations remain confined to the current Space; traversal outside (`..`) and
+internal implementation directories (`.graft`, etc.) are blocked.
 
 ## 4. Entry points, SDK and lifecycle
 
@@ -368,19 +355,59 @@ interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 interface CommonContext extends Lifetime {
-  readonly resources: GrantedResources
+  readonly fs: PluginFileSystem
+  readonly storage: PluginStorage
+  readonly network: PluginNetwork
   readonly settings: Settings
   readonly ui: HostUI
 }
 type ViewBinding =
   | { kind: "page"; route: string }
+  | { kind: "file"; file: FileContext }
   | { kind: "document"; document: TextDocument }
   | { kind: "table"; table: TableContext }
+  | { kind: "eidos"; file: EidosFileContext }
+  | { kind: "media"; media: FileContext }
 interface ViewContext extends CommonContext {
   readonly binding: ViewBinding
+  readonly file?: FileContext
+  readonly editor?: TextDocument
+  readonly table?: TableContext
+  readonly eidos?: EidosFileContext
+}
+interface FileStat {
+  readonly path: string
+  readonly name: string
+  readonly extension: string
+  readonly size: number
+  readonly isDirectory: boolean
+}
+interface FileContext {
+  readonly path: string
+  readonly name: string
+  readonly baseName: string
+  readonly extension: string
+  readonly mimeType?: string
+  readonly size: number
+}
+interface PluginFileSystem {
+  readText(path: string): Promise<string>
+  writeText(path: string, content: string): Promise<void>
+  readBinary(path: string): Promise<Uint8Array>
+  writeBinary(path: string, content: Uint8Array): Promise<void>
+  delete(path: string): Promise<void>
+  rename(oldPath: string, newPath: string): Promise<void>
+  list(
+    folder?: string,
+    options?: { extensions?: string[] }
+  ): Promise<FileStat[]>
+  stat(path: string): Promise<FileStat | null>
+  getUrl(path?: string): Promise<string>
+  watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
 }
 type ActionBinding =
   | { kind: "workspace" }
+  | { kind: "file"; file: FileContext }
   | { kind: "document"; document: TextDocument }
   | {
       kind: "table"
@@ -392,6 +419,9 @@ type ActionBinding =
     }
 interface ActionContext extends CommonContext {
   readonly binding: ActionBinding
+  readonly file?: FileContext
+  readonly editor?: TextDocument
+  readonly table?: TableContext
 }
 interface ExtensionContext extends Lifetime {
   readonly settings: Settings
@@ -630,6 +660,27 @@ or a clear unavailable view with an option to open a separate standard view.
 Merely opening a `.eidos` file MUST NOT install or execute its referenced plugin.
 No Eidos File schema change is introduced; this profile uses existing custom
 view metadata and data engine operations.
+
+Media views (`context: "media"`) bind one opened media file (`FileContext`). The host
+does not load raw binary content into memory or clone media buffers across IPC; instead,
+media elements stream via the privileged `eidos-space-media:` scheme with HTTP range support.
+Media views can be configured as default open tools under **Settings → Files**.
+
+All file-backed views (`context: "media"`, `context: "document"`, and `context: "eidos"`)
+have access to `ctx.file` (`FileContext`) for file metadata, and `ctx.fs` (`PluginFileSystem`)
+for directory and companion file access:
+
+- `ctx.fs.getUrl(path?: string): Promise<string>` resolves an `eidos-space-media:` streaming URL.
+  In a media view, omitting `path` defaults to the opened file. In a document view, passing `path` selects
+  the companion media file, or auto-detects one if omitted.
+- `ctx.fs.list(folder?: string, options?: { extensions?: string[] }): Promise<FileStat[]>`
+  enumerates companion files in the directory, optionally filtered by extension.
+- `ctx.fs.readText(path: string): Promise<string>` reads companion text (e.g. subtitles or metadata)
+  under the 2 MiB preview limit.
+- `ctx.fs.stat(path: string): Promise<FileStat | null>` inspects file metadata.
+
+Without `workspace.files`, companion file access is strictly scoped to the file's parent directory
+and companion files, rejecting path traversal outside the directory (`..`).
 
 ## 7. Resources and authorization
 
@@ -1016,6 +1067,7 @@ interface HostUI {
     title: string
     message: string
   }): Promise<{ status: "confirmed" | "cancelled" }>
+  openFile(relativePath: string): Promise<void>
   navigate(viewId: string, route?: string): Promise<void>
   resolveAsset(document: TextDocument, relativePath: string): Promise<string>
   openLink(
@@ -1383,7 +1435,14 @@ Hosts also derive required features from view contexts, extension/actions/format
 connections/resources/settings/storage and browser permissions. Authors do not
 maintain a capabilities list. The shared host inventory is
 `packages/plugin-runtime/src/compatibility-data.json`. This implementation advertises
-Lite 1.6.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite 2.0.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite executable packages MUST declare API 2.0.0. API 1.x and undeclared executable
+packages are rejected before installation or execution; installed packages remain
+visible and removable. Pure API 1.6.0 themes remain compatible because their
+stylesheet contract is unchanged. API 2.0 removes `ctx.resources`, Markdown-specific
+`ctx.ui` helpers, and media sidecar methods. Authors MUST migrate file access to
+`ctx.fs`, navigation to `ctx.ui.openFile`, and permissions to `workspace.files`.
+Legacy resource declarations are rejected even when a package declares API 2.0.
 Contract 1.1.0 includes table action providers, table plugin configuration, tasks,
 connections and eidos file views. CLI Serve implements table views only, plus its
 declared browser permissions, and rejects unsupported contributions even if the
@@ -1393,7 +1452,7 @@ Packages with a minimum requirement MUST use envelope format 2; format 2 MUST
 contain a requirement. Format 1 MUST NOT contain one. Old Lite and CLI installers
 reject format 2 rather than ignoring the new field. Historical CLI Serve loaders
 did not validate the envelope: directly loading a package there is not protected
-retroactively and requires upgrading the CLI. Legacy format 1 packages remain loadable when
+retroactively and requires upgrading the CLI. On CLI Serve, legacy format 1 packages remain loadable when
 inferred features are supported, but their minimum is reported as undeclared.
 Manifest inference cannot prove compatibility of arbitrary dynamic calls. Authors
 MUST raise the declared minimum when using newer APIs. Permission grants remain

@@ -85,7 +85,13 @@ Hosts also derive required features from view contexts, extension/actions/format
 connections/resources/settings/storage and browser permissions. Authors do not
 maintain a capabilities list. The shared host inventory is
 `packages/plugin-runtime/src/compatibility-data.json`. This implementation advertises
-Lite 1.6.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite 2.0.0 and CLI Serve 1.0.0; those labels do not apply retroactively to old releases.
+Lite executable plugins must declare `requires: { "pluginApi": "2.0.0" }`.
+Migrate `ctx.resources`, Markdown-specific `ctx.ui` helpers, and media sidecar
+methods to `ctx.fs`; use `ctx.ui.openFile` for navigation and `workspace.files`
+for Space file permissions. Old executable packages remain manageable but cannot
+run. Pure API 1.6.0 themes remain compatible. Resource declarations are no longer
+supported in Lite.
 Contract 1.1.0 includes table action providers, table plugin configuration, tasks,
 connections and eidos file views. CLI Serve implements table views only, plus its
 declared browser permissions, and rejects unsupported contributions even if the
@@ -95,7 +101,7 @@ Packages with a minimum requirement MUST use envelope format 2; format 2 MUST
 contain a requirement. Format 1 MUST NOT contain one. Old Lite and CLI installers
 reject format 2 rather than ignoring the new field. Historical CLI Serve loaders
 did not validate the envelope: directly loading a package there is not protected
-retroactively and requires upgrading the CLI. Legacy format 1 packages remain loadable when
+retroactively and requires upgrading the CLI. On CLI Serve, legacy format 1 packages remain loadable when
 inferred features are supported, but their minimum is reported as undeclared.
 Manifest inference cannot prove compatibility of arbitrary dynamic calls. Authors
 MUST raise the declared minimum when using newer APIs. Permission grants remain

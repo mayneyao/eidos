@@ -40,7 +40,7 @@ describe("browser capabilities", () => {
     ).toHaveLength(1)
   })
   it("keeps networking and workers closed by default", () => {
-    expect(sandboxCsp()).toContain("connect-src 'none'")
+    expect(sandboxCsp()).toContain("connect-src eidos-space-media:")
     expect(sandboxCsp()).toContain("worker-src 'none'")
   })
   it("accepts exact HTTPS origins and blob workers without permitting external scripts", () => {
@@ -52,7 +52,9 @@ describe("browser capabilities", () => {
       },
     })
     const csp = sandboxCsp(parsed.browser)
-    expect(csp).toContain("connect-src https://tiles.openfreemap.org;")
+    expect(csp).toContain(
+      "connect-src eidos-space-media: https://tiles.openfreemap.org;"
+    )
     expect(csp).toContain("worker-src blob:")
     expect(csp).toContain("script-src 'unsafe-inline' 'wasm-unsafe-eval';")
   })
