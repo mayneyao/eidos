@@ -22,6 +22,30 @@ const files = (...paths: string[]): SpacePathSearchHit[] =>
     score: 0,
   }))
 
+it("does not rescan the whole namespace for every link", async () => {
+  let pathReads = 0
+  const namespace = Array.from({ length: 2000 }, (_, index) => ({
+    get relativePath() {
+      pathReads += 1
+      return `notes/Note${index}.md`
+    },
+    name: `Note${index}.md`,
+    kind: "file" as const,
+    score: 0,
+  }))
+  const content = Array.from({ length: 40 }, () => "[[Note0]]").join("\n")
+  expect(
+    await rewriteMovedMarkdownLinks(
+      content,
+      "index.md",
+      "notes/Note0.md",
+      "Renamed.md",
+      namespace
+    )
+  ).toBe(Array.from({ length: 40 }, () => "[[/Renamed]]").join("\n"))
+  expect(pathReads).toBeLessThan(namespace.length * 10)
+})
+
 it("keeps quoted YAML wiki properties valid when the new filename contains a quote", async () => {
   const source = "---\nauthor: '[[Note|Author]]'\n---\n"
   expect(

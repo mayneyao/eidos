@@ -233,9 +233,10 @@ const TREE_CSS = `
   :host {
     display: block;
     min-height: 0;
-  }
-
-  [data-file-tree-virtualized-scroll="true"] {
+    box-sizing: border-box;
+    /* Pierre clamps scrollTop to row height × count minus viewport height.
+       Keep vertical spacing outside its scrollport so the native scrollbar
+       and the virtualizer agree on the bottom boundary. */
     padding-block: 3px 8px;
   }
 
@@ -282,9 +283,10 @@ export const SPACE_FILE_TREE_STYLES = {
   "--trees-item-margin-x-override": "4px",
   "--trees-item-row-gap-override": "5px",
   "--trees-item-padding-x-override": "5px",
-  "--trees-level-gap-override": "11px",
+  "--trees-level-gap-override": "7px",
   "--trees-padding-inline-override": "5px",
-  "--trees-selected-bg-override": "var(--surface-selected)",
+  "--trees-selected-bg-override":
+    "color-mix(in srgb, var(--surface-selected) 50%, transparent)",
   "--trees-selected-fg-override": "var(--ink)",
 } as CSSProperties
 
@@ -307,9 +309,21 @@ export function SpaceFileTree({
   const { t } = useEidosLiteI18n()
   const [treeResetVersion, setTreeResetVersion] = useState(0)
   const [externalDropActive, setExternalDropActive] = useState(false)
+  const [rootDropActive, setRootDropActive] = useState(false)
+  const draggedPathsRef = useRef<string[]>([])
   const [externalDropDirectory, setExternalDropDirectory] = useState<
     string | null
   >(null)
+
+  useEffect(() => {
+    const handleDragEnd = () => {
+      setExternalDropActive(false)
+      setRootDropActive(false)
+      draggedPathsRef.current = []
+    }
+    window.addEventListener("dragend", handleDragEnd)
+    return () => window.removeEventListener("dragend", handleDragEnd)
+  }, [])
   const [directoryLoads, setDirectoryLoads] = useState<
     Record<string, { state: "loading" | "error"; message?: string }>
   >({})
@@ -341,6 +355,46 @@ export function SpaceFileTree({
   treeRef.current = tree
   const appliedPathsSignatureRef = useRef<string | null>(null)
   const treeInitializedRef = useRef(false)
+  const restoreSelectionRef = useRef<readonly string[] | null>(null)
+  const rootDropTarget: FileTreeDropTarget = {
+    kind: "root",
+    directoryPath: null,
+    hoveredPath: null,
+    flattenedSegmentPath: null,
+  }
+
+  const persistMove = (
+    draggedPaths: readonly string[],
+    target: FileTreeDropTarget
+  ) => {
+    if (draggedPaths.length === 0) return
+    mutationInFlightRef.current = true
+    appliedPathsSignatureRef.current = sortedPathsSignature(
+      draggedPaths.reduce(
+        (paths, sourcePath) =>
+          remappedTreePaths(
+            paths,
+            sourcePath,
+            droppedTreePath(sourcePath, target)
+          ),
+        treeRef.current.paths
+      )
+    )
+    void onMoveRef
+      .current(
+        draggedPaths.map(relativePathFromTreePath),
+        dropTargetDirectory(target)
+      )
+      .catch((cause) => {
+        restoreSelectionRef.current = draggedPaths
+        appliedPathsSignatureRef.current = null
+        setTreeResetVersion((current) => current + 1)
+        onMoveErrorRef.current(cause)
+      })
+      .finally(() => {
+        mutationInFlightRef.current = false
+      })
+  }
 
   const { model } = useFileTree({
     paths: [],
@@ -349,7 +403,7 @@ export function SpaceFileTree({
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
     icons: EIDOS_FILE_TREE_ICONS,
-    stickyFolders: false,
+    stickyFolders: true,
     unsafeCSS: TREE_CSS,
     dragAndDrop: {
       canDrag: (paths) =>
@@ -361,34 +415,8 @@ export function SpaceFileTree({
         disabledRef.current !== true &&
         mutationInFlightRef.current === false &&
         canMoveTreeDrop(context),
-      onDropComplete: ({ draggedPaths, target }) => {
-        if (draggedPaths.length === 0) return
-        mutationInFlightRef.current = true
-        appliedPathsSignatureRef.current = sortedPathsSignature(
-          draggedPaths.reduce(
-            (paths, sourcePath) =>
-              remappedTreePaths(
-                paths,
-                sourcePath,
-                droppedTreePath(sourcePath, target)
-              ),
-            treeRef.current.paths
-          )
-        )
-        void onMoveRef
-          .current(
-            draggedPaths.map(relativePathFromTreePath),
-            dropTargetDirectory(target)
-          )
-          .catch((cause) => {
-            appliedPathsSignatureRef.current = null
-            setTreeResetVersion((current) => current + 1)
-            onMoveErrorRef.current(cause)
-          })
-          .finally(() => {
-            mutationInFlightRef.current = false
-          })
-      },
+      onDropComplete: ({ draggedPaths, target }) =>
+        persistMove(draggedPaths, target),
       onDropError: (message) => {
         appliedPathsSignatureRef.current = null
         setTreeResetVersion((current) => current + 1)
@@ -440,7 +468,9 @@ export function SpaceFileTree({
     })
     const topLevelEntries = topLevelSelectedEntries(selectedEntries)
     if (topLevelEntries.length < selectedEntries.length) {
-      const keptPaths = new Set(topLevelEntries.map(toTreePath))
+      const keptPaths = new Set(
+        topLevelEntries.map((entry) => toTreePath(entry))
+      )
       for (const path of selectedPaths) {
         if (!keptPaths.has(path)) model.getItem(path)?.deselect()
       }
@@ -480,9 +510,26 @@ export function SpaceFileTree({
     const expandedPaths = treeInitializedRef.current
       ? preservedExpandedTreePaths(tree.paths, model)
       : tree.initialExpandedPaths
+    const collapsedPaths = treeInitializedRef.current
+      ? tree.paths.filter((path) => {
+          const item = model.getItem(path)
+          return item && "isExpanded" in item && !item.isExpanded()
+        })
+      : []
     model.resetPaths(tree.paths, {
       initialExpandedPaths: expandedPaths,
     })
+    // Restoring expanded descendants also expands their ancestors in Pierre.
+    // Restore collapsed parents afterwards without losing child expansion state.
+    for (const path of collapsedPaths) {
+      const item = model.getItem(path)
+      if (item && "collapse" in item) item.collapse()
+    }
+    if (restoreSelectionRef.current) {
+      for (const path of restoreSelectionRef.current)
+        model.getItem(path)?.select()
+      restoreSelectionRef.current = null
+    }
     treeInitializedRef.current = true
     appliedPathsSignatureRef.current = signature
   }, [model, treeResetVersion, treeSignature])
@@ -509,17 +556,19 @@ export function SpaceFileTree({
     // navigation, so browsing folders cannot pull the viewport back to the editor.
     if (activeRevealRef.current.revealed) return
     if (!activePath) return
-    for (const parentPath of parentTreePaths(activePath)) {
+    const activeTreePath = activePath
+    for (const parentPath of parentTreePaths(activeTreePath)) {
       const parent = model.getItem(parentPath)
       if (parent && "expand" in parent && !parent.isExpanded()) parent.expand()
     }
-    const item = model.getItem(activePath)
+    const item = model.getItem(activeTreePath)
     if (!item) return
     for (const selectedPath of model.getSelectedPaths()) {
-      if (selectedPath !== activePath) model.getItem(selectedPath)?.deselect()
+      if (selectedPath !== activeTreePath)
+        model.getItem(selectedPath)?.deselect()
     }
     if (!item.isSelected()) item.select()
-    model.scrollToPath(activePath, { offset: "nearest", focus: false })
+    model.scrollToPath(activeTreePath, { offset: "nearest", focus: false })
     activeRevealRef.current.revealed = true
   }, [activePath, model, treeSignature, revealToken])
 
@@ -586,93 +635,168 @@ export function SpaceFileTree({
           externalDropActive
             ? {
                 ...SPACE_FILE_TREE_STYLES,
-                outline: "1px solid var(--focus)",
+                outline: "1px dashed var(--focus)",
                 outlineOffset: "-1px",
               }
             : SPACE_FILE_TREE_STYLES
         }
         onDragOverCapture={(event) => {
-          if (
-            hasSpacePathDragData(event.dataTransfer) ||
-            !Array.from(event.dataTransfer.types).includes("Files")
+          const isInternal = hasSpacePathDragData(event.dataTransfer)
+          const isExternal = Array.from(event.dataTransfer.types).includes(
+            "Files"
           )
-            return
-          event.preventDefault()
-          event.stopPropagation()
-          const allowed =
-            !disabled && !mutationInFlightRef.current && Boolean(onImportFiles)
+          if (!isInternal && !isExternal) return
+
           const treePath = eventTreePath(event)
-          const targetDirectory = externalDropTargetDirectory(treePath)
-          const targetTreePath = treePath?.endsWith("/")
-            ? treePath
-            : treePath
-              ? parentTreeDirectory(treePath)
-              : null
-          const row = targetTreePath
-            ? [
-                ...(event.currentTarget.shadowRoot?.querySelectorAll<HTMLElement>(
-                  "[data-item-path]"
-                ) ?? []),
-                ...event.currentTarget.querySelectorAll<HTMLElement>(
-                  "[data-item-path]"
-                ),
-              ].find(
-                (item) =>
-                  item.dataset.itemPath === targetTreePath &&
-                  item.dataset.itemParked !== "true"
-              )
-            : null
-          if (externalDropRowRef.current !== row) {
-            externalDropRowRef.current?.removeAttribute(
-              "data-external-drop-target"
-            )
-            externalDropRowRef.current = allowed && row ? row : null
-            externalDropRowRef.current?.setAttribute(
-              "data-external-drop-target",
-              "true"
-            )
+
+          if (isInternal) {
+            const allowed =
+              !treePath &&
+              !disabled &&
+              !mutationInFlightRef.current &&
+              canMoveTreeDrop({
+                draggedPaths: draggedPathsRef.current,
+                target: rootDropTarget,
+              })
+            setRootDropActive(allowed)
+            if (!treePath) {
+              event.preventDefault()
+              event.stopPropagation()
+              event.dataTransfer.dropEffect = allowed ? "move" : "none"
+            }
+            return
           }
-          setExternalDropActive(allowed)
-          setExternalDropDirectory(targetDirectory)
-          event.dataTransfer.dropEffect =
-            disabled || mutationInFlightRef.current || !onImportFiles
-              ? "none"
-              : "copy"
+
+          if (isExternal) {
+            event.preventDefault()
+            event.stopPropagation()
+            const allowed =
+              !disabled &&
+              !mutationInFlightRef.current &&
+              Boolean(onImportFiles)
+            const targetDirectory = externalDropTargetDirectory(treePath)
+            const targetTreePath = treePath?.endsWith("/")
+              ? treePath
+              : treePath
+                ? parentTreeDirectory(treePath)
+                : null
+            const row = targetTreePath
+              ? [
+                  ...(event.currentTarget.shadowRoot?.querySelectorAll<HTMLElement>(
+                    "[data-item-path]"
+                  ) ?? []),
+                  ...event.currentTarget.querySelectorAll<HTMLElement>(
+                    "[data-item-path]"
+                  ),
+                ].find(
+                  (item) =>
+                    item.dataset.itemPath === targetTreePath &&
+                    item.dataset.itemParked !== "true"
+                )
+              : null
+            if (externalDropRowRef.current !== row) {
+              externalDropRowRef.current?.removeAttribute(
+                "data-external-drop-target"
+              )
+              externalDropRowRef.current = allowed && row ? row : null
+              externalDropRowRef.current?.setAttribute(
+                "data-external-drop-target",
+                "true"
+              )
+            }
+            setExternalDropActive(allowed)
+            setExternalDropDirectory(targetDirectory)
+            event.dataTransfer.dropEffect =
+              disabled || mutationInFlightRef.current || !onImportFiles
+                ? "none"
+                : "copy"
+          }
         }}
         onDragLeaveCapture={(event) => {
           if (
             !(event.relatedTarget instanceof Node) ||
             !event.currentTarget.contains(event.relatedTarget)
-          )
+          ) {
             clearExternalDropTarget()
+            setRootDropActive(false)
+          }
         }}
         onDropCapture={(event) => {
-          if (
-            hasSpacePathDragData(event.dataTransfer) ||
-            !Array.from(event.dataTransfer.types).includes("Files")
+          const isInternal = hasSpacePathDragData(event.dataTransfer)
+          const isExternal = Array.from(event.dataTransfer.types).includes(
+            "Files"
           )
-            return
-          event.preventDefault()
-          event.stopPropagation()
-          clearExternalDropTarget()
-          if (disabled || mutationInFlightRef.current || !onImportFiles) return
-          const files = Array.from(event.dataTransfer.files)
-          if (!files.length) return
+          if (!isInternal && !isExternal) return
+
           const treePath = eventTreePath(event)
-          const targetDirectory = externalDropTargetDirectory(treePath)
-          mutationInFlightRef.current = true
-          void onImportFiles(files, targetDirectory)
-            .catch(onMoveError)
-            .finally(() => {
-              mutationInFlightRef.current = false
-            })
+
+          if (isInternal) {
+            setRootDropActive(false)
+            if (treePath) return
+            event.preventDefault()
+            event.stopPropagation()
+            const draggedPaths = draggedPathsRef.current
+            if (
+              disabled ||
+              mutationInFlightRef.current ||
+              !canMoveTreeDrop({ draggedPaths, target: rootDropTarget })
+            )
+              return
+            try {
+              model.batch(
+                draggedPaths.map((from) => ({
+                  type: "move" as const,
+                  from,
+                  to: droppedTreePath(from, rootDropTarget),
+                }))
+              )
+              persistMove(draggedPaths, rootDropTarget)
+            } catch (cause) {
+              restoreSelectionRef.current = draggedPaths
+              appliedPathsSignatureRef.current = null
+              setTreeResetVersion((current) => current + 1)
+              onMoveErrorRef.current(cause)
+            }
+            return
+          }
+
+          if (isExternal) {
+            event.preventDefault()
+            event.stopPropagation()
+            clearExternalDropTarget()
+            if (disabled || mutationInFlightRef.current || !onImportFiles)
+              return
+            const files = Array.from(event.dataTransfer.files)
+            if (!files.length) return
+            const targetDirectory = externalDropTargetDirectory(treePath)
+            mutationInFlightRef.current = true
+            void onImportFiles(files, targetDirectory)
+              .catch(onMoveError)
+              .finally(() => {
+                mutationInFlightRef.current = false
+              })
+          }
         }}
         onDragStart={(event) => {
           const treePath = eventTreePath(event)
           if (!treePath || disabled) return
           const entry = treeRef.current.entryByTreePath.get(treePath)
           if (!entry) return
-          setSpacePathDragData(event.dataTransfer, entry.relativePath)
+          const selectedPaths = model.getSelectedPaths()
+          const draggedTreePaths = selectedPaths.includes(treePath)
+            ? selectedPaths
+            : [treePath]
+          draggedPathsRef.current = topLevelSelectedEntries(
+            draggedTreePaths.flatMap((path) => {
+              const selected = treeRef.current.entryByTreePath.get(path)
+              return selected ? [selected] : []
+            })
+          ).map(toTreePath)
+          setSpacePathDragData(
+            event.dataTransfer,
+            entry.relativePath,
+            draggedTreePaths.map(relativePathFromTreePath)
+          )
         }}
         onClick={(event) => {
           if (isTreeMultiSelectClick(event)) return
@@ -721,6 +845,11 @@ export function SpaceFileTree({
           openTreePath(eventTreePath(event) ?? model.getFocusedPath())
         }}
       />
+      {rootDropActive && (
+        <div className="space-external-drop-hint" role="status">
+          {t("Move to Space root")}
+        </div>
+      )}
       {externalDropActive ? (
         <div className="space-external-drop-hint" role="status">
           {externalDropDirectory

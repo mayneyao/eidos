@@ -5,7 +5,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react"
-import { X, MoreHorizontal, Search, Blocks } from "lucide-react"
+import { X, Plus, Search } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
 
@@ -17,9 +17,6 @@ export function WorkspaceHeading({
   shortcut,
   ariaShortcut,
   onSearch,
-  onPlugins,
-  pluginsActive = false,
-  pluginsDisabled = false,
   onBack,
   query,
   onQueryChange,
@@ -35,9 +32,6 @@ export function WorkspaceHeading({
   shortcut: string
   ariaShortcut?: string
   onSearch(): void
-  onPlugins?(): void
-  pluginsActive?: boolean
-  pluginsDisabled?: boolean
   onBack(): void
   query: string
   onQueryChange(query: string): void
@@ -149,19 +143,6 @@ export function WorkspaceHeading({
           >
             <Search size={14} />
           </button>
-          {onPlugins && (
-            <button
-              type="button"
-              className="icon-button"
-              onClick={onPlugins}
-              disabled={pluginsDisabled}
-              aria-label={t("Plugins")}
-              title={t("Plugins")}
-              aria-current={pluginsActive ? "page" : undefined}
-            >
-              <Blocks size={14} />
-            </button>
-          )}
           <div
             className="workspace-heading-menu"
             ref={menu}
@@ -182,18 +163,18 @@ export function WorkspaceHeading({
               ref={trigger}
               type="button"
               className="icon-button"
-              aria-label={t("Space file actions")}
-              title={t("Space file actions")}
+              aria-label={t("Create")}
+              title={t("Create")}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((open) => !open)}
             >
-              <MoreHorizontal size={14} />
+              <Plus size={14} />
             </button>
             {menuOpen ? (
               <div
                 className="workspace-heading-menu-content"
                 role="group"
-                aria-label={t("Space file actions")}
+                aria-label={t("Create")}
               >
                 {actions.map((action) => (
                   <button

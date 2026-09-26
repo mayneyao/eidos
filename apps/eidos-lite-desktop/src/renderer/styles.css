@@ -1534,15 +1534,17 @@ body {
 
 .space-heading {
   position: relative;
-  gap: 0.35rem;
+  gap: 0.125rem;
   min-width: 0;
   padding: 0 0.625rem 0 0.75rem;
   font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--ink-muted);
+  letter-spacing: normal;
 }
 
 .space-heading strong {
+  color: var(--ink);
+  font-weight: 600;
   overflow: hidden;
   flex: 1;
   text-overflow: ellipsis;
@@ -1555,7 +1557,11 @@ body {
   width: 1.5rem;
   height: 1.5rem;
 }
-.space-heading > .icon-button[aria-current="page"] {
+.space-heading > .icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+.sidebar-settings-button[aria-current="page"] {
   color: var(--ink);
   background: var(--surface-selected);
 }
@@ -1701,6 +1707,8 @@ body {
 
 .explorer {
   min-height: 0;
+  /* Keep native scrollbar interactions outside the overlaid resize handle. */
+  margin-inline-end: var(--space-sidebar-resize-hit-width);
   overflow: hidden;
 }
 

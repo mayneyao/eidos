@@ -86,6 +86,9 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   )
   expect(styles).toContain("--space-sidebar-resize-hit-width: 12px;")
   expect(styles).toMatch(
+    /\.explorer\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
+  )
+  expect(styles).toMatch(
     /\.workspace-text-search\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
   )
   expect(styles).toMatch(

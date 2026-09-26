@@ -41,7 +41,7 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
     await act(async () => root.render(<WorkspaceHeading {...props} />))
     await click("Search Space text")
     expect(search).toHaveBeenCalledOnce()
-    await click("Space file actions")
+    await click("Create")
     expect(host.querySelectorAll('[role="group"] button')).toHaveLength(2)
     expect(
       host.querySelector<HTMLButtonElement>('[role="group"] button:last-child')!
@@ -55,15 +55,13 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
         )
     )
     expect(host.querySelector('[role="group"]')).toBeNull()
-    expect(document.activeElement?.getAttribute("aria-label")).toBe(
-      "Space file actions"
-    )
-    await click("Space file actions")
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Create")
+    await click("Create")
     await act(async () =>
       document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }))
     )
     expect(host.querySelector('[role="group"]')).toBeNull()
-    await click("Space file actions")
+    await click("Create")
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[role="group"] button')!.click()
     )

@@ -18,6 +18,7 @@ import type { ThemeDeclaration } from "@eidos.space/plugin-sdk"
 import {
   ArrowLeft,
   ArrowRight,
+  Blocks,
   CircleAlert,
   ClipboardCopy,
   Cloud,
@@ -3430,9 +3431,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         </header>
         <WorkspaceHeading
           name={space.name}
-          onPlugins={goToPluginsList}
-          pluginsActive={pluginsVisible}
-          pluginsDisabled={pathMutationBusy || localInteractionBlocked}
           path={space.displayPath}
           searching={textSearchVisible}
           query={textSearchQuery}
@@ -3462,6 +3460,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           actions={[
             {
               label: t("New File"),
+              icon: <FilePlus2 />,
+              disabled: pathMutationBusy || localInteractionBlocked,
               shortcut: workspaceShortcutLabel(
                 "new-file",
                 macos,
@@ -3472,8 +3472,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 macos,
                 keyboardShortcuts
               ),
-              icon: <FilePlus2 />,
-              disabled: pathMutationBusy || localInteractionBlocked,
               run: () =>
                 setPathDialog({ action: "create-file", entry: selectedEntry }),
             },
@@ -3493,16 +3491,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               disabled: pathMutationBusy || localInteractionBlocked,
               run: () => {
                 void importFiles()
-              },
-            },
-            {
-              label: t("Refresh Space Explorer"),
-              icon: <RefreshCw />,
-              run: () => {
-                void window.eidosLite
-                  .refreshExplorer()
-                  .then(setSpace)
-                  .catch((cause) => setError(errorMessage(cause)))
               },
             },
           ]}
@@ -3599,6 +3587,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               </button>
             </div>
           )}
+          <button
+            type="button"
+            className="sidebar-settings-button"
+            data-sidebar-action="plugins"
+            disabled={pathMutationBusy || localInteractionBlocked}
+            aria-current={pluginsVisible ? "page" : undefined}
+            onClick={goToPluginsList}
+            title={t("Plugins")}
+          >
+            <Blocks aria-hidden="true" />
+            <span>{t("Plugins")}</span>
+          </button>
           <button
             type="button"
             className="sidebar-settings-button"

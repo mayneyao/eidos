@@ -788,6 +788,7 @@ const zh: Record<string, string> = {
   "Import files": "导入文件",
   "Import into {name}": "导入到 {name}",
   "Import into Space root": "导入到空间根目录",
+  "Move to Space root": "移动到空间根目录",
   "Refresh Space Explorer": "刷新空间资源管理器",
   "Loading Space Explorer…": "正在加载空间资源管理器…",
   "Loading folder…": "正在加载文件夹…",

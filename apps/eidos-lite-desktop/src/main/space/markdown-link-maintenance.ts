@@ -18,27 +18,36 @@ export function movedPath(
     : value
 }
 
-/** Resolves against the pre-move namespace, then patches only changed destinations. */
-export async function rewriteMovedMarkdownLinks(
-  content: string,
-  owner: string,
+// The resolver only matches exact paths or basenames (with an optional .md).
+// Preserve namespace order while narrowing each lookup to those candidates.
+function indexLinkTargets(files: readonly SpacePathSearchHit[]) {
+  const byName = new Map<string, SpacePathSearchHit[]>()
+  for (const file of files) {
+    const name = file.name.normalize("NFC").toLocaleLowerCase("en-US")
+    for (const key of [
+      name,
+      ...(name.endsWith(".md") ? [name.slice(0, -3)] : []),
+    ]) {
+      const entries = byName.get(key)
+      if (entries) entries.push(file)
+      else byName.set(key, [file])
+    }
+  }
+  return async (name: string) =>
+    byName.get(name.normalize("NFC").toLocaleLowerCase("en-US")) ?? []
+}
+
+function moveLinkTargets(
+  files: readonly SpacePathSearchHit[],
   source: string,
-  target: string,
-  files: readonly SpacePathSearchHit[]
-): Promise<string> {
-  const nextOwner = movedPath(owner, source, target)
-  const replacements: { start: number; end: number; value: string }[] = []
-  for (const link of markdownFileLinkRanges(content)) {
-    const resolved = await resolveObsidianSpaceEntry(owner, link, async () => [
-      ...files,
-    ])
-    if (!resolved || resolved.kind === "symlink") continue
-    const nextTarget = movedPath(resolved.relativePath, source, target)
-    if (nextOwner === owner && nextTarget === resolved.relativePath) continue
-    let value: string
-    if (link.syntax === "wikilink") {
-      // Preserve short names when they still resolve to the same file after the move.
-      const after = await resolveObsidianSpaceEntry(nextOwner, link, async () =>
+  target: string
+) {
+  const before = indexLinkTargets(files)
+  let after: ReturnType<typeof indexLinkTargets> | undefined
+  return {
+    before,
+    after: (name: string) => {
+      after ??= indexLinkTargets(
         files.map((file) => {
           const relativePath = movedPath(file.relativePath, source, target)
           return {
@@ -47,6 +56,54 @@ export async function rewriteMovedMarkdownLinks(
             name: path.posix.basename(relativePath),
           }
         })
+      )
+      return after(name)
+    },
+  }
+}
+
+/** Resolves against the pre-move namespace, then patches only changed destinations. */
+export async function rewriteMovedMarkdownLinks(
+  content: string,
+  owner: string,
+  source: string,
+  target: string,
+  files: readonly SpacePathSearchHit[]
+): Promise<string> {
+  return rewriteIndexedMarkdownLinks(
+    content,
+    owner,
+    source,
+    target,
+    moveLinkTargets(files, source, target)
+  )
+}
+
+async function rewriteIndexedMarkdownLinks(
+  content: string,
+  owner: string,
+  source: string,
+  target: string,
+  targets: ReturnType<typeof moveLinkTargets>
+): Promise<string> {
+  const nextOwner = movedPath(owner, source, target)
+  const replacements: { start: number; end: number; value: string }[] = []
+  for (const link of markdownFileLinkRanges(content)) {
+    const resolved = await resolveObsidianSpaceEntry(
+      owner,
+      link,
+      targets.before
+    )
+    if (!resolved || resolved.kind === "symlink") continue
+    const nextTarget = movedPath(resolved.relativePath, source, target)
+    if (nextOwner === owner && nextTarget === resolved.relativePath) continue
+    let value: string
+    if (link.syntax === "wikilink") {
+      // Preserve short names when they still resolve to the same file after the move.
+      const after = await resolveObsidianSpaceEntry(
+        nextOwner,
+        link,
+        targets.after
       )
       if (after?.relativePath === nextTarget) continue
       const withoutExtension =
@@ -112,6 +169,7 @@ export async function prepareMarkdownLinkMove(
     score: 0,
   }))
   const plan: MarkdownLinkPlan = { edits: [], issues: [] }
+  const targets = moveLinkTargets(files, source, target)
   for (const file of files) {
     if (file.kind !== "file" || !/\.md$/iu.test(file.name)) continue
     try {
@@ -120,12 +178,12 @@ export async function prepareMarkdownLinkMove(
         plan.issues.push(file.relativePath)
         continue
       }
-      const content = await rewriteMovedMarkdownLinks(
+      const content = await rewriteIndexedMarkdownLinks(
         preview.content,
         file.relativePath,
         source,
         target,
-        files
+        targets
       )
       if (content !== preview.content)
         plan.edits.push({

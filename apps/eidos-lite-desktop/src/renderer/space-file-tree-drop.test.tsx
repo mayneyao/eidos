@@ -4,9 +4,13 @@ import { createRoot } from "react-dom/client"
 import {
   FileTree as PierreFileTree,
   type FileTreeRowDecorationContext,
+  type FileTreeOptions,
 } from "@pierre/trees"
 import { SpaceFileTree } from "./space-file-tree"
 import { EIDOS_LITE_SPACE_PATH_DRAG_TYPE } from "./space-path-drag"
+
+let treeModel: PierreFileTree
+let treeOptions: FileTreeOptions
 
 vi.mock("@pierre/trees/react", async () => {
   const { useMemo } = await import("react")
@@ -19,18 +23,118 @@ vi.mock("@pierre/trees/react", async () => {
       <div {...props}>
         <span data-item-path="docs/">Folder</span>
         <span data-item-path="docs/note.md">File</span>
+        <span>Blank area</span>
       </div>
     ),
-    useFileTree: () => ({
-      model: useMemo(
-        () => new FileTree({ paths: [], initialExpansion: "closed" }),
-        []
-      ),
+    useFileTree: (options: FileTreeOptions) => ({
+      model: useMemo(() => {
+        treeOptions = options
+        treeModel = new FileTree(options)
+        return treeModel
+      }, []),
     }),
     useFileTreeSelection: () => [],
   }
 })
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+
+it("moves into the blank root area optimistically and restores a failed move", async () => {
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  let rejectMove!: (cause: Error) => void
+  const onMove = vi.fn(
+    () =>
+      new Promise<void>((_, reject) => {
+        rejectMove = reject
+      })
+  )
+  const onMoveError = vi.fn()
+  const props = {
+    entries: [
+      {
+        name: "docs",
+        relativePath: "docs",
+        kind: "directory" as const,
+        size: 0,
+        modifiedAtMs: 1,
+        childrenLoaded: true,
+        children: [
+          {
+            name: "note.md",
+            relativePath: "docs/note.md",
+            kind: "file" as const,
+            size: 1,
+            modifiedAtMs: 1,
+          },
+        ],
+      },
+    ],
+    activePath: null,
+    renameRequest: null,
+    onMove,
+    onMoveError,
+    onSelect: vi.fn(),
+    onOpen: vi.fn(),
+    onLoadDirectory: vi.fn(),
+    onRename: vi.fn(),
+    onRenameError: vi.fn(),
+    onContextMenu: vi.fn(),
+  }
+  try {
+    await act(async () => root.render(<SpaceFileTree {...props} />))
+    const target = {
+      kind: "root" as const,
+      directoryPath: null,
+      hoveredPath: null,
+      flattenedSegmentPath: null,
+    }
+    const draggedPaths = ["docs/note.md"]
+    const dnd = treeOptions.dragAndDrop!
+    if (typeof dnd === "boolean") throw new Error("Missing drag configuration")
+    const renaming = treeOptions.renaming!
+    if (typeof renaming === "boolean")
+      throw new Error("Missing rename configuration")
+    expect(dnd.canDrag?.(["Space/"])).toBe(false)
+    expect(renaming.canRename?.({ path: "Space", isFolder: true })).toBe(false)
+    expect(dnd.canDrop?.({ draggedPaths, target })).toBe(true)
+    expect(dnd.canDrop?.({ draggedPaths: ["docs/"], target })).toBe(false)
+    expect(treeModel.getItem("Space/")).toBeNull()
+    const reset = vi.spyOn(treeModel, "resetPaths")
+    const treeElement = host.querySelector("[data-space-file-tree]")!
+    const transfer = {
+      types: [EIDOS_LITE_SPACE_PATH_DRAG_TYPE],
+      setData: vi.fn(),
+      dropEffect: "none",
+    }
+    const dispatchDrag = async (type: string, target: Element) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, "dataTransfer", { value: transfer })
+      await act(async () => {
+        target.dispatchEvent(event)
+      })
+      return event
+    }
+    await dispatchDrag("dragstart", treeElement.children[1]!)
+    await dispatchDrag("dragover", treeElement)
+    expect(transfer.dropEffect).toBe("move")
+    expect(host.querySelector(".space-external-drop-hint")?.textContent).toBe(
+      "Move to Space root"
+    )
+    expect((await dispatchDrag("drop", treeElement)).defaultPrevented).toBe(
+      true
+    )
+    expect(treeModel.getItem("note.md")).not.toBeNull()
+    expect(onMove).toHaveBeenCalledWith(["docs/note.md"], null)
+    expect(reset).not.toHaveBeenCalled()
+    await act(async () => rejectMove(new Error("Destination exists")))
+    expect(treeModel.getItem("docs/note.md")).not.toBeNull()
+    expect(treeModel.getItem("note.md")).toBeNull()
+    expect(treeModel.getSelectedPaths()).toContain("docs/note.md")
+    expect(onMoveError).toHaveBeenCalledOnce()
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
 
 it("imports external files into the root, folder, or file parent without intercepting internal moves", async () => {
   const host = document.createElement("div")
@@ -111,17 +215,19 @@ it("imports external files into the root, folder, or file parent without interce
       [tree, null],
       [tree.children[0]!, "docs"],
       [tree.children[1]!, "docs"],
+      [tree.children[2]!, null],
     ] as const) {
       expect((await drop(target)).defaultPrevented).toBe(true)
       expect(onImportFiles).toHaveBeenLastCalledWith([file], directory)
     }
-    expect(onImportFiles).toHaveBeenCalledTimes(3)
+    expect(onImportFiles).toHaveBeenCalledTimes(4)
     expect(
-      (await drop(tree, [EIDOS_LITE_SPACE_PATH_DRAG_TYPE])).defaultPrevented
+      (await drop(tree.children[0]!, [EIDOS_LITE_SPACE_PATH_DRAG_TYPE]))
+        .defaultPrevented
     ).toBe(false)
     await render(true)
     await drop(tree)
-    expect(onImportFiles).toHaveBeenCalledTimes(3)
+    expect(onImportFiles).toHaveBeenCalledTimes(4)
   } finally {
     act(() => root.unmount())
     host.remove()
