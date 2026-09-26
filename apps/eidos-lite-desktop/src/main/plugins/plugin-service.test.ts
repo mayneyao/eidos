@@ -1,7 +1,8 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import * as pluginNetwork from "./plugin-network"
 import { encodePackage } from "@eidos.space/plugin-runtime/package"
 import type {
   FileStat,
@@ -209,6 +210,7 @@ beforeEach(async () => {
   await store.install(encodePackage(manifest, modules), "space-a")
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   service.closeOwner(1)
   await fs.rm(directory, { recursive: true, force: true })
 })
@@ -1058,6 +1060,119 @@ describe("Lite document-view integration", () => {
         .response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
+  it("unwraps Action storage/network requests and revokes them on completion", async () => {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          requires: { pluginApi: "2.0.0" },
+          id: "example.capabilities",
+          name: "Capabilities",
+          version: "1.0.0",
+          extension: "./extension.ts",
+          actions: [{ id: "run", title: "Run", context: "workspace" }],
+          storage: { maxBytes: 1024 },
+          browser: { networkOrigins: ["https://example.com"] },
+        },
+        { "./extension.ts": "export default function activate() {}" }
+      ),
+      "space-a"
+    )
+    const { ticket } = (
+      await service.openExtension(1, session, "example.capabilities")
+    ).instance!
+    await rpc(ticket, "extension.ready", { actions: ["run"] })
+    const network = vi
+      .spyOn(pluginNetwork, "readPluginNetwork")
+      .mockResolvedValue({ data: "YQ==", status: 200 })
+    let announce!: (value: unknown) => void
+    const announced = new Promise<unknown>((resolve) => {
+      announce = resolve
+    })
+    const completion = service.invoke(
+      1,
+      session,
+      ticket,
+      "run",
+      undefined,
+      undefined,
+      (event) => {
+        if (event.observation === "action.run") announce(event.value)
+      }
+    )
+    const { invocation } = (await announced) as { invocation: string }
+    const actionRpc = (method: string, args: unknown) =>
+      rpc(ticket, method, { invocation, args })
+    expect(
+      (await actionRpc("storage.write", { key: "test", data: "YQ==" })).response
+    ).toMatchObject({ result: null })
+    expect(
+      (await actionRpc("storage.read", { key: "test" })).response
+    ).toMatchObject({ result: "YQ==" })
+    expect(
+      (await actionRpc("storage.list", { prefix: "" })).response
+    ).toHaveProperty("result")
+    expect(
+      (await actionRpc("storage.remove", { key: "test" })).response
+    ).toMatchObject({ result: null })
+    expect(
+      (await actionRpc("storage.read", { key: "test" })).response
+    ).toMatchObject({ result: null })
+    expect(
+      (await actionRpc("network.read", { url: "https://example.com/data" }))
+        .response
+    ).toMatchObject({ result: { data: "YQ==", status: 200 } })
+    expect(network).toHaveBeenCalledWith(
+      { url: "https://example.com/data" },
+      ["https://example.com"],
+      expect.any(AbortSignal)
+    )
+    const signal = network.mock.calls[0]![2]
+    expect(signal.aborted).toBe(false)
+    for (const [method, args] of [
+      ["storage.read", { key: "test" }],
+      ["network.read", { url: "https://example.com/data" }],
+    ] as const) {
+      expect((await rpc(ticket, method, args)).response).toMatchObject({
+        error: { code: "PERMISSION_DENIED" },
+      })
+      expect(
+        (await rpc(ticket, method, { invocation: "stale", args })).response
+      ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+    }
+    // A response which finishes after the action must not revive the capability.
+    let release!: (value: { data: string; status: number }) => void
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    network.mockImplementationOnce(async () => {
+      entered()
+      return new Promise((resolve) => {
+        release = resolve
+      })
+    })
+    const pending = actionRpc("network.read", {
+      url: "https://example.com/slow",
+    })
+    await started
+    await rpc(ticket, "action.complete", { invocation })
+    await completion
+    expect(signal.aborted).toBe(true)
+    release({ data: "YQ==", status: 200 })
+    expect((await pending).response).toMatchObject({
+      error: { code: "INSTANCE_CLOSED" },
+    })
+    expect(
+      (await actionRpc("storage.write", { key: "late", data: "YQ==" })).response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+    expect(
+      (await actionRpc("network.read", { url: "https://example.com/data" }))
+        .response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+    expect(network).toHaveBeenCalledTimes(2)
+  })
+
   it("rolls back incomplete activation and revokes running actions on disable", async () => {
     await store.install(
       encodePackage(

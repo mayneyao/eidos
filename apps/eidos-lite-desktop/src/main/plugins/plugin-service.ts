@@ -787,16 +787,40 @@ export class PluginService {
         throw new PluginError("PERMISSION_DENIED", "Plugin grant revoked")
       }
       instance.scope.assertActive()
+      let capabilityParams = request.params
+      let capabilityScope = instance.scope
+      if (
+        instance.extension &&
+        (request.method === "network.read" ||
+          request.method.startsWith("storage."))
+      ) {
+        const invocation = instance.invocation
+        const envelope = object(request.params)
+        if (
+          !invocation ||
+          invocation.format ||
+          Object.keys(envelope).sort().join() !== "args,invocation" ||
+          envelope.invocation !== invocation.id
+        ) {
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "No active action capability"
+          )
+        }
+        capabilityScope = invocation.scope
+        capabilityScope.assertActive()
+        capabilityParams = envelope.args
+      }
       if (request.method === "network.read") {
         const pkg = await this.store.read(instance.hash)
         if (binding.hash !== instance.hash)
           throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
         const result = await readPluginNetwork(
-          request.params,
+          capabilityParams,
           pkg.manifest.browser?.networkOrigins ?? [],
-          instance.scope.signal
+          capabilityScope.signal
         )
-        instance.scope.assertActive()
+        capabilityScope.assertActive()
         return { response: { ...base, result } }
       }
       if (request.method.startsWith("storage.")) {
@@ -815,11 +839,11 @@ export class PluginService {
         }
         const result = await storage.request(
           request.method,
-          request.params,
+          capabilityParams,
           pkg.manifest.storage.maxBytes,
-          () => instance.scope.assertActive()
+          () => capabilityScope.assertActive()
         )
-        instance.scope.assertActive()
+        capabilityScope.assertActive()
         return { response: { ...base, result } }
       }
       if (request.method.startsWith("eidos.")) {
