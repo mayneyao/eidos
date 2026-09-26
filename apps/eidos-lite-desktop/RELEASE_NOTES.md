@@ -1,22 +1,23 @@
 ## What's new
 
-### Community marketplace and one-click install
+### Organize local files in a table
 
-Explore the new community marketplace at **[community.eidos.space](https://community.eidos.space)** to discover plugins and themes. Clicking an install button in your browser opens Eidos Lite and prompts for confirmation, making installation seamless. You can also browse the marketplace directly inside the app under **Settings → Plugins → Marketplace**.
+Choose **Eidos** in New File and enable **File Metadata Management** to browse the containing folder and its subfolders as a table. Tag and rate files, add custom fields, filter the list, and preview attachments without importing the original files. Renaming a field preserves its values.
 
-### Customize your appearance with theme plugins
+Values are stored on the physical files, outside the `.eidos` database. Deleting a custom field clears its corresponding attributes. Backups and transfers must preserve extended attributes or alternate data streams; do not rely on copying the `.eidos` file or on Sync alone to preserve these values.
 
-Eidos Lite now supports theme plugins to personalize colors, surfaces, typography, and corner styling across all your Spaces. Theme plugins contain only validated styles and bundled fonts with zero executable code, and can be previewed or switched at any time under **Settings → Theme**.
+### Build plugins for ordinary files
 
-### Space and document capabilities for plugins
+Plugin API 2.0 adds a unified filesystem interface for permitted file access, media viewers, and companion files such as subtitles. Plugins can respond to changes across file types and provide file-specific actions.
 
-Plugins can now power richer workflows for Markdown notes in your Space. With user-granted permissions, plugins can index documents, inspect line counts, react to file changes, and open or create notes directly within the app. Document contents remain strictly protected within the host sandbox.
+**Plugin upgrade required:** executable plugins must migrate to `ctx.fs` and declare `requires.pluginApi: "2.0.0"`. Older executable plugins will not run until updated. Pure API 1.6 theme plugins remain supported.
 
 ## Improvements
 
-- **Batch file operations**: Multi-select files and folders in Space Explorer using Shift or Cmd/Ctrl to drag, move, or delete multiple items together with clear feedback.
-- **Editor title sync**: The title bar updates immediately when switching or renaming Markdown files.
+- **Creation menu**: New File, New Folder, and Import share the **+** menu beside search. The simpler New File dialog keeps Eidos and Text choices beside its title without changing height when switching.
+- **Plugin browsing**: Marketplace entries can show screenshots before installation.
 
 ## Bug fixes
 
-- **Editor layout**: Aligns empty prompt text and cursor positioning in the Markdown editor.
+- **File tree**: Move nested files to the root by dropping them in the empty area. Moving files avoids unnecessary full-tree refreshes, and holding the scrollbar at the bottom no longer causes repeated jumping.
+- **Terminal appearance**: Terminal colors and fonts follow theme plugins when switching between light and dark mode.

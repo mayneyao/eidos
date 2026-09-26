@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const DEFAULT_VERSION = "v0.2.1"
+const DEFAULT_VERSION = "v0.2.3"
 const version = process.env.SQLITE_FS_META_VERSION || DEFAULT_VERSION
 
 function getCliArg(prefix) {
