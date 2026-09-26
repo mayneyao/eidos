@@ -1,6 +1,6 @@
 ---
 title: File Metadata Management
-description: Manage custom metadata directly on local files within the current folder, where nested folders stay independent while sharing underlying attributes.
+description: Browse a folder and its descendants as a table, with custom values stored on the files themselves.
 sidebar:
   label: File Metadata Management
   order: 60
@@ -34,14 +34,14 @@ Getting started takes just three steps:
 
 ## 3. Scope of Management
 
-**An `.eidos` file with File Metadata Management enabled manages strictly the single folder in which it resides.**
+**An `.eidos` file with File Metadata Management enabled scans its containing folder and its descendants.**
 
-It does not scan across unrelated directories or walk up the parent hierarchy. Every file maintains a clear local boundary: its containing folder is its entire scope.
+It does not walk up the parent hierarchy or follow symbolic links. Ignored entries are excluded. A table created in a subfolder scans that subfolder and its descendants.
 
 <FileTree>
 
 - Movies/
-  - **files.eidos** Manages files only in this folder
+  - **files.eidos** Manages this folder and its descendants
   - Interstellar.mkv
   - Dune.mp4
   - Poster.jpg
@@ -58,7 +58,7 @@ Complex project structures often contain nested subfolders (for example, a proje
 <FileTree>
 
 - Creative-Project/
-  - **files.eidos** Manages root folder files
+  - **files.eidos** Includes files in nested folders
   - Project-Plan.pdf
   - Budget.xlsx
   - Visual-Assets/
@@ -74,23 +74,24 @@ Complex project structures often contain nested subfolders (for example, a proje
 
 ### Independent layouts and configurations
 The `.eidos` file in the parent folder and the one in the subfolder are **completely separate documents**:
-Layouts, view styles, filter criteria, and sort rules are fully isolated between the two files. Subfolders without an `.eidos` file remain completely unaffected.
+Layouts, view styles, filter criteria, and sort rules are independent. The parent table can include files in a subfolder whether or not that subfolder has its own `.eidos` file.
 
 ### Shared underlying metadata on physical files
 Because custom attributes are recorded directly in physical file extended attributes:
-- **Same field names read the same underlying data**: When both tables define a field with the **exact same name** (such as `tags`, `rating`, or `status`), they read and write the exact same underlying file attribute.
-- **Live two-way consistency**: If you assign a rating to a file while working inside the subfolder, opening that same file in the parent folder will reflect the updated rating immediately.
+- **Storage identity determines sharing**: The default `tags` and `rating` fields use shared storage keys. Newly added fields receive independent keys; giving two fields the same name does not make them share values.
+- **Renaming preserves values**: A field keeps its storage key when renamed. Tables using the same namespace and storage key read the same value on the next query.
 
 ### Important precautions
 
-1. **Edits to shared fields take effect immediately**: For any given file, editing an attribute updates the physical file directly, meaning all views displaying that file will reflect the updated value.
-2. **Moving files preserves attributes**: Moving a file from one directory to another preserves its metadata. As long as the destination folder's database includes a field with the matching name, it will instantly display the file's existing metadata.
+1. **Edits affect physical file attributes**: Tables sharing a storage key can observe each other's edits. Matching display names alone do not imply shared data.
+2. **Moving files**: An ordinary rename on the same filesystem preserves file attributes. Copying or transferring files depends on the filesystem and tool. The destination table needs the same namespace and storage key to read existing values.
 3. **Difference between "Deleting a column" and "Clearing a cell value"**:
-   - **Deleting a column (field)** in the database removes that column from your current table layout; **it does not delete or alter the file's stored metadata**.
+   - **Deleting a column (field)** removes the column and clears its stored attribute from files included in the table. This also affects other tables sharing that attribute.
    - **Clearing the content of a cell** explicitly removes that attribute value from the physical file's system metadata.
 4. **Attribute portability**:
-   - File metadata is saved to native extended attributes supported by all modern operating systems and filesystems (macOS APFS, Linux ext4, Windows NTFS). Metadata is preserved when working on internal drives, external SSDs, or syncing via Graft version control.
+   - Values use extended attributes on macOS/Linux and alternate data streams on Windows. The filesystem must support them. Do not assume that Graft history, Sync, backups, or copying an `.eidos` file preserves these external attributes; verify your backup tool separately.
    - If files are transferred using third-party tools that strip extended attributes (such as sending individual files over instant messaging apps) or copied onto basic FAT32 media, the extended attributes may be ignored by the operating system.
+5. **Transaction limits**: Ordinary transaction and savepoint rollback restores metadata while the process is running. The journal is in memory; it does not provide crash atomicity or isolation from other programs changing the same attributes.
 
 ---
 

@@ -245,7 +245,7 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 2. **模块白名单**：宿主**必须**维持严密的虚拟表模块白名单，任何加载未授权模块的尝试均**必须**被拦截拒绝。
 3. **二进制解析**：针对已声明的 `fs_meta` 模块，宿主根据运行平台自动定位对应的预编译二进制库：
    - macOS arm64 / x86_64: `libfs_meta.dylib`
-   - Linux x86_64: `libfs_meta.so`
+   - Linux arm64 / x86_64: `libfs_meta.so`
    - Windows x86_64: `fs_meta.dll`
 4. **环境隔离**：原生动态库必须随桌面应用程序打包，或在运行前进行加密哈希完整性校验。
 

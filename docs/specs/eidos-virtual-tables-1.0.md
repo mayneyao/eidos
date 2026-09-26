@@ -310,7 +310,7 @@ A conforming `EA-VTab-1.0` Adapter owns the execution boundary:
 3. **Module Resolution**: For a declared module `fs_meta`, the host resolves the
    platform-specific binary:
    - macOS arm64 / x86_64: `libfs_meta.dylib`
-   - Linux x86_64: `libfs_meta.so`
+   - Linux arm64 / x86_64: `libfs_meta.so`
    - Windows x86_64: `fs_meta.dll`
 4. **Environment Isolation**: Native dynamic libraries MUST be bundled within the
    host application or verified via cryptographic hash before execution.
