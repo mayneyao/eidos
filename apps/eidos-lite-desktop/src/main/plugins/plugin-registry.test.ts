@@ -62,6 +62,44 @@ it("accepts published themes and rejects mismatched theme metadata", () => {
     ).toThrow("Invalid registry identity")
   }
 })
+it("accepts valid screenshots and rejects invalid screenshot metadata", () => {
+  const valid = parsePluginRegistry({
+    schemaVersion: 1,
+    plugins: [
+      {
+        ...entry,
+        screenshots: [
+          { path: "screenshots/overview.png", alt: "Overview" },
+          { path: "assets/preview.webp", alt: "Preview" },
+        ],
+      },
+    ],
+  })
+  expect(valid[0].screenshots).toEqual([
+    { path: "screenshots/overview.png", alt: "Overview" },
+    { path: "assets/preview.webp", alt: "Preview" },
+  ])
+
+  for (const badScreenshots of [
+    "not-an-array",
+    Array.from({ length: 9 }, (_, i) => ({
+      path: `screenshots/${i}.png`,
+      alt: `Shot ${i}`,
+    })),
+    [{ path: "../evil.png", alt: "Traversal" }],
+    [{ path: "screenshots/evil.exe", alt: "Bad extension" }],
+    [{ path: "screenshots/overview.png", alt: "" }],
+    [{ path: "screenshots/overview.png", alt: "bad\u0000alt" }],
+    [null],
+  ]) {
+    expect(() =>
+      parsePluginRegistry({
+        schemaVersion: 1,
+        plugins: [{ ...entry, screenshots: badScreenshots }],
+      })
+    ).toThrow()
+  }
+})
 it("bounds downloads and refuses off-domain redirects", async () => {
   await expect(
     registryDownload(

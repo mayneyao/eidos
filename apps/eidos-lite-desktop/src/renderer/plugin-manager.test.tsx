@@ -701,3 +701,68 @@ it("detects plugin updates and shows update actions in marketplace, detail view,
   ).not.toBeNull()
   expect(container.textContent).toContain("Update available: v1.2.0")
 })
+
+it("renders screenshots in plugin detail view and toggles lightbox modal", async () => {
+  Object.assign(window.eidosLite, {
+    pluginMarketplace: async () => ({
+      plugins: [
+        {
+          id: "example.chart",
+          name: "Chart",
+          description: "Chart visualization",
+          repo: "eidos-space/eidos-chart-plugin",
+          version: "1.0.0",
+          sha256: "abc",
+          screenshots: [
+            { path: "screenshots/overview.png", alt: "Chart overview" },
+          ],
+        },
+      ],
+      cached: false,
+      fetchedAt: new Date().toISOString(),
+    }),
+  })
+
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+
+  // Switch to Marketplace tab
+  await click("Marketplace")
+
+  // Open detail view
+  const card = container.querySelector(
+    ".plugin-marketplace-card"
+  ) as HTMLElement
+  await act(async () => card.click())
+
+  // Screenshot section should be present
+  const screenshotSection = container.querySelector(
+    ".plugin-screenshots-section"
+  )
+  expect(screenshotSection).not.toBeNull()
+
+  const img = screenshotSection?.querySelector("img") as HTMLImageElement
+  expect(img).not.toBeNull()
+  expect(img.src).toBe(
+    "https://raw.githubusercontent.com/eidos-space/eidos-chart-plugin/main/screenshots/overview.png"
+  )
+  expect(img.alt).toBe("Chart overview")
+
+  // Click screenshot button to open lightbox
+  const btn = screenshotSection?.querySelector(
+    ".plugin-screenshot-btn"
+  ) as HTMLButtonElement
+  await act(async () => btn.click())
+
+  const backdrop = container.querySelector(".plugin-screenshot-backdrop")
+  expect(backdrop).not.toBeNull()
+  const modalImg = backdrop?.querySelector(
+    ".plugin-screenshot-modal-img"
+  ) as HTMLImageElement
+  expect(modalImg.src).toBe(img.src)
+
+  // Press Escape to close modal
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+  })
+  expect(container.querySelector(".plugin-screenshot-backdrop")).toBeNull()
+})

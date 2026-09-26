@@ -12,6 +12,8 @@ const hosts = new Set([
   "release-assets.githubusercontent.com",
   "objects.githubusercontent.com",
 ])
+const SCREENSHOT_PATH =
+  /^(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:png|jpe?g|webp)$/u
 type Fetcher = typeof fetch
 
 export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
@@ -105,6 +107,33 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
         throw new Error("Invalid registry icon")
       }
     }
+    const screenshots: { path: string; alt: string }[] = []
+    if (p.screenshots !== undefined) {
+      if (!Array.isArray(p.screenshots) || p.screenshots.length > 8) {
+        throw new Error("Invalid registry screenshots")
+      }
+      for (const item of p.screenshots) {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          typeof (item as { path?: unknown }).path !== "string" ||
+          typeof (item as { alt?: unknown }).alt !== "string"
+        ) {
+          throw new Error("Invalid registry screenshot entry")
+        }
+        const s = item as { path: string; alt: string }
+        if (
+          s.path.length > 256 ||
+          s.alt.length > 1024 ||
+          s.alt.length < 1 ||
+          /[\u0000-\u001f]/.test(s.alt) ||
+          !SCREENSHOT_PATH.test(s.path)
+        ) {
+          throw new Error("Invalid registry screenshot entry")
+        }
+        screenshots.push({ path: s.path, alt: s.alt })
+      }
+    }
     return {
       id: p.id,
       name: p.name,
@@ -118,6 +147,7 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
       compatibility: p.compatibility,
       ...(p.kind === "theme" ? { kind: "theme" } : {}),
       ...(p.icon ? { icon: p.icon } : {}),
+      ...(screenshots.length ? { screenshots } : {}),
     } as MarketplacePlugin
   })
 }

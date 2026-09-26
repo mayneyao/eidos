@@ -6,6 +6,7 @@ export type EidosLiteMessageValues = Record<string, string | number>
 const zh: Record<string, string> = {
   "Configure the connection API key first": "请先在插件设置中配置 API Key",
   Stop: "停止",
+  Close: "关闭",
   "Processing {count} / {total} records": "正在处理 {count} / {total} 条记录",
   "Done · {count} updated · {unchanged} unchanged":
     "处理完成 · 已更新 {count} 条 · 无变化 {unchanged} 条",
@@ -57,6 +58,8 @@ const zh: Record<string, string> = {
   Queued: "排队中",
   "Installing…": "安装中…",
   "Loading documentation…": "正在加载文档…",
+  Screenshots: "展示截图",
+  "View full image: {alt}": "查看大图：{alt}",
   "Not installed": "未安装",
   Compatibility: "兼容性",
   "Install this plugin to see its views, commands, and settings.":

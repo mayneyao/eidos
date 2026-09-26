@@ -25,6 +25,7 @@ import {
   FileCode,
   HardDrive,
   ArrowUpCircle,
+  X,
 } from "lucide-react"
 import {
   type PluginListing,
@@ -101,6 +102,21 @@ export function PluginDetailView({
   const [activeTab, setActiveTab] = useState<DetailTab>("details")
   const [copiedId, setCopiedId] = useState(false)
   const [copiedHash, setCopiedHash] = useState(false)
+  const [activeScreenshot, setActiveScreenshot] = useState<{
+    src: string
+    alt: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!activeScreenshot) return
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveScreenshot(null)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [activeScreenshot])
 
   const manifest = plugin?.manifest
   const isTheme = manifest?.kind === "theme"
@@ -231,6 +247,16 @@ export function PluginDetailView({
   const formatters = manifest?.formatters ?? []
   const placements = manifest?.placements ?? []
   const totalContributions = views.length + actions.length + formatters.length
+
+  const screenshots = useMemo(() => {
+    if (!marketplacePlugin?.repo || !marketplacePlugin.screenshots?.length) {
+      return []
+    }
+    return marketplacePlugin.screenshots.map((s) => ({
+      src: `https://raw.githubusercontent.com/${marketplacePlugin.repo}/main/${s.path}`,
+      alt: s.alt,
+    }))
+  }, [marketplacePlugin?.repo, marketplacePlugin?.screenshots])
 
   const copyText = (text: string, isHash = false) => {
     if (!navigator.clipboard) return
@@ -782,6 +808,37 @@ export function PluginDetailView({
         >
           {activeTab === "details" && (
             <div className="plugin-tab-details space-y-6">
+              {screenshots.length > 0 && (
+                <section
+                  className="plugin-screenshots-section"
+                  aria-label={t("Screenshots")}
+                >
+                  <div className="plugin-screenshots-scroll">
+                    {screenshots.map((s, idx) => (
+                      <figure key={idx} className="plugin-screenshot-figure">
+                        <button
+                          type="button"
+                          className="plugin-screenshot-btn"
+                          onClick={() => setActiveScreenshot(s)}
+                          aria-label={t("View full image: {alt}", {
+                            alt: s.alt,
+                          })}
+                        >
+                          <img
+                            src={s.src}
+                            alt={s.alt}
+                            loading="lazy"
+                            className="plugin-screenshot-img"
+                          />
+                        </button>
+                        <figcaption className="plugin-screenshot-caption">
+                          {s.alt}
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </section>
+              )}
               {builtin ? (
                 <div className="plugin-builtin-content">{builtin.details}</div>
               ) : readmeLoading && !readmeHtml ? (
@@ -1220,27 +1277,17 @@ export function PluginDetailView({
                           : t("Default sandbox quota")}
                       </span>
                     </div>
-                    {manifest?.workspace?.listMarkdownFiles && (
+                    {manifest?.workspace?.files && (
                       <div className="plugin-spec-item">
                         <span className="plugin-spec-label">
                           {t("Space files")}
                         </span>
                         <span className="plugin-spec-value">
-                          {t(
-                            "Can list Markdown file names in this Space; file contents stay private."
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {manifest?.workspace?.watchMarkdownFiles && (
-                      <div className="plugin-spec-item">
-                        <span className="plugin-spec-label">
-                          {t("File changes")}
-                        </span>
-                        <span className="plugin-spec-value">
-                          {t(
-                            "Can receive Markdown change notifications without changed paths or file contents."
-                          )}
+                          {manifest.workspace.files === true ||
+                          (typeof manifest.workspace.files === "object" &&
+                            manifest.workspace.files.write)
+                            ? t("Can read and write files in this Space.")
+                            : t("Can read files in this Space.")}
                         </span>
                       </div>
                     )}
@@ -1300,6 +1347,39 @@ export function PluginDetailView({
           </aside>
         )}
       </div>
+
+      {activeScreenshot && (
+        <div
+          className="plugin-screenshot-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={activeScreenshot.alt}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveScreenshot(null)
+          }}
+        >
+          <div className="plugin-screenshot-modal">
+            <button
+              type="button"
+              className="plugin-screenshot-close"
+              onClick={() => setActiveScreenshot(null)}
+              aria-label={t("Close")}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
+            <img
+              src={activeScreenshot.src}
+              alt={activeScreenshot.alt}
+              className="plugin-screenshot-modal-img"
+            />
+            {activeScreenshot.alt && (
+              <p className="plugin-screenshot-modal-caption">
+                {activeScreenshot.alt}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

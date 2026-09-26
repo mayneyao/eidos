@@ -27,6 +27,10 @@ export interface PluginListing {
   associations?: Record<string, string>
   activeThemeId?: string | null
 }
+export interface MarketplaceScreenshot {
+  path: string
+  alt: string
+}
 export interface MarketplacePlugin {
   kind?: "theme"
   id: string
@@ -40,6 +44,7 @@ export interface MarketplacePlugin {
   preview: boolean
   compatibility: string
   icon?: PluginManifest["icon"]
+  screenshots?: MarketplaceScreenshot[]
 }
 export interface PluginMarketplace {
   plugins: MarketplacePlugin[]

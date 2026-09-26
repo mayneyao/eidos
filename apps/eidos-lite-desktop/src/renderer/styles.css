@@ -12517,3 +12517,116 @@ body {
     flex-basis: calc(100% - 60px);
   }
 }
+
+/* Plugin screenshots */
+.plugin-screenshots-section {
+  margin-bottom: 24px;
+}
+.plugin-screenshots-scroll {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+}
+.plugin-screenshot-figure {
+  flex: 0 0 min(100%, 560px);
+  margin: 0;
+  scroll-snap-align: start;
+}
+.plugin-screenshot-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--control-fill);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: zoom-in;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+.plugin-screenshot-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--ink-muted);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+.plugin-screenshot-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.plugin-screenshot-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+.plugin-screenshot-caption {
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Lightbox Modal */
+.plugin-screenshot-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 12, 16, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.plugin-screenshot-modal {
+  position: relative;
+  max-width: min(92vw, 1100px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.plugin-screenshot-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(30, 34, 42, 0.88);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+  z-index: 1;
+}
+.plugin-screenshot-close:hover {
+  background: rgba(50, 56, 68, 0.98);
+  transform: scale(1.05);
+}
+.plugin-screenshot-modal-img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(90vh - 40px);
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #000;
+}
+.plugin-screenshot-modal-caption {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  text-align: center;
+}
