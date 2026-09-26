@@ -98,6 +98,9 @@ jobs:
       - name: Typecheck
         run: pnpm --filter "@eidos.space/eidos-lite-desktop" typecheck
 
+      - name: Prepare file metadata extension
+        run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:vtab
+
       - name: Verify clone validation is read-only
         env:
           EIDOS_LITE_CROSS_PLATFORM_FIXTURE: ${{ runner.temp }}/eidos-lite-clone-fixture
