@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { createHash } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -39,9 +40,12 @@ function resolveAssetInfo(targetPlatform, targetArch) {
     const assetName = "fs_meta-x86_64-pc-windows-msvc.dll"
     return { binaryName, assetName }
   }
-  if (targetPlatform === "linux" && targetArch === "x64") {
+  if (targetPlatform === "linux" && ["x64", "arm64"].includes(targetArch)) {
     const binaryName = "libfs_meta.so"
-    const assetName = "libfs_meta-x86_64-unknown-linux-gnu.so"
+    const assetName =
+      targetArch === "arm64"
+        ? "libfs_meta-aarch64-unknown-linux-gnu.so"
+        : "libfs_meta-x86_64-unknown-linux-gnu.so"
     return { binaryName, assetName }
   }
   throw new Error(`Unsupported platform: ${targetPlatform} (${targetArch})`)
@@ -102,6 +106,23 @@ async function main() {
 
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
+  const checksumsResponse = await fetch(
+    `https://github.com/mayneyao/sqlite-fs-meta/releases/download/${version}/SHA256SUMS`
+  )
+  if (!checksumsResponse.ok)
+    throw new Error(
+      `Could not download sqlite-fs-meta checksums: ${checksumsResponse.status}`
+    )
+  const expected = (await checksumsResponse.text())
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/))
+    .find(([, name]) => name?.replace(/^\*/, "") === assetName)?.[0]
+  if (
+    !expected ||
+    createHash("sha256").update(buffer).digest("hex") !== expected.toLowerCase()
+  ) {
+    throw new Error(`Checksum mismatch for sqlite-fs-meta ${assetName}`)
+  }
   await fs.writeFile(destination, buffer)
   if (platform !== "win32") {
     await fs.chmod(destination, 0o755)
