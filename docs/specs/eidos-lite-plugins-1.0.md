@@ -344,6 +344,10 @@ directory are rejected.
 All file operations remain confined to the current Space; traversal outside (`..`) and
 internal implementation directories (`.graft`, etc.) are blocked.
 
+File mutations reject symbolic links and linked parent directories. `fs.rename`
+moves regular files only and MUST fail with `ALREADY_EXISTS` if the target exists,
+including a target created concurrently; it MUST NOT overwrite existing content.
+
 ## 4. Entry points, SDK and lifecycle
 
 ```ts

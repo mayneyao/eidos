@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto"
+import {
+  resolvePluginFile,
+  writePluginFile,
+  renamePluginFile,
+} from "./plugin-file-mutations"
 import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
 import { searchSpaceText } from "./text-search"
@@ -898,7 +903,7 @@ export class SpaceSession {
       throw new PluginError("TOO_LARGE", "Text exceeds the 2 MB limit")
     }
     const parts = relativePath.split("/")
-    const name = normalizeSpaceEntryName(parts.pop()!)
+    normalizeSpaceEntryName(parts.pop()!)
     let parent: string | null = null
     for (const part of parts) {
       normalizeSpaceEntryName(part)
@@ -920,9 +925,8 @@ export class SpaceSession {
       }
       parent = directory
     }
-    const fullPath = this.resolveUserPath(relativePath)
     await this.gate.withMutation(() =>
-      fs.writeFile(fullPath, content, { encoding: "utf8" })
+      writePluginFile(this.canonical.root, relativePath, content)
     )
     this.noteLocalChange()
     this.notifyMarkdownWatchers([relativePath])
@@ -955,7 +959,7 @@ export class SpaceSession {
       throw new PluginError("TOO_LARGE", "Binary data exceeds the 16 MB limit")
     }
     const parts = relativePath.split("/")
-    const name = normalizeSpaceEntryName(parts.pop()!)
+    normalizeSpaceEntryName(parts.pop()!)
     let parent: string | null = null
     for (const part of parts) {
       normalizeSpaceEntryName(part)
@@ -977,8 +981,9 @@ export class SpaceSession {
       }
       parent = directory
     }
-    const fullPath = this.resolveUserPath(relativePath)
-    await this.gate.withMutation(() => fs.writeFile(fullPath, buffer))
+    await this.gate.withMutation(() =>
+      writePluginFile(this.canonical.root, relativePath, buffer)
+    )
     this.noteLocalChange()
     this.notifyMarkdownWatchers([relativePath])
     await this.freshSnapshotAndEmit()
@@ -987,17 +992,17 @@ export class SpaceSession {
   async deleteFile(requestedPath: string): Promise<void> {
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
-    const fullPath = this.resolveUserPath(relativePath)
-    const stats = await fs.lstat(fullPath).catch(() => null)
-    if (!stats) return
-    if (stats.isDirectory()) {
-      throw new PluginError(
-        "PERMISSION_DENIED",
-        "Cannot delete directory directly"
-      )
-    }
     await this.gate.withMutation(async () => {
+      const { stats } = await resolvePluginFile(
+        this.canonical.root,
+        relativePath
+      )
+      if (!stats) return
       await this.closeAndEvictRuntimeSessions(relativePath)
+      const { fullPath } = await resolvePluginFile(
+        this.canonical.root,
+        relativePath
+      )
       await fs.unlink(fullPath)
     })
     this.noteLocalChange()
@@ -1009,8 +1014,7 @@ export class SpaceSession {
     this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(oldPath)
     const target = normalizeMutableRelativePath(newPath)
-    const sourceFull = this.resolveUserPath(source)
-    const stats = await fs.lstat(sourceFull).catch(() => null)
+    const { stats } = await resolvePluginFile(this.canonical.root, source)
     if (!stats)
       throw new PluginError(
         "DOCUMENT_UNAVAILABLE",
@@ -1018,7 +1022,7 @@ export class SpaceSession {
       )
     if (source === target) return
     const targetParts = target.split("/")
-    targetParts.pop()
+    normalizeSpaceEntryName(targetParts.pop()!)
     let parent: string | null = null
     for (const part of targetParts) {
       normalizeSpaceEntryName(part)
@@ -1040,10 +1044,9 @@ export class SpaceSession {
       }
       parent = directory
     }
-    const targetFull = this.resolveUserPath(target)
     await this.gate.withMutation(async () => {
       await this.closeAndEvictRuntimeSessions(source)
-      await fs.rename(sourceFull, targetFull)
+      await renamePluginFile(this.canonical.root, source, target)
     })
     this.noteLocalChange()
     this.notifyMarkdownWatchers([source, target])

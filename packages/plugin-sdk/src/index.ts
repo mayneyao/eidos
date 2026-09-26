@@ -164,7 +164,7 @@ export interface PluginFileSystem {
   writeBinary(path: string, content: Uint8Array): Promise<void>
   /** Deletes a file in the Space. */
   delete(path: string): Promise<void>
-  /** Renames or moves a file within the Space. */
+  /** Renames or moves a regular file within the Space; rejects existing targets with ALREADY_EXISTS. */
   rename(oldPath: string, newPath: string): Promise<void>
   /**
    * Lists files under a Space folder.

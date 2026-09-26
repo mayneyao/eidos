@@ -186,7 +186,7 @@ export interface PluginFileSystem {
   /** 删除 Space 内的指定文件。 */
   delete(path: string): Promise<void>
 
-  /** 在 Space 内重命名或移动文件。 */
+  /** 在 Space 内重命名或移动普通文件；目标已存在时返回 ALREADY_EXISTS。 */
   rename(oldPath: string, newPath: string): Promise<void>
 
   /**
