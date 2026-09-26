@@ -936,6 +936,7 @@ export function registerPluginIpc(controller: WindowController): {
         {
           apiVersion: 1,
           id: "example.smoke",
+          requires: { pluginApi: "2.0.0" },
           name: "Packaged smoke",
           version: "1.0.0",
           views: [

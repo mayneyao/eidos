@@ -200,7 +200,19 @@ try {
     )
   }
   for (const command of ["publish", "collect"]) {
-    if (!new RegExp(`^  ${command}\\s`, "m").test(publishEngineHelp.stdout)) {
+    // Compatibility aliases may be hidden from the grouped top-level help.
+    // Exercise the exact invocation used by Lite instead of its presentation.
+    const commandHelp = spawnSync(publishEngine, [command, "--help"], {
+      encoding: "utf8",
+      timeout: 15_000,
+    })
+    if (commandHelp.error) throw commandHelp.error
+    if (
+      commandHelp.status !== 0 ||
+      !new RegExp(`Usage: eidos (?:cloud )?${command}\\b`).test(
+        commandHelp.stdout
+      )
+    ) {
       throw new Error(
         `Packaged Eidos Publish engine does not expose ${command}`
       )

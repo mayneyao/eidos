@@ -273,10 +273,16 @@ const emptySpaceOnboardingProbe = `
     () => document.querySelector('form[aria-label="New File"]'),
     "New File dialog"
   )
-  const description = dialog.querySelector(".path-dialog-description")
-  if (!description?.textContent?.includes(".md")) {
-    throw new Error("New File dialog does not explain text-file extensions")
-  }
+  const kinds = [...dialog.querySelectorAll('[role="radio"]')]
+  const textKind = kinds.find(button => button.textContent?.trim() === "Text")
+  const eidosKind = kinds.find(button => button.textContent?.trim() === "Eidos")
+  if (!textKind || !eidosKind) throw new Error("New File type controls are missing")
+  const initialHeight = dialog.getBoundingClientRect().height
+  textKind.click()
+  await waitFor(() => textKind.getAttribute("aria-checked") === "true", "Text file type")
+  if (Math.abs(dialog.getBoundingClientRect().height - initialHeight) > 1) throw new Error("New File type switching changes dialog height")
+  eidosKind.click()
+  await waitFor(() => eidosKind.getAttribute("aria-checked") === "true", "Eidos file type")
   const input = dialog.querySelector("input")
   if (!input) throw new Error("New File name input is missing")
   const setValue = Object.getOwnPropertyDescriptor(
