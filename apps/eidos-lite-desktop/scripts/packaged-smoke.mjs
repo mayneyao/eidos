@@ -306,6 +306,7 @@ try {
     Object.keys(report.onboarding ?? {}).length !== 6 ||
     report.probes?.length !== 3 ||
     report.runtimeCache?.residentPaths?.length > 3 ||
+    report.fileMetadataTable !== true ||
     Object.values(report.fileLifecycle ?? {}).some((value) => value !== true) ||
     Object.values(report.textEditor ?? {}).some((value) => value !== true) ||
     Object.values(report.lifecycleRecovery ?? {}).some(
