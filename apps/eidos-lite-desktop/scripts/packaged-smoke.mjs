@@ -209,12 +209,12 @@ try {
     if (commandHelp.error) throw commandHelp.error
     if (
       commandHelp.status !== 0 ||
-      !new RegExp(`Usage: eidos (?:cloud )?${command}\\b`).test(
+      !new RegExp(`Usage: eidos(?:\\.exe)? (?:cloud )?${command}\\b`).test(
         commandHelp.stdout
       )
     ) {
       throw new Error(
-        `Packaged Eidos Publish engine does not expose ${command}`
+        `Packaged Eidos Publish engine does not expose ${command} (exit ${commandHelp.status}):\n${commandHelp.stdout}\n${commandHelp.stderr}`
       )
     }
   }
