@@ -15,6 +15,7 @@ import { EidosFileRuntime } from "./runtime"
 import { Runtime } from "./runtime-service"
 import { ConnectionPortEidosFileConnection } from "./connection-port"
 import { initializeEidosFileSchema } from "./schema"
+import { createEidosFileUuid } from "./identifiers"
 import { validateEidosFile } from "./validation"
 import type { EidosRuntimeService } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
@@ -49,6 +50,42 @@ const runtimeFactoryContext = {
 const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
+})
+
+it("keeps bulk-import schema reads bounded while validating every row ID", () => {
+  const database = new DatabaseSync(":memory:")
+  const connection = new ConnectionPortEidosFileConnection(
+    new NodeSqliteConnectionPort(database)
+  )
+  initializeEidosFileSchema(connection)
+  const runtime = new EidosFileRuntime(connection)
+  try {
+    const table = runtime.createTable({
+      name: "Import",
+      fields: [{ name: "Name", type: "text" }],
+    })
+    const query = vi.spyOn(connection, "query")
+    runtime.insertImportedRows(
+      table.id,
+      Array.from({ length: 100 }, (_, index) => ({
+        _id: createEidosFileUuid(),
+        Name: `Row ${index}`,
+      }))
+    )
+    const schemaReads = query.mock.calls.filter(([sql]) =>
+      /SELECT \* FROM eidos__tables/.test(sql)
+    ).length
+    expect(schemaReads).toBeLessThan(20)
+    expect(() =>
+      runtime.insertImportedRows(table.id, [
+        { _id: createEidosFileUuid(), Name: "Valid" },
+        { _id: "nested/file.txt", Name: "Invalid ordinary row ID" },
+      ])
+    ).toThrow()
+    expect(runtime.countRows(table.id)).toBe(100)
+  } finally {
+    database.close()
+  }
 })
 
 it.runIf(supportsElectron43NodeSqlite).each(["vtab:unknown", "vtab:fs_meta"])(

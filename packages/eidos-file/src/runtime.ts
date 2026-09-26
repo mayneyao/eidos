@@ -1470,17 +1470,26 @@ export class EidosFileRuntime {
     rowId: string,
     label = "Row ID"
   ): string {
+    return this.rowIdValidator(tableId, label)(rowId)
+  }
+
+  private rowIdValidator(
+    tableId: string,
+    label = "Row ID"
+  ): (rowId: string) => string {
     if (this.isVirtualTable(tableId)) {
-      if (
-        typeof rowId !== "string" ||
-        rowId.length === 0 ||
-        rowId.includes("\0")
-      ) {
-        throw new EidosFileError("invalid-value", `${label} is invalid`)
+      return (rowId) => {
+        if (
+          typeof rowId !== "string" ||
+          rowId.length === 0 ||
+          rowId.includes("\0")
+        ) {
+          throw new EidosFileError("invalid-value", `${label} is invalid`)
+        }
+        return rowId
       }
-      return rowId
     }
-    return assertEidosFileUuid(rowId, label)
+    return (rowId) => assertEidosFileUuid(rowId, label)
   }
 
   private fieldRows(tableId: string): FieldRow[] {
@@ -5418,11 +5427,14 @@ export class EidosFileRuntime {
       }
     >()
     const now = this.operationInstant()
+    // The schema is stable during this synchronous batch. Avoid rebuilding it
+    // for every row while the surrounding mutation disables the schema cache.
+    const validateRowId = this.rowIdValidator(tableId)
     const ids = rows.map((row) => {
       const requestedId = row._id ?? row.id
       const rowId =
         typeof requestedId === "string"
-          ? this.assertRowId(tableId, requestedId, "Row ID")
+          ? validateRowId(requestedId)
           : this.allocateId()
       const keys = Object.keys(row).filter(
         (key) => key !== "_id" && key !== "id" && !key.endsWith("__display")
