@@ -234,7 +234,7 @@ interface EidosFileGridProps {
   recordPresentation?: "panel" | "page";
   onRecordPresentationToggle?: () => void;
   loadColumnStats?: (configs: EidosFileColumnStatConfig[]) => Promise<EidosFileColumnStatResult[]>;
-  onAddRow: () => EidosFileGridAppendResult | Promise<EidosFileGridAppendResult>;
+  onAddRow?: () => EidosFileGridAppendResult | Promise<EidosFileGridAppendResult>;
   onCellEdit: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   onInspectorCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   onRowsEdit?: (edits: EidosFileGridRowEdit[]) => Promise<EidosFileRowsMutationResult>;
@@ -292,7 +292,7 @@ interface EidosFileGridSelectOption {
 }
 declare function eidosFileGridColumn(field: EidosFileFieldInfo): GridColumn;
 declare function eidosFileGridSelectOptions(field: EidosFileFieldInfo): EidosFileGridSelectOption[];
-declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string, allowWrapping?: boolean, timeZone?: string): GridCell;
+declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string, allowWrapping?: boolean, timeZone?: string, codeFontFamily?: string): GridCell;
 declare function gridCellToEidosFileValue(field: EidosFileFieldInfo, cell: EditableGridCell): EidosFileSqlPrimitive;
 //#endregion
 //#region src/eidos-file-grid-menus.d.ts
@@ -641,21 +641,25 @@ declare function EidosFileRelationOptionList({
 declare function EidosFileOptionsEditor({
   options: sourceOptions,
   disabled,
+  allowRename,
   onChange,
   className
 }: {
   options: EidosFileSelectOption[];
   disabled: boolean;
+  allowRename?: boolean;
   onChange: (options: EidosFileSelectOption[], valueChanges?: EidosFileOptionValueChange[]) => Promise<void> | void;
   className?: string;
 }): _$react_jsx_runtime0.JSX.Element;
 declare function EidosFileSelectOptionsEditor({
   field,
   disabled,
+  allowRename,
   onChange
 }: {
   field: EidosFileFieldInfo;
   disabled: boolean;
+  allowRename?: boolean;
   onChange: (property: Record<string, unknown>, optionValueChanges?: EidosFileOptionValueChange[]) => Promise<void> | void;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
