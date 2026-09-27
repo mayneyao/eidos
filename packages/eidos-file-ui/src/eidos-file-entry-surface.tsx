@@ -24,6 +24,7 @@ import {
 
 import { useEidosFileUI } from "./context"
 import {
+  activateEidosFileAsset,
   assertEidosFileAssetLease,
   eidosFileAssetRequestContext,
   eidosFileAssetResolutionAllowed,
@@ -594,31 +595,18 @@ export function EidosFileEntrySurface({
       }
       setActivating(action)
       setActivationError(null)
-      let lease: AssetLease | null = null
       try {
-        lease = await assetSession.services.resolveAsset(
-          {
-            sessionId: assetSession.state.sessionId,
-            entryId: entry.id,
-            purpose,
-          },
-          eidosFileAssetRequestContext(`asset-${action}`)
-        )
-        assertEidosFileAssetLease(assetSession, entry, purpose, lease)
-        await assetPresenter.activate(
-          {
-            sessionId: assetSession.state.sessionId,
-            lease,
-            action,
-          },
-          eidosFileAssetRequestContext(`asset-${action}-activate`)
+        await activateEidosFileAsset(
+          assetSession,
+          assetPresenter,
+          entry,
+          action
         )
       } catch (error) {
         setActivationError(
           error instanceof Error ? error.message : t("Asset unavailable")
         )
       } finally {
-        if (lease) await releaseEidosFileAssetLease(assetSession, lease)
         setActivating(null)
       }
     },

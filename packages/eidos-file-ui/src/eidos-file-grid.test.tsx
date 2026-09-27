@@ -3848,6 +3848,109 @@ describe("EidosFileGrid", () => {
     unrelatedInput.remove()
   })
 
+  it.each([0, 1, 2])(
+    "offers direct opening only for a single read-only attachment (%i entries)",
+    async (count) => {
+      const entry: FileEntry = {
+        id: ADA_ID,
+        mediaType: "video/mp4",
+        name: "movie.mp4",
+        size: "536870912",
+        uri: "movie.mp4",
+      }
+      const entries = [
+        entry,
+        { ...entry, id: GRACE_ID, name: "other.mp4", uri: "other.mp4" },
+      ].slice(0, count)
+      const fileTable: EidosFileTableSnapshot = {
+        ...table,
+        fields: [
+          {
+            ...table.fields[0],
+            type: "file",
+            tableColumnName: "files",
+            writable: false,
+            storageCodec: "json_array",
+          },
+        ],
+        rowCount: 1,
+      }
+      const lease = {
+        leaseId: "file-open",
+        entryId: entry.id,
+        purpose: "preview",
+        mediaType: entry.mediaType,
+        name: entry.name,
+        size: entry.size,
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        resourceToken: "host-file",
+      }
+      const resolveAsset = vi.fn(async () => lease)
+      const releaseAsset = vi.fn(async () => undefined)
+      const activate = vi.fn(async () => undefined)
+      const session = {
+        services: { resolveAsset, releaseAsset },
+        serviceCapabilities: { canUseAssets: true },
+        localAssetOpenBytesMax: String(Number.MAX_SAFE_INTEGER),
+        state: {
+          sessionId: "session-1",
+          phase: "ready-clean",
+          capabilities: { assetReadSchemes: ["relative"] },
+          limits: {
+            assetPreviewBytesMax: "1048576",
+            concurrentAssetLeasesMax: 8,
+          },
+        },
+      }
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider
+            assetSession={session as never}
+            assetPresenter={{ renderImage: () => null, activate }}
+          >
+            <EidosFileGrid
+              table={fileTable}
+              loadPage={async (offset, limit) => ({
+                tableId: "tasks",
+                offset,
+                limit,
+                total: 1,
+                rows: [{ _id: ADA_ID, files: encodeEidosFileValues(entries) }],
+              })}
+              onCellEdit={createCellEdit()}
+            />
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+      })
+      act(() =>
+        mocks.props?.onCellContextMenu?.([0, 0], {
+          preventDefault: vi.fn(),
+          bounds: { x: 0, y: 0, width: 100, height: 32 },
+          localEventX: 5,
+          localEventY: 5,
+        } as never)
+      )
+      const openFile = Array.from(
+        document.body.querySelectorAll("button")
+      ).find((button) => button.textContent === "Open file")
+      expect(Boolean(openFile)).toBe(count === 1)
+      expect(resolveAsset).not.toHaveBeenCalled()
+      if (openFile) {
+        await act(async () => openFile.click())
+        expect(resolveAsset).toHaveBeenCalledWith(
+          { sessionId: "session-1", entryId: entry.id, purpose: "preview" },
+          expect.any(Object)
+        )
+        expect(activate).toHaveBeenCalledWith(
+          { sessionId: "session-1", lease, action: "open" },
+          expect.any(Object)
+        )
+        expect(releaseAsset).toHaveBeenCalledOnce()
+      }
+    }
+  )
+
   it("keeps loaded attachment thumbnails across equivalent page loader updates", async () => {
     const fileField = {
       ...table.fields[1],

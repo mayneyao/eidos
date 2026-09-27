@@ -5,7 +5,31 @@ import {
   type FileEntry,
 } from "@eidos.space/eidos-file"
 
-import type { EidosFileUIAssetSession } from "./context"
+import type { AssetPresenter, EidosFileUIAssetSession } from "./context"
+
+export async function activateEidosFileAsset(
+  session: EidosFileUIAssetSession,
+  presenter: Pick<AssetPresenter<unknown>, "activate">,
+  entry: FileEntry,
+  action: "open" | "download"
+): Promise<void> {
+  const purpose = action === "download" ? "download" : "preview"
+  if (!eidosFileAssetResolutionAllowed(session, entry, purpose)) return
+  let lease: AssetLease | null = null
+  try {
+    lease = await session.services.resolveAsset(
+      { sessionId: session.state.sessionId, entryId: entry.id, purpose },
+      eidosFileAssetRequestContext(`asset-${action}`)
+    )
+    assertEidosFileAssetLease(session, entry, purpose, lease)
+    await presenter.activate(
+      { sessionId: session.state.sessionId, lease, action },
+      eidosFileAssetRequestContext(`asset-${action}-activate`)
+    )
+  } finally {
+    if (lease) await releaseEidosFileAssetLease(session, lease)
+  }
+}
 
 let requestSequence = 0
 

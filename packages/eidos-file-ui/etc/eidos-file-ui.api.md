@@ -375,6 +375,7 @@ declare function EidosFileCellMenu({
   onCopyCell,
   onCopyRecordId,
   onOpenUrl,
+  onOpenFile,
   onDeleteRows
 }: {
   state: EidosFileCellMenuState | null;
@@ -387,6 +388,7 @@ declare function EidosFileCellMenu({
   onCopyCell: (text: string) => void;
   onCopyRecordId: (id: string) => void;
   onOpenUrl?: (url: string) => void;
+  onOpenFile?: () => void;
   onDeleteRows: (ranges: EidosFileRowRange[]) => void;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion

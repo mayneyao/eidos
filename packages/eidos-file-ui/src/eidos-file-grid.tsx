@@ -30,6 +30,7 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
+  decodeEidosFileValues,
   eidosFileColumnStatLabel,
   eidosFileColumnStatTypesForField,
 } from "@eidos.space/eidos-file"
@@ -61,6 +62,10 @@ import {
   useUndoRedo,
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
+import {
+  activateEidosFileAsset,
+  eidosFileAssetResolutionAllowed,
+} from "./eidos-file-asset-lease"
 import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { Button } from "./ui/primitives"
 import { useGlideDataGridPortal } from "./use-glide-data-grid-portal"
@@ -2787,6 +2792,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const cellText = cellMenu
     ? eidosFileRecordFieldText(cellMenu.row, cellMenu.field, timeZone)
     : ""
+  let singleFileEntry: FileEntry | undefined
+  if (cellMenu?.field.type === "file" && assetPresenter) {
+    try {
+      const entries = decodeEidosFileValues(
+        cellMenu.row[cellMenu.field.tableColumnName]
+      )
+      if (
+        entries.length === 1 &&
+        eidosFileAssetResolutionAllowed(assetSession, entries[0]!, "preview")
+      ) {
+        singleFileEntry = entries[0]
+      }
+    } catch {
+      // Malformed values must not expose an activation action.
+    }
+  }
   const cellIsEmpty =
     !cellMenu ||
     cellMenu.row[cellMenu.field.tableColumnName] === null ||
@@ -3023,6 +3044,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCopyCell={copyText}
           onCopyRecordId={copyText}
           onOpenUrl={activateUrl ? openUrl : undefined}
+          onOpenFile={
+            singleFileEntry && assetSession && assetPresenter
+              ? () => {
+                  void activateEidosFileAsset(
+                    assetSession,
+                    assetPresenter,
+                    singleFileEntry!,
+                    "open"
+                  ).catch((error) => onErrorRef.current?.(error))
+                }
+              : undefined
+          }
           onDeleteRows={requestDeleteRows}
         />
       </div>

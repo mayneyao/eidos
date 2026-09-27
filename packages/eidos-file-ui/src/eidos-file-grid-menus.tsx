@@ -443,6 +443,7 @@ export function EidosFileCellMenu({
   onCopyCell,
   onCopyRecordId,
   onOpenUrl,
+  onOpenFile,
   onDeleteRows,
 }: {
   state: EidosFileCellMenuState | null
@@ -455,6 +456,7 @@ export function EidosFileCellMenu({
   onCopyCell: (text: string) => void
   onCopyRecordId: (id: string) => void
   onOpenUrl?: (url: string) => void
+  onOpenFile?: () => void
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -497,6 +499,12 @@ export function EidosFileCellMenu({
       >
         {state ? (
           <>
+            {onOpenFile ? (
+              <MenuItem onClick={() => run(onOpenFile)}>
+                <ExternalLink className="h-3.5 w-3.5" />
+                {t("Open file")}
+              </MenuItem>
+            ) : null}
             <MenuItem onClick={() => run(() => onOpenRecord(state))}>
               <PanelRightOpen className="h-3.5 w-3.5" />
               {t("Open record")}
