@@ -2809,7 +2809,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           !pathMutationBusy &&
           !blocksLocalInteraction(space.operation.phase)
         ) {
-          setPathDialog({ action: "create-file", entry: selectedEntry })
+          setPathDialog({ action: "create-file", entry: null })
         }
         return
       }
@@ -3197,16 +3197,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setPathMutationBusy(true)
     setError(null)
     try {
-      const result = await window.eidosLite.importFiles(
-        parentPath(selectedEntry)
-      )
+      const result = await window.eidosLite.importFiles(null)
       if (result) applyPathMutation(result)
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
       setPathMutationBusy(false)
     }
-  }, [applyPathMutation, selectedEntry])
+  }, [applyPathMutation])
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
@@ -3473,8 +3471,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 macos,
                 keyboardShortcuts
               ),
-              run: () =>
-                setPathDialog({ action: "create-file", entry: selectedEntry }),
+              run: () => setPathDialog({ action: "create-file", entry: null }),
             },
             {
               label: t("New folder"),
@@ -3483,7 +3480,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               run: () =>
                 setPathDialog({
                   action: "create-folder",
-                  entry: selectedEntry,
+                  entry: null,
                 }),
             },
             {

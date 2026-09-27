@@ -20,7 +20,7 @@ describe("New file shortcut", () => {
     )
     expect(appSource).toContain("onWorkspaceShortcutCommand(")
     expect(appSource).toContain(
-      'setPathDialog({ action: "create-file", entry: selectedEntry })'
+      'setPathDialog({ action: "create-file", entry: null })'
     )
     expect(appSource).toMatch(
       /ariaShortcut:\s*workspaceShortcutAriaKeyShortcuts\(\s*"new-file"/
