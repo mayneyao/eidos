@@ -126,7 +126,7 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
   - **`insert`** (`boolean`): 若为 `false`，则数据行集合完全由外部来源决定。UI **必须**隐藏所有行插入交互（如表格底部的空白追加行、“+ 新建行”按钮）。运行时收到 `kind: "create"` 的 `mutateRows` 请求**必须**立即拒绝。
   - **`delete`** (`boolean | "clear_meta"`): 若为 `false`，禁止删除行。若为 `"clear_meta"`，删除操作仅重置该行在外部存储中的自定义元数据，不物理删除文件实体。
   - **`update`** (`boolean`): 若为 `true`，支持对可写自定义字段进行单元格更新。
-  - **`alterSchema`** (`boolean`): 若为 `true`，支持在 `eidos__fields` 中动态增加、重命名或移除用户自定义列。
+  - **`alterSchema`** (`boolean`): 若为 `true`，支持在 `eidos__fields` 中动态修改用户自定义列，但受模块约束。文件元数据字段不可重命名；其行标识是路径且不支持普通表的触发器，因此不支持以文件元数据表为源或目标的 Relation。
 - **`vtabConfig`** (`object`): 传递给模块的特定初始化参数。
 
 ## 5. 字段模式与标识放宽 (`eidos__fields`)
@@ -225,8 +225,9 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 
 普通事务及保存点回滚必须恢复外部属性的原始字节，包括原先不存在属性的状态。
 字段保留 `physical_name = name` 的规范映射，通过 `settings_json.vtabStorageKey`
-标识独立、稳定的外部属性键。重命名不得清空或迁移属性；旧字段默认使用原物理名称，
-新字段使用唯一键。原生 `fields` 参数接受 `{name, type, key}` 的 JSON 数组，支持带空格及引号的名称。
+标识外部属性键。新字段必须直接使用完整字段名作为键，Runtime 和 UI 必须拒绝文件元数据字段重命名。
+已有生成键必须保留原映射和值，打开文件不得自动迁移或覆盖外部属性；没有键的旧字段使用物理名称。
+原生 `fields` 参数接受 `{name, type, key}` 的 JSON 数组，支持带空格及引号的名称。
 删除属性键必须在 schema 修改结束后由最终虚表实例执行，以支持整体回滚；
 含未提交属性写入的虚表不得直接 DROP 而丢弃回滚日志。
 此保证仅覆盖进程内回滚：xattr/ADS 不属于 SQLite 的持久日志，不保证进程突然退出或外部并发写入时的崩溃原子性。

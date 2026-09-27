@@ -27,6 +27,7 @@ import { useEidosFileUI } from "./context"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
   EidosFileFieldTypePicker,
+  EIDOS_FILE_FIELD_TYPE_OPTIONS,
   type EidosFileCreatableFieldType,
 } from "./eidos-file-field-type-picker"
 import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
@@ -126,20 +127,42 @@ export function EidosFileFieldCreatePopover({
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const nameId = useId()
+  const relationTables = tables.filter(
+    (candidate) =>
+      candidate.table.settings?.tableType !== "virtual" &&
+      !candidate.table.settings?.vtabModule
+  )
+  const supportsRelations =
+    table.table.settings?.tableType !== "virtual" &&
+    !table.table.settings?.vtabModule
+  const availableTypes = useMemo(
+    () =>
+      supportsRelations
+        ? allowedTypes
+        : (
+            allowedTypes ??
+            EIDOS_FILE_FIELD_TYPE_OPTIONS.map((option) => option.value)
+          ).filter((type) => type !== "relation" && type !== "lookup"),
+    [allowedTypes, supportsRelations]
+  )
 
   useEffect(() => {
     if (!open) return
     setName("")
     setFieldType(
-      allowedTypes?.includes("text") ? "text" : (allowedTypes?.[0] ?? "text")
+      availableTypes?.includes("text")
+        ? "text"
+        : (availableTypes?.[0] ?? "text")
     )
     setOptions([])
     setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
     setTargetTableId(
-      tables.find((candidate) => candidate.table.id !== table.table.id)?.table
-        .id ??
-        tables[0]?.table.id ??
-        ""
+      tables.find(
+        (candidate) =>
+          candidate.table.id !== table.table.id &&
+          candidate.table.settings?.tableType !== "virtual" &&
+          !candidate.table.settings?.vtabModule
+      )?.table.id ?? (supportsRelations ? table.table.id : "")
     )
     setMultiple(true)
     setFormula("")
@@ -150,7 +173,7 @@ export function EidosFileFieldCreatePopover({
     setLookupAggregate("first")
     setSubmitting(false)
     setError(null)
-  }, [allowedTypes, open, table.table.id, tables])
+  }, [availableTypes, open, table.table.id, tables, supportsRelations])
 
   const columnName = useMemo(
     () => columnNameFor(name.trim() || "field", table.fields),
@@ -320,7 +343,7 @@ export function EidosFileFieldCreatePopover({
               <EidosFileFieldTypePicker
                 value={fieldType}
                 onChange={setFieldType}
-                allowedTypes={allowedTypes}
+                allowedTypes={availableTypes}
                 disabled={busy}
               />
             </label>
@@ -355,7 +378,7 @@ export function EidosFileFieldCreatePopover({
                       <SelectValue placeholder={t("Choose a table")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {tables.map((candidate) => (
+                      {relationTables.map((candidate) => (
                         <SelectItem
                           key={candidate.table.id}
                           value={candidate.table.id}

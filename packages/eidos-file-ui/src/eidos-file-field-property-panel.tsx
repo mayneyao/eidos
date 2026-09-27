@@ -103,6 +103,13 @@ export function EidosFileFieldPropertyPanel({
     field.valueKind === "system" ||
     field.settings?.isSystem === true ||
     field.settings?.readOnly === true
+  const nameReadOnly =
+    systemReadOnly ||
+    tables.some(
+      (table) =>
+        table.table.id === field.tableId &&
+        table.table.settings?.tableType === "virtual"
+    )
   const numberProperty = useMemo(() => eidosFileNumberProperty(field), [field])
   const urlDisplaysImage = eidosFileUrlDisplaysImage(field)
   const mutable =
@@ -191,7 +198,7 @@ export function EidosFileFieldPropertyPanel({
   const busy = disabled || pendingUpdate
 
   const saveName = () => {
-    if (systemReadOnly) {
+    if (nameReadOnly) {
       setName(field.name)
       setError(null)
       return
@@ -347,7 +354,7 @@ export function EidosFileFieldPropertyPanel({
             <Input
               id={nameId}
               value={name}
-              disabled={busy || systemReadOnly}
+              disabled={busy || nameReadOnly}
               className="h-8 text-xs"
               onChange={(event) => setName(event.target.value)}
               onBlur={saveName}

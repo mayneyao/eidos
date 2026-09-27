@@ -612,7 +612,7 @@ function replaceVirtualTableFields(sql: string, fields: string): string {
       "invalid-schema",
       "Unterminated virtual table argument"
     )
-  const replacement = `fields = '${fields.replaceAll("'", "''")}'`
+  const replacement = `fields = '${fields.replace(/'/g, "''")}'`
   const index = args.findIndex((arg) => /^\s*fields\s*=/i.test(arg))
   if (index < 0) args.push(replacement)
   else args[index] = replacement
@@ -2104,6 +2104,15 @@ export class EidosFileRuntime {
       )
     }
     if (field.type === "relation" && input.type === "relation") {
+      if (
+        this.isVirtualTable(tableId) ||
+        this.isVirtualTable(input.property.targetTableId)
+      ) {
+        throw new EidosFileError(
+          "table-mutation-not-supported",
+          "Relations require ordinary tables; filesystem metadata tables use file paths as row identities and do not support relation triggers"
+        )
+      }
       const direction = input.property.direction ?? "forward"
       const sourceFieldId = input.property.sourceFieldId ?? null
       const cardinality =
@@ -2418,7 +2427,7 @@ export class EidosFileRuntime {
       settings: {
         ...presentationSettings(input),
         ...(this.isVirtualTable(tableId) && physicalName
-          ? { vtabStorageKey: `field_${id.replaceAll("-", "")}` }
+          ? { vtabStorageKey: input.name }
           : {}),
         ...(input.type === "rating" ? { display: { kind: "rating" } } : {}),
       },
@@ -2557,6 +2566,12 @@ export class EidosFileRuntime {
       let name = field.name
       let physicalName: string | null = field.physicalName ?? null
       if (changes.name !== undefined && changes.name !== field.name) {
+        if (this.isVirtualTable(tableId)) {
+          throw new EidosFileError(
+            "table-mutation-not-supported",
+            "File metadata fields cannot be renamed; their names identify filesystem attributes"
+          )
+        }
         name = assertEidosFileDisplayName(changes.name, "Field name")
         const fields = this.listFields(tableId)
         if (

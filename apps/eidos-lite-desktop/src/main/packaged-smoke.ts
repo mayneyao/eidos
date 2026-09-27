@@ -2123,18 +2123,13 @@ export async function runPackagedSmoke(
       "proof.txt",
       { [rating.id!]: 4 },
     ])
-    await session.callRuntime(metadataRuntime.sessionId, "updateField", [
-      metadataTable.table.id,
-      rating.id!,
-      { name: "Owner's rating" },
-    ])
     const metadataRow = await session.callRuntime(
       metadataRuntime.sessionId,
       "getRow",
       [metadataTable.table.id, "proof.txt"]
     )
     if (metadataRow?.[rating.id!] !== "4")
-      throw new Error("Packaged fs_meta rename lost metadata")
+      throw new Error("Packaged fs_meta update lost metadata")
     report.fileMetadataTable = true
     await session.closeEidosFile(metadataRuntime.sessionId)
     const externalProbe = await session.createEidosFile(

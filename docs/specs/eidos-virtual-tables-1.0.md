@@ -165,7 +165,10 @@ The `eidos__tables.settings_json` document MUST include a `vtab` configuration b
     deleting the underlying external entity (e.g. physical file on disk).
   - **`update`** (`boolean`): If `true`, mutations to writable fields are supported.
   - **`alterSchema`** (`boolean`): If `true`, adding, renaming, or removing user-defined
-    custom fields is supported.
+    custom fields is supported, subject to module constraints. Filesystem metadata
+    field names are immutable. Relations to or from filesystem tables are not
+    supported: their path-based row identities and trigger capabilities differ
+    from ordinary Eidos File tables.
 - **`vtabConfig`** (`object`): Module-specific initialization arguments.
 
 ## 5. Field Schema and Identity (`eidos__fields`)
@@ -211,10 +214,11 @@ the `name` (file name) field.
 ### 5.3. Built-in `file` Attachment Field
 
 Custom fields retain the canonical `physical_name = name` mapping. Their
-`settings_json.vtabStorageKey` identifies the external attribute independently;
-renaming a field MUST preserve that key and MUST NOT erase or migrate its values.
-Legacy fields without a key use their original physical name. New custom fields
-use unique keys so recreating a deleted name cannot revive old values. The native
+`settings_json.vtabStorageKey` identifies the external attribute. New custom
+fields MUST use their exact field name as the key. Runtime and UI MUST reject
+renaming filesystem metadata fields. Existing generated keys MUST retain their
+mapping and values; opening a file MUST NOT migrate or overwrite external
+attributes. Legacy fields without a key use their physical name. The native
 `fields` argument accepts a JSON array of `{name, type, key}` definitions; names
 are SQL identifiers, while `key` selects the metadata envelope entry.
 

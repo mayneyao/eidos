@@ -23,7 +23,73 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     for (const root of roots.splice(0))
       fs.rmSync(root, { recursive: true, force: true })
   })
-  it("keeps storage keys and values stable across display-name changes", async () => {
+  it("imports CSV as an ordinary table alongside files and creates URL metadata", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-csv-"))
+    )
+    roots.push(root)
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const table = runtime.initialSnapshot.tables[0]!.table
+    const csvPath = path.join(root, "contacts.csv")
+    fs.writeFileSync(csvPath, "name,url\nAlice,https://example.com\n")
+    const stats = fs.statSync(csvPath)
+    const imported = await runtime.importCsvFile(
+      {
+        sourcePath: csvPath,
+        fileName: "contacts.csv",
+        size: stats.size,
+        modifiedAtMs: stats.mtimeMs,
+      },
+      {},
+      "vtab-csv-import"
+    )
+    expect(imported.result.importedRowCount).toBe(1)
+    expect(imported.snapshot.tables).toHaveLength(2)
+    const ordinaryTable = imported.result.table
+    await expect(
+      runtime.source.addField(table.id, {
+        name: "related",
+        type: "relation",
+        property: { targetTableId: ordinaryTable.id, multiple: true },
+      })
+    ).rejects.toThrow("Relations require ordinary tables")
+    await expect(
+      runtime.source.addField(ordinaryTable.id, {
+        name: "files",
+        type: "relation",
+        property: { targetTableId: table.id, multiple: true },
+      })
+    ).rejects.toThrow("Relations require ordinary tables")
+    const relationSnapshot = await runtime.source.addField(ordinaryTable.id, {
+      name: "related",
+      type: "relation",
+      property: { targetTableId: ordinaryTable.id, multiple: true },
+    })
+    expect(
+      relationSnapshot.tables
+        .find((candidate) => candidate.table.id === ordinaryTable.id)!
+        .fields.some((field) => field.name === "related")
+    ).toBe(true)
+    expect(await runtime.source.getRow(table.id, "proof.txt")).not.toBeNull()
+    const snapshot = await runtime.source.addField(table.id, {
+      name: "link",
+      type: "url",
+    })
+    const link = snapshot.tables
+      .find((candidate) => candidate.table.id === table.id)!
+      .fields.find((field) => field.name === "link")!
+    await runtime.source.updateRow(table.id, "proof.txt", {
+      [link.id!]: "https://example.com",
+    })
+    expect(
+      (await runtime.source.getRow(table.id, "proof.txt"))?.[link.id!]
+    ).toBe("https://example.com")
+  })
+  it("uses field names as metadata keys and rejects renaming without losing values", async () => {
     const root = fs.realpathSync(
       fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-fields-"))
     )
@@ -36,13 +102,11 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     const { table, fields } = runtime.initialSnapshot.tables[0]!
     const rating = fields.find((field) => field.name === "rating")!
     await runtime.source.updateRow(table.id, "proof.txt", { [rating.id!]: 4 })
-    const renamed = await runtime.source.updateField(table.id, rating.id!, {
-      name: "Owner's rating",
-    })
-    expect(
-      renamed.tables[0]!.fields.find((field) => field.id === rating.id)
-        ?.settings?.vtabStorageKey
-    ).toBe("rating")
+    await expect(
+      runtime.source.updateField(table.id, rating.id!, {
+        name: "Owner's rating",
+      })
+    ).rejects.toThrow("cannot be renamed")
     expect(
       (await runtime.source.getRow(table.id, "proof.txt"))?.[rating.id!]
     ).toBe("4")
@@ -58,12 +122,26 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       const field = snapshot.tables[0]!.fields.find(
         (field) => field.name === name
       )!
+      expect(field.settings?.vtabStorageKey).toBe(name)
       await runtime.source.updateRow(table.id, "proof.txt", {
         [field.id!]: "reviewed",
       })
       expect(
         (await runtime.source.getRow(table.id, "proof.txt"))?.[field.id!]
       ).toBe("reviewed")
+    }
+    if (process.platform === "darwin") {
+      const attributes = JSON.parse(
+        execFileSync(
+          "xattr",
+          ["-p", "space.eidos.meta", path.join(root, "proof.txt")],
+          { encoding: "utf8" }
+        )
+      )
+      expect(attributes["Owner's notes"]).toBe("reviewed")
+      expect(
+        Object.keys(attributes).some((key) => key.startsWith("field_"))
+      ).toBe(false)
     }
     await runtime.close()
     runtimes.splice(runtimes.indexOf(runtime), 1)
@@ -72,6 +150,44 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     expect(
       (await reopened.source.getRow(table.id, "proof.txt"))?.[rating.id!]
     ).toBe("4")
+  })
+
+  it("preserves generated legacy keys when adding a named field", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-legacy-"))
+    )
+    roots.push(root)
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const db = new DatabaseSync(file, { allowExtension: true })
+    try {
+      db.loadExtension(resolveVTabExtensionPath("fs_meta")!)
+      const declaration = String(
+        db.prepare("SELECT sql FROM sqlite_master WHERE name='files'").get()!
+          .sql
+      ).replace('"key":"rating"', '"key":"field_legacy_rating"')
+      db.exec(`DROP TABLE files; ${declaration};`)
+      db.prepare(
+        "UPDATE eidos__fields SET settings_json=json_set(settings_json, '$.vtabStorageKey', ?) WHERE name='rating'"
+      ).run("field_legacy_rating")
+      db.exec("UPDATE files SET rating=3 WHERE _id='proof.txt'")
+    } finally {
+      db.close()
+    }
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const rating = fields.find((field) => field.name === "rating")!
+    await runtime.source.addField(table.id, { name: "bgm", type: "text" })
+    expect(
+      (await runtime.source.getRow(table.id, "proof.txt"))?.[rating.id!]
+    ).toBe("3")
+    expect(
+      (await runtime.source.getSnapshot()).tables[0]!.fields.find(
+        (field) => field.id === rating.id
+      )!.settings?.vtabStorageKey
+    ).toBe("field_legacy_rating")
   })
 
   it("restores exact external metadata on rollback and nested savepoints", () => {
@@ -466,18 +582,13 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     const rowWithType = await runtime.source.getRow(tableId, "hello.txt")
     expect(rowWithType?.[typeField.id]).toBe("文档")
 
-    // Rename custom field 'type' to 'category'
-    const renameSnapshot = await runtime.source.updateField(
-      tableId,
-      typeField.id,
-      {
+    // Metadata names identify filesystem keys, so renaming is unsupported.
+    await expect(
+      runtime.source.updateField(tableId, typeField.id, {
         name: "category",
-      }
-    )
-    const categoryField = renameSnapshot.tables[0].fields.find(
-      (f) => f.id === typeField.id
-    )!
-    expect(categoryField.name).toBe("category")
+      })
+    ).rejects.toThrow("cannot be renamed")
+    const categoryField = typeField
 
     // Row still has value under the field ID
     const rowWithCategory = await runtime.source.getRow(tableId, "hello.txt")

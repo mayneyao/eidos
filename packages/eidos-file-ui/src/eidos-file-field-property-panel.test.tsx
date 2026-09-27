@@ -88,6 +88,37 @@ describe("EidosFileFieldPropertyPanel", () => {
     act(() => root.unmount())
     container.remove()
   })
+  it("disables metadata field renaming while leaving its properties editable", async () => {
+    const metadataField = field("select", { options: [] })
+    const metadataTable = table(metadataField.tableId!, "Files", [
+      metadataField,
+    ])
+    metadataTable.table.settings = {
+      tableType: "virtual",
+      vtabModule: "fs_meta",
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={metadataField}
+          tables={[metadataTable]}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      )
+    )
+    const nameInput = Array.from(container.querySelectorAll("input")).find(
+      (input) => input.value === metadataField.name
+    )
+    expect(nameInput?.disabled).toBe(true)
+    expect(
+      Array.from(container.querySelectorAll("button")).some(
+        (button) => !button.disabled
+      )
+    ).toBe(true)
+  })
 
   it("saves the field name inline without opening a dialog", async () => {
     const onUpdate = vi.fn<

@@ -363,7 +363,7 @@ async function importCsvFileIntoRuntime(
   await requireUnchangedCsv(source)
   const connection = new NodeSqliteConnectionPort(
     new DatabaseSync(targetPath, {
-      allowExtension: false,
+      allowExtension: true,
       defensive: true,
       enableDoubleQuotedStringLiterals: false,
       enableForeignKeyConstraints: true,
@@ -376,6 +376,7 @@ async function importCsvFileIntoRuntime(
   let table: EidosFileTableInfo | null = null
   let importedRowCount = 0
   try {
+    loadDeclaredVTabExtensions(connection.database)
     const validation = connection.transaction("read", () =>
       runtime.validate({ level: "structural" })
     )
