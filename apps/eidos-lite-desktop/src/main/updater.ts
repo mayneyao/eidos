@@ -81,7 +81,6 @@ function progressFrom(value: unknown): number {
 export class EidosLiteUpdater {
   private readonly supported: boolean
   private status: EidosLiteUpdateStatus
-  private automaticDownloads = true
   private updaterPromise: Promise<EidosLiteAutoUpdater> | null = null
   private installPromise: Promise<void> | null = null
 
@@ -110,17 +109,7 @@ export class EidosLiteUpdater {
     return { ...this.status }
   }
 
-  setAutomaticDownloads(enabled: boolean): void {
-    this.automaticDownloads = enabled
-    void this.updaterPromise
-      ?.then((updater) => {
-        updater.autoDownload = enabled
-      })
-      .catch(() => undefined)
-  }
-
-  async start(automaticDownloads: boolean): Promise<EidosLiteUpdateStatus> {
-    this.setAutomaticDownloads(automaticDownloads)
+  async start(checkOnStartup: boolean): Promise<EidosLiteUpdateStatus> {
     if (!this.supported) return this.getStatus()
     try {
       await this.ensureUpdater()
@@ -134,7 +123,7 @@ export class EidosLiteUpdater {
       })
       return this.getStatus()
     }
-    return automaticDownloads ? this.check() : this.getStatus()
+    return checkOnStartup ? this.check() : this.getStatus()
   }
 
   async check(): Promise<EidosLiteUpdateStatus> {
@@ -215,7 +204,9 @@ export class EidosLiteUpdater {
           this.options.currentVersion,
           this.options.architecture
         )
-        updater.autoDownload = this.automaticDownloads
+        // Checking only discovers releases. The explicit download action owns
+        // starting a transfer, including when startup checks are enabled.
+        updater.autoDownload = false
         updater.autoInstallOnAppQuit = true
         updater.allowPrerelease = feed.channel === "beta"
         updater.channel = feed.channel

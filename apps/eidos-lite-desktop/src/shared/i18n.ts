@@ -583,9 +583,9 @@ const zh: Record<string, string> = {
   "Choosing…": "正在选择…",
   "Choose…": "选择…",
   Updates: "更新",
-  "Automatically download updates": "自动下载更新",
-  "Check in the background and download signed updates when available.":
-    "在后台检查，并在有新版本时下载经签名的更新。",
+  "Check for updates on startup": "启动时检查更新",
+  "Check when Eidos Lite starts. Updates download only when you choose.":
+    "启动 Eidos Lite 时检查更新，仅在你点击下载后下载更新。",
   "Check for updates": "检查更新",
   "Download update": "下载更新",
   "Software update": "软件更新",

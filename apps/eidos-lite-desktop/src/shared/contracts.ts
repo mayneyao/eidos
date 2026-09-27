@@ -762,6 +762,7 @@ export interface EidosLitePreferences {
   builtInPlugins: EidosLiteBuiltInPlugins
   terminalShell: string | null
   keyboardShortcuts: EidosLiteKeyboardShortcuts
+  /** Check for updates on startup; downloading always requires a user action. */
   automaticUpdates: boolean
   defaultSpaceLocation: string | null
 }

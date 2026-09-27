@@ -124,10 +124,13 @@ After publication, require all of the following before reporting success:
    during staging acceptance. Production Sync is a separately authorized
    release gate.
 
-For an automatic upgrade, open **Settings > Updates**, check for the new
-version, wait for the published payload to finish downloading, then choose
-**Restart to update**. Disabling automatic downloads stops background checks
-and downloads; manual checking and downloading remain available. Update
+For an in-app upgrade, open **Settings > Updates**, check for the new
+version, choose **Download update**, wait for the payload to finish downloading,
+then choose **Restart to update**. **Check for updates on startup** only controls
+startup discovery; both startup and manual checks MUST leave an available update
+waiting for an explicit download action. The existing `automaticUpdates`
+preference now controls startup checking only, including for existing installs.
+Disabling it leaves manual checking and downloading available. Update
 failures expose only a safe retry state to the renderer, while detailed errors
 remain in the redacted main-process log.
 

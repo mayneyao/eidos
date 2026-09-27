@@ -872,7 +872,6 @@ export function registerIpc(
       const preferences = await controller.updatePreferences(
         eidosLitePreferencesPatch(value)
       )
-      updater.setAutomaticDownloads(preferences.automaticUpdates)
       return preferences
     }
   )

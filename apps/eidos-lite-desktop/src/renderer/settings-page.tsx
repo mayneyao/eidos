@@ -1567,10 +1567,10 @@ export function SettingsPage() {
                 </div>
                 <div className="settings-row">
                   <div className="settings-row-copy">
-                    <strong>{t("Automatically download updates")}</strong>
+                    <strong>{t("Check for updates on startup")}</strong>
                     <small>
                       {t(
-                        "Check in the background and download signed updates when available."
+                        "Check when Eidos Lite starts. Updates download only when you choose."
                       )}
                     </small>
                   </div>
@@ -1578,7 +1578,7 @@ export function SettingsPage() {
                     type="button"
                     role="switch"
                     className="settings-switch"
-                    aria-label={t("Automatically download updates")}
+                    aria-label={t("Check for updates on startup")}
                     aria-checked={preferences.automaticUpdates}
                     onClick={() =>
                       void updatePreferences({

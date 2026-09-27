@@ -6,7 +6,7 @@ import {
 } from "./updater"
 
 class FakeAutoUpdater implements EidosLiteAutoUpdater {
-  autoDownload = false
+  autoDownload = true
   autoInstallOnAppQuit = false
   allowPrerelease = false
   channel: string | null = null
@@ -35,6 +35,8 @@ class FakeAutoUpdater implements EidosLiteAutoUpdater {
 
   async checkForUpdates() {
     this.checks += 1
+    this.emit("update-available", { version: "0.3.0" })
+    if (this.autoDownload) await this.downloadUpdate()
   }
 
   async downloadUpdate() {
@@ -47,6 +49,35 @@ class FakeAutoUpdater implements EidosLiteAutoUpdater {
 }
 
 describe("Eidos Lite updater", () => {
+  it.each([true, false])(
+    "waits for an explicit download with startup checking set to %s",
+    async (checkOnStartup) => {
+      const native = new FakeAutoUpdater()
+      const updater = new EidosLiteUpdater({
+        currentVersion: "0.2.0",
+        platform: "darwin",
+        architecture: "arm64",
+        packaged: true,
+        production: true,
+        updatesEnabled: true,
+        loadAutoUpdater: async () => native,
+        prepareToInstall: async () => undefined,
+        broadcast: vi.fn(),
+        logger: { info: vi.fn(), warn: vi.fn() },
+      })
+      await updater.start(checkOnStartup)
+      expect(native.checks).toBe(checkOnStartup ? 1 : 0)
+      expect(native.downloads).toBe(0)
+      await updater.check()
+      expect(updater.getStatus().state).toBe("available")
+      expect(native.downloads).toBe(0)
+      // Duplicate clicks cannot start concurrent transfers.
+      await Promise.all([updater.download(), updater.download()])
+      expect(native.downloads).toBe(1)
+      expect(updater.getStatus().state).toBe("downloading")
+    }
+  )
+
   it("uses a product-specific stable or beta feed", () => {
     expect(eidosLiteReleaseChannel("0.2.0")).toBe("stable")
     expect(eidosLiteReleaseChannel("0.2.0-beta.3")).toBe("beta")
