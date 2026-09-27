@@ -298,96 +298,114 @@ describe("SettingsPage Files - Default file editors", () => {
     host.remove()
   })
 
-  it("includes media views in default file editors when a plugin declares support for media files", async () => {
-    window.history.replaceState(null, "", "#/settings/files")
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  it.each(["file", "media"] as const)(
+    "offers installed %s views globally even when disabled in the current Space",
+    async (context) => {
+      window.history.replaceState(null, "", "#/settings/files")
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
-    const setPluginDefault = vi.fn(async () => {})
-    const listPlugins = vi.fn(async () => ({
-      plugins: [
-        {
-          manifest: {
-            id: "video-plugin",
-            name: "Video Player",
-            version: "1.0.0",
-            placements: [
-              {
-                location: "file/open" as const,
-                extensions: [".mp4", ".mov"],
-                view: "player",
-              },
-            ],
-            views: [
-              {
-                id: "player",
-                title: "Subtitled Player",
-                context: "media" as const,
-                entry: "index.html",
-              },
-            ],
+      const setPluginDefault = vi.fn(async () => {})
+      const listPlugins = vi.fn(async () => ({
+        plugins: [
+          {
+            manifest: {
+              id: "video-plugin",
+              name: "Video Player",
+              version: "1.0.0",
+              placements: [
+                {
+                  location: "file/open" as const,
+                  extensions: [".mp4", ".mov"],
+                  view: "player",
+                },
+              ],
+              views: [
+                {
+                  id: "player",
+                  title: "Subtitled Player",
+                  context,
+                  entry: "index.html",
+                },
+              ],
+            },
+            hash: "video-hash",
+            enabled: false,
           },
-          hash: "video-hash",
-          enabled: true,
+        ],
+        space: {
+          plugins: { "video-plugin": { enabled: false } },
+          associations: { ".mp4": "builtin" },
         },
-      ],
-      space: null,
-      associations: { ".mp4": "video-plugin/player" },
-    }))
+        associations: { ".mp4": "video-plugin/player" },
+      }))
 
-    Object.assign(window, {
-      eidosLite: {
-        getAppInfo: vi.fn(async () => ({
-          name: "Eidos Lite",
-          version: "0.2.2",
-          platform: "darwin",
-          architecture: "arm64",
-          services: { name: "staging" },
-        })),
-        getPreferences: vi.fn(async () => DEFAULT_RENDERER_PREFERENCES),
-        updatePreferences: vi.fn(async (patch) => ({
-          ...DEFAULT_RENDERER_PREFERENCES,
-          ...patch,
-        })),
-        listPlugins,
-        setPluginDefault,
-        onPreferencesChanged: vi.fn(() => () => {}),
-        listTerminalShells: vi.fn(async () => []),
-        getUpdateStatus: vi.fn(async () => ({
-          state: "unavailable",
-          currentVersion: "0.2.2",
-        })),
-        onUpdateStatusChanged: vi.fn(() => () => {}),
-        onPluginEvent: vi.fn(() => () => {}),
-      } as unknown as EidosLiteApi,
-    })
+      Object.assign(window, {
+        eidosLite: {
+          getAppInfo: vi.fn(async () => ({
+            name: "Eidos Lite",
+            version: "0.2.2",
+            platform: "darwin",
+            architecture: "arm64",
+            services: { name: "staging" },
+          })),
+          getPreferences: vi.fn(async () => DEFAULT_RENDERER_PREFERENCES),
+          updatePreferences: vi.fn(async (patch) => ({
+            ...DEFAULT_RENDERER_PREFERENCES,
+            ...patch,
+          })),
+          listPlugins,
+          setPluginDefault,
+          onPreferencesChanged: vi.fn(() => () => {}),
+          listTerminalShells: vi.fn(async () => []),
+          getUpdateStatus: vi.fn(async () => ({
+            state: "unavailable",
+            currentVersion: "0.2.2",
+          })),
+          onUpdateStatusChanged: vi.fn(() => () => {}),
+          onPluginEvent: vi.fn(() => () => {}),
+        } as unknown as EidosLiteApi,
+      })
 
-    const host = document.createElement("div")
-    document.body.appendChild(host)
-    const root = createRoot(host)
+      const host = document.createElement("div")
+      document.body.appendChild(host)
+      const root = createRoot(host)
 
-    await act(async () => {
-      root.render(
-        createElement(SettingsPage, {
-          onClose: () => {},
-        })
+      await act(async () => {
+        root.render(
+          createElement(SettingsPage, {
+            onClose: () => {},
+          })
+        )
+      })
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(host.textContent).toContain(".mp4")
+      expect(host.textContent).toContain(".mov")
+      expect(host.textContent).toContain("Subtitled Player")
+
+      const select = host.querySelector(
+        'select[aria-label=".mp4"]'
+      ) as HTMLSelectElement
+      expect(select).not.toBeNull()
+      expect(select.value).toBe("video-plugin/player")
+
+      const movSelect = host.querySelector<HTMLSelectElement>(
+        'select[aria-label=".mov"]'
+      )!
+      await act(async () => {
+        movSelect.value = "video-plugin/player"
+        movSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      expect(setPluginDefault).toHaveBeenCalledWith(
+        ".mov",
+        "video-plugin/player"
       )
-    })
 
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(host.textContent).toContain(".mp4")
-    expect(host.textContent).toContain(".mov")
-    expect(host.textContent).toContain("Subtitled Player")
-
-    const select = host.querySelector(
-      'select[aria-label=".mp4"]'
-    ) as HTMLSelectElement
-    expect(select).not.toBeNull()
-    expect(select.value).toBe("video-plugin/player")
-
-    await act(async () => root.unmount())
-    host.remove()
-  })
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  )
 })

@@ -262,7 +262,9 @@ export function SettingsPage() {
           const view = plugin.manifest.views?.find(
             (v) =>
               v.id === placement.view &&
-              (v.context === "document" || v.context === "media")
+              (v.context === "file" ||
+                v.context === "document" ||
+                v.context === "media")
           )
           if (!view) continue
           const editorKey = `${plugin.manifest.id}/${view.id}`
