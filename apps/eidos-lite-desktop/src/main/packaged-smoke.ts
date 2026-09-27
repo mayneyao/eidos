@@ -2215,11 +2215,11 @@ export async function runPackagedSmoke(
             link.click()
           }
           const deadline = Date.now() + 10000
-          const heading = ${JSON.stringify(locale === "en" ? "What's new" : "新功能")}
+          const headings = ${JSON.stringify(locale === "en" ? ["What's new", "Improvements", "Bug fixes"] : ["新功能", "改进", "问题修复"])}
           while (Date.now() < deadline) {
             const page = document.querySelector(".whats-new-page")
             if (page?.getBoundingClientRect().height > 0 &&
-                [...page.querySelectorAll("h2")].some(node => node.textContent === heading)) {
+                [...page.querySelectorAll("h2")].some(node => headings.includes(node.textContent))) {
               if (page.querySelector('[contenteditable="true"]'))
                 throw new Error("Release notes must be read-only")
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -2227,7 +2227,7 @@ export async function runPackagedSmoke(
             }
             await new Promise(resolve => setTimeout(resolve, 50))
           }
-          throw new Error("Bundled release notes did not render: " + heading)
+          throw new Error("Bundled release notes did not render: " + headings.join(", "))
         })()
       `)
       const screenshot = await window.webContents.capturePage()

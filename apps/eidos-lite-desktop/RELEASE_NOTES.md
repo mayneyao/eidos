@@ -1,23 +1,12 @@
-## What's new
-
-### Organize local files in a table
-
-Choose **Eidos** in New File and enable **File Metadata Management** to browse the containing folder and its subfolders as a table. Tag and rate files, add custom fields, filter the list, and preview attachments without importing the original files. Renaming a field preserves its values.
-
-Values are stored on the physical files, outside the `.eidos` database. Deleting a custom field clears its corresponding attributes. Backups and transfers must preserve extended attributes or alternate data streams; do not rely on copying the `.eidos` file or on Sync alone to preserve these values.
-
-### Build plugins for ordinary files
-
-Plugin API 2.0 adds a unified filesystem interface for permitted file access, media viewers, and companion files such as subtitles. Plugins can respond to changes across file types and provide file-specific actions.
-
-**Plugin upgrade required:** executable plugins must migrate to `ctx.fs` and declare `requires.pluginApi: "2.0.0"`. Older executable plugins will not run until updated. Pure API 1.6 theme plugins remain supported.
-
 ## Improvements
 
-- **Creation menu**: New File, New Folder, and Import share the **+** menu beside search. The simpler New File dialog keeps Eidos and Text choices beside its title without changing height when switching.
-- **Plugin browsing**: Marketplace entries can show screenshots before installation.
+- **File cell shortcuts**: Right-click a cell containing one file and choose **Open file** to open it directly, including read-only file entries.
 
 ## Bug fixes
 
-- **File tree**: Move nested files to the root by dropping them in the empty area. Moving files avoids unnecessary full-tree refreshes, and holding the scrollbar at the bottom no longer causes repeated jumping.
-- **Terminal appearance**: Terminal colors and fonts follow theme plugins when switching between light and dark mode.
+- **CSV import**: Import a CSV as a new table in `files.eidos` without an extension error. Newly imported tables no longer show an incorrect “This table is no longer available in the file” message.
+- **File metadata fields**: New custom fields use their field names as attribute keys, making values consistent with external tools. Metadata field renaming is now disabled; existing fields retain their stored values and mappings. Unsupported relations to or from virtual tables are excluded from field creation.
+- **File cell actions**: Large local files, including videos, can be opened without the thumbnail size limit blocking the action. Read-only physical file entries no longer show a delete action.
+- **Default file editors**: Plugins that declare file views now appear in **Settings → Files** alongside other compatible editors.
+- **Update downloads**: Startup and manual update checks wait for you to choose **Download update**. The startup preference controls checking only, including for existing installations.
+- **Creation location**: The Explorer **+** menu creates files and folders and imports files at the Space root, regardless of selection. The New File keyboard shortcut also uses the root; use a folder’s context menu to create inside it.
