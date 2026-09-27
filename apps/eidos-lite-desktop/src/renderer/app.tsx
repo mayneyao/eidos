@@ -4341,18 +4341,24 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       keyboardShortcuts={keyboardShortcuts}
                       macos={macos}
                       onTableSelect={(tableId) => {
-                        recordNavigationLocation({
-                          type: "record",
-                          path: activeFile.relativePath,
-                          tableId,
-                          rowId: null,
-                        })
                         setCachedFiles((current) =>
                           current.map((file) =>
                             file.sessionId === activeFile.sessionId
                               ? { ...file, tableId }
                               : file
                           )
+                        )
+                        // Selection is applied locally. Replaying navigation here
+                        // would inspect the previous render's table snapshot when
+                        // an import or create has just added this table.
+                        recordNavigationLocation(
+                          {
+                            type: "record",
+                            path: activeFile.relativePath,
+                            tableId,
+                            rowId: null,
+                          },
+                          false
                         )
                       }}
                       onSnapshot={(snapshot) =>
