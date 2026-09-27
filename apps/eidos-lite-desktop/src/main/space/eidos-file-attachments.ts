@@ -732,9 +732,11 @@ export async function resolveEidosFileAttachment(
   if (!stats.isFile()) throw new Error("Attachment is not an ordinary file")
   const declaredSize = Number(entry.size)
   const maximum =
-    purpose === "download"
-      ? EIDOS_LITE_ASSET_BYTES_MAX
-      : EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX
+    purpose === "preview"
+      ? Number.MAX_SAFE_INTEGER
+      : purpose === "download"
+        ? EIDOS_LITE_ASSET_BYTES_MAX
+        : EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX
   if (
     !Number.isSafeInteger(declaredSize) ||
     declaredSize < 0 ||

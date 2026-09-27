@@ -22,6 +22,44 @@ async function fixture() {
 }
 
 describe("Eidos Lite attachment files", () => {
+  it("opens large local videos without reading bytes while retaining thumbnail limits", async () => {
+    const root = await fixture()
+    try {
+      const video = path.join(root, "project", "video.mp4")
+      const handle = await fs.open(video, "w")
+      const size = 512 * 1024 * 1024
+      await handle.truncate(size)
+      await handle.close()
+      const entry = {
+        id: "01900000-0000-7000-8000-000000000001",
+        uri: "video.mp4",
+        name: "video.mp4",
+        mediaType: "video/mp4",
+        size: String(size),
+      }
+      await expect(
+        resolveEidosFileAttachment(root, "project/data.eidos", entry, "preview")
+      ).resolves.toMatchObject({ kind: "local", absolutePath: video })
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "thumbnail"
+        )
+      ).rejects.toThrow("limit")
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          { ...entry, size: "1" },
+          "preview"
+        )
+      ).rejects.toThrow("no longer matches")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
   it("creates portable names without Windows reserved components", () => {
     expect(portableEidosFileAssetName(" CON.txt ")).toBe("_CON.txt")
     expect(portableEidosFileAssetName("report:final?.pdf")).toBe(

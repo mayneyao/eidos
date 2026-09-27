@@ -14,6 +14,7 @@ import { GridCellKind, type Theme } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider } from "./context"
+import { eidosFileAssetResolutionAllowed } from "./eidos-file-asset-lease"
 import {
   EidosFileAttachmentCellEditor,
   type EidosFileAttachmentCell,
@@ -74,6 +75,68 @@ describe("File cell action layout regression", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+  it("keeps read-only attachments openable without remove or reorder controls", async () => {
+    const entry = {
+      id: "01900000-0000-7000-8000-000000000001",
+      uri: "video.mp4",
+      name: "video.mp4",
+      mediaType: "video/mp4",
+      size: String(512 * 1024 * 1024),
+    }
+    const session = {
+      services: {} as HostServices,
+      serviceCapabilities,
+      state,
+      localAssetOpenBytesMax: String(Number.MAX_SAFE_INTEGER),
+    }
+    expect(eidosFileAssetResolutionAllowed(session, entry, "preview")).toBe(
+      true
+    )
+    expect(eidosFileAssetResolutionAllowed(session, entry, "thumbnail")).toBe(
+      false
+    )
+    expect(
+      eidosFileAssetResolutionAllowed(
+        session,
+        { ...entry, uri: "https://example.com/video.mp4" },
+        "preview"
+      )
+    ).toBe(false)
+    const cell: EidosFileAttachmentCell = {
+      kind: GridCellKind.Custom,
+      readonly: true,
+      allowOverlay: true,
+      copyData: "",
+      data: { kind: "eidos-file-file-cell", entries: [entry] },
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider
+          assetSession={session}
+          assetPresenter={{ renderImage: () => null, activate: vi.fn() }}
+        >
+          <EidosFileAttachmentCellEditor
+            value={cell}
+            onChange={vi.fn()}
+            onFinishedEditing={vi.fn()}
+            isHighlighted={false}
+            target={{ x: 0, y: 0, width: 240, height: 36 }}
+            forceEditMode={false}
+            theme={{} as Theme}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    expect(
+      container.querySelector('[aria-label="Open video.mp4"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[aria-label="Remove video.mp4"]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[aria-label="Reorder video.mp4"]')
+    ).toBeNull()
   })
 
   it("keeps local and remote actions in a height-aware scrollable footer", async () => {

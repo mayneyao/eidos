@@ -133,7 +133,12 @@ export function createEidosLiteAssetSession(
       await window.eidosLite.releaseEidosFileAsset(sessionId, request.leaseId)
     },
   } as unknown as HostServices
-  return { services, serviceCapabilities: SERVICE_CAPABILITIES, state }
+  return {
+    services,
+    serviceCapabilities: SERVICE_CAPABILITIES,
+    state,
+    localAssetOpenBytesMax: String(Number.MAX_SAFE_INTEGER),
+  }
 }
 
 function registerObjectUrl(

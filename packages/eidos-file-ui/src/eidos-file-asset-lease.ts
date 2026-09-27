@@ -27,8 +27,16 @@ function decimalWithin(value: string, maximum: string): boolean {
 
 function assetPurposeLimit(
   session: EidosFileUIAssetSession,
-  purpose: AssetLease["purpose"]
+  purpose: AssetLease["purpose"],
+  entry: FileEntry
 ): string {
+  if (
+    purpose === "preview" &&
+    eidosFileUriClass(entry.uri) === "relative" &&
+    session.localAssetOpenBytesMax
+  ) {
+    return session.localAssetOpenBytesMax
+  }
   return purpose === "download"
     ? session.state.limits.assetBytesMax
     : session.state.limits.assetPreviewBytesMax
@@ -50,7 +58,7 @@ export function eidosFileAssetResolutionAllowed(
   return (
     uriClass !== null &&
     session.state.capabilities.assetReadSchemes.includes(uriClass) &&
-    decimalWithin(entry.size, assetPurposeLimit(session, purpose))
+    decimalWithin(entry.size, assetPurposeLimit(session, purpose, entry))
   )
 }
 
@@ -67,7 +75,7 @@ export function assertEidosFileAssetLease(
     lease.mediaType !== entry.mediaType ||
     lease.size !== entry.size ||
     lease.resourceToken.length === 0 ||
-    !decimalWithin(lease.size, assetPurposeLimit(session, purpose)) ||
+    !decimalWithin(lease.size, assetPurposeLimit(session, purpose, entry)) ||
     !Number.isFinite(Date.parse(lease.expiresAt)) ||
     Date.parse(lease.expiresAt) <= Date.now()
   ) {

@@ -28,7 +28,9 @@ Getting started takes just three steps:
 
 - **Zero duplication, safe and lossless**: All physical files remain in their original disk folders. Eidos never creates redundant copies that waste disk space, nor does it alter the raw contents of your files.
 - **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table detects the changes and updates in real time without requiring manual refreshes.
-- **Instant full-screen previews**: Click on any file name or attachment icon in a record to view images, videos, or documents directly without leaving your current workspace.
+- **Open physical files**: The read-only `file` cell offers Open without attachment removal or reordering. Local files, including large videos, open in the system application without loading their bytes into the editor. Image thumbnails retain their preview size limit.
+
+CSV import can create an ordinary table alongside `files` in the same `.eidos` file. Ordinary tables support Relations to other ordinary tables; the filesystem-backed `files` table cannot be a Relation source or target. URL fields are supported.
 
 ---
 
@@ -73,17 +75,20 @@ Complex project structures often contain nested subfolders (for example, a proje
 </FileTree>
 
 ### Independent layouts and configurations
+
 The `.eidos` file in the parent folder and the one in the subfolder are **completely separate documents**:
 Layouts, view styles, filter criteria, and sort rules are independent. The parent table can include files in a subfolder whether or not that subfolder has its own `.eidos` file.
 
 ### Shared underlying metadata on physical files
+
 Because custom attributes are recorded directly in physical file extended attributes:
-- **Storage identity determines sharing**: The default `tags` and `rating` fields use shared storage keys. Newly added fields receive independent keys; giving two fields the same name does not make them share values.
-- **Renaming preserves values**: A field keeps its storage key when renamed. Tables using the same namespace and storage key read the same value on the next query.
+
+- **Field names are attribute keys**: New fields use their exact names as storage keys, just like `tags` and `rating`. Tools and tables using the same namespace and key share values.
+- **Field names cannot be changed**: Metadata fields do not support renaming. Existing fields with generated `field_…` keys retain their original mapping and values; opening a file does not migrate or overwrite external attributes.
 
 ### Important precautions
 
-1. **Edits affect physical file attributes**: Tables sharing a storage key can observe each other's edits. Matching display names alone do not imply shared data.
+1. **Edits affect physical file attributes**: Tables sharing a storage key can observe each other's edits. Older fields with generated keys remain independent even if their names match.
 2. **Moving files**: An ordinary rename on the same filesystem preserves file attributes. Copying or transferring files depends on the filesystem and tool. The destination table needs the same namespace and storage key to read existing values.
 3. **Difference between "Deleting a column" and "Clearing a cell value"**:
    - **Deleting a column (field)** removes the column and clears its stored attribute from files included in the table. This also affects other tables sharing that attribute.
@@ -99,11 +104,11 @@ Because custom attributes are recorded directly in physical file extended attrib
 
 The system automatically extracts physical file properties (read-only):
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `name` | Text | Physical filename (e.g. `Photo.jpg`) |
-| `path` | Text | Relative path from the folder root, serving as the record title and primary key |
-| `extension` | Text / Select | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`) |
-| `size` | Text / Integer | File size (formatted automatically as KB, MB, or GB) |
-| `mimetype` | Text | Media type (e.g. `image/jpeg`, `video/mp4`), useful for filtering media types |
-| `file` | Attachment | Local file handle providing instant thumbnails and full-screen previews |
+| Field       | Type           | Description                                                                     |
+| :---------- | :------------- | :------------------------------------------------------------------------------ |
+| `name`      | Text           | Physical filename (e.g. `Photo.jpg`)                                            |
+| `path`      | Text           | Relative path from the folder root, serving as the record title and primary key |
+| `extension` | Text / Select  | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`)                             |
+| `size`      | Text / Integer | File size (formatted automatically as KB, MB, or GB)                            |
+| `mimetype`  | Text           | Media type (e.g. `image/jpeg`, `video/mp4`), useful for filtering media types   |
+| `file`      | Attachment     | Local file handle providing instant thumbnails and full-screen previews         |

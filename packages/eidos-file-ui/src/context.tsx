@@ -49,6 +49,8 @@ export interface AssetPresenter<Surface> {
 
 /** Active Host binding for one Eidos File session. */
 export interface EidosFileUIAssetSession {
+  /** Host limit for opening local references without loading their bytes. */
+  localAssetOpenBytesMax?: string
   services: HostServices
   serviceCapabilities: HostServiceCapabilities
   state: HostSessionState

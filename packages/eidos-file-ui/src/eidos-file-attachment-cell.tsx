@@ -178,6 +178,7 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   const [error, setError] = useState<string | null>(null)
   const updateEntries = useCallback(
     (entries: FileEntry[]) => {
+      if (cell.readonly) return
       onChange({
         ...cell,
         copyData: entries.length > 0 ? encodeEidosFileValues(entries) : "",
@@ -191,7 +192,13 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
     <EidosFileGridEditorSurface className="max-h-[340px]">
       <EidosFileGridEditorHeader icon={<Paperclip />} title={t("Files")} />
       <div className={EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME}>
-        {cell.data.entries.length > 0 ? (
+        {cell.readonly && cell.data.entries.length > 0 ? (
+          <div className="space-y-0.5">
+            {cell.data.entries.map((entry) => (
+              <EidosFileEntrySurface key={entry.id} entry={entry} compact />
+            ))}
+          </div>
+        ) : cell.data.entries.length > 0 ? (
           <SortableContainer
             items={cell.data.entries}
             onReorder={updateEntries}
