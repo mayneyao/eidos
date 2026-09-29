@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/plugin-tools",
-  "version": "0.5.0-rc.1",
+  "version": "0.5.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mayneyao/eidos.git",

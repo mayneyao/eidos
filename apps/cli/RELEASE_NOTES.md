@@ -18,12 +18,16 @@ eidos self skill init --global
 
 ## Install
 
-Install this release candidate on macOS or Linux:
+macOS or Linux:
 
 ```sh
-curl -fsSL https://download.eidos.space/cli/install.sh | sh -s -- --version 3.0.0-rc.1
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
 ```
 
-On Windows, download the archive from this release, verify it against `SHA256SUMS`, and extract the `eidos` binary. Confirm the installation with `eidos --version`; it should report `3.0.0-rc.1`.
+Windows PowerShell:
 
-Stable installers continue to select the previous stable release during candidate testing.
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+The installers select v3.0.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.

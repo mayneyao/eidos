@@ -1,7 +1,7 @@
-## Plugin SDK and Tools 0.5.0-rc.1
+## Plugin SDK and Tools 0.5.0
 
-This release candidate targets executable Plugin API 3.0.0. Install matching
-candidate hosts before running generated plugins.
+This release targets executable Plugin API 3.0.0. Generated executable plugins
+require Eidos Lite 0.20.0 or Eidos CLI 3.0.0, depending on their capabilities.
 
 - Build page and file views with resource metadata in `binding` and operations
   under `capabilities`.
