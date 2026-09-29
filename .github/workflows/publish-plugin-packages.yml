@@ -201,18 +201,31 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          wait_for_version() {
+          wait_for_package() {
             package_name="$1"
+            reviewed_tarball="$2"
+            reviewed_sha256="$(sha256sum "$reviewed_tarball" | cut -d ' ' -f 1)"
+            downloaded_tarball="$RUNNER_TEMP/published-${package_name##*/}-${VERSION}.tgz"
             for attempt in $(seq 1 120); do
               published="$(npm view "$package_name@$VERSION" version 2>/dev/null || true)"
               if [ "$published" = "$VERSION" ]; then
-                return
+                tarball_url="$(npm view "$package_name@$VERSION" dist.tarball 2>/dev/null || true)"
+                if [ -n "$tarball_url" ] && curl --fail --silent --show-error --location \
+                  --connect-timeout 10 --max-time 60 "$tarball_url" --output "$downloaded_tarball"; then
+                  downloaded_sha256="$(sha256sum "$downloaded_tarball" | cut -d ' ' -f 1)"
+                  test "$downloaded_sha256" = "$reviewed_sha256" || {
+                    echo "Public $package_name@$VERSION differs from the reviewed artifact" >&2
+                    exit 1
+                  }
+                  echo "Verified public $package_name@$VERSION archive: $downloaded_sha256"
+                  return
+                fi
               fi
-              echo "Waiting for $package_name@$VERSION to propagate (attempt $attempt/120)"
+              echo "Waiting for $package_name@$VERSION metadata and archive (attempt $attempt/120)"
               sleep 5
             done
-            echo "$package_name@$VERSION did not become publicly visible" >&2
+            echo "$package_name@$VERSION did not become publicly downloadable" >&2
             exit 1
           }
-          wait_for_version "@eidos.space/plugin-sdk"
-          wait_for_version "@eidos.space/plugin-tools"
+          wait_for_package "@eidos.space/plugin-sdk" "package-release/eidos.space-plugin-sdk-${VERSION}.tgz"
+          wait_for_package "@eidos.space/plugin-tools" "package-release/eidos.space-plugin-tools-${VERSION}.tgz"

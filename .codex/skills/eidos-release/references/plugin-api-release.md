@@ -82,6 +82,12 @@ shared SDK/tools version; publish from the exact immutable
 tools. Inspect npm dist-tag handling before any prerelease; never let a candidate
 accidentally become `latest`.
 
+Verify the actual public npm tarballs against the reviewed artifacts before
+installing consumer dependencies. Version metadata and dist-tags can become
+visible before the tarball download is available; retry propagation failures
+without republishing the same version. Metadata visibility alone is not proof
+that the authoring tools are installable.
+
 Publish affected plugins as new immutable Releases in their own repositories.
 Never overwrite an existing `.eidos-plugin` asset or move its distributed tag.
 Download the uploaded archive and verify its SHA-256 and manifest identity.
