@@ -124,6 +124,34 @@ try {
   const snapshot = await source.initialize()
   const state = snapshot.tables[0]
   const field = (name) => state.fields.find((f) => f.name === name).id
+  const previousConfig = await source.readTablePluginConfig(
+    table.id,
+    "eidos.smart-actions"
+  )
+  await source.writeTablePluginConfig(table.id, "eidos.smart-actions", {
+    expectedVersion: previousConfig.version,
+    value: {
+      version: 1,
+      actions: [
+        {
+          id: "classify",
+          title: "Classify",
+          inputs: [field("Name")],
+          model: "jev-latest",
+          connection: "typesafe-default",
+          outputs: [
+            {
+              id: "category",
+              fieldId: field("Category"),
+              type: "choice",
+              instructions: "Classify this place",
+              criteria: ["City", "Other"],
+            },
+          ],
+        },
+      ],
+    },
+  })
   const store = new PluginStore(path.join(root, "installed"))
   const manifests = {}
   for (const name of [
@@ -180,6 +208,12 @@ try {
     watchFiles: () => () => {},
   }
   const instances = {
+    smartExtension: (
+      await service.openExtension(1, session, "eidos.smart-actions", {
+        tableId: table.id,
+        viewId: state.views[0].id,
+      })
+    ).instance,
     markmap: (
       await service.open(1, session, "entry.md", "eidos.markmap/markmap")
     ).instance,
@@ -233,7 +267,8 @@ try {
     calls = []
   let failure,
     invoked = false,
-    actionDone = false
+    actionDone = false,
+    providerDone = false
   const checks = {
     markmap: `document.querySelectorAll('svg .markmap-node').length >= 4`,
     smart: `document.body.innerText.includes('Places')`,
@@ -275,6 +310,35 @@ try {
           (event) => events.push({ target, event })
         )
         if (!result.response.error) {
+          if (target === "smartExtension") {
+            if (rpc.method === "table.pluginConfig.read") {
+              result.response.result = await source.readTablePluginConfig(
+                table.id,
+                "eidos.smart-actions"
+              )
+            } else if (rpc.method === "table.actions.result") {
+              assert.equal(rpc.params.error, undefined)
+              assert.equal(rpc.params.items[0].id, "classify")
+              providerDone = true
+            } else if (rpc.method === "table.actions.ready") {
+              events.push({
+                target,
+                event: {
+                  protocol: "eidos-plugin",
+                  apiVersion: 1,
+                  observation: "host.tableAction",
+                  value: {
+                    id: "list-existing",
+                    provider: "smart-actions",
+                    operation: "list",
+                    tableId: table.id,
+                    viewId: state.views[0].id,
+                    count: 1,
+                  },
+                },
+              })
+            }
+          }
           if (target in tableProps && rpc.method.startsWith("table."))
             result.response.result = await tableViewRequest(
               tableProps[target],
@@ -361,15 +425,23 @@ const frames=[...document.querySelectorAll('iframe')];window.addEventListener('m
   })
   for (
     let i = 0;
-    i < 320 && !failure && !(reports.length === 5 && actionDone);
+    i < 320 &&
+    !failure &&
+    !(reports.length === 5 && actionDone && providerDone);
     i++
   )
     await delay(100)
-  console.log(JSON.stringify({ reports, calls, actionDone }, null, 2))
+  console.log(
+    JSON.stringify({ reports, calls, actionDone, providerDone }, null, 2)
+  )
   if (failure) throw failure
   assert.equal(reports.length, 5)
   assert.ok(reports.every((report) => report.ok))
   assert.ok(actionDone, "Journals action did not complete")
+  assert.ok(
+    providerDone,
+    "Smart Actions did not discover persisted configuration"
+  )
   assert.ok(calls.includes("map:table.readRows"))
   assert.ok(calls.includes("chart:table.aggregate"))
   console.log(

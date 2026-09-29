@@ -69,6 +69,61 @@ async function fileSha256(filePath: string): Promise<string> {
 }
 
 describe("whole-Space real Graft integration", () => {
+  it("preserves a restored SQLite deletion through status, checkpoint, and clone", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-restored-delete-")
+    )
+    const source = path.join(root, "source")
+    const clone = path.join(root, "clone")
+    const client = createGraftClient()
+    try {
+      await fs.mkdir(source)
+      await fs.writeFile(path.join(source, "notes.txt"), "base\n")
+      await client.open(source)
+      await client.initialize(source)
+      await client.stageAll(source)
+      await client.commit(source, "Before database")
+      const base = (await client.status(source)).currentHead!
+      const file = path.join(source, "project.eidos")
+      await fs.copyFile(
+        path.join(
+          repositoryRoot,
+          "apps/eidos-file-web/fixtures/project-tracker.eidos"
+        ),
+        file
+      )
+      await client.stageAll(source)
+      await client.commit(source, "Add database")
+      await insertBlankRow(file)
+      await client.stageAll(source)
+      await client.commit(source, "Edit database")
+      const head = (await client.status(source)).currentHead!
+      await client.restorePath(source, base, head, "project.eidos")
+      await expect(fs.stat(file)).rejects.toMatchObject({ code: "ENOENT" })
+      for (let i = 0; i < 2; i++) {
+        expect((await client.status(source)).changes).toContainEqual(
+          expect.objectContaining({ path: "project.eidos", change: "deleted" })
+        )
+      }
+      await client.stageAll(source)
+      await client.commit(source, "Restore deletion")
+      expect((await client.status(source)).dirty).toBe(false)
+      const remoteUrl = `fs://${path.join(root, "remote")}`
+      await client.addRemote(source, "origin", remoteUrl)
+      await client.setMainUpstream(source)
+      await client.push(source)
+      await client.clone(clone, remoteUrl)
+      await expect(
+        fs.stat(path.join(clone, "project.eidos"))
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.readFile(path.join(clone, "notes.txt"), "utf8")
+      ).resolves.toBe("base\n")
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
   it("preserves an Eidos File identity when recording a path move", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-path-move-")

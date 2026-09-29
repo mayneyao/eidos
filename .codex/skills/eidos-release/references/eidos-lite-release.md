@@ -146,9 +146,16 @@ pnpm smoke:eidos-lite-packaged
 git diff --check
 ```
 
-When Graft changes, also run the real Graft integration suite and inspect the
-resolved dependency in the lockfile. Do not substitute mocked transport tests
-for the real SDK gate.
+When Graft changes, update the root and all five native package pins, the
+`GRAFT_SDK_VERSION` and `GRAFT_LOCAL_MERGE_SDK_VERSION` constants in
+`src/main/graft/graft-client.ts`, the packaged smoke's expected SDK version,
+and the current operational documentation. Search for the previous version to
+catch remaining runtime checks. Inspect the resolved dependency in the lockfile
+and run the real Graft integration suite against the published package. A local
+native build can provide early regression evidence while npm publication is in
+progress, but final packaging and integration proof must use the published
+dependency without native-path overrides. Do not substitute mocked transport
+tests for the real SDK gate.
 
 When the bundled CLI Publish engine changed, also run the CLI formatter,
 Clippy, workspace tests, and Publish/Collect integration coverage. Include only

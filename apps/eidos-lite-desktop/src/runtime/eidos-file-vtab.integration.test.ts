@@ -23,6 +23,40 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     for (const root of roots.splice(0))
       fs.rmSync(root, { recursive: true, force: true })
   })
+  it("keeps file creation time distinct from modification time in scans and lookups", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-time-"))
+    )
+    roots.push(root)
+    const text = path.join(root, "proof.txt")
+    fs.writeFileSync(text, "proof")
+    // APFS can move birthtime backwards when mtime precedes it. A later mtime
+    // exercises the regression without changing the filesystem's creation time.
+    const modified = new Date(Date.now() + 86_400_000)
+    fs.utimesSync(text, modified, modified)
+    const stat = fs.statSync(text)
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const created = fields.find((field) => field.name === "_created_at")!.id!
+    const page = await runtime.source.getPage(table.id, 0, 100, {})
+    const scanned = page.rows.find((row) => row._id === "proof.txt")
+    const lookedUp = await runtime.source.getRow(table.id, "proof.txt")
+    expect(lookedUp).not.toBeNull()
+    expect(scanned?.[created]).toEqual(lookedUp?.[created])
+    if (stat.birthtimeMs > 0) {
+      expect(
+        Math.abs(Date.parse(String(lookedUp![created])) - stat.birthtimeMs)
+      ).toBeLessThan(1000)
+      expect(Date.parse(String(lookedUp![created]))).not.toBe(
+        modified.getTime()
+      )
+    } else {
+      expect(lookedUp![created]).toBeNull()
+    }
+  })
   it("imports CSV as an ordinary table alongside files and creates URL metadata", async () => {
     const root = fs.realpathSync(
       fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-csv-"))
