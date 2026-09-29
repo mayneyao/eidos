@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PluginListing } from "../shared/plugins"
 import { PluginManager } from "./plugin-manager"
@@ -262,9 +263,7 @@ export function SettingsPage() {
           const view = plugin.manifest.views?.find(
             (v) =>
               v.id === placement.view &&
-              (v.context === "file" ||
-                v.context === "document" ||
-                v.context === "media")
+              (viewResource(v) === "file" || viewResource(v) === "document")
           )
           if (!view) continue
           const editorKey = `${plugin.manifest.id}/${view.id}`

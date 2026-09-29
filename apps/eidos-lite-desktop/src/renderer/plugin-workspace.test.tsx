@@ -101,7 +101,7 @@ it("exposes enabled page views in the command palette", async () => {
             manifest: {
               id: "example.pages",
               name: "Pages",
-              views: [{ id: "home", title: "Home", context: "page" }],
+              views: [{ id: "home", title: "Home", kind: "page" }],
               placements: [{ location: "navigation", view: "home" }],
             },
           },

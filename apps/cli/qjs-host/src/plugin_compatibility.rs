@@ -37,8 +37,14 @@ pub fn check(manifest: &Value) -> Value {
     for view in manifest["views"].as_array().into_iter().flatten() {
         features.insert(format!(
             "view.{}",
-            view["context"].as_str().unwrap_or("unknown")
+            view["kind"].as_str().unwrap_or("unknown")
         ));
+        for capability in view["capabilities"].as_array().into_iter().flatten() {
+            features.insert(format!("data.{}", capability.as_str().unwrap_or("unknown")));
+        }
+        if view["kind"] == "file" && view["capabilities"].as_array().is_none_or(Vec::is_empty) {
+            features.insert("data.file".to_string());
+        }
     }
     for rule in data["rules"].as_array().unwrap() {
         let value = &manifest[rule["key"].as_str().unwrap()];
@@ -101,6 +107,37 @@ pub fn check(manifest: &Value) -> Value {
             return result("API_VERSION",format!("This plugin requires plugin API {required}; eidos-cli supports {supported}. Update the host to a compatible release."));
         }
     }
+    for view in manifest["views"].as_array().into_iter().flatten() {
+        let capabilities = view["capabilities"].as_array();
+        if view.get("context").is_some()
+            || !matches!(view["kind"].as_str(), Some("page" | "file"))
+            || (view.get("capabilities").is_some() && capabilities.is_none())
+            || capabilities.is_some_and(|values| {
+                values
+                    .iter()
+                    .map(Value::as_str)
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != values.len()
+                    || (values.iter().any(|v| v == "document")
+                        && values
+                            .iter()
+                            .any(|v| v.as_str().is_some_and(|v| v.starts_with("eidos/"))))
+                    || (view["kind"] == "page" && !values.is_empty())
+                    || values.iter().any(|value| {
+                        !matches!(
+                            value.as_str(),
+                            Some("document" | "eidos/schema" | "eidos/table" | "eidos/config")
+                        )
+                    })
+            })
+        {
+            return result(
+                "INVALID_MANIFEST",
+                "Views require kind page/file and unique supported capabilities; document and Eidos capabilities cannot be combined.".into(),
+            );
+        }
+    }
     if !missing.is_empty() {
         return result(
             "HOST_FEATURES",
@@ -134,9 +171,10 @@ mod tests {
     use super::*;
     #[test]
     fn checks_version_and_inferred_features() {
-        let mut manifest = json!({"apiVersion":1,"views":[{"context":"table"}]});
+        let mut manifest =
+            json!({"apiVersion":1,"views":[{"kind":"file","capabilities":["eidos/table"]}]});
         assert_eq!(check(&manifest)["reason"], "UNDECLARED");
-        manifest["requires"] = json!({"pluginApi":"1.0.0"});
+        manifest["requires"] = json!({"pluginApi":"3.0.0"});
         assert_eq!(check(&manifest)["compatible"], true);
         manifest["requires"] = json!({"pluginApi":"1.1.0"});
         assert_eq!(check(&manifest)["reason"], "API_VERSION");
@@ -150,5 +188,42 @@ mod tests {
         let result = check(&theme);
         assert_eq!(result["reason"], "API_VERSION");
         assert_eq!(result["missingFeatures"], json!(["theme.lite"]));
+    }
+    #[test]
+    fn rejects_generic_file_views_on_table_only_host() {
+        let manifest =
+            json!({"apiVersion":1,"requires":{"pluginApi":"3.0.0"},"views":[{"kind":"file"}]});
+        assert_eq!(check(&manifest)["missingFeatures"], json!(["data.file"]));
+        assert!(ensure(&manifest).is_err());
+    }
+    #[test]
+    fn rejects_ambiguous_view_declarations() {
+        for view in [
+            json!({"kind":"file","context":"table","capabilities":["eidos/table"]}),
+            json!({"kind":"file","capabilities":["eidos/table","eidos/table"]}),
+            json!({"kind":"page","capabilities":["eidos/table"]}),
+            json!({"kind":"file","capabilities":"table"}),
+            json!({"kind":"file","capabilities":["document", "eidos/schema"]}),
+            json!({"kind":"file","capabilities":["table"]}),
+            json!({"kind":"file","capabilities":["eidos"]}),
+        ] {
+            let manifest = json!({"apiVersion":1,"requires":{"pluginApi":"3.0.0"},"views":[view]});
+            assert_eq!(check(&manifest)["reason"], "INVALID_MANIFEST");
+        }
+    }
+
+    #[test]
+    fn composed_capabilities_report_only_missing_host_features() {
+        for capabilities in [
+            json!(["eidos/schema", "eidos/table", "eidos/config"]),
+            json!(["eidos/config", "eidos/table", "eidos/schema"]),
+        ] {
+            let manifest = json!({"apiVersion":1,"requires":{"pluginApi":"3.0.0"},"views":[{"kind":"file","capabilities":capabilities}]});
+            assert_eq!(check(&manifest)["reason"], "HOST_FEATURES");
+            assert_eq!(
+                check(&manifest)["missingFeatures"],
+                json!(["data.eidos/config", "data.eidos/schema"])
+            );
+        }
     }
 }

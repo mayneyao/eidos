@@ -1,265 +1,106 @@
 ---
-title: Plugin Development Guide
-description: "Step-by-step tutorial: create, test, and package Eidos Lite plugins supporting file views, shortcut commands, React interfaces, and filesystem operations."
+title: Create Your First Plugin
+description: Build a text reader and load, debug and use it in Eidos Lite.
 sidebar:
-  order: 2
+  order: 3
 ---
 
-Eidos Lite plugins can provide custom editors and viewers for files, add independent pages to the sidebar navigation, or register shortcuts in the Command Palette. Plugins have access to local filesystem APIs (`ctx.fs`), isolated storage, network access, and host interaction interfaces.
+This tutorial builds a text reader. When finished, you can choose **Text Reader** from a `.txt` file's **Open with** menu and see its content update as the file changes.
 
----
-
-## Quickstart: Create Your First Plugin
-
-### 1. Prerequisites
-
-Ensure you have **Node.js 22.12 or newer** and a package manager (npm, pnpm, or yarn) installed. Also download [Eidos Lite](https://eidos.space/download) to run and debug plugins locally.
-
-### 2. Initialize a Project
-
-Scaffold a new plugin using the official tooling:
-
-```bash
-npx @eidos.space/plugin-tools create my-plugin
-cd my-plugin
-npm install # or pnpm install
-```
-
-The generated project structure is as follows:
+Prepare a test Space and a `.txt` file. Create this plugin directory:
 
 ```text
-my-plugin/
-├── plugin.json       # Manifest declaring plugin metadata, views, and entry points
-├── package.json      # Project dependencies and npm scripts
-├── tsconfig.json     # Strict TypeScript configuration
+text-reader/
+├── plugin.json
 └── src/
-    ├── main.tsx      # View mount entry point
-    └── style.css     # Stylesheet
+    └── main.ts
 ```
 
-The scaffolding configures the official toolchain in `package.json`:
-- `@eidos.space/plugin-sdk`: Complete TypeScript specification and types for Plugin 1.0.
-- `npm run check`: Performs static syntax, type, and manifest verification (`eidos-plugin check .`).
-- `npm run pack:plugin`: Packages a self-contained offline distribution archive (`.eidos-plugin`).
+Eidos Lite compiles this example directly. You only need a text editor to get started.
 
-### 3. Load and Debug Live in Eidos Lite
+## 1. Declare the file view
 
-You **do not need a build step** before debugging. Eidos Lite features an on-the-fly compiler that compiles and reloads code in real time:
-
-1. Launch **Eidos Lite** and enter any Space.
-2. In the top toolbar, click the **Plugins** icon (located between the Search box and Space menu).
-3. Click **Load development source…** and select your project's `plugin.json`.
-4. Review the declared permissions and enable the plugin for the current Space.
-5. In the Space file tree, right-click a matching file and choose **Open with → Your Plugin View**.
-
-Whenever you edit and save files under `src/` in your code editor, Eidos Lite will automatically recompile and hot-reload the view!
-
----
-
-## Core Capabilities Walkthrough
-
-### 1. Custom File Views (`context: "file"`)
-
-File views take over the presentation and editing of any file format (text, media, custom binary files, or `.eidos` SQLite database packages).
-
-Declare the view in `plugin.json`:
+Add this to `plugin.json`:
 
 ```json
 {
   "apiVersion": 1,
-  "id": "example.file-viewer",
-  "name": "Custom File Viewer",
+  "id": "example.text-reader",
+  "name": "Text Reader",
   "version": "0.1.0",
+  "requires": { "pluginApi": "3.0.0" },
   "views": [
     {
-      "id": "viewer",
-      "title": "Custom Viewer",
-      "entry": "./src/main.tsx",
-      "context": "file",
-      "access": "write"
+      "id": "main",
+      "title": "Text Reader",
+      "entry": "./src/main.ts",
+      "kind": "file",
+      "capabilities": ["document"],
+      "access": "read"
     }
   ],
   "placements": [
     {
       "location": "file/open",
-      "view": "viewer",
-      "extensions": [".json", ".dat", ".mp4"]
+      "view": "main",
+      "extensions": [".txt"]
     }
   ]
 }
 ```
 
-Mount a React interface in `src/main.tsx`:
+`kind: "file"` binds the view to the file the user opens. `capabilities: ["document"]` provides the text interface. `file/open` and `.txt` select the file menu in which the view appears.
 
-```tsx
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-import React, { useEffect, useState } from "react"
-import { createRoot } from "react-dom/client"
-import "./style.css"
+## 2. Display the text
 
-function App({ ctx }: { ctx: ViewContext }) {
-  const [content, setContent] = useState<string>("")
-  const file = ctx.file!
+Add this to `src/main.ts`:
 
-  useEffect(() => {
-    // Read current file text or binary using ctx.fs
-    ctx.fs.readText(file.path).then(setContent).catch(console.error)
-  }, [file.path])
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
 
-  const handleSave = async () => {
-    await ctx.fs.writeText(file.path, content)
-    await ctx.ui.notify("File saved successfully!")
-  }
-
-  return (
-    <div className="viewer-container">
-      <header className="header">
-        <h3>{file.name} ({file.size} bytes)</h3>
-        <button onClick={handleSave}>Save</button>
-      </header>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-      />
-    </div>
+const mount: Mount = async (ctx, root) => {
+  const document = ctx.capabilities.document
+  if (!document) throw new Error("Document capability is required")
+  const pre = window.document.createElement("pre")
+  root.append(pre)
+  const observed = await document.observe(
+    (snapshot) => {
+      pre.textContent = snapshot.text
+    },
+    (error) => {
+      pre.textContent = error.message
+    }
   )
-}
-
-export default function mount(ctx: ViewContext, root: HTMLElement) {
-  const reactRoot = createRoot(root)
-  reactRoot.render(<App ctx={ctx} />)
-
+  ctx.subscriptions.add(observed.subscription)
+  pre.textContent = observed.snapshot.text
   return {
     dispose() {
-      reactRoot.unmount()
+      pre.remove()
     },
   }
 }
+export default mount
 ```
 
----
+Eidos calls mount with a context and an interface container. This code creates a pre element, obtains the current text through document.observe(), and updates the display when content changes. Adding the subscription to ctx.subscriptions releases it automatically when the view closes.
 
-### 2. Filesystem Operations & Companion Files (`ctx.fs`)
+## 3. Open it in Eidos Lite
 
-`ctx.fs` provides complete local filesystem operations to plugins. In file views, it supports reading/writing binary data, companion file discovery, and streaming media playback.
+1. Open your test Space and go to Plugin Manager.
+2. Choose **Load development source…** and select `text-reader/plugin.json`.
+3. Review access and enable the plugin for the current Space.
+4. Choose **Text Reader** from a `.txt` file's **Open with** menu.
 
-#### ① Binary I/O & Large Files
-`ctx.fs.readBinary(path)` and `ctx.fs.writeBinary(path, data)` support binary payloads up to 16 MiB, allowing direct handling of images, audio/video chunks, and custom binary formats:
+The view displays the file's content. Change the test file and confirm that the reader updates.
 
-```ts
-// Read binary data
-const bytes = await ctx.fs.readBinary("assets/logo.png")
+## 4. Change the interface
 
-// Write binary data
-const payload = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
-await ctx.fs.writeBinary("data/output.bin", payload)
-```
+Edit main.ts and save it. Eidos Lite recompiles and reloads the view. If compilation fails, use the error message to fix the code; the previous successfully loaded interface remains visible while you work.
 
-#### ② Companion Media Detection & Streaming Playback
-For media files and subtitles, use `ctx.fs.getUrl()` and `ctx.fs.list()`:
+Use CSS variables such as `--eidos-background`, `--eidos-foreground` and `--eidos-border` to match Eidos's light and dark themes.
 
-```ts
-// 1. Get high-performance streaming URL with range request support (206 Partial Content)
-const streamUrl = await ctx.fs.getUrl("movie.mp4")
+## Next steps
 
-// 2. Discover companion subtitle files in the same directory
-const companions = await ctx.fs.list(undefined, { extensions: [".srt", ".vtt"] })
+To support editing, set access to write, add an input interface, use document.edit() to update content and document.save() to persist it. See the [API reference](/plugins/api/) for editing, conflict handling and undo methods.
 
-// 3. Read companion subtitle text
-if (companions.length > 0) {
-  const srtText = await ctx.fs.readText(companions[0].path)
-}
-```
-
-#### ③ Real-Time File Watching (`watch`)
-```ts
-const watcher = await ctx.fs.watch("data", () => {
-  console.log("Directory changed; reloading data")
-})
-
-// Automatically unsubscribe when the view unmounts
-ctx.subscriptions.add(watcher)
-```
-
----
-
-### 3. Commands and Shortcuts (`actions`)
-
-Execute background operations via the Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd>) or keyboard shortcuts.
-
-Declare the action in `plugin.json`:
-
-```json
-{
-  "extension": "./src/extension.ts",
-  "actions": [
-    {
-      "id": "stat-workspace",
-      "title": "Summarize Space Files",
-      "context": "workspace"
-    }
-  ],
-  "placements": [
-    { "location": "command-palette", "action": "stat-workspace" },
-    { "location": "keybinding", "action": "stat-workspace", "key": "Mod+Alt+S" }
-  ]
-}
-```
-
-Implement the action in `src/extension.ts`:
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(ctx: ExtensionContext) {
-  ctx.actions.register("stat-workspace", async ({ fs, ui }) => {
-    const files = await fs.list()
-    await ui.notify(`The root directory contains ${files.length} files.`)
-  })
-}
-```
-
----
-
-### 4. Independent Feature Pages (`context: "page"`)
-
-Build dedicated dashboards or tool panels anchored in the Space navigation sidebar.
-
-Declare the page in `plugin.json`:
-
-```json
-{
-  "workspace": { "files": true },
-  "views": [
-    {
-      "id": "dashboard",
-      "title": "Journal Dashboard",
-      "context": "page",
-      "entry": "./src/dashboard.tsx"
-    }
-  ],
-  "placements": [
-    { "location": "navigation", "view": "dashboard" }
-  ]
-}
-```
-
-Once mounted, the page appears in the Space sidebar navigation. When `workspace: { "files": true }` is declared, the page can use `ctx.fs` to index or create files across the entire Space (e.g. automatically creating daily journal entries).
-
----
-
-### 5. Verification and Packaging for Distribution
-
-Run static type and manifest checks from the project root:
-
-```bash
-npm run check
-```
-
-Bundle the plugin into an offline `.eidos-plugin` archive:
-
-```bash
-npm run pack:plugin
-```
-
-The resulting file is located at `dist/<plugin-id>-<version>.eidos-plugin`. Users can double-click it or drag and drop it directly into the Eidos Lite Plugin Manager to install.
+To create a tool opened from navigation, read about [page views](/plugins/concepts/#page-views-open-independently). When you are ready to share your plugin, follow [development and distribution](/plugins/workflow/) to check and package it.

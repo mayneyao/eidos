@@ -282,11 +282,14 @@ export function registerPluginIpc(controller: WindowController): {
       ticket: string,
       id: string,
       operation: string,
-      value: unknown
+      value: unknown,
+      invocation?: string
     ) => {
       const owner = caller(event)
       if (typeof ticket !== "string" || typeof id !== "string")
         throw new Error("Invalid connection")
+      if (invocation !== undefined && typeof invocation !== "string")
+        throw new Error("Invalid action context")
       const access = await service.connectionAccess(
         owner,
         controller.requireSession(event.sender),
@@ -294,7 +297,8 @@ export function registerPluginIpc(controller: WindowController): {
         id,
         operation === "status" ||
           operation === "save" ||
-          operation === "configure"
+          operation === "configure",
+        invocation
       )
       if (operation === "status")
         return access.configurable
@@ -563,11 +567,6 @@ export function registerPluginIpc(controller: WindowController): {
         (await store.readBytes(selected.filePaths[0]))
       const pkg = decodePackage(bytes)
       assertPluginCompatibility(pkg.manifest, "eidos-lite")
-      if (Object.keys(pkg.manifest.resources ?? {}).length)
-        throw new PluginError(
-          "UNSUPPORTED_API",
-          "Named resources are not connected yet"
-        )
       const existing = await store.installed(pkg.manifest.id)
       let existingVersion: string | undefined
       if (existing) {
@@ -936,14 +935,15 @@ export function registerPluginIpc(controller: WindowController): {
         {
           apiVersion: 1,
           id: "example.smoke",
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           name: "Packaged smoke",
           version: "1.0.0",
           views: [
             {
               id: "text",
               title: "Text",
-              context: "document",
+              kind: "file",
+              capabilities: ["document"],
               entry: "./view.js",
             },
           ],

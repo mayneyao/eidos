@@ -1,89 +1,73 @@
 ---
 title: Plugin Concepts
-description: Essential concepts of Eidos plugins, including spaces, files, views, actions, context objects, and placements.
+description: Understand plugin declarations, views, data access and lifetime.
 sidebar:
   order: 2
 ---
 
-Eidos plugins are sandboxed modules that extend Eidos Lite with custom file editors and viewers, independent panels, keyboard commands, and table visualizations.
+A plugin combines a declaration with code. The declaration tells Eidos its name, where users can open it and which data it needs. The code provides the interface and operations.
 
-Before building a plugin, familiarize yourself with these core concepts:
+## Plugin declaration
 
----
+Set the plugin's `id`, `name` and `version` in `plugin.json`. List views under `views` and choose their entry points under `placements`.
 
-## 1. Spaces and Files
+The `id` is the plugin's stable identity. Keep it when publishing an update and increase `version` so settings and saved views remain associated with the same plugin.
 
-Eidos operates directly on your local filesystem and organizes content across two levels:
+## Page views: open independently
 
-- **Space (Workspace)**: The root folder of an opened project or vault. Plugins can add navigation pages to the sidebar or register global commands.
-- **File**: Any physical file within the Space (e.g. `.md`, `.csv`, `.png`, `.mp4`, or `.eidos`). Plugins can provide custom views or actions for specific file extensions.
-  - **.eidos Files**: Structured SQLite database packages that contain one or more data tables (Tables) and view configurations.
+Set a view's `kind` to `page` and add a `navigation` placement to open it from the sidebar. For example, a project dashboard uses this declaration fragment:
 
----
+```json
+{
+  "views": [
+    {
+      "id": "dashboard",
+      "title": "Project dashboard",
+      "kind": "page",
+      "entry": "./src/dashboard.ts"
+    }
+  ],
+  "placements": [{ "location": "navigation", "view": "dashboard" }]
+}
+```
 
-## 2. Plugin Capabilities
+A page can use routes such as `/` and `/settings` to organize its content. Read the current route from `ctx.binding.route`. Declare `workspace.files` permission when the page needs files from the Space.
 
-Plugins declare their capabilities in the `plugin.json` manifest:
+## File views: open with content
 
-### Views
-Views are visual interfaces embedded in Eidos Lite, built using standard frontend libraries (React, Vue, or vanilla DOM):
-- **File Views (`context: "file"`)**: Custom editors or viewers for specific file extensions, accessed via the file's **Open with** menu.
-- **Independent Pages (`context: "page"`)**: Standalone application dashboards or panels, accessible from the Space's left sidebar navigation.
-- **Table Views (`context: "table"`)**: Custom visualizations embedded inside an `.eidos` data table (e.g. charts, kanban boards, calendars, or maps).
+Set a view's `kind` to `file`, then add a `file/open` placement with supported file extensions. Users can select it from a file's **Open with** menu.
 
-### Actions
-Actions are executable commands or background tasks triggered via shortcuts or context menus:
-- **Global Actions (`context: "workspace"`)**: Registered in the global Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>).
-- **File Actions (`context: "file"`)**: Added to the context menu of files in the file explorer.
-- **Table Actions (`context: "table"`)**: Added to the context menu of tables or record selections for batch processing.
+Choose a data interface for the operation. For example, a text editor declares `capabilities: ["document"]` and uses `ctx.capabilities.document` to read, edit and save. Eidos maintains unsaved content and undo history.
 
-### Themes
-Theme packages (`kind: "theme"`) customize the light and dark appearance of the entire Eidos Lite host interface using semantic CSS variables.
+Eidos file operations live under `ctx.capabilities.eidos`: `schema` reads the file structure, `table` queries the current table, and `config` accesses your plugin configuration. Combine `eidos/schema`, `eidos/table` and `eidos/config` declarations as needed.
 
----
+To visualize a table inside an Eidos file, declare `capabilities: ["eidos/table"]` with a `table/view` placement. Users add it from the table's view menu, and the plugin queries the bound table through `ctx.capabilities.eidos.table`.
 
-## 3. The Context Object (`ctx`) & File Contributions
+Read file information from `ctx.binding.file`. When the view is located within a table, `ctx.binding.location` also supplies table and view IDs. See the [API reference](/plugins/api/) for data methods.
 
-When Eidos Lite mounts a view or runs an action, it passes a context object `ctx` to the entry function.
+## Use the context in code
 
-### Base Capabilities
-All views and actions have access to a set of core capabilities on `ctx`:
+Eidos opens a view by calling its default export, `mount(ctx, root)`. Build the interface inside `root` and use `ctx` for:
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `ctx.fs` | `PluginFileSystem` | Complete filesystem access: read/write text and binary files, list directories, rename, delete, watch file changes, and obtain streaming media URLs. |
-| `ctx.storage` | `PluginStorage` | Isolated persistent key-value storage for plugin data. |
-| `ctx.network` | `PluginNetwork` | Make restricted HTTPS requests to domains declared in the manifest. |
-| `ctx.settings` | `PluginSettings` | Read, update, and observe user-configured settings for the plugin. |
-| `ctx.ui` | `HostUI` | Interact with the host: display toast notifications, show confirmation dialogues, open pickers, open files, and navigate routes. |
-| `ctx.signal` | `AbortSignal` | Automatically aborts pending async work when the view unmounts or action is cancelled. |
-| `ctx.subscriptions` | `SubscriptionDisposer` | Disposer collection for event listeners and timers, automatically cleaned up on unmount. |
+- `ctx.binding`: the current file, table location or page route.
+- `ctx.capabilities`: operations such as reading data, saving content and showing notifications.
+- `ctx.signal`: cancellation of asynchronous work when the view closes.
+- `ctx.subscriptions`: subscriptions to release with the view.
 
-### Specialized Interfaces & File Contribution Points
-When targeting a physical file, all file views have access to `ctx.file` for file path, name, and size. In addition, specific file types have specialized context objects and contribution points:
+Return an object with `dispose()` from mount to clean up your interface. For example, a React plugin calls `reactRoot.unmount()` there.
 
-- **Text Documents (`.md`, `.txt`, `.csv`, etc.)**:
-  - **Specialized Interface `ctx.editor`**: Document reading, draft editing, saving, and external conflict detection.
-  - **Special Contribution Point: Formatters (`formatters`)**: A specialized contribution point for text files declared in the manifest `formatters` array and implemented via `ctx.formatters.register`, hooked directly into the system's **Format Document** command (<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd> / <kbd>Cmd</kbd>+<kbd>K</kbd>).
-- **`.eidos` Database Files**:
-  - **Specialized Interfaces `ctx.table` & `ctx.eidos`**: Table discovery, schema inspection, paginated row queries, and SQLite server-side aggregation.
-  - **Special Contribution Points**: Embedded table views (`table/view`) and dynamic batch actions for table records (`table/context`).
+## Commands and formatting
 
----
+Commands perform an operation such as creating today's note or processing selected records. Declare commands in `actions`, export `activate(ctx)` from the module named by `extension`, and register handlers through `ctx.capabilities.actions`.
 
-## 4. UI Placements (`placements`)
+A formatter receives document text and returns formatted text. Register it through `ctx.capabilities.formatters` so users can invoke it through Eidos's formatting operation.
 
-The `placements` array defines where your plugin's views and actions appear in the Eidos Lite UI:
+## Request access
 
-| Location (`location`) | Target | Context Requirement | Description |
-| :--- | :--- | :--- | :--- |
-| `"file/open"` | View | `context: "file"` | Registered under the file's **Open with** context menu. |
-| `"navigation"` | View | `context: "page"` | Appears as a top-level page in the Space sidebar navigation. |
-| `"plugin/settings"` | View | `context: "page"` | Embedded in the plugin's details page within Settings. |
-| `"table/view"` | View | `context: "table"` | Appears in the table's view switcher menu (e.g. New View). |
-| `"command-palette"` | Action | `context: "workspace" \| "file"` | Registered in the Command Palette (<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>). |
-| `"file/context"` | Action | `context: "file"` | Appears in the context menu for files in the file explorer. |
-| `"table/context"` | Action | `context: "table"` | Appears in the context menu for table records or row selections. |
-| `"view/toolbar"` | Action | Matches view context | Added to the header toolbar of a specific view. |
-| `"keybinding"` | Action | Target action | Binds a custom keyboard shortcut to trigger the action. |
-| `"Format Document"` | Formatter | `formatters` | Specialized formatting contribution point for text files, hooked into Format Document commands and shortcuts. |
+Views and actions default to `access: "read"`. Declare `access: "write"` when an operation changes data. Access to files throughout a Space also requires `workspace.files`, for example:
+
+```json
+{ "workspace": { "files": { "read": true, "write": false } } }
+```
+
+This suits an index page that reads workspace content. To create or change files, set write to true and give the relevant view or action write access. Eidos shows the requested access scope when the user enables the plugin.

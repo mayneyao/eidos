@@ -32,7 +32,8 @@ describe("SettingsPage Files - Default file editors", () => {
               {
                 id: "glide",
                 title: "Glide Table",
-                context: "document" as const,
+                kind: "file" as const,
+                capabilities: ["document"] as const,
                 entry: "index.html",
               },
             ],
@@ -199,7 +200,8 @@ describe("SettingsPage Files - Default file editors", () => {
               {
                 id: "mindmap",
                 title: "Markmap View",
-                context: "document" as const,
+                kind: "file" as const,
+                capabilities: ["document"] as const,
                 entry: "index.html",
               },
             ],

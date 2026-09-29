@@ -159,7 +159,7 @@ function PluginFrame({
           return
         }
 
-        if (method === "table.read") {
+        if (method === "table.readContext") {
           const currentView = currentProps.view
           const fields = currentProps.table.fields
           const result = {
@@ -194,7 +194,7 @@ function PluginFrame({
           return
         }
 
-        if (method === "table.page") {
+        if (method === "table.readRows") {
           if (!params || typeof params !== "object" || Array.isArray(params)) {
             throw new Error("Invalid page bounds")
           }
@@ -223,7 +223,7 @@ function PluginFrame({
           return
         }
 
-        if (method === "table.properties") {
+        if (method === "table.setViewConfig") {
           if (
             isPublish ||
             currentProps.disabled ||
@@ -416,7 +416,8 @@ export function usePluginTableViews(isPublish: boolean): EidosFilePlugin[] {
       .flatMap(({ manifest }) => {
         const views = (manifest.views ?? []).filter(
           (view) =>
-            view.context === "table" &&
+            view.kind === "file" &&
+            view.capabilities?.includes("eidos/table") &&
             manifest.placements?.some(
               (p) => p.location === "table/view" && p.view === view.id
             )

@@ -40,9 +40,20 @@ it("activates and transports dynamic table menu and scoped run requests", async 
   })
   const html = extensionHtml(
     `export default function(ctx) {
-    ctx.actions.registerTableProvider('smart', {
-      async getItems({table}) { const config = await table.pluginConfig.read(); return [{id:'one',title:config.value.title,targets:['view']}]; },
-      async run(ctx) { await ctx.task.report({completed:0}); }
+    ctx.capabilities.actions.registerTableProvider('smart', {
+      async getItems({capabilities}) {
+        if ('target' in capabilities || 'task' in capabilities || 'connections' in capabilities) throw Error('Run capabilities exposed during listing');
+        const config = await capabilities.eidos.config.read(capabilities.eidos.table.tableId);
+        return [{id:'one',title:config.value.title,targets:['view']}];
+      },
+      async run({capabilities}) {
+        if ('preview' in capabilities.task || 'read' in capabilities.target || 'read' in capabilities.eidos.table) throw Error('Obsolete API exposed');
+        await capabilities.eidos.table.readContext();
+        await capabilities.target.readRows({offset:0,limit:1,fields:['title']});
+        const result = await capabilities.task.declareOutputs([{readToken:'token',values:{title:'Done'}}]);
+        if (result !== undefined) throw Error('Output declaration must return void');
+        await capabilities.task.report({completed:0});
+      }
     });
   }`,
     ["smart"]
@@ -91,5 +102,24 @@ it("activates and transports dynamic table menu and scoped run requests", async 
         (r) => r.method === "table.task.report" && r.params.runId === "run"
       )
     ).toBe(true)
+  )
+  expect(requests).toEqual(
+    expect.arrayContaining([
+      { method: "table.readContext", params: { runId: "run", args: null } },
+      {
+        method: "table.target.readRows",
+        params: {
+          runId: "run",
+          args: { offset: 0, limit: 1, fields: ["title"] },
+        },
+      },
+      {
+        method: "table.task.declareOutputs",
+        params: {
+          runId: "run",
+          args: { rows: [{ readToken: "token", values: { title: "Done" } }] },
+        },
+      },
+    ])
   )
 })

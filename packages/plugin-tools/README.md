@@ -53,9 +53,8 @@ accept/rollback are not implemented; dev reports this explicitly.
 
 Pack creates bounded gzip JSON `{format: 1 | 2, manifest, modules}` with self-contained
 browser modules. The old HTML envelope is rejected. Installed plugins need neither
-Node nor a network connection for bundled code. Lite supports document, Eidos,
-table, media and page views, actions, scoped filesystem access, settings and connections according
-to the declared API contract. CLI Serve has a narrower Table View profile;
+Node nor a network connection for bundled code. Lite supports page/file views with optional document, Eidos or table capabilities,
+actions, scoped filesystem access, settings and connections according to the API contract. CLI Serve has a narrower Table View profile;
 use target checks rather than assuming host parity.
 The independent `eidos-text-tools-plugin` project in `~/workspace/eidos-plugins` demonstrates a navigation page,
 opaque routes and lazily activated commands. The extension browser smoke exercises
@@ -89,6 +88,7 @@ EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/p
 The tests compile all templates, test action
 pagination/cancellation, checks target-host failures, and verifies release hashes.
 See the bilingual development workflow for `templates`, `--template`, `--target`,
-checksum output and the `registry` draft helper. These additions need a new tool
-release. Version 0.4.0 generates API 2.0 Lite projects with matching SDK dependencies;
-the CLI table-view starter retains its API 1.0 contract.
+checksum output and the `registry` draft helper. This source revision targets executable API 3.0.0 with SDK/tools 0.5.0, including
+the shared Lite/Serve table-view starter. Themes retain API 1.6.0. Matching SDK,
+tools and hosts must be released before using npm-installed API 3 starters;
+until then use checkout builds. See the migration guide for existing plugins.

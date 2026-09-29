@@ -2,6 +2,11 @@
 
 Use this runbook for `apps/eidos-lite-desktop` and `lite-v*` tags.
 
+If this release changes plugin API behavior, also complete
+[plugin-api-release.md](plugin-api-release.md): adapt and verify registry plugins
+and templates before the stable host cutover, and include their publication in
+the coordinated rollout.
+
 ## Establish the contract
 
 - `apps/eidos-lite-desktop/package.json` owns the committed base version.

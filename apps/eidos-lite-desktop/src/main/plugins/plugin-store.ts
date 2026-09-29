@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import fs from "node:fs/promises"
 import {
   assertPluginCompatibility,
@@ -20,7 +21,6 @@ import type {
   PluginListing,
   PluginSpaceConfig,
 } from "../../shared/plugins"
-import { PluginGrantStore } from "./plugin-grants"
 import type { SettingValue } from "@eidos.space/plugin-sdk"
 
 interface Configuration {
@@ -130,12 +130,7 @@ export class PluginStore {
   private writes: Promise<unknown> = Promise.resolve()
   // Development paths are local process state and never persisted as authority.
   readonly development = new Map<string, string>()
-  readonly resources: PluginGrantStore
-  constructor(readonly directory: string) {
-    this.resources = new PluginGrantStore(
-      path.join(directory, "resource-grants.json")
-    )
-  }
+  constructor(readonly directory: string) {}
   async config(): Promise<Configuration> {
     try {
       const value = object(
@@ -439,7 +434,6 @@ export class PluginStore {
     })
   }
   async uninstall(id: string) {
-    await this.resources.revokePlugin(id)
     await this.update((config) => {
       if (config.activeThemeId === id) config.activeThemeId = null
       delete config.installed[id]
@@ -627,9 +621,8 @@ export class PluginStore {
           const editor = manifest.views?.find(
             (view) =>
               view.id === placement.view &&
-              (view.context === "file" ||
-                view.context === "media" ||
-                view.context ===
+              (viewResource(view) === "file" ||
+                viewResource(view) ===
                   (extension === ".eidos" ? "eidos" : "document"))
           )
           if (editor)

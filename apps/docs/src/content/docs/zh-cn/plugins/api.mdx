@@ -1,429 +1,156 @@
 ---
 title: 插件 API 参考
-description: "@eidos.space/plugin-sdk 核心接口、CommonContext、文件系统原语与宿主方法完整参考。"
+description: 查询视图声明、文本编辑、文件访问、表格和命令接口。
 sidebar:
-  order: 3
+  order: 4
 ---
 
-本文档提供 `@eidos.space/plugin-sdk` 的所有核心接口、类型定义与方法参考。
+在代码中使用 `import type` 从 `@eidos.space/plugin-sdk` 导入类型。Eidos 在调用 `mount` 或 `activate` 时提供上下文。
 
-在插件项目中安装官方类型包：
+## 声明视图
 
-```bash
-pnpm add -D @eidos.space/plugin-sdk
-```
+`views` 中每个视图都需要 `id`、`title`、`entry` 和 `kind`。kind 为 `page` 或 `file`；access 为 `read` 或 `write`，默认 read。
 
----
+文件视图在 capabilities 中声明需要的数据接口：`document` 用于文本编辑；`eidos/schema`、`eidos/table`、`eidos/config` 分别用于文件结构、当前表格和插件配置，可以组合声明。直接读取文件或播放媒体时，通过 fs 访问文件，capabilities 可以省略。文本和 Eidos 接口适用于不同文件格式，不能混合声明。
 
-## 插件清单 (`PluginManifest`)
+使用 placements 指定入口：navigation 与 plugin/settings 打开 page；file/open 根据扩展名打开 file；table/view 在表格内部打开声明了 eidos/table 能力的 file。
 
-每个插件必须在 `plugin.json` 中声明其元数据、能力与入口（单文件插件在 `.ts` / `.js` 中导出 `manifest` 对象）。
+`requires.pluginApi` 声明插件要求的 API，本文示例使用 `"3.0.0"`。`apiVersion` 固定为 `1`，插件自己的 version 用于标识发布版本。
 
-```ts
-export interface PluginManifest {
-  apiVersion: 1
-  id: string
-  name: string
-  version: string
-  icon?: PluginIconDefinition
-  requires?: { pluginApi: string }
+## 当前文件与页面
 
-  // 功能贡献声明
-  views?: ViewDeclaration[]
-  actions?: ActionDeclaration[]
-  formatters?: FormatterDeclaration[]
-  placements?: Placement[]
-
-  // 扩展与后台入口
-  extension?: string
-
-  // 权限与资源配置
-  workspace?: {
-    files?: boolean | { read?: boolean; write?: boolean }
-  }
-  settings?: Record<string, SettingDeclaration>
-  storage?: { maxBytes: number }
-  browser?: {
-    workers?: boolean
-    networkOrigins?: string[]
-  }
-  connections?: Record<
-    string,
-    { title: string; url: string; configurable?: boolean }
-  >
-
-  // 独立宿主主题
-  kind?: "theme"
-  theme?: ThemeDeclaration
-}
-```
-
-### 字段说明
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `apiVersion` | `1` | 宿主 API 规范版本，目前为 `1`。 |
-| `id` | `string` | 插件全局唯一标识（建议采用小写反向域名，如 `com.example.viewer`）。 |
-| `name` | `string` | 插件对外展示的名称。 |
-| `version` | `string` | 遵循语义化版本格式（如 `0.1.0`）。 |
-| `icon` | `PluginIconDefinition` | 插件图标（SVG 路径对象、相对文件路径或 Data URL）。 |
-| `requires.pluginApi` | `string` | 最低宿主 API 契约版本。当前 Lite 可执行插件必须声明 `"2.0.0"`，纯 `"1.6.0"` 主题继续兼容。 |
-| `extension` | `string` | 后台扩展逻辑源码入口（如 `"./src/extension.ts"`）。存在 `actions` 或 `formatters` 时必填。 |
-| `views` | `ViewDeclaration[]` | 界面视图贡献列表。 |
-| `actions` | `ActionDeclaration[]` | 快捷操作与命令贡献列表。 |
-| `formatters` | `FormatterDeclaration[]` | 文档格式化程序列表。 |
-| `placements` | `Placement[]` | 贡献点挂载位置列表。 |
-| `workspace.files` | `boolean \| { read?: boolean; write?: boolean }` | 声明在当前 Space 范围内的文件读写授权。 |
-| `settings` | `Record<string, SettingDeclaration>` | 声明展示在插件设置详情面板中的配置项。 |
-| `storage.maxBytes` | `number` | 插件私有持久化存储容量上限（字节，最大 1 GiB）。 |
-| `browser.networkOrigins`| `string[]` | 允许网络请求的受信任精确 HTTPS 来源白名单。 |
-| `kind` / `theme` | `"theme"` / `ThemeDeclaration` | 声明独立的 Eidos Lite 宿主主题（不包含可执行代码）。 |
-
----
-
-## 贡献声明与位置 (`Placements`)
-
-### 视图声明 (`ViewDeclaration`)
+在使用 binding 前检查 kind。page 提供 route，file 提供 file 元数据，并可通过 location 描述表格位置。
 
 ```ts
-export interface ViewDeclaration {
-  id: string
-  title: string
-  entry: string
-  context: "file" | "page" | "table" | "document" | "media" | "eidos"
-  access?: "read" | "write"
-  icon?: PluginIconDefinition
-  configuration?: ViewConfiguration
+if (ctx.binding.kind === "page") {
+  root.textContent = ctx.binding.route
+} else {
+  root.textContent = ctx.binding.file.name ?? "File"
 }
 ```
 
-- `context`: 视图的物理目标。推荐统一使用 `"file"`（接管工作区文件）与 `"page"`（独立面板）。`"document"`、`"media"`、`"eidos"` 保持平滑兼容。
-- `access`: 文件访问级别（`"read"` 或 `"write"`，默认 `"read"`）。
-- `configuration`: 仅限 `context: "table"` 时使用，声明保存在 `view.properties.plugin` 的视图配置 Schema。
+FileRef 的 path、name、size 等成员按运行环境提供。id 用于识别当前上下文中的文件；需要持久引用时，请使用你的业务数据中的稳定标识。
 
-### 动作声明 (`ActionDeclaration`)
+## 读取和编辑文本
+
+声明 `capabilities: ["document"]` 后，通过 `ctx.capabilities.document` 使用以下方法。写入还需要 `access: "write"`。
+
+| 方法                              | 用途                                       |
+| --------------------------------- | ------------------------------------------ |
+| `read()`                          | 获取包含 text、version、dirty 等信息的快照 |
+| `observe(listener, onError?)`     | 获取初始快照并订阅后续变化                 |
+| `edit({ text, expectedVersion })` | 修改未保存内容，返回 applied 或 stale      |
+| `save()`                          | 保存到文件，返回 saved 或 conflict         |
+| `undo()` / `redo()`               | 撤销或重做编辑并返回快照                   |
+
+下面的函数体将当前文本转成大写并保存：
 
 ```ts
-export interface ActionDeclaration {
-  id: string
-  title: string
-  context: "workspace" | "file" | "document" | "table"
-  access?: "read" | "write"
-  extensions?: string[]
-  icon?: PluginIconDefinition
+const document = ctx.capabilities.document
+if (!document) throw new Error("Document capability required")
+const current = await document.read()
+const result = await document.edit({
+  text: current.text.toUpperCase(),
+  expectedVersion: current.version,
+})
+if (result.status === "stale") {
+  await ctx.capabilities.ui.notify(
+    "The text changed. Review it before editing again."
+  )
+  return
+}
+const saved = await document.save()
+if (saved.status === "conflict") {
+  await ctx.capabilities.ui.notify(
+    "The file changed on disk. Your draft is still available."
+  )
 }
 ```
 
-- `context`: 动作绑定的目标。`"workspace"` 为全局 Space 级命令，`"file"` 为特定文件右键或上下文操作。
-- `extensions`: 当动作限定在特定文件格式时声明（如 `[".md", ".txt"]`）。
+expectedVersion 使用读取时的版本。遇到 stale 时保留用户输入并让用户处理较新的内容；遇到 conflict 时保留草稿并提示磁盘变更。连续输入的编辑器应串行提交 edit，避免多个请求使用同一个旧版本。
 
-### 挂载位置 (`Placement`)
+## 读取文件和播放媒体
+
+Lite 的 `ctx.capabilities.fs` 提供 readText/writeText、readBinary/writeBinary、list/stat、delete/rename、getUrl 和 watch。文本读取上限为 2 MiB，二进制 I/O 上限为 16 MiB；播放较大的媒体文件使用 getUrl 返回的流地址。
 
 ```ts
-export type Placement =
-  | { location: "command-palette"; action: string }
-  | { location: "file/open"; view: string; extensions: string[] }
-  | { location: "navigation"; view: string }
-  | { location: "table/view"; view: string }
-  | { location: "file/context"; action: string }
-  | { location: "table/context"; action: string }
-  | { location: "view/toolbar"; view: string; action: string }
-  | { location: "keybinding"; action: string; key: string; mac?: string; linux?: string }
-  | { location: "plugin/settings"; view: string }
+const fs = ctx.capabilities.fs
+if (!fs) throw new Error("Filesystem access is required")
+const video = document.createElement("video")
+video.controls = true
+video.src = await fs.getUrl()
+root.append(video)
 ```
 
-| Location 入口 | 绑定目标 | 说明 |
-| :--- | :--- | :--- |
-| `"command-palette"` | Action | 注册到全局快捷命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>K</kbd>）。 |
-| `"file/open"` | View | 挂载到文件右键菜单 **打开方式（Open with）**，接管 `extensions` 匹配的文件。 |
-| `"navigation"` | View | 挂载到 Space 侧边栏主导航中，作为独立一级面板。 |
-| `"table/view"` | View | 挂载到数据表内部的视图切换栏中（新建视图）。 |
-| `"file/context"` | Action | 挂载到工作区文件列表的右键菜单中。 |
-| `"table/context"` | Action | 挂载到数据表格右键或选区菜单中（支持动态表格动作）。 |
-| `"view/toolbar"` | Action | 挂载到特定视图的顶部工具栏。 |
-| `"keybinding"` | Action | 绑定快捷键（如 `"Mod+Alt+F"`）。 |
-| `"plugin/settings"` | View | 嵌入到当前插件的详情配置面板。 |
+文件视图的文件访问受当前文件及其目录范围约束；访问整个 Space 需要 workspace.files。写入同时需要贡献项的 write 权限。已有工作副本的路径在直接写入、删除或重命名时会返回 BUSY；编辑文本时使用 document 接口处理保存和冲突。
 
----
+## 使用 Eidos 文件
 
-## 通用基础能力 (`CommonContext`)
+`ctx.capabilities.eidos` 包含按需声明的 `schema`、`table` 和 `config`。例如，一个需要读取结构和保存本插件配置的表格视图可以声明：
 
-所有视图上下文（`ViewContext`）与动作上下文（`ActionContext`）均完整继承 `CommonContext`：
+```json
+{
+  "id": "board",
+  "title": "Board",
+  "kind": "file",
+  "entry": "./src/board.ts",
+  "capabilities": ["eidos/schema", "eidos/table", "eidos/config"],
+  "access": "write"
+}
+```
+
+为此视图添加 `table/view` 入口。每项声明只提供对应接口；声明顺序不影响行为。
+
+### 浏览文件结构
+
+声明 `eidos/schema`，使用 `ctx.capabilities.eidos.schema.listTables()` 获取文件内的表格列表，再用 `readTable(tableId)` 读取字段。文件浏览器通过匹配 `.eidos` 的 `file/open` 入口打开；表格视图也可以读取所在文件的结构。
+
+### 查询当前表格
+
+声明 `eidos/table` 并从 `table/view` 打开后，使用 `ctx.capabilities.eidos.table`：readContext 读取当前表格结构和视图信息，readRows 分页读取记录，aggregate 聚合数据，setViewConfig 完整替换当前视图的插件配置，openRecord 打开记录，watch 订阅失效通知。先读取结构，再用字段 ID 查询；这些方法始终作用于当前绑定表格。
+
+### 保存插件配置
+
+声明 `eidos/config`，通过 `ctx.capabilities.eidos.config` 的 read、write、watch 使用保存在文件中的本插件配置。文件浏览器可指定文件内的表格 ID；表格视图使用当前绑定的表格 ID。
 
 ```ts
-export interface CommonContext extends Lifetime {
-  readonly fs: PluginFileSystem
-  readonly storage: PluginStorage
-  readonly network: PluginNetwork
-  readonly settings: Settings
-  readonly ui: HostUI
-}
-
-export interface Lifetime {
-  readonly signal: AbortSignal
-  readonly subscriptions: { add<T extends Disposable>(value: T): T }
-}
+const { table, config } = ctx.capabilities.eidos ?? {}
+if (!table || !config) throw new Error("Table and config capabilities required")
+const current = await config.read(table.tableId)
+await config.write(table.tableId, {
+  value: { ...current.value, compact: true },
+  expectedVersion: current.version,
+})
 ```
 
-### 文件系统操作 (`ctx.fs`)
+写入需要 `access: "write"` 和读取时的版本。版本过期时重新读取并处理冲突，避免覆盖他人的修改。`config.watch(tableId, listener)` 返回订阅，不发送初始值；先读取配置，收到通知后再次读取。通知可能包含其他数据变化，释放订阅后停止接收。
 
-所有插件均在本地沙箱运行。`ctx.fs` 提供完整的文件系统原语：
+Lite 支持以上三个接口。CLI Serve 提供 `eidos/table`；需要同时支持 Serve 时，只声明该宿主提供的能力，并通过 `check --target cli` 验证。
 
-```ts
-export interface PluginFileSystem {
-  /** 读取文件的文本内容（受 2 MiB 预览上限保护）。 */
-  readText(path: string): Promise<string>
+## 设置、存储和通知
 
-  /** 向文件写入文本内容。缺失的父目录会自动创建。 */
-  writeText(path: string, content: string): Promise<void>
+Lite 视图通过 capabilities.settings.get(key) 读取插件设置；普通动作还可调用 set/reset。capabilities.storage 提供按 key 存取私有二进制数据的 list/read/write/delete，配额通过 manifest.storage.maxBytes 声明。这些私有数据保存在设备本地。
 
-  /** 读取文件的二进制内容（支持最高 16 MiB 图像、音视频、模型等二进制数据）。 */
-  readBinary(path: string): Promise<Uint8Array>
+capabilities.ui.notify(message) 显示通知。在支持导航的环境中，ui.openFile(relativePath) 打开文件，ui.navigate(viewId, route?) 打开页面。可选方法在调用前检查其是否存在。
 
-  /** 向文件写入二进制数据（最高 16 MiB）。缺失的父目录会自动创建。 */
-  writeBinary(path: string, content: Uint8Array): Promise<void>
+capabilities.network.read({ url }) 向 browser.networkOrigins 声明的 HTTPS 来源发起有界请求。需要凭据的请求通过 `ctx.capabilities.connections` 的 `isConfigured(connectionId)` 和 `request({ connection, body })` 调用已声明连接。连接可用于页面、文件视图和普通动作，由用户在 Eidos 中配置连接信息和密钥；动作结束时请求会被取消。
 
-  /** 删除 Space 内的指定文件。 */
-  delete(path: string): Promise<void>
+## 注册命令与格式化器
 
-  /** 在 Space 内重命名或移动普通文件；目标已存在时返回 ALREADY_EXISTS。 */
-  rename(oldPath: string, newPath: string): Promise<void>
+在扩展的 activate 中使用 capabilities.actions.register(id, handler) 注册声明过的动作。handler 接收自己的上下文，通过 capabilities 执行操作。
 
-  /**
-   * 枚举目录中的文件。
-   * 在文件视图中若省略 folder，默认枚举当前文件同级目录。
-   * 可选通过 options.extensions 过滤扩展名。
-   */
-  list(folder?: string, options?: { extensions?: string[] }): Promise<FileStat[]>
+格式化器通过 capabilities.formatters.register(id, provider) 注册。provider.format 接收 `{ text, path, signal }` 并返回 `{ text }`，由 Eidos 应用可撤销的文本编辑。
 
-  /** 查询文件或目录元数据。若不存在则返回 null。 */
-  stat(path: string): Promise<FileStat | null>
+## 批量处理表格记录
 
-  /**
-   * 获取用于媒体流式播放的原生协议 URL (eidos-space-media:)。
-   * 支持 HTTP Range 范围请求与瞬间拖拽定位。在文件视图中若省略 path，默认指向当前打开的文件。
-   */
-  getUrl(path?: string): Promise<string>
+使用 capabilities.actions.registerTableProvider(id, provider) 注册表格动作。getItems 接收 capabilities.eidos.table、只读的 capabilities.eidos.config 和 signal，返回供用户选择的菜单项；run 还可使用 capabilities.target、task 和 connections。
 
-  /** 监听文件或目录的变化。页面关闭或调用 dispose() 时自动解除。 */
-  watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
-}
-```
+target.count 表示本次目标总数，target.readRows 分页读取记录。使用返回的 readToken 调用 target.update。开始写入前，调用 task.declareOutputs 提交真实输出样本并等待校验完成，它用于确定允许写入的字段。调用 task.report 报告进度，在每批操作之间检查 signal。取消会保留已经完成的记录修改。
 
-#### 安全与作用域规则
-- **伴随文件安全域**：在未声明 `workspace.files` 的文件视图或动作中，`ctx.fs` 严格限制在当前文件同级目录及伴随文件内（如 `movie.mp4` 旁边的 `movie.srt`）。
-- **Space 全局读写**：声明 `workspace.files: true` 后，插件可在整个 Space 内自由读写、检索与监听任意文件。
-- **沙箱隔离**：严禁 `..` 越界路径遍历，禁止访问内部实现目录（`.graft`）。
+## 释放资源与处理错误
 
-### 宿主交互界面 (`ctx.ui`)
+把订阅加入 ctx.subscriptions，使用 ctx.signal 中止异步操作，并在 mount 返回的 dispose 中释放界面资源。
 
-```ts
-export interface HostUI {
-  /** 在宿主右上角弹出气泡通知。 */
-  notify(message: string): Promise<void>
+常见错误包括 PERMISSION_DENIED（访问范围不足）、INSTANCE_CLOSED（上下文已关闭）、STALE_REVISION（数据已变化）、BUSY（资源正在被管理）、TOO_LARGE（超过限制）和 TIMEOUT（请求超时）。向用户说明失败原因，保留尚未保存的输入。
 
-  /** 弹出模态选择列表。 */
-  select(options: {
-    title: string
-    options: Array<{ id: string; label: string }>
-  }): Promise<{ status: "selected"; id: string } | { status: "cancelled" }>
-
-  /** 弹出模态确认对话框。 */
-  confirm(options: {
-    title: string
-    message: string
-  }): Promise<{ status: "confirmed" | "cancelled" }>
-
-  /** 请求宿主在对应编辑器或视图中打开 Space 内的相对路径文件。 */
-  openFile(relativePath: string): Promise<void>
-
-  /** 在插件的 Page 视图间进行内部导航。 */
-  navigate(viewId: string, route?: string): Promise<void>
-}
-```
-
-### 插件私有存储 (`ctx.storage`)
-
-当前设备上该插件专用的二进制键值存储（同设备所有 Space 共享）：
-
-```ts
-export interface PluginStorage {
-  write(key: string, value: Uint8Array): Promise<void>
-  read(key: string): Promise<Uint8Array | null>
-  list(prefix?: string): Promise<Array<{ key: string; size: number }>>
-  remove(key: string): Promise<void>
-}
-```
-
-### 网络请求 (`ctx.network`)
-
-向 `browser.networkOrigins` 声明的白名单域名发起受限 HTTPS 请求：
-
-```ts
-export interface PluginNetwork {
-  read(request: {
-    url: string
-    range?: { offset: number; length: number }
-  }): Promise<{ data: Uint8Array; status: number; etag?: string }>
-}
-```
-
-### 配置管理 (`ctx.settings`)
-
-读取并更新在清单 `settings` 中声明的插件配置（按 Space 独立持久化）：
-
-```ts
-export interface Settings {
-  get(key: string): Promise<SettingValue>
-  update(key: string, value: SettingValue): Promise<void>
-  reset(key: string): Promise<void>
-  observe(
-    listener: (values: Record<string, SettingValue>) => void,
-    onError?: ObserverErrorHandler
-  ): Promise<{ values: Record<string, SettingValue>; subscription: Disposable }>
-}
-```
-
----
-
-## 视图接口 (`ViewContext` & `mount`)
-
-每个视图入口文件导出默认的 `mount` 函数：
-
-```ts
-import type { ViewContext, Disposable } from "@eidos.space/plugin-sdk"
-
-export default function mount(
-  ctx: ViewContext,
-  root: HTMLElement
-): void | Disposable | Promise<void | Disposable> {
-  root.textContent = "Hello View"
-  return {
-    dispose() {
-      root.replaceChildren()
-    },
-  }
-}
-```
-
-### `ViewContext` 结构
-
-```ts
-export interface ViewContext extends CommonContext {
-  readonly binding: ViewBinding
-
-  // 根据当前打开的物理文件类型附加：
-  readonly file?: FileContext       // 所有文件视图均提供
-  readonly editor?: TextDocument     // 文本文件打开时提供
-  readonly table?: TableContext       // .eidos 数据表打开时提供
-  readonly eidos?: EidosFileContext   // .eidos 文件打开时提供
-}
-```
-
-### 文件元信息 (`ctx.file`)
-
-任何通过 `file/open` 打开的文件视图均可直接读取：
-
-```ts
-export interface FileContext {
-  readonly path: string      // 相对于 Space 根目录的路径（如 "notes/todo.md"）
-  readonly name: string      // 完整文件名（如 "todo.md"）
-  readonly baseName: string  // 去除扩展名的文件名（如 "todo"）
-  readonly extension: string // 扩展名（如 ".md"）
-  readonly size: number      // 文件字节大小
-  readonly mimeType?: string // 可选媒体 MIME 类型
-}
-```
-
-### 文本编辑器能力 (`ctx.editor`)
-
-当打开文本类文件时，`ctx.editor` 提供内存工作副本与草稿同步机制：
-
-```ts
-export interface TextDocument {
-  read(): Promise<TextSnapshot>
-  observe(listener: (state: TextSnapshot) => void): Promise<{ snapshot: TextSnapshot; subscription: Disposable }>
-  edit(change: { text: string; expectedVersion: string; label?: string }): Promise<{ status: "applied" | "stale"; snapshot: TextSnapshot }>
-  save(): Promise<{ status: "saved" | "conflict"; snapshot: TextSnapshot }>
-  undo(): Promise<TextSnapshot>
-  redo(): Promise<TextSnapshot>
-}
-```
-
-### 数据表与 `.eidos` 文件能力 (`ctx.table` & `ctx.eidos`)
-
-当视图打开 `.eidos` SQLite 数据文件或作为 `table/view` 挂载时提供：
-
-```ts
-export interface TableContext {
-  readonly tableId: string
-  readonly viewId: string
-  readonly pluginConfig: TablePluginConfig
-  read(): Promise<TableViewSnapshot>
-  getPage(options: { offset: number; limit: number }): Promise<EidosFileRowPage>
-  aggregate(options: TableAggregateOptions): Promise<TableAggregateResult>
-  updateProperties(properties: Record<string, unknown>): Promise<void>
-  openRecord(rowId: string): Promise<void>
-  observe(listener: () => void): Disposable
-}
-
-export interface EidosFileContext {
-  listTables(): Promise<Array<{ id: string; name: string }>>
-  readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
-  readPluginConfig(tableId: string): Promise<TablePluginConfigSnapshot>
-  writePluginConfig(tableId: string, input: { value: JsonObject | null; expectedVersion: string }): Promise<TablePluginConfigSnapshot>
-}
-```
-
----
-
-## 动作与扩展入口 (`activate` & `ActionContext`)
-
-包含 Action 或 Formatter 的插件需在 `plugin.json` 中配置 `extension`：
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(ctx: ExtensionContext) {
-  // 注册普通动作
-  ctx.actions.register("format-markdown", async (actionCtx) => {
-    // actionCtx 具备完整 CommonContext
-  })
-}
-```
-
-### `ExtensionContext`
-
-```ts
-export interface ExtensionContext extends Lifetime {
-  readonly actions: {
-    register(id: string, handler: (ctx: ActionContext) => void | Promise<void>): Disposable
-    registerTableProvider(id: string, provider: TableActionProvider): Disposable
-  }
-  readonly formatters: {
-    register(id: string, provider: FormatterProvider): Disposable
-  }
-  readonly settings: Settings
-}
-```
-
-### `ActionContext`
-
-```ts
-export interface ActionContext extends CommonContext {
-  readonly binding: ActionBinding
-  readonly file?: FileContext
-  readonly editor?: TextDocument
-  readonly table?: TableContext
-}
-```
-
-### 文档格式化程序 (`FormatterProvider`)
-
-```ts
-export interface FormatterProvider {
-  format(input: { text: string; path: string; signal: AbortSignal }): { text: string } | Promise<{ text: string }>
-}
-```
-
-当用户在编辑器中触发 **格式化文档**（<kbd>Shift</kbd>+<kbd>Option</kbd>+<kbd>F</kbd> / <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>）时自动执行。
+完整签名见 [SDK 类型定义](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts)，行为约定见[插件规范](https://github.com/mayneyao/eidos/blob/dev/docs/specs/eidos-lite-plugins-1.0.md)。

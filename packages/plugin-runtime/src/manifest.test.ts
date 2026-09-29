@@ -13,13 +13,67 @@ const manifest = () => ({
       id: "csv",
       title: "CSV",
       entry: "./main.ts",
-      context: "document",
+      kind: "file",
+      capabilities: ["document"],
       access: "write",
     },
   ],
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("treats an empty capability list as no bound data requirement", () => {
+    const value = manifest()
+    expect(
+      parseManifest({
+        ...value,
+        views: [{ ...value.views[0], capabilities: [] }],
+      }).views?.[0]?.capabilities
+    ).toEqual([])
+    expect(
+      parseManifest({
+        ...value,
+        views: [{ ...value.views[0], kind: "page", capabilities: [] }],
+        placements: [{ location: "navigation", view: "csv" }],
+      }).views?.[0]?.kind
+    ).toBe("page")
+  })
+  it("combines Eidos capabilities independently of order and requires a table placement for table access", () => {
+    for (const capabilities of [
+      ["eidos/schema", "eidos/config", "eidos/table"],
+      ["eidos/table", "eidos/config", "eidos/schema"],
+    ]) {
+      const value = {
+        ...manifest(),
+        views: [{ ...manifest().views[0], capabilities }],
+        placements: [{ location: "table/view", view: "csv" }],
+      }
+      expect(parseManifest(value).views?.[0]?.capabilities).toEqual(
+        capabilities
+      )
+      expect(() =>
+        parseManifest({
+          ...value,
+          placements: [
+            { location: "file/open", view: "csv", extensions: [".eidos"] },
+          ],
+        })
+      ).toThrow()
+    }
+  })
+  it("rejects old View kinds and unavailable capability combinations", () => {
+    const value = manifest()
+    for (const view of [
+      { id: "csv", title: "CSV", entry: "./main.ts", context: "document" },
+      { ...value.views[0], kind: "document" },
+      { ...value.views[0], kind: "page" },
+      { ...value.views[0], capabilities: ["document", "eidos/schema"] },
+      { ...value.views[0], capabilities: ["eidos"] },
+      { ...value.views[0], capabilities: ["table"] },
+      { ...value.views[0], capabilities: ["eidos/table", "eidos/table"] },
+      { ...value.views[0], capabilities: ["unknown"] },
+    ])
+      expect(() => parseManifest({ ...value, views: [view] })).toThrow()
+  })
   it("validates explicit workspace files permission", () => {
     const value = { ...manifest(), workspace: { files: true } }
     expect(parseManifest(value).workspace).toEqual({ files: true })
@@ -161,12 +215,19 @@ describe("manifest and offline envelope", () => {
     const value = manifest()
     const file = {
       ...value,
-      views: value.views.map((v) => ({ ...v, context: "eidos" })),
+      views: value.views.map((v) => ({
+        ...v,
+        kind: "file",
+        capabilities: ["eidos/schema", "eidos/config"],
+      })),
       placements: [
         { location: "file/open", view: "csv", extensions: [".eidos"] },
       ],
     }
-    expect(parseManifest(file).views?.[0]?.context).toBe("eidos")
+    expect(parseManifest(file).views?.[0]?.capabilities).toEqual([
+      "eidos/schema",
+      "eidos/config",
+    ])
     expect(() =>
       parseManifest({
         ...file,
@@ -185,7 +246,7 @@ describe("manifest and offline envelope", () => {
           id: "player",
           title: "Player",
           entry: "./main.ts",
-          context: "media",
+          kind: "file",
           access: "read",
         },
       ],
@@ -197,11 +258,11 @@ describe("manifest and offline envelope", () => {
         },
       ],
     }
-    expect(parseManifest(media).views?.[0]?.context).toBe("media")
+    expect(parseManifest(media).views?.[0]?.kind).toBe("file")
     expect(() =>
       parseManifest({
         ...media,
-        views: [{ ...media.views[0], access: "write" }],
+        views: [{ ...media.views[0], access: "invalid" }],
       })
     ).toThrow()
     expect(() =>
@@ -221,7 +282,7 @@ describe("manifest and offline envelope", () => {
           id: "viewer",
           title: "Viewer",
           entry: "./main.ts",
-          context: "file",
+          kind: "file",
           access: "write",
         },
       ],
@@ -246,7 +307,7 @@ describe("manifest and offline envelope", () => {
       ],
     }
     const parsed = parseManifest(filePlugin)
-    expect(parsed.views?.[0]?.context).toBe("file")
+    expect(parsed.views?.[0]?.kind).toBe("file")
     expect(parsed.actions?.[0]?.context).toBe("file")
     expect(parsed.placements?.[0]?.location).toBe("file/open")
   })

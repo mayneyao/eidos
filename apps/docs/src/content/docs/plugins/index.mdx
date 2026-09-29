@@ -1,110 +1,28 @@
 ---
 title: Eidos Plugins
-description: Build offline Eidos Lite plugins with custom file views, independent panels, commands, and local filesystem APIs.
+description: Add file editors, independent pages and automation to Eidos.
 sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+Plugins let you build file editors, dashboards and tools inside Eidos. You can give CSV files a spreadsheet interface, add a project overview page, or run a command that processes selected records.
 
-Eidos plugins execute locally in an isolated sandbox, install once per device, and enable per Space.
+## Choose how your view opens
 
-Plugins can provide custom viewers and editors for any file format, register global or file-bound commands, mount independent dashboard panels in the sidebar, and directly access the local filesystem.
+A **page view** is an independent tool opened from the sidebar. Use it for a project home, journal index or workspace dashboard.
 
----
+A **file view** opens with a file and displays or edits its contents. Use it for a text editor, media player, or a visualization of a table inside an Eidos file.
 
-## Quickstart: Hello World in 30 Seconds
+One plugin can provide several views alongside commands, keyboard shortcuts and document formatting. You can also create a theme package with light and dark palettes for Eidos Lite.
 
-The fastest way to build an Eidos plugin is a single TypeScript file. Eidos Lite compiles and runs it directly—**no build steps, no dependencies, no configuration**.
+## Start building
 
-### 1. Create `hello.ts`
+[Create your first plugin](/plugins/guide/) walks through a text reader: declare the view, build its interface, open it in Eidos Lite and observe content changes. You can load this example directly from source.
 
-Create a file named `hello.ts` anywhere on your computer:
+Then read [core concepts](/plugins/concepts/) to understand how views connect to files and data, use the [API reference](/plugins/api/) to look up methods, and follow [development and distribution](/plugins/workflow/) to package your plugin for others.
 
-```ts
-// hello.ts
-import type { ExtensionContext, PluginManifest } from "@eidos.space/plugin-sdk"
+## Install and use
 
-export const manifest: PluginManifest = {
-  apiVersion: 1,
-  id: "example.hello",
-  name: "Hello World",
-  version: "0.1.0",
-  actions: [
-    {
-      id: "say-hello",
-      title: "Hello World",
-      context: "workspace",
-    },
-  ],
-  placements: [{ location: "command-palette", action: "say-hello" }],
-}
+Plugins are distributed as `.eidos-plugin` files. Install one through Eidos Lite's Plugin Manager, then enable it for a Space. File views appear in **Open with**, pages appear in sidebar navigation, and commands run from entry points such as the command palette.
 
-export default function activate(ctx: ExtensionContext) {
-  ctx.actions.register("say-hello", async ({ ui }) => {
-    await ui.notify("Hello from Eidos Plugin! 🎉")
-  })
-}
-```
-
-### 2. Load into Eidos Lite
-
-1. Open **Eidos Lite** and enter any Space.
-2. In the top toolbar, click the **Plugins** icon (between Search and the Space more menu).
-3. Click **Load development source…** and select your `hello.ts` file.
-4. Review the declared capabilities and enable the plugin for this Space.
-
-### 3. Run the Command
-
-Press <kbd>Cmd</kbd>+<kbd>K</kbd> (or <kbd>Ctrl</kbd>+<kbd>K</kbd> on Windows/Linux), type **Hello World**, and press <kbd>Enter</kbd>.
-
-A toast notification appears: `Hello from Eidos Plugin! 🎉`. Whenever you edit and save `hello.ts`, Eidos Lite automatically recompiles and hot-reloads the plugin.
-
----
-
-## Plugin Capabilities
-
-All views and actions have access to a set of core capabilities on the context object (`ctx.fs`, `ctx.storage`, `ctx.network`, `ctx.settings`, `ctx.ui`):
-
-| Capability | Interface | User Entry Point |
-| :--- | :--- | :--- |
-| **Custom File Views**<br/>Handle Markdown, CSV, video, PDF, binary, or `.eidos` databases | View (`context: "file"`) | File context menu → **Open with** |
-| **Independent Panels**<br/>Build Space dashboards, metrics boards, or admin tools | View (`context: "page"`) | Left sidebar navigation (`navigation`) |
-| **Commands and Actions**<br/>Text statistics, file automation, or batch processing | Action (`context: "workspace" \| "file"`) | Command Palette (<kbd>Cmd+K</kbd>), file context menu, shortcuts |
-| **Dynamic Table Actions**<br/>Table record operations, batch runs, and progress tracking | Table Action Provider (`registerTableProvider`) | Table row/selection context menu (`table/context`) |
-| **Table Embedded Views**<br/>Display records as charts, maps, or boards within a table | View (`context: "table"`) | Table view menu → **New view** (`table/view`) |
-| **Host Themes**<br/>Customize the complete Eidos Lite light/dark interface | Theme Package (`kind: "theme"`) | Global plugin manager settings |
-
----
-
-## Two Development Modes
-
-- **Single-File Mode (`.ts` / `.js`):** Export `manifest` and default `activate` (actions) or `mount` (UI). Perfect for scripts, lightweight utilities, and quick prototypes with zero build tooling.
-- **Full Project Mode (npx / CLI):** Scaffolds a complete project directory with `npx @eidos.space/plugin-tools create` or `eidos plugin create`, including `plugin.json`, TypeScript, React, CSS, and automated bundling into `.eidos-plugin` offline distribution packages via `npm run pack:plugin`.
-
----
-
-## Explore More
-
-<CardGrid>
-  <LinkCard
-    title="Plugin Concepts"
-    description="Understand spaces, files, views, actions, context objects, and UI placements."
-    href="/plugins/concepts/"
-  />
-  <LinkCard
-    title="Development Guide"
-    description="Step-by-step tutorial: scaffolding, building file views with React, using ctx.fs, and packaging."
-    href="/plugins/guide/"
-  />
-  <LinkCard
-    title="API Reference"
-    description="Complete reference for @eidos.space/plugin-sdk interfaces, CommonContext, PluginFileSystem, and host methods."
-    href="/plugins/api/"
-  />
-  <LinkCard
-    title="Workflow & Publishing"
-    description="Project templates, host compatibility checking, dynamic table actions, and registry submission."
-    href="/plugins/workflow/"
-  />
-</CardGrid>
+You can use a plugin in several Spaces. Each Space keeps its own enablement and plugin settings. Themes apply throughout Eidos Lite.

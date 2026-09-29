@@ -67,7 +67,7 @@ export class PluginStorage {
             throw new PluginError("IO_ERROR", "Invalid storage object")
           return (await fs.readFile(filename)).toString("base64")
         }
-        if (method === "storage.remove") {
+        if (method === "storage.delete") {
           await fs.rm(filename, { force: true })
           sizes.delete(key)
           return null

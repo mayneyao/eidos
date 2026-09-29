@@ -1,7 +1,7 @@
 # Plugin runtime implementation
 
-Private, host-side implementation of the [Eidos Plugins 1.0 target specification](../../docs/specs/eidos-lite-plugins-1.0.md).
-This package does not claim complete Plugin 1.0 conformance.
+Private, host-side implementation of the [Plugin API 3.0 source specification](../../docs/specs/eidos-lite-plugins-1.0.md).
+Matching host and SDK builds are required; this is not a release availability claim.
 
 Implemented modules:
 
@@ -42,9 +42,8 @@ bridge. Document backends must enforce canonical paths, encoding, disk revisions
 safe writes and history. `WorkingCopyRegistry` keys must be canonical identities
 supplied by the host, never guest-controlled paths.
 
-The public SDK is now type-only. Lite document/page views, lazy workspace/document
-actions and Rust CLI check/pack
-consume this runtime. Lite loads source directly, keeps automatic source updates
+The public SDK is now type-only. Lite page/file views, lazy workspace/document
+actions and plugin-tools consume this runtime. Lite loads source directly, keeps automatic source updates
 ephemeral, and retains the installed revision across restarts. The CSV browser
 smoke exercises compiled code, editing, saving and isolation in real Chromium:
 
@@ -64,8 +63,8 @@ The packager normally excludes `.d.ts` files. Lite retains the type-only SDK
 as `contracts.ts` and explicitly copies TypeScript standard libraries into the
 unpacked compiler directory. Native esbuild and TypeScript resolve there at runtime.
 
-Remaining integration includes a complete shared working-copy model with built-in
-editors, resource grants, table views/actions, settings/Runtime/output
-adapters, authoring IPC and standalone CLI compiler distribution. Lite currently
-rejects unsupported manifest capabilities at installation. The old HTML prototype
+Bindings expose metadata; operations use capabilities. Lite and Serve share the
+API major but have distinct feature profiles. Generic file views do not infer
+document/Eidos authority from extensions. Missing host services are omitted.
+Lite rejects unsupported manifest capabilities at installation. The old HTML prototype
 envelope is deliberately rejected; no compatibility adapter is provided.

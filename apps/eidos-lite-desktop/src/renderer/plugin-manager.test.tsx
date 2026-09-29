@@ -25,7 +25,7 @@ beforeEach(() => {
         enabled: false,
         manifest: {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.csv",
           name: "CSV",
           version: "1.0.0",
@@ -628,7 +628,7 @@ it("detects plugin updates and shows update actions in marketplace, detail view,
           enabled: false,
           manifest: {
             apiVersion: 1,
-            requires: { pluginApi: "2.0.0" },
+            requires: { pluginApi: "3.0.0" },
             id: "example.csv",
             name: "CSV",
             version: "1.0.0",

@@ -3,6 +3,10 @@
 Use this runbook for the Rust CLI in `apps/cli`. A CLI release is independent
 from Eidos Lite, Eidos File Web, and Eidos Publish.
 
+If this release changes plugin/Serve contracts, also complete
+[plugin-api-release.md](plugin-api-release.md). Verify registry plugins and
+templates against the candidate CLI wherever they claim Serve support.
+
 ## Establish the release contract
 
 - `apps/cli/Cargo.toml` is the CLI version source of truth.

@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugins 1.0.
+// Public type-only SDK for Eidos Plugin API 3.0.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -35,8 +35,6 @@ export interface PluginManifest {
   workspace?: {
     files?: boolean | { read?: boolean; write?: boolean }
   }
-  /** @deprecated Legacy resource declarations. Use workspace.files instead. */
-  resources?: Record<string, ResourceDeclaration>
   connections?: Record<
     string,
     { title: string; url: string; configurable?: boolean }
@@ -44,26 +42,23 @@ export interface PluginManifest {
   /** Standalone Eidos Lite host theme. Theme packages contain no executable contributions. */
   theme?: ThemeDeclaration
 }
-/** @deprecated Legacy resource declaration. Use workspace.files and ctx.fs instead. */
-export type ResourceDeclaration =
-  | { kind: "text"; title: string; access: Array<"read" | "write"> }
-  | {
-      kind: "directory"
-      title: string
-      access: Array<"read" | "write" | "create" | "delete" | "list">
-      include: string[]
-    }
-  | { kind: "output"; title: string; access: ["write"] }
-
 export interface ThemeDeclaration {
   /** Source path, replaced with validated CSS and embedded fonts when packaged. */
   stylesheet: string
 }
+export type ViewCapability =
+  | "document"
+  | "eidos/schema"
+  | "eidos/table"
+  | "eidos/config"
+
 export interface ViewDeclaration {
   id: string
   title: string
   entry: string
-  context: "page" | "file" | "document" | "media" | "eidos" | "table"
+  kind: "page" | "file"
+  /** Required data capabilities. Eidos capabilities can be combined. */
+  capabilities?: ViewCapability[]
   access?: "read" | "write"
   /** Host-rendered, per-table-view configuration stored in view.properties.plugin. */
   configuration?: ViewConfiguration
@@ -74,30 +69,12 @@ export interface ViewConfiguration {
   type: "object"
   properties: Record<string, SettingDeclaration & { "x-field"?: true }>
 }
-export type ActionConfigProperty =
-  | (SettingDeclaration & { "x-field"?: true; "x-multiline"?: true })
-  | {
-      type: "array"
-      title: string
-      description?: string
-      items: { type: "string" }
-      "x-field": true
-      default?: string[]
-    }
-export interface ActionConfiguration {
-  type: "object"
-  properties: Record<string, ActionConfigProperty>
-}
 export interface ActionDeclaration {
   id: string
   title: string
   context: "workspace" | "file" | "document" | "table"
   access?: "read" | "write"
   extensions?: string[]
-  /** @deprecated Reserved legacy design; rejected by current hosts. Use table.pluginConfig. */
-  configuration?: ActionConfiguration
-  /** @deprecated Reserved legacy design; action lists are owned by the plugin. */
-  multiple?: boolean
   /** Optional icon for this action. When omitted, the host may fall back to the plugin manifest icon. */
   icon?: PluginIconDefinition
 }
@@ -138,12 +115,16 @@ export interface Lifetime {
   readonly signal: AbortSignal
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
-export interface CommonContext extends Lifetime {
-  readonly fs: PluginFileSystem
-  readonly storage: PluginStorage
-  readonly network: PluginNetwork
-  readonly settings: Settings
+export interface CommonCapabilities {
+  readonly fs?: PluginFileSystem
+  readonly storage?: PluginStorage
+  readonly network?: PluginNetwork
+  readonly settings?: Pick<PluginSettings, "get">
+  readonly connections?: PluginConnections
   readonly ui: HostUI
+}
+export interface CommonContext extends Lifetime {
+  readonly capabilities: CommonCapabilities
 }
 export interface FileStat {
   readonly path: string
@@ -185,7 +166,7 @@ export interface PluginFileSystem {
   watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
 }
 
-export interface FileContext {
+export interface FileMetadata {
   readonly path: string
   readonly name: string
   readonly baseName: string
@@ -206,60 +187,65 @@ export interface PluginStorage {
   list(prefix?: string): Promise<Array<{ key: string; size: number }>>
   read(key: string): Promise<Uint8Array | null>
   write(key: string, value: Uint8Array): Promise<void>
-  remove(key: string): Promise<void>
+  delete(key: string): Promise<void>
 }
 
+/** Display identity only. IDs and paths are never authority for operations. */
+export interface FileRef extends Partial<FileMetadata> {
+  readonly id: string
+}
 export type ViewBinding =
-  | { kind: "eidos"; file: EidosFileContext }
   | { kind: "page"; route: string }
-  | { kind: "document"; document: TextDocument }
-  | { kind: "table"; table: TableContext }
-  | { kind: "media"; media: FileContext }
-  | { kind: "file"; file: FileContext }
+  | {
+      kind: "file"
+      file: FileRef
+      location?: { kind: "eidos-table"; tableId: string; viewId: string }
+    }
+
+export interface ViewCapabilities extends CommonCapabilities {
+  readonly document?: TextDocument
+  readonly eidos?: EidosCapabilities
+}
 
 export interface ViewContext extends CommonContext {
   readonly binding: ViewBinding
-  readonly file?: FileContext
-  readonly editor?: TextDocument
-  readonly table?: TableContext
-  readonly eidos?: EidosFileContext
+  readonly capabilities: ViewCapabilities
 }
-export interface TableActionInstance {
-  id: string
-  pluginId: string
-  actionId: string
-  title: string
-  config: Record<string, unknown>
+export type TextFileViewContext = ViewContext & {
+  readonly binding: Extract<ViewBinding, { kind: "file" }>
+  readonly capabilities: ViewCapabilities & { readonly document: TextDocument }
+}
+export type TableFileViewContext = ViewContext & {
+  readonly binding: Extract<ViewBinding, { kind: "file" }>
+  readonly capabilities: ViewCapabilities & {
+    readonly eidos: EidosCapabilities & { readonly table: EidosTable }
+  }
 }
 export type ActionBinding =
   | { kind: "workspace" }
-  | { kind: "file"; file: FileContext }
-  | { kind: "document"; document: TextDocument }
-  | {
-      kind: "table"
-      table: TableContext
-      rowId?: string
-      instanceId?: string
-      actionTitle?: string
-      config?: Readonly<Record<string, unknown>>
-    }
+  | { kind: "file"; file: FileRef }
 export interface ActionContext extends CommonContext {
   readonly binding: ActionBinding
-  readonly file?: FileContext
-  readonly editor?: TextDocument
-  readonly table?: TableContext
+  readonly capabilities: CommonCapabilities & {
+    readonly document?: TextDocument
+    readonly settings: PluginSettings
+  }
 }
 export interface ExtensionContext extends Lifetime {
-  readonly formatters: {
-    register(id: string, provider: FormatterProvider): Disposable
-  }
-  readonly settings: Settings
-  readonly actions: {
-    registerTableProvider(id: string, provider: TableActionProvider): Disposable
-    register(
-      id: string,
-      handler: (ctx: ActionContext) => void | Promise<void>
-    ): Disposable
+  readonly capabilities: {
+    readonly formatters: {
+      register(id: string, provider: FormatterProvider): Disposable
+    }
+    readonly actions: {
+      registerTableProvider(
+        id: string,
+        provider: TableActionProvider
+      ): Disposable
+      register(
+        id: string,
+        handler: (ctx: ActionContext) => void | Promise<void>
+      ): Disposable
+    }
   }
 }
 export interface TableActionItem {
@@ -276,12 +262,16 @@ export interface TableActionRecord {
 }
 export interface TableActionContext {
   readonly signal: AbortSignal
-  readonly table: Pick<TableContext, "tableId" | "viewId" | "read"> & {
-    pluginConfig: Pick<TableContext["pluginConfig"], "read">
+  readonly capabilities: TableActionCapabilities
+}
+export interface TableActionCapabilities {
+  readonly eidos: {
+    readonly table: Pick<EidosTable, "tableId" | "viewId" | "readContext">
+    readonly config: Pick<EidosConfig, "read">
   }
   readonly target: {
     count: number
-    read(options: {
+    readRows(options: {
       offset: number
       limit: number
       fields: string[]
@@ -298,17 +288,18 @@ export interface TableActionContext {
     }): Promise<JsonObject>
   }
   readonly task: {
-    /** Declares validated sample outputs. Lite applies runs directly and does not show a confirmation preview. */
-    preview(
+    /** Validates output samples and establishes the fields this run may update. */
+    declareOutputs(
       rows: Array<{ readToken: string; values: Record<string, LogicalValue> }>
-    ): Promise<boolean>
+    ): Promise<void>
     report(progress: { completed: number; message?: string }): Promise<void>
   }
 }
 export interface TableActionProvider {
-  getItems(
-    context: Pick<TableActionContext, "table" | "signal">
-  ): Promise<TableActionItem[]> | TableActionItem[]
+  getItems(context: {
+    readonly signal: AbortSignal
+    readonly capabilities: Pick<TableActionCapabilities, "eidos">
+  }): Promise<TableActionItem[]> | TableActionItem[]
   run(context: TableActionContext, itemId: string): Promise<void>
 }
 export type Mount = (
@@ -358,91 +349,55 @@ import type {
   JsonObject,
   EidosFileFieldInfo,
   EidosFileRowPage,
-  EidosFileRuntime,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
-export type GrantedDataMethod =
-  | "inspect"
-  | "listTables"
-  | "getTable"
-  | "listFields"
-  | "listViews"
-  | "getRow"
-  | "queryRows"
-  | "countRows"
-  | "countRowsByField"
-  | "aggregate"
-  | "mutateRows"
-  | "mutateSchema"
-  | "createView"
-  | "updateView"
-  | "deleteView"
-  | "reorderViews"
-export type GrantedDataClient = {
-  [K in GrantedDataMethod]: (
-    ...args: Parameters<EidosFileRuntime[K]>
-  ) => Promise<Awaited<ReturnType<EidosFileRuntime[K]>>>
-}
-/** @deprecated Use GrantedDataMethod */
-export type GrantedRuntimeMethod = GrantedDataMethod
-/** @deprecated Use GrantedDataClient */
-export type GrantedRuntimeClient = GrantedDataClient
-export interface EidosResource extends Disposable {
-  observeRevision(
-    listener: (revision: string) => void,
-    onError?: ObserverErrorHandler
-  ): Promise<{ revision: string; subscription: Disposable }>
-  /** Eidos 表格数据引擎接口（提供 queryRows、mutateRows、listTables 等数据操作） */
-  readonly data: GrantedDataClient
-  /** @deprecated 建议优先使用 .data 访问数据引擎 */
-  readonly runtime: GrantedDataClient
-}
-export interface TableContext {
-  readonly pluginConfig: TablePluginConfig
+export interface EidosTable {
   readonly tableId: string
   readonly viewId: string
-  read(): Promise<TableViewSnapshot>
-  getPage(options: { offset: number; limit: number }): Promise<EidosFileRowPage>
+  readContext(): Promise<EidosTableSnapshot>
+  readRows(options: {
+    offset: number
+    limit: number
+  }): Promise<EidosFileRowPage>
   aggregate(options: TableAggregateOptions): Promise<TableAggregateResult>
-  updateProperties(properties: Record<string, unknown>): Promise<void>
+  /** Replaces the saved view's plugin configuration. Merge retained keys before setting. */
+  setViewConfig(config: Record<string, unknown>): Promise<void>
   openRecord(rowId: string): Promise<void>
-  observe(listener: () => void): Disposable
+  /** Invalidation notifications only; readContext/readRows supply current values. */
+  watch(listener: () => void): Disposable
 }
-/** Portable, plugin-owned JSON stored in the bound table's settings. */
-export interface TablePluginConfig {
-  read(): Promise<TablePluginConfigSnapshot>
-  write(input: {
-    value: JsonObject | null
-    expectedVersion: string
-  }): Promise<TablePluginConfigSnapshot>
-  /** Invalidation hint; call read() for current values. May include unrelated table changes. */
-  observe(listener: () => void): Disposable
-}
-export interface TablePluginConfigSnapshot {
+export interface EidosConfigSnapshot {
   value: JsonObject | null
   version: string
 }
-export interface TableViewSnapshot {
+export interface EidosTableSnapshot {
   fields: EidosFileFieldInfo[]
   view: EidosFileViewInfo
 }
 
-/** Bound file only; config writes are scoped to this plugin's namespace. */
-export interface EidosFileContext {
-  readonly connections: {
-    configured(connection: string): Promise<boolean>
-    request(input: {
-      connection: string
-      body: JsonObject
-    }): Promise<JsonObject>
-  }
+/** Capabilities for the current Eidos file and optional table location. */
+export interface EidosCapabilities {
+  readonly schema?: EidosSchema
+  readonly table?: EidosTable
+  readonly config?: EidosConfig
+}
+export interface EidosSchema {
   listTables(): Promise<Array<{ id: string; name: string }>>
   readTable(tableId: string): Promise<{ fields: EidosFileFieldInfo[] }>
-  readPluginConfig(tableId: string): ReturnType<TablePluginConfig["read"]>
-  writePluginConfig(
+}
+/** Config is scoped to this plugin; a table binding restricts tableId to that table. */
+export interface EidosConfig {
+  read(tableId: string): Promise<EidosConfigSnapshot>
+  write(
     tableId: string,
-    input: Parameters<TablePluginConfig["write"]>[0]
-  ): ReturnType<TablePluginConfig["write"]>
+    input: { value: JsonObject | null; expectedVersion: string }
+  ): Promise<EidosConfigSnapshot>
+  /** Invalidation hint; may include unrelated changes. Read again for current values. */
+  watch(tableId: string, listener: () => void): Disposable
+}
+export interface PluginConnections {
+  isConfigured(connection: string): Promise<boolean>
+  request(input: { connection: string; body: JsonObject }): Promise<JsonObject>
 }
 
 export type TableAggregateMetric = "count" | "sum" | "average" | "min" | "max"
@@ -478,31 +433,16 @@ export type SettingDeclaration = { title: string; description?: string } & (
   | { type: "string"; default: string; enum?: string[] }
   | { type: "number"; default: number; minimum?: number; maximum?: number }
 )
-export interface Settings {
+export interface PluginSettings {
   get(key: string): Promise<SettingValue>
-  update(key: string, value: SettingValue): Promise<void>
+  set(key: string, value: SettingValue): Promise<void>
   reset(key: string): Promise<void>
-  observe(
-    listener: (values: Record<string, SettingValue>) => void,
-    onError?: ObserverErrorHandler
-  ): Promise<{
-    values: Record<string, SettingValue>
-    subscription: Disposable
-  }>
 }
 export interface HostUI {
   notify(message: string): Promise<void>
-  select(options: {
-    title: string
-    options: Array<{ id: string; label: string }>
-  }): Promise<{ status: "selected"; id: string } | { status: "cancelled" }>
-  confirm(options: {
-    title: string
-    message: string
-  }): Promise<{ status: "confirmed" | "cancelled" }>
   /** Opens an existing file in the host editor or viewer. */
-  openFile(relativePath: string): Promise<void>
-  navigate(viewId: string, route?: string): Promise<void>
+  openFile?(relativePath: string): Promise<void>
+  navigate?(viewId: string, route?: string): Promise<void>
 }
 
 export type ObserverErrorHandler = (error: {

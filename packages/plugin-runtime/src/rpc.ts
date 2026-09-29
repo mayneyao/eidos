@@ -25,19 +25,19 @@ export interface PluginRequest {
     | "storage.list"
     | "storage.read"
     | "storage.write"
-    | "storage.remove"
-    | "table.read"
+    | "storage.delete"
+    | "table.readContext"
     | "table.pluginConfig.read"
     | "table.pluginConfig.write"
     | "table.actions.ready"
     | "table.actions.result"
-    | "table.target.read"
+    | "table.target.readRows"
     | "table.target.update"
     | "table.connection.request"
-    | "table.task.preview"
+    | "table.task.declareOutputs"
     | "table.task.report"
-    | "table.page"
-    | "table.properties"
+    | "table.readRows"
+    | "table.setViewConfig"
     | "table.openRecord"
     | "table.aggregate"
     | "extension.ready"
@@ -56,7 +56,7 @@ export interface PluginRequest {
     | "ui.openFile"
     | "ui.navigate"
     | "settings.get"
-    | "settings.update"
+    | "settings.set"
     | "settings.reset"
     | "fs.readText"
     | "fs.writeText"
@@ -108,19 +108,19 @@ export function parseRequest(value: unknown): PluginRequest {
       "storage.list",
       "storage.read",
       "storage.write",
-      "storage.remove",
-      "table.read",
+      "storage.delete",
+      "table.readContext",
       "table.pluginConfig.read",
       "table.pluginConfig.write",
       "table.actions.ready",
       "table.actions.result",
-      "table.target.read",
+      "table.target.readRows",
       "table.target.update",
       "table.connection.request",
-      "table.task.preview",
+      "table.task.declareOutputs",
       "table.task.report",
-      "table.page",
-      "table.properties",
+      "table.readRows",
+      "table.setViewConfig",
       "table.openRecord",
       "table.aggregate",
       "extension.ready",
@@ -139,7 +139,7 @@ export function parseRequest(value: unknown): PluginRequest {
       "ui.openFile",
       "ui.navigate",
       "settings.get",
-      "settings.update",
+      "settings.set",
       "settings.reset",
       "fs.readText",
       "fs.writeText",

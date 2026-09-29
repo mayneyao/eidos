@@ -68,9 +68,9 @@ describe("table action authority with native Runtime", () => {
     try {
       const session = new TableActionSession(f.source, f.tableId)
       await session.capture({}, null)
-      const [row] = await session.read(0, 1, [f.category])
+      const [row] = await session.readRows(0, 1, [f.category])
       const output = { readToken: row!.readToken, values: { [f.category]: "" } }
-      session.approve([output])
+      session.declareOutputs([output])
       const before = await f.source.getSnapshot()
       await session.update(output.readToken, output.values)
       expect(session.undo).toEqual([])
@@ -98,9 +98,9 @@ describe("table action authority with native Runtime", () => {
     } as unknown as EidosFileDataSource
     const session = new TableActionSession(source, "table")
     await session.capture({}, null)
-    const [row] = await session.read(0, 1, ["field"])
+    const [row] = await session.readRows(0, 1, ["field"])
     const output = { readToken: row!.readToken, values: { field: "after" } }
-    session.approve([output])
+    session.declareOutputs([output])
     const write = session.update(output.readToken, output.values)
     session.dispose()
     expect(released).toEqual([])
@@ -155,12 +155,18 @@ describe("table action authority with native Runtime", () => {
     try {
       const session = new TableActionSession(f.source, f.tableId)
       await session.capture({}, null)
-      const rows = await session.read(0, 2, [f.message, f.category, f.score])
+      const rows = await session.readRows(0, 2, [
+        f.message,
+        f.category,
+        f.score,
+      ])
       const values = { [f.category]: "billing", [f.score]: 0.9 }
       await expect(session.update(rows[0]!.readToken, values)).rejects.toThrow(
-        "preview"
+        "Declare outputs"
       )
-      session.approve(rows.map((row) => ({ readToken: row.readToken, values })))
+      session.declareOutputs(
+        rows.map((row) => ({ readToken: row.readToken, values }))
+      )
       for (const row of rows) await session.update(row.readToken, values)
       expect(session.undo).toHaveLength(2)
       const updated = await f.source.readTableActionRows(
@@ -215,13 +221,17 @@ describe("table action authority with native Runtime", () => {
     try {
       const session = new TableActionSession(f.source, f.tableId)
       await session.capture({}, [{ startIndex: 0, endIndex: 1 }])
-      const [row] = await session.read(0, 1, [f.message, f.category, f.score])
+      const [row] = await session.readRows(0, 1, [
+        f.message,
+        f.category,
+        f.score,
+      ])
       const output = { [f.category]: "billing", [f.score]: 1 }
-      session.approve([{ readToken: row!.readToken, values: output }])
+      session.declareOutputs([{ readToken: row!.readToken, values: output }])
       await expect(session.update("forged", output)).rejects.toThrow("token")
       await expect(
         session.update(row!.readToken, { [f.message]: "escape" })
-      ).rejects.toThrow("approved")
+      ).rejects.toThrow("declared")
       await expect(
         session.update(row!.readToken, { ...output, [f.score]: "invalid" })
       ).rejects.toThrow()
@@ -245,7 +255,11 @@ describe("table action authority with native Runtime", () => {
       await expect(session.update(row!.readToken, output)).rejects.toThrow(
         "changed"
       )
-      const [fresh] = await session.read(0, 1, [f.message, f.category, f.score])
+      const [fresh] = await session.readRows(0, 1, [
+        f.message,
+        f.category,
+        f.score,
+      ])
       await session.update(fresh!.readToken, output)
       await f.source.updateRow(f.tableId, row!.id, {
         [f.category]: "User change",

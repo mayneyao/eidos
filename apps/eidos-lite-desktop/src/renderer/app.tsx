@@ -4223,6 +4223,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   key={pluginEditor.ticket}
                   instance={pluginEditor}
                   onDraft={() => {}}
+                  tableRevision={activeFile.snapshot}
                   onTableRequest={(request) =>
                     fileViewRequest(
                       activeFile.source,

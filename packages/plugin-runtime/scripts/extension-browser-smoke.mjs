@@ -46,7 +46,7 @@ try {
       id: "local.reference",
       name: "Reference",
       version: "1.0.0",
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       extension: "./extension.ts",
       actions: [
         {
@@ -57,9 +57,7 @@ try {
           extensions: [".md"],
         },
       ],
-      views: [
-        { id: "home", title: "Home", context: "page", entry: "./page.ts" },
-      ],
+      views: [{ id: "home", title: "Home", kind: "page", entry: "./page.ts" }],
       placements: [
         { location: "navigation", view: "home" },
         { location: "command-palette", action: "trim" },
@@ -68,16 +66,16 @@ try {
   )
   await fs.writeFile(
     path.join(root, "page.ts"),
-    `import type {ViewContext} from '@eidos.space/plugin-sdk'; export default async function mount(ctx:ViewContext,root:HTMLElement){ if(ctx.binding.kind !== 'page') throw Error('Wrong binding');root.textContent=ctx.binding.route; await ctx.ui.notify('page:'+ctx.binding.route); }`
+    `import type {ViewContext} from '@eidos.space/plugin-sdk'; export default async function mount(ctx:ViewContext,root:HTMLElement){ if(ctx.binding.kind !== 'page') throw Error('Wrong binding');root.textContent=ctx.binding.route; await ctx.capabilities.ui.notify('page:'+ctx.binding.route); }`
   )
   await fs.writeFile(
     path.join(root, "extension.ts"),
     `import type {ExtensionContext} from '@eidos.space/plugin-sdk';
 let activation = 0;
 export default function activate(ctx:ExtensionContext){ activation++; let runs=0;
-ctx.actions.register('trim', async (ctx)=>{ if(ctx.binding.kind !== 'document') throw Error('Wrong binding');
-const doc=ctx.binding.document, state=await doc.read(); const result=await doc.edit({text:state.text.trim()+'\\n',expectedVersion:state.version}); if(result.status !== 'applied')throw Error('Stale'); await doc.save();
-await ctx.ui.notify('activation:'+activation+',run:'+ ++runs);
+ctx.capabilities.actions.register('trim', async (ctx)=>{ if(!ctx.capabilities.document) throw Error('Document capability required');
+const doc=ctx.capabilities.document, state=await doc.read(); const result=await doc.edit({text:state.text.trim()+'\\n',expectedVersion:state.version}); if(result.status !== 'applied')throw Error('Stale'); await doc.save();
+await ctx.capabilities.ui.notify('activation:'+activation+',run:'+ ++runs);
 setTimeout(async()=>{let expired=false;try{await doc.read()}catch{expired=true}parent.postMessage({smoke:true,expired,aborted:ctx.signal.aborted},'*')},100);
 }); }`
   )

@@ -36,7 +36,7 @@ vi.mock("./plugin-editor", () => ({
             params: { runId: job.id, args },
           })
         void (async () => {
-          const rows = (await request("table.target.read", {
+          const rows = (await request("table.target.readRows", {
             offset: 0,
             limit: 1,
             fields: ["field"],
@@ -45,9 +45,9 @@ vi.mock("./plugin-editor", () => ({
             readToken: rows[0]!.readToken,
             values: { field: "sales" },
           }
-          expect(await request("table.task.preview", { rows: [output] })).toBe(
-            true
-          )
+          expect(
+            await request("table.task.declareOutputs", { rows: [output] })
+          ).toBe(null)
           await request("table.target.update", output)
           await request("table.task.report", {
             completed: 1,

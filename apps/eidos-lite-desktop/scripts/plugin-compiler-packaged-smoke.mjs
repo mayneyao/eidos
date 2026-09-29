@@ -26,7 +26,7 @@ try {
   fs.writeFileSync(
     entry,
     `import type { Mount } from '@eidos.space/plugin-sdk';
-const mount: Mount = async (ctx, root) => { if (ctx.binding.kind === 'document') root.textContent = (await ctx.binding.document.read()).text; };
+const mount: Mount = async (ctx, root) => { if (ctx.capabilities.document) root.textContent = (await ctx.capabilities.document.read()).text; };
 export default mount;`
   )
   const options = {

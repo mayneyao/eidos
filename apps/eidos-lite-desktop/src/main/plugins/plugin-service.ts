@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
@@ -16,18 +17,14 @@ import {
   type WorkingCopy,
 } from "@eidos.space/plugin-runtime/working-copy"
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
-import {
-  documentViewHtml,
-  mediaViewHtml,
-  viewHtml,
-  sandboxCsp,
-} from "@eidos.space/plugin-runtime/sandbox"
+import { viewHtml, sandboxCsp } from "@eidos.space/plugin-runtime/sandbox"
 import { extensionHtml } from "@eidos.space/plugin-runtime/extension-sandbox"
 import type {
   TextDocument,
   Disposable,
   ActionDeclaration,
   FormatterDeclaration,
+  ViewCapability,
 } from "@eidos.space/plugin-sdk"
 import type { PluginOpenResult, PluginRpcResult } from "../../shared/plugins"
 import { normalizeMutableRelativePath } from "../space/space-paths"
@@ -35,6 +32,7 @@ import type { PluginStore } from "./plugin-store"
 import { diskSnapshot, type PluginDocumentSession } from "./document-host"
 export type { PluginDocumentSession } from "./document-host"
 interface Instance {
+  capabilities?: ViewCapability[]
   workspaceFiles?: boolean | { read?: boolean; write?: boolean }
   file?: {
     path: string
@@ -242,20 +240,22 @@ export class PluginService {
     session: PluginDocumentSession,
     ticket: string,
     id: string,
-    management = false
+    management = false,
+    invocationId?: string
   ) {
     const instance = this.instances.get(ticket)
     if (
       !instance ||
       instance.owner !== owner ||
       instance.session !== session ||
-      (!instance.table &&
-        !instance.eidos &&
-        !(management && instance.extension))
+      (instance.extension &&
+        !instance.table &&
+        !management &&
+        !instance.invocation)
     )
       throw new PluginError(
         "PERMISSION_DENIED",
-        "Connection requires a live table plugin"
+        "Connection requires a live plugin context"
       )
     instance.scope.assertActive()
     const binding = await this.store.binding(
@@ -268,16 +268,27 @@ export class PluginService {
     const connection = pkg.manifest.connections?.[id]
     if (!connection)
       throw new PluginError("PERMISSION_DENIED", "Connection is not declared")
-    if (instance.eidos && !connection.configurable)
-      throw new PluginError(
-        "PERMISSION_DENIED",
-        "File views require a configurable connection"
-      )
+    const invocation = instance.invocation
+    if (
+      invocationId !== undefined &&
+      (!invocation || invocation.id !== invocationId || invocation.format)
+    )
+      throw new PluginError("PERMISSION_DENIED", "Action context expired")
+    if (
+      instance.extension &&
+      !instance.table &&
+      !management &&
+      invocationId === undefined
+    )
+      throw new PluginError("PERMISSION_DENIED", "Action context is required")
+    const scope =
+      invocationId === undefined ? instance.scope : invocation!.scope
+    scope.assertActive()
     return {
       scope: [session.canonical.id, instance.pluginId, id, connection.url],
       url: connection.url,
       configurable: connection.configurable === true,
-      signal: instance.scope.signal,
+      signal: scope.signal,
     }
   }
   async invoke(
@@ -504,7 +515,7 @@ export class PluginService {
     const pkg = await this.store.read(binding.hash)
     const view = pkg.manifest.views?.find(
       (view) =>
-        view.id === viewId && view.context === (table ? "table" : "page")
+        view.id === viewId && viewResource(view) === (table ? "table" : "page")
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "Page unavailable")
@@ -520,11 +531,15 @@ export class PluginService {
       owner,
       session,
       workspaceFiles: pkg.manifest.workspace?.files,
-      html: viewHtml(
-        pkg.modules[view.entry]!,
-        table ? { kind: "table", ...table } : { kind: "page", route }
-      ),
+      html: viewHtml(pkg.modules[view.entry]!, {
+        ...(table
+          ? { kind: "table" as const, ...table }
+          : { kind: "page" as const, route }),
+        capabilities: view.capabilities,
+        connections: !!Object.keys(pkg.manifest.connections ?? {}).length,
+      }),
       table,
+      capabilities: view.capabilities,
       tableWritable: view.access === "write",
       csp: sandboxCsp(pkg.manifest.browser),
       resource,
@@ -567,15 +582,13 @@ export class PluginService {
     const view = pkg.manifest.views?.find(
       (view) =>
         `${id}/${view.id}` === selected.editor!.key &&
-        (view.context === "file" ||
-          view.context === "media" ||
-          view.context === (isEidos ? "eidos" : "document"))
+        (viewResource(view) === "file" ||
+          viewResource(view) === (isEidos ? "eidos" : "document"))
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "View is unavailable")
-    const isFileContext = view.context === "file"
-    const eidos = view.context === "eidos" || (isFileContext && isEidos)
-    const media = view.context === "media"
+    const isFileContext = viewResource(view) === "file"
+    const eidos = viewResource(view) === "eidos"
     let mediaInfo:
       | {
           path: string
@@ -587,22 +600,13 @@ export class PluginService {
           previewUrl: string
         }
       | undefined
-    if (media) {
-      if (!session.previewMediaFile)
-        throw new PluginError(
-          "DOCUMENT_UNAVAILABLE",
-          "Media view unavailable in this session"
-        )
-      mediaInfo = await session.previewMediaFile(safe).catch(() => undefined)
-    } else if (isFileContext && session.previewMediaFile) {
+    if (isFileContext && session.previewMediaFile) {
       mediaInfo = await session.previewMediaFile(safe).catch(() => undefined)
     }
     const copy =
-      view.context === "document"
+      viewResource(view) === "document"
         ? await this.documentCopy(session, safe, draft)
-        : isFileContext && !isEidos
-          ? await this.documentCopy(session, safe, draft).catch(() => undefined)
-          : undefined
+        : undefined
     const fileInfo = mediaInfo ?? {
       path: safe,
       name: path.basename(safe),
@@ -632,14 +636,17 @@ export class PluginService {
       eidos,
       media: !!mediaInfo,
       mediaPreviewUrl: mediaInfo?.previewUrl,
+      capabilities: view.capabilities,
       tableWritable: view.access === "write",
-      html: eidos
-        ? viewHtml(pkg.modules[view.entry]!, { kind: "eidos", file: fileInfo })
-        : media
-          ? mediaViewHtml(pkg.modules[view.entry]!, mediaInfo!)
+      html: viewHtml(pkg.modules[view.entry]!, {
+        ...(eidos
+          ? { kind: "eidos" as const, file: fileInfo }
           : isFileContext
-            ? viewHtml(pkg.modules[view.entry]!, { kind: "file", ...fileInfo })
-            : documentViewHtml(pkg.modules[view.entry]!, fileInfo),
+            ? { kind: "file" as const, ...fileInfo }
+            : { kind: "document" as const, file: fileInfo }),
+        capabilities: view.capabilities,
+        connections: !!Object.keys(pkg.manifest.connections ?? {}).length,
+      }),
       csp: sandboxCsp(pkg.manifest.browser),
       document: copy?.bind(scope, view.access ?? "read"),
       pluginId: id,
@@ -792,7 +799,8 @@ export class PluginService {
       if (
         instance.extension &&
         (request.method === "network.read" ||
-          request.method.startsWith("storage."))
+          request.method.startsWith("storage.") ||
+          request.method.startsWith("eidos.connection."))
       ) {
         const invocation = instance.invocation
         const envelope = object(request.params)
@@ -846,16 +854,36 @@ export class PluginService {
         capabilityScope.assertActive()
         return { response: { ...base, result } }
       }
+      if (request.method.startsWith("eidos.connection.")) {
+        const params = object(capabilityParams)
+        if (typeof params.connection !== "string")
+          throw new PluginError("INVALID_REQUEST", "Invalid connection")
+        await this.connectionAccess(
+          owner,
+          instance.session,
+          ticket,
+          params.connection,
+          false,
+          instance.extension ? instance.invocation?.id : undefined
+        )
+        capabilityScope.assertActive()
+        return { response: { ...base, result: null } }
+      }
       if (request.method.startsWith("eidos.")) {
+        const capability = request.method.startsWith("eidos.pluginConfig.")
+          ? "eidos/config"
+          : "eidos/schema"
         if (
-          !instance.eidos ||
+          (!instance.eidos && !instance.table) ||
+          !instance.capabilities?.includes(capability) ||
+          (instance.table && capability === "eidos/config") ||
           binding.hash !== instance.hash ||
           (request.method === "eidos.pluginConfig.write" &&
             !instance.tableWritable)
         )
           throw new PluginError(
             "PERMISSION_DENIED",
-            "Eidos file access not granted"
+            "Eidos capability not granted"
           )
         return { response: { ...base, result: null } }
       }
@@ -865,6 +893,14 @@ export class PluginService {
         // Provider registration carries no table data authority.
         if (request.method === "table.actions.ready" && instance.extension)
           return { response: { ...base, result: null } }
+        const capability = request.method.startsWith("table.pluginConfig.")
+          ? "eidos/config"
+          : "eidos/table"
+        if (!instance.extension && !instance.capabilities?.includes(capability))
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Eidos capability not granted"
+          )
         if (!instance.table)
           throw new PluginError("PERMISSION_DENIED", "Not a table view")
         if (
@@ -1064,16 +1100,25 @@ export class PluginService {
         const hasWorkspaceFiles =
           instance.workspaceFiles === true ||
           (typeof instance.workspaceFiles === "object" &&
-            instance.workspaceFiles.read !== false) ||
-          instance.invocation?.context === "workspace"
+            instance.workspaceFiles.read !== false)
+        const contributionWritable = instance.invocation
+          ? instance.invocation.access === "write"
+          : instance.tableWritable === true
         const hasWorkspaceWrite =
-          instance.workspaceFiles === true ||
-          (typeof instance.workspaceFiles === "object" &&
-            instance.workspaceFiles.write === true) ||
-          (instance.invocation?.context === "workspace" &&
-            instance.invocation?.access === "write")
+          contributionWritable &&
+          (instance.workspaceFiles === true ||
+            (typeof instance.workspaceFiles === "object" &&
+              instance.workspaceFiles.write === true))
         const activeFilePath = instance.invocation?.path || instance.path
         const isFileView = !!activeFilePath
+        const assertDirectWrite = (target: string) => {
+          const identity = this.sessions.get(session)
+          if (identity && this.copies.has(identity, target))
+            throw new PluginError(
+              "BUSY",
+              "File has a host working copy; use document editing and save"
+            )
+        }
         switch (request.method) {
           case "view.ready":
             instance.mounted?.()
@@ -1234,6 +1279,7 @@ export class PluginService {
                 "File writing unavailable"
               )
             }
+            assertDirectWrite(targetPath)
             await session.writeTextFile(targetPath, p.content)
             result = null
             break
@@ -1328,6 +1374,7 @@ export class PluginService {
               )
             }
             const buf = Buffer.from(p.data, "base64")
+            assertDirectWrite(targetPath)
             await session.writeBinaryFile(targetPath, buf)
             result = null
             break
@@ -1378,6 +1425,7 @@ export class PluginService {
                 "File deletion unavailable"
               )
             }
+            assertDirectWrite(targetPath)
             await session.deleteFile(targetPath)
             result = null
             break
@@ -1441,6 +1489,8 @@ export class PluginService {
                 "File rename unavailable"
               )
             }
+            assertDirectWrite(oldTarget)
+            assertDirectWrite(newTarget)
             await session.renameFile(oldTarget, newTarget)
             result = null
             break
@@ -1718,7 +1768,7 @@ export class PluginService {
             break
           }
           case "settings.get":
-          case "settings.update":
+          case "settings.set":
           case "settings.reset": {
             const p = object(params)
             if (
@@ -1793,7 +1843,7 @@ export class PluginService {
             const pkg = await this.store.read(instance.hash)
             if (
               !pkg.manifest.views?.some(
-                (view) => view.id === p.viewId && view.context === "page"
+                (view) => view.id === p.viewId && viewResource(view) === "page"
               )
             )
               throw new PluginError(

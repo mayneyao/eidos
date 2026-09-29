@@ -1,16 +1,24 @@
 ---
 name: eidos
-description: Safely inspect, query, validate, and modify open `.eidos` structured-data files, attachments, and saved Views with the agent-first Rust `eidos` CLI. Use for any request that reads or changes an Eidos File, including tables, rows, File fields, filters, relations, Views, task trackers, and revision conflicts. Never use raw SQLite writes.
+description: Safely manage `.eidos` data, attachments, schema, and saved Views with the Eidos CLI; create, develop, validate, and package Eidos Lite or CLI Serve plugins. Use for Eidos data operations and Eidos plugin development, debugging, or migration. Never use raw SQLite writes.
 ---
 
-# Eidos File
+# Eidos File and Plugins
+
+For plugin creation, implementation, debugging, migration, or packaging, read
+[references/plugins.md](references/plugins.md) first. It covers host selection,
+scaffolding, SDK contracts, development loading, tests, and deliverables. Plugin
+authoring uses `@eidos.space/plugin-tools`; `eidos plugin` manages installed
+packages. Do not require the Eidos CLI for a source-only plugin task, or apply
+the data-mutation workflow below to plugin source files.
 
 Use `eidos` as the typed transaction boundary for `.eidos` files and their File-field attachments. Use ordinary filesystem tools for standalone Markdown, and Graft for history or sync when an enclosing directory has `.graft`.
 
-Before the first operation, run `eidos --version`. If the command is unavailable, stop and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request.
+Before the first Eidos CLI operation, run `eidos --version`. If the command is unavailable, stop the CLI-dependent operation and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request. Independent plugin source work can continue.
 
-This Skill is bundled with the Eidos CLI, so it does not require Node.js,
-`npm`, or `npx`. To initialize or update it for the current Space, run:
+Installing this Skill and using the Eidos data CLI do not require Node.js,
+`npm`, or `npx`; plugin authoring tools do. To initialize or update the bundled
+Skill for the current Space, run:
 
 ```bash
 eidos self skill init

@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Assess release impact and release Eidos File npm packages, Eidos Lite, the standalone CLI, editor.eidos.space, or Eidos Publish. Use when asked what changes need shipping, to prepare or publish a version, deploy a hosted surface, write or audit release notes, update Lite's bundled Graft dependency, recover a failed release tag, or verify published artifacts and deployments.
+description: Assess release impact and release Eidos File packages, plugin SDK/tools, Eidos Lite, the CLI, Web or Publish. Use for release preparation, publication, release notes, bundled dependency updates, and artifact verification. Plugin API changes include adapting registry plugins and development templates before completing the release.
 ---
 
 # Eidos Release
@@ -21,8 +21,18 @@ Impact assessment may identify multiple required surfaces. That does not make
 their versions, publishers, release notes, or proof interchangeable. Prepare and
 prove each selected surface independently.
 
+Every plugin API change requires a compatibility pass over all published entries
+in `eidos-space/registry` and all plugin-tools templates. Read
+[references/plugin-api-release.md](references/plugin-api-release.md) when SDK,
+manifest, runtime, host capability or plugin behavior contracts change, even if
+the API version is unchanged. Adapt affected plugin source and templates, then
+validate their actual packages on the candidate hosts. SDK/host tests alone do
+not complete this release gate. Record evidence for unaffected entries too.
+
 ## Select the release surface
 
+- **Plugin SDK/tools, registry plugins and templates:** read
+  [references/plugin-api-release.md](references/plugin-api-release.md).
 - **Eidos File npm packages:** read
   [references/eidos-file-packages-release.md](references/eidos-file-packages-release.md).
 - **Eidos Lite:** read
@@ -43,6 +53,11 @@ Do not conflate version namespaces or publishers:
   GitHub Actions with npm Trusted Publishing; never run `npm publish` locally.
 - Lite uses `lite-v<semver>` and
   `.github/workflows/build-and-release-eidos-lite.yml`.
+- Plugin SDK/tools use `plugin-packages-v<semver>` and
+  `.github/workflows/publish-plugin-packages.yml`; its `plan` and `publish` modes
+  are separate. Publish through the workflow's npm Trusted Publishing job.
+  Plugin packages listed in the registry have their own repositories, versions
+  and Release assets; publishing the SDK does not update them.
 - CLI uses `cli-v<semver>` and
   `.github/workflows/build-and-release-cli.yml`.
 - Web deploys independently through Wrangler to `editor.eidos.space`.

@@ -925,7 +925,10 @@ export async function fetchCliHostManifest(): Promise<CliHostManifest | null> {
 export interface PluginViewDescriptor {
   id: string
   title: string
-  context: string
+  kind: "page" | "file"
+  capabilities?: Array<
+    "document" | "eidos/schema" | "eidos/table" | "eidos/config"
+  >
   entry: string
   access?: string
   configuration?: {

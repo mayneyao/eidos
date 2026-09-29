@@ -4,17 +4,24 @@ import path from "node:path"
 import { gzipSync } from "node:zlib"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { encodePackage, packageHash } from "@eidos.space/plugin-runtime/package"
-import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
 import type { PluginManifest } from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
 
 const manifest: PluginManifest = {
   apiVersion: 1,
-  requires: { pluginApi: "2.0.0" },
+  requires: { pluginApi: "3.0.0" },
   id: "example.csv",
   name: "CSV",
   version: "1.0.0",
-  views: [{ id: "csv", title: "CSV", context: "document", entry: "./csv.ts" }],
+  views: [
+    {
+      id: "csv",
+      title: "CSV",
+      kind: "file",
+      capabilities: ["document"],
+      entry: "./csv.ts",
+    },
+  ],
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 }
 const bytes = (version = "1.0.0") =>
@@ -138,7 +145,7 @@ it("selects one standalone theme for the device and clears it on uninstall", asy
 it("keeps incompatible plugins manageable after downgrading the host", async () => {
   await store.install(bytes(), "a")
   const future = encodePackage(
-    { ...manifest, requires: { pluginApi: "3.0.0" } },
+    { ...manifest, requires: { pluginApi: "4.0.0" } },
     { "./csv.ts": "export default function mount() {}" }
   )
   const hash = packageHash(future)
@@ -339,41 +346,17 @@ it("isolates default editors and disabling a plugin leaves another Space availab
   ).rejects.toMatchObject({ code: "DOCUMENT_UNAVAILABLE" })
 })
 
-it("uninstalls from all Spaces and does not resurrect grants or enablement on reinstall", async () => {
+it("uninstalls from all Spaces and does not restore enablement on reinstall", async () => {
   await store.install(bytes(), "a")
   await store.enable(manifest.id, true, "b")
-  const resource = {
-    kind: "text" as const,
-    title: "Notes",
-    access: ["read" as const],
-  }
-  await store.resources.bind("a", manifest.id, "notes", "notes.md", resource)
-  await store.resources.bind("b", manifest.id, "notes", "work.md", resource)
-  const lease = await store.resources.acquire(
-    "a",
-    manifest.id,
-    "notes",
-    resource,
-    new Scope()
-  )
   await store.associate(".csv", "example.csv/csv", "a")
   await store.uninstall(manifest.id)
-  expect(lease.signal.aborted).toBe(true)
   expect((await store.list("a")).plugins).toEqual([])
   expect((await store.config()).spaces.a.associations).toEqual({})
   await store.install(bytes())
   const restarted = new PluginStore(directory)
   for (const spaceId of ["a", "b"]) {
     expect((await restarted.binding(manifest.id, spaceId))?.enabled).toBe(false)
-    await expect(
-      restarted.resources.acquire(
-        spaceId,
-        manifest.id,
-        "notes",
-        resource,
-        new Scope()
-      )
-    ).rejects.toMatchObject({ code: "RESOURCE_UNBOUND" })
   }
 })
 
@@ -409,7 +392,7 @@ it("distinguishes view icon from plugin logo and falls back to manifest icon", a
   const customViewIconPkg = encodePackage(
     {
       apiVersion: 1,
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       id: "example.mindmap",
       name: "Mindmap Plugin",
       version: "1.0.0",
@@ -418,14 +401,16 @@ it("distinguishes view icon from plugin logo and falls back to manifest icon", a
         {
           id: "map",
           title: "Mindmap View",
-          context: "document",
+          kind: "file",
+          capabilities: ["document"],
           entry: "./map.ts",
           icon: { paths: ["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"] },
         },
         {
           id: "outline",
           title: "Outline View",
-          context: "document",
+          kind: "file",
+          capabilities: ["document"],
           entry: "./map.ts",
         },
       ],

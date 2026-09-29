@@ -27,13 +27,53 @@ const declaration = `export const manifest = { apiVersion: 1, id: 'local.trim', 
 const source = `import type { ExtensionContext, PluginManifest } from '@eidos.space/plugin-sdk'
 ${declaration}
 export default function activate(ctx: ExtensionContext) {
-  ctx.actions.register('trim', async ({binding}) => {
-    if (binding.kind !== 'document') return
-    const state = await binding.document.read()
-    await binding.document.edit({text: state.text.trim(), expectedVersion: state.version})
+  ctx.capabilities.actions.register('trim', async ({capabilities}) => {
+    if (!capabilities.document) return
+    const state = await capabilities.document.read()
+    await capabilities.document.edit({text: state.text.trim(), expectedVersion: state.version})
   })
 }`
 describe("trusted source compiler", () => {
+  it("checks the public SDK names and rejects removed aliases", async () => {
+    const root = await fixture({
+      "trim.ts": `${source}
+import type { EidosTable, EidosConfig, ActionContext, TableActionContext, FileMetadata, EidosTableSnapshot, EidosConfigSnapshot, PluginSettings } from '@eidos.space/plugin-sdk'
+function check(table: EidosTable, config: EidosConfig, action: ActionContext, run: TableActionContext) {
+  const context: Promise<EidosTableSnapshot> = table.readContext()
+  const snapshot: Promise<EidosConfigSnapshot> = config.read(table.tableId)
+  table.readRows({offset: 0, limit: 10})
+  table.setViewConfig({compact: true})
+  table.watch(() => {})
+  config.watch(table.tableId, () => {})
+  action.capabilities.settings.set('key', true)
+  action.capabilities.storage?.delete('key')
+  action.capabilities.connections?.isConfigured('service')
+  const declared: Promise<void> = run.capabilities.task.declareOutputs([])
+  // @ts-expect-error Removed table alias.
+  table.read()
+  // @ts-expect-error Removed table alias.
+  table.getPage({offset: 0, limit: 10})
+  // @ts-expect-error Invalidation subscriptions use watch.
+  config.observe(table.tableId, () => {})
+  // @ts-expect-error Ordinary actions have no Eidos capabilities.
+  action.capabilities.eidos
+  // @ts-expect-error Settings have no observation service.
+  action.capabilities.settings.observe(() => {})
+  // @ts-expect-error Settings assignments use set.
+  action.capabilities.settings.update('key', true)
+  // @ts-expect-error Storage removal uses delete.
+  action.capabilities.storage?.remove('key')
+  // @ts-expect-error Output declarations have no preview alias.
+  run.capabilities.task.preview([])
+  // @ts-expect-error Resource grants are not part of a plugin manifest.
+  const resources: PluginManifest['resources'] = {}
+}
+`,
+    })
+    await expect(
+      compilePlugin(path.join(root, "trim.ts"))
+    ).resolves.toBeDefined()
+  })
   it("resolves a locked package with nested module metadata and inline CSS images", async () => {
     const root = await fixture({
       "trim.ts": `import { trim } from 'local-parser'; import './style.css';\n${source.replace("state.text.trim()", "trim(state.text)")}`,
@@ -159,7 +199,7 @@ describe("trusted source compiler", () => {
         name: "Page",
         version: "1.0.0",
         views: [
-          { id: "page", title: "Page", context: "page", entry: "./main.ts" },
+          { id: "page", title: "Page", kind: "page", entry: "./main.ts" },
         ],
       }),
       "main.ts":

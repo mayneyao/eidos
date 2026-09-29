@@ -6,7 +6,15 @@ const manifest = {
   id: "test.map",
   name: "Map",
   version: "1.0.0",
-  views: [{ id: "map", title: "Map", context: "table", entry: "./main.ts" }],
+  views: [
+    {
+      id: "map",
+      title: "Map",
+      kind: "file",
+      capabilities: ["eidos/table"],
+      entry: "./main.ts",
+    },
+  ],
 }
 describe("browser capabilities", () => {
   it("validates device storage quotas and settings page placements", () => {
@@ -31,7 +39,7 @@ describe("browser capabilities", () => {
           {
             id: "settings",
             title: "Settings",
-            context: "page",
+            kind: "page",
             entry: "./settings.ts",
           },
         ],

@@ -1,265 +1,106 @@
 ---
-title: 插件开发指南
-description: 分步教程：创建、测试并打包支持文件视图、快捷命令、React 界面与本地文件系统的 Eidos Lite 插件。
+title: 创建第一个插件
+description: 制作一个文本阅读器，并在 Eidos Lite 中加载、调试和使用。
 sidebar:
-  order: 2
+  order: 3
 ---
 
-Eidos Lite 插件可以为各类文件提供自定义编辑器与查看器、在侧边栏挂载独立页面，或在命令面板中添加快捷指令。插件拥有完整的本地文件系统访问能力（`ctx.fs`）、私有存储、受限网络请求与宿主交互接口。
+这个示例会制作一个文本阅读器。完成后，你可以在 `.txt` 文件的“打开方式”中选择 **Text Reader**，并看到随文件更新的内容。
 
----
-
-## 快速上手：创建你的第一个插件工程
-
-### 1. 准备环境
-
-确保已安装 **Node.js 22.12 或更新版本**以及常用的包管理器（npm、pnpm 或 yarn）。同时安装 [Eidos Lite](https://eidos.space/download) 用于本地运行和调试。
-
-### 2. 初始化工程
-
-通过官方脚手架初始化插件：
-
-```bash
-npx @eidos.space/plugin-tools create my-plugin
-cd my-plugin
-npm install # 或 pnpm install
-```
-
-生成的标准目录结构如下：
+准备一个测试 Space 和一份 `.txt` 文件。用下面的结构创建插件目录：
 
 ```text
-my-plugin/
-├── plugin.json       # 声明插件元数据、视图与入口的清单文件
-├── package.json      # 项目依赖与 npm scripts
-├── tsconfig.json     # 严格模式 TypeScript 配置
+text-reader/
+├── plugin.json
 └── src/
-    ├── main.tsx      # 视图挂载入口源码
-    └── style.css     # 样式表
+    └── main.ts
 ```
 
-脚手架已在 `package.json` 中配置好官方工具链：
-- `@eidos.space/plugin-sdk`: 插件 1.0 的完整 TypeScript 规范与接口类型。
-- `npm run check`: 执行静态语法、类型与清单校验（`eidos-plugin check .`）。
-- `npm run pack:plugin`: 打包输出用于分发的自包含离线安装包（`.eidos-plugin`）。
+Eidos Lite 可以直接编译这个示例。你只需要文本编辑器，无需先搭建构建项目。
 
-### 3. 在 Eidos Lite 中即时加载与调试
+## 1. 声明文件视图
 
-调试插件**无需提前打包或 build**，Eidos Lite 内置编译器支持实时动态编译：
-
-1. 启动 **Eidos Lite**，进入任意 Space。
-2. 点击顶部工具栏中的 **Plugins** 图标（位于搜索框与更多菜单之间）。
-3. 点击 **Load development source…**（加载开发源码），选中项目的 `plugin.json`。
-4. 确认权限声明并在当前 Space 中启用。
-5. 在 Space 中找到对应扩展名的文件，右键点击并选择 **Open with → 你的插件视图**。
-
-当你在代码编辑器中修改 `src/` 下的代码并保存时，Eidos Lite 会自动重编译并热重载视图！
-
----
-
-## 核心能力实战
-
-### 1. 自定义文件视图 (`context: "file"`)
-
-文件视图可以接管任意文件格式（如文本、音视频、自定义二进制文件或 `.eidos` SQLite 数据包）的展示与交互。
-
-在 `plugin.json` 中声明：
+在 `plugin.json` 中填写：
 
 ```json
 {
   "apiVersion": 1,
-  "id": "example.file-viewer",
-  "name": "Custom File Viewer",
+  "id": "example.text-reader",
+  "name": "Text Reader",
   "version": "0.1.0",
+  "requires": { "pluginApi": "3.0.0" },
   "views": [
     {
-      "id": "viewer",
-      "title": "Custom Viewer",
-      "entry": "./src/main.tsx",
-      "context": "file",
-      "access": "write"
+      "id": "main",
+      "title": "Text Reader",
+      "entry": "./src/main.ts",
+      "kind": "file",
+      "capabilities": ["document"],
+      "access": "read"
     }
   ],
   "placements": [
     {
       "location": "file/open",
-      "view": "viewer",
-      "extensions": [".json", ".dat", ".mp4"]
+      "view": "main",
+      "extensions": [".txt"]
     }
   ]
 }
 ```
 
-在 `src/main.tsx` 中挂载 React 界面：
+`kind: "file"` 将视图绑定到用户打开的文件。`capabilities: ["document"]` 提供文本读取接口。`file/open` 和 `.txt` 指定视图出现的文件菜单。
 
-```tsx
-import type { ViewContext } from "@eidos.space/plugin-sdk"
-import React, { useEffect, useState } from "react"
-import { createRoot } from "react-dom/client"
-import "./style.css"
+## 2. 显示文本
 
-function App({ ctx }: { ctx: ViewContext }) {
-  const [content, setContent] = useState<string>("")
-  const file = ctx.file!
+在 `src/main.ts` 中填写：
 
-  useEffect(() => {
-    // 使用 ctx.fs 读取当前文件文本或二进制
-    ctx.fs.readText(file.path).then(setContent).catch(console.error)
-  }, [file.path])
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
 
-  const handleSave = async () => {
-    await ctx.fs.writeText(file.path, content)
-    await ctx.ui.notify("文件保存成功！")
-  }
-
-  return (
-    <div className="viewer-container">
-      <header className="header">
-        <h3>{file.name} ({file.size} bytes)</h3>
-        <button onClick={handleSave}>保存</button>
-      </header>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-      />
-    </div>
+const mount: Mount = async (ctx, root) => {
+  const document = ctx.capabilities.document
+  if (!document) throw new Error("Document capability is required")
+  const pre = window.document.createElement("pre")
+  root.append(pre)
+  const observed = await document.observe(
+    (snapshot) => {
+      pre.textContent = snapshot.text
+    },
+    (error) => {
+      pre.textContent = error.message
+    }
   )
-}
-
-export default function mount(ctx: ViewContext, root: HTMLElement) {
-  const reactRoot = createRoot(root)
-  reactRoot.render(<App ctx={ctx} />)
-
+  ctx.subscriptions.add(observed.subscription)
+  pre.textContent = observed.snapshot.text
   return {
     dispose() {
-      reactRoot.unmount()
+      pre.remove()
     },
   }
 }
+export default mount
 ```
 
----
+Eidos 调用 `mount` 时传入上下文和界面容器。这里创建一个 `pre` 元素，通过 `document.observe()` 取得当前文本，并在内容变化时更新显示。订阅加入 `ctx.subscriptions` 后，会随视图关闭自动释放。
 
-### 2. 文件系统操作与伴随文件 (`ctx.fs`)
+## 3. 在 Eidos Lite 中打开
 
-`ctx.fs` 向插件提供完备的本地文件操作能力。在文件视图中，支持直接读写二进制数据、伴随文件探测与流式多媒体播放。
+1. 打开测试 Space，进入插件管理器。
+2. 选择 **Load development source…**，打开 `text-reader/plugin.json`。
+3. 查看访问权限，为当前 Space 启用插件。
+4. 在 `.txt` 文件的“打开方式”中选择 **Text Reader**。
 
-#### ① 二进制读写与大文件处理
-`ctx.fs.readBinary(path)` 与 `ctx.fs.writeBinary(path, data)` 支持最高 16 MiB 的二进制数据，直接处理图片、音视频分片或自定义二进制数据包：
+界面会显示文件内容。尝试修改测试文件，确认阅读器随之更新。
 
-```ts
-// 读取二进制数据
-const bytes = await ctx.fs.readBinary("assets/logo.png")
+## 4. 修改界面
 
-// 写入二进制数据
-const payload = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
-await ctx.fs.writeBinary("data/output.bin", payload)
-```
+修改 `main.ts` 并保存，Eidos Lite 会重新编译、加载视图。如果编译失败，查看错误提示并修正代码；界面会暂时保留上一次成功加载的内容。
 
-#### ② 伴随媒体文件探测与流式播放
-针对音视频与字幕伴随场景，使用 `ctx.fs.getUrl()` 与 `ctx.fs.list()`：
+可以通过 `--eidos-background`、`--eidos-foreground` 和 `--eidos-border` 等 CSS 变量适配 Eidos 的亮暗主题。
 
-```ts
-// 1. 获取音视频的高性能特权协议流式地址（支持 206 Partial Content 范围拖拽播放）
-const streamUrl = await ctx.fs.getUrl("movie.mp4")
+## 接下来
 
-// 2. 枚举同级目录下的伴随字幕文件
-const companions = await ctx.fs.list(undefined, { extensions: [".srt", ".vtt"] })
+要让用户编辑文本，将声明中的 `access` 设为 `write`，添加输入界面，再用 `document.edit()` 更新内容、`document.save()` 保存。编辑、冲突处理和撤销方法见 [API 参考](/zh-cn/plugins/api/)。
 
-// 3. 读取伴随字幕内容
-if (companions.length > 0) {
-  const srtText = await ctx.fs.readText(companions[0].path)
-}
-```
-
-#### ③ 文件变更实时监听 (`watch`)
-```ts
-const watcher = await ctx.fs.watch("data", () => {
-  console.log("目录内文件发生变更，自动重新加载数据")
-})
-
-// 自动随页面卸载注销监听
-ctx.subscriptions.add(watcher)
-```
-
----
-
-### 3. 快捷命令与动作 (`actions`)
-
-通过命令面板（<kbd>Cmd</kbd>+<kbd>K</kbd>）或快捷键触发操作。
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "extension": "./src/extension.ts",
-  "actions": [
-    {
-      "id": "stat-workspace",
-      "title": "统计 Space 文件总览",
-      "context": "workspace"
-    }
-  ],
-  "placements": [
-    { "location": "command-palette", "action": "stat-workspace" },
-    { "location": "keybinding", "action": "stat-workspace", "key": "Mod+Alt+S" }
-  ]
-}
-```
-
-在 `src/extension.ts` 中实现：
-
-```ts
-import type { ExtensionContext } from "@eidos.space/plugin-sdk"
-
-export default function activate(ctx: ExtensionContext) {
-  ctx.actions.register("stat-workspace", async ({ fs, ui }) => {
-    const files = await fs.list()
-    await ui.notify(`当前 Space 根目录包含 ${files.length} 个文件。`)
-  })
-}
-```
-
----
-
-### 4. 独立功能页面 (`context: "page"`)
-
-用于在 Space 侧边栏构建常驻的看板或工具应用。
-
-在 `plugin.json` 中声明：
-
-```json
-{
-  "workspace": { "files": true },
-  "views": [
-    {
-      "id": "dashboard",
-      "title": "日记管理看板",
-      "context": "page",
-      "entry": "./src/dashboard.tsx"
-    }
-  ],
-  "placements": [
-    { "location": "navigation", "view": "dashboard" }
-  ]
-}
-```
-
-页面挂载后将显示在 Space 左侧主导航中。声明了 `workspace: { "files": true }` 的页面可以使用 `ctx.fs` 在全 Space 范围内索引或创建文件（例如自动创建每日日记）。
-
----
-
-### 5. 校验与打包发布
-
-在工程根目录下执行静态类型与规范检查：
-
-```bash
-npm run check
-```
-
-打包生成 `.eidos-plugin` 离线分发文件：
-
-```bash
-npm run pack:plugin
-```
-
-打包完成后，产物位于 `dist/<plugin-id>-<version>.eidos-plugin`。用户可以直接双击或在 Eidos Lite 插件管理器中拖拽安装该归档。
+要制作从导航打开的工具页面，请看[页面视图](/zh-cn/plugins/concepts/#页面视图独立打开)。准备分享插件时，按[开发与分发](/zh-cn/plugins/workflow/)完成检查和打包。

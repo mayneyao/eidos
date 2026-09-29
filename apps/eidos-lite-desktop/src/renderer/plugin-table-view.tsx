@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { PluginIcon } from "./plugin-icon"
 import { EidosFileSchemaSettings } from "@eidos.space/eidos-file-ui"
@@ -9,6 +10,7 @@ import type {
 } from "@eidos.space/eidos-file-ui"
 import type { PluginRequest } from "@eidos.space/plugin-runtime/rpc"
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
+import { fileViewRequest } from "./plugin-file-request"
 import { PluginEditor } from "./plugin-editor"
 import type { JsonObject } from "@eidos.space/eidos-file"
 
@@ -21,6 +23,10 @@ export async function tableViewRequest(
 ): Promise<unknown> {
   const { view, table, source } = props
   if (!view) throw new Error("Table view is unavailable")
+  if (request.method === "eidos.tables" || request.method === "eidos.table") {
+    if (!pluginId) throw new Error("Plugin binding is unavailable")
+    return fileViewRequest(source, pluginId, request, props.disabled ?? false)
+  }
   const params = request.params
   if (
     request.method === "table.pluginConfig.read" ||
@@ -60,7 +66,7 @@ export async function tableViewRequest(
     props.onSnapshot?.(await source.getSnapshot())
     return result
   }
-  if (request.method === "table.read")
+  if (request.method === "table.readContext")
     return {
       fields: table.fields,
       view: schema
@@ -81,7 +87,7 @@ export async function tableViewRequest(
           }
         : view,
     }
-  if (request.method === "table.page") {
+  if (request.method === "table.readRows") {
     if (!params || typeof params !== "object" || Array.isArray(params))
       throw new Error("Invalid page")
     const { offset, limit } = params as Record<string, unknown>
@@ -98,7 +104,7 @@ export async function tableViewRequest(
       throw new Error("Invalid page bounds")
     return source.getPage(table.table.id, offset, limit, props.query)
   }
-  if (request.method === "table.properties") {
+  if (request.method === "table.setViewConfig") {
     if (props.disabled || !props.capabilities.mutate)
       throw new Error("View is read-only")
     if (
@@ -249,7 +255,7 @@ export function usePluginTableViews(): EidosFilePlugin[] {
         .flatMap(({ manifest }) => {
           const views = (manifest.views ?? []).filter(
             (view) =>
-              view.context === "table" &&
+              viewResource(view) === "table" &&
               manifest.placements?.some(
                 (p) => p.location === "table/view" && p.view === view.id
               )

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Eidos File"
-  short_description: "Safely manage .eidos data, attachments, schema, and Views"
-  default_prompt: "Use $eidos to inspect and safely update this .eidos file, including its attachments, schema, or saved Views."
+  display_name: "Eidos File and Plugins"
+  short_description: "Manage Eidos data and build, test, and package plugins"
+  default_prompt: "Use $eidos to safely manage Eidos data or develop and package an Eidos plugin for the requested host."

@@ -83,12 +83,18 @@ async function packageVersion(version: string) {
     encodePackage(
       {
         apiVersion: 1,
-        requires: { pluginApi: "2.0.0" },
+        requires: { pluginApi: "3.0.0" },
         id,
         name: "CSV",
         version,
         views: [
-          { id: "csv", title: "CSV", context: "document", entry: "./csv.ts" },
+          {
+            id: "csv",
+            title: "CSV",
+            kind: "file",
+            capabilities: ["document"],
+            entry: "./csv.ts",
+          },
         ],
         placements: [
           { location: "file/open", view: "csv", extensions: [".csv"] },
@@ -186,7 +192,7 @@ it("installs a workspace action with per-Space settings", async () => {
     encodePackage(
       {
         apiVersion: 1,
-        requires: { pluginApi: "2.0.0" },
+        requires: { pluginApi: "3.0.0" },
         id: journalId,
         name: "Journals",
         version: "0.1.0",
@@ -223,7 +229,7 @@ it("discloses the workspace file access permission", async () => {
     encodePackage(
       {
         apiVersion: 1,
-        requires: { pluginApi: "2.0.0" },
+        requires: { pluginApi: "3.0.0" },
         id: "example.watch",
         name: "Watch",
         version: "1.0.0",
@@ -232,7 +238,7 @@ it("discloses the workspace file access permission", async () => {
           {
             id: "overview",
             title: "Overview",
-            context: "page",
+            kind: "page",
             entry: "./page.ts",
           },
         ],
@@ -247,37 +253,6 @@ it("discloses the workspace file access permission", async () => {
         "This plugin can read and write files throughout this Space."
       ),
     })
-  )
-})
-
-it("still rejects undeveloped named resource grants at install", async () => {
-  await fs.writeFile(
-    mock.selected,
-    encodePackage(
-      {
-        apiVersion: 1,
-        requires: { pluginApi: "2.0.0" },
-        id: "example.resource",
-        name: "Resource",
-        version: "0.1.0",
-        resources: {
-          folder: {
-            kind: "directory",
-            title: "Folder",
-            include: ["**/*.md"],
-            access: ["read"],
-          },
-        },
-        views: [
-          { id: "home", title: "Home", entry: "./home.ts", context: "page" },
-        ],
-        placements: [{ location: "navigation", view: "home" }],
-      },
-      { "./home.ts": "export default function mount() {}" }
-    )
-  )
-  await expect(call("install", 1)).rejects.toThrow(
-    "does not support this plugin's features: resources"
   )
 })
 

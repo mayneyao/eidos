@@ -427,7 +427,7 @@ function TableRunner(
       return null
     }
     if (
-      request.method === "table.read" ||
+      request.method === "table.readContext" ||
       request.method === "table.pluginConfig.read"
     )
       return tableViewRequest(
@@ -441,8 +441,8 @@ function TableRunner(
       throw new Error("Capability is unavailable while listing actions")
     run.controller.signal.throwIfAborted()
     const args = object(p.args)
-    if (request.method === "table.target.read")
-      return run.read(
+    if (request.method === "table.target.readRows")
+      return run.readRows(
         Number(args.offset),
         Number(args.limit),
         args.fields as string[]
@@ -501,24 +501,24 @@ function TableRunner(
       })
       return null
     }
-    if (request.method === "table.task.preview") {
+    if (request.method === "table.task.declareOutputs") {
       if (
-        run.approved ||
+        run.outputsDeclared ||
         !Array.isArray(args.rows) ||
         !args.rows.length ||
         args.rows.length > 3 ||
         args.rows.some((raw) => !run.records.has(String(object(raw).readToken)))
       )
-        throw new Error("Invalid preview")
+        throw new Error("Invalid output samples")
       if (canonicalizeEidosFileJson(args.rows).length > 65536)
-        throw new Error("Preview exceeds its size limit")
+        throw new Error("Output samples exceed the size limit")
       for (const raw of args.rows) {
         const entry = object(raw)
         object(entry.values)
       }
-      // Legacy sample API declares the output scope; execution is now direct.
-      run.approve(args.rows as Output[])
-      return true
+      // Validate samples before establishing the writable output fields.
+      run.declareOutputs(args.rows as Output[])
+      return null
     }
     throw new Error("Unsupported table action API")
   }

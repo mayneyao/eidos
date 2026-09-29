@@ -36,7 +36,7 @@ it("delivers file change invalidations and stops after disposal", async () => {
   const html = viewHtml(
     `export default async function(ctx) {
       let subscription;
-      subscription = await ctx.fs.watch('journals', () => {
+      subscription = await ctx.capabilities.fs.watch('journals', () => {
         document.body.dataset.events += 'change;';
         subscription.dispose();
       });

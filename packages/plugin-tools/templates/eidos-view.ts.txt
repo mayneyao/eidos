@@ -2,16 +2,16 @@ import type { Mount } from "@eidos.space/plugin-sdk"
 import "./style.css"
 
 const mount: Mount = async (ctx, root) => {
-  if (ctx.binding.kind !== "eidos") throw new Error("Open an .eidos file with File overview")
-  const file = ctx.binding.file
+  if (!ctx.capabilities.eidos?.schema) throw new Error("Open an .eidos file with File overview")
+  const schema = ctx.capabilities.eidos.schema
   root.textContent = "Loading tables…"
-  const tables = await file.listTables()
+  const tables = await schema.listTables()
   if (ctx.signal.aborted) return
   const heading = document.createElement("h1")
   heading.textContent = "Tables"
   const list = document.createElement("ul")
   for (const table of tables) {
-    const { fields } = await file.readTable(table.id)
+    const { fields } = await schema.readTable(table.id)
     if (ctx.signal.aborted) return
     const item = document.createElement("li")
     item.textContent = table.name + " · " + fields.length + " fields"

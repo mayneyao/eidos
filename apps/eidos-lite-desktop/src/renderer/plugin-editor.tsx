@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import {
   parseRequest,
+  PluginError,
   PLUGIN_PROTOCOL,
   type TextChange,
   type PluginRequest,
@@ -149,25 +150,36 @@ export function PluginEditor({
           ? operation
           : textDraftLifecycle.track(operation)
       void track(
-        ((request.method.startsWith("table.") ||
-          request.method.startsWith("eidos.")) &&
-        callbacks.current.onTableRequest &&
+        ((request.method.startsWith("eidos.connection.") ||
+          ((request.method.startsWith("table.") ||
+            request.method.startsWith("eidos.")) &&
+            callbacks.current.onTableRequest)) &&
         !closed
           ? window.eidosLite
               .pluginRequest(instance.ticket, request)
               .then(async (authorization) => {
                 if ("error" in authorization.response)
-                  throw new Error(authorization.response.error.message)
-                if (
-                  lease.current !== instance.ticket ||
-                  !callbacks.current.onTableRequest
-                )
+                  throw new PluginError(
+                    authorization.response.error.code,
+                    authorization.response.error.message
+                  )
+                if (lease.current !== instance.ticket)
                   throw new Error("Table view closed")
                 if (
                   request.method === "eidos.connection.status" ||
                   request.method === "eidos.connection.request"
                 ) {
-                  const params = request.params as {
+                  const envelope = request.params as {
+                    invocation?: string
+                    args?: unknown
+                  } | null
+                  const invocation =
+                    typeof envelope?.invocation === "string"
+                      ? envelope.invocation
+                      : undefined
+                  const params = (
+                    invocation ? envelope?.args : request.params
+                  ) as {
                     connection?: unknown
                     body?: unknown
                   } | null
@@ -179,18 +191,37 @@ export function PluginEditor({
                     request.method === "eidos.connection.status"
                       ? "status"
                       : "request",
-                    params.body
+                    params.body,
+                    invocation
                   )
                   return request.method === "eidos.connection.status"
-                    ? !!(
-                        result &&
-                        typeof result === "object" &&
-                        "configured" in result &&
-                        result.configured
-                      )
+                    ? typeof result === "boolean"
+                      ? result
+                      : !!(
+                          result &&
+                          typeof result === "object" &&
+                          "configured" in result &&
+                          result.configured
+                        )
                     : result
                 }
-                return callbacks.current.onTableRequest(request)
+                if (!callbacks.current.onTableRequest)
+                  throw new Error("File view closed")
+                const result = await callbacks.current.onTableRequest(request)
+                if (
+                  lease.current === instance.ticket &&
+                  request.method.endsWith("pluginConfig.write")
+                )
+                  frame.current?.contentWindow?.postMessage(
+                    {
+                      protocol: PLUGIN_PROTOCOL,
+                      apiVersion: 1,
+                      observation: "host.table",
+                      value: null,
+                    },
+                    "*"
+                  )
+                return result
               })
               .then(
                 (result): PluginRpcResult => ({
@@ -239,7 +270,10 @@ export function PluginEditor({
                 protocol: PLUGIN_PROTOCOL,
                 apiVersion: 1,
                 id: request.id,
-                error: { code: "IO_ERROR", message },
+                error: {
+                  code: cause instanceof PluginError ? cause.code : "IO_ERROR",
+                  message,
+                },
               },
               "*"
             )

@@ -1,6 +1,7 @@
+import { viewResource } from "./view"
+import type { ViewDeclaration } from "./contracts"
 import type {
   PluginManifest,
-  ResourceDeclaration,
   SettingDeclaration,
   SettingValue,
 } from "./contracts"
@@ -157,51 +158,6 @@ function validateSettingDeclaration(s: Record<string, unknown>) {
     invalid("Reversed setting range")
   validateSetting(s as unknown as SettingDeclaration, s.default)
 }
-export function parseResourceDeclaration(input: unknown): ResourceDeclaration {
-  const r = record(input)
-  fields(
-    r,
-    r.kind === "directory"
-      ? ["kind", "title", "access", "include"]
-      : ["kind", "title", "access"]
-  )
-  text(r.title)
-  const access = strings(r.access)
-  if (r.kind === "directory") {
-    if (
-      access.some(
-        (a) => !["list", "read", "create", "write", "delete"].includes(a)
-      ) ||
-      (access.includes("write") && !access.includes("read"))
-    )
-      invalid("Invalid directory access")
-    for (const glob of strings(r.include)) {
-      if (
-        /[\\\[\]{}!?:\u0000-\u001f]/.test(glob) ||
-        glob
-          .split("/")
-          .some(
-            (p) =>
-              !p || p === "." || p === ".." || (p.includes("**") && p !== "**")
-          )
-      )
-        invalid("Invalid include glob")
-    }
-  } else if (r.kind === "text" || r.kind === "eidos") {
-    if (
-      !access.includes("read") ||
-      access.some((a) => a !== "read" && a !== "write")
-    )
-      invalid("Invalid file access")
-  } else if (
-    r.kind !== "output" ||
-    access.length !== 1 ||
-    access[0] !== "write"
-  )
-    invalid("Invalid resource kind/access")
-  return structuredClone(r) as unknown as ResourceDeclaration
-}
-
 export function validateIconDefinition(raw: unknown): void {
   if (raw === undefined) return
   if (typeof raw === "string") {
@@ -248,7 +204,6 @@ export function parseManifest(input: unknown): PluginManifest {
       "actions",
       "formatters",
       "placements",
-      "resources",
       "settings",
       "browser",
       "storage",
@@ -409,7 +364,6 @@ export function parseManifest(input: unknown): PluginManifest {
       formatters.length ||
       m.extension ||
       m.placements ||
-      m.resources ||
       m.settings ||
       m.storage ||
       m.workspace ||
@@ -426,28 +380,54 @@ export function parseManifest(input: unknown): PluginManifest {
     for (const v of items) {
       fields(
         v,
+        isView ? ["id", "title", "entry", "kind"] : ["id", "title", "context"],
         isView
-          ? ["id", "title", "entry", "context"]
-          : ["id", "title", "context"],
-        isView
-          ? ["access", "configuration", "icon"]
+          ? ["access", "configuration", "icon", "capabilities"]
           : ["access", "extensions", "icon"]
       )
       text(v.title)
       if (v.icon !== undefined) validateIconDefinition(v.icon)
-      if (
-        ![
-          isView ? "page" : "workspace",
-          "file",
-          "document",
-          "table",
-          ...(isView ? ["eidos", "media"] : []),
-        ].includes(String(v.context))
+      if (isView) {
+        if (v.kind !== "page" && v.kind !== "file")
+          invalid(
+            "Views require kind page or file; migrate context to capabilities"
+          )
+        const capabilities =
+          v.capabilities === undefined ||
+          (Array.isArray(v.capabilities) && !v.capabilities.length)
+            ? []
+            : strings(v.capabilities)
+        if (
+          capabilities.some(
+            (item) =>
+              ![
+                "document",
+                "eidos/schema",
+                "eidos/table",
+                "eidos/config",
+              ].includes(item)
+          )
+        )
+          invalid("Unknown data capability")
+        if (
+          capabilities.includes("document") &&
+          capabilities.some((item) => item.startsWith("eidos/"))
+        )
+          invalid(
+            "Document and Eidos capabilities require different file formats"
+          )
+        if (v.kind === "page" && capabilities.length)
+          invalid("Page views cannot require bound file data")
+        entryPath(v.entry)
+      } else if (
+        !["workspace", "file", "document", "table"].includes(String(v.context))
       )
-        invalid("Invalid contribution context")
-      if (isView) entryPath(v.entry)
+        invalid("Invalid action context")
+      const resource = isView
+        ? viewResource(v as unknown as ViewDeclaration)
+        : v.context
       if (v.configuration !== undefined) {
-        if (!isView || v.context !== "table")
+        if (!isView || resource !== "table")
           invalid("Configuration requires a table view")
         const schema = record(v.configuration)
         fields(schema, ["type", "properties"])
@@ -477,16 +457,9 @@ export function parseManifest(input: unknown): PluginManifest {
       }
       if (
         v.access !== undefined &&
-        (!["read", "write"].includes(String(v.access)) ||
-          (v.context === "media" && v.access !== "read") ||
-          ![
-            "file",
-            "document",
-            "table",
-            ...(isView ? ["eidos", "media"] : ["workspace"]),
-          ].includes(String(v.context)))
+        !["read", "write"].includes(String(v.access))
       )
-        invalid("Invalid context access")
+        invalid("Invalid contribution access")
       if (v.extensions !== undefined) {
         if (v.context !== "document" && v.context !== "file")
           invalid("Only document or file actions have extensions")
@@ -511,35 +484,23 @@ export function parseManifest(input: unknown): PluginManifest {
             ? ["location", "view", "extensions"]
             : ["location", "view"]
         )
+        if (!view) invalid("Unknown view")
+        const resource = viewResource(view as unknown as ViewDeclaration)
         if (
-          !view ||
-          view.context !==
-            (
-              {
-                navigation: "page",
-                "plugin/settings": "page",
-                "table/view": "table",
-                "file/open":
-                  view.context === "eidos"
-                    ? "eidos"
-                    : view.context === "media"
-                      ? "media"
-                      : view.context === "file"
-                        ? "file"
-                        : "document",
-              } as const
-            )[p.location]
+          p.location === "navigation" || p.location === "plugin/settings"
+            ? resource !== "page"
+            : p.location === "table/view"
+              ? resource !== "table"
+              : view.kind !== "file" || resource === "table"
         )
           invalid("Placement/view mismatch")
         if (p.location === "file/open") {
-          if (view?.context === "eidos") {
-            if (strings(p.extensions).join() !== ".eidos")
-              invalid("Eidos views require only .eidos")
-          } else if (view?.context === "file") {
-            for (const ext of strings(p.extensions)) {
+          if (resource === "eidos" && strings(p.extensions).join() !== ".eidos")
+            invalid("Eidos capability requires only .eidos")
+          if (resource === "document") extensions(p.extensions)
+          else
+            for (const ext of strings(p.extensions))
               if (!/^\.[a-z0-9]{1,16}$/.test(ext)) invalid("Invalid extension")
-            }
-          } else extensions(p.extensions)
         }
         break
       case "command-palette":
@@ -573,7 +534,9 @@ export function parseManifest(input: unknown): PluginManifest {
           p.location === "view/toolbar" &&
           (!view ||
             action.context !==
-              (view.context === "page" ? "workspace" : view.context))
+              (view.kind === "page"
+                ? "workspace"
+                : viewResource(view as unknown as ViewDeclaration)))
         )
           invalid("Toolbar context mismatch")
         if (p.location === "keybinding") {
@@ -585,12 +548,6 @@ export function parseManifest(input: unknown): PluginManifest {
       default:
         invalid("Unknown placement")
     }
-  }
-  for (const [key, raw] of Object.entries(
-    m.resources === undefined ? {} : record(m.resources)
-  )) {
-    id(key)
-    parseResourceDeclaration(raw)
   }
   let settingsBytes = 0
   for (const [key, raw] of Object.entries(

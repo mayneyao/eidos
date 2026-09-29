@@ -14,7 +14,7 @@ import { PluginService, type PluginDocumentSession } from "./plugin-service"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
 const manifest: PluginManifest = {
   apiVersion: 1,
-  requires: { pluginApi: "2.0.0" },
+  requires: { pluginApi: "3.0.0" },
   id: "example.csv",
   name: "CSV",
   version: "1.0.0",
@@ -22,7 +22,8 @@ const manifest: PluginManifest = {
     {
       id: "table",
       title: "Table",
-      context: "document",
+      kind: "file",
+      capabilities: ["document"],
       entry: "./main.ts",
       access: "write",
     },
@@ -232,13 +233,229 @@ const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
 
+it("authorizes composed Eidos capabilities individually, including forged adapter requests", async () => {
+  const views: NonNullable<PluginManifest["views"]> = [
+    {
+      id: "schema",
+      title: "Schema",
+      kind: "file",
+      entry: "./main.ts",
+      capabilities: ["eidos/schema"],
+      access: "write",
+    },
+    {
+      id: "config",
+      title: "Config",
+      kind: "file",
+      entry: "./main.ts",
+      capabilities: ["eidos/config"],
+      access: "write",
+    },
+    {
+      id: "table",
+      title: "Table",
+      kind: "file",
+      entry: "./main.ts",
+      capabilities: ["eidos/table"],
+      access: "write",
+    },
+    {
+      id: "combined",
+      title: "Combined",
+      kind: "file",
+      entry: "./main.ts",
+      capabilities: ["eidos/schema", "eidos/table", "eidos/config"],
+      access: "write",
+    },
+  ]
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        id: "example.scoped",
+        views,
+        placements: [
+          { location: "file/open", view: "schema", extensions: [".eidos"] },
+          { location: "file/open", view: "config", extensions: [".eidos"] },
+          { location: "table/view", view: "table" },
+          { location: "table/view", view: "combined" },
+        ],
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const schema = (
+    await service.open(1, session, "data.eidos", "example.scoped/schema")
+  ).instance!.ticket
+  const config = (
+    await service.open(1, session, "data.eidos", "example.scoped/config")
+  ).instance!.ticket
+  const table = (
+    await service.openPage(1, session, "example.scoped/table", "", {
+      tableId: "t",
+      viewId: "v",
+    })
+  ).instance!.ticket
+  const combined = (
+    await service.openPage(1, session, "example.scoped/combined", "", {
+      tableId: "t",
+      viewId: "v",
+    })
+  ).instance!.ticket
+  for (const [ticket, method] of [
+    [schema, "eidos.pluginConfig.read"],
+    [config, "eidos.tables"],
+    [table, "eidos.tables"],
+    [table, "table.pluginConfig.read"],
+    [combined, "eidos.pluginConfig.write"],
+  ])
+    expect(
+      (await rpc(ticket!, method!, { tableId: "other" })).response
+    ).toHaveProperty("error.code", "PERMISSION_DENIED")
+  for (const [ticket, method] of [
+    [schema, "eidos.tables"],
+    [config, "eidos.pluginConfig.read"],
+    [combined, "eidos.tables"],
+    [combined, "table.readContext"],
+    [combined, "table.pluginConfig.read"],
+  ])
+    expect((await rpc(ticket!, method!)).response).toHaveProperty("result")
+})
+
+it("makes connections independent of Eidos data and expires action request authority", async () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    id: "example.connections",
+    views: [{ id: "page", title: "Page", kind: "page", entry: "./main.ts" }],
+    placements: [{ location: "navigation", view: "page" }],
+    extension: "./extension.ts",
+    actions: [{ id: "send", title: "Send", context: "workspace" }],
+    connections: { model: { title: "Model", url: "https://example.com/v1" } },
+  }
+  await store.install(
+    encodePackage(plugin, {
+      ...modules,
+      "./extension.ts": "export default function() {}",
+    }),
+    "space-a"
+  )
+  const page = (await service.openPage(1, session, "example.connections/page"))
+    .instance!.ticket
+  expect(
+    (await rpc(page, "eidos.connection.status", { connection: "model" }))
+      .response
+  ).toHaveProperty("result")
+  expect(
+    (await rpc(page, "eidos.connection.status", { connection: "unknown" }))
+      .response
+  ).toHaveProperty("error.code", "PERMISSION_DENIED")
+  expect((await rpc(page, "eidos.tables")).response).toHaveProperty(
+    "error.code",
+    "PERMISSION_DENIED"
+  )
+  const extension = (
+    await service.openExtension(1, session, "example.connections")
+  ).instance!.ticket
+  await rpc(extension, "extension.ready", { actions: ["send"] })
+  let announce!: (value: unknown) => void
+  const announced = new Promise<unknown>((resolve) => {
+    announce = resolve
+  })
+  const completion = service.invoke(
+    1,
+    session,
+    extension,
+    "send",
+    undefined,
+    undefined,
+    (event) => {
+      if (event.observation === "action.run") announce(event.value)
+    }
+  )
+  const { invocation } = (await announced) as { invocation: string }
+  const params = { invocation, args: { connection: "model", body: {} } }
+  expect(
+    (await rpc(extension, "eidos.connection.request", params)).response
+  ).toHaveProperty("result")
+  const access = await service.connectionAccess(
+    1,
+    session,
+    extension,
+    "model",
+    false,
+    invocation
+  )
+  expect(access.signal.aborted).toBe(false)
+  await expect(
+    service.connectionAccess(1, session, extension, "model", false, "expired")
+  ).rejects.toHaveProperty("code", "PERMISSION_DENIED")
+  await rpc(extension, "action.complete", { invocation })
+  await completion
+  expect(access.signal.aborted).toBe(true)
+  expect(
+    (await rpc(extension, "eidos.connection.request", params)).response
+  ).toHaveProperty("error.code", "PERMISSION_DENIED")
+  await expect(
+    service.connectionAccess(1, session, extension, "model", false, invocation)
+  ).rejects.toHaveProperty("code", "PERMISSION_DENIED")
+})
+
+it("does not let filesystem writes bypass an existing document working copy", async () => {
+  const ticket = await open()
+  const before = await fs.readFile(path.join(root, "data.csv"), "utf8")
+  for (const [method, params] of [
+    ["fs.writeText", { path: "data.csv", content: "overwritten" }],
+    [
+      "fs.writeBinary",
+      { path: "data.csv", data: Buffer.from("overwritten").toString("base64") },
+    ],
+    ["fs.delete", { path: "data.csv" }],
+    ["fs.rename", { oldPath: "data.csv", newPath: "renamed.csv" }],
+  ] as const) {
+    expect((await rpc(ticket, method, params)).response).toMatchObject({
+      error: { code: "BUSY" },
+    })
+  }
+  expect(await fs.readFile(path.join(root, "data.csv"), "utf8")).toBe(before)
+})
+
+it("does not inherit workspace write authority into a read-only contribution", async () => {
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        workspace: { files: true },
+        views: [{ ...manifest.views![0]!, access: "read" }],
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  expect(
+    (await rpc(ticket, "fs.writeText", { path: "other.txt", content: "bad" }))
+      .response
+  ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+  expect(
+    await fs.stat(path.join(root, "other.txt")).catch(() => null)
+  ).toBeNull()
+})
+
 it("opens Eidos views without text access and scopes config writes to writable instances", async () => {
   for (const access of ["read", "write"] as const) {
     const id = `example.${access}`
     const file: PluginManifest = {
       ...manifest,
       id,
-      views: [{ ...manifest.views![0]!, context: "eidos", access }],
+      views: [
+        {
+          ...manifest.views![0]!,
+          kind: "file",
+          capabilities: ["eidos/schema", "eidos/config"],
+          access,
+        },
+      ],
       connections: {
         generator: {
           title: "Generator",
@@ -260,7 +477,7 @@ it("opens Eidos views without text access and scopes config writes to writable i
     ).toBe(true)
     await expect(
       service.connectionAccess(1, session, ticket, "fixed")
-    ).rejects.toThrow(/configurable/)
+    ).resolves.toMatchObject({ configurable: false })
     await expect(
       service.connectionAccess(2, session, ticket, "generator")
     ).rejects.toThrow()
@@ -280,7 +497,9 @@ it("opens Eidos views without text access and scopes config writes to writable i
     expect((await rpc(ticket, "document.read")).response).toHaveProperty(
       "error"
     )
-    expect((await rpc(ticket, "table.read")).response).toHaveProperty("error")
+    expect((await rpc(ticket, "table.readContext")).response).toHaveProperty(
+      "error"
+    )
     expect(
       (await rpc(ticket, "eidos.tables", null, 2)).response
     ).toHaveProperty("error")
@@ -293,7 +512,7 @@ it("opens Eidos views without text access and scopes config writes to writable i
 it("binds table action instances and credential authority to the live Space and package", async () => {
   const plugin: PluginManifest = {
     apiVersion: 1,
-    requires: { pluginApi: "2.0.0" },
+    requires: { pluginApi: "3.0.0" },
     id: "example.smart",
     name: "Smart",
     version: "1.0.0",
@@ -350,9 +569,9 @@ it("binds table action instances and credential authority to the live Space and 
     (await rpc(workspace.ticket, "table.actions.ready", { providers: ["run"] }))
       .response
   ).toHaveProperty("result")
-  expect((await rpc(workspace.ticket, "table.read")).response).toHaveProperty(
-    "error"
-  )
+  expect(
+    (await rpc(workspace.ticket, "table.readContext")).response
+  ).toHaveProperty("error")
   await expect(
     service.connectionAccess(1, session, workspace.ticket, "model")
   ).rejects.toThrow()
@@ -411,16 +630,23 @@ describe("Lite document-view integration", () => {
   it("authorizes table adapters only for live table instances in their owning Space", async () => {
     const tableManifest: PluginManifest = {
       apiVersion: 1,
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       id: "example.map",
       name: "Map",
       version: "1.0.0",
       views: [
-        { id: "map", title: "Map", context: "table", entry: "./main.ts" },
+        {
+          id: "map",
+          title: "Map",
+          kind: "file",
+          capabilities: ["eidos/table", "eidos/config"],
+          entry: "./main.ts",
+        },
         {
           id: "settings",
           title: "Settings",
-          context: "table",
+          kind: "file",
+          capabilities: ["eidos/table", "eidos/config", "eidos/schema"],
           entry: "./main.ts",
           access: "write",
         },
@@ -452,9 +678,9 @@ describe("Lite document-view integration", () => {
         })
       ).response
     ).toHaveProperty("result")
-    expect((await rpc(opened.ticket, "table.read")).response).toHaveProperty(
-      "result"
-    )
+    expect(
+      (await rpc(opened.ticket, "table.readContext")).response
+    ).toHaveProperty("result")
     expect(
       (await rpc(opened.ticket, "table.pluginConfig.read")).response
     ).toHaveProperty("result")
@@ -466,15 +692,13 @@ describe("Lite document-view integration", () => {
         })
       ).response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
-    expect((await rpc(await open(), "table.read")).response).toHaveProperty(
-      "error.code",
-      "PERMISSION_DENIED"
-    )
+    expect(
+      (await rpc(await open(), "table.readContext")).response
+    ).toHaveProperty("error.code", "PERMISSION_DENIED")
     await store.enable("example.map", false, "space-a")
-    expect((await rpc(opened.ticket, "table.read")).response).toHaveProperty(
-      "error.code",
-      "PERMISSION_DENIED"
-    )
+    expect(
+      (await rpc(opened.ticket, "table.readContext")).response
+    ).toHaveProperty("error.code", "PERMISSION_DENIED")
     expect(service.html(opened.url)).toBeNull()
   })
   it("applies formatter output once through the host, rejects stale results and exposes no document capability", async () => {
@@ -482,7 +706,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.format",
           name: "Format",
           version: "1.0.0",
@@ -619,12 +843,12 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.page",
           name: "Page",
           version: "1.0.0",
           views: [
-            { id: "home", title: "Home", context: "page", entry: "./page.ts" },
+            { id: "home", title: "Home", kind: "page", entry: "./page.ts" },
           ],
           placements: [{ location: "navigation", view: "home" }],
         },
@@ -690,7 +914,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.journals",
           name: "Journals",
           version: "1.0.0",
@@ -706,7 +930,7 @@ describe("Lite document-view integration", () => {
             {
               id: "overview",
               title: "Overview",
-              context: "page",
+              kind: "page",
               entry: "./page.ts",
             },
           ],
@@ -775,7 +999,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.read-only-files",
           name: "Read only files",
           version: "1.0.0",
@@ -784,7 +1008,7 @@ describe("Lite document-view integration", () => {
             {
               id: "overview",
               title: "Overview",
-              context: "page",
+              kind: "page",
               entry: "./page.ts",
             },
           ],
@@ -813,7 +1037,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.watched-journals",
           name: "Watched Journals",
           version: "1.0.0",
@@ -822,7 +1046,7 @@ describe("Lite document-view integration", () => {
             {
               id: "overview",
               title: "Overview",
-              context: "page",
+              kind: "page",
               entry: "./page.ts",
             },
           ],
@@ -880,7 +1104,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.actions",
           name: "Actions",
           version: "1.0.0",
@@ -897,7 +1121,7 @@ describe("Lite document-view integration", () => {
         },
         {
           "./extension.ts":
-            "export default function activate(ctx) { ctx.actions.register('trim', async () => {}) }",
+            "export default function activate(ctx) { ctx.capabilities.actions.register('trim', async () => {}) }",
         }
       ),
       "space-a"
@@ -973,10 +1197,11 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.journals",
           name: "Journals",
           version: "1.0.0",
+          workspace: { files: true },
           extension: "./extension.ts",
           actions: [
             {
@@ -992,7 +1217,7 @@ describe("Lite document-view integration", () => {
         },
         {
           "./extension.ts":
-            "export default function activate(ctx) { ctx.actions.register('today', async () => {}) }",
+            "export default function activate(ctx) { ctx.capabilities.actions.register('today', async () => {}) }",
         }
       ),
       "space-a"
@@ -1049,7 +1274,7 @@ describe("Lite document-view integration", () => {
     ).toMatchObject({
       openFile: "Journals/2026-09-23.md",
     })
-    await actionRpc("settings.update", { key: "folder", value: "Diary" })
+    await actionRpc("settings.set", { key: "folder", value: "Diary" })
     expect(
       (await actionRpc("settings.get", { key: "folder" })).response
     ).toMatchObject({ result: "Diary" })
@@ -1060,12 +1285,12 @@ describe("Lite document-view integration", () => {
         .response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
-  it("unwraps Action storage/network requests and revokes them on completion", async () => {
+  it("scopes workspace actions to explicit grants and revokes them on completion", async () => {
     await store.install(
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.capabilities",
           name: "Capabilities",
           version: "1.0.0",
@@ -1103,6 +1328,15 @@ describe("Lite document-view integration", () => {
     const { invocation } = (await announced) as { invocation: string }
     const actionRpc = (method: string, args: unknown) =>
       rpc(ticket, method, { invocation, args })
+    for (const [method, args] of [
+      ["fs.list", {}],
+      ["fs.readText", { path: "data.csv" }],
+      ["fs.writeText", { path: "created.txt", content: "no grant" }],
+    ] as const) {
+      expect((await actionRpc(method, args)).response).toMatchObject({
+        error: { code: "PERMISSION_DENIED" },
+      })
+    }
     expect(
       (await actionRpc("storage.write", { key: "test", data: "YQ==" })).response
     ).toMatchObject({ result: null })
@@ -1113,7 +1347,7 @@ describe("Lite document-view integration", () => {
       (await actionRpc("storage.list", { prefix: "" })).response
     ).toHaveProperty("result")
     expect(
-      (await actionRpc("storage.remove", { key: "test" })).response
+      (await actionRpc("storage.delete", { key: "test" })).response
     ).toMatchObject({ result: null })
     expect(
       (await actionRpc("storage.read", { key: "test" })).response
@@ -1178,7 +1412,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.action",
           name: "Action",
           version: "1.0.0",
@@ -1388,7 +1622,7 @@ describe("Lite document-view integration", () => {
   it("opens media views, issues media stream URL, and reads scoped sidecar files", async () => {
     const videoManifest: PluginManifest = {
       apiVersion: 1,
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       id: "example.player",
       name: "Player",
       version: "1.0.0",
@@ -1396,7 +1630,7 @@ describe("Lite document-view integration", () => {
         {
           id: "video",
           title: "Video Player",
-          context: "media",
+          kind: "file",
           entry: "./player.ts",
           access: "read",
         },
@@ -1459,7 +1693,7 @@ describe("Lite document-view integration", () => {
   it("allows document views to list files, read companion text, and stream companion media", async () => {
     const subtitleManifest: PluginManifest = {
       apiVersion: 1,
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       id: "example.subtitle",
       name: "Subtitle Editor",
       version: "1.0.0",
@@ -1467,7 +1701,8 @@ describe("Lite document-view integration", () => {
         {
           id: "subtitles",
           title: "Subtitle Editor",
-          context: "document",
+          kind: "file",
+          capabilities: ["document"],
           entry: "./editor.ts",
           access: "read",
         },
@@ -1564,7 +1799,7 @@ describe("Lite document-view integration", () => {
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.file-manager",
           name: "File Manager",
           version: "1.0.0",
@@ -1573,7 +1808,8 @@ describe("Lite document-view integration", () => {
             {
               id: "manager",
               title: "Manager",
-              context: "page",
+              kind: "page",
+              access: "write",
               entry: "./page.ts",
             },
           ],
@@ -1642,12 +1878,12 @@ describe("Lite document-view integration", () => {
     expect(deletedStat.response).toMatchObject({ result: null })
   })
 
-  it("supports context: file for views and actions", async () => {
+  it("supports file views and file-context actions", async () => {
     await store.install(
       encodePackage(
         {
           apiVersion: 1,
-          requires: { pluginApi: "2.0.0" },
+          requires: { pluginApi: "3.0.0" },
           id: "example.file-viewer",
           name: "File Viewer",
           version: "1.0.0",
@@ -1656,7 +1892,7 @@ describe("Lite document-view integration", () => {
             {
               id: "viewer",
               title: "Viewer",
-              context: "file",
+              kind: "file",
               entry: "./viewer.ts",
               access: "write",
             },
@@ -1684,7 +1920,7 @@ describe("Lite document-view integration", () => {
         {
           "./viewer.ts": "export default function mount() {}",
           "./extension.ts":
-            "export default function activate(ctx) { ctx.actions.register('process-file', async () => {}) }",
+            "export default function activate(ctx) { ctx.capabilities.actions.register('process-file', async () => {}) }",
         }
       ),
       "space-a"

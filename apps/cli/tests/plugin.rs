@@ -42,7 +42,8 @@ fn create_test_plugin_package(id: &str, name: &str, version: &str) -> (Vec<u8>, 
             {
                 "id": "main-view",
                 "title": format!("{name} View"),
-                "context": "table",
+                "kind": "file",
+                "capabilities": ["eidos/table"],
                 "entry": "./src/main.js"
             }
         ]

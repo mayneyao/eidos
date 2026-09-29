@@ -8,11 +8,36 @@ const manifest: PluginManifest = {
   id: "test.compatibility",
   name: "Compatibility",
   version: "1.0.0",
-  views: [{ id: "main", title: "Main", context: "table", entry: "./main.js" }],
+  views: [
+    {
+      id: "main",
+      title: "Main",
+      kind: "file",
+      capabilities: ["eidos/table"],
+      entry: "./main.js",
+    },
+  ],
   placements: [{ location: "table/view", view: "main" }],
 }
+it("checks every composed Eidos capability for each host", () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "3.0.0" },
+    views: [
+      {
+        ...manifest.views![0]!,
+        capabilities: ["eidos/config", "eidos/table", "eidos/schema"],
+      },
+    ],
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite").compatible).toBe(true)
+  expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
+    compatible: false,
+    missingFeatures: ["data.eidos/config", "data.eidos/schema"],
+  })
+})
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("2.0.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.0.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],
@@ -22,9 +47,9 @@ it("checks minimum API independently of SDK and plugin versions", () => {
     ["1.5.0", false],
     ["1.6.0", false],
     ["1.6.1", false],
-    ["2.0.0", true],
+    ["2.0.0", false],
     ["2.0.1", false],
-    ["3.0.0", false],
+    ["3.0.0", true],
   ] as const) {
     expect(
       checkPluginCompatibility(
@@ -49,7 +74,7 @@ it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
     encodePackage(
       {
         ...theme,
-        requires: { pluginApi: "2.0.0" },
+        requires: { pluginApi: "3.0.0" },
         theme: {
           stylesheet:
             ':root[data-theme="light"] { --theme-surface: #fff; } :root[data-theme="dark"] { --theme-surface: #111; }',
@@ -69,7 +94,7 @@ it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
 it("requires workspace files support for Space file access", () => {
   const plugin: PluginManifest = {
     ...manifest,
-    requires: { pluginApi: "2.0.0" },
+    requires: { pluginApi: "3.0.0" },
     workspace: { files: true },
   }
   expect(checkPluginCompatibility(plugin, "eidos-lite")).toMatchObject({
@@ -80,27 +105,29 @@ it("requires workspace files support for Space file access", () => {
     missingFeatures: expect.arrayContaining(["workspace.files"]),
   })
 })
+it("does not mistake generic file support for a table-only host", () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "3.0.0" },
+    views: [{ id: "main", title: "Main", kind: "file", entry: "./main.js" }],
+    placements: [{ location: "file/open", view: "main", extensions: [".mp4"] }],
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite").compatible).toBe(true)
+  expect(checkPluginCompatibility(plugin, "eidos-cli")).toMatchObject({
+    compatible: false,
+    missingFeatures: ["data.file"],
+  })
+})
 it("rejects undeclared executables and removed resources in Lite", () => {
   expect(checkPluginCompatibility(manifest, "eidos-lite")).toMatchObject({
     compatible: false,
     reason: "API_VERSION",
   })
-  expect(
-    checkPluginCompatibility(
-      {
-        ...manifest,
-        requires: { pluginApi: "2.0.0" },
-        resources: {
-          notes: { kind: "text", title: "Notes", access: ["read"] },
-        },
-      },
-      "eidos-lite"
-    )
-  ).toMatchObject({
-    compatible: false,
-    reason: "HOST_FEATURES",
-    missingFeatures: ["resources"],
-  })
+  expect(() =>
+    encodePackage({ ...manifest, resources: {} } as PluginManifest, {
+      "./main.js": "export default function() {}",
+    })
+  ).toThrow("Unknown or missing fields")
 })
 it("infers host features even for undeclared legacy plugins", () => {
   expect(checkPluginCompatibility(manifest, "eidos-cli").reason).toBe(

@@ -159,6 +159,14 @@ pnpm --filter @eidos.space/eidos-file-serve build
 
 ## Documentation
 
+- Write public documentation for users and plugin developers who have no
+  knowledge of internal discussions or earlier drafts. Explain the current
+  model and concrete usage directly. Keep version comparisons in migration
+  guides and release notes; keep implementation history and rejected proposals
+  out of everyday guides. Present page/file as the two View kinds, and introduce
+  templates only as examples within development workflows.
+- Keep plugin migration guides in `docs/migrations`, outside the documentation
+  site content and navigation.
 - English files in `docs/specs` are normative. Chinese files are informative
   translations and must stay aligned.
 - Runtime behavior changes require matching specification text and conformance

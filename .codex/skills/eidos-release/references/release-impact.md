@@ -12,6 +12,11 @@ public baseline for each candidate:
 
 - **Eidos File packages:** the npm versions and matching
   `eidos-file-packages-v*` tag.
+- **Plugin SDK/tools:** each npm version and the matching `plugin-packages-v*`
+  tag; templates are shipped inside plugin-tools.
+- **Registry plugins:** the current `eidos-space/registry` commit and every
+  `plugins.registry.json` entry's version, source repository, tag, asset and
+  checksum. These are separate baselines from the SDK and host releases.
 - **Eidos Lite:** the latest published `lite-v*` Release, not merely the highest
   local tag.
 - **Standalone CLI:** the latest published `cli-v*` Release and `apps/cli/LATEST`
@@ -82,17 +87,18 @@ evidence that a consumer changes, not as a separate user-facing feature.
 
 Paths establish ownership; observable behavior decides whether to ship.
 
-| Changed boundary                   | Candidate surfaces                                                                                       |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `packages/eidos-file/**`           | packages; Lite and Web; CLI, Lite Publish, and Publish when the QuickJS/CLI Runtime path is affected     |
-| `packages/eidos-file-ui/**`        | packages; Lite and Web; CLI and Publish when Serve UI is affected                                        |
-| `packages/eidos-file-serve/**`     | Web; CLI and Publish after Serve UI regeneration                                                         |
-| `apps/eidos-lite-desktop/**`       | Lite; `apps/download` when updater routing changes                                                       |
-| `apps/eidos-file-web/**`           | Web only unless it changes a shared contract elsewhere                                                   |
-| `apps/cli/**` or `skills/eidos/**` | CLI; Publish when Container/Serve/publish behavior changes; Lite when its bundled Publish engine changes |
-| `apps/eidos-publish/**`            | Publish; Relay or eidos.space when a binding, route, auth, or entitlement contract changes               |
-| `apps/eidos-file-relay/**`         | Relay; Publish when public viewer forwarding or binding contracts change                                 |
-| `apps/download/**`                 | Download Worker; related Lite or CLI delivery verification                                               |
+| Changed boundary                                       | Candidate surfaces                                                                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Plugin SDK, manifest, runtime or host plugin contracts | SDK/tools; Lite/CLI as applicable; all registry plugins and templates require the [plugin API release gate](plugin-api-release.md) |
+| `packages/eidos-file/**`                               | packages; Lite and Web; CLI, Lite Publish, and Publish when the QuickJS/CLI Runtime path is affected                               |
+| `packages/eidos-file-ui/**`                            | packages; Lite and Web; CLI and Publish when Serve UI is affected                                                                  |
+| `packages/eidos-file-serve/**`                         | Web; CLI and Publish after Serve UI regeneration                                                                                   |
+| `apps/eidos-lite-desktop/**`                           | Lite; `apps/download` when updater routing changes                                                                                 |
+| `apps/eidos-file-web/**`                               | Web only unless it changes a shared contract elsewhere                                                                             |
+| `apps/cli/**` or `skills/eidos/**`                     | CLI; Publish when Container/Serve/publish behavior changes; Lite when its bundled Publish engine changes                           |
+| `apps/eidos-publish/**`                                | Publish; Relay or eidos.space when a binding, route, auth, or entitlement contract changes                                         |
+| `apps/eidos-file-relay/**`                             | Relay; Publish when public viewer forwarding or binding contracts change                                                           |
+| `apps/download/**`                                     | Download Worker; related Lite or CLI delivery verification                                                                         |
 
 For every candidate, answer:
 
@@ -118,6 +124,11 @@ artifacts and remain independently delivered. Conversely, a host may ship
 shared source before the corresponding npm package version is published.
 
 ## Choose versions only after impact is known
+
+For plugin API changes, include the registry/plugin adaptation matrix and
+template validation in the release plan, even for compatible changes without
+an API version bump. An affected published plugin or starter left unadapted is
+an unresolved release dependency, not a follow-up after the host ships.
 
 - For public packages, use patch for compatible fixes or artifact corrections,
   minor for compatible features/public API additions, and major for incompatible

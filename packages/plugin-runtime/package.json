@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./view": "./src/view.ts",
     "./compatibility": "./src/compatibility.ts",
     ".": "./src/index.ts",
     "./contracts": "./src/contracts.ts",
@@ -15,7 +16,6 @@
     "./extension-sandbox": "./src/extension-sandbox.ts",
     "./working-copy": "./src/working-copy.ts",
     "./lifecycle": "./src/lifecycle.ts",
-    "./resource-grants": "./src/resource-grants.ts",
     "./compiler": {
       "types": "./src/compiler.ts",
       "default": "./dist/compiler.js"

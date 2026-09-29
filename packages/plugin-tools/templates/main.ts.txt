@@ -3,8 +3,8 @@ import { parseCsv, stringifyCsv } from "./csv"
 import "./style.css"
 
 export default async function mount(ctx: ViewContext, root: HTMLElement) {
-  if (ctx.binding.kind !== "document") throw Error("CSV requires a document")
-  const file = ctx.binding.document
+  if (!ctx.capabilities.document) throw Error("CSV requires a document")
+  const file = ctx.capabilities.document
   root.innerHTML = '<header><strong>CSV Table</strong><button id="save">Save</button><button id="undo">Undo</button><button id="redo">Redo</button><span role="status"></span></header><main><table aria-label="CSV data"><tbody></tbody></table></main>'
   const status = root.querySelector<HTMLElement>('[role="status"]')!
   const tbody = root.querySelector("tbody")!

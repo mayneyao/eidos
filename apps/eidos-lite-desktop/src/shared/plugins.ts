@@ -124,7 +124,8 @@ export interface PluginApi {
     ticket: string,
     connection: string,
     operation: "status" | "save" | "configure" | "request" | "cancel",
-    value?: unknown
+    value?: unknown,
+    invocation?: string
   ): Promise<unknown>
   invokePluginAction(
     ticket: string,

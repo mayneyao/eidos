@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import {
   useState,
   useId,
@@ -233,7 +234,7 @@ export function PluginDetailView({
   )
   const hasConnections = !!Object.keys(manifest?.connections ?? {}).length
   const hasDeclarativeSettings = !!Object.keys(manifest?.settings ?? {}).length
-  const pageView = manifest?.views?.find((v) => v.context === "page")
+  const pageView = manifest?.views?.find((v) => viewResource(v) === "page")
   const canOpenPage =
     pageView &&
     onOpenPage &&
@@ -910,21 +911,17 @@ export function PluginDetailView({
                             <div className="plugin-feature-item-header">
                               <strong>{v.title}</strong>
                               <span className="plugin-chip">
-                                {v.context === "table"
-                                  ? t("Table view")
-                                  : v.context === "page"
-                                    ? t("Page")
-                                    : t("Document view")}
+                                {v.kind === "page" ? t("Page") : t("File view")}
                               </span>
                             </div>
                             <p className="plugin-feature-item-sub">
-                              {v.context === "table"
+                              {viewResource(v) === "table"
                                 ? t(
                                     "Add this view from any table view tabs menu."
                                   )
-                                : v.context === "page"
+                                : viewResource(v) === "page"
                                   ? t("Standalone workspace page.")
-                                  : t("Custom document presentation.")}
+                                  : t("Custom file presentation.")}
                             </p>
                           </div>
                         ))}
@@ -939,7 +936,7 @@ export function PluginDetailView({
                       <span>{t("How to Use")}</span>
                     </h2>
                     <ul className="plugin-usage-steps">
-                      {views.some((v) => v.context === "table") && (
+                      {views.some((v) => viewResource(v) === "table") && (
                         <li>
                           <strong>{t("Table view")}:</strong>{" "}
                           <span>
@@ -949,7 +946,7 @@ export function PluginDetailView({
                           </span>
                         </li>
                       )}
-                      {views.some((v) => v.context === "page") && (
+                      {views.some((v) => viewResource(v) === "page") && (
                         <li>
                           <strong>{t("Page")}:</strong>{" "}
                           <span>
@@ -1005,13 +1002,9 @@ export function PluginDetailView({
                           </div>
                           <div className="plugin-table-row-meta">
                             <span>
-                              {view.context === "page"
+                              {viewResource(view) === "page"
                                 ? t("Page")
-                                : `${t(
-                                    view.context === "table"
-                                      ? "Table view"
-                                      : "Document view"
-                                  )} · ${
+                                : `${t("File view")} · ${
                                     view.access === "write"
                                       ? t("Read and write")
                                       : t("Read only")
@@ -1021,7 +1014,7 @@ export function PluginDetailView({
                             <span>{view.entry}</span>
                           </div>
                         </div>
-                        {view.context === "page" && canOpenPage && (
+                        {viewResource(view) === "page" && canOpenPage && (
                           <button
                             type="button"
                             className="settings-button"

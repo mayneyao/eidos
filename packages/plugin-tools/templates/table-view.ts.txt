@@ -2,8 +2,8 @@ import type { Mount } from "@eidos.space/plugin-sdk"
 import "./style.css"
 
 const mount: Mount = (ctx, root) => {
-  if (ctx.binding.kind !== "table") throw new Error("Add this view inside a table")
-  const table = ctx.binding.table
+  if (!ctx.capabilities.eidos?.table) throw new Error("Add this view inside a table")
+  const table = ctx.capabilities.eidos.table
   let generation = 0
   const refresh = async () => {
     const current = ++generation
@@ -17,7 +17,7 @@ const mount: Mount = (ctx, root) => {
     }
   }
   root.textContent = "Loading…"
-  ctx.subscriptions.add(table.observe(() => { void refresh() }))
+  ctx.subscriptions.add(table.watch(() => { void refresh() }))
   void refresh()
 }
 export default mount

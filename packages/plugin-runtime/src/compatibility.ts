@@ -33,7 +33,12 @@ function version(value: string): number[] | null {
 /** Derive requirements from contributions; this does not infer arbitrary JS calls. */
 export function pluginFeatures(manifest: PluginManifest): string[] {
   const features = new Set(
-    (manifest.views ?? []).map((v) => `view.${v.context}`)
+    (manifest.views ?? []).flatMap((v) => [
+      `view.${v.kind}`,
+      ...(v.kind === "file" && !v.capabilities?.length
+        ? ["data.file"]
+        : (v.capabilities ?? []).map((c) => `data.${c}`)),
+    ])
   )
   for (const rule of data.rules) {
     const value = (manifest as unknown as Record<string, unknown>)[rule.key]
@@ -73,7 +78,7 @@ export function checkPluginCompatibility(
   if (host === "eidos-lite" && !manifest.theme && requiredApi === null) {
     return result(
       "API_VERSION",
-      "This plugin must declare plugin API 2.0.0 and migrate to ctx.fs before it can run in Eidos Lite."
+      "This plugin must declare plugin API 3.0.0 and migrate to binding/capabilities before it can run in Eidos Lite."
     )
   }
   if (requiredApi !== null) {

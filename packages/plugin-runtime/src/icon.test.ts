@@ -7,7 +7,7 @@ const parse = (icon: unknown) =>
     name: "Icon",
     version: "1.0.0",
     icon,
-    views: [{ id: "view", title: "View", context: "page", entry: "./view.ts" }],
+    views: [{ id: "view", title: "View", kind: "page", entry: "./view.ts" }],
   })
 it("accepts local path icons and rejects markup, URLs, attributes and oversized payloads", () => {
   const parsed = parse({ paths: ["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"] }).icon
@@ -59,14 +59,15 @@ it("accepts and validates view and action icons", () => {
       {
         id: "mindmap",
         title: "Mindmap",
-        context: "document",
+        kind: "file",
+        capabilities: ["document"],
         entry: "./mindmap.tsx",
         icon: { paths: ["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"] },
       },
       {
         id: "page",
         title: "Page View",
-        context: "page",
+        kind: "page",
         entry: "./page.tsx",
         icon: "./page-icon.png",
       },
@@ -98,7 +99,7 @@ it("accepts and validates view and action icons", () => {
         {
           id: "v",
           title: "V",
-          context: "page",
+          kind: "page",
           entry: "./v.ts",
           icon: "https://evil.com/icon.png",
         },

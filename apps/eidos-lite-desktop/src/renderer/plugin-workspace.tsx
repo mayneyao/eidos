@@ -1,3 +1,4 @@
+import { viewResource } from "@eidos.space/plugin-runtime/view"
 import {
   useEffect,
   useLayoutEffect,
@@ -147,7 +148,8 @@ export function PluginWorkspace({
       .flatMap((placement) =>
         (manifest.views ?? [])
           .filter(
-            (view) => view.id === placement.view && view.context === "page"
+            (view) =>
+              view.id === placement.view && viewResource(view) === "page"
           )
           .map((view) => ({
             key: `${manifest.id}/${view.id}`,

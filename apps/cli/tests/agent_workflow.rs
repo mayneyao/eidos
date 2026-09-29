@@ -1657,6 +1657,7 @@ fn agent_skill_can_be_initialized_in_a_space_without_npx() {
         "references/attachments.md",
         "references/cli.md",
         "references/operations.md",
+        "references/plugins.md",
     ] {
         assert!(
             dir.path()

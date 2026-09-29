@@ -182,7 +182,9 @@ jobs:
               echo "$package_name@$VERSION already matches the reviewed tarball; skipping publish"
               return
             fi
-            npm publish "./$tarball" --access public --provenance
+            npm_tag="latest"
+            if [[ "$VERSION" == *-* ]]; then npm_tag="next"; fi
+            npm publish "./$tarball" --access public --provenance --tag "$npm_tag"
           }
           publish_or_verify "@eidos.space/plugin-sdk" "$sdk_tar"
           # npm may process a successful upload for several minutes.

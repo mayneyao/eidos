@@ -26,6 +26,10 @@ const SKILL_FILES: &[(&str, &str)] = &[
         "references/attachments.md",
         include_str!("../../../skills/eidos/references/attachments.md"),
     ),
+    (
+        "references/plugins.md",
+        include_str!("../../../skills/eidos/references/plugins.md"),
+    ),
 ];
 
 pub fn init(args: SkillsInitArgs) -> Result<CommandOutput> {

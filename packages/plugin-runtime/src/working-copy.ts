@@ -284,6 +284,9 @@ export class WorkingCopy {
 
 export class WorkingCopyRegistry {
   private readonly spaces = new Map<string, Map<string, Promise<WorkingCopy>>>()
+  has(spaceSession: string, canonicalPath: string): boolean {
+    return this.spaces.get(spaceSession)?.has(canonicalPath) ?? false
+  }
   open(
     spaceSession: string,
     canonicalPath: string,

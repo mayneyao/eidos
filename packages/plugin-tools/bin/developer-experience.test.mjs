@@ -66,7 +66,7 @@ test("target checking fails for unsupported hosts and release metadata hashes th
     const cli = run("check", directory, "--target", "cli", "--json")
     assert.notEqual(cli.status, 0)
     assert.equal(JSON.parse(cli.stdout).error.code, "HOST_INCOMPATIBLE")
-    assert.match(run("check", directory).stdout, /cli: .*supports/)
+    assert.match(run("check", directory).stdout, /cli: .*does not support/)
     const packed = run("pack", directory, "--json")
     assert.equal(packed.status, 0, packed.stdout + packed.stderr)
     const { output, checksum } = JSON.parse(packed.stdout)

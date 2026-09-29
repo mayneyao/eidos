@@ -45,7 +45,7 @@ it("serializes writes for quota accounting and permits overwrite and delete", as
   expect(results.map((v) => v.status)).toEqual(["fulfilled", "rejected"])
   await store.request("storage.write", { key: "a", data: "AA==" }, 4, active)
   await store.request("storage.write", { key: "b", data: "AP8B" }, 4, active)
-  await store.request("storage.remove", { key: "a" }, 4, active)
+  await store.request("storage.delete", { key: "a" }, 4, active)
   expect(
     await store.request("storage.read", { key: "a" }, 4, active)
   ).toBeNull()

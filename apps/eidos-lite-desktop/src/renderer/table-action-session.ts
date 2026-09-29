@@ -15,9 +15,9 @@ export class TableActionSession {
   unchanged = 0
   readonly records = new Map<string, EidosFileActionRow>()
   ids: string[] = []
-  approved = false
+  outputsDeclared = false
   private outputFields = new Set<string>()
-  private previewValues = new Map<string, string>()
+  private sampleValues = new Map<string, string>()
   private inFlight: Promise<unknown> | null = null
   private writing = false
   private disposed = false
@@ -38,7 +38,7 @@ export class TableActionSession {
       this.controller.signal
     )
   }
-  async read(offset: number, limit: number, fields: string[]) {
+  async readRows(offset: number, limit: number, fields: string[]) {
     this.controller.signal.throwIfAborted()
     if (
       !Number.isSafeInteger(offset) ||
@@ -68,7 +68,7 @@ export class TableActionSession {
   }
   async update(readToken: string, values: Record<string, LogicalValue>) {
     this.controller.signal.throwIfAborted()
-    if (!this.approved) throw new Error("Approve the preview before writing")
+    if (!this.outputsDeclared) throw new Error("Declare outputs before writing")
     if (this.writing)
       throw new Error("Concurrent action writes are not allowed")
     const row = this.records.get(readToken)
@@ -77,10 +77,10 @@ export class TableActionSession {
     if (!values || typeof values !== "object" || Array.isArray(values))
       throw new Error("Invalid row output")
     if (Object.keys(values).some((id) => !this.outputFields.has(id)))
-      throw new Error("Output field was not approved in the preview")
-    const preview = this.previewValues.get(row.id)
-    if (preview !== undefined && canonicalizeEidosFileJson(values) !== preview)
-      throw new Error("Output differs from the approved preview")
+      throw new Error("Output field was not declared")
+    const sample = this.sampleValues.get(row.id)
+    if (sample !== undefined && canonicalizeEidosFileJson(values) !== sample)
+      throw new Error("Output differs from the declared sample")
     this.writing = true
     try {
       const operation = this.source.writeTableActionRow(
@@ -99,15 +99,15 @@ export class TableActionSession {
       this.inFlight = null
     }
   }
-  approve(
+  declareOutputs(
     rows: Array<{ readToken: string; values: Record<string, LogicalValue> }>
   ) {
     if (canonicalizeEidosFileJson(rows).length > 65536)
-      throw new Error("Preview is too large")
+      throw new Error("Output samples are too large")
     const fields = Object.keys(rows[0]?.values ?? {}).sort()
     if (!fields.length || fields.length > 16)
-      throw new Error("Invalid preview output fields")
-    const previewValues = new Map<string, string>()
+      throw new Error("Invalid output sample fields")
+    const sampleValues = new Map<string, string>()
     for (const row of rows) {
       const record = this.records.get(row.readToken)
       if (
@@ -115,14 +115,14 @@ export class TableActionSession {
         Object.keys(row.values).sort().join() !== fields.join() ||
         fields.some((id) => !(id in record.values))
       )
-        throw new Error("Invalid preview output")
-      if (previewValues.has(record.id))
-        throw new Error("Duplicate preview record")
-      previewValues.set(record.id, canonicalizeEidosFileJson(row.values))
+        throw new Error("Invalid output sample")
+      if (sampleValues.has(record.id))
+        throw new Error("Duplicate output sample record")
+      sampleValues.set(record.id, canonicalizeEidosFileJson(row.values))
     }
-    this.previewValues = previewValues
+    this.sampleValues = sampleValues
     this.outputFields = new Set(fields)
-    this.approved = true
+    this.outputsDeclared = true
   }
   async settled() {
     await this.inFlight?.catch(() => {})

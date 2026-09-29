@@ -74,6 +74,8 @@ const zh: Record<string, string> = {
     "随 Eidos Lite 提供，可禁用但不能卸载。设置作用于本机。",
   "This plugin has no configurable settings.": "此插件暂无可配置项。",
   "Document view": "文档视图",
+  "File view": "文件视图",
+  "Custom file presentation.": "自定义文件展示。",
   "Table view": "表格视图",
   "Read and write": "读写",
   Formatter: "格式化程序",

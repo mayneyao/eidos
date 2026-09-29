@@ -36,13 +36,14 @@ try {
       id: "local.smoke",
       name: "CSV smoke",
       version: "1.0.0",
-      requires: { pluginApi: "2.0.0" },
+      requires: { pluginApi: "3.0.0" },
       views: [
         {
           id: "csv",
           title: "CSV",
           entry: "./main.ts",
-          context: "document",
+          kind: "file",
+          capabilities: ["document"],
           access: "write",
         },
       ],

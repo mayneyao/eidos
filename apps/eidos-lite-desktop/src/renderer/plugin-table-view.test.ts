@@ -38,6 +38,40 @@ function fixture() {
   return { props, source }
 }
 describe("table view bridge", () => {
+  it("reads file schema from a table view without changing the table binding", async () => {
+    const { props, source } = fixture()
+    source.getSnapshot.mockResolvedValue({
+      tables: [
+        { table: { id: "other", name: "Other" }, fields: [{ id: "title" }] },
+      ],
+    } as never)
+    expect(
+      await tableViewRequest(
+        props,
+        request("eidos.tables"),
+        undefined,
+        "example.plugin"
+      )
+    ).toEqual([{ id: "other", name: "Other" }])
+    expect(
+      await tableViewRequest(
+        props,
+        request("eidos.table", { tableId: "other" }),
+        undefined,
+        "example.plugin"
+      )
+    ).toEqual({ fields: [{ id: "title" }] })
+    await tableViewRequest(
+      props,
+      request("table.pluginConfig.read"),
+      undefined,
+      "example.plugin"
+    )
+    expect(source.readTablePluginConfig).toHaveBeenCalledWith(
+      "bound-table",
+      "example.plugin"
+    )
+  })
   it("binds config to the host table and plugin and rejects scope overrides", async () => {
     const { props, source } = fixture()
     await tableViewRequest(
@@ -104,15 +138,19 @@ describe("table view bridge", () => {
       },
     }
     expect(
-      await tableViewRequest(props, request("table.read"), schema)
+      await tableViewRequest(props, request("table.readContext"), schema)
     ).toMatchObject({ view: { properties: { plugin: { zoom: 5 } } } })
     expect(source.updateView).not.toHaveBeenCalled()
     await expect(
-      tableViewRequest(props, request("table.properties", { zoom: 30 }), schema)
+      tableViewRequest(
+        props,
+        request("table.setViewConfig", { zoom: 30 }),
+        schema
+      )
     ).rejects.toThrow()
     await tableViewRequest(
       props,
-      request("table.properties", { zoom: 10 }),
+      request("table.setViewConfig", { zoom: 10 }),
       schema
     )
     expect(source.updateView).toHaveBeenCalledWith("bound-view", {
@@ -123,7 +161,7 @@ describe("table view bridge", () => {
     const { props, source } = fixture()
     await tableViewRequest(
       props,
-      request("table.page", { offset: 0, limit: 100 })
+      request("table.readRows", { offset: 0, limit: 100 })
     )
     expect(source.getPage).toHaveBeenCalledWith(
       "bound-table",
@@ -137,7 +175,7 @@ describe("table view bridge", () => {
       { offset: 0, limit: 100, tableId: "other" },
     ])
       await expect(
-        tableViewRequest(props, request("table.page", params))
+        tableViewRequest(props, request("table.readRows", params))
       ).rejects.toThrow()
     expect(source.getPage).toHaveBeenCalledTimes(1)
   })
@@ -145,7 +183,7 @@ describe("table view bridge", () => {
     const { props, source } = fixture()
     await tableViewRequest(
       props,
-      request("table.properties", { latitude: "lat" })
+      request("table.setViewConfig", { latitude: "lat" })
     )
     expect(source.updateView).toHaveBeenCalledWith("bound-view", {
       properties: { preserved: true, plugin: { latitude: "lat" } },
@@ -153,7 +191,7 @@ describe("table view bridge", () => {
     await expect(
       tableViewRequest(
         { ...props, disabled: true },
-        request("table.properties", {})
+        request("table.setViewConfig", {})
       )
     ).rejects.toThrow("read-only")
   })

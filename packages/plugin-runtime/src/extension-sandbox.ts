@@ -2,7 +2,7 @@ import type {
   Activate,
   ActionContext,
   Disposable,
-  FileContext,
+  FileMetadata,
   TextDocument,
   FormatterProvider,
   TableActionProvider,
@@ -49,13 +49,10 @@ function activateGuest(
       )
     const id = crypto.randomUUID()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => {
-          pending.delete(id)
-          reject(failure("TIMEOUT", "Host request timed out"))
-        },
-        method === "table.task.preview" ? 10 * 60 * 1000 : 30000
-      )
+      const timer = setTimeout(() => {
+        pending.delete(id)
+        reject(failure("TIMEOUT", "Host request timed out"))
+      }, 30000)
       pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -69,12 +66,6 @@ function activateGuest(
   }
   const unavailable = async (): Promise<never> => {
     throw failure("UNSUPPORTED_API", "Capability unavailable")
-  }
-  const settings = {
-    get: unavailable,
-    update: unavailable,
-    reset: unavailable,
-    observe: unavailable,
   }
   const dispose = (items: Set<Disposable>) => {
     for (const item of items) {
@@ -245,7 +236,7 @@ function activateGuest(
         }
       },
     }
-    const fileContext: FileContext | undefined = value.path
+    const fileContext: FileMetadata | undefined = value.path
       ? {
           path: value.path,
           name: value.path.split("/").pop() || value.path,
@@ -260,68 +251,68 @@ function activateGuest(
         }
       : undefined
     const ctx: ActionContext = {
-      binding:
-        value.kind === "file" && fileContext
-          ? { kind: "file", file: fileContext }
-          : value.kind === "document"
-            ? { kind: "document", document }
-            : { kind: "workspace" },
-      file: fileContext,
-      editor: value.kind === "document" ? document : undefined,
+      binding: fileContext
+        ? { kind: "file", file: { id: fileContext.path, ...fileContext } }
+        : { kind: "workspace" },
       signal: controller.signal,
       subscriptions: { add: own },
-      fs,
-      storage: {
-        list: (prefix = "") => invoke("storage.list", { prefix }),
-        async read(key) {
-          const res = await invoke<string | null>("storage.read", { key })
-          return res === null
-            ? null
-            : Uint8Array.from(atob(res), (c) => c.charCodeAt(0))
+      capabilities: {
+        document: value.kind === "document" ? document : undefined,
+        connections: {
+          isConfigured: (connection) =>
+            invoke("eidos.connection.status", { connection }),
+          request: (input) => invoke("eidos.connection.request", input),
         },
-        write(key, val) {
-          if (val.byteLength > 4 * 1024 * 1024)
-            return Promise.reject(
-              failure("INVALID_REQUEST", "Storage object exceeds 4 MiB")
-            )
-          let binary = ""
-          for (let offset = 0; offset < val.length; offset += 8192)
-            binary += String.fromCharCode(
-              ...val.subarray(offset, offset + 8192)
-            )
-          return invoke("storage.write", { key, data: btoa(binary) })
+        fs,
+        storage: {
+          list: (prefix = "") => invoke("storage.list", { prefix }),
+          async read(key) {
+            const res = await invoke<string | null>("storage.read", { key })
+            return res === null
+              ? null
+              : Uint8Array.from(atob(res), (c) => c.charCodeAt(0))
+          },
+          write(key, val) {
+            if (val.byteLength > 4 * 1024 * 1024)
+              return Promise.reject(
+                failure("INVALID_REQUEST", "Storage object exceeds 4 MiB")
+              )
+            let binary = ""
+            for (let offset = 0; offset < val.length; offset += 8192)
+              binary += String.fromCharCode(
+                ...val.subarray(offset, offset + 8192)
+              )
+            return invoke("storage.write", { key, data: btoa(binary) })
+          },
+          delete: (key) => invoke("storage.delete", { key }),
         },
-        remove: (key) => invoke("storage.remove", { key }),
-      },
-      network: {
-        async read(request) {
-          const res = await invoke<{
-            data: string
-            status: number
-            etag?: string
-          }>("network.read", request)
-          return {
-            ...res,
-            data: Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0)),
-          }
+        network: {
+          async read(request) {
+            const res = await invoke<{
+              data: string
+              status: number
+              etag?: string
+            }>("network.read", request)
+            return {
+              ...res,
+              data: Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0)),
+            }
+          },
         },
-      },
-      settings: {
-        get: (key) => invoke("settings.get", { key }),
-        update: (key, val) => invoke("settings.update", { key, value: val }),
-        reset: (key) => invoke("settings.reset", { key }),
-        observe: unavailable,
-      },
-      ui: {
-        notify: (message) => invoke("ui.notify", { message }),
-        openFile: (relativePath) => invoke("ui.openFile", { relativePath }),
-        select: unavailable,
-        confirm: unavailable,
-        navigate: (viewId, route) =>
-          invoke("ui.navigate", {
-            viewId,
-            ...(route === undefined ? {} : { route }),
-          }),
+        settings: {
+          get: (key) => invoke("settings.get", { key }),
+          set: (key, val) => invoke("settings.set", { key, value: val }),
+          reset: (key) => invoke("settings.reset", { key }),
+        },
+        ui: {
+          notify: (message) => invoke("ui.notify", { message }),
+          openFile: (relativePath) => invoke("ui.openFile", { relativePath }),
+          navigate: (viewId, route) =>
+            invoke("ui.navigate", {
+              viewId,
+              ...(route === undefined ? {} : { route }),
+            }),
+        },
       },
     }
     let error: string | undefined
@@ -394,25 +385,38 @@ function activateGuest(
       }
       const context: TableActionContext = {
         signal: controller.signal,
-        table: {
-          tableId: value.tableId,
-          viewId: value.viewId,
-          read: () => invoke("table.read"),
-          pluginConfig: {
-            read: () => invoke("table.pluginConfig.read"),
+        capabilities: {
+          eidos: {
+            table: {
+              tableId: value.tableId,
+              viewId: value.viewId,
+              readContext: () => invoke("table.readContext"),
+            },
+            config: {
+              read: (tableId) => {
+                if (tableId !== value.tableId)
+                  throw failure(
+                    "PERMISSION_DENIED",
+                    "Config is outside the bound table"
+                  )
+                return invoke("table.pluginConfig.read")
+              },
+            },
           },
-        },
-        target: {
-          count: value.count,
-          read: (input) => invoke("table.target.read", input),
-          update: (input) => invoke("table.target.update", input),
-        },
-        connections: {
-          request: (input) => invoke("table.connection.request", input),
-        },
-        task: {
-          preview: (rows) => invoke("table.task.preview", { rows }),
-          report: (progress) => invoke("table.task.report", progress),
+          target: {
+            count: value.count,
+            readRows: (input) => invoke("table.target.readRows", input),
+            update: (input) => invoke("table.target.update", input),
+          },
+          connections: {
+            request: (input) => invoke("table.connection.request", input),
+          },
+          task: {
+            async declareOutputs(rows) {
+              await invoke("table.task.declareOutputs", { rows })
+            },
+            report: (progress) => invoke("table.task.report", progress),
+          },
         },
       }
       void (async () => {
@@ -422,7 +426,10 @@ function activateGuest(
             throw new Error("Table action provider unavailable")
           const items =
             value.operation === "list"
-              ? await provider.getItems(context)
+              ? await provider.getItems({
+                  signal: context.signal,
+                  capabilities: { eidos: context.capabilities.eidos },
+                })
               : (await provider.run(context, value.itemId), undefined)
           await call("table.actions.result", {
             runId: value.id,
@@ -488,65 +495,69 @@ function activateGuest(
       activate({
         signal: lifetime.signal,
         subscriptions: { add: own },
-        settings,
-        formatters: {
-          register(id, provider) {
-            if (
-              activated ||
-              !declaredFormatters.includes(id) ||
-              formatters.has(id) ||
-              typeof provider.format !== "function"
-            )
-              throw failure("INVALID_REQUEST", "Invalid formatter registration")
-            formatters.set(id, provider)
-            return own({
-              dispose() {
-                if (!formatters.delete(id)) return
-                if (activated)
-                  void call("extension.unregister", {
-                    id,
-                    kind: "formatter",
-                  }).catch(() => {})
-              },
-            })
+        capabilities: {
+          formatters: {
+            register(id, provider) {
+              if (
+                activated ||
+                !declaredFormatters.includes(id) ||
+                formatters.has(id) ||
+                typeof provider.format !== "function"
+              )
+                throw failure(
+                  "INVALID_REQUEST",
+                  "Invalid formatter registration"
+                )
+              formatters.set(id, provider)
+              return own({
+                dispose() {
+                  if (!formatters.delete(id)) return
+                  if (activated)
+                    void call("extension.unregister", {
+                      id,
+                      kind: "formatter",
+                    }).catch(() => {})
+                },
+              })
+            },
           },
-        },
-        actions: {
-          registerTableProvider(id, provider) {
-            if (
-              activated ||
-              !declared.includes(id) ||
-              handlers.has(id) ||
-              typeof provider.getItems !== "function" ||
-              typeof provider.run !== "function"
-            )
-              throw failure("INVALID_REQUEST", "Invalid table provider")
-            tableProviders.set(id, provider)
-            handlers.set(id, unavailable)
-            return own({
-              dispose() {
-                tableProviders.delete(id)
-                if (handlers.delete(id) && activated)
-                  void call("extension.unregister", { id }).catch(() => {})
-              },
-            })
-          },
-          register(id, handler) {
-            if (
-              activated ||
-              !declared.includes(id) ||
-              handlers.has(id) ||
-              typeof handler !== "function"
-            )
-              throw failure("INVALID_REQUEST", "Invalid action registration")
-            handlers.set(id, handler)
-            return own({
-              dispose() {
-                if (!handlers.delete(id)) return
-                if (activated)
-                  void call("extension.unregister", { id }).catch(() => {})
-              },
-            })
+          actions: {
+            registerTableProvider(id, provider) {
+              if (
+                activated ||
+                !declared.includes(id) ||
+                handlers.has(id) ||
+                typeof provider.getItems !== "function" ||
+                typeof provider.run !== "function"
+              )
+                throw failure("INVALID_REQUEST", "Invalid table provider")
+              tableProviders.set(id, provider)
+              handlers.set(id, unavailable)
+              return own({
+                dispose() {
+                  tableProviders.delete(id)
+                  if (handlers.delete(id) && activated)
+                    void call("extension.unregister", { id }).catch(() => {})
+                },
+              })
+            },
+            register(id, handler) {
+              if (
+                activated ||
+                !declared.includes(id) ||
+                handlers.has(id) ||
+                typeof handler !== "function"
+              )
+                throw failure("INVALID_REQUEST", "Invalid action registration")
+              handlers.set(id, handler)
+              return own({
+                dispose() {
+                  if (!handlers.delete(id)) return
+                  if (activated)
+                    void call("extension.unregister", { id }).catch(() => {})
+                },
+              })
+            },
           },
         },
       })

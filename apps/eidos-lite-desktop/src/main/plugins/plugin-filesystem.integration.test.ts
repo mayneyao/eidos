@@ -4,7 +4,6 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PluginFilesystem } from "./plugin-filesystem"
 import { encodeText } from "../space/text-file-preview"
-import { ResourceGrants } from "@eidos.space/plugin-runtime/resource-grants"
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
 
 // Run explicitly against this checkout's freshly built CLI, never a PATH binary.
@@ -102,35 +101,25 @@ describe.skipIf(!executable)("native plugin filesystem transport", () => {
     ).rejects.toMatchObject({ code: "IO_ERROR" })
   })
 
-  it("closes native I/O when the host revokes its resource grant", async () => {
-    const grants = new ResourceGrants("space", "example.journals")
-    const declaration = {
-      kind: "directory" as const,
-      title: "Journals",
-      include: ["**/*.md"],
-      access: ["read" as const],
-    }
-    grants.bind("journal", ".", declaration)
-    const lease = grants.acquire("journal", declaration, new Scope())
+  it("closes native I/O when its host scope is disposed", async () => {
+    const scope = new Scope()
     const bound = await PluginFilesystem.open({
       executable: executable!,
       root,
       identity,
       denied: [],
-      signal: lease.signal,
+      signal: scope.signal,
     })
     try {
       await filesystem.create("today.md", "journal")
-      expect((await bound.read(lease.authorize("read", "today.md"))).text).toBe(
-        "journal"
-      )
-      grants.revoke("journal")
+      expect((await bound.read("today.md")).text).toBe("journal")
+      scope.dispose()
       await expect(bound.read("today.md")).rejects.toMatchObject({
         code: "INSTANCE_CLOSED",
       })
     } finally {
       bound.dispose()
-      lease.dispose()
+      scope.dispose()
     }
   })
 

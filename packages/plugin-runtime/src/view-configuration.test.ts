@@ -8,7 +8,16 @@ const parse = (configuration: unknown, context = "table") =>
     name: "Map",
     version: "1.0.0",
     views: [
-      { id: "map", title: "Map", entry: "./map.ts", context, configuration },
+      {
+        id: "map",
+        title: "Map",
+        entry: "./map.ts",
+        kind: context === "page" ? "page" : "file",
+        ...(context === "page"
+          ? {}
+          : { capabilities: [context === "table" ? "eidos/table" : context] }),
+        configuration,
+      },
     ],
   })
 const schema = (property: unknown) => ({

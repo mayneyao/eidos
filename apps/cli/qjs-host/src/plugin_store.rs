@@ -12,7 +12,9 @@ use serde_json::json;
 pub struct PluginViewDescriptor {
     pub id: String,
     pub title: String,
-    pub context: String,
+    pub kind: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
     pub entry: String,
     #[serde(default)]
     pub access: Option<String>,
@@ -93,7 +95,7 @@ function bootstrap(mount, binding) {
         }
         return;
       }
-      observers.get(r.observation)?.(r.value);
+      if (r.observation === "host.table") { for (const listener of observers.values()) { try { listener(r.value); } catch {} } } else observers.get(r.observation)?.(r.value);
       return;
     }
     const request = pending.get(r.id);
@@ -125,42 +127,28 @@ function bootstrap(mount, binding) {
     return value;
   };
 
-  const unavailable = async () => {
-    throw error("UNSUPPORTED_API", "This host has not enabled this capability");
-  };
-
   const context = {
-    binding: binding.kind === "table" ? {
-      kind: "table",
-      table: {
+    binding: { kind: "file", file: { id: "current" }, location: { kind: "eidos-table", tableId: binding.tableId, viewId: binding.viewId } },
+    capabilities: {
+      eidos: { table: {
         tableId: binding.tableId,
         viewId: binding.viewId,
-        read: () => call("table.read"),
-        getPage: (options) => call("table.page", options),
+        readContext: () => call("table.readContext"),
+        readRows: (options) => call("table.readRows", options),
         aggregate: (options) => call("table.aggregate", options),
-        updateProperties: (properties) => call("table.properties", properties),
+        setViewConfig: (config) => call("table.setViewConfig", config),
         openRecord: (rowId) => call("table.openRecord", { rowId }),
-        observe(listener) {
-          const id = "host.table";
+        watch(listener) {
+          const id = crypto.randomUUID();
           observers.set(id, listener);
-          return own({
-            dispose() { observers.delete(id); }
-          });
+          return own({ dispose() { observers.delete(id); } });
         }
-      }
-    } : binding,
+      },
+      },
+      ui: { notify: (message) => call("ui.notify", { message }) }
+    },
     signal: controller.signal,
-    subscriptions: { add: own },
-    resources: { text: unavailable, directory: unavailable, eidos: unavailable, output: unavailable },
-    settings: { get: unavailable, update: unavailable, reset: unavailable, observe: unavailable },
-    ui: {
-      notify: (message) => call("ui.notify", { message }),
-      select: unavailable,
-      confirm: unavailable,
-      navigate: (viewId, route) => call("ui.navigate", { viewId, ...(route === undefined ? {} : { route }) }),
-      resolveAsset: unavailable,
-      openLink: unavailable
-    }
+    subscriptions: { add: own }
   };
 
   window.addEventListener("pagehide", () => {
@@ -381,7 +369,8 @@ mod tests {
             views: Some(vec![PluginViewDescriptor {
                 id: "test-view".to_string(),
                 title: "Test View".to_string(),
-                context: "table".to_string(),
+                kind: "file".to_string(),
+                capabilities: vec!["eidos/table".to_string()],
                 entry: "./src/view.js".to_string(),
                 access: Some("read".to_string()),
                 configuration: None,
@@ -444,7 +433,7 @@ mod tests {
             "format": 2,
             "manifest": { "apiVersion": 1, "id": "test.future", "name": "Future",
                 "version": "1.0.0", "requires": {"pluginApi":"1.1.0"},
-                "views": [{"id":"main","title":"Main","context":"table","entry":"./main.js"}] },
+                "views": [{"id":"main","title":"Main","kind":"file","capabilities":["eidos/table"],"entry":"./main.js"}] },
             "modules": {"./main.js":"export default function mount() {}"}
         });
         let mut encoder = GzEncoder::new(file.as_file(), Compression::default());
@@ -481,7 +470,8 @@ mod tests {
                 views: Some(vec![PluginViewDescriptor {
                     id: "view-1".to_string(),
                     title: format!("View for {id}"),
-                    context: "table".to_string(),
+                    kind: "file".to_string(),
+                    capabilities: vec!["eidos/table".to_string()],
                     entry: "./view.js".to_string(),
                     access: None,
                     configuration: None,

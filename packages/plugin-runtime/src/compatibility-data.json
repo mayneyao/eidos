@@ -1,13 +1,14 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "2.0.0",
+      "pluginApi": "3.0.0",
       "features": [
-        "view.table",
-        "view.document",
-        "view.eidos",
+        "data.file",
+        "data.eidos/table",
+        "data.document",
+        "data.eidos/schema",
+        "data.eidos/config",
         "view.page",
-        "view.media",
         "view.file",
         "extension",
         "actions",
@@ -22,8 +23,13 @@
       ]
     },
     "eidos-cli": {
-      "pluginApi": "1.0.0",
-      "features": ["view.table", "browser.workers", "browser.network"]
+      "pluginApi": "3.0.0",
+      "features": [
+        "view.file",
+        "data.eidos/table",
+        "browser.workers",
+        "browser.network"
+      ]
     }
   },
   "rules": [

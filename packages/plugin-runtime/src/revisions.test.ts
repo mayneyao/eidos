@@ -23,7 +23,7 @@ function candidate(revision: string): CompiledPlugin {
         {
           id: "page",
           title: "Page",
-          context: "page" as const,
+          kind: "page" as const,
           entry: "./page.ts",
         },
       ],

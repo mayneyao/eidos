@@ -5,10 +5,9 @@ import type {
   TextDocument,
   ViewContext,
   PluginManifest,
-  TableContext,
-  EidosFileContext,
+  ViewCapability,
   FileStat,
-  FileContext,
+  FileMetadata,
 } from "./contracts"
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -33,9 +32,12 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
       `media-src blob: eidos-space-media: eidos-media: data:${origins ? ` ${origins}` : ""}`
     )
 }
-type BrowserBinding =
-  | { kind: "eidos"; file?: FileContext }
-  | { kind: "document"; file?: FileContext }
+type BrowserBinding = {
+  capabilities?: ViewCapability[]
+  connections?: boolean
+} & (
+  | { kind: "eidos"; file?: FileMetadata }
+  | { kind: "document"; file?: FileMetadata }
   | { kind: "page"; route: string }
   | { kind: "table"; tableId: string; viewId: string }
   | {
@@ -56,6 +58,7 @@ type BrowserBinding =
       mimeType?: string
       size: number
     }
+)
 
 /** Serialized trusted bootstrap. It must not close over host/module objects. */
 function bootstrap(mount: Mount, binding: BrowserBinding) {
@@ -72,7 +75,7 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
   >()
   const observers = new Map<string, (value: unknown) => void>()
   const tableObservers = new Set<() => void>()
-  const observeTable = (listener: () => void) => {
+  const watchTable = (listener: () => void) => {
     tableObservers.add(listener)
     return own({
       dispose() {
@@ -234,10 +237,7 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       }
     },
   }
-  const unavailable = async (): Promise<never> => {
-    throw error("UNSUPPORTED_API", "This host has not enabled this capability")
-  }
-  const file: FileContext | undefined =
+  const file: FileMetadata | undefined =
     binding.kind === "media" || binding.kind === "file"
       ? {
           path: binding.path,
@@ -250,238 +250,217 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
       : "file" in binding && binding.file
         ? binding.file
         : undefined
+  const assertConfigTable = (tableId: string) => {
+    if (!tableId || (binding.kind === "table" && tableId !== binding.tableId))
+      throw error("PERMISSION_DENIED", "Config is outside the bound table")
+  }
   const context: ViewContext = {
-    file,
-    fs: {
-      async readText(filePath: string): Promise<string> {
-        const res = await call<{ text: string }>("fs.readText", {
-          path: filePath,
-        })
-        return res.text
-      },
-      writeText(filePath: string, content: string): Promise<void> {
-        return call("fs.writeText", { path: filePath, content })
-      },
-      async readBinary(filePath: string): Promise<Uint8Array> {
-        const res = await call<{ data: string }>("fs.readBinary", {
-          path: filePath,
-        })
-        return Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0))
-      },
-      writeBinary(filePath: string, content: Uint8Array): Promise<void> {
-        if (content.byteLength > 16 * 1024 * 1024)
-          return Promise.reject(
-            error("INVALID_REQUEST", "Binary data exceeds 16 MiB")
-          )
-        let binary = ""
-        for (let offset = 0; offset < content.length; offset += 8192)
-          binary += String.fromCharCode(
-            ...content.subarray(offset, offset + 8192)
-          )
-        return call("fs.writeBinary", { path: filePath, data: btoa(binary) })
-      },
-      delete(filePath: string): Promise<void> {
-        return call("fs.delete", { path: filePath })
-      },
-      rename(oldPath: string, newPath: string): Promise<void> {
-        return call("fs.rename", { oldPath, newPath })
-      },
-      list(
-        folder?: string,
-        options?: { extensions?: string[] }
-      ): Promise<FileStat[]> {
-        return call("fs.list", {
-          ...(folder !== undefined ? { folder } : {}),
-          ...(options?.extensions !== undefined
-            ? { extensions: options.extensions }
-            : {}),
-        })
-      },
-      stat(filePath: string): Promise<FileStat | null> {
-        return call("fs.stat", { path: filePath })
-      },
-      async getUrl(filePath?: string): Promise<string> {
-        const res = await call<{ url: string }>("fs.url", {
-          ...(filePath !== undefined ? { path: filePath } : {}),
-        })
-        return res.url
-      },
-      async watch(
-        pathOrFolder: string,
-        listener: () => void
-      ): Promise<Disposable> {
-        const id = crypto.randomUUID()
-        let active = true
-        const subscription = own({
-          dispose() {
+    capabilities: {
+      fs: {
+        async readText(filePath: string): Promise<string> {
+          const res = await call<{ text: string }>("fs.readText", {
+            path: filePath,
+          })
+          return res.text
+        },
+        writeText(filePath: string, content: string): Promise<void> {
+          return call("fs.writeText", { path: filePath, content })
+        },
+        async readBinary(filePath: string): Promise<Uint8Array> {
+          const res = await call<{ data: string }>("fs.readBinary", {
+            path: filePath,
+          })
+          return Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0))
+        },
+        writeBinary(filePath: string, content: Uint8Array): Promise<void> {
+          if (content.byteLength > 16 * 1024 * 1024)
+            return Promise.reject(
+              error("INVALID_REQUEST", "Binary data exceeds 16 MiB")
+            )
+          let binary = ""
+          for (let offset = 0; offset < content.length; offset += 8192)
+            binary += String.fromCharCode(
+              ...content.subarray(offset, offset + 8192)
+            )
+          return call("fs.writeBinary", { path: filePath, data: btoa(binary) })
+        },
+        delete(filePath: string): Promise<void> {
+          return call("fs.delete", { path: filePath })
+        },
+        rename(oldPath: string, newPath: string): Promise<void> {
+          return call("fs.rename", { oldPath, newPath })
+        },
+        list(
+          folder?: string,
+          options?: { extensions?: string[] }
+        ): Promise<FileStat[]> {
+          return call("fs.list", {
+            ...(folder !== undefined ? { folder } : {}),
+            ...(options?.extensions !== undefined
+              ? { extensions: options.extensions }
+              : {}),
+          })
+        },
+        stat(filePath: string): Promise<FileStat | null> {
+          return call("fs.stat", { path: filePath })
+        },
+        async getUrl(filePath?: string): Promise<string> {
+          const res = await call<{ url: string }>("fs.url", {
+            ...(filePath !== undefined ? { path: filePath } : {}),
+          })
+          return res.url
+        },
+        async watch(
+          pathOrFolder: string,
+          listener: () => void
+        ): Promise<Disposable> {
+          const id = crypto.randomUUID()
+          let active = true
+          const subscription = own({
+            dispose() {
+              if (!active) return
+              active = false
+              observers.delete(id)
+              subscriptions.delete(subscription)
+              void call("fs.unwatch", { id }).catch(() => {})
+            },
+          })
+          observers.set(id, () => {
             if (!active) return
-            active = false
-            observers.delete(id)
-            subscriptions.delete(subscription)
-            void call("fs.unwatch", { id }).catch(() => {})
-          },
-        })
-        observers.set(id, () => {
-          if (!active) return
+            try {
+              listener()
+            } catch {
+              subscription.dispose()
+            }
+          })
           try {
-            listener()
-          } catch {
+            await call("fs.watch", { id, path: pathOrFolder })
+            return subscription
+          } catch (cause) {
             subscription.dispose()
+            throw cause
           }
-        })
-        try {
-          await call("fs.watch", { id, path: pathOrFolder })
-          return subscription
-        } catch (cause) {
-          subscription.dispose()
-          throw cause
-        }
+        },
       },
-    },
-    network: {
-      async read(request) {
-        const result = await call<{
-          data: string
-          status: number
-          etag?: string
-        }>("network.read", request)
-        return {
-          ...result,
-          data: Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0)),
-        }
+      network: {
+        async read(request) {
+          const result = await call<{
+            data: string
+            status: number
+            etag?: string
+          }>("network.read", request)
+          return {
+            ...result,
+            data: Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0)),
+          }
+        },
       },
-    },
-    storage: {
-      list: (prefix = "") => call("storage.list", { prefix }),
-      async read(key) {
-        const value = await call<string | null>("storage.read", { key })
-        return value === null
-          ? null
-          : Uint8Array.from(atob(value), (c) => c.charCodeAt(0))
+      storage: {
+        list: (prefix = "") => call("storage.list", { prefix }),
+        async read(key) {
+          const value = await call<string | null>("storage.read", { key })
+          return value === null
+            ? null
+            : Uint8Array.from(atob(value), (c) => c.charCodeAt(0))
+        },
+        write(key, value) {
+          if (value.byteLength > 4 * 1024 * 1024)
+            return Promise.reject(
+              error("INVALID_REQUEST", "Storage object exceeds 4 MiB")
+            )
+          let binary = ""
+          for (let offset = 0; offset < value.length; offset += 8192)
+            binary += String.fromCharCode(
+              ...value.subarray(offset, offset + 8192)
+            )
+          return call("storage.write", { key, data: btoa(binary) })
+        },
+        delete: (key) => call("storage.delete", { key }),
       },
-      write(key, value) {
-        if (value.byteLength > 4 * 1024 * 1024)
-          return Promise.reject(
-            error("INVALID_REQUEST", "Storage object exceeds 4 MiB")
-          )
-        let binary = ""
-        for (let offset = 0; offset < value.length; offset += 8192)
-          binary += String.fromCharCode(
-            ...value.subarray(offset, offset + 8192)
-          )
-        return call("storage.write", { key, data: btoa(binary) })
+      document: binding.kind === "document" ? document : undefined,
+      eidos: binding.capabilities?.some((c) => c.startsWith("eidos/"))
+        ? {
+            schema: binding.capabilities.includes("eidos/schema")
+              ? {
+                  listTables: () => call("eidos.tables"),
+                  readTable: (tableId) => call("eidos.table", { tableId }),
+                }
+              : undefined,
+            table:
+              binding.kind === "table" &&
+              binding.capabilities.includes("eidos/table")
+                ? {
+                    tableId: binding.tableId,
+                    viewId: binding.viewId,
+                    readContext: () => call("table.readContext"),
+                    readRows: (options) => call("table.readRows", options),
+                    aggregate: (options) => call("table.aggregate", options),
+                    setViewConfig: (config) =>
+                      call("table.setViewConfig", config),
+                    openRecord: (rowId) => call("table.openRecord", { rowId }),
+                    watch: watchTable,
+                  }
+                : undefined,
+            config: binding.capabilities.includes("eidos/config")
+              ? {
+                  read: (tableId) => {
+                    assertConfigTable(tableId)
+                    return binding.kind === "table"
+                      ? call("table.pluginConfig.read")
+                      : call("eidos.pluginConfig.read", { tableId })
+                  },
+                  write: (tableId, input) => {
+                    assertConfigTable(tableId)
+                    return binding.kind === "table"
+                      ? call("table.pluginConfig.write", input)
+                      : call("eidos.pluginConfig.write", { tableId, ...input })
+                  },
+                  watch: (tableId, listener) => {
+                    assertConfigTable(tableId)
+                    return watchTable(listener)
+                  },
+                }
+              : undefined,
+          }
+        : undefined,
+      connections: binding.connections
+        ? {
+            isConfigured: (connection) =>
+              call("eidos.connection.status", { connection }),
+            request: (input) => call("eidos.connection.request", input),
+          }
+        : undefined,
+      settings: {
+        get: (key) => call("settings.get", { key }),
       },
-      remove: (key) => call("storage.remove", { key }),
+      ui: {
+        notify: (message) => call("ui.notify", { message }),
+        openFile: (relativePath) => call("ui.openFile", { relativePath }),
+        navigate: (viewId, route) =>
+          call("ui.navigate", {
+            viewId,
+            ...(route === undefined ? {} : { route }),
+          }),
+      },
     },
     binding:
-      binding.kind === "media"
-        ? {
-            kind: "media",
-            media: file!,
-          }
-        : binding.kind === "file"
-          ? {
-              kind: "file",
-              file: file!,
-            }
-          : binding.kind === "eidos"
-            ? {
-                kind: "eidos",
-                file: {
-                  connections: {
-                    configured: (connection: string) =>
-                      call("eidos.connection.status", { connection }),
-                    request: (input) => call("eidos.connection.request", input),
+      binding.kind === "page"
+        ? { kind: "page", route: binding.route }
+        : {
+            kind: "file",
+            file: { id: file?.path ?? "current", ...file },
+            ...(binding.kind === "table"
+              ? {
+                  location: {
+                    kind: "eidos-table" as const,
+                    tableId: binding.tableId,
+                    viewId: binding.viewId,
                   },
-                  listTables: () => call("eidos.tables"),
-                  readTable: (tableId: string) =>
-                    call("eidos.table", { tableId }),
-                  readPluginConfig: (tableId: string) =>
-                    call("eidos.pluginConfig.read", { tableId }),
-                  writePluginConfig: (tableId: string, input) =>
-                    call("eidos.pluginConfig.write", { tableId, ...input }),
-                } satisfies EidosFileContext,
-              }
-            : binding.kind === "document"
-              ? { kind: "document", document }
-              : binding.kind === "table"
-                ? {
-                    kind: "table",
-                    table: {
-                      tableId: binding.tableId,
-                      viewId: binding.viewId,
-                      pluginConfig: {
-                        read: () => call("table.pluginConfig.read"),
-                        write: (input) =>
-                          call("table.pluginConfig.write", input),
-                        observe: observeTable,
-                      },
-                      read: () => call("table.read"),
-                      getPage: (options) => call("table.page", options),
-                      aggregate: (options) => call("table.aggregate", options),
-                      updateProperties: (properties) =>
-                        call("table.properties", properties),
-                      openRecord: (rowId) =>
-                        call("table.openRecord", { rowId }),
-                      observe: observeTable,
-                    } satisfies TableContext,
-                  }
-                : binding,
-    editor: binding.kind === "document" ? document : undefined,
-    table:
-      binding.kind === "table"
-        ? {
-            tableId: binding.tableId,
-            viewId: binding.viewId,
-            pluginConfig: {
-              read: () => call("table.pluginConfig.read"),
-              write: (input) => call("table.pluginConfig.write", input),
-              observe: observeTable,
-            },
-            read: () => call("table.read"),
-            getPage: (options) => call("table.page", options),
-            aggregate: (options) => call("table.aggregate", options),
-            updateProperties: (properties) =>
-              call("table.properties", properties),
-            openRecord: (rowId) => call("table.openRecord", { rowId }),
-            observe: observeTable,
-          }
-        : undefined,
-    eidos:
-      binding.kind === "eidos"
-        ? {
-            connections: {
-              configured: (connection: string) =>
-                call("eidos.connection.status", { connection }),
-              request: (input) => call("eidos.connection.request", input),
-            },
-            listTables: () => call("eidos.tables"),
-            readTable: (tableId: string) => call("eidos.table", { tableId }),
-            readPluginConfig: (tableId: string) =>
-              call("eidos.pluginConfig.read", { tableId }),
-            writePluginConfig: (tableId: string, input) =>
-              call("eidos.pluginConfig.write", { tableId, ...input }),
-          }
-        : undefined,
+                }
+              : {}),
+          },
     signal: controller.signal,
     subscriptions: { add: own },
-    settings: {
-      get: (key) => call("settings.get", { key }),
-      update: unavailable,
-      reset: unavailable,
-      observe: unavailable,
-    },
-    ui: {
-      notify: (message) => call("ui.notify", { message }),
-      openFile: (relativePath) => call("ui.openFile", { relativePath }),
-      select: unavailable,
-      confirm: unavailable,
-      navigate: (viewId, route) =>
-        call("ui.navigate", {
-          viewId,
-          ...(route === undefined ? {} : { route }),
-        }),
-    },
   }
   window.addEventListener(
     "pagehide",
@@ -521,7 +500,7 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
     })
 }
 
-export function documentViewHtml(code: string, file?: FileContext): string {
+export function documentViewHtml(code: string, file?: FileMetadata): string {
   return viewHtml(code, { kind: "document", ...(file ? { file } : {}) })
 }
 
