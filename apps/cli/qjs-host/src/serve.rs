@@ -1790,7 +1790,7 @@ fn device_plugins_dir() -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("EIDOS_HOME") {
         let path = PathBuf::from(explicit);
         if path.is_absolute() {
-            return Some(shared_plugins_dir(&path));
+            return Some(path.join("plugins"));
         }
     }
     #[cfg(windows)]

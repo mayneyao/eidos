@@ -139,9 +139,14 @@ test("CLI release notes are versioned and scoped to the standalone CLI", async (
 
   assert.ok(version)
   assert.match(releaseNotes, /^## (?:What's new|Improvements|Bug fixes)$/mu)
-  assert.match(releaseNotes, /eidos skills init --global/u)
+  assert.match(releaseNotes, /eidos self skill init --global/u)
   assert.doesNotMatch(releaseNotes, /npx skills add/u)
-  assert.match(releaseNotes, new RegExp(`select v${version}`, "u"))
+  if (version.includes("-")) {
+    assert.ok(releaseNotes.includes(`--version ${version}`))
+    assert.match(releaseNotes, /previous stable release/u)
+  } else {
+    assert.ok(releaseNotes.includes(`select v${version}`))
+  }
   assert.doesNotMatch(releaseNotes, /github\.com\/mayneyao\/eidos\/compare\//u)
 })
 
@@ -192,7 +197,12 @@ test("public Eidos Skill stays complete and is bundled with every CLI build", as
   ])
   const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
 
-  assert.equal(latest.trim(), version)
+  if (version.includes("-")) {
+    assert.match(latest.trim(), /^\d+\.\d+\.\d+$/u)
+    assert.notEqual(latest.trim(), version)
+  } else {
+    assert.equal(latest.trim(), version)
+  }
   assert.match(skill, /^---\nname: eidos\ndescription: .+\n---/u)
   assert.match(skill, /eidos --version/u)
   assert.match(skill, /references\/cli\.md/u)

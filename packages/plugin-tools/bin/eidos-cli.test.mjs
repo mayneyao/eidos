@@ -3,10 +3,74 @@ import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
+import net from "node:net"
+import { setTimeout as delay } from "node:timers/promises"
 import { create, pack } from "./eidos-plugin.mjs"
 
 const binary = process.env.EIDOS_PLUGIN_CLI
+
+test(
+  "Serve discovers an installed plugin under an explicit EIDOS_HOME",
+  {
+    skip: !binary && "Set EIDOS_PLUGIN_CLI to the built Eidos binary",
+    timeout: 30000,
+  },
+  async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-plugin-serve-"))
+    let child
+    try {
+      const env = { ...process.env, EIDOS_HOME: path.join(root, "home") }
+      const project = path.join(root, "plugin")
+      await create(project, "table-view")
+      const archive = await pack(project)
+      const file = path.join(root, "test.eidos")
+      for (const args of [
+        ["plugin", "install", archive],
+        [
+          "file",
+          "new",
+          file,
+          "--table",
+          "Tasks",
+          "--fields",
+          '[{"name":"Title","type":"text"}]',
+        ],
+      ]) {
+        const result = spawnSync(binary, args, { env, encoding: "utf8" })
+        assert.equal(result.status, 0, result.stdout + result.stderr)
+      }
+      const listener = net.createServer()
+      await new Promise((resolve) => listener.listen(0, "127.0.0.1", resolve))
+      const port = listener.address().port
+      await new Promise((resolve) => listener.close(resolve))
+      child = spawn(binary, ["serve", file, "--port", String(port)], {
+        env,
+        stdio: "ignore",
+      })
+      let listing
+      for (let i = 0; i < 100; i++) {
+        assert.equal(child.exitCode, null, "Serve exited before becoming ready")
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/api/plugins`)
+          if (response.ok) {
+            listing = await response.json()
+            break
+          }
+        } catch {}
+        await delay(100)
+      }
+      assert.ok(listing?.plugins.some((plugin) => plugin.id === "local.plugin"))
+    } finally {
+      if (child && child.exitCode === null) {
+        const exited = new Promise((resolve) => child.once("exit", resolve))
+        child.kill()
+        await exited
+      }
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }
+)
 
 test(
   "CLI 2.0 directs authoring to plugin-tools without creating files",
