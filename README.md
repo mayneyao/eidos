@@ -46,7 +46,7 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 Create a file and open it locally:
 
 ```bash
-eidos create example.eidos \
+eidos file new example.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
