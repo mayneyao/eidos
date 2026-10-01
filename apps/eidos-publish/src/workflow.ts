@@ -427,6 +427,7 @@ function workflowErrorCode(cause: unknown): string {
 
 function workflowRetryable(code: string): boolean {
   return ![
+    "invalid_file_view",
     "invalid_eidos_file",
     "invalid_markdown_source",
     "invalid_markdown_utf8",

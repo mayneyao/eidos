@@ -1226,10 +1226,7 @@ pub fn run(
                 &format!("/api/publications/{}", args.slug),
             )?)
             .header(AUTHORIZATION, authorization.clone())
-            .header(
-                "Idempotency-Key",
-                idempotency_key(&["publication", &args.slug, initial_visibility]),
-            )
+            .header("Idempotency-Key", random_idempotency_key("publication"))
             .json(&json!({ "visibility": initial_visibility })),
     )?;
 
@@ -2545,6 +2542,84 @@ mod tests {
             }))
             .expect("changed fingerprint")
         );
+    }
+
+    #[test]
+    fn republish_reads_current_state_instead_of_replaying_old_creation_response() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("note.txt");
+        fs::write(&file, b"hello").unwrap();
+        let manifest = json!({
+            "spec": "eidos.publish/source-bundle@1", "mediaType": FILE_MEDIA_TYPE,
+            "entrypoint": "files/note.txt", "assetReferences": [],
+            "files": [{ "path": "files/note.txt", "role": "entrypoint", "mediaType": "text/plain",
+                "bytes": "5", "sha256": format!("{:x}", Sha256::digest(b"hello")) }]
+        });
+        let fingerprint = source_manifest_sha256(&manifest).unwrap();
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let origin = format!("http://{}", server.server_addr());
+        let stale_key = idempotency_key(&["publication", "note", "public"]);
+        let worker = std::thread::spawn(move || {
+            for _ in 0..3 {
+                let request = server
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap();
+                let body = match (request.method(), request.url()) {
+                    (&tiny_http::Method::Get, "/api/tenant") => {
+                        json!({"canonicalHost": "test.eidos.ink"})
+                    }
+                    (&tiny_http::Method::Put, "/api/publications/note") => {
+                        let replay = request.headers().iter().any(|h| {
+                            h.field.equiv("Idempotency-Key") && h.value.as_str() == stale_key
+                        });
+                        json!({"publicationId": "publication", "currentVersionId": if replay { None } else { Some("current") }})
+                    }
+                    (&tiny_http::Method::Get, "/api/publications/note/versions/current") => json!({
+                        "state": "ready", "targetHealth": "healthy", "sourceManifestSha256": fingerprint,
+                        "driverId": FILE_DRIVER_ID, "driverVersion": DRIVER_VERSION,
+                        "servingTargetSha256": "target"
+                    }),
+                    _ => {
+                        json!({"error": {"code": "unexpected-request", "message": "Should reuse the current version"}})
+                    }
+                };
+                request
+                    .respond(
+                        tiny_http::Response::from_string(body.to_string()).with_header(
+                            tiny_http::Header::from_bytes("Content-Type", "application/json")
+                                .unwrap(),
+                        ),
+                    )
+                    .unwrap();
+            }
+        });
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            file.to_str().unwrap(),
+            "--slug",
+            "note",
+            "--publish-origin",
+            &origin,
+            "--token",
+            "test-token",
+        ])
+        .unwrap();
+        let Command::Publish(args) = cli.command else {
+            panic!("expected publish")
+        };
+        let result = run(
+            args,
+            PublishSourceKind::File,
+            vec![],
+            None,
+            PublishProgress::new(false, false),
+        );
+        worker.join().unwrap();
+        let result = result.unwrap();
+        assert_eq!(result["versionCreated"], false);
+        assert_eq!(result["versionId"], "current");
     }
 
     #[test]
