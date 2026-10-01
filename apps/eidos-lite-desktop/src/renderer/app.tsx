@@ -4921,7 +4921,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   setContextMenu(null)
                 }}
               />
-              {isPublishableEntry(contextMenu.entry) ? (
+              {isPublishableEntry(
+                contextMenu.entry,
+                appInfo?.services.name === "staging"
+              ) ? (
                 <button
                   type="button"
                   role="menuitem"
@@ -5084,6 +5087,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       ) : null}
       {publishPanel ? (
         <PublishPanel
+          preview={appInfo?.services.name === "staging"}
           key={publishPanel.entry.relativePath}
           entry={publishPanel.entry}
           formViews={

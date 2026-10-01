@@ -12,7 +12,13 @@ const themeStyles = readFileSync(
 )
 
 function rule(selector: string, source = styles): string {
-  const start = source.indexOf(`${selector} {`)
+  // Match the complete selector, not the suffix of a more specific rule.
+  const line = source.indexOf(`\n${selector} {`)
+  const start = source.startsWith(`${selector} {`)
+    ? 0
+    : line < 0
+      ? -1
+      : line + 1
   if (start < 0) return ""
   return source.slice(start, source.indexOf("}", start) + 1)
 }
@@ -263,7 +269,8 @@ describe("Eidos Lite surface hierarchy", () => {
     )
     expect(rule(".sidebar-settings-button")).toContain("height: 2rem")
     expect(rule(".sidebar-update-action")).toContain("position: absolute")
-    expect(rule(".sidebar-update-action")).toContain("bottom: 0.625rem")
+    // The update pill floats above the new row of pinned plugin pages.
+    expect(rule(".sidebar-update-action")).toContain("bottom: 2.875rem")
     expect(rule(".sidebar-update-action")).not.toContain("border-top")
     expect(rule(".sidebar-update-action")).toContain(
       "animation: sidebar-update-enter"

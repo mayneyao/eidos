@@ -463,9 +463,9 @@ export function publishCliArguments(
     "--attachment-root",
     attachmentRoot,
     "--progress-json",
-    "--source-path",
-    request.relativePath,
   ]
+  if (requestSourceKind(request) === "file")
+    args.push("--source-path", request.relativePath)
   const metadata = clientMetadata ?? defaultClientEnvironmentMetadata()
   args.push("--client-metadata-json", JSON.stringify(metadata))
   if (request.accessMode === "public") args.push("--remove-password")
@@ -725,6 +725,15 @@ export class EidosPublishEngine {
   ): Promise<EidosPublishResponse> {
     let temporaryDirectory: string | null = null
     try {
+      if (
+        this.services.name === "production" &&
+        (request.pluginView ||
+          requestSourceKind(request) === "file" ||
+          !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(request.slug))
+      )
+        throw new Error(
+          "File Views and path-based publication URLs are available in staging only"
+        )
       const [accessToken, accountId] = await Promise.all([
         this.account.accountAccessToken(),
         this.account.accountSubject(),

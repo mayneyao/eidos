@@ -31,12 +31,33 @@ import type {
 import { useEidosLiteI18n } from "./i18n"
 import { usePublishAccount } from "./publish-account"
 
-export function defaultPublishSlug(relativePath: string): string {
-  return relativePath
+export function defaultPublishSlug(
+  relativePath: string,
+  preview = false
+): string {
+  if (preview) return relativePath
+  return (
+    relativePath
+      .split("/")
+      .at(-1)!
+      .replace(/\.(?:eidos|md|markdown)$/i, "")
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64)
+      .replace(/-+$/g, "") || "untitled"
+  )
 }
 
-export function isPublishableEntry(entry: SpaceTreeEntry): boolean {
-  return entry.kind === "eidos" || entry.kind === "file"
+export function isPublishableEntry(
+  entry: SpaceTreeEntry,
+  preview = false
+): boolean {
+  return (
+    entry.kind === "eidos" ||
+    (entry.kind === "file" && (preview || /\.(md|markdown)$/i.test(entry.name)))
+  )
 }
 
 export type PublishAccountState =
@@ -102,6 +123,7 @@ export function publishedFormRespondentLabel(
 }
 
 interface PublishPanelProps {
+  preview?: boolean
   entry: SpaceTreeEntry
   formViews?: Array<{ id: string; name: string; tableName: string }>
   bindings?: EidosPublicationBinding[]
@@ -145,6 +167,7 @@ export interface PublishPanelSubmission {
 }
 
 export function PublishPanel({
+  preview = false,
   entry,
   formViews = [],
   bindings = [],
@@ -158,7 +181,9 @@ export function PublishPanel({
   // The cached plan only guides the form. Publish itself stays optimistic and
   // lets the service enforce entitlements, so the panel never blocks on a check.
   const { account } = usePublishAccount()
-  const [slug, setSlug] = useState(() => defaultPublishSlug(entry.relativePath))
+  const [slug, setSlug] = useState(() =>
+    defaultPublishSlug(entry.relativePath, preview)
+  )
   const [accessMode, setAccessMode] =
     useState<EidosPublishAccessSelection>("unchanged")
   const [branding, setBranding] =
@@ -171,6 +196,7 @@ export function PublishPanel({
     Array<{ hash: string; viewId: string; label: string }>
   >([])
   useEffect(() => {
+    if (!preview) return
     let active = true
     void window.eidosLite
       .listPlugins()
@@ -214,7 +240,7 @@ export function PublishPanel({
     return () => {
       active = false
     }
-  }, [entry.name])
+  }, [entry.name, preview])
   const free = account?.plan === "free"
   const effectiveAccess = free ? "public" : accessMode
   const effectiveBranding = free ? "show" : branding
@@ -291,8 +317,14 @@ export function PublishPanel({
   const passwordCharacters = Array.from(password).length
   const passwordBytes = new TextEncoder().encode(password).byteLength
 
-  const validation = !validPublicationPath(slug)
-    ? t("Use a relative path without empty, dot, or parent segments.")
+  const validation = !(preview
+    ? validPublicationPath(slug)
+    : /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug))
+    ? t(
+        preview
+          ? "Use a relative path without empty, dot, or parent segments."
+          : "Use 1–64 lowercase letters, numbers, or hyphens."
+      )
     : effectiveAccess === "password" &&
         (passwordCharacters < 8 ||
           passwordCharacters > 128 ||
@@ -542,7 +574,7 @@ export function PublishPanel({
       ) : null}
 
       <form onSubmit={submit}>
-        {entry.kind === "file" ? (
+        {preview && entry.kind === "file" ? (
           <label>
             <span>{t("Publish as")}</span>
             <select
@@ -657,10 +689,18 @@ export function PublishPanel({
             autoFocus
             value={slug}
             spellCheck={false}
-            onChange={(event) => setSlug(event.target.value)}
+            onChange={(event) =>
+              setSlug(
+                preview ? event.target.value : event.target.value.toLowerCase()
+              )
+            }
           />
           <small>
-            {t("Defaults to the file's Space path. You can customize it.")}
+            {t(
+              preview
+                ? "Defaults to the file's Space path. You can customize it."
+                : "This becomes the path after your Publish domain."
+            )}
           </small>
         </label>
 

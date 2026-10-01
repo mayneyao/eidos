@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { describe, expect, it, vi, afterEach } from "vitest"
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
+import type { SpaceSession } from "../space/space-session"
 
 import {
   EidosPublishEngine,
@@ -18,6 +19,57 @@ import {
 } from "./publish-engine"
 
 describe("Eidos Publish engine boundary", () => {
+  it("keeps existing Markdown file names outside preview source-path restrictions", () => {
+    const args = publishCliArguments(
+      {
+        requestId: "019abcde-1234-7abc-8abc-123456789abc",
+        relativePath: "Notes/100% complete.md",
+        slug: "complete",
+        accessMode: "unchanged",
+        branding: "unchanged",
+      },
+      "/tmp/note.md",
+      "/Notes",
+      "https://publish.eidos.space"
+    )
+    expect(args).not.toContain("--source-path")
+  })
+  it("rejects staging-only sources and paths before production account or file access", async () => {
+    const account = {
+      accountAccessToken: vi.fn(),
+      accountSubject: vi.fn(),
+    }
+    const engine = new EidosPublishEngine(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.production,
+      account
+    )
+    const resolveUserPath = vi.fn()
+    const session = { resolveUserPath } as unknown as SpaceSession
+    for (const input of [
+      { relativePath: "ride.gpx", slug: "ride" },
+      { relativePath: "note.md", slug: "notes/note.md" },
+      {
+        relativePath: "note.md",
+        slug: "note",
+        pluginView: { hash: "a".repeat(64), viewId: "main" },
+      },
+    ]) {
+      const result = await engine.publish(
+        session,
+        {
+          requestId: "019abcde-1234-7abc-8abc-123456789abc",
+          accessMode: "unchanged",
+          branding: "unchanged",
+          ...input,
+        },
+        vi.fn()
+      )
+      expect(result.ok).toBe(false)
+    }
+    expect(account.accountAccessToken).not.toHaveBeenCalled()
+    expect(account.accountSubject).not.toHaveBeenCalled()
+    expect(resolveUserPath).not.toHaveBeenCalled()
+  })
   afterEach(() => vi.unstubAllGlobals())
   const identity = {
     sub: "test-user",

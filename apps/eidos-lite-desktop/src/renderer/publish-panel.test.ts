@@ -65,16 +65,31 @@ describe("Publish panel", () => {
     ).toBeNull()
   })
   it("preserves the Space-relative path as the editable default", () => {
-    expect(defaultPublishSlug("Project Notes.eidos")).toBe(
+    expect(defaultPublishSlug("Project Notes.eidos", true)).toBe(
       "Project Notes.eidos"
     )
-    expect(defaultPublishSlug("运动/2026/骑行.gpx")).toBe("运动/2026/骑行.gpx")
-    expect(defaultPublishSlug("docs/Release Notes.markdown")).toBe(
+    expect(defaultPublishSlug("运动/2026/骑行.gpx", true)).toBe(
+      "运动/2026/骑行.gpx"
+    )
+    expect(defaultPublishSlug("docs/Release Notes.markdown", true)).toBe(
       "docs/Release Notes.markdown"
     )
   })
 
-  it("offers Publish for ordinary files", () => {
+  it("retains production URLs and limits ordinary files to staging", () => {
+    expect(defaultPublishSlug("docs/Release Notes.markdown")).toBe(
+      "release-notes"
+    )
+    expect(defaultPublishSlug("笔记/中文.md")).toBe("untitled")
+    const ordinary = {
+      name: "notes.txt",
+      relativePath: "notes.txt",
+      kind: "file" as const,
+      size: 1,
+      modifiedAtMs: 1,
+    }
+    expect(isPublishableEntry(ordinary)).toBe(false)
+    expect(isPublishableEntry(ordinary, true)).toBe(true)
     expect(
       isPublishableEntry({
         name: "guide.md",
@@ -85,13 +100,16 @@ describe("Publish panel", () => {
       })
     ).toBe(true)
     expect(
-      isPublishableEntry({
-        name: "notes.txt",
-        relativePath: "notes.txt",
-        kind: "file",
-        size: 1,
-        modifiedAtMs: 1,
-      })
+      isPublishableEntry(
+        {
+          name: "notes.txt",
+          relativePath: "notes.txt",
+          kind: "file",
+          size: 1,
+          modifiedAtMs: 1,
+        },
+        true
+      )
     ).toBe(true)
   })
 

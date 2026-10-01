@@ -27,13 +27,13 @@ from the repository root keeps an isolated plugin store and never touches the
 shared Eidos home. The first launch after upgrading migrates an existing
 `userData/plugins` store into the home.
 
-The source Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge requires a sqlite-fs-meta binary exposing `fs_meta_read` and `fs_meta_patch` (`metadata-api`). The currently pinned v0.2.4 release predates those functions; development and tests can supply a locally built binary:
+Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned sqlite-fs-meta v0.3.0 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
 
 ```bash
 SQLITE_FS_META_PATH=/absolute/sqlite-fs-meta/target/debug/libfs_meta.dylib pnpm dev:eidos-lite
 ```
 
-Use the platform's `.so` or `.dll` on Linux or Windows. Before shipping the property bridge, publish the corresponding native extension release and update `scripts/prepare-vtab.mjs` to its version. Older binaries return an explicit unsupported error; they do not fall back to OS command-line tools.
+Use the platform's `.so` or `.dll` on Linux or Windows. Release verification uses the pinned published binaries without this override. Older binaries return an explicit unsupported error; they do not fall back to OS command-line tools.
 
 Native resource integration tests require a freshly built CLI from this checkout:
 
