@@ -13,6 +13,67 @@ const fixtureRowCount = 2_500
 const gridHeaderHeight = 36
 const gridRowHeight = 36
 
+test("keeps the appended record editor aligned with its cell", async ({
+  page,
+}) => {
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.locator("input[type=file]").setInputFiles(fixturePath)
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("button", { name: /^New table/ }).click()
+  await page.getByLabel("Name").fill("Append alignment")
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Append alignment", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("Grid is not visible")
+  for (let index = 0; index < 10; index += 1) {
+    const scrollTop = await page
+      .locator(".dvn-scroller")
+      .evaluate((node) => node.scrollTop)
+    // Cover both the trailing New row and the keyboard append path while
+    // the short grid grows by one row after each insertion.
+    if (index % 2 === 0) {
+      await page.mouse.click(
+        bounds.x + 180,
+        bounds.y + gridHeaderHeight + (index + 0.5) * gridRowHeight - scrollTop
+      )
+    } else {
+      await page.keyboard.press("Control+Enter")
+    }
+    const editor = page.locator('[id^="gdg-overlay-"]')
+    const input = page.locator("textarea.gdg-input")
+    await expect(input).toBeVisible()
+    await expect
+      .poll(async () => {
+        const appended = await editor.boundingBox()
+        const currentScrollTop = await page
+          .locator(".dvn-scroller")
+          .evaluate((node) => node.scrollTop)
+        return appended
+          ? Math.abs(
+              appended.y -
+                (bounds.y +
+                  gridHeaderHeight +
+                  index * gridRowHeight -
+                  currentScrollTop)
+            )
+          : Infinity
+      })
+      .toBeLessThanOrEqual(2)
+    await input.fill(`Draft ${index}`)
+    await expect(input).toBeFocused()
+    await input.press("Enter")
+    await expect(
+      page.locator(`[data-testid='glide-cell-1-${index}']`)
+    ).toHaveText(`Draft ${index}`)
+  }
+})
+
 interface EidosFileE2EHarness {
   appendExternalByte(): Promise<void>
   bytes(): Promise<number[]>

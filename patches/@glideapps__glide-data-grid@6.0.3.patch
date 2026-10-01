@@ -1,0 +1,69 @@
+diff --git a/dist/cjs/data-editor/data-editor.js b/dist/cjs/data-editor/data-editor.js
+index 081f3b38d82107204ac3f3620d6724ffad01b43f..fc81de95755becaf08c83a5166ea02f02ef27e91 100644
+--- a/dist/cjs/data-editor/data-editor.js
++++ b/dist/cjs/data-editor/data-editor.js
+@@ -555,6 +555,18 @@ const DataEditorImpl = (p, forwardedRef) => {
+             gridRef.current?.damage([{ cell: gridSelection.current.cell }]);
+         }
+     }, [getMangledCellContent, gridSelection, mangledOnCellsEdited, setOverlaySimple]);
++    // Appending a row can resize the canvas after its editor has opened.
++    // Keep the existing editor (and draft/focus) anchored to the live cell.
++    React.useLayoutEffect(() => {
++        if (overlay === undefined) return;
++        const bounds = gridRef.current?.getBounds(overlay.cell[0], overlay.cell[1]);
++        if (bounds === undefined) return;
++        const target = overlay.target;
++        if (target.x === bounds.x && target.y === bounds.y &&
++            target.width === bounds.width && target.height === bounds.height) return;
++        setOverlay(current => current === overlay ? { ...current, target: bounds } : current);
++    });
++
+     const focusOnRowFromTrailingBlankRow = React.useCallback((col, row) => {
+         const bounds = gridRef.current?.getBounds(col, row);
+         if (bounds === undefined || scrollRef.current === null) {
+diff --git a/dist/esm/data-editor/data-editor.js b/dist/esm/data-editor/data-editor.js
+index ec05aa9866c70032fc5509ff557cb8c542e384ed..1e6141c2d23f9e48b56f059f108e014025bb83ca 100644
+--- a/dist/esm/data-editor/data-editor.js
++++ b/dist/esm/data-editor/data-editor.js
+@@ -526,6 +526,18 @@ const DataEditorImpl = (p, forwardedRef) => {
+             gridRef.current?.damage([{ cell: gridSelection.current.cell }]);
+         }
+     }, [getMangledCellContent, gridSelection, mangledOnCellsEdited, setOverlaySimple]);
++    // Appending a row can resize the canvas after its editor has opened.
++    // Keep the existing editor (and draft/focus) anchored to the live cell.
++    React.useLayoutEffect(() => {
++        if (overlay === undefined) return;
++        const bounds = gridRef.current?.getBounds(overlay.cell[0], overlay.cell[1]);
++        if (bounds === undefined) return;
++        const target = overlay.target;
++        if (target.x === bounds.x && target.y === bounds.y &&
++            target.width === bounds.width && target.height === bounds.height) return;
++        setOverlay(current => current === overlay ? { ...current, target: bounds } : current);
++    });
++
+     const focusOnRowFromTrailingBlankRow = React.useCallback((col, row) => {
+         const bounds = gridRef.current?.getBounds(col, row);
+         if (bounds === undefined || scrollRef.current === null) {
+diff --git a/src/data-editor/data-editor.tsx b/src/data-editor/data-editor.tsx
+index 8036f5fcaf93d32c8cd0b6830cec2ab91b14b0f7..1650fac160d3f26b064945dbc8a9bfbd83fe7138 100644
+--- a/src/data-editor/data-editor.tsx
++++ b/src/data-editor/data-editor.tsx
+@@ -1444,6 +1444,18 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
+         [getMangledCellContent, gridSelection, mangledOnCellsEdited, setOverlaySimple]
+     );
+ 
++    // Appending a row can resize the canvas after its editor has opened.
++    // Keep the existing editor (and draft/focus) anchored to the live cell.
++    React.useLayoutEffect(() => {
++        if (overlay === undefined) return;
++        const bounds = gridRef.current?.getBounds(overlay.cell[0], overlay.cell[1]);
++        if (bounds === undefined) return;
++        const target = overlay.target;
++        if (target.x === bounds.x && target.y === bounds.y &&
++            target.width === bounds.width && target.height === bounds.height) return;
++        setOverlay(current => current === overlay ? { ...current, target: bounds } : current);
++    });
++
+     const focusOnRowFromTrailingBlankRow = React.useCallback(
+         (col: number, row: number) => {
+             const bounds = gridRef.current?.getBounds(col, row);
