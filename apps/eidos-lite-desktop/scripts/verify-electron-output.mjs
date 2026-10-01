@@ -18,7 +18,7 @@ const chunkNames = [
   "compiler",
   "dist",
   "node-sqlite",
-  "contracts",
+  "plugin-file-mutations",
   "logging",
   "packaged-smoke",
   "packaged-startup-smoke",

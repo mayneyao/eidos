@@ -8,6 +8,8 @@ import {
 import { X, Plus, Search } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
+import type { ExplorerSort } from "./explorer-sort"
+import { ExplorerSortMenu } from "./explorer-sort-menu"
 
 export function WorkspaceHeading({
   name,
@@ -24,9 +26,19 @@ export function WorkspaceHeading({
   options = {},
   onOptionsChange,
   actions,
+  directory = null,
+  onNavigateDirectory,
+  navigationDisabled = false,
+  sort,
+  onSortChange,
 }: {
   name: string
   path: string
+  directory?: string | null
+  onNavigateDirectory?: (path: string | null) => void
+  navigationDisabled?: boolean
+  sort?: ExplorerSort
+  onSortChange?: (sort: ExplorerSort) => void
   searching: boolean
   searchRef: RefObject<HTMLButtonElement>
   shortcut: string
@@ -127,7 +139,50 @@ export function WorkspaceHeading({
         </div>
       ) : (
         <>
-          <strong title={path}>{name}</strong>
+          {directory && onNavigateDirectory ? (
+            <nav
+              className="workspace-folder-path"
+              aria-label={t("Folder path")}
+            >
+              {[name, ...directory.split("/")].map(
+                (segment, index, segments) => (
+                  <span key={index}>
+                    {index > 0 && (
+                      <span
+                        className="workspace-folder-separator"
+                        aria-hidden="true"
+                      >
+                        /
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      title={
+                        index === 0
+                          ? path
+                          : directory.split("/").slice(0, index).join("/")
+                      }
+                      disabled={navigationDisabled}
+                      aria-current={
+                        index === segments.length - 1 ? "location" : undefined
+                      }
+                      onClick={() =>
+                        onNavigateDirectory(
+                          index === 0
+                            ? null
+                            : directory.split("/").slice(0, index).join("/")
+                        )
+                      }
+                    >
+                      {segment}
+                    </button>
+                  </span>
+                )
+              )}
+            </nav>
+          ) : (
+            <strong title={path}>{name}</strong>
+          )}
           <button
             ref={searchRef}
             type="button"
@@ -143,6 +198,9 @@ export function WorkspaceHeading({
           >
             <Search size={14} />
           </button>
+          {sort && onSortChange && (
+            <ExplorerSortMenu sort={sort} onChange={onSortChange} />
+          )}
           <div
             className="workspace-heading-menu"
             ref={menu}

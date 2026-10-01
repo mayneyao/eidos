@@ -1,4 +1,5 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
+import type { FileMetaPatch } from "@eidos.space/plugin-sdk"
 import type {
   FileHistoryPage,
   RestoreTextVersionRequest,
@@ -11,6 +12,7 @@ import type {
   EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
+  EidosFileFieldInfo,
   EidosSystemMergeResult,
   FileEntry,
   SchemaPreflightResult,
@@ -24,6 +26,11 @@ import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
 } from "./keyboard-shortcuts"
+
+export interface FileMetadataSchema {
+  namespace: string
+  fields: EidosFileFieldInfo[]
+}
 
 export interface EidosLiteAssetDataSource {
   name: string
@@ -1637,6 +1644,14 @@ export function isEidosLiteSchemaImpactRequiredResult(
 
 export type RuntimeWorkerRequest =
   | {
+      type: "filemeta"
+      requestId: number
+      root: string
+      relativePath: string
+      namespace: string
+      patch?: FileMetaPatch
+    }
+  | {
       type: "inspectMergeTables"
       requestId: number
       filePaths: string[]
@@ -1647,6 +1662,7 @@ export type RuntimeWorkerRequest =
       filePath: string
       title: string
       template?: "blank" | "files-index"
+      metadataSchema?: FileMetadataSchema
     }
   | {
       type: "open"

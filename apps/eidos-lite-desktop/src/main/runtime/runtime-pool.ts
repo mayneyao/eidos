@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import type { FileMetaValues, FileMetaPatch } from "@eidos.space/plugin-sdk"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -6,6 +7,7 @@ import { utilityProcess, type UtilityProcess } from "electron"
 
 import type {
   EidosFileIssue,
+  FileMetadataSchema,
   OpenEidosFileResult,
   RuntimeCalls,
   RuntimeMethod,
@@ -123,6 +125,7 @@ export class RuntimePool {
   private accessSequence = 0
   private residencyTail: Promise<void> = Promise.resolve()
   private readonly pendingChangeWaiters = new Set<() => void>()
+  private propertyEntry: RuntimeEntry | null = null
 
   constructor(
     private readonly spaceRoot: string,
@@ -201,7 +204,10 @@ export class RuntimePool {
   async create(
     relativePath: string,
     title: string,
-    options?: { template?: "blank" | "files-index" }
+    options?: {
+      template?: "blank" | "files-index"
+      metadataSchema?: FileMetadataSchema
+    }
   ): Promise<OpenEidosFileResult> {
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     if (path.extname(filePath).toLowerCase() !== ".eidos") {
@@ -236,7 +242,8 @@ export class RuntimePool {
       const snapshot = await this.ensureResident(
         entry,
         title,
-        options?.template
+        options?.template,
+        options?.metadataSchema
       )
       if (!snapshot) throw new Error("Eidos File runtime did not create")
       entry.canonicalPath = await fs.realpath(filePath)
@@ -320,8 +327,39 @@ export class RuntimePool {
       if (entry.child) this.suspendedSessionIds.add(entry.sessionId)
     }
     await Promise.all(
-      [...this.entriesBySession.values()].map((entry) => this.closeEntry(entry))
+      [
+        ...this.entriesBySession.values(),
+        ...(this.propertyEntry ? [this.propertyEntry] : []),
+      ].map((entry) => this.closeEntry(entry))
     )
+  }
+
+  async filemeta(
+    relativePath: string,
+    namespace: string,
+    patch?: FileMetaPatch
+  ): Promise<FileMetaValues> {
+    const entry = (this.propertyEntry ??= {
+      sessionId: randomUUID(),
+      relativePath: "",
+      filePath: "File properties",
+      canonicalPath: "",
+      fileIdentity: null,
+      child: null,
+      pending: new Map(),
+      nextRequestId: 1,
+      crashed: false,
+      lastAccess: 0,
+    })
+    if (!entry.child) this.spawnChild(entry)
+    return (await this.request(entry, {
+      type: "filemeta",
+      requestId: entry.nextRequestId++,
+      root: this.spaceRoot,
+      relativePath,
+      namespace,
+      patch,
+    })) as FileMetaValues
   }
 
   async reopenHandles(): Promise<void> {
@@ -722,17 +760,24 @@ export class RuntimePool {
   private ensureResident(
     entry: RuntimeEntry,
     createTitle?: string,
-    createTemplate?: "blank" | "files-index"
+    createTemplate?: "blank" | "files-index",
+    metadataSchema?: FileMetadataSchema
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     return this.withResidencyLock(() =>
-      this.ensureResidentLocked(entry, createTitle, createTemplate)
+      this.ensureResidentLocked(
+        entry,
+        createTitle,
+        createTemplate,
+        metadataSchema
+      )
     )
   }
 
   private async ensureResidentLocked(
     entry: RuntimeEntry,
     createTitle?: string,
-    createTemplate?: "blank" | "files-index"
+    createTemplate?: "blank" | "files-index",
+    metadataSchema?: FileMetadataSchema
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     await this.closingEntries.get(entry)
     if (entry.closed || !this.entriesBySession.has(entry.sessionId)) {
@@ -755,7 +800,13 @@ export class RuntimePool {
       }
       await this.closeEntry(this.requireEntry(sessionId))
     }
-    return this.spawnAndOpen(entry, createTitle, false, createTemplate)
+    return this.spawnAndOpen(
+      entry,
+      createTitle,
+      false,
+      createTemplate,
+      metadataSchema
+    )
   }
 
   private residentCount(): number {
@@ -782,8 +833,37 @@ export class RuntimePool {
     entry: RuntimeEntry,
     createTitle?: string,
     readOnly = false,
-    createTemplate?: "blank" | "files-index"
+    createTemplate?: "blank" | "files-index",
+    metadataSchema?: FileMetadataSchema
   ): Promise<RuntimeCalls["getSnapshot"]["result"]> {
+    const child = this.spawnChild(entry)
+    try {
+      return (await this.request(
+        entry,
+        createTitle === undefined
+          ? {
+              type: "open",
+              requestId: entry.nextRequestId++,
+              filePath: entry.filePath,
+              readOnly,
+            }
+          : {
+              type: "create",
+              requestId: entry.nextRequestId++,
+              filePath: entry.filePath,
+              title: createTitle,
+              template: createTemplate,
+              metadataSchema,
+            }
+      )) as RuntimeCalls["getSnapshot"]["result"]
+    } catch (error) {
+      child.kill()
+      entry.child = null
+      throw error
+    }
+  }
+
+  private spawnChild(entry: RuntimeEntry): UtilityProcess {
     if (entry.child) throw new Error("Eidos File runtime is already open")
     const child = utilityProcess.fork(this.workerPath, [], {
       serviceName: `Eidos File · ${path.basename(entry.filePath)}`,
@@ -813,29 +893,7 @@ export class RuntimePool {
       }
       this.notifyPendingChange()
     })
-    try {
-      return (await this.request(
-        entry,
-        createTitle === undefined
-          ? {
-              type: "open",
-              requestId: entry.nextRequestId++,
-              filePath: entry.filePath,
-              readOnly,
-            }
-          : {
-              type: "create",
-              requestId: entry.nextRequestId++,
-              filePath: entry.filePath,
-              title: createTitle,
-              template: createTemplate,
-            }
-      )) as RuntimeCalls["getSnapshot"]["result"]
-    } catch (error) {
-      child.kill()
-      entry.child = null
-      throw error
-    }
+    return child
   }
 
   private closeEntry(entry: RuntimeEntry): Promise<void> {

@@ -15,6 +15,8 @@ sidebar:
 
 使用 placements 指定入口：navigation 与 plugin/settings 打开 page；file/open 根据扩展名打开 file；table/view 在表格内部打开声明了 eidos/table 能力的 file。
 
+在 Lite 中，侧栏底部依次显示设置、插件和最多三个已启用插件的独立页面。页面默认按原有顺序排列。超过三个页面时，「…」菜单列出全部页面，支持固定和拖拽排序；拖拽手柄也支持键盘操作。最多固定三个页面，保证它们占据可见位置，其余位置按保存的顺序补齐。固定状态和顺序按 Space 保存在本机。窄侧栏下显示图标，悬停可查看名称。专用于 `plugin/settings` 或 `sidebar/explorer` 的页面不会出现在此处，除非同时声明了 `navigation` 挂载点。显示入口不会加载页面内容。
+
 `requires.pluginApi` 声明插件要求的 API，本文示例使用 `"3.0.0"`。`apiVersion` 固定为 `1`，插件自己的 version 用于标识发布版本。
 
 ## 当前文件与页面
@@ -83,6 +85,54 @@ root.append(video)
 ```
 
 文件视图的文件访问受当前文件及其目录范围约束；访问整个 Space 需要 workspace.files。写入同时需要贡献项的 write 权限。已有工作副本的路径在直接写入、删除或重命名时会返回 BUSY；编辑文本时使用 document 接口处理保存和冲突。
+
+## Lite 文件属性
+
+Lite API 3.1 通过 `ctx.capabilities.filemeta` 读取和修改原生 namespace 属性，底层由 sqlite-fs-meta 实现。声明需要访问的 namespace；写入同时要求 View 或 Action 的 `access: "write"`。Page 浏览 Space 文件还需要 workspace 文件读权限。
+
+```json
+{
+  "workspace": {
+    "files": { "read": true },
+    "filemeta": { "namespaces": ["space.eidos.meta"], "write": true }
+  }
+}
+```
+
+```ts
+const filemeta = ctx.capabilities.filemeta!
+const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
+await filemeta.patch("notes/example.md", "space.eidos.meta", {
+  set: { rating: 4, tags: ["review"], custom: { checked: true } },
+  remove: ["obsolete"],
+})
+```
+
+读取返回完整 JSON 对象，包括 files.eidos 未定义的键；namespace 不存在时返回 `{}`。patch 保留其他键，null 是值，remove 删除键。路径相对 Space；未声明 workspace 文件读权限时，只能访问绑定文件。属性写权限不授予文件内容写权限。损坏的 JSON、符号链接、非普通文件会报错。属性最多 1 MiB，文件系统可能有更小限制。操作立即作用于文件系统；多个进程修改同一 namespace 时应串行协调写入。Linux 不需要安装 `attr` 命令行软件包。
+
+## 替换 Lite 侧边栏目录树
+
+声明 page View，放到 `sidebar/explorer`，并使用 plugin API `3.1.0`：
+
+```json
+{
+  "requires": { "pluginApi": "3.1.0" },
+  "workspace": { "files": { "read": true } },
+  "views": [
+    {
+      "id": "tree",
+      "title": "我的目录树",
+      "kind": "page",
+      "entry": "./src/tree.ts"
+    }
+  ],
+  "placements": [{ "location": "sidebar/explorer", "view": "tree" }]
+}
+```
+
+安装和启用插件后，进入「插件 → 选择文件浏览器」选用。选择按 Space 保存。插件接管完整探索器区域，包括标题、路径、搜索、排序和文件操作工具栏；宿主不会在插件上方绘制内置 Space 标题。窗口导航与应用控制属于宿主外壳，位于此贡献点之外。通过插件管理页可返回内置探索器；插件失败时，宿主恢复内置标题和目录树，并提供重试与恢复入口。
+
+此位置提供 `ctx.capabilities.explorer.read()`，返回当前 rootDirectory、activePath 和 sort。root 为 null 表示 Space，activePath 为 null 表示未打开文件。`explorer.watch(listener)` 订阅变化，返回可释放订阅，不提供初始回调。它只提供展示状态，文件权限单独校验。通过 `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` 逐层浏览，包括空目录；FileStat.modifiedAtMs 可用于时间排序。默认 list 行为保留递归文件索引。通过 `fs.watch` 刷新；用户点击文件时调用 `ui.openFile(relativePath)`，宿主在主区域使用已配置的文件 View 打开。插件在侧边栏沙箱内负责导航、选中样式和已授权文件操作。全局 Space 文本搜索会临时覆盖探索器，保留插件挂载与浏览状态。普通 navigation Page 不提供 explorer 上下文。
 
 ## 使用 Eidos 文件
 

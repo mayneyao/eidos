@@ -46,6 +46,13 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
       features.add(rule.feature)
   }
   if (manifest.browser?.workers) features.add("browser.workers")
+  if (manifest.workspace?.filemeta) features.add("filemeta")
+  if (
+    manifest.placements?.some(
+      (placement) => placement.location === "sidebar/explorer"
+    )
+  )
+    features.add("sidebar.explorer")
   if (manifest.theme) features.add("theme.lite")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
   return [...features].sort()

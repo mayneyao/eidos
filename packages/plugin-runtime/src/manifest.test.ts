@@ -21,6 +21,28 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("validates page explorer placements and explicit property namespaces", () => {
+    const value = {
+      ...manifest(),
+      views: [{ id: "tree", title: "Tree", entry: "./main.ts", kind: "page" }],
+      placements: [{ location: "sidebar/explorer", view: "tree" }],
+      workspace: {
+        files: { read: true },
+        filemeta: { namespaces: ["space.eidos.meta"], write: true },
+      },
+    }
+    expect(parseManifest(value).workspace).toEqual(value.workspace)
+    for (const namespaces of [[], ["a", "a"], ["../escape"], ["*"]])
+      expect(() =>
+        parseManifest({
+          ...value,
+          workspace: { filemeta: { namespaces } },
+        })
+      ).toThrow()
+    expect(() =>
+      parseManifest({ ...value, views: [{ ...value.views[0], kind: "file" }] })
+    ).toThrow()
+  })
   it("treats an empty capability list as no bound data requirement", () => {
     const value = manifest()
     expect(

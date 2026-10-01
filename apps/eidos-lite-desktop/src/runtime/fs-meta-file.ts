@@ -11,6 +11,7 @@ import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
 
 export interface FsMetaCustomField {
   name: string
+  storageKey?: string
   type: "text" | "integer" | "select" | "multi-select"
   settings?: Record<string, unknown>
 }
@@ -94,7 +95,11 @@ export function createFsMetaEidosFile(
     const fieldsSql = JSON.stringify(
       customFields.map((f) => {
         const sqlType = f.type === "integer" ? "INTEGER" : "TEXT"
-        return { name: f.name, type: sqlType, key: f.name }
+        return {
+          name: f.name,
+          type: sqlType,
+          key: f.storageKey ?? f.name,
+        }
       })
     )
     const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
@@ -296,6 +301,7 @@ export function createFsMetaEidosFile(
           const settings = canonicalizeEidosFileJson({
             ...defaultSettings,
             ...(f.settings ?? {}),
+            vtabStorageKey: f.storageKey ?? f.name,
           })
           return [
             customFieldIds[idx]!,

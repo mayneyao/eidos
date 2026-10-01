@@ -66,6 +66,8 @@ export interface PluginRequest {
     | "fs.rename"
     | "fs.list"
     | "fs.stat"
+    | "filemeta.read"
+    | "filemeta.patch"
     | "fs.url"
     | "fs.watch"
     | "fs.unwatch"
@@ -149,6 +151,8 @@ export function parseRequest(value: unknown): PluginRequest {
       "fs.rename",
       "fs.list",
       "fs.stat",
+      "filemeta.read",
+      "filemeta.patch",
       "fs.url",
       "fs.watch",
       "fs.unwatch",

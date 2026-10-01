@@ -7,6 +7,45 @@ vi.mock("./i18n", () => ({
   useEidosLiteI18n: () => ({ t: (text: string) => text }),
 }))
 
+it("navigates each folder breadcrumb and marks the current location", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  const navigate = vi.fn()
+  try {
+    await act(async () =>
+      root.render(
+        <WorkspaceHeading
+          name="Space"
+          path="/Space"
+          directory="project/docs"
+          onNavigateDirectory={navigate}
+          searching={false}
+          searchRef={createRef<HTMLButtonElement>()}
+          shortcut=""
+          onSearch={vi.fn()}
+          onBack={vi.fn()}
+          query=""
+          onQueryChange={vi.fn()}
+          focusToken={0}
+          actions={[]}
+        />
+      )
+    )
+    const buttons = host.querySelectorAll<HTMLButtonElement>("nav button")
+    expect([...buttons].map((button) => button.textContent)).toEqual([
+      "Space",
+      "project",
+      "docs",
+    ])
+    expect(buttons[2]!.getAttribute("aria-current")).toBe("location")
+    for (const button of buttons) await act(async () => button.click())
+    expect(navigate.mock.calls).toEqual([[null], ["project"], ["project/docs"]])
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("opens heading actions, dismisses outside or with Escape, and switches to a back entry", async () => {
   ;(
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

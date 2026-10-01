@@ -1,6 +1,6 @@
 # Eidos Plugin SDK
 
-Type-only API for the [Plugin API 3.0 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+Type-only API for the [Plugin API 3.1 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
 Import with `import type`; the host injects operations. There is no runtime SDK
 connection. This source revision requires matching SDK, tools and host builds;
 no published release is implied.
@@ -28,6 +28,12 @@ their independent data-only API 1.6.0 compatibility.
 Use document edit/save/undo/redo for text working copies. Direct filesystem
 mutation must not bypass an existing plugin-service working copy. Workspace file
 access requires explicit workspace.files and writes require contribution access.
+
+Lite API 3.1 exposes native namespace metadata under `ctx.capabilities.filemeta`.
+Declare namespaces and optional write permission in `workspace.filemeta`.
+`filemeta.read(path, namespace)` returns the complete namespace object;
+`filemeta.patch(path, namespace, { set?, remove? })` preserves other keys.
+Writes also require contribution write access. The host uses sqlite-fs-meta.
 
 Extensions retain activate and register through capabilities.actions/formatters.
 Table providers retain getItems/run with eidos.table/eidos.config/target/task/connections under

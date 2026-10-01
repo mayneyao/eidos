@@ -34,6 +34,8 @@ export interface PluginManifest {
   /** Explicit permission to access files in the current Space. */
   workspace?: {
     files?: boolean | { read?: boolean; write?: boolean }
+    /** Allowed extended-attribute namespaces. Writes also require contribution access: write. */
+    filemeta?: { namespaces: string[]; write?: boolean }
   }
   connections?: Record<
     string,
@@ -94,6 +96,8 @@ export interface FormatterProvider {
 export type Placement =
   | { location: "plugin/settings"; view: string }
   | { location: "navigation"; view: string }
+  /** Replaces the complete Lite explorer, including its heading and toolbar. */
+  | { location: "sidebar/explorer"; view: string }
   | { location: "file/open"; view: string; extensions: string[] }
   | { location: "table/view"; view: string }
   | { location: "command-palette"; action: string }
@@ -117,6 +121,7 @@ export interface Lifetime {
 }
 export interface CommonCapabilities {
   readonly fs?: PluginFileSystem
+  readonly filemeta?: PluginFileMeta
   readonly storage?: PluginStorage
   readonly network?: PluginNetwork
   readonly settings?: Pick<PluginSettings, "get">
@@ -132,6 +137,26 @@ export interface FileStat {
   readonly extension: string
   readonly size: number
   readonly isDirectory: boolean
+  readonly modifiedAtMs?: number
+}
+
+export interface FileListOptions {
+  extensions?: string[]
+  /** Defaults to true for compatibility with existing file indexes. */
+  recursive?: boolean
+  /** Defaults to false. Use with recursive: false for directory trees. */
+  includeDirectories?: boolean
+}
+
+export interface PluginFileMeta {
+  /** Complete JSON object in a declared namespace; missing attributes return {}. */
+  read(path: string, namespace: string): Promise<FileMetaValues>
+  /** Preserves other keys; null is a value, remove explicitly deletes keys. */
+  patch(
+    path: string,
+    namespace: string,
+    patch: FileMetaPatch
+  ): Promise<FileMetaValues>
 }
 
 export interface PluginFileSystem {
@@ -151,10 +176,7 @@ export interface PluginFileSystem {
    * Lists files under a Space folder.
    * In a file-backed view without workspace permission, defaults to companion files in the current directory.
    */
-  list(
-    folder?: string,
-    options?: { extensions?: string[] }
-  ): Promise<FileStat[]>
+  list(folder?: string, options?: FileListOptions): Promise<FileStat[]>
   /** Returns metadata for a file, or null if the file does not exist. */
   stat(path: string): Promise<FileStat | null>
   /**
@@ -164,6 +186,32 @@ export interface PluginFileSystem {
   getUrl(path?: string): Promise<string>
   /** Watches a folder or file for changes. */
   watch(pathOrFolder: string, listener: () => void): Promise<Disposable>
+}
+
+export type FileMetaValue =
+  | null
+  | string
+  | number
+  | boolean
+  | FileMetaValue[]
+  | { [key: string]: FileMetaValue }
+export type FileMetaValues = Record<string, FileMetaValue>
+export interface FileMetaPatch {
+  set?: FileMetaValues
+  remove?: string[]
+}
+export interface ExplorerState {
+  rootDirectory: string | null
+  activePath: string | null
+  sort: {
+    by: "name" | "modified" | "type"
+    direction: "ascending" | "descending"
+  }
+}
+export interface ExplorerContext {
+  /** Display metadata only; file authority is checked by the host independently. */
+  read(): ExplorerState
+  watch(listener: (state: ExplorerState) => void): Disposable
 }
 
 export interface FileMetadata {
@@ -203,6 +251,8 @@ export type ViewBinding =
     }
 
 export interface ViewCapabilities extends CommonCapabilities {
+  /** Present only when mounted at sidebar/explorer. */
+  readonly explorer?: ExplorerContext
   readonly document?: TextDocument
   readonly eidos?: EidosCapabilities
 }

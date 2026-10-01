@@ -131,6 +131,63 @@ it("lets users remove an unreadable installed plugin without trying to enable it
   expect(uninstall).toHaveBeenCalledWith("example.old-theme")
 })
 
+it("selects and restores the Space explorer from Plugin Manager", async () => {
+  let selected: string | undefined = "example.browser/files"
+  const select = vi.fn(async (key: string | null) => {
+    selected = key ?? undefined
+  })
+  Object.assign(window.eidosLite, {
+    setPluginExplorer: select,
+    listPlugins: async (): Promise<PluginListing> => ({
+      space: { plugins: {}, associations: {}, explorer: selected },
+      plugins: [
+        {
+          hash: "browser",
+          enabled: true,
+          manifest: {
+            apiVersion: 1,
+            id: "example.browser",
+            name: "File Browser",
+            version: "0.1.0",
+            views: [
+              {
+                id: "files",
+                title: "File Browser",
+                kind: "page",
+                entry: "./main.ts",
+              },
+            ],
+            placements: [{ location: "sidebar/explorer", view: "files" }],
+          },
+        },
+      ],
+    }),
+  })
+  const changed = vi.fn()
+  window.addEventListener("eidos-plugins-changed", changed)
+  try {
+    await act(async () => root.render(<PluginManager spaceAvailable />))
+    await click("Choose file explorer")
+    expect(
+      container.querySelector('[aria-pressed="true"][title="File Browser"]')
+    ).not.toBeNull()
+    await click("Built-in explorer")
+    expect(select).toHaveBeenCalledWith(null)
+    expect(changed).toHaveBeenCalled()
+    await click("Choose file explorer")
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[title="File Browser"][aria-pressed]'
+        )!
+        .click()
+    )
+    expect(select).toHaveBeenLastCalledWith("example.browser/files")
+  } finally {
+    window.removeEventListener("eidos-plugins-changed", changed)
+  }
+})
+
 it("starts a marketplace installation requested by a plugin link", async () => {
   const handled = vi.fn()
   await act(async () =>

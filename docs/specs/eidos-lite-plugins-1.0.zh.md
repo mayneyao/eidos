@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.0
+# Eidos Plugins — API 3.1
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.0.0
+Plugin API：3.1.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
 
@@ -24,6 +24,12 @@ Plugin API：3.0.0
 
 插件 ID、贡献项 ID 与 placement 引用保持稳定。安装是设备级；启用、设置与连接授权按
 Space 隔离。私有二进制存储归设备上的插件；表格插件配置保存在文件内。
+
+Lite 将 `.eidos-plugin` 包关联到桌面宿主。从操作系统打开包（包括应用启动时）必须
+进入与插件设置相同的包验证和确认流程。清单 ID 已安装时进入更新流程；版本不同时
+展示已安装版本与新包版本。取消或包无效时，已安装版本必须保持不变。打开包不能
+隐式启用任何 Space 中的插件；更新保留各 Space 原有的启用状态。多个系统打开请求
+按顺序处理。
 
 Binding 仅描述资源与定位，不授予权限。FileRef 的 ID 是上下文内的显示身份，
 不是持久文件 ID 或权限凭证。宿主可附加相对路径与名称；没有文件元数据的表格会话使用
@@ -128,9 +134,15 @@ Placement、命令面板、菜单、工具栏和快捷键引用已声明贡献�
 
 ## 7. 授权资源
 
+Lite 支持 `sidebar/explorer` 贡献位置，引用 page View。贡献必须替换完整探索器区域，包括 Space 标题和探索器工具栏；宿主不得在活动替代探索器上方添加内置标题、搜索、排序或创建控件。窗口导航和应用控制属于此区域之外的宿主外壳。用户通过插件管理页按 Space 选择替代探索器，并可返回内置探索器。挂载前校验声明和启用状态；插件不可用或失败时必须恢复完整内置探索器，包括标题，并提供恢复入口。临时的宿主文本搜索覆盖层必须保留插件挂载和浏览状态。侧边栏 View 同样遵循沙箱、访问级别、版本校验和释放契约。仅此位置提供 `capabilities.explorer`：`read()` 返回 `{ rootDirectory, activePath, sort }`；`watch(listener)` 订阅变化并返回可释放订阅，不提供初始回调。路径相对 Space；root 为 null 表示 Space，activePath 为 null 表示未打开文件。此上下文不授予文件权限，文件打开通过 `ui.openFile` 使用宿主的编辑器选择。
+
+Lite API 3.1 提供独立的 `ctx.capabilities.filemeta` 能力，通过 sqlite-fs-meta 原生 namespace API 实现 `read(path, namespace)` 和 `patch(path, namespace, { set?, remove? })`。`workspace.filemeta` 声明 1–16 个不重复 namespace 和可选 `write: true`。namespace 以 ASCII 字母或数字开始，后续允许字母、数字、`.`、`_`、`-`，最多 255 字节。读取默认仅限绑定文件，Space 范围读取要求 `workspace.files`；写入同时要求属性写权限和当前贡献项 `access: "write"`，不授予内容写权限。读取完整 JSON 对象，包括 files.eidos 未定义的字段，缺失 namespace 返回 `{}`。patch 保留其他键；null 是值，remove 删除键。set/remove 重叠、无效键、非 JSON 值及超过 1 MiB 的 patch 必须在写入前失败。键不能为空、不能含 NUL、最多 1024 字节；patch 最多 1024 个键、嵌套深度 32。文件系统原生限制可能更小。损坏的属性不能被静默覆盖。宿主校验 Space 路径，拒绝符号链接、目录、缺失文件；Unix 写入拒绝多重硬链接。属性操作立即作用于文件系统，不是 Eidos File 事务或跨进程并发保证。修改使 filesystem watch 失效。这些能力仅适用于 Lite，其他宿主在兼容性检查中拒绝相关声明。
+
 Filesystem 能力提供 readText/writeText、readBinary/writeBinary、list/stat、delete/rename、
 getUrl、watch。Lite 校验路径、范围、受保护文件和 I/O。文本上限 2 MiB，二进制上限 16 MiB；
 宿主流 URL 不暴露原生句柄。
+
+Lite API 3.1 的 `fs.list(folder, options?)` 支持 recursive（默认 true）、includeDirectories（默认 false）及已有扩展名筛选。`recursive: false, includeDirectories: true` 必须返回当前层级并包含空目录；扩展名筛选只作用于文件。FileStat 可提供 modifiedAtMs 用于排序。枚举任意目录仍需要 workspace 权限；绑定文件的伴随文件列表不授予目录遍历权限。
 
 文件贡献项具有受限文件目录／伴随文件范围。更广的 Space 访问要求 workspace.files；
 workspace Action 的 context 本身不提供权限。写入还要求当前贡献项 access: write，

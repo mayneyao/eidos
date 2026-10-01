@@ -52,6 +52,10 @@ const api: EidosLiteApi = {
   listPlugins: () => ipcRenderer.invoke(PLUGIN_CHANNELS.list),
   openPluginPage: (key, route) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.page, key, route),
+  openPluginExplorer: (key, state) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.explorer, key, state),
+  setPluginExplorer: (key) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.selectExplorer, key),
   openPluginExtension: (id, table) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.extension, id, table),
   pluginConnection: (ticket, connection, operation, value, invocation) =>

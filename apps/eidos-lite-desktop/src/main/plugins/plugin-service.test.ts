@@ -233,6 +233,151 @@ const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
 
+it("isolates whole-namespace properties by namespace, file scope and contribution access", async () => {
+  const read = vi.fn(async () => ({
+    custom: { status: "review" },
+    unknown: null,
+  }))
+  const patch = vi.fn(async () => ({ rating: 4 }))
+  session.readFileMeta = read
+  session.patchFileMeta = patch
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        workspace: {
+          filemeta: { namespaces: ["space.eidos.meta"], write: true },
+        },
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  const params = { path: "data.csv", namespace: "space.eidos.meta" }
+  expect((await rpc(ticket, "filemeta.read", params)).response).toHaveProperty(
+    "result",
+    { custom: { status: "review" }, unknown: null }
+  )
+  for (const invalid of [
+    { ...params, namespace: "other" },
+    { ...params, path: "other.csv" },
+    { ...params, path: "../outside.csv" },
+  ])
+    expect(
+      (await rpc(ticket, "filemeta.read", invalid)).response
+    ).toHaveProperty("error")
+  expect(read).toHaveBeenCalledTimes(1)
+  read.mockRejectedValueOnce(
+    Object.assign(new Error("Native metadata API is unavailable"), {
+      code: "UNSUPPORTED_API",
+    })
+  )
+  expect((await rpc(ticket, "filemeta.read", params)).response).toHaveProperty(
+    "error.code",
+    "UNSUPPORTED_API"
+  )
+  expect(
+    (
+      await rpc(ticket, "filemeta.patch", {
+        ...params,
+        patch: { set: { rating: 4, nullable: null }, remove: ["old"] },
+      })
+    ).response
+  ).toHaveProperty("result", { rating: 4 })
+  expect(patch).toHaveBeenCalledWith("data.csv", "space.eidos.meta", {
+    set: { rating: 4, nullable: null },
+    remove: ["old"],
+  })
+  for (const invalid of [
+    { set: { rating: 4 }, remove: ["rating"] },
+    { remove: [""] },
+    { replace: {} },
+    { set: { created: new Date() } },
+    { set: { rating: Number.NaN } },
+  ])
+    expect(
+      (await rpc(ticket, "filemeta.patch", { ...params, patch: invalid }))
+        .response
+    ).toHaveProperty("error")
+  expect(patch).toHaveBeenCalledTimes(1)
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        views: [{ ...manifest.views![0]!, access: "read" }],
+        workspace: {
+          files: true,
+          filemeta: { namespaces: ["space.eidos.meta"], write: true },
+        },
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const readonly = await open()
+  expect((await rpc(ticket, "filemeta.read", params)).response).toHaveProperty(
+    "error.code",
+    "PERMISSION_DENIED"
+  )
+  expect(
+    (
+      await rpc(ticket, "filemeta.patch", {
+        ...params,
+        patch: { set: { rating: 1 } },
+      })
+    ).response
+  ).toHaveProperty("error.code", "PERMISSION_DENIED")
+  expect(
+    (
+      await rpc(readonly, "filemeta.patch", {
+        ...params,
+        patch: { set: { rating: 1 } },
+      })
+    ).response
+  ).toHaveProperty("error.code", "PERMISSION_DENIED")
+  expect(patch).toHaveBeenCalledTimes(1)
+})
+
+it("mounts only declared explorer pages and persists selection per Space", async () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    views: [{ id: "tree", title: "Tree", kind: "page", entry: "./main.ts" }],
+    placements: [{ location: "sidebar/explorer", view: "tree" }],
+    workspace: { files: { read: true } },
+  }
+  await store.install(encodePackage(plugin, modules), "space-a")
+  const key = "example.csv/tree"
+  await store.selectExplorer("space-a", key)
+  expect((await store.list("space-a")).space?.explorer).toBe(key)
+  expect((await store.list("space-b")).space?.explorer).toBeUndefined()
+  const state = {
+    rootDirectory: "docs",
+    activePath: "docs/note.md",
+    sort: { by: "name" as const, direction: "ascending" as const },
+  }
+  const instance = (
+    await service.openPage(1, session, key, "", undefined, state)
+  ).instance!
+  expect(service.html(instance.url)).toContain('"rootDirectory":"docs"')
+  expect(
+    (await rpc(instance.ticket, "ui.openFile", { relativePath: "data.csv" }))
+      .openFile
+  ).toBe("data.csv")
+  await store.install(
+    encodePackage(
+      { ...plugin, placements: [{ location: "navigation", view: "tree" }] },
+      modules
+    ),
+    "space-a"
+  )
+  await expect(
+    service.openPage(1, session, key, "", undefined, state)
+  ).rejects.toThrow("not declared")
+  await store.uninstall(plugin.id)
+  expect((await store.list("space-a")).space?.explorer).toBeUndefined()
+})
+
 it("authorizes composed Eidos capabilities individually, including forged adapter requests", async () => {
   const views: NonNullable<PluginManifest["views"]> = [
     {

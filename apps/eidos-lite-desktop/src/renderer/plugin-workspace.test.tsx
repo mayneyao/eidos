@@ -88,54 +88,71 @@ it("navigates commands visibly, wraps, scrolls and executes from the search inpu
   expect(HTMLDialogElement.prototype.close).toHaveBeenCalled()
   Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
 })
-it("exposes enabled page views in the command palette", async () => {
-  HTMLDialogElement.prototype.showModal = vi.fn()
-  HTMLDialogElement.prototype.close = vi.fn()
-  let openPalette!: (command: "command-palette") => void
-  Object.assign(window, {
-    eidosLite: {
-      listPlugins: async () => ({
-        plugins: [
-          {
-            enabled: true,
-            manifest: {
-              id: "example.pages",
-              name: "Pages",
-              views: [{ id: "home", title: "Home", kind: "page" }],
-              placements: [{ location: "navigation", view: "home" }],
+it.each([true, false])(
+  "exposes standalone pages with navigation placement=%s, excluding dedicated surfaces",
+  async (navigation) => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    HTMLDialogElement.prototype.close = vi.fn()
+    let openPalette!: (command: "command-palette") => void
+    Object.assign(window, {
+      eidosLite: {
+        listPlugins: async () => ({
+          plugins: [
+            {
+              enabled: true,
+              manifest: {
+                id: "example.pages",
+                name: "Pages",
+                views: [
+                  { id: "home", title: "Home", kind: "page" },
+                  { id: "settings", title: "Private settings", kind: "page" },
+                  { id: "explorer", title: "Private explorer", kind: "page" },
+                ],
+                placements: [
+                  ...(navigation
+                    ? [{ location: "navigation", view: "home" }]
+                    : []),
+                  { location: "plugin/settings", view: "settings" },
+                  { location: "sidebar/explorer", view: "explorer" },
+                ],
+              },
             },
-          },
-        ],
-      }),
-      onPluginEvent: () => () => {},
-      onWorkspaceShortcutCommand: (listener: typeof openPalette) => {
-        openPalette = listener
-        return () => {}
+          ],
+        }),
+        onPluginEvent: () => () => {},
+        onWorkspaceShortcutCommand: (listener: typeof openPalette) => {
+          openPalette = listener
+          return () => {}
+        },
       },
-    },
-  })
-  const container = document.createElement("div")
-  document.body.append(container)
-  const root = createRoot(container)
-  const onPage = vi.fn()
-  await act(async () =>
-    root.render(
-      <PluginWorkspace
-        onPage={onPage}
-        onDraft={() => {}}
-        navigationVisible={false}
-      />
+    })
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    const onPage = vi.fn()
+    await act(async () =>
+      root.render(
+        <PluginWorkspace
+          onPage={onPage}
+          onDraft={() => {}}
+          navigationVisible={false}
+        />
+      )
     )
-  )
-  await act(async () => openPalette("command-palette"))
-  await act(async () =>
-    Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'))
-      .find((button) => button.textContent?.includes("Home"))!
-      .click()
-  )
-  expect(onPage).toHaveBeenCalledExactlyOnceWith("example.pages/home")
-  await act(async () => root.unmount())
-})
+    await act(async () => openPalette("command-palette"))
+    expect(container.textContent).not.toContain("Private settings")
+    expect(container.textContent).not.toContain("Private explorer")
+    await act(async () =>
+      Array.from(
+        container.querySelectorAll<HTMLButtonElement>('[role="option"]')
+      )
+        .find((button) => button.textContent?.includes("Home"))!
+        .click()
+    )
+    expect(onPage).toHaveBeenCalledExactlyOnceWith("example.pages/home")
+    await act(async () => root.unmount())
+  }
+)
 afterEach(() => {
   document.body.replaceChildren()
   vi.restoreAllMocks()

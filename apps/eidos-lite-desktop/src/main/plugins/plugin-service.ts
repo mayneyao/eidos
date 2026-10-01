@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
 import { readPluginNetwork } from "./plugin-network"
+import { fileMetaPatch } from "./filemeta"
 import {
   PLUGIN_PROTOCOL,
   PluginError,
@@ -25,6 +26,7 @@ import type {
   ActionDeclaration,
   FormatterDeclaration,
   ViewCapability,
+  ExplorerState,
 } from "@eidos.space/plugin-sdk"
 import type { PluginOpenResult, PluginRpcResult } from "../../shared/plugins"
 import { normalizeMutableRelativePath } from "../space/space-paths"
@@ -34,6 +36,7 @@ export type { PluginDocumentSession } from "./document-host"
 interface Instance {
   capabilities?: ViewCapability[]
   workspaceFiles?: boolean | { read?: boolean; write?: boolean }
+  workspaceFileMeta?: { namespaces: string[]; write?: boolean }
   file?: {
     path: string
     name: string
@@ -191,6 +194,7 @@ export class PluginService {
       session,
       path: "",
       workspaceFiles: pkg.manifest.workspace?.files,
+      workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       html: extensionHtml(
         pkg.modules[pkg.manifest.extension]!,
         (pkg.manifest.actions ?? []).map((a) => a.id),
@@ -500,7 +504,8 @@ export class PluginService {
     session: PluginDocumentSession,
     key: string,
     route?: string,
-    table?: { tableId: string; viewId: string }
+    table?: { tableId: string; viewId: string },
+    explorer?: ExplorerState
   ): Promise<PluginOpenResult> {
     route ??= await this.store.pageRoute(session.canonical.id, key)
     if (
@@ -519,7 +524,19 @@ export class PluginService {
     )
     if (!view || pkg.manifest.id !== id)
       throw new PluginError("DOCUMENT_UNAVAILABLE", "Page unavailable")
-    if (!table) await this.store.setPageRoute(session.canonical.id, key, route)
+    if (
+      explorer &&
+      !pkg.manifest.placements?.some(
+        (p) =>
+          p.location === "sidebar/explorer" && "view" in p && p.view === viewId
+      )
+    )
+      throw new PluginError(
+        "PERMISSION_DENIED",
+        "Explorer contribution was not declared"
+      )
+    if (!table && !explorer)
+      await this.store.setPageRoute(session.canonical.id, key, route)
     if (
       [...this.instances.values()].filter((i) => i.owner === owner).length >= 16
     )
@@ -531,12 +548,14 @@ export class PluginService {
       owner,
       session,
       workspaceFiles: pkg.manifest.workspace?.files,
+      workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       html: viewHtml(pkg.modules[view.entry]!, {
         ...(table
           ? { kind: "table" as const, ...table }
           : { kind: "page" as const, route }),
         capabilities: view.capabilities,
         connections: !!Object.keys(pkg.manifest.connections ?? {}).length,
+        explorer,
       }),
       table,
       capabilities: view.capabilities,
@@ -630,6 +649,7 @@ export class PluginService {
       path: safe,
       file: fileInfo,
       workspaceFiles: pkg.manifest.workspace?.files,
+      workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       resource,
       scope,
       copy,
@@ -1093,6 +1113,7 @@ export class PluginService {
         if (
           (request.method.startsWith("settings.") ||
             request.method.startsWith("fs.") ||
+            request.method.startsWith("filemeta.") ||
             request.method === "ui.openFile") &&
           binding.hash !== instance.hash
         )
@@ -1120,6 +1141,49 @@ export class PluginService {
             )
         }
         switch (request.method) {
+          case "filemeta.read":
+          case "filemeta.patch": {
+            const p = object(params)
+            const permission = instance.workspaceFileMeta
+            if (
+              typeof p.namespace !== "string" ||
+              !permission?.namespaces.includes(p.namespace)
+            )
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "File property namespace was not declared"
+              )
+            if (typeof p.path !== "string")
+              throw new PluginError("INVALID_REQUEST", "File path is required")
+            const target = normalizeMutableRelativePath(p.path)
+            if (!hasWorkspaceFiles && target !== activeFilePath)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "File is outside the bound contribution"
+              )
+            if (request.method === "filemeta.patch") {
+              if (!contributionWritable || permission.write !== true)
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "File property writes were not declared"
+                )
+              const patch = fileMetaPatch(p.patch)
+              if (!session.patchFileMeta)
+                throw new PluginError(
+                  "UNSUPPORTED_API",
+                  "File properties unavailable"
+                )
+              result = await session.patchFileMeta(target, p.namespace, patch)
+            } else {
+              if (!session.readFileMeta)
+                throw new PluginError(
+                  "UNSUPPORTED_API",
+                  "File properties unavailable"
+                )
+              result = await session.readFileMeta(target, p.namespace)
+            }
+            break
+          }
           case "view.ready":
             instance.mounted?.()
             result = null
@@ -1497,6 +1561,13 @@ export class PluginService {
           }
           case "fs.list": {
             const p = params ? object(params) : {}
+            for (const key of ["recursive", "includeDirectories"]) {
+              if (p[key] !== undefined && typeof p[key] !== "boolean")
+                throw new PluginError(
+                  "INVALID_REQUEST",
+                  "Invalid file listing options"
+                )
+            }
             const extensions =
               p.extensions === undefined
                 ? undefined
@@ -1515,7 +1586,13 @@ export class PluginService {
                   ? normalizeMutableRelativePath(p.folder)
                   : ""
               if (session.listFiles) {
-                result = await session.listFiles(folder, { extensions })
+                result = await session.listFiles(folder, {
+                  extensions,
+                  recursive: p.recursive as boolean | undefined,
+                  includeDirectories: p.includeDirectories as
+                    | boolean
+                    | undefined,
+                })
               } else {
                 result = []
               }
@@ -1890,7 +1967,14 @@ export class PluginService {
         response: {
           ...base,
           error: {
-            code: error instanceof PluginError ? error.code : "IO_ERROR",
+            code:
+              error instanceof PluginError
+                ? error.code
+                : error instanceof Error &&
+                    "code" in error &&
+                    error.code === "UNSUPPORTED_API"
+                  ? "UNSUPPORTED_API"
+                  : "IO_ERROR",
             message:
               error instanceof Error ? error.message : "Plugin request failed",
           },

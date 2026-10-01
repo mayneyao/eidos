@@ -1426,9 +1426,7 @@ body {
   grid-row: 1 / -1;
   grid-column: 1;
   width: 100%;
-  grid-template-rows:
-    var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr)
-    auto;
+  grid-template-rows: var(--workbench-titlebar-height) minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -1549,6 +1547,54 @@ body {
   flex: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-folder-path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.workspace-folder-path > span {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.workspace-folder-path button {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 0;
+  border-radius: 3px;
+  padding: 3px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.workspace-folder-path button[aria-current="location"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.workspace-folder-path button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.workspace-folder-path button:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.workspace-folder-separator {
+  margin-inline: 2px;
+  color: var(--ink-muted);
 }
 
 .space-heading > .icon-button,
@@ -1704,8 +1750,14 @@ body {
   width: 14px;
   height: 14px;
 }
+.explorer-sort-divider {
+  margin: 4px;
+  border: 0;
+  border-top: 1px solid var(--control-border);
+}
 
 .explorer {
+  flex: 1;
   min-height: 0;
   /* Keep native scrollbar interactions outside the overlaid resize handle. */
   margin-inline-end: var(--space-sidebar-resize-hit-width);
@@ -1717,6 +1769,50 @@ body {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.plugin-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.plugin-explorer-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.plugin-explorer-content[hidden] {
+  display: none;
+}
+.plugin-explorer-content > .space-heading {
+  min-height: 1.75rem;
+  flex-shrink: 0;
+}
+.plugin-explorer-overlay {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.plugin-explorer-overlay > .space-heading {
+  min-height: 1.75rem;
+  flex-shrink: 0;
+}
+.plugin-explorer-content .plugin-editor {
+  height: 100%;
+}
+.plugin-explorer-error {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.plugin-explorer-error button {
+  flex-shrink: 0;
 }
 
 .space-file-tree {
@@ -1773,11 +1869,122 @@ body {
   background: color-mix(in oklab, var(--lite-sidebar) 94%, transparent);
 }
 
+.sidebar-footer-row,
+.sidebar-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.sidebar-pages-target {
+  flex: 1;
+  min-width: 0;
+  container-type: inline-size;
+}
+.sidebar-pages {
+  position: relative;
+  height: 2rem;
+}
+.sidebar-footer-row > .sidebar-settings-button {
+  width: 2rem;
+  flex: 0 0 2rem;
+  justify-content: center;
+}
+.sidebar-page-button,
+.sidebar-pages-choice button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.375rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.6875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-page-button {
+  flex: 0 1 110px;
+  min-width: 2rem;
+}
+@container (max-width: 330px) {
+  .sidebar-page-button {
+    flex: 0 0 2rem;
+    justify-content: center;
+  }
+  .sidebar-page-button span {
+    display: none;
+  }
+}
+.sidebar-pages > .icon-button {
+  flex-shrink: 0;
+}
+.sidebar-pages svg,
+.sidebar-pages img {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}
+.sidebar-pages span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-pages button:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.sidebar-pages button[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+.sidebar-pages button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.sidebar-pages-popover {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 0.375rem);
+  right: 0;
+  width: min(18rem, calc(var(--space-sidebar-width) - 1rem));
+  max-height: min(24rem, 60vh);
+  overflow: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+.sidebar-pages-choice {
+  display: flex;
+}
+.sidebar-pages-choice > .sidebar-page-open {
+  flex: 1;
+}
+.sidebar-pages-choice > .sidebar-page-drag {
+  flex: 0 0 1.5rem;
+  padding: 0;
+  justify-content: center;
+  cursor: grab;
+}
+.sidebar-pages-choice[data-dragging] {
+  background: var(--surface-selected);
+}
+.sidebar-pages-choice > button:last-child {
+  flex: 0 0 2rem;
+  justify-content: center;
+}
+
 .sidebar-update-action {
   position: absolute;
   z-index: 1;
   right: 0.5rem;
-  bottom: 0.625rem;
+  bottom: 2.875rem;
   min-width: 0;
   max-width: calc(100% - 1rem);
   animation: sidebar-update-enter 160ms var(--sidebar-motion-ease-out) both;
@@ -6893,6 +7100,7 @@ body {
 }
 .plugin-manager-toolbar-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -6911,6 +7119,7 @@ body {
   align-items: center;
   gap: 8px;
   margin-bottom: 3px;
+  margin-left: auto;
 }
 .plugin-search-box {
   position: relative;
@@ -6992,6 +7201,7 @@ body {
   outline-offset: 1px;
 }
 .plugin-manager-tabs button {
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 8px;

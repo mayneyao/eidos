@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.0
+# Eidos Plugins — API 3.1
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.0.0
+Plugin API: 3.1.0
 
 Canonical language: English
 
@@ -34,6 +34,15 @@ Package IDs, contribution IDs and placement references are stable identities.
 Installation is device-wide; executable enablement, settings and connection
 authorization are scoped per Space. Private binary storage belongs to the
 plugin on the device. Table plugin configuration belongs to the file.
+
+Lite associates `.eidos-plugin` archives with the desktop host. Opening an archive
+from the operating system, including during startup, MUST enter the same package
+validation and confirmation flow as installation from Plugin settings. An existing
+manifest ID selects Update and displays the installed and incoming versions when
+they differ. Cancellation or invalid packages MUST leave the installed revision
+unchanged. Opening an archive MUST NOT implicitly enable it in a Space; updates
+preserve existing Space enablement. Multiple shell-open requests are processed
+sequentially.
 
 Bindings describe the current resource and location; they do not grant access.
 FileRef IDs are contextual display identities, not persistent file IDs or bearer
@@ -184,10 +193,16 @@ survive source migration unchanged.
 
 ## 7. Resources and authorization
 
+Lite supports `sidebar/explorer` placements referencing page Views. The contribution MUST replace the complete explorer surface, including the Space heading and explorer toolbar; the host MUST NOT prepend its built-in heading, search, sort or creation controls to an active replacement. Window navigation and application controls belong to the host shell outside this surface. The user selects one replacement per Space through Plugin Manager and can return to the built-in explorer. Hosts MUST validate the declared placement and enablement before mounting. Unavailable or failed replacements MUST restore the complete built-in explorer, including its heading, with recovery actions. Temporary host text-search overlays MUST retain the mounted replacement and its browsing state. The sandbox, contribution access, revision checks and disposal contract also apply to sidebar Views. Only this placement receives `capabilities.explorer`: `read()` returns `{ rootDirectory, activePath, sort }`; `watch(listener)` invalidates that display state and returns a disposable subscription without an initial callback. Paths are Space-relative; null root denotes the Space and null activePath denotes no file. This context grants no filesystem authority. File opening uses `ui.openFile` and the host's normal editor selection.
+
+Lite API 3.1 supplies the standalone `ctx.capabilities.filemeta` capability with `read(path, namespace)` and `patch(path, namespace, { set?, remove? })` through sqlite-fs-meta's native namespace API. `workspace.filemeta` declares an explicit nonempty list of at most 16 unique namespaces and optional `write: true`. Namespaces use ASCII letters/digits initially, followed by letters/digits, `.`, `_` or `-`, up to 255 bytes. Read scope is the bound file unless `workspace.files` grants Space reads. Writes additionally require both property write permission and contribution `access: "write"`; this grant does not grant file-content writes. Reads return the entire JSON object, including keys absent from files.eidos, or `{}` for an absent namespace. Patches preserve other keys; null is a value and `remove` deletes keys. Set/remove overlap, invalid keys, non-JSON values and patches over 1 MiB MUST fail before writing. Keys are nonempty, exclude NUL and are bounded to 1024 bytes; patches contain at most 1024 keys and nesting depth 32. Native storage limits may be smaller. Corrupt envelopes MUST NOT be silently replaced. The host validates Space paths and rejects symbolic links, directories and missing files; Unix writes reject multiple hard links. Property calls are immediate filesystem operations, not Eidos File transactions or a cross-process concurrency guarantee. Changes invalidate filesystem watches. These capabilities are Lite-specific; unsupported hosts reject their declarations during compatibility checks.
+
 The filesystem capability provides readText/writeText, readBinary/
 writeBinary, list/stat, delete/rename, getUrl and watch. Lite mediates canonical
 paths, scope, protected files and I/O. Text is bounded to 2 MiB, binary data to
 16 MiB. Stream URLs are host-issued and do not expose native handles.
+
+Lite API 3.1 `fs.list(folder, options?)` accepts `recursive` (default true) and `includeDirectories` (default false), as well as the existing extension filter. `recursive: false, includeDirectories: true` MUST return the current directory level including empty directories; extension filters apply only to files. FileStat may expose `modifiedAtMs` for sorting. Workspace permission is still required to enumerate arbitrary directories; bound-file companion listing does not grant directory traversal.
 
 File-backed contributions have a confined file-directory/companion
 scope. Broader Space access requires `workspace.files`; a workspace action's

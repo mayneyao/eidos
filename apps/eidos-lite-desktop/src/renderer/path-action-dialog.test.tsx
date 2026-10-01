@@ -177,7 +177,7 @@ describe("create file templates", () => {
         input.dispatchEvent(new Event("input", { bubbles: true }))
       })
       await act(async () => templateButtons[0]!.click())
-      expect(input.value).toBe("Travel notes.eidos")
+      expect(input.value).toBe("files.eidos")
       await act(async () => templateButtons[1]!.click())
       expect(input.value).toBe("Travel notes.md")
     } finally {

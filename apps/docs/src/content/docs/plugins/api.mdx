@@ -15,6 +15,8 @@ File views declare their data interfaces in capabilities: `document` for text ed
 
 Choose a placement: navigation and plugin/settings open a page; file/open opens a file by extension; table/view opens a file view with eidos/table within a table.
 
+In Lite, the sidebar footer shows Settings, Plugins, and up to three standalone pages from enabled plugins. Pages appear in their default order until the user changes it. With more than three pages, the **…** menu lists all pages and supports pinning and drag reordering, including keyboard operation through the drag handle. Up to three pinned pages are guaranteed a visible slot; remaining slots follow the saved order. Pins and ordering are saved locally per Space. Narrow sidebars display icons with name tooltips. Pages dedicated to `plugin/settings` or `sidebar/explorer` are excluded unless they also declare a `navigation` placement. Showing an entry does not load its page contents.
+
 requires.pluginApi declares the required API; these examples use `"3.0.0"`. apiVersion is `1`, while the plugin's own version identifies its releases.
 
 ## Current file and page
@@ -83,6 +85,54 @@ root.append(video)
 ```
 
 File-view access is confined to the bound file and its allowed directory scope. Access throughout a Space requires workspace.files. Writes also require write access on the contribution. Direct writes, deletes and renames return BUSY for paths with an existing working copy; use the document interface for text editing, saving and conflict handling.
+
+## File properties in Lite
+
+Lite API 3.1 exposes complete native namespace properties through `ctx.capabilities.filemeta`, backed by sqlite-fs-meta. Declare the namespaces you need; writes also require `access: "write"` on the View or Action. A page needs workspace file read permission to select files across the Space.
+
+```json
+{
+  "workspace": {
+    "files": { "read": true },
+    "filemeta": { "namespaces": ["space.eidos.meta"], "write": true }
+  }
+}
+```
+
+```ts
+const filemeta = ctx.capabilities.filemeta!
+const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
+await filemeta.patch("notes/example.md", "space.eidos.meta", {
+  set: { rating: 4, tags: ["review"], custom: { checked: true } },
+  remove: ["obsolete"],
+})
+```
+
+Reads return the whole JSON object, including keys without columns in files.eidos; an absent namespace returns `{}`. Patches preserve other keys. Null is a value; remove deletes keys. Paths are relative to the Space, and without workspace file read permission only the bound file is available. Property permission does not allow changing file contents. Existing corrupt JSON, symbolic links and non-files fail instead of being overwritten. Envelopes are bounded to 1 MiB and the native filesystem may impose smaller limits. These are immediate filesystem operations; serialize writers when several processes modify the same namespace. No Linux `attr` command-line package is needed.
+
+## Replace the sidebar explorer in Lite
+
+Declare a page View at `sidebar/explorer`, requiring plugin API `3.1.0`:
+
+```json
+{
+  "requires": { "pluginApi": "3.1.0" },
+  "workspace": { "files": { "read": true } },
+  "views": [
+    {
+      "id": "tree",
+      "title": "My explorer",
+      "kind": "page",
+      "entry": "./src/tree.ts"
+    }
+  ],
+  "placements": [{ "location": "sidebar/explorer", "view": "tree" }]
+}
+```
+
+After installing and enabling the plugin, open **Plugins → Choose file explorer** and select it. The choice is saved per Space. A replacement owns the complete explorer area, including its heading, breadcrumbs, search, sorting and file-action toolbar. Lite does not place the built-in Space heading above the plugin. Window navigation and application controls remain in the host shell, outside this contribution. Return to the built-in explorer through Plugin Manager; if a plugin fails, Lite restores the built-in heading and tree with retry and recovery actions.
+
+At this placement `ctx.capabilities.explorer.read()` returns rootDirectory, activePath and sort. Root null means the Space; activePath null means no open file. `explorer.watch(listener)` subscribes to changes without an initial callback and returns a disposable subscription. It provides display state, while file permissions remain independently checked. Use `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` for each directory level, `fs.watch` for refreshes and `ui.openFile(relativePath)` when a user selects a file. Listings include empty directories; FileStat.modifiedAtMs supports time sorting. Default list options preserve recursive file-only indexing. Eidos opens files in the main area using the configured file View. The plugin owns navigation, selection styling and granted file actions within the sidebar sandbox. Global Space text search temporarily overlays the explorer and leaves the plugin mounted, preserving its browsing state. Ordinary navigation pages do not receive explorer context.
 
 ## Work with Eidos files
 

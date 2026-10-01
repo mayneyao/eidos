@@ -14,6 +14,7 @@ import type {
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { fileMetadataConfigPaths } from "../../shared/file-metadata-config"
 import {
   prepareMarkdownLinkMove,
   applyMarkdownLinkMove,
@@ -47,6 +48,7 @@ import type {
   GraftTrackedIgnoredPaths,
   GraftSpaceStatus,
   OpenEidosFileResult,
+  FileMetadataSchema,
   RuntimeCalls,
   RuntimeMethod,
   SpaceSyncHistoryStatus,
@@ -134,7 +136,12 @@ import {
   saveTextFile,
 } from "./text-file-preview"
 import { PluginError } from "@eidos.space/plugin-runtime/rpc"
-import type { FileStat } from "@eidos.space/plugin-sdk"
+import type {
+  FileStat,
+  FileMetaValues,
+  FileMetaPatch,
+  FileListOptions,
+} from "@eidos.space/plugin-sdk"
 import type { MediaFilePreviewResult } from "../plugins/document-host"
 import {
   importMarkdownDocumentImage,
@@ -990,6 +997,32 @@ export class SpaceSession {
     await this.freshSnapshotAndEmit()
   }
 
+  async readFileMeta(
+    requestedPath: string,
+    namespace: string
+  ): Promise<FileMetaValues> {
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    return this.gate.withRuntimeRead(() =>
+      this.runtimePool.filemeta(relativePath, namespace)
+    )
+  }
+
+  async patchFileMeta(
+    requestedPath: string,
+    namespace: string,
+    patch: FileMetaPatch
+  ): Promise<FileMetaValues> {
+    this.prioritizeLocalWork()
+    const relativePath = normalizeMutableRelativePath(requestedPath)
+    const result = await this.gate.withMutation(() =>
+      this.runtimePool.filemeta(relativePath, namespace, patch)
+    )
+    this.noteLocalChange()
+    this.notifyMarkdownWatchers([relativePath])
+    await this.freshSnapshotAndEmit()
+    return result
+  }
+
   async deleteFile(requestedPath: string): Promise<void> {
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
@@ -1069,12 +1102,13 @@ export class SpaceSession {
       extension: path.extname(relativePath).toLowerCase(),
       size: stats.size,
       isDirectory: stats.isDirectory(),
+      modifiedAtMs: stats.mtimeMs,
     }
   }
 
   async listFiles(
     requestedFolder: string,
-    options?: { extensions?: string[] }
+    options?: FileListOptions
   ): Promise<FileStat[]> {
     this.prioritizeLocalWork()
     const folder = requestedFolder
@@ -1101,7 +1135,16 @@ export class SpaceSession {
       }
       for (const entry of entries) {
         if (entry.kind === "directory") {
-          pending.push(entry.relativePath)
+          if (options?.recursive !== false) pending.push(entry.relativePath)
+          if (options?.includeDirectories)
+            results.push({
+              path: entry.relativePath,
+              name: entry.name,
+              extension: "",
+              size: 0,
+              isDirectory: true,
+              modifiedAtMs: entry.modifiedAtMs,
+            })
         } else {
           const ext = path.extname(entry.name).toLowerCase()
           if (allowed && !allowed.includes(ext)) continue
@@ -1111,9 +1154,10 @@ export class SpaceSession {
             extension: ext,
             size: entry.size,
             isDirectory: false,
+            modifiedAtMs: entry.modifiedAtMs,
           })
-          if (results.length >= 20_000) break
         }
+        if (results.length >= 20_000) break
       }
       if (results.length >= 20_000) break
     }
@@ -1190,17 +1234,72 @@ export class SpaceSession {
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
     const safeName = normalizeSpaceEntryName(requestedName)
-    const name = safeName.toLowerCase().endsWith(".eidos")
+    const requestedFileName = safeName.toLowerCase().endsWith(".eidos")
       ? safeName
       : `${safeName}.eidos`
+    const metadataFile =
+      template === "files-index" ||
+      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(
+        requestedFileName.toLowerCase()
+      )
+    const name = metadataFile ? "files.eidos" : requestedFileName
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
     const created = await this.gate.withMutation(async () => {
+      // Recheck inside the mutation gate so concurrent creates cannot overwrite.
+      await this.requireMissingPath(relativePath)
+      let metadataSchema: FileMetadataSchema | undefined
+      if (metadataFile) {
+        const siblings = await listSpaceDirectory(
+          this.canonical.root,
+          parentRelativePath,
+          { maxEntries: 100_000 }
+        )
+        if (
+          siblings.some((entry) => entry.name.toLowerCase() === "files.eidos")
+        )
+          throw new Error("This folder already contains files.eidos.")
+        await this.loadDirectoryEntries("", false)
+        await this.ensureAncestorDirectoriesLoaded(relativePath)
+        const parentPath = fileMetadataConfigPaths(
+          this.buildCachedTree(),
+          relativePath
+        ).find(
+          (candidate) =>
+            path.basename(candidate).toLowerCase() === "files.eidos"
+        )
+        if (parentPath) {
+          const parent = await this.runtimePool.open(parentPath)
+          const tables = parent.snapshot.tables.filter(
+            ({ table }) => table.settings?.vtabModule === "fs_meta"
+          )
+          if (tables.length !== 1)
+            throw new Error(
+              "Parent files.eidos must contain one file metadata table."
+            )
+          const table = tables[0]!
+          const config = table.table.settings?.vtabConfig as
+            | { namespace?: unknown }
+            | undefined
+          metadataSchema = {
+            namespace:
+              typeof config?.namespace === "string"
+                ? config.namespace
+                : "space.eidos.meta",
+            fields: table.fields.filter(
+              (field) =>
+                field.systemRole == null &&
+                field.settings?.isSystem !== true &&
+                !field.isDerived
+            ),
+          }
+        }
+      }
       return await this.runtimePool.create(
         relativePath,
         path.basename(name, ".eidos"),
-        { template }
+        { template: metadataFile ? "files-index" : template, metadataSchema }
       )
     })
     this.runtimeSessionByPath.set(relativePath, created.sessionId)
@@ -4361,7 +4460,6 @@ export class SpaceSession {
     if (normalizedPaths.length === 0 || explorerPaths.length > 0) {
       void this.pathIndex.applyChanges(explorerPaths).catch(() => undefined)
     }
-    const directoriesToRefresh = this.invalidateDirectoryCaches(explorerPaths)
     this.invalidateGraftStatusCache()
 
     const externalChangePaths =
@@ -4380,6 +4478,14 @@ export class SpaceSession {
       this.scheduleGraftStatusRefresh()
       return
     }
+    // An empty watcher batch means "refresh everything", but a nonempty
+    // SQLite-only batch can deliberately filter down to no explorer changes.
+    // Invalidating [] in that case drops hydrated ancestors while a child is
+    // loading, and the next snapshot can temporarily replace the entire tree.
+    const directoriesToRefresh =
+      normalizedPaths.length === 0 || explorerPaths.length > 0
+        ? this.invalidateDirectoryCaches(explorerPaths)
+        : []
     await this.refreshAndEmit(
       true,
       directoriesToRefresh,

@@ -64,6 +64,8 @@ export function PluginEditor({
   const [notification, setNotification] = useState<string | null>(null)
   const errorCallback = useRef(onError)
   errorCallback.current = onError
+  const hostEventRef = useRef(hostEvent)
+  hostEventRef.current = hostEvent
   useEffect(() => {
     if (error) errorCallback.current?.(error)
   }, [error])
@@ -243,6 +245,15 @@ export function PluginEditor({
             ) {
               connected = true
               sendTheme()
+              if (hostEventRef.current)
+                source.postMessage(
+                  {
+                    protocol: PLUGIN_PROTOCOL,
+                    apiVersion: 1,
+                    ...hostEventRef.current,
+                  },
+                  "*"
+                )
               clearTimeout(timeout)
             }
             if (result.draft !== undefined)

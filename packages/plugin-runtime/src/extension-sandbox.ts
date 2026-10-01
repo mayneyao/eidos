@@ -8,6 +8,9 @@ import type {
   TableActionProvider,
   TableActionContext,
   FileStat,
+  FileMetaValues,
+  FileMetaPatch,
+  FileListOptions,
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
@@ -150,6 +153,16 @@ function activateGuest(
         }
       },
     }
+    const filemeta = {
+      read: (path: string, namespace: string) =>
+        invoke<FileMetaValues>("filemeta.read", { path, namespace }),
+      patch: (path: string, namespace: string, patch: FileMetaPatch) =>
+        invoke<FileMetaValues>("filemeta.patch", {
+          path,
+          namespace,
+          patch,
+        }),
+    }
     const fs = {
       async readText(filePath: string): Promise<string> {
         const res = await invoke<{ text: string }>("fs.readText", {
@@ -184,14 +197,17 @@ function activateGuest(
       rename(oldPath: string, newPath: string): Promise<void> {
         return invoke("fs.rename", { oldPath, newPath })
       },
-      list(
-        folder?: string,
-        options?: { extensions?: string[] }
-      ): Promise<FileStat[]> {
+      list(folder?: string, options?: FileListOptions): Promise<FileStat[]> {
         return invoke("fs.list", {
           ...(folder !== undefined ? { folder } : {}),
           ...(options?.extensions !== undefined
             ? { extensions: options.extensions }
+            : {}),
+          ...(options?.recursive !== undefined
+            ? { recursive: options.recursive }
+            : {}),
+          ...(options?.includeDirectories !== undefined
+            ? { includeDirectories: options.includeDirectories }
             : {}),
         })
       },
@@ -264,6 +280,7 @@ function activateGuest(
           request: (input) => invoke("eidos.connection.request", input),
         },
         fs,
+        filemeta,
         storage: {
           list: (prefix = "") => invoke("storage.list", { prefix }),
           async read(key) {

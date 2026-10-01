@@ -19,6 +19,19 @@ const manifest: PluginManifest = {
   ],
   placements: [{ location: "table/view", view: "main" }],
 }
+it("limits explorer replacement and native properties to Lite", () => {
+  const plugin: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "3.1.0" },
+    workspace: { filemeta: { namespaces: ["space.eidos.meta"] } },
+    views: [{ id: "tree", title: "Tree", kind: "page", entry: "./main.js" }],
+    placements: [{ location: "sidebar/explorer", view: "tree" }],
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite").compatible).toBe(true)
+  expect(checkPluginCompatibility(plugin, "eidos-cli").missingFeatures).toEqual(
+    expect.arrayContaining(["filemeta", "sidebar.explorer"])
+  )
+})
 it("checks every composed Eidos capability for each host", () => {
   const plugin: PluginManifest = {
     ...manifest,
@@ -37,7 +50,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.0.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.1.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],
@@ -50,6 +63,7 @@ it("checks minimum API independently of SDK and plugin versions", () => {
     ["2.0.0", false],
     ["2.0.1", false],
     ["3.0.0", true],
+    ["3.1.0", true],
   ] as const) {
     expect(
       checkPluginCompatibility(

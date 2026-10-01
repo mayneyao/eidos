@@ -157,7 +157,10 @@ export function PathActionDialog({
           event.preventDefault()
           if (busy) return
           if (state.action === "create-file") {
-            onSubmit(value, currentTemplateId)
+            onSubmit(
+              effectiveIsFileTable ? "files.eidos" : value,
+              currentTemplateId
+            )
           } else {
             onSubmit(value)
           }
@@ -212,10 +215,17 @@ export function PathActionDialog({
               <input
                 ref={nameInput}
                 autoFocus
-                value={value}
+                value={
+                  state.action === "create-file" && effectiveIsFileTable
+                    ? "files.eidos"
+                    : value
+                }
                 onChange={(event) => setValue(event.target.value)}
                 disabled={busy}
-                readOnly={state.action === "create-linked-note"}
+                readOnly={
+                  state.action === "create-linked-note" ||
+                  (state.action === "create-file" && effectiveIsFileTable)
+                }
               />
             </label>
             {state.action === "create-file" ? (

@@ -32,6 +32,7 @@ import { PluginMarketplaceView } from "./plugin-marketplace"
 import { PluginDetailView } from "./plugin-detail-view"
 import { PluginDropZone } from "./plugin-drop-zone"
 import { isMarkdownTextFile } from "./text-editor-options"
+import { ExplorerPicker, explorerChoices } from "./plugin-explorer"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
 export function PluginManager({
@@ -266,6 +267,10 @@ export function PluginManager({
   }
 
   const plugins = listing?.plugins ?? []
+  const explorers = explorerChoices(listing)
+  const selectedExplorer =
+    explorers.find((choice) => choice.key === listing?.space?.explorer)?.key ??
+    null
   const filteredPlugins = plugins.filter((item) => {
     const matched = marketplace?.plugins.find((p) => p.id === item.manifest.id)
     const desc =
@@ -490,6 +495,16 @@ export function PluginManager({
         </div>
 
         <div className="plugin-manager-toolbar-actions">
+          {spaceAvailable && (
+            <ExplorerPicker
+              choices={explorers}
+              selected={selectedExplorer}
+              disabled={busy}
+              onSelect={(key) =>
+                void run(() => window.eidosLite.setPluginExplorer(key))
+              }
+            />
+          )}
           <div className="plugin-search-box">
             <Search
               size={13}

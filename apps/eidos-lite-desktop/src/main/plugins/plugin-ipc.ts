@@ -23,6 +23,8 @@ import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginService } from "./plugin-service"
+import type { ExplorerState } from "@eidos.space/plugin-sdk"
+import { normalizeMutableRelativePath } from "../space/space-paths"
 import { PluginConnections } from "./plugin-connections"
 import { PluginRegistry } from "./plugin-registry"
 import {
@@ -273,6 +275,49 @@ export function registerPluginIpc(controller: WindowController): {
         controller.requireSession(event.sender),
         key,
         route
+      )
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.selectExplorer,
+    async (event, key: unknown) => {
+      caller(event)
+      if (key !== null && typeof key !== "string")
+        throw new PluginError("INVALID_REQUEST", "Invalid explorer")
+      await store.selectExplorer(
+        controller.requireSession(event.sender).canonical.id,
+        key
+      )
+      catalogChanged()
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.explorer,
+    (event, key: unknown, value: unknown) => {
+      const owner = caller(event)
+      if (typeof key !== "string" || !value || typeof value !== "object")
+        throw new PluginError("INVALID_REQUEST", "Invalid explorer")
+      const state = value as ExplorerState
+      for (const target of [state.rootDirectory, state.activePath]) {
+        if (target !== null) {
+          if (typeof target !== "string")
+            throw new PluginError("INVALID_REQUEST", "Invalid explorer path")
+          normalizeMutableRelativePath(target)
+        }
+      }
+      if (
+        !state.sort ||
+        !["name", "modified", "type"].includes(state.sort.by) ||
+        !["ascending", "descending"].includes(state.sort.direction)
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid explorer sort")
+      return service.openPage(
+        owner,
+        controller.requireSession(event.sender),
+        key,
+        "",
+        undefined,
+        state
       )
     }
   )

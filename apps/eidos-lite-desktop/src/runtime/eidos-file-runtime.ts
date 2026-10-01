@@ -38,7 +38,8 @@ import {
   type EidosLiteCsvOperationProgress,
 } from "../shared/contracts"
 import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
-import { createFsMetaEidosFile } from "./fs-meta-file"
+import { createFsMetaEidosFile, type FsMetaCustomField } from "./fs-meta-file"
+import type { FileMetadataSchema } from "../shared/contracts"
 
 const MAX_CSV_ROWS = 2_000_000
 const MAX_CSV_COLUMNS = 500
@@ -828,7 +829,10 @@ function findEidosFileEntry(
 export async function createEidosLiteFileRuntime(
   filePath: string,
   title: string,
-  options?: { template?: "blank" | "files-index" }
+  options?: {
+    template?: "blank" | "files-index"
+    metadataSchema?: FileMetadataSchema
+  }
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
   const baseName = path.basename(filePath).toLowerCase()
@@ -845,6 +849,30 @@ export async function createEidosLiteFileRuntime(
           : title,
       tableName: "files",
       root: ".",
+      namespace: options?.metadataSchema?.namespace,
+      customFields: options?.metadataSchema?.fields.map(
+        (field): FsMetaCustomField => {
+          if (
+            field.type !== "text" &&
+            field.type !== "integer" &&
+            field.type !== "rating" &&
+            field.type !== "select" &&
+            field.type !== "multi-select"
+          )
+            throw new Error(
+              `Cannot inherit file metadata field type: ${field.type}`
+            )
+          return {
+            name: field.name,
+            storageKey:
+              typeof field.settings?.vtabStorageKey === "string"
+                ? field.settings.vtabStorageKey
+                : (field.physicalName ?? field.name),
+            type: field.type === "rating" ? "integer" : field.type,
+            settings: field.settings,
+          }
+        }
+      ),
     })
     return openEidosLiteFileRuntime(filePath)
   }

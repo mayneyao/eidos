@@ -5,7 +5,7 @@ import type {
   PluginEvent,
   TextChange,
 } from "@eidos.space/plugin-runtime/rpc"
-import type { SettingValue } from "@eidos.space/plugin-sdk"
+import type { SettingValue, ExplorerState } from "@eidos.space/plugin-sdk"
 export interface PluginBinding {
   hash: string
   enabled: boolean
@@ -14,6 +14,7 @@ export interface PluginSpaceConfig {
   plugins: Record<string, { enabled: boolean }>
   associations: Record<string, string>
   formatters?: Record<string, string>
+  explorer?: string
 }
 export interface PluginListing {
   plugins: {
@@ -116,6 +117,11 @@ export interface PluginApi {
   setPluginShortcuts(bindings: string[]): Promise<string[]>
   onPluginShortcut(listener: (binding: string) => void): () => void
   openPluginPage(key: string, route?: string): Promise<PluginOpenResult>
+  openPluginExplorer(
+    key: string,
+    state: ExplorerState
+  ): Promise<PluginOpenResult>
+  setPluginExplorer(key: string | null): Promise<void>
   openPluginExtension(
     id: string,
     table?: { tableId: string; viewId: string }
@@ -168,6 +174,8 @@ export const PLUGIN_CHANNELS = {
   shortcuts: "eidos-lite:plugins-shortcuts",
   shortcut: "eidos-lite:plugins-shortcut",
   page: "eidos-lite:plugins-page",
+  explorer: "eidos-lite:plugins-explorer",
+  selectExplorer: "eidos-lite:plugins-select-explorer",
   extension: "eidos-lite:plugins-extension",
   invoke: "eidos-lite:plugins-invoke",
   event: "eidos-lite:plugins-event",

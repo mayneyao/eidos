@@ -21,9 +21,16 @@ import type { SpaceTreeEntry } from "../shared/contracts"
 import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
 import { hasSpacePathDragData, setSpacePathDragData } from "./space-path-drag"
 import { useEidosLiteI18n } from "./i18n"
+import {
+  compareExplorerEntries,
+  DEFAULT_EXPLORER_SORT,
+  type ExplorerSort,
+} from "./explorer-sort"
 
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
+  rootDirectory?: string | null
+  sort?: ExplorerSort
   activePath: string | null
   revealToken?: number
   disabled?: boolean
@@ -129,10 +136,14 @@ export function topLevelSelectedEntries(
   )
 }
 
-function toTreePath(entry: SpaceTreeEntry): string {
-  return entry.kind === "directory"
-    ? `${entry.relativePath.replace(/\/$/, "")}/`
+function toTreePath(
+  entry: SpaceTreeEntry,
+  rootDirectory?: string | null
+): string {
+  const path = rootDirectory
+    ? entry.relativePath.slice(rootDirectory.length + 1)
     : entry.relativePath
+  return entry.kind === "directory" ? `${path.replace(/\/$/, "")}/` : path
 }
 
 function treePathLeafName(treePath: string): string {
@@ -205,14 +216,16 @@ function eventTargetsRenameInput(event: SyntheticEvent<HTMLElement>): boolean {
 }
 
 export function buildSpaceFileTreeModel(
-  entries: SpaceTreeEntry[]
+  entries: SpaceTreeEntry[],
+  rootDirectory?: string | null,
+  sort: ExplorerSort = DEFAULT_EXPLORER_SORT
 ): SpaceFileTreeModel {
   const paths: string[] = []
   const initialExpandedPaths: string[] = []
   const entryByTreePath = new Map<string, SpaceTreeEntry>()
 
   const visit = (entry: SpaceTreeEntry, depth: number) => {
-    const treePath = toTreePath(entry)
+    const treePath = toTreePath(entry, rootDirectory)
     paths.push(treePath)
     entryByTreePath.set(treePath, entry)
     if (
@@ -222,10 +235,16 @@ export function buildSpaceFileTreeModel(
     ) {
       initialExpandedPaths.push(treePath)
     }
-    entry.children?.forEach((child) => visit(child, depth + 1))
+    entry.children
+      ?.slice()
+      .sort((a, b) => compareExplorerEntries(a, b, sort))
+      .forEach((child) => visit(child, depth + 1))
   }
 
-  entries.forEach((entry) => visit(entry, 0))
+  entries
+    .slice()
+    .sort((a, b) => compareExplorerEntries(a, b, sort))
+    .forEach((entry) => visit(entry, 0))
   return { paths, initialExpandedPaths, entryByTreePath }
 }
 
@@ -292,6 +311,8 @@ export const SPACE_FILE_TREE_STYLES = {
 
 export function SpaceFileTree({
   entries,
+  rootDirectory = null,
+  sort = DEFAULT_EXPLORER_SORT,
   activePath,
   revealToken = 0,
   disabled,
@@ -349,8 +370,26 @@ export function SpaceFileTree({
   onRenameErrorRef.current = onRenameError
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
-  const tree = useMemo(() => buildSpaceFileTreeModel(entries), [entries])
+  const tree = useMemo(
+    () => buildSpaceFileTreeModel(entries, rootDirectory, sort),
+    [entries, rootDirectory, sort]
+  )
+  const spaceDirectory = (path: string | null): string | null =>
+    rootDirectory ? (path ? `${rootDirectory}/${path}` : rootDirectory) : path
+  const spaceTreePath = (path: string): string =>
+    rootDirectory ? `${rootDirectory}/${path}` : path
+  const visiblePath =
+    activePath && rootDirectory
+      ? activePath.startsWith(`${rootDirectory}/`)
+        ? activePath.slice(rootDirectory.length + 1)
+        : null
+      : activePath
   const treeSignature = tree.paths.join("\u0000")
+  const sortSignature = `${sort.by}:${sort.direction}`
+  const sortRef = useRef(sort)
+  sortRef.current = sort
+  const appliedSortSignatureRef = useRef<string | null>(null)
+  const appliedOrderRef = useRef<string | null>(null)
   const treeRef = useRef(tree)
   treeRef.current = tree
   const appliedPathsSignatureRef = useRef<string | null>(null)
@@ -382,8 +421,10 @@ export function SpaceFileTree({
     )
     void onMoveRef
       .current(
-        draggedPaths.map(relativePathFromTreePath),
-        dropTargetDirectory(target)
+        draggedPaths.map((path) =>
+          spaceTreePath(relativePathFromTreePath(path))
+        ),
+        spaceDirectory(dropTargetDirectory(target))
       )
       .catch((cause) => {
         restoreSelectionRef.current = draggedPaths
@@ -398,6 +439,22 @@ export function SpaceFileTree({
 
   const { model } = useFileTree({
     paths: [],
+    sort: (left, right) =>
+      compareExplorerEntries(
+        treeRef.current.entryByTreePath.get(left.path) ?? {
+          name: left.basename,
+          relativePath: left.path,
+          kind: left.isDirectory ? "directory" : "file",
+          modifiedAtMs: 0,
+        },
+        treeRef.current.entryByTreePath.get(right.path) ?? {
+          name: right.basename,
+          relativePath: right.path,
+          kind: right.isDirectory ? "directory" : "file",
+          modifiedAtMs: 0,
+        },
+        sortRef.current
+      ),
     density: 1,
     itemHeight: 28,
     initialExpansion: "closed",
@@ -469,7 +526,7 @@ export function SpaceFileTree({
     const topLevelEntries = topLevelSelectedEntries(selectedEntries)
     if (topLevelEntries.length < selectedEntries.length) {
       const keptPaths = new Set(
-        topLevelEntries.map((entry) => toTreePath(entry))
+        topLevelEntries.map((entry) => toTreePath(entry, rootDirectory))
       )
       for (const path of selectedPaths) {
         if (!keptPaths.has(path)) model.getItem(path)?.deselect()
@@ -506,7 +563,12 @@ export function SpaceFileTree({
 
   useEffect(() => {
     const signature = sortedPathsSignature(tree.paths)
-    if (appliedPathsSignatureRef.current === signature) return
+    if (
+      appliedPathsSignatureRef.current === signature &&
+      appliedSortSignatureRef.current === sortSignature &&
+      appliedOrderRef.current === treeSignature
+    )
+      return
     const expandedPaths = treeInitializedRef.current
       ? preservedExpandedTreePaths(tree.paths, model)
       : tree.initialExpandedPaths
@@ -519,6 +581,13 @@ export function SpaceFileTree({
     model.resetPaths(tree.paths, {
       initialExpandedPaths: expandedPaths,
     })
+    // Pierre's initialExpandedPaths lookup assumes name-ascending siblings,
+    // even when a custom sort is configured. Restore by canonical path so
+    // lazy hydration cannot discard expansion under date or descending sorts.
+    for (const path of expandedPaths) {
+      const item = model.getItem(path)
+      if (item && "expand" in item && !item.isExpanded()) item.expand()
+    }
     // Restoring expanded descendants also expands their ancestors in Pierre.
     // Restore collapsed parents afterwards without losing child expansion state.
     for (const path of collapsedPaths) {
@@ -532,12 +601,19 @@ export function SpaceFileTree({
     }
     treeInitializedRef.current = true
     appliedPathsSignatureRef.current = signature
-  }, [model, treeResetVersion, treeSignature])
+    appliedSortSignatureRef.current = sortSignature
+    appliedOrderRef.current = treeSignature
+  }, [model, treeResetVersion, treeSignature, sortSignature])
 
   useEffect(() => {
     if (!renameRequest) return
-    model.startRenaming(renameRequest.treePath)
-  }, [model, renameRequest])
+    const path = rootDirectory
+      ? renameRequest.treePath.startsWith(`${rootDirectory}/`)
+        ? renameRequest.treePath.slice(rootDirectory.length + 1)
+        : null
+      : renameRequest.treePath
+    if (path) model.startRenaming(path)
+  }, [model, renameRequest, rootDirectory])
 
   useEffect(() => {
     if (
@@ -555,8 +631,8 @@ export function SpaceFileTree({
     // Directory hydration also changes treeSignature. Reveal once per document
     // navigation, so browsing folders cannot pull the viewport back to the editor.
     if (activeRevealRef.current.revealed) return
-    if (!activePath) return
-    const activeTreePath = activePath
+    if (!visiblePath) return
+    const activeTreePath = visiblePath
     for (const parentPath of parentTreePaths(activeTreePath)) {
       const parent = model.getItem(parentPath)
       if (parent && "expand" in parent && !parent.isExpanded()) parent.expand()
@@ -629,7 +705,7 @@ export function SpaceFileTree({
         data-space-file-tree="true"
         data-active-path={activePath ?? undefined}
         data-active-selected={
-          activePath && selectedPaths.includes(activePath) ? "true" : "false"
+          visiblePath && selectedPaths.includes(visiblePath) ? "true" : "false"
         }
         style={
           externalDropActive
@@ -674,7 +750,9 @@ export function SpaceFileTree({
               !disabled &&
               !mutationInFlightRef.current &&
               Boolean(onImportFiles)
-            const targetDirectory = externalDropTargetDirectory(treePath)
+            const targetDirectory = spaceDirectory(
+              externalDropTargetDirectory(treePath)
+            )
             const targetTreePath = treePath?.endsWith("/")
               ? treePath
               : treePath
@@ -768,7 +846,9 @@ export function SpaceFileTree({
               return
             const files = Array.from(event.dataTransfer.files)
             if (!files.length) return
-            const targetDirectory = externalDropTargetDirectory(treePath)
+            const targetDirectory = spaceDirectory(
+              externalDropTargetDirectory(treePath)
+            )
             mutationInFlightRef.current = true
             void onImportFiles(files, targetDirectory)
               .catch(onMoveError)
@@ -791,11 +871,13 @@ export function SpaceFileTree({
               const selected = treeRef.current.entryByTreePath.get(path)
               return selected ? [selected] : []
             })
-          ).map(toTreePath)
+          ).map((entry) => toTreePath(entry, rootDirectory))
           setSpacePathDragData(
             event.dataTransfer,
             entry.relativePath,
-            draggedTreePaths.map(relativePathFromTreePath)
+            draggedTreePaths.map((path) =>
+              spaceTreePath(relativePathFromTreePath(path))
+            )
           )
         }}
         onClick={(event) => {
@@ -847,7 +929,9 @@ export function SpaceFileTree({
       />
       {rootDropActive && (
         <div className="space-external-drop-hint" role="status">
-          {t("Move to Space root")}
+          {rootDirectory
+            ? t("Move into {name}", { name: rootDirectory })
+            : t("Move to Space root")}
         </div>
       )}
       {externalDropActive ? (

@@ -38,6 +38,98 @@ vi.mock("@pierre/trees/react", async () => {
 })
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
+it("keeps scoped folder actions addressed to the original Space paths", async () => {
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  const file = {
+    name: "note.md",
+    relativePath: "project/docs/note.md",
+    kind: "file" as const,
+    size: 1,
+    modifiedAtMs: 1,
+  }
+  const onMove = vi.fn().mockResolvedValue(undefined)
+  const onRename = vi.fn().mockResolvedValue(undefined)
+  const onOpen = vi.fn()
+  const onImportFiles = vi.fn().mockResolvedValue(undefined)
+  try {
+    await act(async () =>
+      root.render(
+        <SpaceFileTree
+          entries={[
+            {
+              name: "docs",
+              relativePath: "project/docs",
+              kind: "directory",
+              size: 0,
+              modifiedAtMs: 1,
+              childrenLoaded: true,
+              children: [file],
+            },
+          ]}
+          rootDirectory="project"
+          activePath="project/docs/note.md"
+          renameRequest={null}
+          onSelect={vi.fn()}
+          onOpen={onOpen}
+          onLoadDirectory={vi.fn()}
+          onMove={onMove}
+          onMoveError={vi.fn()}
+          onRename={onRename}
+          onRenameError={vi.fn()}
+          onContextMenu={vi.fn()}
+          onImportFiles={onImportFiles}
+        />
+      )
+    )
+    expect(treeModel.getItem("project/")).toBeNull()
+    expect(treeModel.getSelectedPaths()).toContain("docs/note.md")
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[data-item-path="docs/note.md"]')!
+        .click()
+    )
+    expect(onOpen).toHaveBeenCalledWith(file)
+    const dropEvent = new Event("drop", { bubbles: true, cancelable: true })
+    const imported = new File(["hello"], "hello.txt")
+    Object.defineProperty(dropEvent, "dataTransfer", {
+      value: { types: ["Files"], files: [imported] },
+    })
+    await act(async () =>
+      host.querySelector("[data-space-file-tree]")!.dispatchEvent(dropEvent)
+    )
+    expect(onImportFiles).toHaveBeenCalledWith([imported], "project")
+    const dnd = treeOptions.dragAndDrop!
+    if (typeof dnd === "boolean") throw new Error("Missing drag configuration")
+    await act(async () =>
+      dnd.onDropComplete?.({
+        draggedPaths: ["docs/note.md"],
+        operation: "move",
+        target: {
+          kind: "root",
+          directoryPath: null,
+          hoveredPath: null,
+          flattenedSegmentPath: null,
+        },
+      })
+    )
+    expect(onMove).toHaveBeenCalledWith(["project/docs/note.md"], "project")
+    const rename = treeOptions.renaming!
+    if (typeof rename === "boolean")
+      throw new Error("Missing rename configuration")
+    await act(async () =>
+      rename.onRename?.({
+        sourcePath: "docs/note.md",
+        destinationPath: "docs/renamed.md",
+        isFolder: false,
+      })
+    )
+    expect(onRename).toHaveBeenCalledWith(file, "renamed.md")
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("moves into the blank root area optimistically and restores a failed move", async () => {
   const host = document.createElement("div")
   const root = createRoot(host)

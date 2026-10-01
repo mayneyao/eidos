@@ -29,6 +29,68 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it.each([true, false])(
+    "preserves hydrated ancestors across SQLite watcher events (open runtime: %s)",
+    async (runtimeOpen) => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-tree-watch-"))
+      const userData = await fs.mkdtemp(
+        path.join(os.tmpdir(), "eidos-tree-watch-state-")
+      )
+      const graft = new GraftClient({
+        sdkTransport: new GraftInProcessTransport(),
+      })
+      let session: SpaceSession | null = null
+      try {
+        await fs.mkdir(path.join(root, "journals/2026/10"), { recursive: true })
+        await fs.writeFile(
+          path.join(root, "journals/2026/10/today.md"),
+          "hello"
+        )
+        const file = createEidosFile(path.join(root, "notes.eidos"), {
+          title: "Notes",
+        })
+        await file.close()
+        session = await SpaceSession.create(root, userData, { graft })
+        vi.spyOn(session.runtimePool, "openRelativePaths").mockReturnValue(
+          runtimeOpen ? ["notes.eidos"] : []
+        )
+        await session.loadDirectory("journals")
+        await session.loadDirectory("journals/2026")
+        const before = await session.snapshot()
+        const watcher = session as unknown as {
+          handleStableWatcherChange(paths: readonly string[]): Promise<void>
+        }
+        await watcher.handleStableWatcherChange(["notes.eidos-wal"])
+        const after = await session.loadDirectory("journals/2026/10")
+        const paths = flattenSpaceTree(after.entries).map(
+          (entry) => entry.relativePath
+        )
+        expect(paths).toEqual(
+          expect.arrayContaining(
+            flattenSpaceTree(before.entries).map((entry) => entry.relativePath)
+          )
+        )
+        expect(paths).toContain("journals/2026/10/today.md")
+        expect(
+          after.entries.find((entry) => entry.relativePath === "journals")
+            ?.childrenLoaded
+        ).toBe(true)
+        // An actual full-rescan notification must still refresh loaded folders.
+        await fs.writeFile(path.join(root, "journals/2026/10/new.md"), "new")
+        await watcher.handleStableWatcherChange([])
+        expect(
+          flattenSpaceTree((await session.snapshot()).entries).map(
+            (entry) => entry.relativePath
+          )
+        ).toContain("journals/2026/10/new.md")
+      } finally {
+        await session?.close().catch(() => undefined)
+        await graft.close().catch(() => undefined)
+        await fs.rm(root, { recursive: true, force: true })
+        await fs.rm(userData, { recursive: true, force: true })
+      }
+    }
+  )
   it("notifies a Markdown folder observer after a file changes", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-watch-"))
     const userData = await fs.mkdtemp(

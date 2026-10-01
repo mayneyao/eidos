@@ -5,7 +5,13 @@ import type {
 } from "../../shared/contracts"
 import type { DiskSnapshot } from "@eidos.space/plugin-runtime/working-copy"
 import { PluginError } from "@eidos.space/plugin-runtime/rpc"
-import type { Disposable, FileStat } from "@eidos.space/plugin-sdk"
+import type {
+  Disposable,
+  FileStat,
+  FileMetaValues,
+  FileMetaPatch,
+  FileListOptions,
+} from "@eidos.space/plugin-sdk"
 export interface MediaFilePreviewResult {
   path: string
   name: string
@@ -41,11 +47,14 @@ export interface PluginDocumentSession {
   deleteFile?(path: string): Promise<void>
   renameFile?(oldPath: string, newPath: string): Promise<void>
   statFile?(path: string): Promise<FileStat | null>
-  listFiles?(
-    folder: string,
-    options?: { extensions?: string[] }
-  ): Promise<FileStat[]>
+  listFiles?(folder: string, options?: FileListOptions): Promise<FileStat[]>
   watchFiles?(folder: string, listener: () => void): Disposable
+  readFileMeta?(path: string, namespace: string): Promise<FileMetaValues>
+  patchFileMeta?(
+    path: string,
+    namespace: string,
+    patch: FileMetaPatch
+  ): Promise<FileMetaValues>
 }
 export function diskSnapshot(preview: TextFilePreviewResult): DiskSnapshot {
   if (preview.type !== "text")

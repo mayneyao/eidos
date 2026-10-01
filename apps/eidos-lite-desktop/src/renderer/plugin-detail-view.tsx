@@ -1284,6 +1284,19 @@ export function PluginDetailView({
                         </span>
                       </div>
                     )}
+                    {manifest?.workspace?.filemeta && (
+                      <div className="plugin-spec-item">
+                        <span className="plugin-spec-label">
+                          {t("File property namespaces")}
+                        </span>
+                        <span className="plugin-spec-value">
+                          {manifest.workspace.filemeta.namespaces.join(", ")} ·{" "}
+                          {manifest.workspace.filemeta.write
+                            ? t("Read and write")
+                            : t("Read only")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}

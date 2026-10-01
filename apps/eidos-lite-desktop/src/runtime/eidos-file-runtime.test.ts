@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { createFsMetaEidosFile } from "./fs-meta-file"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
@@ -14,6 +15,69 @@ import {
   openEidosLiteFileRuntime,
 } from "./eidos-file-runtime"
 import * as vtabResolver from "./vtab-resolver"
+
+it("inherits field configuration, namespace and legacy storage keys without copying property values", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "eidos-inherit-properties-"))
+  let parent: Awaited<ReturnType<typeof openEidosLiteFileRuntime>> | undefined
+  let child: typeof parent
+  try {
+    await mkdir(path.join(root, "assets"))
+    await writeFile(path.join(root, "assets/note.txt"), "note")
+    createFsMetaEidosFile(path.join(root, "files.eidos"), {
+      namespace: "test.eidos.metadata",
+      customFields: [
+        {
+          name: "Status",
+          storageKey: "legacy.status",
+          type: "select",
+          settings: { options: [{ name: "Ready", color: "green" }] },
+        },
+      ],
+    })
+    parent = await openEidosLiteFileRuntime(path.join(root, "files.eidos"))
+    const table = parent.initialSnapshot.tables[0]!
+    const field = table.fields.find((field) => field.name === "Status")!
+    await parent.source.updateRow(table.table.id, "assets/note.txt", {
+      [field.id]: "Ready",
+    })
+    child = await createEidosLiteFileRuntime(
+      path.join(root, "assets/files.eidos"),
+      "Files",
+      {
+        template: "files-index",
+        metadataSchema: { namespace: "test.eidos.metadata", fields: [field] },
+      }
+    )
+    const childTable = child.initialSnapshot.tables[0]!
+    const childField = childTable.fields.find(
+      (field) => field.name === "Status"
+    )!
+    expect(childField.name).toBe("Status")
+    expect(childField.settings?.vtabStorageKey).toBe("legacy.status")
+    expect(childField.settings?.options).toEqual(field.settings?.options)
+    expect(childTable.table.settings?.vtabConfig).toMatchObject({
+      root: ".",
+      namespace: "test.eidos.metadata",
+    })
+    expect(
+      (await child.source.getRow(childTable.table.id, "note.txt"))?.[
+        childField.tableColumnName
+      ]
+    ).toBe("Ready")
+    await child.source.updateRow(childTable.table.id, "note.txt", {
+      [childField.id]: null,
+    })
+    expect(
+      (await parent.source.getRow(table.table.id, "assets/note.txt"))?.[
+        field.tableColumnName
+      ]
+    ).toBeNull()
+  } finally {
+    await child?.close()
+    await parent?.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 it.each(["unknown", "fs_meta"])(
   "reports an unavailable required %s extension and closes the database",

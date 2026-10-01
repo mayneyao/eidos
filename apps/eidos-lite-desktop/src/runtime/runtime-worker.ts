@@ -26,6 +26,7 @@ import {
   type EidosLiteFileRuntime,
 } from "./eidos-file-runtime"
 import { serializeRuntimeWorkerError } from "./runtime-worker-error"
+import { filemeta } from "./filemeta"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -317,6 +318,13 @@ async function runtimeCall(
 
 async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
   switch (request.type) {
+    case "filemeta":
+      return filemeta(
+        request.root,
+        request.relativePath,
+        request.namespace,
+        request.patch
+      )
     case "create": {
       if (!path.isAbsolute(request.filePath)) {
         throw new Error("Runtime file path must be absolute")
@@ -326,7 +334,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       openedRuntime = await createEidosLiteFileRuntime(
         request.filePath,
         request.title,
-        { template: request.template }
+        { template: request.template, metadataSchema: request.metadataSchema }
       )
       source = openedRuntime.source
       return openedRuntime.initialSnapshot

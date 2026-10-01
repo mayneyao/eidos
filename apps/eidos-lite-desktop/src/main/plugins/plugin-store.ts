@@ -74,6 +74,10 @@ function parseScope(value: unknown): PluginSpaceConfig {
     plugins,
     associations,
     ...(Object.keys(formatters).length ? { formatters } : {}),
+    ...(typeof scope.explorer === "string" &&
+    /^[a-z][a-z0-9.-]*\/[a-z][a-z0-9-]*$/.test(scope.explorer)
+      ? { explorer: scope.explorer }
+      : {}),
   }
 }
 export class PluginStore {
@@ -438,6 +442,7 @@ export class PluginStore {
       if (config.activeThemeId === id) config.activeThemeId = null
       delete config.installed[id]
       for (const space of Object.values(config.spaces)) {
+        if (space.explorer?.startsWith(`${id}/`)) delete space.explorer
         delete space.plugins[id]
         for (const [ext, key] of Object.entries(space.formatters ?? {}))
           if (key.startsWith(`${id}/`)) delete space.formatters![ext]
@@ -482,6 +487,27 @@ export class PluginStore {
       else defaults[extension] = key
     })
   }
+  async selectExplorer(spaceId: string, key: string | null): Promise<void> {
+    if (
+      key !== null &&
+      !(await this.list(spaceId)).plugins.some(
+        (p) =>
+          p.enabled &&
+          p.manifest.placements?.some(
+            (placement) =>
+              placement.location === "sidebar/explorer" &&
+              `${p.manifest.id}/${placement.view}` === key
+          )
+      )
+    )
+      throw new PluginError("INVALID_REQUEST", "Explorer unavailable")
+    await this.update((config) => {
+      const scope = (config.spaces[spaceId] ??= emptyScope())
+      if (key === null) delete scope.explorer
+      else scope.explorer = key
+    })
+  }
+
   async associate(extension: string, editor: string | null, spaceId?: string) {
     if (!/^\.[a-z0-9]{1,16}$/.test(extension) || extension === ".eidos")
       throw new PluginError("INVALID_REQUEST", "Invalid file extension")

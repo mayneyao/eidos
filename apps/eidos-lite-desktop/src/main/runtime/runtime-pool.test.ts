@@ -60,6 +60,30 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("reuses a private property worker and drains it with Space handles", async () => {
+    const first = new FakeRuntimeUtilityProcess()
+    const second = new FakeRuntimeUtilityProcess()
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(first as unknown as UtilityProcess)
+      .mockReturnValueOnce(second as unknown as UtilityProcess)
+    const pool = new RuntimePool("/space", "/worker.js")
+    await pool.filemeta("note.md", "space.eidos.meta")
+    await pool.filemeta("other.md", "space.eidos.meta", {
+      set: { rating: 4 },
+    })
+    expect(utilityProcess.fork).toHaveBeenCalledTimes(1)
+    expect(pool.openRelativePaths()).toEqual([])
+    expect(first.requests.map((request) => request.type)).toEqual([
+      "filemeta",
+      "filemeta",
+    ])
+    await pool.closeHandles()
+    expect(first.requests.at(-1)?.type).toBe("close")
+    await pool.filemeta("note.md", "space.eidos.meta")
+    expect(utilityProcess.fork).toHaveBeenCalledTimes(2)
+    await pool.destroy()
+  })
   it("inspects tables privately without replacing resident editor runtimes", async () => {
     const root = await realpath(
       await mkdtemp(path.join(tmpdir(), "lite-pool-inspect-"))

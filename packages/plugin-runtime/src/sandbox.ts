@@ -8,6 +8,8 @@ import type {
   ViewCapability,
   FileStat,
   FileMetadata,
+  ExplorerState,
+  FileListOptions,
 } from "./contracts"
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -35,6 +37,7 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
 type BrowserBinding = {
   capabilities?: ViewCapability[]
   connections?: boolean
+  explorer?: ExplorerState
 } & (
   | { kind: "eidos"; file?: FileMetadata }
   | { kind: "document"; file?: FileMetadata }
@@ -75,6 +78,8 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
   >()
   const observers = new Map<string, (value: unknown) => void>()
   const tableObservers = new Set<() => void>()
+  let explorerState = binding.explorer
+  const explorerObservers = new Set<(state: ExplorerState) => void>()
   const watchTable = (listener: () => void) => {
     tableObservers.add(listener)
     return own({
@@ -129,6 +134,17 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
             !/url\s*\(|var\s*\(/i.test(value)
           )
             window.document.documentElement.style.setProperty(key, value)
+        }
+        return
+      }
+      if (r.observation === "host.explorer" && explorerState) {
+        explorerState = r.value
+        for (const listener of explorerObservers) {
+          try {
+            listener(structuredClone(explorerState!))
+          } catch {
+            explorerObservers.delete(listener)
+          }
         }
         return
       }
@@ -256,6 +272,26 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
   }
   const context: ViewContext = {
     capabilities: {
+      ...(explorerState
+        ? {
+            explorer: {
+              read: () => structuredClone(explorerState!),
+              watch(listener: (state: ExplorerState) => void) {
+                explorerObservers.add(listener)
+                return own({
+                  dispose() {
+                    explorerObservers.delete(listener)
+                  },
+                })
+              },
+            },
+          }
+        : {}),
+      filemeta: {
+        read: (path, namespace) => call("filemeta.read", { path, namespace }),
+        patch: (path, namespace, patch) =>
+          call("filemeta.patch", { path, namespace, patch }),
+      },
       fs: {
         async readText(filePath: string): Promise<string> {
           const res = await call<{ text: string }>("fs.readText", {
@@ -290,14 +326,17 @@ function bootstrap(mount: Mount, binding: BrowserBinding) {
         rename(oldPath: string, newPath: string): Promise<void> {
           return call("fs.rename", { oldPath, newPath })
         },
-        list(
-          folder?: string,
-          options?: { extensions?: string[] }
-        ): Promise<FileStat[]> {
+        list(folder?: string, options?: FileListOptions): Promise<FileStat[]> {
           return call("fs.list", {
             ...(folder !== undefined ? { folder } : {}),
             ...(options?.extensions !== undefined
               ? { extensions: options.extensions }
+              : {}),
+            ...(options?.recursive !== undefined
+              ? { recursive: options.recursive }
+              : {}),
+            ...(options?.includeDirectories !== undefined
+              ? { includeDirectories: options.includeDirectories }
               : {}),
           })
         },

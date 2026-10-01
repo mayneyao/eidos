@@ -258,7 +258,24 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.workspace !== undefined) {
     const workspace = record(m.workspace)
-    fields(workspace, [], ["files"])
+    fields(workspace, [], ["files", "filemeta"])
+    if (workspace.filemeta !== undefined) {
+      const properties = record(workspace.filemeta)
+      fields(properties, ["namespaces"], ["write"])
+      const namespaces = strings(properties.namespaces)
+      if (
+        namespaces.length > 16 ||
+        namespaces.some(
+          (namespace) => !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$/.test(namespace)
+        )
+      )
+        invalid("Invalid property namespaces")
+      if (
+        properties.write !== undefined &&
+        typeof properties.write !== "boolean"
+      )
+        invalid("Invalid property write permission")
+    }
     if (workspace.files !== undefined) {
       if (typeof workspace.files === "boolean") {
         if (workspace.files !== true)
@@ -475,6 +492,7 @@ export function parseManifest(input: unknown): PluginManifest {
     const action = actions.find((a) => a.id === p.action)
     switch (p.location) {
       case "navigation":
+      case "sidebar/explorer":
       case "plugin/settings":
       case "table/view":
       case "file/open":
@@ -487,7 +505,9 @@ export function parseManifest(input: unknown): PluginManifest {
         if (!view) invalid("Unknown view")
         const resource = viewResource(view as unknown as ViewDeclaration)
         if (
-          p.location === "navigation" || p.location === "plugin/settings"
+          p.location === "navigation" ||
+          p.location === "plugin/settings" ||
+          p.location === "sidebar/explorer"
             ? resource !== "page"
             : p.location === "table/view"
               ? resource !== "table"

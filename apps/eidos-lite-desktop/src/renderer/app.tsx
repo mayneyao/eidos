@@ -43,6 +43,8 @@ import {
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { WorkspaceHeading } from "./workspace-heading"
+import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
+import { EXPLORER_SORT_STORAGE_KEY, readExplorerSort } from "./explorer-sort"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
@@ -910,6 +912,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [pluginDetailId, setPluginDetailId] = useState<string | null>(null)
   const [pluginDetailName, setPluginDetailName] = useState<string | null>(null)
   const [pluginPage, setPluginPage] = useState<string | null>(null)
+  const [sidebarPagesTarget, setSidebarPagesTarget] =
+    useState<HTMLDivElement | null>(null)
   const [pluginPageTitle, setPluginPageTitle] = useState<{
     key: string
     label: string
@@ -1005,6 +1009,36 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     null
   )
   const [treeRevealToken, setTreeRevealToken] = useState(0)
+  const [explorerSort, setExplorerSort] = useState(() =>
+    readExplorerSort(window.localStorage)
+  )
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        EXPLORER_SORT_STORAGE_KEY,
+        JSON.stringify(explorerSort)
+      )
+    } catch {
+      /* Sorting remains available when preferences cannot be saved. */
+    }
+  }, [explorerSort])
+  const [explorerFolder, setExplorerFolder] = useState<{
+    spaceId: string
+    path: string
+  } | null>(null)
+  const folderNavigationRef = useRef(0)
+  useEffect(() => {
+    folderNavigationRef.current += 1
+    setExplorerFolder(null)
+  }, [space?.id])
+  const explorerDirectoryEntry =
+    space && explorerFolder?.spaceId === space.id
+      ? findSpaceEntry(space.entries, explorerFolder.path)
+      : null
+  const explorerDirectory =
+    explorerDirectoryEntry?.kind === "directory"
+      ? explorerDirectoryEntry.relativePath
+      : null
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
   useEffect(() => {
@@ -1615,6 +1649,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     : false
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  const pluginExplorerState = {
+    rootDirectory: explorerDirectory,
+    activePath: activeDocumentPath,
+    sort: explorerSort,
+  }
+  const pluginExplorer = usePluginExplorer(space?.id, pluginExplorerState)
   titleActionRef.current = {
     path: activeDocumentPath ?? "",
     spaceId: space?.id ?? "",
@@ -2827,7 +2867,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           !pathMutationBusy &&
           !blocksLocalInteraction(space.operation.phase)
         ) {
-          setPathDialog({ action: "create-file", entry: null })
+          setPathDialog({
+            action: "create-file",
+            entry: explorerDirectory ? explorerDirectoryEntry : null,
+          })
         }
         return
       }
@@ -2907,6 +2950,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     versionInspection,
     mergeWorkbenchOpen,
     selectedEntry,
+    explorerDirectory,
+    explorerDirectoryEntry,
     space,
     toggleSidebar,
     toggleSyncPanel,
@@ -3215,14 +3260,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setPathMutationBusy(true)
     setError(null)
     try {
-      const result = await window.eidosLite.importFiles(null)
+      const result = await window.eidosLite.importFiles(explorerDirectory)
       if (result) applyPathMutation(result)
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
       setPathMutationBusy(false)
     }
-  }, [applyPathMutation])
+  }, [applyPathMutation, explorerDirectory])
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
@@ -3343,6 +3388,32 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
   }
+  const navigateExplorerDirectory = async (path: string | null) => {
+    const request = ++folderNavigationRef.current
+    if (!path) {
+      setExplorerFolder(null)
+      setSelectedEntry(null)
+      return
+    }
+    try {
+      const resolved = await resolveSpaceEntry(space, path, (directory) =>
+        window.eidosLite.loadSpaceDirectory(directory)
+      )
+      if (request !== folderNavigationRef.current) return
+      if (resolved.entry?.kind !== "directory")
+        throw new Error(t("Folder is no longer available."))
+      const snapshot = resolved.entry.childrenLoaded
+        ? resolved.snapshot
+        : await window.eidosLite.loadSpaceDirectory(path)
+      if (request !== folderNavigationRef.current) return
+      acceptSpaceSnapshot(snapshot)
+      setExplorerFolder({ spaceId: space.id, path })
+      setSelectedEntry(null)
+      setTextSearchVisible(false)
+    } catch (cause) {
+      if (request === folderNavigationRef.current) setError(errorMessage(cause))
+    }
+  }
   const activateDocumentTitle = async (menu?: { x: number; y: number }) => {
     if (!activeDocumentPath || busyFile || localInteractionBlocked) return
     const requested = titleActionRef.current
@@ -3365,6 +3436,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setSelectedEntry(resolved.entry)
       if (menu) openEntryContextMenu(resolved.entry, menu.x, menu.y)
       else {
+        if (
+          explorerDirectory &&
+          !activeDocumentPath.startsWith(`${explorerDirectory}/`)
+        ) {
+          folderNavigationRef.current += 1
+          setExplorerFolder(null)
+        }
         setSidebarCollapsed(false)
         setTextSearchVisible(false)
         setTreeRevealToken((value) => value + 1)
@@ -3387,6 +3465,99 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       onForward={() => navigateHistory(1)}
     />
   ) : null
+  const closeTextSearch = () => {
+    flushSync(() => setTextSearchVisible(false))
+    if (pluginExplorer.selected && !pluginExplorer.error)
+      document
+        .querySelector<HTMLIFrameElement>("#workspace-files-panel iframe")
+        ?.focus({ preventScroll: true })
+    else searchEntryRef.current?.focus({ preventScroll: true })
+  }
+  const workspaceSearchPanel = (
+    <>
+      <WorkspaceHeading
+        sort={explorerSort}
+        onSortChange={setExplorerSort}
+        name={space.name}
+        path={space.displayPath}
+        directory={explorerDirectory}
+        onNavigateDirectory={(path) => void navigateExplorerDirectory(path)}
+        navigationDisabled={
+          pathMutationBusy || localInteractionBlocked || busyFile !== null
+        }
+        searching={textSearchVisible}
+        query={textSearchQuery}
+        options={textSearchOptions}
+        onOptionsChange={setTextSearchOptions}
+        onQueryChange={setTextSearchQuery}
+        focusToken={textSearchFocusToken}
+        searchRef={searchEntryRef}
+        shortcut={workspaceShortcutLabel(
+          "search-space-text",
+          macos,
+          keyboardShortcuts
+        )}
+        ariaShortcut={workspaceShortcutAriaKeyShortcuts(
+          "search-space-text",
+          macos,
+          keyboardShortcuts
+        )}
+        onSearch={() => {
+          setTextSearchVisible(true)
+          setTextSearchFocusToken((current) => current + 1)
+        }}
+        onBack={closeTextSearch}
+        actions={[
+          {
+            label: t("New File"),
+            icon: <FilePlus2 />,
+            disabled: pathMutationBusy || localInteractionBlocked,
+            shortcut: workspaceShortcutLabel(
+              "new-file",
+              macos,
+              keyboardShortcuts
+            ),
+            ariaShortcut: workspaceShortcutAriaKeyShortcuts(
+              "new-file",
+              macos,
+              keyboardShortcuts
+            ),
+            run: () =>
+              setPathDialog({
+                action: "create-file",
+                entry: explorerDirectory ? explorerDirectoryEntry : null,
+              }),
+          },
+          {
+            label: t("New folder"),
+            icon: <FolderPlus />,
+            disabled: pathMutationBusy || localInteractionBlocked,
+            run: () =>
+              setPathDialog({
+                action: "create-folder",
+                entry: explorerDirectory ? explorerDirectoryEntry : null,
+              }),
+          },
+          {
+            label: t("Import files"),
+            icon: <Upload />,
+            disabled: pathMutationBusy || localInteractionBlocked,
+            run: () => {
+              void importFiles()
+            },
+          },
+        ]}
+      />
+      <WorkspaceTextSearch
+        key={space.id}
+        hidden={!textSearchVisible || !textSearchQuery}
+        query={textSearchQuery}
+        options={textSearchOptions}
+        onOpen={openTextSearchHit}
+        onClose={closeTextSearch}
+      />
+    </>
+  )
   return (
     <div
       ref={workbenchRef}
@@ -3429,8 +3600,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ) {
             event.preventDefault()
             event.stopPropagation()
-            flushSync(() => setTextSearchVisible(false))
-            searchEntryRef.current?.focus({ preventScroll: true })
+            closeTextSearch()
           }
         }}
       >
@@ -3446,144 +3616,99 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             onForward={() => navigateHistory(1)}
           />
         </header>
-        <WorkspaceHeading
-          name={space.name}
-          path={space.displayPath}
-          searching={textSearchVisible}
-          query={textSearchQuery}
-          options={textSearchOptions}
-          onOptionsChange={setTextSearchOptions}
-          onQueryChange={setTextSearchQuery}
-          focusToken={textSearchFocusToken}
-          searchRef={searchEntryRef}
-          shortcut={workspaceShortcutLabel(
-            "search-space-text",
-            macos,
-            keyboardShortcuts
-          )}
-          ariaShortcut={workspaceShortcutAriaKeyShortcuts(
-            "search-space-text",
-            macos,
-            keyboardShortcuts
-          )}
-          onSearch={() => {
-            setTextSearchVisible(true)
-            setTextSearchFocusToken((current) => current + 1)
-          }}
-          onBack={() => {
-            flushSync(() => setTextSearchVisible(false))
-            searchEntryRef.current?.focus({ preventScroll: true })
-          }}
-          actions={[
-            {
-              label: t("New File"),
-              icon: <FilePlus2 />,
-              disabled: pathMutationBusy || localInteractionBlocked,
-              shortcut: workspaceShortcutLabel(
-                "new-file",
-                macos,
-                keyboardShortcuts
-              ),
-              ariaShortcut: workspaceShortcutAriaKeyShortcuts(
-                "new-file",
-                macos,
-                keyboardShortcuts
-              ),
-              run: () => setPathDialog({ action: "create-file", entry: null }),
-            },
-            {
-              label: t("New folder"),
-              icon: <FolderPlus />,
-              disabled: pathMutationBusy || localInteractionBlocked,
-              run: () =>
-                setPathDialog({
-                  action: "create-folder",
-                  entry: null,
-                }),
-            },
-            {
-              label: t("Import files"),
-              icon: <Upload />,
-              disabled: pathMutationBusy || localInteractionBlocked,
-              run: () => {
-                void importFiles()
-              },
-            },
-          ]}
-        />
-        <WorkspaceTextSearch
-          key={space.id}
-          hidden={!textSearchVisible || !textSearchQuery}
-          query={textSearchQuery}
-          options={textSearchOptions}
-          onOpen={openTextSearchHit}
-          onClose={() => {
-            flushSync(() => setTextSearchVisible(false))
-            searchEntryRef.current?.focus({ preventScroll: true })
-          }}
-        />
-        <nav
-          id="workspace-files-panel"
-          className="explorer"
-          hidden={textSearchVisible && !!textSearchQuery}
-          aria-label={`${space.name} files`}
-        >
-          <Suspense
-            fallback={
-              <p className="explorer-busy" role="status">
-                <LoaderCircle className="spin" /> {t("Loading Space Explorer…")}
-              </p>
+        <PluginExplorerPanel
+          explorer={pluginExplorer}
+          state={pluginExplorerState}
+          onNavigate={navigatePluginPage}
+          onOpenFile={(path) => {
+            const entry = findSpaceEntry(space.entries, path) ?? {
+              name: path.split("/").at(-1)!,
+              relativePath: path,
+              kind: "file" as const,
+              size: 0,
+              modifiedAtMs: Date.now(),
             }
+            setSelectedEntry(entry)
+            void openEntry(entry)
+          }}
+          overlay={
+            pluginExplorer.selected &&
+            !pluginExplorer.error &&
+            textSearchVisible
+              ? workspaceSearchPanel
+              : null
+          }
+        >
+          {workspaceSearchPanel}
+          <nav
+            className="explorer"
+            hidden={textSearchVisible && !!textSearchQuery}
+            aria-label={`${space.name} files`}
           >
-            <SpaceFileTree
-              key={space.id}
-              entries={space.entries}
-              activePath={activeDocumentPath}
-              revealToken={treeRevealToken}
-              disabled={localInteractionBlocked || busyFile !== null}
-              renameRequest={treeRenameRequest}
-              onSelect={setSelectedEntry}
-              onOpen={(entry) => void openEntry(entry)}
-              onLoadDirectory={(relativePath) => {
-                return window.eidosLite
-                  .loadSpaceDirectory(relativePath)
-                  .then(acceptSpaceSnapshot)
-              }}
-              onMove={moveTreeEntries}
-              onImportFiles={async (files, targetDirectory) => {
-                setPathMutationBusy(true)
-                setError(null)
-                try {
-                  applyPathMutation(
-                    await window.eidosLite.importDroppedFiles(
-                      files,
-                      targetDirectory
-                    )
-                  )
-                } catch (cause) {
-                  setError(errorMessage(cause))
-                } finally {
-                  setPathMutationBusy(false)
+            <Suspense
+              fallback={
+                <p className="explorer-busy" role="status">
+                  <LoaderCircle className="spin" />{" "}
+                  {t("Loading Space Explorer…")}
+                </p>
+              }
+            >
+              <SpaceFileTree
+                sort={explorerSort}
+                key={`${space.id}:${explorerDirectory ?? ""}`}
+                rootDirectory={explorerDirectory}
+                entries={
+                  explorerDirectory
+                    ? (explorerDirectoryEntry?.children ?? [])
+                    : space.entries
                 }
-              }}
-              onMoveError={(cause) =>
-                setError(
-                  `Could not move selected items. ${errorMessage(cause)}`
-                )
-              }
-              onRename={renameTreeEntry}
-              onRenameError={(cause) =>
-                setError(`Could not rename item. ${errorMessage(cause)}`)
-              }
-              onContextMenu={openEntryContextMenu}
-            />
-          </Suspense>
-          {busyFile ? (
-            <p className="explorer-busy">
-              <LoaderCircle className="spin" /> Opening {busyFile}
-            </p>
-          ) : null}
-        </nav>
+                activePath={activeDocumentPath}
+                revealToken={treeRevealToken}
+                disabled={localInteractionBlocked || busyFile !== null}
+                renameRequest={treeRenameRequest}
+                onSelect={setSelectedEntry}
+                onOpen={(entry) => void openEntry(entry)}
+                onLoadDirectory={(relativePath) => {
+                  return window.eidosLite
+                    .loadSpaceDirectory(relativePath)
+                    .then(acceptSpaceSnapshot)
+                }}
+                onMove={moveTreeEntries}
+                onImportFiles={async (files, targetDirectory) => {
+                  setPathMutationBusy(true)
+                  setError(null)
+                  try {
+                    applyPathMutation(
+                      await window.eidosLite.importDroppedFiles(
+                        files,
+                        targetDirectory
+                      )
+                    )
+                  } catch (cause) {
+                    setError(errorMessage(cause))
+                  } finally {
+                    setPathMutationBusy(false)
+                  }
+                }}
+                onMoveError={(cause) =>
+                  setError(
+                    `Could not move selected items. ${errorMessage(cause)}`
+                  )
+                }
+                onRename={renameTreeEntry}
+                onRenameError={(cause) =>
+                  setError(`Could not rename item. ${errorMessage(cause)}`)
+                }
+                onContextMenu={openEntryContextMenu}
+              />
+            </Suspense>
+            {busyFile ? (
+              <p className="explorer-busy">
+                <LoaderCircle className="spin" /> Opening {busyFile}
+              </p>
+            ) : null}
+          </nav>
+        </PluginExplorerPanel>
         <footer className="sidebar-footer">
           {whatsNew.unread && (
             <div className="whats-new-notice">
@@ -3603,31 +3728,32 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               </button>
             </div>
           )}
-          <button
-            type="button"
-            className="sidebar-settings-button"
-            data-sidebar-action="plugins"
-            disabled={pathMutationBusy || localInteractionBlocked}
-            aria-current={pluginsVisible ? "page" : undefined}
-            onClick={goToPluginsList}
-            title={t("Plugins")}
-          >
-            <Blocks aria-hidden="true" />
-            <span>{t("Plugins")}</span>
-          </button>
-          <button
-            type="button"
-            className="sidebar-settings-button"
-            data-sidebar-action="settings"
-            aria-label={t("Settings")}
-            aria-keyshortcuts={macos ? "Meta+," : "Control+,"}
-            onClick={() => void window.eidosLite.openSettings()}
-            title={`${t("Settings")} (${macos ? "⌘," : "Ctrl+,"})`}
-          >
-            <Settings aria-hidden="true" />
-            <span>{t("Settings")}</span>
-            <kbd aria-hidden="true">{macos ? "⌘," : "Ctrl+,"}</kbd>
-          </button>
+          <div className="sidebar-footer-row">
+            <button
+              type="button"
+              className="sidebar-settings-button"
+              data-sidebar-action="settings"
+              aria-label={t("Settings")}
+              aria-keyshortcuts={macos ? "Meta+," : "Control+,"}
+              onClick={() => void window.eidosLite.openSettings()}
+              title={`${t("Settings")} (${macos ? "⌘," : "Ctrl+,"})`}
+            >
+              <Settings aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="sidebar-settings-button"
+              data-sidebar-action="plugins"
+              aria-label={t("Plugins")}
+              disabled={pathMutationBusy || localInteractionBlocked}
+              aria-current={pluginsVisible ? "page" : undefined}
+              onClick={goToPluginsList}
+              title={t("Plugins")}
+            >
+              <Blocks aria-hidden="true" />
+            </button>
+            <div className="sidebar-pages-target" ref={setSidebarPagesTarget} />
+          </div>
           {isSidebarUpdateVisible(updateStatus) ? (
             <SidebarUpdateAction
               status={updateStatus}
@@ -3976,7 +4102,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <div className="editor-primary-area">
             <PluginWorkspace
               key={space.id}
-              navigationVisible={false}
+              navigationVisible={!!sidebarPagesTarget}
+              navigationTarget={sidebarPagesTarget}
+              spaceId={space.id}
+              activePage={pluginPage}
               disabled={
                 pathMutationBusy || localInteractionBlocked || !!pathDialog
               }
@@ -4831,6 +4960,23 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               ) : null}
               {contextMenu.entry.kind === "directory" ? (
                 <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void navigateExplorerDirectory(
+                        contextMenu.entry.relativePath
+                      )
+                      setContextMenu(null)
+                    }}
+                  >
+                    <FolderOpen /> {t("Show this folder")}
+                  </button>
                   <button
                     type="button"
                     role="menuitem"

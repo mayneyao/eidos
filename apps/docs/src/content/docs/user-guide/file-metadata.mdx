@@ -19,8 +19,18 @@ When organizing local videos, design assets, photos, or contracts, operating sys
 Getting started takes just three steps:
 
 1. **Create a file**: In the Eidos Lite sidebar, click New File (shortcut: `Cmd/Ctrl + N`), and choose **Eidos** as the file type.
-2. **Enable management**: Check the **File Metadata Management** toggle. The default filename is `files.eidos` (feel free to rename it), then click **Create**.
+2. **Enable management**: Check the **File Metadata Management** toggle. The filename is fixed to `files.eidos`, then click **Create**. Each folder gets one configuration; an existing file is never overwritten.
 3. **Start tagging**: Open the created table and click the **+ (Add Column)** button on the right side of the header. Enter a property name (such as "Status", "Rating", or "Tags") and start recording metadata directly on your files as you would in a spreadsheet.
+
+---
+
+## Folder browsing and metadata configuration
+
+Right-click a folder and choose **Show this folder** to browse it as the sidebar root. The path above the tree lets you return to an ancestor. **Sort files** beside Search offers name, modification time, and file type in ascending or descending order. Folders stay first, and your sort preference applies throughout the tree and is remembered across sessions.
+
+A new subfolder `files.eidos` inherits custom fields, types, options, display settings, attribute namespace, and storage keys from the nearest parent configuration. This copies configuration at creation time: later parent changes do not overwrite existing child configurations. It does not copy files or property values. Configurations sharing a namespace and storage keys read the same attributes on a physical file.
+
+Existing metadata files with other names remain directly usable.
 
 ---
 

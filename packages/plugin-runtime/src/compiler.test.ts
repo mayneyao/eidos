@@ -34,6 +34,30 @@ export default function activate(ctx: ExtensionContext) {
   })
 }`
 describe("trusted source compiler", () => {
+  it("checks filemeta as a standalone View and Action capability", async () => {
+    const root = await fixture({
+      "trim.ts": `${source.replace(
+        "version: '1.0.0',",
+        "version: '1.0.0', requires: { pluginApi: '3.1.0' }, workspace: { filemeta: { namespaces: ['space.eidos.meta'], write: true } },"
+      )}
+import type { ViewContext, ActionContext, FileMetaValues, FileMetaPatch } from '@eidos.space/plugin-sdk'
+async function check(ctx: ViewContext | ActionContext) {
+  const filemeta = ctx.capabilities.filemeta
+  if (!filemeta) return
+  const metadata: FileMetaValues = await filemeta.read('notes.md', 'space.eidos.meta')
+  const patch: FileMetaPatch = { set: { status: 'review', nullable: null }, remove: ['old'] }
+  const updated: FileMetaValues = await filemeta.patch('notes.md', 'space.eidos.meta', patch)
+  // @ts-expect-error Namespace metadata uses the standalone filemeta capability.
+  ctx.capabilities.fs?.readProperties('notes.md', 'space.eidos.meta')
+}
+`,
+    })
+    const compiled = await compilePlugin(path.join(root, "trim.ts"))
+    expect(compiled.program.manifest.workspace?.filemeta).toEqual({
+      namespaces: ["space.eidos.meta"],
+      write: true,
+    })
+  })
   it("checks the public SDK names and rejects removed aliases", async () => {
     const root = await fixture({
       "trim.ts": `${source}

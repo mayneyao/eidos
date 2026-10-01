@@ -21,6 +21,7 @@ import {
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
 import type { TextChange } from "@eidos.space/plugin-runtime/rpc"
 import { PluginEditor } from "./plugin-editor"
+import { SidebarPages } from "./sidebar-pages"
 import { useEidosLiteI18n } from "./i18n"
 import { pluginShortcutBindings } from "./plugin-shortcuts"
 import {
@@ -49,6 +50,8 @@ export function PluginWorkspace({
   disabled = false,
   navigationVisible = true,
   navigationTarget,
+  spaceId,
+  activePage,
   commands = [],
 }: {
   onPage(key: string): void
@@ -59,6 +62,8 @@ export function PluginWorkspace({
   disabled?: boolean
   navigationVisible?: boolean
   navigationTarget?: HTMLElement | null
+  spaceId?: string
+  activePage?: string | null
   commands?: { key: string; title: string; shortcut?: string; run(): void }[]
 }) {
   const { t } = useEidosLiteI18n()
@@ -141,23 +146,32 @@ export function PluginWorkspace({
       window.removeEventListener("eidos-plugins-changed", refresh)
     }
   }, [])
-  const plugins = listing?.plugins.filter((p) => p.enabled) ?? []
+  const plugins =
+    listing?.plugins.filter((p) => p.enabled && !p.unavailable) ?? []
   const pages = plugins.flatMap(({ manifest }) =>
-    (manifest.placements ?? [])
-      .filter((placement) => placement.location === "navigation")
-      .flatMap((placement) =>
-        (manifest.views ?? [])
-          .filter(
-            (view) =>
-              view.id === placement.view && viewResource(view) === "page"
+    (manifest.views ?? [])
+      .filter((view) => {
+        if (viewResource(view) !== "page") return false
+        const placements =
+          manifest.placements?.filter(
+            (placement) => "view" in placement && placement.view === view.id
+          ) ?? []
+        return (
+          placements.some((placement) => placement.location === "navigation") ||
+          !placements.some(
+            (placement) =>
+              placement.location === "plugin/settings" ||
+              placement.location === "sidebar/explorer"
           )
-          .map((view) => ({
-            key: `${manifest.id}/${view.id}`,
-            title: view.title,
-            pluginId: manifest.id,
-            pluginName: manifest.name,
-          }))
-      )
+        )
+      })
+      .map((view) => ({
+        key: `${manifest.id}/${view.id}`,
+        title: view.title,
+        icon: manifest.icon,
+        pluginId: manifest.id,
+        pluginName: manifest.name,
+      }))
   )
   const actions = plugins
     .flatMap(({ manifest }) =>
@@ -331,22 +345,33 @@ export function PluginWorkspace({
       {navigationVisible &&
         pages.length > 0 &&
         renderNavigation(
-          <nav
-            aria-label={t("Plugin contributions")}
-            className="plugin-contributions"
-          >
-            {pages.map((page) => (
-              <button
-                className="sidebar-settings-button"
-                type="button"
-                key={page.key}
-                disabled={disabled}
-                onClick={() => onPage(page.key)}
-              >
-                {page.title}
-              </button>
-            ))}
-          </nav>
+          spaceId ? (
+            <SidebarPages
+              key={spaceId}
+              spaceId={spaceId}
+              pages={pages}
+              activePage={activePage}
+              disabled={disabled}
+              onPage={onPage}
+            />
+          ) : (
+            <nav
+              aria-label={t("Plugin contributions")}
+              className="plugin-contributions"
+            >
+              {pages.map((page) => (
+                <button
+                  className="sidebar-settings-button"
+                  type="button"
+                  key={page.key}
+                  disabled={disabled}
+                  onClick={() => onPage(page.key)}
+                >
+                  {page.title}
+                </button>
+              ))}
+            </nav>
+          )
         )}
       {status &&
         createPortal(
