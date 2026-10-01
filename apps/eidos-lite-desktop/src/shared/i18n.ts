@@ -745,6 +745,10 @@ const zh: Record<string, string> = {
   "Turn off to accept one response per account.":
     "关闭后，每个账户只能提交一次。",
   "Resource slug": "资源路径",
+  "Defaults to the file's Space path. You can customize it.":
+    "默认使用文件在 Space 中的路径，也可以自行修改。",
+  "Use a relative path without empty, dot, or parent segments.":
+    "请输入相对路径，不可包含空目录、. 或 ..。",
   "This becomes the path after your Publish domain.":
     "它会成为 Publish 域名后面的访问路径。",
   Access: "访问权限",

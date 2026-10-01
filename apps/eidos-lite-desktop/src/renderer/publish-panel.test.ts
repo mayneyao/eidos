@@ -64,11 +64,14 @@ describe("Publish panel", () => {
       )
     ).toBeNull()
   })
-  it("derives a safe editable slug from an Eidos File name", () => {
-    expect(defaultPublishSlug("Project Notes.eidos")).toBe("project-notes")
-    expect(defaultPublishSlug("---.eidos")).toBe("untitled")
-    expect(defaultPublishSlug(`${"a".repeat(80)}.eidos`)).toHaveLength(64)
-    expect(defaultPublishSlug("Release Notes.markdown")).toBe("release-notes")
+  it("preserves the Space-relative path as the editable default", () => {
+    expect(defaultPublishSlug("Project Notes.eidos")).toBe(
+      "Project Notes.eidos"
+    )
+    expect(defaultPublishSlug("运动/2026/骑行.gpx")).toBe("运动/2026/骑行.gpx")
+    expect(defaultPublishSlug("docs/Release Notes.markdown")).toBe(
+      "docs/Release Notes.markdown"
+    )
   })
 
   it("offers Publish for ordinary files", () => {

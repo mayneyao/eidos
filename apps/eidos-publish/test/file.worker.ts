@@ -135,14 +135,17 @@ function pkg(options: { access?: string; api?: string; origin?: string } = {}) {
     )
   )
 }
-async function bundle(plugin?: Uint8Array): Promise<SourceBundleManifest> {
+async function bundle(
+  plugin?: Uint8Array,
+  sourcePath = "files/ride.gpx"
+): Promise<SourceBundleManifest> {
   return {
     spec: "eidos.publish/source-bundle@1",
     mediaType: "application/vnd.eidos.file",
-    entrypoint: "files/ride.gpx",
+    entrypoint: sourcePath,
     files: [
       {
-        path: "files/ride.gpx",
+        path: sourcePath,
         role: "entrypoint",
         mediaType: "application/gpx+xml",
         bytes: String(source.length),
@@ -174,9 +177,10 @@ async function bundle(plugin?: Uint8Array): Promise<SourceBundleManifest> {
 }
 async function upload(
   plugin?: Uint8Array,
-  token = "standard-file-" + crypto.randomUUID()
+  token = "standard-file-" + crypto.randomUUID(),
+  slug = "file-" + crypto.randomUUID(),
+  sourcePath = "files/ride.gpx"
 ) {
-  const slug = "file-" + crypto.randomUUID()
   const tenantResponse = await fetchApi("/api/tenant", token)
   expect(tenantResponse.status).toBe(200)
   const tenant = await tenantResponse.json<{
@@ -187,15 +191,18 @@ async function upload(
   expect(
     (
       await fetchApi(
-        "/api/publications/" + slug,
+        "/api/publications/" + encodeURIComponent(slug),
         token,
         mutation({ visibility: "public" }, "PUT")
       )
     ).status
   ).toBe(201)
-  const manifest = await bundle(plugin)
+  const manifest = await bundle(plugin, sourcePath)
+  manifest.files.sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  )
   const begin = await fetchApi(
-    "/api/publications/" + slug + "/versions",
+    "/api/publications/" + encodeURIComponent(slug) + "/versions",
     token,
     mutation({
       driver: { id: FILE_DRIVER.id, version: "1.0" },
@@ -209,7 +216,7 @@ async function upload(
     const digest = await hash(bytes)
     const response = await fetchApi(
       "/api/publications/" +
-        slug +
+        encodeURIComponent(slug) +
         "/versions/" +
         versionId +
         "/objects/" +
@@ -230,7 +237,11 @@ async function upload(
   expect(
     (
       await fetchApi(
-        "/api/publications/" + slug + "/versions/" + versionId + "/complete",
+        "/api/publications/" +
+          encodeURIComponent(slug) +
+          "/versions/" +
+          versionId +
+          "/complete",
         token,
         mutation()
       )
@@ -264,7 +275,7 @@ async function activate(data: Awaited<ReturnType<typeof upload>>) {
   expect(ready.ok).toBe(true)
   const response = await fetchApi(
     "/api/publications/" +
-      slug +
+      encodeURIComponent(slug) +
       "/versions/" +
       version.versionId +
       "/activate",
@@ -274,6 +285,46 @@ async function activate(data: Awaited<ReturnType<typeof upload>>) {
   expect(response.status, await response.clone().text()).toBe(200)
 }
 describe("File publications", () => {
+  it("publishes nested Unicode paths independently from the bound source and protects them with passwords", async () => {
+    const slug = "运动/2026/今日 骑行(1).gpx"
+    const data = await upload(pkg(), "pro-token", slug, "轨迹/原始.gpx")
+    await activate(data)
+    const origin = "https://" + data.tenant.canonicalHost
+    const url = origin + "/" + slug.split("/").map(encodeURIComponent).join("/")
+    const page = await SELF.fetch(url)
+    expect(page.status).toBe(200)
+    expect(await page.text()).toContain("轨迹/原始.gpx")
+    const direct =
+      origin +
+      publishedFileUrl(
+        slug,
+        data.version.versionId,
+        data.manifest.files.find((file) => file.role === "entrypoint")!.sha256,
+        data.manifest.entrypoint
+      )
+    expect((await SELF.fetch(direct)).status).toBe(200)
+    const updated = await fetchApi(
+      "/api/publications/" + encodeURIComponent(slug) + "/access",
+      data.token,
+      mutation({ mode: "password", password: "test-password-1234" }, "PUT")
+    )
+    expect(updated.status).toBe(200)
+    expect((await SELF.fetch(url)).status).toBe(401)
+    expect((await SELF.fetch(direct)).status).toBe(404)
+    const unlock = await SELF.fetch(origin + "/_eidos/password", {
+      method: "POST",
+      redirect: "manual",
+      body: new URLSearchParams({ slug, password: "test-password-1234" }),
+    })
+    expect(unlock.status).toBe(303)
+    expect(unlock.headers.get("location")).toBe(
+      "/" + slug.split("/").map(encodeURIComponent).join("/")
+    )
+    const cookie = unlock.headers.get("set-cookie")!.split(";")[0]!
+    expect((await SELF.fetch(url, { headers: { cookie } })).status).toBe(200)
+    expect((await SELF.fetch(direct, { headers: { cookie } })).status).toBe(200)
+  })
+
   it("streams the original file from its stable URL, supports ranges and HEAD", async () => {
     const data = await upload()
     await activate(data)

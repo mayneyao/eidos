@@ -271,7 +271,7 @@ async function rewriteMarkdownAssets(
       }
       element.setAttribute(
         attribute,
-        `/_eidos/files/${slug}/${versionId}/${digest}/${uri}`
+        `/_eidos/files/${encodeURIComponent(slug)}/${versionId}/${digest}/${uri}`
       )
     },
   })

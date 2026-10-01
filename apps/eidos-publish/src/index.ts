@@ -1,3 +1,4 @@
+import { decodePublicationPath } from "./publication-path"
 import {
   authenticatePublishUser,
   parsePrincipal,
@@ -53,7 +54,6 @@ export {
   TenantLocatorDurableObject,
 }
 
-const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 const VERSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
@@ -2475,13 +2475,14 @@ function validHandle(value: string): boolean {
 }
 
 function publicationSlug(value: string | undefined): string {
-  if (value === undefined || !SLUG.test(value)) {
+  const decoded = value === undefined ? null : decodePublicationPath(value)
+  if (decoded === null) {
     throw badRequest(
       "invalid_publication_slug",
-      "Publication slug must contain 1 to 64 lowercase letters, digits, or hyphens"
+      "Publication path must contain safe relative path segments"
     )
   }
-  return value
+  return decoded
 }
 
 function versionIdentifier(value: string | undefined): string {

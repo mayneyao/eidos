@@ -1,3 +1,4 @@
+import { validPublicationPath } from "../shared/publication-path"
 import {
   useEffect,
   useLayoutEffect,
@@ -30,16 +31,8 @@ import type {
 import { useEidosLiteI18n } from "./i18n"
 import { usePublishAccount } from "./publish-account"
 
-export function defaultPublishSlug(fileName: string): string {
-  const stem = fileName.replace(/\.(?:eidos|md|markdown)$/i, "")
-  const slug = stem
-    .normalize("NFKD")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64)
-    .replace(/-+$/g, "")
-  return slug || "untitled"
+export function defaultPublishSlug(relativePath: string): string {
+  return relativePath
 }
 
 export function isPublishableEntry(entry: SpaceTreeEntry): boolean {
@@ -165,7 +158,7 @@ export function PublishPanel({
   // The cached plan only guides the form. Publish itself stays optimistic and
   // lets the service enforce entitlements, so the panel never blocks on a check.
   const { account } = usePublishAccount()
-  const [slug, setSlug] = useState(() => defaultPublishSlug(entry.name))
+  const [slug, setSlug] = useState(() => defaultPublishSlug(entry.relativePath))
   const [accessMode, setAccessMode] =
     useState<EidosPublishAccessSelection>("unchanged")
   const [branding, setBranding] =
@@ -298,8 +291,8 @@ export function PublishPanel({
   const passwordCharacters = Array.from(password).length
   const passwordBytes = new TextEncoder().encode(password).byteLength
 
-  const validation = !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)
-    ? t("Use 1–64 lowercase letters, numbers, or hyphens.")
+  const validation = !validPublicationPath(slug)
+    ? t("Use a relative path without empty, dot, or parent segments.")
     : effectiveAccess === "password" &&
         (passwordCharacters < 8 ||
           passwordCharacters > 128 ||
@@ -664,9 +657,11 @@ export function PublishPanel({
             autoFocus
             value={slug}
             spellCheck={false}
-            onChange={(event) => setSlug(event.target.value.toLowerCase())}
+            onChange={(event) => setSlug(event.target.value)}
           />
-          <small>{t("This becomes the path after your Publish domain.")}</small>
+          <small>
+            {t("Defaults to the file's Space path. You can customize it.")}
+          </small>
         </label>
 
         <label className="publish-access-field">

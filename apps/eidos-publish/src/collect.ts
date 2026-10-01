@@ -192,7 +192,7 @@ export async function initializeFormSubmission(
       state: created.value.state,
       attachments: created.value.attachments.map((attachment) => ({
         ...attachment,
-        uploadUrl: `/_eidos/forms/${slug}/submissions/${created.value.submissionId}/attachments/${attachment.attachmentId}`,
+        uploadUrl: `/_eidos/forms/${encodeURIComponent(slug)}/submissions/${created.value.submissionId}/attachments/${attachment.attachmentId}`,
       })),
     },
     { status: 201, headers: publicJsonHeaders(true) }

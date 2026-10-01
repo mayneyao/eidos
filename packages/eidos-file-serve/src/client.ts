@@ -86,7 +86,17 @@ function publishGatewaySlug(): string | null {
   const value = document
     .querySelector('meta[name="eidos-publish-slug"]')
     ?.getAttribute("content")
-  return value && /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(value)
+  return value &&
+    new TextEncoder().encode(value).length <= 1024 &&
+    value
+      .split("/")
+      .every(
+        (part) =>
+          part !== "." &&
+          part !== ".." &&
+          part.trim() === part &&
+          /^[\p{L}\p{N} _().-]+$/u.test(part)
+      )
     ? value
     : null
 }

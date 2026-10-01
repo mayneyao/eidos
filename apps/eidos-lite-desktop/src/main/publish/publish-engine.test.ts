@@ -173,6 +173,8 @@ describe("Eidos Publish engine boundary", () => {
       )
     ).toEqual(
       expect.arrayContaining([
+        "--source-path",
+        "Tracks/ride.gpx",
         "--plugin",
         "/tmp/view.eidos-plugin",
         "--plugin-view",

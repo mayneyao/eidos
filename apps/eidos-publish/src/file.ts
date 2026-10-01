@@ -235,7 +235,7 @@ export function publishedFileUrl(
 ) {
   return (
     "/_eidos/files/" +
-    slug +
+    encodeURIComponent(slug) +
     "/" +
     versionId +
     "/" +

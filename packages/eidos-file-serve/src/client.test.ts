@@ -235,52 +235,57 @@ describe("CLI Serve browser pairing", () => {
     )
   })
 
-  it("exchanges a Publish Gateway ticket and prefixes Runtime requests", async () => {
-    vi.stubGlobal("document", {
-      querySelector: () => ({ getAttribute: () => "team-wiki" }),
-    })
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json(
-          {
-            status: "starting",
-            ticket: "signed-runtime-ticket",
-            runtimeBase: "/_eidos/runtime/team-wiki",
-            expiresAt: new Date(Date.now() + 300_000).toISOString(),
-          },
-          { status: 202 }
+  it.each(["team-wiki", "资料/我的数据.eidos"])(
+    "exchanges a Publish Gateway ticket for %s",
+    async (slug) => {
+      vi.resetModules()
+      const { fetchCliHostManifest } = await import("./client")
+      vi.stubGlobal("document", {
+        querySelector: () => ({ getAttribute: () => slug }),
+      })
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              status: "starting",
+              ticket: "signed-runtime-ticket",
+              runtimeBase: `/_eidos/runtime/${encodeURIComponent(slug)}`,
+              expiresAt: new Date(Date.now() + 300_000).toISOString(),
+            },
+            { status: 202 }
+          )
         )
+        .mockResolvedValueOnce(
+          Response.json({
+            mode: "publish",
+            fileName: "team.eidos",
+            access: "read",
+            network: "publish-container",
+          })
+        )
+      vi.stubGlobal("fetch", fetch)
+
+      await expect(fetchCliHostManifest()).resolves.toMatchObject({
+        mode: "publish",
+        access: "read",
+      })
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        "/_eidos/session",
+        expect.objectContaining({ body: JSON.stringify({ slug }) })
       )
-      .mockResolvedValueOnce(
-        Response.json({
-          mode: "publish",
-          fileName: "team.eidos",
-          access: "read",
-          network: "publish-container",
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        `/_eidos/runtime/${encodeURIComponent(slug)}/api/manifest`,
+        expect.objectContaining({
+          headers: expect.any(Headers),
         })
       )
-    vi.stubGlobal("fetch", fetch)
-
-    await expect(fetchCliHostManifest()).resolves.toMatchObject({
-      mode: "publish",
-      access: "read",
-    })
-    expect(fetch).toHaveBeenNthCalledWith(
-      1,
-      "/_eidos/session",
-      expect.objectContaining({ body: JSON.stringify({ slug: "team-wiki" }) })
-    )
-    expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      "/_eidos/runtime/team-wiki/api/manifest",
-      expect.objectContaining({
-        headers: expect.any(Headers),
-      })
-    )
-    const request = fetch.mock.calls[1]?.[1] as RequestInit
-    expect(new Headers(request.headers).get("authorization")).toBe(
-      "EidosRuntime signed-runtime-ticket"
-    )
-  })
+      const request = fetch.mock.calls[1]?.[1] as RequestInit
+      expect(new Headers(request.headers).get("authorization")).toBe(
+        "EidosRuntime signed-runtime-ticket"
+      )
+    }
+  )
 })

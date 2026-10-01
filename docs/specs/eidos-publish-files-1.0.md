@@ -9,6 +9,19 @@ It adds no Eidos File Format or Runtime semantics.
 
 A Publication slug identifies one stable URL and one active immutable Version.
 The same local file MAY have multiple Publications with different slugs.
+Slugs MAY contain multiple path segments, Unicode names, spaces and file
+extensions, up to 1024 UTF-8 bytes total and 255 bytes per segment. Empty,
+dot and parent segments are invalid; `_eidos`, `assets` and `.well-known`
+are reserved first segments. Each segment accepts letters, numbers, spaces,
+underscores, parentheses, dots and hyphens, without surrounding whitespace.
+Lite defaults to the original Space-root-relative file path, retaining its
+extension; users MAY override it independently of the source file path.
+Public URLs encode each segment, retaining directory separators. Control API
+and internal viewer routes encode the entire slug as one route parameter.
+Existing single-segment slugs remain valid and are not renamed automatically.
+For ordinary files, Lite MUST pass the original relative source path to the
+CLI via `--source-path`; the File View binding MUST retain this path even
+when the public slug is customized. This does not publish other Space files.
 The File Driver is `org.eidos.driver.file@1.0`; its bundle media type is
 `application/vnd.eidos.file`. The entrypoint's own media type describes the
 original bytes. Existing Eidos, Markdown and Form Drivers are unchanged.

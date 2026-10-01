@@ -22,7 +22,7 @@ import { Badge } from "@astrojs/starlight/components"
 
 1. 在左侧文件树中，右键点击你要发布的文件（支持 `.md` 笔记或 `.eidos` 表格文件）。
 2. 在弹出菜单中选择 **Publish…（发布）**。
-3. **自定义网址（Slug）**：输入你喜欢的网址后缀（例如 `project-roadmap`）。
+3. **自定义网址（Slug）**：staging 构建默认使用文件相对于 Space 根目录的完整路径，并保留扩展名，例如 `笔记/项目.md`。你也可以改成 `project-roadmap` 或 `projects/roadmap`。修改网址不会改变插件 View 收到的原始文件路径。
 4. **访问权限（Access）**：
    - **Public（公开）**：任何获得链接的人均可直接阅读。
    - **Password（密码保护）**：访客输入你设置的密码后方可阅读。

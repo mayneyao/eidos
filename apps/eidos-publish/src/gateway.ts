@@ -1,3 +1,8 @@
+import {
+  validPublicationPath,
+  decodePublicationPath,
+  publicationUrlPath,
+} from "./publication-path"
 import { loadFileBundle, FILE_VIEW_CSP } from "./file"
 import { publicationHostLabel, publicationHostname } from "./hostnames"
 import {
@@ -32,7 +37,6 @@ import { runtimeDescriptor, type EidosRuntimeContainer } from "./runtime"
 import type { PublishHandleDurableObject, PublishTenant } from "./tenant"
 
 const PUBLIC_SITE_ID = /^u-[0-9abcdefghjkmnpqrstvwxyz]{16}$/
-const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 const EIDOS_FILE_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const RUNTIME_PORT = 8420
@@ -565,7 +569,7 @@ async function createRuntimeSession(
       retryAfterMilliseconds: ready ? 0 : 1000,
       ticket: await signTicket(claims, env.RUNTIME_TICKET_SECRET),
       expiresAt: new Date(claims.exp * 1000).toISOString(),
-      runtimeBase: `/_eidos/runtime/${body.slug}`,
+      runtimeBase: `/_eidos/runtime/${encodeURIComponent(body.slug)}`,
     },
     {
       status: ready ? 200 : 202,
@@ -585,7 +589,9 @@ async function proxyRuntime(
   slug: string,
   runtimePath: string
 ): Promise<Response> {
-  if (!SLUG.test(slug)) return publicNotFound()
+  const decodedSlug = decodePublicationPath(slug)
+  if (decodedSlug === null) return publicNotFound()
+  slug = decodedSlug
   if (!allowedRuntimeRequest(request.method, runtimePath))
     return publicNotFound()
   const requestLength = boundedContentLength(
@@ -661,7 +667,7 @@ async function proxyRuntime(
           name,
           size: asset.value.bytes,
           expiresAt: new Date(claims.exp * 1000).toISOString(),
-          resourceToken: `/_eidos/files/${slug}/${version.versionId}/${asset.value.sha256}/${asset.value.uri}`,
+          resourceToken: `/_eidos/files/${encodeURIComponent(slug)}/${version.versionId}/${asset.value.sha256}/${asset.value.uri}`,
         },
       },
       { headers: { "Cache-Control": "private, no-store" } }
@@ -752,7 +758,9 @@ async function servePublishedFile(
   sha256: string,
   uri: string
 ): Promise<Response> {
-  if (!SLUG.test(slug)) return publicNotFound()
+  const decodedSlug = decodePublicationPath(slug)
+  if (decodedSlug === null) return publicNotFound()
+  slug = decodedSlug
   const path = publishedFilePath(uri)
   if (path === null) return publicNotFound()
   const resolved = await tenant.resolvePublication(slug)
@@ -1255,7 +1263,7 @@ async function exchangeFormRespondent(
   return new Response(null, {
     status: 303,
     headers: {
-      Location: `/${exchanged.publicationSlug}`,
+      Location: `/${publicationUrlPath(exchanged.publicationSlug)}`,
       "Cache-Control": "private, no-store",
       "Referrer-Policy": "no-referrer",
       "Set-Cookie": `${RESPONDENT_COOKIE}=${await signRespondentSession(claims, env.RUNTIME_TICKET_SECRET)}; Max-Age=${MAX_RESPONDENT_SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
@@ -1469,7 +1477,13 @@ async function passwordViewerAuthorized(
 }
 
 function passwordCookieName(slug: string): string {
-  return PASSWORD_COOKIE_PREFIX + slug
+  return (
+    PASSWORD_COOKIE_PREFIX +
+    encodeURIComponent(slug).replace(
+      /[()]/g,
+      (character) => "%" + character.charCodeAt(0).toString(16).toUpperCase()
+    )
+  )
 }
 
 function passwordChallenge(
@@ -1590,7 +1604,7 @@ function publicationLocation(
   const parameters = new URLSearchParams()
   appendPublicationNavigation(parameters, navigation)
   const search = parameters.toString()
-  return `/${slug}${search.length === 0 ? "" : `?${search}`}`
+  return `/${publicationUrlPath(slug)}${search.length === 0 ? "" : `?${search}`}`
 }
 
 function navigationHiddenInput(name: string, value: string | null): string {
@@ -1696,7 +1710,7 @@ async function boundedExchangeResponse(response: Response): Promise<{
     record.userId.length > 0 &&
     record.userId.length <= 256 &&
     typeof record.publicationSlug === "string" &&
-    SLUG.test(record.publicationSlug) &&
+    validPublicationPath(record.publicationSlug) &&
     typeof record.sessionId === "string" &&
     record.sessionId.length > 0 &&
     record.sessionId.length <= 256 &&
@@ -1769,7 +1783,7 @@ async function boundedPasswordBody(request: Request): Promise<{
   const password = form.get("password")
   if (
     slug === null ||
-    !SLUG.test(slug) ||
+    !validPublicationPath(slug) ||
     password === null ||
     password.length === 0 ||
     password.length > 256
@@ -1806,7 +1820,7 @@ async function boundedSessionBody(request: Request): Promise<{ slug: string }> {
     Array.isArray(value) ||
     Object.keys(value).length !== 1 ||
     typeof (value as { slug?: unknown }).slug !== "string" ||
-    !SLUG.test((value as { slug: string }).slug)
+    !validPublicationPath((value as { slug: string }).slug)
   ) {
     throw new PublicRuntimeError("invalid_session_request")
   }
@@ -2114,10 +2128,7 @@ function stripRedirectSecrets(url: URL): void {
 }
 
 function shellSlug(pathname: string): string | null {
-  const match = /^\/([^/]+)\/?$/.exec(pathname)
-  return match !== null && match[1] !== undefined && SLUG.test(match[1])
-    ? match[1]
-    : null
+  return decodePublicationPath(pathname.replace(/^\//, "").replace(/\/$/, ""))
 }
 
 function validHandle(value: string): boolean {

@@ -1,3 +1,7 @@
+import {
+  validPublicationPath,
+  publicationUrlPath,
+} from "../../shared/publication-path"
 import { spawn, type ChildProcess } from "node:child_process"
 import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
@@ -30,7 +34,6 @@ import {
 } from "./publication-registry"
 
 const REQUEST_ID = /^[0-9a-f-]{16,64}$/i
-const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 const PUBLICATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
@@ -201,7 +204,7 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
     typeof request.relativePath !== "string" ||
     !safeAttachmentPath(request.relativePath) ||
     typeof request.slug !== "string" ||
-    !SLUG.test(request.slug) ||
+    !validPublicationPath(request.slug) ||
     (request.accessMode !== "unchanged" &&
       request.accessMode !== "public" &&
       request.accessMode !== "password" &&
@@ -460,6 +463,8 @@ export function publishCliArguments(
     "--attachment-root",
     attachmentRoot,
     "--progress-json",
+    "--source-path",
+    request.relativePath,
   ]
   const metadata = clientMetadata ?? defaultClientEnvironmentMetadata()
   args.push("--client-metadata-json", JSON.stringify(metadata))
@@ -1181,7 +1186,7 @@ export class EidosPublishEngine {
     }
     const versionResponse = await fetch(
       new URL(
-        `/api/publications/${binding.slug}/versions/${binding.currentVersionId}`,
+        `/api/publications/${encodeURIComponent(binding.slug)}/versions/${binding.currentVersionId}`,
         this.services.publishOrigin
       ),
       {
@@ -1208,7 +1213,7 @@ export class EidosPublishEngine {
       visibility: publication.visibility,
       accessMode: publication.accessMode,
       showBranding: publication.showBranding,
-      url: `https://${canonicalHost}/${binding.slug}`,
+      url: `https://${canonicalHost}/${publicationUrlPath(binding.slug)}`,
     }
   }
 

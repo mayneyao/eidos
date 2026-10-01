@@ -9,6 +9,14 @@
 
 每个 Publication slug 对应固定网址及一个当前激活的不可变 Version。
 同一本地文件可以通过不同 slug 拥有多条发布。
+slug 支持多级目录、Unicode 名称、空格和扩展名，总计最多 1024 UTF-8 字节，
+每段最多 255 字节。禁止空段、`.`、`..`；首段保留 `_eidos`、`assets`、
+`.well-known`。各段可包含字母、数字、空格、下划线、括号、点和连字符，
+不可有首尾空白。Lite 默认使用文件相对于 Space 根目录的原始路径并保留扩展名，
+用户仍可独立修改 slug。公开 URL 逐段编码并保留目录分隔符；控制 API 和
+内部查看路由将整个 slug 编码为一个参数。旧的单层地址继续有效，不自动改名。
+普通文件发布时，Lite 通过 `--source-path` 传递原始相对路径；即使用户修改
+slug，插件绑定仍保留原始路径。这不会发布 Space 中的其他文件。
 File Driver 为 `org.eidos.driver.file@1.0`，bundle 媒体类型为
 `application/vnd.eidos.file`；入口文件自身的媒体类型描述原始字节。
 现有 Eidos、Markdown、Form Driver 保持原有语义。

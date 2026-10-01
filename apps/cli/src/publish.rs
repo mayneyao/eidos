@@ -976,7 +976,10 @@ fn reusable_current_version(
         client
             .get(endpoint(
                 origin,
-                &format!("/api/publications/{slug}/versions/{version_id}"),
+                &format!(
+                    "/api/publications/{}/versions/{version_id}",
+                    encode_publication_segment(slug)
+                ),
             )?)
             .header(AUTHORIZATION, authorization.clone()),
     )?;
@@ -994,6 +997,19 @@ pub fn run(
     progress: PublishProgress,
 ) -> Result<Value> {
     validate_slug(&args.slug)?;
+    if let Some(source_path) = &args.source_path
+        && (source_path.len() > 1024
+            || source_path.contains(['\\', '?', '#', '%'])
+            || source_path.chars().any(char::is_control)
+            || source_path
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == ".."))
+    {
+        return Err(AppError::invalid_request(
+            "--source-path must be a safe Space-relative file path",
+        ));
+    }
+    let route_slug = encode_publication_segment(&args.slug);
     if source_kind != PublishSourceKind::Form
         && (args.form_respondents.is_some() || args.one_response_per_user)
     {
@@ -1094,7 +1110,9 @@ pub fn run(
                 "File name contains unsupported characters",
             ));
         }
-        format!("files/{name}")
+        args.source_path
+            .clone()
+            .unwrap_or_else(|| format!("files/{name}"))
     } else {
         source_kind.entrypoint().to_string()
     };
@@ -1223,7 +1241,7 @@ pub fn run(
         client
             .put(endpoint(
                 &origin,
-                &format!("/api/publications/{}", args.slug),
+                &format!("/api/publications/{}", route_slug),
             )?)
             .header(AUTHORIZATION, authorization.clone())
             .header("Idempotency-Key", random_idempotency_key("publication"))
@@ -1238,7 +1256,7 @@ pub fn run(
                 client
                     .put(endpoint(
                         &origin,
-                        &format!("/api/publications/{}/access", args.slug),
+                        &format!("/api/publications/{}/access", route_slug),
                     )?)
                     .header(AUTHORIZATION, authorization.clone())
                     .header("Idempotency-Key", random_idempotency_key("password-access"))
@@ -1251,7 +1269,7 @@ pub fn run(
                 client
                     .put(endpoint(
                         &origin,
-                        &format!("/api/publications/{}/access", args.slug),
+                        &format!("/api/publications/{}/access", route_slug),
                     )?)
                     .header(AUTHORIZATION, authorization.clone())
                     .header("Idempotency-Key", random_idempotency_key("public-access"))
@@ -1264,7 +1282,7 @@ pub fn run(
                 client
                     .put(endpoint(
                         &origin,
-                        &format!("/api/publications/{}/access", args.slug),
+                        &format!("/api/publications/{}/access", route_slug),
                     )?)
                     .header(AUTHORIZATION, authorization.clone())
                     .header("Idempotency-Key", random_idempotency_key("private-access"))
@@ -1283,7 +1301,7 @@ pub fn run(
             client
                 .put(endpoint(
                     &origin,
-                    &format!("/api/publications/{}/branding", args.slug),
+                    &format!("/api/publications/{}/branding", route_slug),
                 )?)
                 .header(AUTHORIZATION, authorization.clone())
                 .header("Idempotency-Key", random_idempotency_key("branding"))
@@ -1317,7 +1335,7 @@ pub fn run(
             client
                 .put(endpoint(
                     &origin,
-                    &format!("/api/publications/{}/form-policy", args.slug),
+                    &format!("/api/publications/{}/form-policy", route_slug),
                 )?)
                 .header(AUTHORIZATION, authorization.clone())
                 .header("Idempotency-Key", random_idempotency_key("form-policy"))
@@ -1401,7 +1419,7 @@ pub fn run(
             "bundleBytes": logical_bytes.to_string(),
             "deduplicatedBytes": (logical_bytes - upload_bytes).to_string(),
             "servingTargetSha256": ready.get("servingTargetSha256"),
-            "url": format!("https://{canonical_host}/{}", args.slug),
+            "url": format!("https://{canonical_host}/{}", args.slug.split('/').map(encode_publication_segment).collect::<Vec<_>>().join("/")),
         })
     };
     if !args.no_activate
@@ -1434,7 +1452,7 @@ pub fn run(
         client
             .post(endpoint(
                 &origin,
-                &format!("/api/publications/{}/versions", args.slug),
+                &format!("/api/publications/{}/versions", route_slug),
             )?)
             .header(AUTHORIZATION, authorization.clone())
             .header("Idempotency-Key", random_idempotency_key("version"))
@@ -1574,7 +1592,7 @@ pub fn run(
                 &origin,
                 &format!(
                     "/api/publications/{}/versions/{version_id}/complete",
-                    args.slug
+                    route_slug
                 ),
             )?)
             .header(AUTHORIZATION, authorization.clone())
@@ -1599,7 +1617,7 @@ pub fn run(
             client
                 .get(endpoint(
                     &origin,
-                    &format!("/api/publications/{}/versions/{version_id}", args.slug),
+                    &format!("/api/publications/{}/versions/{version_id}", route_slug),
                 )?)
                 .header(AUTHORIZATION, authorization.clone()),
         )?;
@@ -1788,7 +1806,8 @@ fn upload_sqlite_delta(
             .put(endpoint(
                 origin,
                 &format!(
-                    "/api/publications/{slug}/versions/{version_id}/objects/{}",
+                    "/api/publications/{}/versions/{version_id}/objects/{}",
+                    encode_publication_segment(slug),
                     object.sha256
                 ),
             )?)
@@ -1897,7 +1916,8 @@ fn upload_direct(
             .put(endpoint(
                 origin,
                 &format!(
-                    "/api/publications/{slug}/versions/{version_id}/objects/{}",
+                    "/api/publications/{}/versions/{version_id}/objects/{}",
+                    encode_publication_segment(slug),
                     object.sha256
                 ),
             )?)
@@ -1933,7 +1953,8 @@ fn upload_multipart(
             .post(endpoint(
                 origin,
                 &format!(
-                    "/api/publications/{slug}/versions/{version_id}/objects/{}/multipart",
+                    "/api/publications/{}/versions/{version_id}/objects/{}/multipart",
+                    encode_publication_segment(slug),
                     object.sha256
                 ),
             )?)
@@ -1977,7 +1998,7 @@ fn upload_multipart(
                 .put(endpoint(
                     origin,
                     &format!(
-                        "/api/publications/{slug}/versions/{version_id}/multipart/{session_id}/parts/{part_number}"
+                        "/api/publications/{}/versions/{version_id}/multipart/{session_id}/parts/{part_number}", encode_publication_segment(slug)
                     ),
                 )?)
                 .header(AUTHORIZATION, authorization.clone())
@@ -2010,7 +2031,8 @@ fn upload_multipart(
             .post(endpoint(
                 origin,
                 &format!(
-                    "/api/publications/{slug}/versions/{version_id}/multipart/{session_id}/complete"
+                    "/api/publications/{}/versions/{version_id}/multipart/{session_id}/complete",
+                    encode_publication_segment(slug)
                 ),
             )?)
             .header(AUTHORIZATION, authorization.clone())
@@ -2241,25 +2263,39 @@ fn file_range_sha256(file: &mut File, offset: u64, bytes: u64) -> Result<String>
 
 fn validate_slug(value: &str) -> Result<()> {
     let valid = !value.is_empty()
-        && value.len() <= 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        && value
-            .as_bytes()
-            .first()
-            .is_some_and(u8::is_ascii_alphanumeric)
-        && value
-            .as_bytes()
-            .last()
-            .is_some_and(u8::is_ascii_alphanumeric);
+        && value.len() <= 1024
+        && !["_eidos", "assets", ".well-known"]
+            .contains(&value.split('/').next().unwrap_or_default())
+        && value.split('/').all(|part| {
+            !part.is_empty()
+                && part != "."
+                && part != ".."
+                && part.len() <= 255
+                && part.trim() == part
+                && part
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || " _().-".contains(c))
+        });
     if valid {
         Ok(())
     } else {
         Err(AppError::invalid_request(
-            "--slug must contain 1 to 64 lowercase letters, digits, or hyphens",
+            "--slug must be a safe relative publication path",
         ))
     }
+}
+
+fn encode_publication_segment(value: &str) -> String {
+    let mut result = String::new();
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-_.~".contains(&byte) {
+            result.push(char::from(byte));
+        } else {
+            use std::fmt::Write as _;
+            write!(result, "%{byte:02X}").expect("write to string");
+        }
+    }
+    result
 }
 
 fn string_member<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
@@ -2371,7 +2407,18 @@ mod tests {
     fn accepts_only_safe_publication_slugs() {
         assert!(validate_slug("team-wiki").is_ok());
         assert!(validate_slug("a").is_ok());
-        for value in ["Team", "-team", "team-", "a/b", "", "é"] {
+        assert!(validate_slug("运动/2026/骑行.gpx").is_ok());
+        assert!(validate_slug("Notes/My Note.md").is_ok());
+        for value in [
+            "../a",
+            "/a",
+            "a//b",
+            "a/./b",
+            "",
+            "_eidos/test",
+            "a?b",
+            "a%2Fb",
+        ] {
             assert!(validate_slug(value).is_err(), "accepted {value:?}");
         }
     }
@@ -2616,10 +2663,94 @@ mod tests {
             None,
             PublishProgress::new(false, false),
         );
-        worker.join().unwrap();
         let result = result.unwrap();
+        worker.join().unwrap();
         assert_eq!(result["versionCreated"], false);
         assert_eq!(result["versionId"], "current");
+    }
+
+    #[test]
+    fn republish_preserves_nested_source_paths_and_encodes_custom_slugs() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("note.txt");
+        fs::write(&file, b"hello").unwrap();
+        let manifest = json!({
+            "spec": "eidos.publish/source-bundle@1", "mediaType": FILE_MEDIA_TYPE,
+            "entrypoint": "资料/note.txt", "assetReferences": [],
+            "files": [{ "path": "资料/note.txt", "role": "entrypoint", "mediaType": "text/plain",
+                "bytes": "5", "sha256": format!("{:x}", Sha256::digest(b"hello")) }]
+        });
+        let fingerprint = source_manifest_sha256(&manifest).unwrap();
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let origin = format!("http://{}", server.server_addr());
+        let stale_key = idempotency_key(&["publication", "rides/today", "public"]);
+        let worker = std::thread::spawn(move || {
+            for _ in 0..3 {
+                let request = server
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap();
+                let body = match (request.method(), request.url()) {
+                    (&tiny_http::Method::Get, "/api/tenant") => {
+                        json!({"canonicalHost": "test.eidos.ink"})
+                    }
+                    (&tiny_http::Method::Put, "/api/publications/rides%2Ftoday") => {
+                        let replay = request.headers().iter().any(|h| {
+                            h.field.equiv("Idempotency-Key") && h.value.as_str() == stale_key
+                        });
+                        json!({"publicationId": "publication", "currentVersionId": if replay { None } else { Some("current") }})
+                    }
+                    (
+                        &tiny_http::Method::Get,
+                        "/api/publications/rides%2Ftoday/versions/current",
+                    ) => json!({
+                        "state": "ready", "targetHealth": "healthy", "sourceManifestSha256": fingerprint,
+                        "driverId": FILE_DRIVER_ID, "driverVersion": DRIVER_VERSION,
+                        "servingTargetSha256": "target"
+                    }),
+                    _ => {
+                        json!({"error": {"code": "unexpected-request", "message": "Should reuse the current version"}})
+                    }
+                };
+                request
+                    .respond(
+                        tiny_http::Response::from_string(body.to_string()).with_header(
+                            tiny_http::Header::from_bytes("Content-Type", "application/json")
+                                .unwrap(),
+                        ),
+                    )
+                    .unwrap();
+            }
+        });
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            file.to_str().unwrap(),
+            "--slug",
+            "rides/today",
+            "--source-path",
+            "资料/note.txt",
+            "--publish-origin",
+            &origin,
+            "--token",
+            "test-token",
+        ])
+        .unwrap();
+        let Command::Publish(args) = cli.command else {
+            panic!("expected publish")
+        };
+        let result = run(
+            args,
+            PublishSourceKind::File,
+            vec![],
+            None,
+            PublishProgress::new(false, false),
+        );
+        let result = result.unwrap();
+        worker.join().unwrap();
+        assert_eq!(result["versionCreated"], false);
+        assert_eq!(result["versionId"], "current");
+        assert_eq!(result["url"], "https://test.eidos.ink/rides/today");
     }
 
     #[test]

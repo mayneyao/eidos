@@ -473,6 +473,9 @@ pub struct ServeArgs {
 pub struct PublishArgs {
     /// Local file to publish.
     pub file: PathBuf,
+    /// Original Space-relative file path, independent of the publication slug.
+    #[arg(long, value_name = "PATH")]
+    pub source_path: Option<String>,
     /// Render the source using this .eidos-plugin package.
     #[arg(
         long,
