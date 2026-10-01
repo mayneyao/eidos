@@ -1,3 +1,5 @@
+import { validateFileVersion, prepareFileVersion } from "./file"
+import { probeStaticTarget } from "./static"
 import {
   WorkflowEntrypoint,
   type WorkflowEvent,
@@ -167,6 +169,33 @@ export class PublishWorkflow extends WorkflowEntrypoint<
             return { ready: true }
           }
         )
+      } else if (version.driverId === "org.eidos.driver.file") {
+        validation = await step.do("02-validate-file", STEP_POLICY, () =>
+          validateFileVersion(this.env, input.tenantId, version)
+        )
+        await step.do("03-commit-validation-receipt", STEP_POLICY, async () =>
+          requireDurable(
+            await tenant.recordValidation(input.versionId, validation)
+          )
+        )
+        prepared = await step.do("04-prepare-file-target", STEP_POLICY, () =>
+          prepareFileVersion(
+            this.env,
+            tenant,
+            input.tenantId,
+            input.slug,
+            version
+          )
+        )
+        await step.do("04b-probe-file-target", STEP_POLICY, async () => {
+          if (prepared.target.kind !== "static" || !prepared.artifact)
+            throw new WorkflowOperationError(
+              "invalid_static_target",
+              "File target is invalid"
+            )
+          await probeStaticTarget(this.env, prepared.target, prepared.artifact)
+          return { ready: true }
+        })
       } else if (version.driverId === "org.eidos.driver.form") {
         validation = await step.do(
           "02-validate-form-definition",

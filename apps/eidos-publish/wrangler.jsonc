@@ -2,6 +2,8 @@
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "eidos-publish",
   "main": "src/index.ts",
+  // Browser bootstraps are serialized without generated outer-scope name helpers.
+  "keep_names": false,
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
   "build": { "command": "pnpm --filter @eidos.space/markdown build" },

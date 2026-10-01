@@ -34,7 +34,6 @@ const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 const PUBLICATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
-const PUBLISHABLE_EXTENSION = /\.(?:eidos|md|markdown)$/i
 const MAX_RESULT_BYTES = 1024 * 1024
 
 interface CliError {
@@ -81,10 +80,13 @@ interface IncrementalPublishSource {
 function requestSourceKind(
   request: EidosPublishRequest
 ): EidosPublicationBinding["sourceKind"] {
+  if (request.pluginView) return "file"
   if (request.formView) return "form"
   return request.relativePath.toLowerCase().endsWith(".eidos")
     ? "eidos-file"
-    : "markdown"
+    : /\.(md|markdown)$/i.test(request.relativePath)
+      ? "markdown"
+      : "file"
 }
 
 function safeAttachmentPath(value: unknown): value is string {
@@ -197,7 +199,7 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
     typeof request.requestId !== "string" ||
     !REQUEST_ID.test(request.requestId) ||
     typeof request.relativePath !== "string" ||
-    !PUBLISHABLE_EXTENSION.test(request.relativePath) ||
+    !safeAttachmentPath(request.relativePath) ||
     typeof request.slug !== "string" ||
     !SLUG.test(request.slug) ||
     (request.accessMode !== "unchanged" &&
@@ -237,6 +239,21 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
   ) {
     throw new Error("Form response access requires a Form View")
   }
+  let pluginView: EidosPublishRequest["pluginView"]
+  if (request.pluginView !== undefined) {
+    const p = request.pluginView as Record<string, unknown> | null
+    if (
+      !p ||
+      typeof p !== "object" ||
+      typeof p.hash !== "string" ||
+      !SHA256.test(p.hash) ||
+      typeof p.viewId !== "string" ||
+      !/^[a-z][a-z0-9-]{0,127}$/.test(p.viewId) ||
+      request.formView !== undefined
+    )
+      throw new Error("Invalid published plugin View")
+    pluginView = { hash: p.hash, viewId: p.viewId }
+  }
   const password = request.password
   if (request.accessMode === "password") {
     const passwordCharacters =
@@ -256,6 +273,7 @@ export function requiredPublishRequest(value: unknown): EidosPublishRequest {
     throw new Error("A Publish password requires password access")
   }
   return {
+    ...(pluginView ? { pluginView } : {}),
     requestId: request.requestId,
     relativePath: request.relativePath,
     slug: request.slug,
@@ -428,7 +446,8 @@ export function publishCliArguments(
     platform?: string
     arch?: string
     osRelease?: string
-  }
+  },
+  pluginPath?: string
 ): string[] {
   const args = [
     "--json",
@@ -451,6 +470,13 @@ export function publishCliArguments(
   }
   if (request.branding === "hide") args.push("--hide-branding")
   if (request.branding === "show") args.push("--show-branding")
+  if (pluginPath && request.pluginView)
+    args.push(
+      "--plugin",
+      pluginPath,
+      "--plugin-view",
+      request.pluginView.viewId
+    )
   if (request.formView) args.push("--form-view", request.formView)
   if (request.formRespondentAccess) {
     args.push(
@@ -689,7 +715,8 @@ export class EidosPublishEngine {
   async publish(
     session: SpaceSession,
     request: EidosPublishRequest,
-    onProgress: (progress: EidosPublishProgress) => void
+    onProgress: (progress: EidosPublishProgress) => void,
+    pluginBytes?: Uint8Array
   ): Promise<EidosPublishResponse> {
     let temporaryDirectory: string | null = null
     try {
@@ -717,6 +744,8 @@ export class EidosPublishEngine {
         request.accessMode === "unchanged" &&
         request.branding === "unchanged" &&
         request.formView === undefined &&
+        request.pluginView === undefined &&
+        existing?.pluginView === undefined &&
         existing?.localObservation &&
         existing.publishFingerprint &&
         hasReusableCachedResult(existing)
@@ -768,12 +797,20 @@ export class EidosPublishEngine {
       temporaryDirectory = await fs.mkdtemp(
         path.join(os.tmpdir(), "eidos-lite-publish-")
       )
+      const sourceDirectory = path.join(temporaryDirectory, "source")
+      await fs.mkdir(sourceDirectory)
       const snapshotPath = path.join(
-        temporaryDirectory,
-        request.relativePath.toLowerCase().endsWith(".eidos")
-          ? "source.eidos"
-          : "source.md"
+        sourceDirectory,
+        path.basename(request.relativePath)
       )
+      const pluginPath = request.pluginView
+        ? path.join(temporaryDirectory, "view.eidos-plugin")
+        : undefined
+      if (pluginPath) {
+        if (!pluginBytes)
+          throw new Error("Published plugin package is unavailable")
+        await fs.writeFile(pluginPath, pluginBytes, { flag: "wx", mode: 0o600 })
+      }
       const deltaPath = path.join(temporaryDirectory, "source.graft-delta")
       onProgress({
         requestId: request.requestId,
@@ -825,9 +862,11 @@ export class EidosPublishEngine {
         accessToken,
         request,
         incrementalSource,
-        onProgress
+        onProgress,
+        pluginPath
       )
       if (response.ok) {
+        if (request.pluginView) response.result.pluginView = request.pluginView
         let localObservation: PublicationSourceObservation | null = null
         try {
           localObservation = await observePublishSource(
@@ -1180,7 +1219,8 @@ export class EidosPublishEngine {
     accessToken: string,
     request: EidosPublishRequest,
     incrementalSource: IncrementalPublishSource | undefined,
-    onProgress: (progress: EidosPublishProgress) => void
+    onProgress: (progress: EidosPublishProgress) => void,
+    pluginPath?: string
   ): Promise<EidosPublishResponse> {
     const child = spawn(
       executable,
@@ -1189,7 +1229,9 @@ export class EidosPublishEngine {
         snapshotPath,
         attachmentRoot,
         this.services.publishOrigin,
-        incrementalSource
+        incrementalSource,
+        undefined,
+        pluginPath
       ),
       {
         env: {
@@ -1267,10 +1309,12 @@ export class EidosPublishEngine {
         !SHA256.test(result.publishFingerprint) ||
         (result.driverId !== "org.eidos.driver.eidos" &&
           result.driverId !== "org.eidos.driver.markdown" &&
-          result.driverId !== "org.eidos.driver.form") ||
+          result.driverId !== "org.eidos.driver.form" &&
+          result.driverId !== "org.eidos.driver.file") ||
         (result.mediaType !== "application/vnd.eidos+sqlite3" &&
           result.mediaType !== "text/markdown" &&
-          result.mediaType !== "application/vnd.eidos.form+json") ||
+          result.mediaType !== "application/vnd.eidos.form+json" &&
+          result.mediaType !== "application/vnd.eidos.file") ||
         (result.driverId === "org.eidos.driver.form"
           ? !result.formPolicy ||
             (result.formPolicy.respondentAccess !== "anyone" &&

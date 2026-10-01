@@ -7,6 +7,7 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import {
   EIDOS_DRIVER,
   FORM_DRIVER,
+  FILE_DRIVER,
   MARKDOWN_DRIVER,
   SourceBundleError,
   contentObjectKey,
@@ -92,6 +93,7 @@ interface BeginVersionBody {
   driver:
     | { id: "org.eidos.driver.eidos"; version: "1.0" }
     | { id: "org.eidos.driver.markdown"; version: "1.0" }
+    | { id: "org.eidos.driver.file"; version: "1.0" }
     | { id: "org.eidos.driver.form"; version: "1.0" }
   manifest: SourceBundleManifest
   activate: boolean
@@ -214,6 +216,13 @@ async function route(
           mediaTypes: MARKDOWN_DRIVER.acceptedMediaTypes,
           targetKinds: MARKDOWN_DRIVER.targetKinds,
           maxEntrypointBytes: MARKDOWN_DRIVER.limits.maxEntrypointBytes,
+        },
+        {
+          id: FILE_DRIVER.id,
+          version: FILE_DRIVER.version,
+          mediaTypes: FILE_DRIVER.acceptedMediaTypes,
+          targetKinds: FILE_DRIVER.targetKinds,
+          maxEntrypointBytes: FILE_DRIVER.limits.maxEntrypointBytes,
         },
         {
           id: FORM_DRIVER.id,
@@ -2358,7 +2367,8 @@ async function beginVersionBody(request: Request): Promise<BeginVersionBody> {
     driverRecord.version !== "1.0" ||
     (driverRecord.id !== EIDOS_DRIVER.id &&
       driverRecord.id !== MARKDOWN_DRIVER.id &&
-      driverRecord.id !== FORM_DRIVER.id)
+      driverRecord.id !== FORM_DRIVER.id &&
+      driverRecord.id !== FILE_DRIVER.id)
   ) {
     throw badRequest(
       "unsupported_driver",
@@ -2370,11 +2380,13 @@ async function beginVersionBody(request: Request): Promise<BeginVersionBody> {
   }
   return {
     driver:
-      driverRecord.id === FORM_DRIVER.id
-        ? { id: FORM_DRIVER.id, version: FORM_DRIVER.version }
-        : driverRecord.id === MARKDOWN_DRIVER.id
-          ? { id: MARKDOWN_DRIVER.id, version: MARKDOWN_DRIVER.version }
-          : { id: EIDOS_DRIVER.id, version: EIDOS_DRIVER.version },
+      driverRecord.id === FILE_DRIVER.id
+        ? { id: FILE_DRIVER.id, version: FILE_DRIVER.version }
+        : driverRecord.id === FORM_DRIVER.id
+          ? { id: FORM_DRIVER.id, version: FORM_DRIVER.version }
+          : driverRecord.id === MARKDOWN_DRIVER.id
+            ? { id: MARKDOWN_DRIVER.id, version: MARKDOWN_DRIVER.version }
+            : { id: EIDOS_DRIVER.id, version: EIDOS_DRIVER.version },
     manifest: record.manifest as SourceBundleManifest,
     activate: record.activate ?? true,
     ...(client !== undefined ? { client } : {}),

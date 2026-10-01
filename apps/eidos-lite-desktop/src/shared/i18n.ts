@@ -712,6 +712,14 @@ const zh: Record<string, string> = {
   "Publish continues in the background while you work.":
     "发布会在后台继续，你可以正常使用工作区。",
   "Publish as": "发布为",
+  "Download file": "下载文件",
+  "Plugin View": "插件视图",
+  "Previously published View": "之前发布的视图",
+  "Share this file as an interactive webpage. The file and plugin are saved with this publication.":
+    "将此文件分享为可交互网页。文件与插件会保存在此次发布中。",
+  "Share a fixed URL for this file.": "通过固定网址分享此文件。",
+  "Files, plugin Views and Forms require Publish Pro. You can publish a Markdown document with Free.":
+    "文件、插件视图和表单需要 Publish Pro。免费版可发布 Markdown 文档。",
   "Interactive Eidos File": "可交互 Eidos File",
   Form: "表单",
   Markdown: "Markdown",

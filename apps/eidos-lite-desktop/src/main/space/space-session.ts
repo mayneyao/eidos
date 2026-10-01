@@ -3644,16 +3644,9 @@ export class SpaceSession {
     deltaDestinationPath?: string
   ): Promise<GraftSqliteSnapshotCaptureResult | null> {
     const extension = path.extname(relativePath).toLowerCase()
-    if (
-      extension !== ".eidos" &&
-      extension !== ".md" &&
-      extension !== ".markdown"
-    ) {
-      throw new Error(
-        "Only Eidos Files and Markdown documents can be published from Eidos Lite"
-      )
-    }
     const sourcePath = this.resolveUserPath(relativePath)
+    const info = await fs.lstat(sourcePath)
+    if (!info.isFile()) throw new Error("Publish requires an ordinary file")
     const canonicalSource = await fs.realpath(sourcePath)
     const sourceWithinSpace = path.relative(
       this.canonical.root,

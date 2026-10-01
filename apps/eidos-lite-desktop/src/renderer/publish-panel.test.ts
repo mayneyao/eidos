@@ -71,7 +71,7 @@ describe("Publish panel", () => {
     expect(defaultPublishSlug("Release Notes.markdown")).toBe("release-notes")
   })
 
-  it("offers Publish only for supported source files", () => {
+  it("offers Publish for ordinary files", () => {
     expect(
       isPublishableEntry({
         name: "guide.md",
@@ -89,7 +89,7 @@ describe("Publish panel", () => {
         size: 1,
         modifiedAtMs: 1,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("keeps Publish visible but unavailable until an account is signed in", () => {

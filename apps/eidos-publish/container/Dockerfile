@@ -6,6 +6,7 @@ COPY apps/cli/core ./core
 COPY apps/cli/qjs-host ./qjs-host
 COPY apps/cli/src ./src
 COPY skills/eidos /build/skills/eidos
+COPY packages/plugin-runtime/src/compatibility-data.json /build/packages/plugin-runtime/src/compatibility-data.json
 RUN cargo build --release --locked --bin eidos --bin eidos-publish-supervisor
 
 FROM debian:bookworm-slim

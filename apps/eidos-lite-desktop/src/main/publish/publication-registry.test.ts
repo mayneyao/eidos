@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs"
+import { DatabaseSync } from "node:sqlite"
 import os from "node:os"
 import path from "node:path"
 
@@ -93,6 +94,77 @@ function createRegistry(): PublicationRegistry {
 }
 
 describe("PublicationRegistry", () => {
+  it("persists independent raw and plugin View publications for one file", () => {
+    const registry = createRegistry()
+    const pluginView = { hash: "c".repeat(64), viewId: "map" }
+    const rawRequest = {
+      ...request,
+      relativePath: "ride.gpx",
+      formView: undefined,
+      slug: "ride-download",
+    }
+    const rawResult: EidosPublishResult = {
+      ...result,
+      publicationSlug: "ride-download",
+      driverId: "org.eidos.driver.file",
+      mediaType: "application/vnd.eidos.file",
+      formPolicy: null,
+    }
+    registry.upsertPublished(scope, rawRequest, rawResult)
+    registry.upsertPublished(
+      scope,
+      { ...rawRequest, slug: "ride-map", pluginView },
+      {
+        ...rawResult,
+        publicationSlug: "ride-map",
+        publicationId: "9300a083-df92-49d8-945d-1e0bae0eac18",
+        pluginView,
+      }
+    )
+    expect(registry.list(scope, "ride.gpx")).toHaveLength(2)
+    expect(
+      registry
+        .list(scope, "ride.gpx")
+        .find((binding) => binding.slug === "ride-map")
+    ).toMatchObject({ sourceKind: "file", pluginView })
+    registry.close()
+  })
+
+  it("preserves bindings and collector foreign keys during the file-kind migration", () => {
+    const directory = mkdtempSync(
+      path.join(os.tmpdir(), "eidos-publish-migration-")
+    )
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, "publish-state.sqlite")
+    const first = new PublicationRegistry(filePath)
+    first.upsertPublished(scope, request, result)
+    first.recordCollectionSuccess(scope, {
+      collected: true,
+      publicationId: result.publicationId,
+      collectorId: "eidos-lite-12345678901234567890123456789012",
+      collectorGeneration: 3,
+      importedSubmissions: 2,
+      replayedSubmissions: 1,
+    })
+    first.close()
+    const database = new DatabaseSync(filePath)
+    database.exec("DELETE FROM publish_schema_migrations WHERE version = 3")
+    database.close()
+    const migrated = new PublicationRegistry(filePath)
+    expect(migrated.list(scope)[0]).toMatchObject({
+      publicationId: result.publicationId,
+      collector: {
+        collectorGeneration: 3,
+        importedSubmissions: 2,
+        replayedSubmissions: 1,
+      },
+    })
+    migrated.close()
+    const checked = new DatabaseSync(filePath)
+    expect(checked.prepare("PRAGMA foreign_key_check").all()).toEqual([])
+    checked.close()
+  })
+
   it("restores bindings after the Lite process reopens the Space", () => {
     const directory = mkdtempSync(
       path.join(os.tmpdir(), "eidos-publish-state-")

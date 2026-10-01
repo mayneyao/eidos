@@ -120,6 +120,7 @@ function PluginFrame({
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (
+        !event.source ||
         event.source !== frameRef.current?.contentWindow ||
         !event.data ||
         typeof event.data !== "object"
@@ -227,7 +228,8 @@ function PluginFrame({
           if (
             isPublish ||
             currentProps.disabled ||
-            !currentProps.capabilities.mutate
+            !currentProps.capabilities.mutate ||
+            !currentProps.view
           ) {
             throw new Error("PERMISSION_DENIED: View is read-only")
           }

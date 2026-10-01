@@ -14,11 +14,43 @@ is rendered once into a script-free static page. Your local file remains the
 source of truth and the CLI can exit after publishing.
 
 <Aside type="note" title="Hosted service">
-  Publish CLI keys require a paid Publish plan. Publish Free is available through
-  Eidos Lite login for verified accounts: 10 active public Markdown pages sharing
-  100 MiB, with Eidos branding and search indexing disabled. Free does not include
-  Eidos Runtime or Forms. The CLI uses the production Publish origin by default.
+  Publish CLI keys require a paid Publish plan. Publish Free is available
+  through Eidos Lite login for verified accounts: 10 active public Markdown
+  pages sharing 100 MiB, with Eidos branding and search indexing disabled. Free
+  does not include Eidos Runtime or Forms. The CLI uses the production Publish
+  origin by default.
 </Aside>
+
+## Ordinary files and plugin Views (staging preview)
+
+The staging build also supports ordinary files. Their stable URL downloads the
+original bytes. To display a file as an interactive page, publish it with a
+read-only file View from a local plugin package:
+
+```bash
+eidos publish ride.gpx --slug ride-download \
+  --publish-origin https://publish-staging.eidos.space
+eidos publish ride.gpx --slug ride-map \
+  --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map \
+  --publish-origin https://publish-staging.eidos.space
+```
+
+Use a staging account and its Publish CLI key. These features require Pro and
+are not yet available on production. Each slug has its own access settings and
+active Version; the same source file can have a download link and a View link.
+
+The plugin package is included privately in the publication snapshot. It is not
+listed in the plugin registry. Browser code is delivered to visitors as part of
+the page, so never include secrets in a plugin. Changing the package or selected
+View creates a new Version when you republish.
+
+This preview supports plugin API 3.0.0, `kind: "file"`, `access: "read"`, and
+no declared View capabilities. The file and compressed package each have a
+16 MiB limit; the unpacked package is also limited to 16 MiB. Views can read only
+the published file. Local workspace, settings, storage, connections, companion
+files, and write operations are unavailable. Declared browser network origins
+and browser workers are supported. Raw downloads support files up to 1 GiB,
+subject to account limits.
 
 ## Before you publish
 

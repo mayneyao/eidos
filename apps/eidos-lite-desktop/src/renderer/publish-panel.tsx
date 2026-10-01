@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState, type FormEvent } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react"
 import {
   Check,
   Copy,
@@ -37,10 +43,7 @@ export function defaultPublishSlug(fileName: string): string {
 }
 
 export function isPublishableEntry(entry: SpaceTreeEntry): boolean {
-  return (
-    entry.kind === "eidos" ||
-    (entry.kind === "file" && /\.(?:md|markdown)$/i.test(entry.name))
-  )
+  return entry.kind === "eidos" || entry.kind === "file"
 }
 
 export type PublishAccountState =
@@ -120,14 +123,14 @@ interface PublishPanelProps {
 
 export function publishPlanRestriction(
   account: EidosPublishAccountStatus,
-  sourceKind: "eidos-file" | "markdown" | "form",
+  sourceKind: "eidos-file" | "markdown" | "form" | "file",
   slug: string
 ): string | null {
   if (account.state !== "active")
     return "Open your account to verify your email or restore Publish access."
   if (account.plan !== "free") return null
   if (sourceKind !== "markdown")
-    return "Eidos Files and Forms require Publish Pro. You can publish a Markdown document with Free."
+    return "Files, plugin Views and Forms require Publish Pro. You can publish a Markdown document with Free."
   if (
     account.activeSlugs !== null &&
     account.activeSlugs.length >= 10 &&
@@ -138,6 +141,7 @@ export function publishPlanRestriction(
 }
 
 export interface PublishPanelSubmission {
+  pluginView?: { hash: string; viewId: string }
   slug: string
   accessMode: EidosPublishAccessSelection
   branding: EidosPublishBrandingSelection
@@ -169,13 +173,70 @@ export function PublishPanel({
   const [password, setPassword] = useState("")
   const [confirmation, setConfirmation] = useState("")
   const [formView, setFormView] = useState("")
+  const [pluginView, setPluginView] = useState("")
+  const [pluginViews, setPluginViews] = useState<
+    Array<{ hash: string; viewId: string; label: string }>
+  >([])
+  useEffect(() => {
+    let active = true
+    void window.eidosLite
+      .listPlugins()
+      .then((listing) => {
+        if (!active) return
+        const extension = "." + entry.name.split(".").at(-1)?.toLowerCase()
+        setPluginViews(
+          listing.plugins.flatMap((plugin) => {
+            if (
+              !plugin.enabled ||
+              plugin.unavailable ||
+              plugin.manifest.requires?.pluginApi !== "3.0.0" ||
+              plugin.manifest.workspace ||
+              plugin.manifest.connections ||
+              plugin.manifest.settings ||
+              plugin.manifest.storage
+            )
+              return []
+            return (plugin.manifest.views ?? [])
+              .filter(
+                (view) =>
+                  view.kind === "file" &&
+                  view.access === "read" &&
+                  !view.capabilities?.length &&
+                  plugin.manifest.placements?.some(
+                    (p) =>
+                      p.location === "file/open" &&
+                      p.view === view.id &&
+                      p.extensions.includes(extension)
+                  )
+              )
+              .map((view) => ({
+                hash: plugin.hash,
+                viewId: view.id,
+                label: plugin.manifest.name + " · " + view.title,
+              }))
+          })
+        )
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [entry.name])
   const free = account?.plan === "free"
   const effectiveAccess = free ? "public" : accessMode
   const effectiveBranding = free ? "show" : branding
   const planRestriction = account
     ? publishPlanRestriction(
         account,
-        formView ? "form" : entry.kind === "eidos" ? "eidos-file" : "markdown",
+        pluginView
+          ? "file"
+          : formView
+            ? "form"
+            : entry.kind === "eidos"
+              ? "eidos-file"
+              : /\.(md|markdown)$/i.test(entry.name)
+                ? "markdown"
+                : "file",
         slug
       )
     : null
@@ -256,6 +317,14 @@ export function PublishPanel({
       slug,
       accessMode: effectiveAccess,
       branding: effectiveBranding,
+      ...(pluginView
+        ? {
+            pluginView: {
+              hash: pluginView.split(":")[0],
+              viewId: pluginView.split(":")[1],
+            },
+          }
+        : {}),
       ...(formView ? { formView } : {}),
       ...(formView ? { formRespondentAccess, formAllowMultipleResponses } : {}),
       ...(effectiveAccess === "password" ? { password } : {}),
@@ -365,9 +434,13 @@ export function PublishPanel({
                   <small>
                     {binding.sourceKind === "form"
                       ? t("Form")
-                      : binding.sourceKind === "markdown"
-                        ? t("Markdown")
-                        : t("Interactive Eidos File")}
+                      : binding.sourceKind === "file"
+                        ? binding.pluginView
+                          ? t("Plugin View")
+                          : t("Download file")
+                        : binding.sourceKind === "markdown"
+                          ? t("Markdown")
+                          : t("Interactive Eidos File")}
                     {` · ${t(binding.accessMode)}`}
                     {formRespondentLabel ? ` · ${t(formRespondentLabel)}` : ""}
                   </small>
@@ -435,6 +508,13 @@ export function PublishPanel({
                     title={t("Republish")}
                     onClick={() => {
                       setSlug(binding.slug)
+                      setPluginView(
+                        binding.pluginView
+                          ? binding.pluginView.hash +
+                              ":" +
+                              binding.pluginView.viewId
+                          : ""
+                      )
                       setFormView(binding.formViewId ?? "")
                       setFormRespondentAccess(
                         binding.formPolicy?.respondentAccess ?? "anyone"
@@ -469,6 +549,45 @@ export function PublishPanel({
       ) : null}
 
       <form onSubmit={submit}>
+        {entry.kind === "file" ? (
+          <label>
+            <span>{t("Publish as")}</span>
+            <select
+              value={pluginView}
+              disabled={free}
+              onChange={(event) => setPluginView(event.target.value)}
+            >
+              <option value="">
+                {/\.(md|markdown)$/i.test(entry.name)
+                  ? t("Markdown")
+                  : t("Download file")}
+              </option>
+              {pluginView &&
+              !pluginViews.some(
+                (view) => view.hash + ":" + view.viewId === pluginView
+              ) ? (
+                <option value={pluginView}>
+                  {t("Previously published View")}
+                </option>
+              ) : null}
+              {pluginViews.map((view) => (
+                <option
+                  key={view.hash + ":" + view.viewId}
+                  value={view.hash + ":" + view.viewId}
+                >
+                  {view.label}
+                </option>
+              ))}
+            </select>
+            <small>
+              {pluginView
+                ? t(
+                    "Share this file as an interactive webpage. The file and plugin are saved with this publication."
+                  )
+                : t("Share a fixed URL for this file.")}
+            </small>
+          </label>
+        ) : null}
         {formViews.length > 0 ? (
           <label>
             <span>{t("Publish as")}</span>

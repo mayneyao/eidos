@@ -14,10 +14,35 @@ Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳�
 本地文件仍是源文件；发布完成后 CLI 可以退出。
 
 <Aside type="note" title="托管服务">
-  Publish CLI 密钥需要付费 Publish 方案。已验证邮箱的账户可通过 Eidos Lite 登录使用
-  Publish Free：10 个活跃公开 Markdown 页面共享 100 MiB，保留 Eidos 品牌并禁止搜索收录。
-  Free 不包含 Eidos Runtime 或 Form。CLI 默认使用生产 Publish 服务地址。
+  Publish CLI 密钥需要付费 Publish 方案。已验证邮箱的账户可通过 Eidos Lite
+  登录使用 Publish Free：10 个活跃公开 Markdown 页面共享 100 MiB，保留 Eidos
+  品牌并禁止搜索收录。 Free 不包含 Eidos Runtime 或 Form。CLI 默认使用生产
+  Publish 服务地址。
 </Aside>
+
+## 普通文件与插件 View（staging 预览）
+
+staging 构建支持发布普通文件，稳定地址默认下载原始内容。指定本地插件包中的
+只读 file View，可以将文件发布成交互网页：
+
+```bash
+eidos publish ride.gpx --slug ride-download --publish-origin https://publish-staging.eidos.space
+eidos publish ride.gpx --slug ride-map --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map --publish-origin https://publish-staging.eidos.space
+```
+
+请使用 staging 账号及其 Publish CLI 密钥。这些功能需要 Pro，尚未在生产环境上线。
+同一源文件可以使用不同 slug，分别提供下载链接和 View 链接；每个链接有独立的
+访问权限和当前 Version。
+
+插件包作为发布快照的私有依赖保存，不会进入插件注册表。网页运行所需的浏览器代码
+仍会交付给访问者，因此插件中不能包含秘密。重新发布时，更换插件包或 View 会创建
+新的 Version。
+
+此预览支持 plugin API 3.0.0、`kind: "file"`、`access: "read"` 且没有声明
+View capabilities 的插件。源文件和压缩包分别限制为 16 MiB，解压后的包也限制为
+16 MiB。View 只能读取当前发布文件，不能访问本地 workspace、settings、storage、
+connections、同目录其他文件或执行写入。支持声明的浏览器网络来源和浏览器 worker。
+直接下载支持最大 1 GiB 文件，同时受账号限额约束。
 
 ## 发布前准备
 

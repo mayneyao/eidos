@@ -172,7 +172,7 @@ interface ContentObjectRow extends Record<string, SqlStorageValue> {
 interface VersionFileRow extends Record<string, SqlStorageValue> {
   version_id: string
   path: string
-  role: "entrypoint" | "attachment"
+  role: "entrypoint" | "attachment" | "plugin"
   media_type: string
   bytes: string
   sha256: string
@@ -743,6 +743,32 @@ export class PublishTenant extends DurableObject<Env> {
         `INSERT OR IGNORE INTO publish_schema_migrations (version, applied_at)
          VALUES (11, datetime('now'))`
       )
+      if (
+        !this.ctx.storage.sql
+          .exec(
+            "SELECT version FROM publish_schema_migrations WHERE version = 12"
+          )
+          .toArray().length
+      ) {
+        this.ctx.storage.transactionSync(() => {
+          this.ctx.storage.sql.exec(`
+            CREATE TABLE version_file_next (
+              version_id TEXT NOT NULL REFERENCES publication_version(version_id) ON DELETE RESTRICT,
+              path TEXT NOT NULL,
+              role TEXT NOT NULL CHECK (role IN ('entrypoint', 'attachment', 'plugin')),
+              media_type TEXT NOT NULL,
+              bytes TEXT NOT NULL,
+              sha256 TEXT NOT NULL REFERENCES content_object(sha256) ON DELETE RESTRICT,
+              PRIMARY KEY (version_id, path)
+            );
+            INSERT INTO version_file_next SELECT * FROM version_file;
+            DROP TABLE version_file;
+            ALTER TABLE version_file_next RENAME TO version_file;
+            CREATE INDEX idx_version_file_digest ON version_file (sha256, version_id);
+            INSERT INTO publish_schema_migrations (version, applied_at) VALUES (12, datetime('now'));
+          `)
+        })
+      }
     })
   }
 
@@ -994,9 +1020,10 @@ export class PublishTenant extends DurableObject<Env> {
            FROM version_file AS files
            JOIN content_object AS objects ON objects.sha256 = files.sha256
           WHERE files.version_id = ? AND files.path = ?
-            AND files.role = 'attachment' AND objects.state = 'ready'`,
+            AND (files.role = 'attachment' OR (files.role = 'entrypoint' AND ? = 'org.eidos.driver.file')) AND objects.state = 'ready'`,
         versionId,
-        path
+        path,
+        version.driver_id
       )
       .toArray()[0]
     return row === undefined
@@ -2474,7 +2501,8 @@ export class PublishTenant extends DurableObject<Env> {
       if (
         version.state !== "preparing" ||
         (version.driver_id !== "org.eidos.driver.markdown" &&
-          version.driver_id !== "org.eidos.driver.form")
+          version.driver_id !== "org.eidos.driver.form" &&
+          version.driver_id !== "org.eidos.driver.file")
       ) {
         return failure(
           409,
