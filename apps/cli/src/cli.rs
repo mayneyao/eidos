@@ -471,8 +471,19 @@ pub struct ServeArgs {
 
 #[derive(Debug, Args)]
 pub struct PublishArgs {
-    /// Local .eidos, .md, or .markdown source.
+    /// Local file to publish.
     pub file: PathBuf,
+    /// Render the source using this .eidos-plugin package.
+    #[arg(
+        long,
+        value_name = "PACKAGE",
+        requires = "plugin_view",
+        conflicts_with = "form_view"
+    )]
+    pub plugin: Option<PathBuf>,
+    /// File View ID inside --plugin.
+    #[arg(long, value_name = "VIEW_ID", requires = "plugin")]
+    pub plugin_view: Option<String>,
     /// Publish one Form View from an Eidos File instead of the whole File.
     #[arg(long, value_name = "VIEW_ID_OR_NAME")]
     pub form_view: Option<String>,
@@ -1793,6 +1804,56 @@ fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_file_view_publish_and_requires_both_plugin_options() {
+        let cli = Cli::try_parse_from([
+            "eidos",
+            "publish",
+            "ride.gpx",
+            "--slug",
+            "ride",
+            "--token",
+            "test-token",
+            "--plugin",
+            "map.eidos-plugin",
+            "--plugin-view",
+            "map",
+        ])
+        .unwrap();
+        let Command::Publish(args) = cli.command else {
+            panic!("expected publish")
+        };
+        assert_eq!(
+            args.plugin,
+            Some(std::path::PathBuf::from("map.eidos-plugin"))
+        );
+        assert_eq!(args.plugin_view.as_deref(), Some("map"));
+        for extra in [
+            vec!["--plugin", "map.eidos-plugin"],
+            vec!["--plugin-view", "map"],
+            vec![
+                "--plugin",
+                "map.eidos-plugin",
+                "--plugin-view",
+                "map",
+                "--form-view",
+                "form",
+            ],
+        ] {
+            let mut args = vec![
+                "eidos",
+                "publish",
+                "ride.gpx",
+                "--slug",
+                "ride",
+                "--token",
+                "test-token",
+            ];
+            args.extend(extra);
+            assert!(Cli::try_parse_from(args).is_err());
+        }
+    }
 
     #[test]
     fn parses_publish_command() {

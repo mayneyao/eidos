@@ -126,7 +126,7 @@ describe("Eidos Publish engine boundary", () => {
       },
       {
         requestId: "019abcde-1234-7abc-8abc-123456789abc",
-        relativePath: "notes.txt",
+        relativePath: "../notes.txt",
         slug: "notes",
         accessMode: "public",
         branding: "unchanged",
@@ -150,6 +150,41 @@ describe("Eidos Publish engine boundary", () => {
     ]) {
       expect(() => requiredPublishRequest(request)).toThrow()
     }
+  })
+
+  it("accepts an ordinary file with a pinned View and passes only the host package path", () => {
+    const request = requiredPublishRequest({
+      requestId: "019abcde-1234-7abc-8abc-123456789abc",
+      relativePath: "Tracks/ride.gpx",
+      slug: "ride",
+      accessMode: "unchanged",
+      branding: "unchanged",
+      pluginView: { hash: "a".repeat(64), viewId: "map" },
+    })
+    expect(
+      publishCliArguments(
+        request,
+        "/tmp/ride.gpx",
+        "/Tracks",
+        "https://publish-staging.eidos.space",
+        undefined,
+        undefined,
+        "/tmp/view.eidos-plugin"
+      )
+    ).toEqual(
+      expect.arrayContaining([
+        "--plugin",
+        "/tmp/view.eidos-plugin",
+        "--plugin-view",
+        "map",
+      ])
+    )
+    expect(() =>
+      requiredPublishRequest({
+        ...request,
+        pluginView: { hash: "../secret", viewId: "map" },
+      })
+    ).toThrow()
   })
 
   it("accepts Markdown documents as Publish sources", () => {

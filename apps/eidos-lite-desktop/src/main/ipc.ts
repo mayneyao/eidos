@@ -2376,11 +2376,22 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.publishRun, async (event, value: unknown) => {
     const request = requiredPublishRequest(value)
     const session = controller.requireSession(event.sender)
-    return publishEngine.publish(session, request, (progress) => {
-      if (!event.sender.isDestroyed()) {
-        event.sender.send(IPC_CHANNELS.publishProgress, progress)
-      }
-    })
+    const pluginBytes = request.pluginView
+      ? await plugins.publishPackage(
+          request.pluginView.hash,
+          request.pluginView.viewId
+        )
+      : undefined
+    return publishEngine.publish(
+      session,
+      request,
+      (progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IPC_CHANNELS.publishProgress, progress)
+        }
+      },
+      pluginBytes
+    )
   })
   ipcMain.handle(IPC_CHANNELS.publishAccountStatus, async () => {
     // Publish access is account-scoped, not Space-scoped, so the Settings

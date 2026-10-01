@@ -1,6 +1,7 @@
 import { canonicalJson, canonicalJsonBytes, canonicalSha256 } from "./canonical"
 import type {
   EidosDriverDescriptor,
+  FileDriverDescriptor,
   FormDriverDescriptor,
   MarkdownDriverDescriptor,
   PublishDriverDescriptor,
@@ -18,6 +19,21 @@ const UUID_V7 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const CONTROL = /[\u0000-\u001f\u007f]/
 const MAX_ASSET_REFERENCES = 50_000
+
+export const FILE_DRIVER: FileDriverDescriptor = {
+  id: "org.eidos.driver.file",
+  version: "1.0",
+  acceptedMediaTypes: ["application/vnd.eidos.file"],
+  targetKinds: ["static"],
+  limits: {
+    maxObjectBytes: "1073741824",
+    maxEntrypointBytes: "1073741824",
+    maxManifestBytes: "1048576",
+    maxManifestFiles: 2,
+    maxPathBytes: 1024,
+  },
+  conformance: ["EP-File-1.0"],
+}
 
 export const EIDOS_DRIVER: EidosDriverDescriptor = {
   id: "org.eidos.driver.eidos",
@@ -144,6 +160,7 @@ function binaryBytes(value: bigint): string {
 }
 
 export function driverForMediaType(mediaType: string): PublishDriverDescriptor {
+  if (mediaType === FILE_DRIVER.acceptedMediaTypes[0]) return FILE_DRIVER
   if (mediaType === EIDOS_DRIVER.acceptedMediaTypes[0]) return EIDOS_DRIVER
   if (mediaType === MARKDOWN_DRIVER.acceptedMediaTypes[0])
     return MARKDOWN_DRIVER
@@ -187,6 +204,9 @@ function parseManifest(value: unknown): SourceBundleManifest {
       "entrypoint",
       "files",
       "assetReferences",
+      ...(typeof value === "object" && value !== null && "presentation" in value
+        ? ["presentation"]
+        : []),
     ])
   ) {
     throw invalid(
@@ -294,6 +314,48 @@ function parseManifest(value: unknown): SourceBundleManifest {
     assetReferenceKey,
     "invalid_asset_reference_order"
   )
+  const plugins = files.filter((file) => file.role === "plugin")
+  let presentation: SourceBundleManifest["presentation"]
+  if (driver.id === FILE_DRIVER.id) {
+    if (
+      assetReferences.length ||
+      files.some((file) => file.role === "attachment")
+    )
+      throw invalid(
+        "invalid_file_bundle",
+        "File bundles cannot contain attachments"
+      )
+    if (value.presentation !== undefined) {
+      const p = value.presentation
+      if (
+        !isExactRecord(p, ["kind", "pluginPath", "viewId"]) ||
+        p.kind !== "plugin-view" ||
+        typeof p.pluginPath !== "string" ||
+        typeof p.viewId !== "string" ||
+        !/^[a-z][a-z0-9-]*$/.test(p.viewId) ||
+        p.viewId.length > 128 ||
+        plugins.length !== 1 ||
+        plugins[0]?.path !== p.pluginPath ||
+        BigInt(plugins[0].bytes) > 16777216n ||
+        BigInt(entrypoint.bytes) > 16777216n
+      )
+        throw invalid(
+          "invalid_file_presentation",
+          "A file View requires one plugin package and a file no larger than 16 MiB"
+        )
+      presentation = {
+        kind: "plugin-view",
+        pluginPath: p.pluginPath,
+        viewId: p.viewId,
+      }
+    } else if (plugins.length)
+      throw invalid("invalid_file_bundle", "Plugin dependencies require a View")
+  } else if (plugins.length || value.presentation !== undefined) {
+    throw invalid(
+      "invalid_file_presentation",
+      "Only File bundles support plugin Views"
+    )
+  }
   const attachmentFiles = files.filter((file) => file.role === "attachment")
   const attachmentsByPath = new Map(
     attachmentFiles.map((file) => [file.path, file] as const)
@@ -322,6 +384,7 @@ function parseManifest(value: unknown): SourceBundleManifest {
     entrypoint: value.entrypoint,
     files,
     assetReferences,
+    ...(presentation ? { presentation } : {}),
   }
 }
 
@@ -336,7 +399,11 @@ function parseFile(value: unknown): SourceBundleFile {
     throw invalid("invalid_source_path", "Source path is invalid")
   }
   validatePath(value.path)
-  if (value.role !== "entrypoint" && value.role !== "attachment") {
+  if (
+    value.role !== "entrypoint" &&
+    value.role !== "attachment" &&
+    value.role !== "plugin"
+  ) {
     throw invalid("invalid_source_role", "Source file role is invalid")
   }
   if (

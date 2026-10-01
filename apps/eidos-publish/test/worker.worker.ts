@@ -301,6 +301,12 @@ describe("Eidos Publish control plane", () => {
           maxEntrypointBytes: "16777216",
         },
         {
+          id: "org.eidos.driver.file",
+          mediaTypes: ["application/vnd.eidos.file"],
+          targetKinds: ["static"],
+          maxEntrypointBytes: "1073741824",
+        },
+        {
           id: "org.eidos.driver.form",
           mediaTypes: ["application/vnd.eidos.form+json"],
           targetKinds: ["static"],

@@ -7,6 +7,22 @@ Object SQLite and it does not implement a second Eidos query engine.
 The hosted service deliberately publishes no EP conformance labels until the
 complete test families have shipped.
 
+## Ordinary file publications (staging)
+
+The File Driver serves an ordinary file as a download, or renders it through a
+snapshot of a read-only plugin file View. Plugin packages are tenant-owned
+dependencies, not registry entries. The View runs in an opaque sandbox and can
+read only its bound source file. Source, plugin and View selection participate
+in the Version fingerprint. Existing public/password/private access gates
+protect both the page and source bytes.
+
+See [the protocol profile](../../docs/specs/eidos-publish-files-1.0.md) for
+limits and compatibility. This driver requires Pro. Local browser QA can use:
+
+```bash
+node apps/eidos-publish/scripts/file-view-preview.mjs FILE PLUGIN_PACKAGE VIEW_ID
+```
+
 ## Publish Free
 
 Verified Eidos accounts can publish from Eidos Lite's existing OAuth session.

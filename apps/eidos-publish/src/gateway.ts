@@ -1,3 +1,4 @@
+import { loadFileBundle, FILE_VIEW_CSP } from "./file"
 import { publicationHostLabel, publicationHostname } from "./hostnames"
 import {
   brandedDocumentHeaders,
@@ -421,6 +422,24 @@ async function servePublicationDocument(
   ) {
     return formAuthorizationRedirect(env, canonical, slug)
   }
+  if (resolved.value.version.driverId === "org.eidos.driver.file") {
+    const bundle = await loadFileBundle(env, resolved.value.version)
+    if (!bundle.manifest.presentation) {
+      const response = await servePublishedFile(
+        request,
+        env,
+        canonical,
+        tenantId,
+        tenant,
+        slug,
+        resolved.value.version.versionId,
+        bundle.entrypoint.sha256,
+        bundle.entrypoint.path.split("/").map(encodeURIComponent).join("/")
+      )
+      response.headers.set("Cache-Control", "private, no-store")
+      return response
+    }
+  }
   if (resolved.value.version.servingTarget?.kind === "static") {
     return await serveStaticDocument(
       request,
@@ -784,7 +803,8 @@ async function servePublishedFile(
         assetName(asset.value.path),
         asset.value.bytes,
         protectedAsset,
-        resolved.value.noIndex
+        resolved.value.noIndex,
+        resolved.value.version.driverId === "org.eidos.driver.file"
       ),
     })
   }
@@ -804,7 +824,8 @@ async function servePublishedFile(
     assetName(asset.value.path),
     asset.value.bytes,
     protectedAsset,
-    resolved.value.noIndex
+    resolved.value.noIndex,
+    resolved.value.version.driverId === "org.eidos.driver.file"
   )
   const normalizedRange =
     requestedRange === null ? null : normalizedObjectRange(object.range)
@@ -843,7 +864,9 @@ async function serveStaticDocument(
     return publicNotFound()
   }
   const privateDocument =
-    protectedDocument || version.driverId === "org.eidos.driver.form"
+    protectedDocument ||
+    version.driverId === "org.eidos.driver.form" ||
+    version.driverId === "org.eidos.driver.file"
   const headers = new Headers({
     "Cache-Control": privateDocument
       ? "private, no-store"
@@ -852,7 +875,9 @@ async function serveStaticDocument(
     "Content-Security-Policy":
       version.driverId === "org.eidos.driver.form"
         ? formDocumentCsp()
-        : MARKDOWN_CSP,
+        : version.driverId === "org.eidos.driver.file"
+          ? FILE_VIEW_CSP
+          : MARKDOWN_CSP,
     "Content-Type": artifact.mediaType,
     "Cross-Origin-Resource-Policy": "same-origin",
     ETag: `"sha256-${artifact.sha256}"`,
@@ -909,15 +934,18 @@ function publishedAssetHeaders(
   name: string,
   bytes: string,
   protectedAsset: boolean,
-  noIndex: boolean
+  noIndex: boolean,
+  forceDownload = false
 ): Headers {
-  const inline = new Set([
-    "image/avif",
-    "image/gif",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-  ]).has(mediaType)
+  const inline =
+    !forceDownload &&
+    new Set([
+      "image/avif",
+      "image/gif",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]).has(mediaType)
   const headers = new Headers({
     "Accept-Ranges": "bytes",
     "Cache-Control": protectedAsset

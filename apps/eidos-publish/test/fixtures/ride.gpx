@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Eidos Publish staging fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>Publish test ride</name><trkseg>
+    <trkpt lat="31.2304" lon="121.4737"><ele>10</ele><time>2026-01-01T00:00:00Z</time></trkpt>
+    <trkpt lat="31.2310" lon="121.4745"><ele>12</ele><time>2026-01-01T00:01:00Z</time></trkpt>
+    <trkpt lat="31.2320" lon="121.4760"><ele>15</ele><time>2026-01-01T00:02:00Z</time></trkpt>
+    <trkpt lat="31.2330" lon="121.4775"><ele>11</ele><time>2026-01-01T00:03:00Z</time></trkpt>
+  </trkseg></trk>
+</gpx>

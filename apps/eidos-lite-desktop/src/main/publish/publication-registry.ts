@@ -94,6 +94,7 @@ const BINDING_SELECT = `
       ON collector.binding_id = binding.binding_id`
 
 function sourceKind(result: EidosPublishResult): EidosPublicationSourceKind {
+  if (result.driverId === "org.eidos.driver.file") return "file"
   if (result.driverId === "org.eidos.driver.form") return "form"
   if (result.driverId === "org.eidos.driver.markdown") return "markdown"
   return "eidos-file"
@@ -134,6 +135,7 @@ function parsedJson<T>(value: string | null): T | null {
 function bindingRecord(row: PublicationBindingRow): StoredPublicationBinding {
   const lastResult = parsedJson<EidosPublishResult>(row.last_result_json)
   return {
+    ...(lastResult?.pluginView ? { pluginView: lastResult.pluginView } : {}),
     bindingId: row.binding_id,
     serviceOrigin: row.service_origin,
     accountId: row.account_id,
@@ -243,6 +245,49 @@ export class PublicationRegistry {
           VALUES (2, CURRENT_TIMESTAMP);
         COMMIT;
       `)
+    }
+    if (
+      !this.database
+        .prepare(
+          "SELECT version FROM publish_schema_migrations WHERE version = 3"
+        )
+        .get()
+    ) {
+      const schema = this.database
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'publication_binding'"
+        )
+        .get() as { sql: string }
+      const create = schema.sql
+        .replace(
+          /^CREATE TABLE\s+"?publication_binding"?/i,
+          "CREATE TABLE publication_binding_next"
+        )
+        .replace(
+          "'eidos-file', 'markdown', 'form'",
+          "'eidos-file', 'markdown', 'form', 'file'"
+        )
+      this.database.exec("PRAGMA foreign_keys = OFF")
+      try {
+        this.database.exec("BEGIN IMMEDIATE")
+        this.database.exec(create)
+        this.database
+          .exec(`INSERT INTO publication_binding_next SELECT * FROM publication_binding;
+          DROP TABLE publication_binding;
+          ALTER TABLE publication_binding_next RENAME TO publication_binding;
+          CREATE INDEX idx_publication_binding_source ON publication_binding (service_origin, account_id, relative_path, source_kind, form_view_id);
+          INSERT INTO publish_schema_migrations (version, applied_at) VALUES (3, CURRENT_TIMESTAMP);`)
+        if (this.database.prepare("PRAGMA foreign_key_check").all().length)
+          throw new Error(
+            "Publish binding migration failed its foreign key check"
+          )
+        this.database.exec("COMMIT")
+      } catch (error) {
+        this.database.exec("ROLLBACK")
+        throw error
+      } finally {
+        this.database.exec("PRAGMA foreign_keys = ON")
+      }
     }
     try {
       if ((statSync(filePath).mode & 0o777) !== 0o600)

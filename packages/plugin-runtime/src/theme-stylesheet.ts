@@ -17,7 +17,7 @@ function fontSource(value: string): string {
       value
     )
   if (!match) invalid("Theme font src must be a quoted local font URL")
-  return match[2]
+  return match[2]!
 }
 
 export interface ParsedThemeStylesheet {

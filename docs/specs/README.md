@@ -62,6 +62,10 @@ Semantic ownership is one-way. In particular:
 | Portable content syntax | [Eidos Flavored Markdown 1.0](./eidos-flavored-markdown-1.0.md)         | [中文](./eidos-flavored-markdown-1.0.zh.md)     |
 | Virtual Tables profile  | [Eidos Virtual Tables 1.0](./eidos-virtual-tables-1.0.md)               | [中文](./eidos-virtual-tables-1.0.zh.md)        |
 
+The [Eidos Publish Files 1.0](./eidos-publish-files-1.0.md)
+([中文](./eidos-publish-files-1.0.zh.md)) staging profile defines ordinary-file
+publication and sandboxed plugin file Views at the Adapter/UI boundary.
+
 ## Document organization
 
 The [Eidos Plugins API 3.0](./eidos-lite-plugins-1.0.md)

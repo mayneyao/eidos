@@ -217,7 +217,13 @@ export interface EidosPublishFormPolicy {
   revision: number
 }
 
+export interface EidosPublishPluginView {
+  hash: string
+  viewId: string
+}
+
 export interface EidosPublishRequest {
+  pluginView?: EidosPublishPluginView
   requestId: string
   relativePath: string
   slug: string
@@ -257,6 +263,7 @@ export interface EidosPublishAccountStatus {
 }
 
 export interface EidosPublishResult {
+  pluginView?: EidosPublishPluginView
   published: boolean
   ready: boolean
   versionCreated: boolean
@@ -266,10 +273,12 @@ export interface EidosPublishResult {
     | "org.eidos.driver.eidos"
     | "org.eidos.driver.markdown"
     | "org.eidos.driver.form"
+    | "org.eidos.driver.file"
   mediaType:
     | "application/vnd.eidos+sqlite3"
     | "text/markdown"
     | "application/vnd.eidos.form+json"
+    | "application/vnd.eidos.file"
   publicationId: string
   publicationSlug: string
   visibility: "public" | "private"
@@ -319,7 +328,11 @@ export type EidosPublishCollectResponse =
   | { ok: true; result: EidosPublishCollectResult }
   | Extract<EidosPublishResponse, { ok: false }>
 
-export type EidosPublicationSourceKind = "eidos-file" | "markdown" | "form"
+export type EidosPublicationSourceKind =
+  | "eidos-file"
+  | "markdown"
+  | "form"
+  | "file"
 export type EidosPublicationContentStatus = "current" | "changed" | "unknown"
 
 export interface EidosPublicationCollectorState {
@@ -334,6 +347,7 @@ export interface EidosPublicationCollectorState {
 }
 
 export interface EidosPublicationBinding {
+  pluginView?: EidosPublishPluginView
   bindingId: string
   serviceOrigin: string
   accountId: string

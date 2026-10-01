@@ -214,6 +214,7 @@ export default defineConfig({
         ssr: {
           enabled: true,
           include: [
+            "postcss",
             "vitest",
             "@vitest/expect",
             "@vitest/mocker",

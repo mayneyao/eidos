@@ -25,6 +25,8 @@ use sha2::{Digest, Sha256};
 use crate::cli::{PublishArgs, PublishVisibilityArg};
 use crate::error::{AppError, Result};
 
+const FILE_DRIVER_ID: &str = "org.eidos.driver.file";
+const FILE_MEDIA_TYPE: &str = "application/vnd.eidos.file";
 const EIDOS_DRIVER_ID: &str = "org.eidos.driver.eidos";
 const MARKDOWN_DRIVER_ID: &str = "org.eidos.driver.markdown";
 const FORM_DRIVER_ID: &str = "org.eidos.driver.form";
@@ -63,6 +65,7 @@ enum LocalAttachmentReference {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PublishSourceKind {
+    File,
     Eidos,
     Markdown,
     Form,
@@ -71,6 +74,7 @@ pub(crate) enum PublishSourceKind {
 impl PublishSourceKind {
     fn driver_id(self) -> &'static str {
         match self {
+            Self::File => FILE_DRIVER_ID,
             Self::Eidos => EIDOS_DRIVER_ID,
             Self::Markdown => MARKDOWN_DRIVER_ID,
             Self::Form => FORM_DRIVER_ID,
@@ -79,6 +83,7 @@ impl PublishSourceKind {
 
     fn media_type(self) -> &'static str {
         match self {
+            Self::File => FILE_MEDIA_TYPE,
             Self::Eidos => EIDOS_MEDIA_TYPE,
             Self::Markdown => MARKDOWN_MEDIA_TYPE,
             Self::Form => FORM_MEDIA_TYPE,
@@ -87,6 +92,7 @@ impl PublishSourceKind {
 
     fn entrypoint(self) -> &'static str {
         match self {
+            Self::File => "file",
             Self::Eidos => EIDOS_ENTRYPOINT,
             Self::Markdown => MARKDOWN_ENTRYPOINT,
             Self::Form => FORM_ENTRYPOINT,
@@ -1077,12 +1083,34 @@ pub fn run(
             )
         }
     };
+    let entrypoint = if source_kind == PublishSourceKind::File {
+        let name = args
+            .file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| AppError::invalid_request("File name must be UTF-8"))?;
+        if name.contains(['\\', '?', '#']) || name.chars().any(char::is_control) {
+            return Err(AppError::invalid_request(
+                "File name contains unsupported characters",
+            ));
+        }
+        format!("files/{name}")
+    } else {
+        source_kind.entrypoint().to_string()
+    };
     let sqlite_delta =
         prepare_sqlite_page_delta(&args, source_kind, source_bytes, &source_sha256, progress)?;
     let mut objects = vec![SourceObject {
-        path: source_kind.entrypoint().to_string(),
+        path: entrypoint.clone(),
         role: "entrypoint",
-        media_type: source_kind.media_type().to_string(),
+        media_type: if source_kind == PublishSourceKind::File {
+            mime_guess::from_path(&args.file)
+                .first_or_octet_stream()
+                .essence_str()
+                .to_string()
+        } else {
+            source_kind.media_type().to_string()
+        },
         bytes: source_bytes,
         sha256: source_sha256.clone(),
         source: source_object,
@@ -1118,6 +1146,52 @@ pub fn run(
             bytes: attachment.bytes,
             sha256,
             source: SourceObjectSource::File(attachment.local_path.clone()),
+        });
+    }
+    if let Some(plugin_path) = &args.plugin {
+        let metadata = fs::symlink_metadata(plugin_path)?;
+        if !metadata.is_file()
+            || metadata.len() > MAX_MARKDOWN_BYTES
+            || source_bytes > MAX_MARKDOWN_BYTES
+        {
+            return Err(AppError::invalid_request(
+                "Published plugin Views require a file and package no larger than 16 MiB each",
+            ));
+        }
+        let bytes = fs::read(plugin_path)?;
+        let package = crate::plugin_registry::decode_package(&bytes)?;
+        let view_id = args.plugin_view.as_deref().unwrap_or_default();
+        let manifest = serde_json::to_value(&package.manifest)
+            .map_err(|error| AppError::invalid_request(error.to_string()))?;
+        let view = manifest
+            .get("views")
+            .and_then(Value::as_array)
+            .and_then(|views| views.iter().find(|view| view["id"] == view_id));
+        if package.format != 2
+            || manifest
+                .pointer("/requires/pluginApi")
+                .and_then(Value::as_str)
+                != Some("3.0.0")
+            || !view.is_some_and(|view| {
+                view["kind"] == "file"
+                    && view["access"] == "read"
+                    && view
+                        .get("capabilities")
+                        .and_then(Value::as_array)
+                        .is_none_or(Vec::is_empty)
+            })
+        {
+            return Err(AppError::invalid_request(
+                "Choose a read-only file View using plugin API 3.0.0",
+            ));
+        }
+        objects.push(SourceObject {
+            path: "plugins/view.eidos-plugin".to_string(),
+            role: "plugin",
+            media_type: "application/octet-stream".to_string(),
+            bytes: bytes.len() as u64,
+            sha256: format!("{:x}", Sha256::digest(&bytes)),
+            source: SourceObjectSource::Memory(bytes),
         });
     }
     objects.sort_by(|left, right| left.path.as_bytes().cmp(right.path.as_bytes()));
@@ -1293,13 +1367,16 @@ pub fn run(
             }
         })
         .collect::<Vec<_>>();
-    let manifest = json!({
+    let mut manifest = json!({
         "spec": "eidos.publish/source-bundle@1",
         "mediaType": source_kind.media_type(),
-        "entrypoint": source_kind.entrypoint(),
+        "entrypoint": entrypoint,
         "files": manifest_files,
         "assetReferences": asset_references,
     });
+    if let Some(view_id) = &args.plugin_view {
+        manifest["presentation"] = json!({ "kind": "plugin-view", "pluginPath": "plugins/view.eidos-plugin", "viewId": view_id });
+    }
     let manifest_sha256 = source_manifest_sha256(&manifest)?;
     let attachment_paths = unique_attachments.keys().cloned().collect::<Vec<_>>();
     let publish_result = |version_id: &str, ready: &Value, version_created: bool| {
@@ -2215,6 +2292,7 @@ fn source_limit(tenant: &Value, source_kind: PublishSourceKind) -> Result<u64> {
             }
             Ok(limit)
         }
+        PublishSourceKind::File => Ok(MAX_OBJECT_BYTES),
         PublishSourceKind::Markdown => Ok(MAX_MARKDOWN_BYTES),
         PublishSourceKind::Form => Ok(MAX_FORM_BYTES),
     }
@@ -2226,6 +2304,7 @@ fn source_limit_error(
     source_limit: u64,
 ) -> AppError {
     let source_name = match source_kind {
+        PublishSourceKind::File => "File",
         PublishSourceKind::Eidos => "Eidos File",
         PublishSourceKind::Markdown => "Markdown document",
         PublishSourceKind::Form => "Form definition",

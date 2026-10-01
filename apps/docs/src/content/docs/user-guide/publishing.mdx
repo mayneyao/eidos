@@ -10,7 +10,10 @@ sidebar:
 
 import { Badge } from "@astrojs/starlight/components"
 
-<Badge text="Markdown Public Free · Advanced Features with Pro" variant="note" />
+<Badge
+  text="Markdown Public Free · Advanced Features with Pro"
+  variant="note"
+/>
 
 **Eidos Publish** lets you instantly publish a single Markdown document, read-only data table, or response-collection form from your Space into a standalone web page accessible in any browser.
 
@@ -46,6 +49,19 @@ If your `.eidos` table includes a **Form view**, you can publish it online to co
 5. **Collect Responses**: In Eidos Lite, right-click the file, select **Manage Publish…**, and click **Collect now** to import new online submissions directly into your local table!
 
 ---
+
+## Ordinary files and plugin Views (staging preview)
+
+In the staging build, right-click an ordinary file and select **Publish…**.
+**Publish as** defaults to a download. If an enabled plugin provides a matching
+read-only file View, select it to publish an interactive page instead—for
+example, a GPX track as a map. A different slug lets you keep both links.
+
+This Pro preview snapshots the file and plugin together. Visitors do not need
+to install the plugin. Updates remain local until you republish. Views can
+read only the published file; each source file and plugin package must fit the
+16 MiB limit. See the [CLI guide](/cli/publish/#ordinary-files-and-plugin-views-staging-preview)
+for compatibility requirements.
 
 ## 3. Updating and Unpublishing
 

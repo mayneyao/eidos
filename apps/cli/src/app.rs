@@ -325,10 +325,12 @@ fn publish_file(args: PublishArgs, show_progress: bool) -> Result<CommandOutput>
         .extension()
         .and_then(|extension| extension.to_str())
         .map(str::to_ascii_lowercase)
-        .ok_or_else(|| {
-            AppError::invalid_request("Publish supports .eidos, .md, and .markdown files")
-        })?;
-    let (source_kind, attachments, generated_source) = match extension.as_str() {
+        .unwrap_or_default();
+    let (source_kind, attachments, generated_source) = match if args.plugin.is_some() {
+        ""
+    } else {
+        extension.as_str()
+    } {
         "eidos" => {
             progress.stage("validating local Eidos File");
             let conn = open_file(&args.file, false)?;
@@ -381,9 +383,17 @@ fn publish_file(args: PublishArgs, show_progress: bool) -> Result<CommandOutput>
             )
         }
         _ => {
-            return Err(AppError::invalid_request(
-                "Publish supports .eidos, .md, and .markdown files",
-            ));
+            if args.form_view.is_some() {
+                return Err(AppError::invalid_request(
+                    "--form-view requires an Eidos File",
+                ));
+            }
+            if !args.file.is_file() || fs::symlink_metadata(&args.file)?.file_type().is_symlink() {
+                return Err(AppError::invalid_request(
+                    "Publish requires an ordinary file",
+                ));
+            }
+            (crate::publish::PublishSourceKind::File, Vec::new(), None)
         }
     };
     Ok(CommandOutput::success(crate::publish::run(

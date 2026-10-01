@@ -1109,6 +1109,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           slug: options.slug,
           accessMode: options.accessMode,
           branding: options.branding,
+          ...(options.pluginView ? { pluginView: options.pluginView } : {}),
           ...(options.formView ? { formView: options.formView } : {}),
           ...(options.formRespondentAccess
             ? { formRespondentAccess: options.formRespondentAccess }

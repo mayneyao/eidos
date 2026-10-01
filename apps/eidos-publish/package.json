@@ -28,6 +28,7 @@
     "wrangler": "4.124.0"
   },
   "dependencies": {
+    "postcss": "8.5.28",
     "@eidos.space/markdown": "workspace:*",
     "@cloudflare/containers": "^0.3.7",
     "@noble/hashes": "2.3.0",

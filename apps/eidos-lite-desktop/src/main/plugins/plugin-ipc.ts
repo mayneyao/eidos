@@ -39,6 +39,7 @@ async function compilePluginSource(source: string) {
 }
 
 export function registerPluginIpc(controller: WindowController): {
+  publishPackage(hash: string, viewId: string): Promise<Uint8Array>
   close(): void
   verifyPackagedSmoke(): Promise<void>
 } {
@@ -918,6 +919,18 @@ export function registerPluginIpc(controller: WindowController): {
     if (typeof ticket === "string") service.close(owner, ticket)
   })
   return {
+    async publishPackage(hash: string, viewId: string): Promise<Uint8Array> {
+      const pkg = await store.read(hash)
+      const view = pkg.manifest.views?.find((view) => view.id === viewId)
+      if (
+        !view ||
+        view.kind !== "file" ||
+        view.access !== "read" ||
+        view.capabilities?.length
+      )
+        throw new Error("Choose a read-only file View")
+      return encodePackage(pkg.manifest, pkg.modules)
+    },
     close() {
       for (const channel of Object.values(PLUGIN_CHANNELS))
         ipcMain.removeHandler(channel)

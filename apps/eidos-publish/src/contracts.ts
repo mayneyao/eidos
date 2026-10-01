@@ -60,7 +60,7 @@ export interface PublicationRecord {
 
 export interface SourceBundleFile {
   path: string
-  role: "entrypoint" | "attachment"
+  role: "entrypoint" | "attachment" | "plugin"
   mediaType: string
   bytes: string
   sha256: string
@@ -93,6 +93,7 @@ export interface SourceBundleManifest {
   entrypoint: string
   files: SourceBundleFile[]
   assetReferences: SourceBundleAssetReference[]
+  presentation?: { kind: "plugin-view"; pluginPath: string; viewId: string }
 }
 
 export interface EidosDriverDescriptor {
@@ -141,7 +142,23 @@ export interface FormDriverDescriptor {
   conformance: ["EP-Core-1.0", "EP-Static-1.0", "EP-Collect-1.0"]
 }
 
+export interface FileDriverDescriptor {
+  id: "org.eidos.driver.file"
+  version: "1.0"
+  acceptedMediaTypes: ["application/vnd.eidos.file"]
+  targetKinds: ["static"]
+  limits: {
+    maxObjectBytes: string
+    maxEntrypointBytes: string
+    maxManifestBytes: string
+    maxManifestFiles: number
+    maxPathBytes: 1024
+  }
+  conformance: string[]
+}
+
 export type PublishDriverDescriptor =
+  | FileDriverDescriptor
   | EidosDriverDescriptor
   | MarkdownDriverDescriptor
   | FormDriverDescriptor
