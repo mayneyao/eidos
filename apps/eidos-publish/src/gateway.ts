@@ -1142,11 +1142,13 @@ async function publicAsset(
     "camera=(), microphone=(), geolocation=(), payment=()"
   )
   if (pathname === "/index.html" && publishSlug !== undefined && response.ok) {
-    const document = new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    })
+    const document = rootPublishedShellAssets(
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      })
+    )
     return request.method === "HEAD"
       ? new Response(null, { headers: brandedDocumentHeaders(headers) })
       : brandPublishedDocument(
@@ -1157,6 +1159,21 @@ async function publicAsset(
         )
   }
   return new Response(response.body, { status: response.status, headers })
+}
+
+// CLI Serve uses relative assets; hosted documents can live at any directory depth.
+export function rootPublishedShellAssets(response: Response): Response {
+  const rewrite = (attribute: string) => ({
+    element(element: Element) {
+      const value = element.getAttribute(attribute)
+      if (value?.startsWith("./assets/"))
+        element.setAttribute(attribute, value.slice(1))
+    },
+  })
+  return new HTMLRewriter()
+    .on("script[src]", rewrite("src"))
+    .on("link[href]", rewrite("href"))
+    .transform(response)
 }
 
 function unconditionalDocumentHeaders(source: Headers): Headers {
