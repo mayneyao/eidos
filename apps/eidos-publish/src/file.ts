@@ -246,7 +246,7 @@ export function publishedFileUrl(
 }
 
 // Trusted parent: only the bound immutable file is exposed to the opaque iframe.
-function fileViewHost(input: {
+export function fileViewHost(input: {
   frame: string
   url: string
   path: string
@@ -334,6 +334,8 @@ function fileViewHost(input: {
       else {
         if (
           p.path !== input.path &&
+          p.path !== input.name &&
+          p.path !== "./" + input.name &&
           !(r.method === "fs.url" && p.path === undefined)
         )
           throw new Error("Only the published file is available")

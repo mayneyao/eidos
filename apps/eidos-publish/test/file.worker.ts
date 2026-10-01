@@ -1,17 +1,85 @@
 import { env, SELF } from "cloudflare:test"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { gzipSync } from "node:zlib"
 import { validateSourceBundle, FILE_DRIVER } from "../src/bundle"
 import {
   validateFileVersion,
   prepareFileVersion,
   publishedFileUrl,
+  fileViewHost,
 } from "../src/file"
 import { probeStaticTarget } from "../src/static"
 import type { SourceBundleManifest } from "../src/contracts"
 
 const encoder = new TextEncoder()
 const source = encoder.encode("<gpx>staging fixture</gpx>")
+
+it("reads the bound file relative to its directory without exposing other paths", async () => {
+  const postMessage = vi.fn()
+  const frame = { contentWindow: { postMessage }, srcdoc: "" }
+  let receive!: (event: MessageEvent) => Promise<void>
+  vi.stubGlobal("document", { querySelector: () => frame })
+  vi.stubGlobal("window", {
+    addEventListener: (_type: string, listener: typeof receive) => {
+      receive = listener
+    },
+  })
+  const fetchSource = vi.fn(async () => new Response(source))
+  vi.stubGlobal("fetch", fetchSource)
+  try {
+    fileViewHost({
+      frame: "fixture",
+      url: "/source",
+      path: "files/ride.gpx",
+      name: "ride.gpx",
+      size: source.length,
+      mimeType: "application/gpx+xml",
+      sha256: await hash(source),
+    })
+    const request = async (method: string, path: string) => {
+      await receive({
+        source: frame.contentWindow,
+        data: {
+          protocol: "eidos-plugin",
+          apiVersion: 1,
+          id: crypto.randomUUID(),
+          method,
+          params: { path, id: "watch" },
+        },
+      } as unknown as MessageEvent)
+      return postMessage.mock.lastCall![0]
+    }
+    for (const path of ["ride.gpx", "./ride.gpx", "files/ride.gpx"]) {
+      expect((await request("fs.readText", path)).result.text).toContain(
+        "<gpx>"
+      )
+      expect((await request("fs.readBinary", path)).result.data).toBeTruthy()
+      expect((await request("fs.stat", path)).result.name).toBe("ride.gpx")
+      expect((await request("fs.url", path)).result.url).toMatch(/^data:/)
+      expect((await request("fs.watch", path)).error).toBeUndefined()
+      expect((await request("fs.writeText", path)).error.code).toBe(
+        "PERMISSION_DENIED"
+      )
+      expect((await request("fs.list", path)).error.code).toBe(
+        "PERMISSION_DENIED"
+      )
+    }
+    for (const path of [
+      "secret.gpx",
+      "other/ride.gpx",
+      "../ride.gpx",
+      "/ride.gpx",
+      "files/../ride.gpx",
+    ]) {
+      expect((await request("fs.readText", path)).error.code).toBe(
+        "PERMISSION_DENIED"
+      )
+    }
+    expect(fetchSource).toHaveBeenCalledTimes(1)
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
 const hash = async (bytes: Uint8Array) =>
   Array.from(
     new Uint8Array(
