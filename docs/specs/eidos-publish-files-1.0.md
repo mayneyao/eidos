@@ -54,6 +54,10 @@ network origins and worker support are allowed. Eidos account/publication
 origins are forbidden network destinations. The parent MUST bind RPC to that
 iframe and the exact published file. Reads, stat, URL and inert snapshot watches
 are supported; writes, directory enumeration and other host capabilities fail.
+Bound-file operations MUST accept the filename relative to the bound file's
+directory, including `./filename`. The bundle entrypoint path remains an
+accepted alias. These aliases MUST resolve only the published file; other
+directories and parent traversal MUST be rejected.
 File bytes MUST pass size and SHA-256 verification before reaching the View.
 
 Source download and View page access MUST use the Publication's current
