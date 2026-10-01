@@ -76,7 +76,7 @@ describe("Publish branding", () => {
       '<meta name="eidos-publish-branding" content="hide">'
     )
     expect(html).not.toContain('class="eidos-publish-brand"')
-    expect(html).not.toContain("publish-brand.v4.css")
+    expect(html).not.toContain("publish-brand.v5.css")
   })
 
   it("injects client environment metadata tags into head", async () => {
@@ -717,9 +717,9 @@ describe("Eidos Publish control plane", () => {
     expect(shellHtml).toContain('name="eidos-publish-slug" content="tasks"')
     expect(shellHtml).toContain('name="eidos-publish-branding" content="show"')
     expect(shellHtml).not.toContain('class="eidos-publish-brand"')
-    expect(shellHtml).not.toContain("publish-brand.v4.css")
+    expect(shellHtml).not.toContain("publish-brand.v5.css")
     const brandStyles = await SELF.fetch(
-      `https://${tenantState.publicSiteId}.eidos.ink/_eidos/publish-brand.v4.css`
+      `https://${tenantState.publicSiteId}.eidos.ink/_eidos/publish-brand.v5.css`
     )
     expect(brandStyles.status).toBe(200)
     expect(brandStyles.headers.get("content-type")).toContain("text/css")
@@ -1234,7 +1234,7 @@ describe("Eidos Publish control plane", () => {
     expect(html).toContain('class="eidos-publish-brand"')
     expect(html).toMatch(/<body class="[^"]*\beidos-publish-brand-page\b/)
     expect(html).toContain("Built with <strong>Eidos</strong>")
-    expect(html).toContain('href="/_eidos/publish-brand.v4.css"')
+    expect(html).toContain('href="/_eidos/publish-brand.v5.css"')
     expect(html).toContain(
       `/_eidos/files/${slug}/${version.versionId}/${diagramSha256}/assets/diagram.png`
     )
@@ -1256,7 +1256,7 @@ describe("Eidos Publish control plane", () => {
     const unbrandedHtml = await unbrandedPage.text()
     expect(unbrandedHtml).toMatch(/<h1[^>]*>Release notes<\/h1>/)
     expect(unbrandedHtml).not.toContain('class="eidos-publish-brand"')
-    expect(unbrandedHtml).not.toContain("publish-brand.v4.css")
+    expect(unbrandedHtml).not.toContain("publish-brand.v5.css")
 
     const restoredBranding = await authenticatedFetch(
       `/api/publications/${slug}/branding`,
@@ -1598,7 +1598,7 @@ describe("Eidos Publish control plane", () => {
     expect(formHtml).toContain('class="eidos-publish-brand"')
     expect(formHtml).toContain('class="eidos-publish-brand-page"')
     expect(formHtml).toContain("Built with <strong>Eidos</strong>")
-    expect(formHtml).toContain('href="/_eidos/publish-brand.v4.css"')
+    expect(formHtml).toContain('href="/_eidos/publish-brand.v5.css"')
     expect(formHtml).toContain('src="/_eidos/forms/client.v3.js"')
     expect(formHtml).toContain('id="eidos-form-definition"')
     expect(formHtml).toContain('"title":"Product feedback"')

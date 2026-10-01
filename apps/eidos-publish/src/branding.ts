@@ -1,6 +1,6 @@
 import type { ClientEnvironmentMetadata } from "./contracts"
 
-const BRAND_STYLESHEET_PATH = "/_eidos/publish-brand.v4.css"
+const BRAND_STYLESHEET_PATH = "/_eidos/publish-brand.v5.css"
 const BRAND_DESTINATION =
   "https://eidos.space/publish?utm_source=published_site&utm_medium=badge&utm_campaign=publish_branding"
 
@@ -10,6 +10,12 @@ const BRAND_CSS = `
   min-height: 100vh;
   min-height: 100dvh;
   flex-direction: column;
+}
+/* Keep stored Markdown snapshots at their reading width inside the flex page. */
+.eidos-publish-brand-page.eme-static > main {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(52rem + 48px);
 }
 .eidos-publish-brand-footer {
   box-sizing: border-box;
