@@ -419,6 +419,7 @@ const DEFAULT_SIDEBAR_WIDTH = 280
 const MIN_SIDEBAR_WIDTH = 208
 const SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:space-sidebar-width"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "eidos-lite:space-sidebar-collapsed"
+const RECORD_OPEN_MODE_STORAGE_KEY = "eidos-lite:record-open-mode"
 const MIN_WORKBENCH_CONTENT_WIDTH = 360
 const WORKBENCH_SEPARATOR_WIDTH = 12
 // Read this legacy key when a user has only resized History or Sync before the
@@ -824,8 +825,25 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     useState<EidosLiteMarkdownCompatibilityProfile>(
       DEFAULT_RENDERER_PREFERENCES.markdownCompatibilityProfile
     )
-  const [recordOpenMode, setRecordOpenMode] =
-    useState<EidosLiteRecordOpenMode>("panel")
+  const [recordOpenMode, setRecordOpenMode] = useState<EidosLiteRecordOpenMode>(
+    () => {
+      try {
+        return window.localStorage.getItem(RECORD_OPEN_MODE_STORAGE_KEY) ===
+          "page"
+          ? "page"
+          : "panel"
+      } catch {
+        return "panel"
+      }
+    }
+  )
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RECORD_OPEN_MODE_STORAGE_KEY, recordOpenMode)
+    } catch {
+      // Opening records remains available when local storage is unavailable.
+    }
+  }, [recordOpenMode])
   const [terminalLayout, setTerminalLayout] = useState<EidosLiteTerminalLayout>(
     () =>
       storedLegacyTerminalLayout() ??
