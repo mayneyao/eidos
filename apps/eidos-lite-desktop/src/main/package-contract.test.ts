@@ -148,6 +148,13 @@ describe("Eidos Lite package identity", () => {
         description: "Eidos local database file",
         role: "Editor",
       },
+      {
+        ext: "eidos-plugin",
+        name: "Eidos Plugin",
+        description: "Eidos plugin installation package",
+        role: "Viewer",
+        mimeType: "application/x-eidos-plugin",
+      },
     ])
     for (const scriptName of [
       "build",

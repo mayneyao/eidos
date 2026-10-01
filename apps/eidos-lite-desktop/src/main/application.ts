@@ -17,7 +17,7 @@ import { installElectronLogging } from "./electron-logging"
 import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
 import { serveMediaPreview } from "./space/media-file-preview"
-import { eidosFilePathsFromArguments } from "./launch-intent"
+import { launchFilePathsFromArguments } from "./launch-intent"
 import { pluginInstallIdsFromArguments } from "./plugin-install-link"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
@@ -119,7 +119,8 @@ const controller = new WindowController(services)
 let shutdownStarted = false
 let shutdownPromise: Promise<void> | null = null
 let closeIpc = (): Promise<void> => Promise.resolve()
-const pendingLaunchFiles = eidosFilePathsFromArguments(
+let openPluginPackage: (filePath: string) => Promise<boolean>
+const pendingLaunchFiles = launchFilePathsFromArguments(
   process.argv,
   process.cwd()
 )
@@ -215,11 +216,17 @@ function drainLaunchFiles(): Promise<void> {
     let filePath = pendingLaunchFiles.shift()
     while (filePath) {
       try {
-        await controller.openEidosFilePath(filePath)
+        if (path.extname(filePath).toLowerCase() === ".eidos-plugin") {
+          await openPluginPackage(filePath)
+        } else {
+          await controller.openEidosFilePath(filePath)
+        }
       } catch (error) {
-        console.error("Could not open launched Eidos File", error)
+        console.error("Could not open launched file", error)
         dialog.showErrorBox(
-          "Could not open Eidos File",
+          path.extname(filePath).toLowerCase() === ".eidos-plugin"
+            ? "Could not install plugin"
+            : "Could not open Eidos File",
           error instanceof Error ? error.message : String(error)
         )
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -239,7 +246,7 @@ function drainLaunchFiles(): Promise<void> {
 app.on("second-instance", (_event, commandLine, workingDirectory) => {
   const pluginIds = pluginInstallIdsFromArguments(commandLine)
   if (pluginIds.length > 0) enqueuePluginInstallUrls(commandLine)
-  const paths = eidosFilePathsFromArguments(commandLine, workingDirectory)
+  const paths = launchFilePathsFromArguments(commandLine, workingDirectory)
   if (paths.length > 0) {
     enqueueLaunchFiles(paths)
   } else if (
@@ -382,7 +389,9 @@ void app.whenReady().then(async () => {
     return
   }
   await controller.recoverCloneOperations()
-  closeIpc = registerIpc(controller, services, syncControl, updater).close
+  const registeredIpc = registerIpc(controller, services, syncControl, updater)
+  closeIpc = registeredIpc.close
+  openPluginPackage = registeredIpc.openPluginPackage
   await installApplicationMenu()
   controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true

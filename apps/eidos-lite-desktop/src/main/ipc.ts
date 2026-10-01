@@ -619,6 +619,7 @@ export function registerIpc(
 ): {
   close(): Promise<void>
   verifyPluginPackageForSmoke(): Promise<void>
+  openPluginPackage(filePath: string): Promise<boolean>
 } {
   const plugins = registerPluginIpc(controller)
   const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
@@ -2429,6 +2430,7 @@ export function registerIpc(
   )
   return {
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
+    openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
       plugins.close()
       unsubscribeTerminalPlugin()

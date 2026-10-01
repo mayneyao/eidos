@@ -141,6 +141,7 @@ beforeEach(async () => {
     ])
   )
   registered = registerPluginIpc({
+    showSettingsWindow: () => mock.windows[2],
     requireSession: (sender: { id: number }) => {
       const session = sessions.get(sender.id)
       if (!session) throw new Error("No active Space")
@@ -314,6 +315,49 @@ it("handles plugin readme IPC requests", async () => {
   )
   expect(await call("readme", 1, id)).toBe("# Plugin Readme")
   await expect(call("readme", 1, 123)).rejects.toThrow(/Invalid plugin/)
+})
+
+it("shell-opened packages review installation and updates without opening a picker or enabling Spaces", async () => {
+  const file = mock.selected
+  mock.selected = "must-not-open-file-picker"
+  mock.response = 0
+  expect(await registered.openPackage(file)).toBe(false)
+  expect((await listing(3)).plugins).toHaveLength(0)
+  expect(mock.messageOptions.at(-1)).toMatchObject({
+    title: "Install plugin",
+    buttons: ["Cancel", "Install"],
+  })
+  mock.response = 1
+  expect(await registered.openPackage(file)).toBe(true)
+  expect((await listing(1)).plugins[0].enabled).toBe(false)
+  await call("enable", 2, id, true)
+  mock.selected = file
+  await packageVersion("2.0.0")
+  mock.selected = "must-not-open-file-picker"
+  mock.response = 0
+  expect(await registered.openPackage(file)).toBe(false)
+  expect((await listing(3)).plugins[0].manifest.version).toBe("1.0.0")
+  expect(mock.messageOptions.at(-1)).toMatchObject({
+    title: "Update plugin",
+    message: "CSV 1.0.0 → 2.0.0",
+    buttons: ["Cancel", "Update"],
+  })
+  mock.response = 1
+  expect(await registered.openPackage(file)).toBe(true)
+  expect((await listing(1)).plugins[0]).toMatchObject({
+    enabled: false,
+    manifest: { version: "2.0.0" },
+  })
+  expect((await listing(2)).plugins[0].enabled).toBe(true)
+  await fs.writeFile(file, "invalid archive")
+  await expect(registered.openPackage(file)).rejects.toThrow()
+  expect((await listing(3)).plugins[0].manifest.version).toBe("2.0.0")
+  await expect(registered.openPackage("relative.eidos-plugin")).rejects.toThrow(
+    "Invalid plugin package path"
+  )
+  await expect(
+    registered.openPackage(path.join(mock.directory, "file.txt"))
+  ).rejects.toThrow("Invalid plugin package path")
 })
 
 it("dropped packages install and update by manifest ID while preserving Space enablement", async () => {

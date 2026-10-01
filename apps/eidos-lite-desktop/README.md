@@ -196,6 +196,15 @@ settings, downloads the package from the registry, verifies it, and asks for
 confirmation before installation. Lite does not create a repository for one
 file inside an already known Space or add a multi-tab surface.
 
+The installer also associates `.eidos-plugin` packages with Lite. Double-click a
+package to review its name, version and permissions, then choose Install or Update.
+An installed manifest ID selects Update, regardless of the archive filename.
+Cancellation and invalid packages preserve the installed version. Installation is
+device-wide and does not enable a new plugin in a Space; updates preserve each
+Space's enablement. This works with Lite closed or running, and multiple packages
+are reviewed one at a time. File associations require an installed desktop build;
+running the development server alone does not register them with the OS.
+
 Ordinary `.md` and `.markdown` files use document-local image storage. Pasting
 an image in either Source or Rich text mode writes verified raster bytes to the
 document's sibling `assets/` folder, allocates a collision-safe portable name,

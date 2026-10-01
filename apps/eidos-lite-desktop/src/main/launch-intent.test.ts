@@ -4,10 +4,33 @@ import path from "node:path"
 
 import {
   eidosFilePathsFromArguments,
+  launchFilePathsFromArguments,
   resolveEidosFileLaunchIntent,
 } from "./launch-intent"
 
 describe("Eidos File launch intents", () => {
+  it("routes mixed shell arguments including plugin packages without treating URLs as paths", () => {
+    const root = path.join(path.parse(process.cwd()).root, "Downloads")
+    expect(
+      launchFilePathsFromArguments(
+        [
+          "--flag.eidos-plugin",
+          "https://example.org/a.eidos-plugin",
+          "eidos-lite://plugins/install/example.map",
+          "notes.txt",
+          "GPX Viewer.eidos-plugin",
+          "GPX Viewer.eidos-plugin",
+          path.join(root, "Theme.EIDOS-PLUGIN"),
+          "Notes.eidos",
+        ],
+        root
+      )
+    ).toEqual([
+      path.join(root, "GPX Viewer.eidos-plugin"),
+      path.join(root, "Theme.EIDOS-PLUGIN"),
+      path.join(root, "Notes.eidos"),
+    ])
+  })
   it("extracts unique absolute .eidos paths from application arguments", () => {
     const root = path.join(path.parse(process.cwd()).root, "Eidos Space")
     expect(

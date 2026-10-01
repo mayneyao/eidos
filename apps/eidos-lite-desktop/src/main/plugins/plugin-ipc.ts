@@ -41,6 +41,7 @@ async function compilePluginSource(source: string) {
 export function registerPluginIpc(controller: WindowController): {
   close(): void
   verifyPackagedSmoke(): Promise<void>
+  openPackage(filePath: string): Promise<boolean>
 } {
   const home = resolveEidosHome({
     env: process.env,
@@ -175,7 +176,7 @@ export function registerPluginIpc(controller: WindowController): {
       })
     }
   }
-  const currentSpace = (event: IpcMainInvokeEvent) => {
+  const currentSpace = (event: Pick<IpcMainInvokeEvent, "sender">) => {
     try {
       return controller.requireSession(event.sender).canonical.id
     } catch {
@@ -467,322 +468,326 @@ export function registerPluginIpc(controller: WindowController): {
       )
     }
   )
+  async function installPlugin(
+    event: Pick<IpcMainInvokeEvent, "sender">,
+    development: unknown,
+    marketplaceId: unknown,
+    droppedPath: unknown
+  ) {
+    const spaceId = currentSpace(event)
+    if (
+      droppedPath !== undefined &&
+      (typeof droppedPath !== "string" ||
+        !path.isAbsolute(droppedPath) ||
+        path.extname(droppedPath).toLowerCase() !== ".eidos-plugin" ||
+        development ||
+        marketplaceId !== undefined)
+    )
+      throw new PluginError("INVALID_REQUEST", "Invalid dropped plugin file")
+    if (development !== undefined && typeof development !== "boolean")
+      throw new PluginError("INVALID_REQUEST", "Invalid development mode")
+    if (
+      marketplaceId !== undefined &&
+      (typeof marketplaceId !== "string" ||
+        marketplaceId.length > 128 ||
+        development)
+    )
+      throw new PluginError("INVALID_REQUEST", "Invalid marketplace plugin")
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner) throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
+    const marketplaceBytes =
+      typeof marketplaceId === "string"
+        ? await (async () => {
+            const bytes = await registry.download(
+              marketplaceId,
+              (loaded, total) => {
+                if (
+                  typeof event.sender.send === "function" &&
+                  !event.sender.isDestroyed()
+                ) {
+                  event.sender.send(PLUGIN_CHANNELS.installProgress, {
+                    id: marketplaceId,
+                    phase: "downloading",
+                    loaded,
+                    total,
+                    percent:
+                      total > 0
+                        ? Math.min(100, Math.round((loaded / total) * 100))
+                        : 0,
+                  })
+                }
+              }
+            )
+            if (
+              typeof event.sender.send === "function" &&
+              !event.sender.isDestroyed()
+            ) {
+              event.sender.send(PLUGIN_CHANNELS.installProgress, {
+                id: marketplaceId,
+                phase: "installing",
+                percent: 100,
+              })
+            }
+            return bytes
+          })()
+        : undefined
+    const selected = marketplaceBytes
+      ? { canceled: false, filePaths: [""] }
+      : typeof droppedPath === "string"
+        ? { canceled: false, filePaths: [droppedPath] }
+        : await dialog.showOpenDialog(owner, {
+            title: development
+              ? "Load development source (plugin.json or TS/JS)"
+              : "Install plugin",
+            properties: ["openFile"],
+            filters: [
+              {
+                name: "Eidos Plugin",
+                extensions: development
+                  ? ["json", "ts", "js", "tsx", "jsx"]
+                  : ["eidos-plugin"],
+              },
+            ],
+          })
+    if (selected.canceled || (!marketplaceBytes && !selected.filePaths[0]))
+      return false
+    const source =
+      path.basename(selected.filePaths[0]) === "plugin.json"
+        ? path.dirname(selected.filePaths[0])
+        : selected.filePaths[0]
+    const compiled = development ? await compilePluginSource(source) : undefined
+    const bytes =
+      marketplaceBytes ??
+      compiled?.bytes ??
+      (await store.readBytes(selected.filePaths[0]))
+    const pkg = decodePackage(bytes)
+    assertPluginCompatibility(pkg.manifest, "eidos-lite")
+    const existing = await store.installed(pkg.manifest.id)
+    let existingVersion: string | undefined
+    if (existing) {
+      try {
+        existingVersion = (await store.read(existing.hash)).manifest.version
+      } catch {
+        // Ignore if previous package cannot be read
+      }
+    }
+    const isUpdate = !!existing
+    const versionLabel =
+      existingVersion && existingVersion !== pkg.manifest.version
+        ? `${existingVersion} → ${pkg.manifest.version}`
+        : pkg.manifest.version
+
+    const themeReview = pkg.manifest.theme
+      ? `This package changes Eidos Lite's colors, typography and supported layout tokens when selected. It contains no executable plugin code. Installed once for this device; choose Apply theme in the plugin manager after installation.`
+      : null
+
+    const review = await dialog.showMessageBox(owner, {
+      type: "question",
+      title: isUpdate ? "Update plugin" : "Install plugin",
+      message: `${pkg.manifest.name} ${versionLabel}${
+        Object.values(pkg.manifest.connections ?? {}).length
+          ? `\nAuthenticated connections: ${Object.values(
+              pkg.manifest.connections ?? {}
+            )
+              .map((c) =>
+                c.configurable
+                  ? `${c.title}: user-configurable HTTPS endpoint`
+                  : c.url
+              )
+              .join(", ")}`
+          : ""
+      }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}${pkg.manifest.workspace?.filemeta ? `\nFile properties (${pkg.manifest.workspace.filemeta.write ? "read/write" : "read"}): ${pkg.manifest.workspace.filemeta.namespaces.join(", ")}` : ""}${pkg.manifest.placements?.some((p) => p.location === "sidebar/explorer") ? "\nProvides a sidebar file explorer. Select it from the Space heading." : ""}`,
+      detail: themeReview
+        ? `${pkg.manifest.id}\n\n${themeReview}`
+        : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+      buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    if (review.response !== 1) return false
+    if (
+      owner.isDestroyed() ||
+      event.sender.isDestroyed() ||
+      currentSpace(event) !== spaceId
+    )
+      throw new PluginError(
+        "INSTANCE_CLOSED",
+        "Space changed during installation"
+      )
+    const key = pkg.manifest.id
+    await watchers.get(key)?.close()
+    watchers.delete(key)
+    clearReloads(key)
+    const hash = await store.install(bytes, spaceId)
+    reloadPlugin(pkg.manifest.id)
+    catalogChanged()
+    if (development && compiled) {
+      store.development.set(hash, source)
+      const sourceRoot = (await fs.stat(source)).isDirectory()
+        ? source
+        : path.dirname(source)
+      const watcher = watch([sourceRoot, ...compiled.dependencies], {
+        ignoreInitial: true,
+        ignored: (file) =>
+          file
+            .split(path.sep)
+            .some((part) => part === ".git" || part === "dist"),
+      })
+      watchers.set(key, watcher)
+      let timer: ReturnType<typeof setTimeout> | undefined,
+        running = false,
+        again = false
+      const rebuild = async () => {
+        if (watchers.get(key) !== watcher) return
+        if (running) {
+          again = true
+          return
+        }
+        running = true
+        try {
+          do {
+            again = false
+            try {
+              const next = await compilePluginSource(source)
+              if (watchers.get(key) !== watcher) return
+              if (
+                JSON.stringify(next.program.manifest) !==
+                JSON.stringify(pkg.manifest)
+              )
+                throw new Error(
+                  "Declaration changed. Load the development source again to review its authority."
+                )
+              const current = await store.installed(pkg.manifest.id)
+              if (!current) return
+              const updated = await store.install(next.bytes, undefined, false)
+              if (watchers.get(key) !== watcher) {
+                store.discardTrial(pkg.manifest.id, updated)
+                return
+              }
+              store.development.set(updated, source)
+              watcher.add(next.dependencies)
+              const reloadOwners = new Set<number>()
+              for (const [ticket, instance] of [...service.instances]) {
+                if (instance.pluginId !== pkg.manifest.id) continue
+                if (
+                  (
+                    await store.binding(
+                      instance.pluginId,
+                      instance.session.canonical.id
+                    )
+                  )?.hash !== updated
+                )
+                  continue
+                const window = BrowserWindow.getAllWindows().find(
+                  (window) => window.webContents.id === instance.owner
+                )
+                reloadOwners.add(instance.owner)
+                window?.webContents.send(PLUGIN_CHANNELS.event, {
+                  ticket,
+                  event: {
+                    protocol: "eidos-plugin",
+                    apiVersion: 1,
+                    observation: "host.reload",
+                    value: null,
+                  },
+                })
+              }
+              if (reloadOwners.size) {
+                const timer = setTimeout(() => {
+                  pendingReloads.delete(updated)
+                  void (async () => {
+                    if (
+                      (await store.installed(pkg.manifest.id))?.hash !== updated
+                    )
+                      return
+                    const previous = await store.readBytes(
+                      path.join(
+                        store.directory,
+                        "packages",
+                        `${current.hash}.eidos-plugin`
+                      )
+                    )
+                    await store.install(previous, undefined, false)
+                    for (const window of BrowserWindow.getAllWindows())
+                      if (reloadOwners.has(window.webContents.id))
+                        window.webContents.send(PLUGIN_CHANNELS.event, {
+                          ticket: "",
+                          event: {
+                            protocol: "eidos-plugin",
+                            apiVersion: 1,
+                            observation: "host.rollback",
+                            value: pkg.manifest.id,
+                          },
+                        })
+                    for (const [ticket, instance] of service.instances)
+                      if (instance.hash === updated) {
+                        const window = BrowserWindow.getAllWindows().find(
+                          (window) => window.webContents.id === instance.owner
+                        )
+                        window?.webContents.send(PLUGIN_CHANNELS.event, {
+                          ticket,
+                          event: {
+                            protocol: "eidos-plugin",
+                            apiVersion: 1,
+                            observation: "host.reload",
+                            value: null,
+                          },
+                        })
+                      }
+                  })().catch(() => {})
+                }, 10000)
+                const old = pendingReloads.get(updated)
+                if (old) clearTimeout(old.timer)
+                pendingReloads.set(updated, {
+                  pluginId: pkg.manifest.id,
+                  owners: reloadOwners,
+                  timer,
+                })
+              }
+            } catch (error) {
+              if (!owner.isDestroyed())
+                owner.webContents.send(PLUGIN_CHANNELS.event, {
+                  ticket: "",
+                  event: {
+                    protocol: "eidos-plugin",
+                    apiVersion: 1,
+                    observation: "host.diagnostic",
+                    value:
+                      error instanceof Error
+                        ? error.message
+                        : "Source compilation failed",
+                  },
+                })
+            }
+          } while (again)
+        } finally {
+          running = false
+        }
+      }
+      watcher.on("all", () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          void rebuild()
+        }, 150)
+      })
+      watcher.on("error", () => {
+        void watcher.close()
+        watchers.delete(key)
+      })
+    }
+    return true
+  }
   ipcMain.handle(
     PLUGIN_CHANNELS.install,
-    async (
+    (
       event,
       development: unknown,
       marketplaceId: unknown,
       droppedPath: unknown
     ) => {
       caller(event)
-      const spaceId = currentSpace(event)
-      if (
-        droppedPath !== undefined &&
-        (typeof droppedPath !== "string" ||
-          !path.isAbsolute(droppedPath) ||
-          path.extname(droppedPath).toLowerCase() !== ".eidos-plugin" ||
-          development ||
-          marketplaceId !== undefined)
-      )
-        throw new PluginError("INVALID_REQUEST", "Invalid dropped plugin file")
-      if (development !== undefined && typeof development !== "boolean")
-        throw new PluginError("INVALID_REQUEST", "Invalid development mode")
-      if (
-        marketplaceId !== undefined &&
-        (typeof marketplaceId !== "string" ||
-          marketplaceId.length > 128 ||
-          development)
-      )
-        throw new PluginError("INVALID_REQUEST", "Invalid marketplace plugin")
-      const owner = BrowserWindow.fromWebContents(event.sender)
-      if (!owner)
-        throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
-      const marketplaceBytes =
-        typeof marketplaceId === "string"
-          ? await (async () => {
-              const bytes = await registry.download(
-                marketplaceId,
-                (loaded, total) => {
-                  if (
-                    typeof event.sender.send === "function" &&
-                    !event.sender.isDestroyed()
-                  ) {
-                    event.sender.send(PLUGIN_CHANNELS.installProgress, {
-                      id: marketplaceId,
-                      phase: "downloading",
-                      loaded,
-                      total,
-                      percent:
-                        total > 0
-                          ? Math.min(100, Math.round((loaded / total) * 100))
-                          : 0,
-                    })
-                  }
-                }
-              )
-              if (
-                typeof event.sender.send === "function" &&
-                !event.sender.isDestroyed()
-              ) {
-                event.sender.send(PLUGIN_CHANNELS.installProgress, {
-                  id: marketplaceId,
-                  phase: "installing",
-                  percent: 100,
-                })
-              }
-              return bytes
-            })()
-          : undefined
-      const selected = marketplaceBytes
-        ? { canceled: false, filePaths: [""] }
-        : typeof droppedPath === "string"
-          ? { canceled: false, filePaths: [droppedPath] }
-          : await dialog.showOpenDialog(owner, {
-              title: development
-                ? "Load development source (plugin.json or TS/JS)"
-                : "Install plugin",
-              properties: ["openFile"],
-              filters: [
-                {
-                  name: "Eidos Plugin",
-                  extensions: development
-                    ? ["json", "ts", "js", "tsx", "jsx"]
-                    : ["eidos-plugin"],
-                },
-              ],
-            })
-      if (selected.canceled || (!marketplaceBytes && !selected.filePaths[0]))
-        return false
-      const source =
-        path.basename(selected.filePaths[0]) === "plugin.json"
-          ? path.dirname(selected.filePaths[0])
-          : selected.filePaths[0]
-      const compiled = development
-        ? await compilePluginSource(source)
-        : undefined
-      const bytes =
-        marketplaceBytes ??
-        compiled?.bytes ??
-        (await store.readBytes(selected.filePaths[0]))
-      const pkg = decodePackage(bytes)
-      assertPluginCompatibility(pkg.manifest, "eidos-lite")
-      const existing = await store.installed(pkg.manifest.id)
-      let existingVersion: string | undefined
-      if (existing) {
-        try {
-          existingVersion = (await store.read(existing.hash)).manifest.version
-        } catch {
-          // Ignore if previous package cannot be read
-        }
-      }
-      const isUpdate = !!existing
-      const versionLabel =
-        existingVersion && existingVersion !== pkg.manifest.version
-          ? `${existingVersion} → ${pkg.manifest.version}`
-          : pkg.manifest.version
-
-      const themeReview = pkg.manifest.theme
-        ? `This package changes Eidos Lite's colors, typography and supported layout tokens when selected. It contains no executable plugin code. Installed once for this device; choose Apply theme in the plugin manager after installation.`
-        : null
-
-      const review = await dialog.showMessageBox(owner, {
-        type: "question",
-        title: isUpdate ? "Update plugin" : "Install plugin",
-        message: `${pkg.manifest.name} ${versionLabel}${
-          Object.values(pkg.manifest.connections ?? {}).length
-            ? `\nAuthenticated connections: ${Object.values(
-                pkg.manifest.connections ?? {}
-              )
-                .map((c) =>
-                  c.configurable
-                    ? `${c.title}: user-configurable HTTPS endpoint`
-                    : c.url
-                )
-                .join(", ")}`
-            : ""
-        }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}`,
-        detail: themeReview
-          ? `${pkg.manifest.id}\n\n${themeReview}`
-          : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
-        buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-      })
-      if (review.response !== 1) return false
-      if (currentSpace(event) !== spaceId)
-        throw new PluginError(
-          "INSTANCE_CLOSED",
-          "Space changed during installation"
-        )
-      const key = pkg.manifest.id
-      await watchers.get(key)?.close()
-      watchers.delete(key)
-      clearReloads(key)
-      const hash = await store.install(bytes, spaceId)
-      reloadPlugin(pkg.manifest.id)
-      catalogChanged()
-      if (development && compiled) {
-        store.development.set(hash, source)
-        const sourceRoot = (await fs.stat(source)).isDirectory()
-          ? source
-          : path.dirname(source)
-        const watcher = watch([sourceRoot, ...compiled.dependencies], {
-          ignoreInitial: true,
-          ignored: (file) =>
-            file
-              .split(path.sep)
-              .some((part) => part === ".git" || part === "dist"),
-        })
-        watchers.set(key, watcher)
-        let timer: ReturnType<typeof setTimeout> | undefined,
-          running = false,
-          again = false
-        const rebuild = async () => {
-          if (watchers.get(key) !== watcher) return
-          if (running) {
-            again = true
-            return
-          }
-          running = true
-          try {
-            do {
-              again = false
-              try {
-                const next = await compilePluginSource(source)
-                if (watchers.get(key) !== watcher) return
-                if (
-                  JSON.stringify(next.program.manifest) !==
-                  JSON.stringify(pkg.manifest)
-                )
-                  throw new Error(
-                    "Declaration changed. Load the development source again to review its authority."
-                  )
-                const current = await store.installed(pkg.manifest.id)
-                if (!current) return
-                const updated = await store.install(
-                  next.bytes,
-                  undefined,
-                  false
-                )
-                if (watchers.get(key) !== watcher) {
-                  store.discardTrial(pkg.manifest.id, updated)
-                  return
-                }
-                store.development.set(updated, source)
-                watcher.add(next.dependencies)
-                const reloadOwners = new Set<number>()
-                for (const [ticket, instance] of [...service.instances]) {
-                  if (instance.pluginId !== pkg.manifest.id) continue
-                  if (
-                    (
-                      await store.binding(
-                        instance.pluginId,
-                        instance.session.canonical.id
-                      )
-                    )?.hash !== updated
-                  )
-                    continue
-                  const window = BrowserWindow.getAllWindows().find(
-                    (window) => window.webContents.id === instance.owner
-                  )
-                  reloadOwners.add(instance.owner)
-                  window?.webContents.send(PLUGIN_CHANNELS.event, {
-                    ticket,
-                    event: {
-                      protocol: "eidos-plugin",
-                      apiVersion: 1,
-                      observation: "host.reload",
-                      value: null,
-                    },
-                  })
-                }
-                if (reloadOwners.size) {
-                  const timer = setTimeout(() => {
-                    pendingReloads.delete(updated)
-                    void (async () => {
-                      if (
-                        (await store.installed(pkg.manifest.id))?.hash !==
-                        updated
-                      )
-                        return
-                      const previous = await store.readBytes(
-                        path.join(
-                          store.directory,
-                          "packages",
-                          `${current.hash}.eidos-plugin`
-                        )
-                      )
-                      await store.install(previous, undefined, false)
-                      for (const window of BrowserWindow.getAllWindows())
-                        if (reloadOwners.has(window.webContents.id))
-                          window.webContents.send(PLUGIN_CHANNELS.event, {
-                            ticket: "",
-                            event: {
-                              protocol: "eidos-plugin",
-                              apiVersion: 1,
-                              observation: "host.rollback",
-                              value: pkg.manifest.id,
-                            },
-                          })
-                      for (const [ticket, instance] of service.instances)
-                        if (instance.hash === updated) {
-                          const window = BrowserWindow.getAllWindows().find(
-                            (window) => window.webContents.id === instance.owner
-                          )
-                          window?.webContents.send(PLUGIN_CHANNELS.event, {
-                            ticket,
-                            event: {
-                              protocol: "eidos-plugin",
-                              apiVersion: 1,
-                              observation: "host.reload",
-                              value: null,
-                            },
-                          })
-                        }
-                    })().catch(() => {})
-                  }, 10000)
-                  const old = pendingReloads.get(updated)
-                  if (old) clearTimeout(old.timer)
-                  pendingReloads.set(updated, {
-                    pluginId: pkg.manifest.id,
-                    owners: reloadOwners,
-                    timer,
-                  })
-                }
-              } catch (error) {
-                if (!owner.isDestroyed())
-                  owner.webContents.send(PLUGIN_CHANNELS.event, {
-                    ticket: "",
-                    event: {
-                      protocol: "eidos-plugin",
-                      apiVersion: 1,
-                      observation: "host.diagnostic",
-                      value:
-                        error instanceof Error
-                          ? error.message
-                          : "Source compilation failed",
-                    },
-                  })
-              }
-            } while (again)
-          } finally {
-            running = false
-          }
-        }
-        watcher.on("all", () => {
-          clearTimeout(timer)
-          timer = setTimeout(() => {
-            void rebuild()
-          }, 150)
-        })
-        watcher.on("error", () => {
-          void watcher.close()
-          watchers.delete(key)
-        })
-      }
-      return true
+      return installPlugin(event, development, marketplaceId, droppedPath)
     }
   )
   ipcMain.handle(PLUGIN_CHANNELS.uninstall, async (event, id: unknown) => {
@@ -918,6 +923,20 @@ export function registerPluginIpc(controller: WindowController): {
     if (typeof ticket === "string") service.close(owner, ticket)
   })
   return {
+    async openPackage(filePath) {
+      if (
+        !path.isAbsolute(filePath) ||
+        path.extname(filePath).toLowerCase() !== ".eidos-plugin"
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin package path")
+      const owner = controller.showSettingsWindow("/settings/plugins")
+      return installPlugin(
+        { sender: owner.webContents },
+        false,
+        undefined,
+        filePath
+      )
+    },
     close() {
       for (const channel of Object.values(PLUGIN_CHANNELS))
         ipcMain.removeHandler(channel)

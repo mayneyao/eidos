@@ -20,10 +20,26 @@ export function eidosFilePathsFromArguments(
   arguments_: readonly string[],
   workingDirectory: string
 ): string[] {
+  return launchFilePathsFromArguments(arguments_, workingDirectory).filter(
+    isEidosFilePath
+  )
+}
+
+export function launchFilePathsFromArguments(
+  arguments_: readonly string[],
+  workingDirectory: string
+): string[] {
   const seen = new Set<string>()
   const paths: string[] = []
   for (const argument of arguments_) {
-    if (!argument || argument.startsWith("-") || !isEidosFilePath(argument)) {
+    if (
+      !argument ||
+      argument.startsWith("-") ||
+      ![".eidos", ".eidos-plugin"].includes(
+        path.extname(argument).toLowerCase()
+      ) ||
+      /^[a-z][a-z\d+.-]*:\/\//i.test(argument)
+    ) {
       continue
     }
     const absolutePath = path.resolve(workingDirectory, argument)
