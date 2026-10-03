@@ -231,6 +231,8 @@ export interface MarkdownEditorProps {
   autoFocus?: boolean
   /** Legacy default for toolbar, insertion menu and drag controls. */
   showToolbar?: boolean
+  /** Touch toolbar docked to the host viewport; desktop remains floating. */
+  toolbarMode?: "floating" | "mobile"
   /** Independent interaction switches. Explicit values override legacy defaults. */
   interactions?: MarkdownEditorInteractions
   /** Custom fenced-code tokenizer, or false to disable syntax highlighting. */

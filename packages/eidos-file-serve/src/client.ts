@@ -451,6 +451,13 @@ function sanitizeContext(context: RequestContext): RequestContext {
  * is already JSON-safe.
  */
 export class HttpRuntimeClient implements RuntimeClient {
+  constructor(
+    private readonly transport?: (
+      method: string,
+      request: unknown,
+      context: RequestContext
+    ) => Promise<unknown>
+  ) {}
   async negotiate(
     request: { protocol: "eidos-runtime"; versions: ["1.0"] },
     context: RequestContext
@@ -656,6 +663,7 @@ export class HttpRuntimeClient implements RuntimeClient {
     request: unknown,
     context: RequestContext
   ): Promise<unknown> {
+    if (this.transport) return this.transport(method, request, context)
     const envelope = await postJson("/api/runtime/call", {
       method,
       request,

@@ -310,3 +310,108 @@
     width: min(9rem, calc(100vw - 11rem));
   }
 }
+/* Explicit touch-host presentation. Desktop grid editors retain their popovers. */
+.eidos-mobile-cell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10010;
+  background: color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+.eidos-mobile-cell-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 10011;
+  display: flex;
+  flex-direction: column;
+  max-height: 85dvh;
+  min-height: min(320px, 60dvh);
+  border-radius: 24px 24px 0 0;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 6px 16px max(16px, env(safe-area-inset-bottom));
+  outline: none;
+  box-shadow: 0 -8px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.eidos-mobile-sheet-handle {
+  width: 32px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--muted-foreground);
+  opacity: 0.35;
+  margin: 0 auto 4px;
+  flex: none;
+}
+.eidos-mobile-cell-sheet > header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  flex: none;
+}
+.eidos-mobile-cell-sheet > header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eidos-mobile-cell-sheet > header button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.eidos-mobile-cell-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px 0;
+}
+.eidos-mobile-cell-body :is(input, textarea, select) {
+  font-size: 16px;
+  min-height: 48px;
+}
+.eidos-mobile-option-search {
+  width: 100%;
+  border-radius: 14px;
+  background: var(--muted);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.eidos-mobile-selected-options,
+.eidos-mobile-option-list {
+  border-radius: 14px;
+  background: var(--muted);
+  overflow: hidden;
+  margin: 8px 0 16px;
+}
+.eidos-mobile-cell-body button {
+  min-height: 48px;
+}
+.eidos-mobile-selected-options button,
+.eidos-mobile-option-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.eidos-mobile-option-list button:last-child,
+.eidos-mobile-selected-options button:last-child {
+  border-bottom: 0;
+}
+.eidos-mobile-option-list p {
+  padding: 16px;
+  color: var(--muted-foreground);
+}
+.eidos-mobile-cell-sheet button:focus-visible,
+.eidos-mobile-cell-sheet input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}

@@ -1846,3 +1846,34 @@
   border: 0;
   cursor: pointer;
 }
+/* Opt-in touch toolbar. The host owns viewport resizing around the software keyboard. */
+.eme-mobile-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+  background: var(--background, Canvas);
+  color: var(--foreground, CanvasText);
+  border-top: 1px solid var(--border, GrayText);
+  overscroll-behavior-x: contain;
+}
+.eme-mobile-toolbar button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  touch-action: manipulation;
+}
+.eme-mobile-toolbar button[aria-pressed="true"],
+.eme-mobile-toolbar button:active {
+  background: var(--muted, ButtonFace);
+}

@@ -46,6 +46,7 @@ export interface EidosFileDataGridProps {
   search?: string
   searchResultIndex?: number | null
   showRowMarkers?: boolean
+  allowFrozenColumns?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
   recordPresentation?: "panel" | "page"
@@ -170,6 +171,7 @@ export function EidosFileDataGrid({
   search = "",
   searchResultIndex = null,
   showRowMarkers = true,
+  allowFrozenColumns = true,
   inspectedRowId,
   onInspectedRowChange,
   recordPresentation,
@@ -403,6 +405,7 @@ export function EidosFileDataGrid({
         historyScopeKey={JSON.stringify(query)}
         searchResultIndex={searchResultIndex}
         showRowMarkers={showRowMarkers}
+        allowFrozenColumns={allowFrozenColumns}
         loadPage={loadPage}
         locateRow={locateRow}
         loadInspectorRow={loadInspectorRow}

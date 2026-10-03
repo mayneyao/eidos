@@ -62,6 +62,7 @@ import {
   useUndoRedo,
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
+import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import {
   activateEidosFileAsset,
   eidosFileAssetResolutionAllowed,
@@ -228,6 +229,7 @@ export interface EidosFileGridProps {
   disabled?: boolean
   /** Hide Glide's always-frozen row marker gutter when space is constrained. */
   showRowMarkers?: boolean
+  allowFrozenColumns?: boolean
   reloadToken?: number
   /** Monotonic Host request used to return keyboard focus to the Grid. */
   focusRequestToken?: number
@@ -494,6 +496,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   gridTheme,
   disabled = false,
   showRowMarkers = true,
+  allowFrozenColumns = true,
   reloadToken = 0,
   historyScopeKey,
   loadPage,
@@ -533,12 +536,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     assetPresenter,
     assetSession,
     keyboardShortcuts,
+    interactionMode,
     themeName,
     timeZone,
     translate: t,
   } = useEidosFileUI()
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [mobileCell, setMobileCell] = useState<{
+    field: EidosFileFieldInfo
+    row: EidosFileRow
+    rowIndex: number
+  } | null>(null)
   const defaultTheme = useEidosFileGridThemeForElement(themeName, containerRef)
   const theme = useMemo(
     () => ({ ...defaultTheme, ...gridTheme }),
@@ -730,7 +739,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const canAlterSchema =
     (table.table.settings?.capabilities as Record<string, unknown> | undefined)
       ?.alterSchema !== false
-  const freezeColumns = eidosFileViewFreezeColumns(view, fields.length)
+  const freezeColumns = allowFrozenColumns
+    ? eidosFileViewFreezeColumns(view, fields.length)
+    : 0
   const inspectedRow =
     inspectedRowIndex === null
       ? (detachedInspectorRow ?? undefined)
@@ -2830,7 +2841,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           theme={theme}
           columns={columns}
           rows={rowCount}
-          rowHeight={viewRowHeight(view)}
+          rowHeight={
+            interactionMode === "mobile"
+              ? Math.max(48, viewRowHeight(view))
+              : viewRowHeight(view)
+          }
           freezeColumns={freezeColumns}
           getCellContent={getCellContent}
           onVisibleRegionChanged={onVisibleRegionChanged}
@@ -2853,6 +2868,31 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           onGridSelectionChange={handleGridSelectionChangeWithDraftRelease}
           onCellActivated={onEditFormula ? onCellActivated : undefined}
+          onCellClicked={
+            interactionMode === "mobile"
+              ? ([columnIndex, rowIndex], event) => {
+                  const field = fields[columnIndex]
+                  const row = rowsRef.current.get(rowIndex)
+                  if (
+                    !field ||
+                    !row ||
+                    gridWriteLocked ||
+                    field.valueKind !== "source"
+                  )
+                    return
+                  if (field.type === "relation" && !onSearchRelation) return
+                  const cell = getCellContent([columnIndex, rowIndex])
+                  if (
+                    cell.kind !== GridCellKind.Loading &&
+                    "readonly" in cell &&
+                    cell.readonly
+                  )
+                    return
+                  event.preventDefault()
+                  setMobileCell({ field, row, rowIndex })
+                }
+              : undefined
+          }
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
           onCellContextMenu={onCellContextMenu}
@@ -2877,6 +2917,31 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           rightElementProps={{ fill: true }}
         />
+        {mobileCell && (
+          <EidosFileMobileCellEditor
+            key={`${mobileCell.row._id}:${mobileCell.field.id}`}
+            field={mobileCell.field}
+            row={mobileCell.row}
+            onSearchRelation={onSearchRelation}
+            onImportFiles={onImportFiles}
+            onImportDroppedFiles={onImportDroppedFiles}
+            onClose={() => {
+              setMobileCell(null)
+              gridRef.current?.focus()
+            }}
+            onSave={async (value) => {
+              const result = await onCellEdit(
+                mobileCell.row,
+                mobileCell.field,
+                value
+              )
+              rowsRef.current.set(mobileCell.rowIndex, result.row)
+              setRowCount(result.rowCount)
+              setCacheRevision((current) => current + 1)
+              refreshColumnStats()
+            }}
+          />
+        )}
         {draftRowsMayReposition && draftMoveTooltip
           ? createPortal(
               <div
@@ -2976,13 +3041,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             })
           }
           onInsert={(index) => onAddField?.(index)}
-          onToggleFreeze={(fieldIndex, frozen) =>
-            updateView({
-              properties: {
-                ...(view?.properties ?? {}),
-                freezeColumns: frozen ? 0 : fieldIndex + 1,
-              },
-            })
+          onToggleFreeze={
+            allowFrozenColumns
+              ? (fieldIndex, frozen) =>
+                  updateView({
+                    properties: {
+                      ...(view?.properties ?? {}),
+                      freezeColumns: frozen ? 0 : fieldIndex + 1,
+                    },
+                  })
+              : undefined
           }
           onHide={(field) =>
             updateView({

@@ -25,6 +25,14 @@ source replacements from right to left to preserve all unrelated source bytes.
 
 ## Installation and imports
 
+For a touch host, set `toolbarMode="mobile"` to dock formatting controls at the
+bottom of the viewport. The default is `"floating"`. The host must reserve space
+below the editor content for the 52px toolbar and resize its viewport for the
+software keyboard. It can control `readOnly` to separate reading from editing.
+Disable `interactions.blockDrag` and `interactions.blockSelection` when native
+touch selection should take precedence. Commands use the active syntax profile;
+unsupported block controls are omitted.
+
 The component requires React 18 or 19 and a browser DOM. It is currently a
 workspace-private prerelease, not a published stable package.
 

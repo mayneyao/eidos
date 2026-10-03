@@ -93,6 +93,8 @@ export interface EidosFileMarkdownHtml {
 }
 
 export interface EidosFileUIHost {
+  /** Touch hosts present cell editors in a bottom sheet. */
+  interactionMode?: "desktop" | "mobile"
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
   /** Host preference controlling the first visible weekday in Calendar views. */
@@ -152,6 +154,7 @@ const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
+  interactionMode,
   children,
   themeName,
   locale,
@@ -175,6 +178,7 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedInteractionMode = interactionMode ?? parent.interactionMode
   const resolvedThemeName = themeName ?? parent.themeName
   const resolvedLocale = locale ?? parent.locale
   const resolvedWeekStartsOnMonday =
@@ -201,6 +205,7 @@ export function EidosFileUIProvider({
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
+      interactionMode: resolvedInteractionMode,
       themeName: resolvedThemeName,
       locale: resolvedLocale,
       weekStartsOnMonday: resolvedWeekStartsOnMonday,
@@ -240,6 +245,7 @@ export function EidosFileUIProvider({
         : {}),
     }),
     [
+      resolvedInteractionMode,
       locale,
       messages,
       parent.translate,

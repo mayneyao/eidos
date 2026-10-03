@@ -136,7 +136,7 @@ export function EidosFileFieldMenu({
     direction: EidosFileSortDirection | null
   ) => void
   onInsert: (index: number) => void
-  onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
+  onToggleFreeze?: (fieldIndex: number, frozen: boolean) => void
   onHide: (field: EidosFileFieldInfo) => void
   onDelete: (field: EidosFileFieldInfo) => void
 }) {
@@ -267,19 +267,21 @@ export function EidosFileFieldMenu({
               <ArrowRightToLine className="h-3.5 w-3.5" />
               {t("Insert field right")}
             </MenuItem>
-            <MenuItem
-              disabled={!canUpdateView}
-              onClick={() =>
-                run(() => onToggleFreeze(state.fieldIndex, frozen))
-              }
-            >
-              {frozen ? (
-                <PinOff className="h-3.5 w-3.5" />
-              ) : (
-                <Pin className="h-3.5 w-3.5" />
-              )}
-              {frozen ? t("Unfreeze columns") : t("Freeze to this field")}
-            </MenuItem>
+            {onToggleFreeze && (
+              <MenuItem
+                disabled={!canUpdateView}
+                onClick={() =>
+                  run(() => onToggleFreeze(state.fieldIndex, frozen))
+                }
+              >
+                {frozen ? (
+                  <PinOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Pin className="h-3.5 w-3.5" />
+                )}
+                {frozen ? t("Unfreeze columns") : t("Freeze to this field")}
+              </MenuItem>
+            )}
             <MenuItem
               disabled={!canUpdateView}
               onClick={() => run(() => onHide(state.field))}

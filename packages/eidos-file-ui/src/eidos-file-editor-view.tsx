@@ -33,6 +33,8 @@ export interface EidosFileViewRendererProps {
   onSearchResultCountChange?: (rowCount: number | null) => void
   /** Host display policy for the Grid's leading row-number/selection gutter. */
   showRowMarkers?: boolean
+  /** Host presentation policy; false ignores saved column freezing without modifying the view. */
+  allowFrozenColumns?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
   /** Runtime presentation for a record opened from this view. */
@@ -152,6 +154,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       search={props.search}
       searchResultIndex={props.searchResultIndex}
       showRowMarkers={props.showRowMarkers}
+      allowFrozenColumns={props.allowFrozenColumns}
       inspectedRowId={props.inspectedRowId}
       onInspectedRowChange={props.onInspectedRowChange}
       recordPresentation={props.recordPresentation}

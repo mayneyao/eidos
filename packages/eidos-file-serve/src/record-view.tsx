@@ -10,7 +10,9 @@ import { eidosFileFeedCreatedField } from "@eidos.space/eidos-file-ui/eidos-file
 /** One record controller for all browser-hosted views, including Feed. */
 export function BrowserEidosFileEditorView(props: EidosFileEditorViewProps) {
   const [rowId, setRowId] = useState<string | null>(null)
-  const [presentation, setPresentation] = useState<"panel" | "page">("panel")
+  const [presentation, setPresentation] = useState<"panel" | "page">(
+    props.recordPresentation ?? "panel"
+  )
   const [recordReload, setRecordReload] = useState(0)
   const togglePresentation = () =>
     setPresentation((current) => (current === "page" ? "panel" : "page"))

@@ -42,6 +42,7 @@ import { MarkdownStatePlugin } from "../plugins/markdown-state-plugin"
 import { DocumentFindPlugin } from "../plugins/document-find-plugin"
 import { RequestedTextSearchPlugin } from "../plugins/requested-text-search-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
+import { MobileToolbarPlugin } from "../plugins/mobile-toolbar-plugin"
 import {
   MarkdownShortcutProvider,
   useMarkdownShortcuts,
@@ -246,6 +247,7 @@ function MarkdownEditorImplementation({
   readOnly = false,
   autoFocus = false,
   showToolbar = true,
+  toolbarMode = "floating",
   interactions,
   codeHighlightTokenizer,
   inputProfile = "document",
@@ -313,10 +315,18 @@ function MarkdownEditorImplementation({
         <div className="eme-editor-shell">
           <DocumentFindPlugin labels={resolvedLabels} />
           {!readOnly && controls.toolbar ? (
-            <FloatingToolbarPlugin
-              items={registry.toolbar}
-              labels={resolvedLabels}
-            />
+            toolbarMode === "mobile" ? (
+              <MobileToolbarPlugin
+                items={registry.toolbar}
+                insertions={registry.insertions}
+                labels={resolvedLabels}
+              />
+            ) : (
+              <FloatingToolbarPlugin
+                items={registry.toolbar}
+                labels={resolvedLabels}
+              />
+            )
           ) : null}
           <div
             className="eme-editor-stage"

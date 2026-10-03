@@ -41,6 +41,7 @@ export function EidosFileRecordRelationEditor({
   onChange,
   onSearch,
   onError,
+  inline = false,
 }: {
   row: EidosFileRow
   field: EidosFileFieldInfo
@@ -51,9 +52,10 @@ export function EidosFileRecordRelationEditor({
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onError?: (error: unknown) => void
+  inline?: boolean
 }) {
   const { translate: t } = useEidosFileUI()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(inline)
   const [query, setQuery] = useState("")
   const [options, setOptions] = useState<EidosFileRelationValue[]>([])
   const [loading, setLoading] = useState(false)
@@ -129,6 +131,104 @@ export function EidosFileRecordRelationEditor({
     )
   }
 
+  const content = (
+    <>
+      <div className="flex h-9 items-center gap-2 border-b px-2.5">
+        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium">{t("Link records")}</span>
+        {values.length > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+            disabled={disabled}
+            onClick={() => void update([])}
+          >
+            <Unlink className="h-3 w-3" />
+            {t("Clear")}
+          </Button>
+        ) : null}
+      </div>
+      <div className="relative border-b p-2">
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          autoFocus={!inline}
+          role="combobox"
+          aria-label={t("Search records for {field}", { field: field.name })}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={activeDescendantId}
+          aria-busy={loading}
+          className="h-8 pl-8 text-xs"
+          placeholder={t("Search records")}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault()
+              event.stopPropagation()
+              moveActiveOption(event.key === "ArrowDown" ? 1 : -1)
+              return
+            }
+            if (event.key === "Home" || event.key === "End") {
+              event.preventDefault()
+              event.stopPropagation()
+              moveActiveOption(event.key === "Home" ? "first" : "last")
+              return
+            }
+            if (
+              event.key === "Enter" &&
+              !event.nativeEvent.isComposing &&
+              activeOption
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              void toggle(activeOption)
+            }
+          }}
+        />
+      </div>
+      <div className="max-h-72 overflow-y-auto p-1.5">
+        <EidosFileRelationOptionList
+          accessibleName={t("{field} relation records", {
+            field: field.name,
+          })}
+          activeOptionId={activeOptionId}
+          availableValues={available}
+          disabled={disabled}
+          listboxId={listboxId}
+          multiple={field.property?.multiple !== false}
+          optionId={optionId}
+          query={query}
+          selectedValues={values}
+          targetTableId={
+            typeof field.property?.targetTableId === "string"
+              ? field.property.targetTableId
+              : undefined
+          }
+          onActiveOptionChange={setActiveOptionId}
+          onOpenRecord={() => setOpen(false)}
+          onToggle={(option) => void toggle(option)}
+        />
+        {loading ? (
+          <div
+            className="flex items-center justify-center gap-1.5 px-2 py-5 text-xs text-muted-foreground"
+            role="status"
+          >
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            {t("Loading…")}
+          </div>
+        ) : !loading && available.length === 0 ? (
+          <p className="px-2 py-5 text-center text-xs text-muted-foreground">
+            {t("No records found")}
+          </p>
+        ) : null}
+      </div>
+    </>
+  )
+  if (inline) return <div>{content}</div>
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -148,99 +248,7 @@ export function EidosFileRecordRelationEditor({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
-        <div className="flex h-9 items-center gap-2 border-b px-2.5">
-          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">{t("Link records")}</span>
-          {values.length > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground"
-              disabled={disabled}
-              onClick={() => void update([])}
-            >
-              <Unlink className="h-3 w-3" />
-              {t("Clear")}
-            </Button>
-          ) : null}
-        </div>
-        <div className="relative border-b p-2">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            autoFocus
-            role="combobox"
-            aria-label={t("Search records for {field}", { field: field.name })}
-            aria-autocomplete="list"
-            aria-expanded={open}
-            aria-controls={listboxId}
-            aria-activedescendant={activeDescendantId}
-            aria-busy={loading}
-            className="h-8 pl-8 text-xs"
-            placeholder={t("Search records")}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault()
-                event.stopPropagation()
-                moveActiveOption(event.key === "ArrowDown" ? 1 : -1)
-                return
-              }
-              if (event.key === "Home" || event.key === "End") {
-                event.preventDefault()
-                event.stopPropagation()
-                moveActiveOption(event.key === "Home" ? "first" : "last")
-                return
-              }
-              if (
-                event.key === "Enter" &&
-                !event.nativeEvent.isComposing &&
-                activeOption
-              ) {
-                event.preventDefault()
-                event.stopPropagation()
-                void toggle(activeOption)
-              }
-            }}
-          />
-        </div>
-        <div className="max-h-72 overflow-y-auto p-1.5">
-          <EidosFileRelationOptionList
-            accessibleName={t("{field} relation records", {
-              field: field.name,
-            })}
-            activeOptionId={activeOptionId}
-            availableValues={available}
-            disabled={disabled}
-            listboxId={listboxId}
-            multiple={field.property?.multiple !== false}
-            optionId={optionId}
-            query={query}
-            selectedValues={values}
-            targetTableId={
-              typeof field.property?.targetTableId === "string"
-                ? field.property.targetTableId
-                : undefined
-            }
-            onActiveOptionChange={setActiveOptionId}
-            onOpenRecord={() => setOpen(false)}
-            onToggle={(option) => void toggle(option)}
-          />
-          {loading ? (
-            <div
-              className="flex items-center justify-center gap-1.5 px-2 py-5 text-xs text-muted-foreground"
-              role="status"
-            >
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-              {t("Loading…")}
-            </div>
-          ) : !loading && available.length === 0 ? (
-            <p className="px-2 py-5 text-center text-xs text-muted-foreground">
-              {t("No records found")}
-            </p>
-          ) : null}
-        </div>
+        {content}
       </PopoverContent>
     </Popover>
   )

@@ -7,11 +7,23 @@ import {
   fetchCliHostManifest,
   subscribeCliHostEvents,
   uploadCliHostAssets,
+  HttpRuntimeClient,
 } from "./client"
 import type { CliHostAccessError } from "./client"
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+it("uses a host transport without HTTP when embedded", async () => {
+  const fetch = vi.fn()
+  vi.stubGlobal("fetch", fetch)
+  const transport = vi.fn().mockResolvedValue({ revision: "7" })
+  const client = new HttpRuntimeClient(transport)
+  const context = { requestId: "embedded", deadlineMilliseconds: 30_000 }
+  expect(await client.getSnapshot({}, context)).toEqual({ revision: "7" })
+  expect(transport).toHaveBeenCalledWith("getSnapshot", {}, context)
+  expect(fetch).not.toHaveBeenCalled()
 })
 
 describe("CLI Serve browser pairing", () => {
