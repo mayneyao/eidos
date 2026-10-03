@@ -495,6 +495,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncClone, remoteUrl, displayName),
   runSync: (action = "fetch") =>
     ipcRenderer.invoke(IPC_CHANNELS.syncRun, action),
+  peerSync: (action, deviceId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.peerSync, action, deviceId),
   onSyncProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

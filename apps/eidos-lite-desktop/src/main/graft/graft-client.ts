@@ -1938,6 +1938,26 @@ export class GraftClient {
     ])
   }
 
+  async configurePeer(root: string, url: string, token: string): Promise<void> {
+    await this.runSdk(root, "configureRemote", [
+      { name: "eidos-peer", url, overwrite: true },
+    ])
+    await this.setHttpCredential(root, "eidos-peer", token, {})
+  }
+
+  transferPeer(
+    root: string,
+    operation: "fetch" | "push",
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    return this.runSdk(
+      root,
+      operation,
+      [{ remote: "eidos-peer", branch: "main" }],
+      { signal }
+    )
+  }
+
   async remoteUrl(
     root: string,
     name = "origin",

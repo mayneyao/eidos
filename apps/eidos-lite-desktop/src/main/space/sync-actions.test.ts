@@ -21,6 +21,10 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
     applyMerge: vi.fn(),
   }
   const session = {
+    syncTask: Promise.resolve(),
+    withSyncTask: SpaceSession.prototype["withSyncTask"],
+    syncHostedRemoteInternal:
+      SpaceSession.prototype["syncHostedRemoteInternal"],
     canonical: { root: "/unused" },
     officialSyncRemoteUrl: async () => "https://sync.eidos.space/test/repo",
     gate: { withRepositoryOperation: run },
@@ -53,6 +57,33 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
 }
 
 describe("explicit Sync actions", () => {
+  it("queues device work behind Cloud sync and continues after a failure", async () => {
+    const { graft, session, invoke } = sessionFixture(0, 0, false)
+    let release: () => void = () => {}
+    graft.fetch.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
+    const cloud = invoke("fetch")
+    await vi.waitFor(() => expect(graft.fetch).toHaveBeenCalledOnce())
+    const peer = vi.fn(async () => {})
+    const queued = session["withSyncTask"](peer)
+    expect(peer).not.toHaveBeenCalled()
+    release()
+    await cloud
+    await queued
+    expect(peer).toHaveBeenCalledOnce()
+    await expect(
+      session["withSyncTask"](async () => {
+        throw new Error("offline")
+      })
+    ).rejects.toThrow("offline")
+    await expect(session["withSyncTask"](async () => "next")).resolves.toBe(
+      "next"
+    )
+  })
   it("fetches divergent history with local edits without saving, merging or uploading", async () => {
     const { graft, session, invoke } = sessionFixture(2, 3, true)
     expect(await invoke("fetch")).toMatchObject({

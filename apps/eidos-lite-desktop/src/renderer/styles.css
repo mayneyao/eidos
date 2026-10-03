@@ -2835,6 +2835,38 @@ body {
   grid-template-rows: var(--version-header-height, 2.75rem) minmax(0, 1fr);
 }
 
+.sync-dialog:has(> .peer-sync-panel) {
+  grid-template-rows: var(--window-titlebar-height) auto minmax(0, 1fr);
+}
+
+.sync-inspector-b:has(> .peer-sync-panel) {
+  grid-template-rows:
+    var(--version-header-height, 2.75rem) auto auto minmax(0, 1fr)
+    auto;
+}
+
+.sync-inspector-b[data-sync-setup="true"]:has(> .peer-sync-panel) {
+  grid-template-rows: var(--version-header-height, 2.75rem) auto minmax(0, 1fr);
+}
+
+.peer-sync-panel {
+  min-height: 0;
+  max-height: 65vh;
+  overflow: auto;
+  font-size: 0.75rem;
+}
+
+.peer-sync-panel button {
+  min-height: 1.75rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+}
+
+.peer-sync-panel button:disabled {
+  opacity: 0.5;
+}
+
 .sync-inspector-b[data-sync-setup="true"] .sync-dialog-body {
   padding: 0;
   overflow: visible;

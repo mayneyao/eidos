@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { SyncInspector } from "./sync-inspector"
+import { PeerSyncPanel } from "./peer-sync-panel"
 import { useEidosLiteI18n } from "./i18n"
 import {
   AlertTriangle,
@@ -878,6 +879,7 @@ export function SyncPanel({
   if (shouldRenderSyncAccessGate(status)) {
     return (
       <SyncAccessGate
+        key={cacheKey}
         mode={mode}
         variant={variant}
         platform={platform}
@@ -1614,6 +1616,7 @@ export function SyncPanel({
           </div>
         </header>
 
+        {mode === "enable" && <PeerSyncPanel key={cacheKey} />}
         {setupContent}
       </aside>
     </div>
@@ -1700,6 +1703,7 @@ function SyncAccessGate({
             <X />
           </button>
         </header>
+        {mode === "enable" && <PeerSyncPanel />}
         <div className="sync-dialog-body sync-gate">
           <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
             {signedOut ? <LogIn /> : <ShieldCheck />}

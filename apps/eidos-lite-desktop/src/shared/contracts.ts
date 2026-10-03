@@ -177,6 +177,7 @@ export const IPC_CHANNELS = {
   syncRepositories: "eidos-lite:sync-repositories",
   syncClone: "eidos-lite:sync-clone",
   syncRun: "eidos-lite:sync-run",
+  peerSync: "eidos-lite:peer-sync",
   syncProgress: "eidos-lite:sync-progress",
   syncQueueStatus: "eidos-lite:sync-queue-status",
   syncQueueChanged: "eidos-lite:sync-queue-changed",
@@ -1960,6 +1961,16 @@ export interface EidosLiteApi extends PluginApi {
     displayName?: string
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
+  peerSync(
+    action: "start" | "status" | "stop" | "approve" | "reject" | "revoke",
+    deviceId?: string
+  ): Promise<{
+    running: boolean
+    invitation?: string
+    qr?: string
+    pending?: string
+    devices: { id: string; name: string }[]
+  }>
   onSyncProgress(listener: (progress: EidosSyncProgress) => void): () => void
   getSyncQueueStatus(): Promise<EidosSyncQueueStatus | null>
   onSyncQueueChanged(

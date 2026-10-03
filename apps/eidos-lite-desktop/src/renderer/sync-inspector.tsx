@@ -28,6 +28,7 @@ import type {
 } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 import { SyncMergeWorkspace } from "./sync-merge-workspace"
+import { PeerSyncPanel } from "./peer-sync-panel"
 
 export interface SyncInspectorState {
   history?: SpaceSyncHistoryStatus
@@ -369,6 +370,7 @@ export function SyncInspector({
             <X />
           </button>
         </header>
+        <PeerSyncPanel key={spaceKey} />
         {!setupContent ? (
           <div className="sync-inspector-b-status" aria-live="polite">
             <Icon aria-hidden="true" className={active ? "spin" : undefined} />

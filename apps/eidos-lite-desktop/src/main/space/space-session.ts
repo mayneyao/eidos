@@ -2129,6 +2129,107 @@ export class SpaceSession {
     reportTransfer: SyncTransferProgressReporter = () => undefined,
     action: EidosSyncAction = "fetch"
   ): Promise<EidosSyncOutcome> {
+    return this.withSyncTask(() =>
+      this.syncHostedRemoteInternal(
+        accessToken,
+        access,
+        reportProgress,
+        reportTransfer,
+        action
+      )
+    )
+  }
+
+  private syncTask: Promise<unknown> = Promise.resolve()
+  private withSyncTask<T>(action: () => Promise<T>): Promise<T> {
+    const task = this.syncTask.then(action, action)
+    this.syncTask = task.catch(() => {})
+    return task
+  }
+
+  async syncPeerRemote(
+    url: string,
+    token: string,
+    seeded: boolean
+  ): Promise<void> {
+    return this.withSyncTask(async () => {
+      await this.enableVersioning()
+      await this.gate.withRepositoryOperation(
+        "Preparing device sync",
+        async (signal) => {
+          const state = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+          if (state.hasConflicts)
+            throw new Error("Resolve the current merge before device sync")
+          if (state.dirty) {
+            await this.graft.stageAll(
+              this.canonical.root,
+              this.graftStatusOptions(signal)
+            )
+            await this.graft.commit(
+              this.canonical.root,
+              "Device sync checkpoint"
+            )
+          }
+          await this.graft.configurePeer(this.canonical.root, url, token)
+          if (seeded)
+            await this.graft.transferPeer(this.canonical.root, "fetch", signal)
+        }
+      )
+      if (seeded) {
+        const plan: EidosSyncMergePlan =
+          await this.gate.withRepositoryOperation(
+            "Comparing device versions",
+            async (signal) => {
+              const current = await this.graft.status(
+                this.canonical.root,
+                this.graftStatusOptions(signal)
+              )
+              this.assertGraftPathsSafeForMerge(current)
+              const initialPlan = await this.graft.planMerge(
+                this.canonical.root,
+                "eidos-peer/main",
+                current.currentHead ?? null,
+                { signal }
+              )
+              if (initialPlan.kind !== "three_way") return initialPlan
+              await this.ensureEidosMergePolicy(signal)
+              return this.graft.planMerge(
+                this.canonical.root,
+                "eidos-peer/main",
+                current.currentHead ?? null,
+                { signal }
+              )
+            }
+          )
+        if (plan.kind === "fast_forward" || plan.kind === "three_way") {
+          const merge = await this.applySyncMerge("eidos-peer/main", {
+            expectedHead: plan.expectedHead,
+            planToken: plan.planToken,
+          })
+          if (merge.state === "merging")
+            throw new Error(
+              "Some changes could not be merged automatically. Both versions are retained; review the conflicting files in Sync settings."
+            )
+        }
+      }
+      await this.gate.withRepositoryOperation(
+        "Sending device updates",
+        (signal) => this.graft.transferPeer(this.canonical.root, "push", signal)
+      )
+      await this.freshSnapshotAndEmit(true)
+    })
+  }
+
+  private async syncHostedRemoteInternal(
+    accessToken: string,
+    access: "read_only" | "read_write",
+    reportProgress: SyncProgressReporter,
+    reportTransfer: SyncTransferProgressReporter,
+    action: EidosSyncAction
+  ): Promise<EidosSyncOutcome> {
     const remoteUrl = await this.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
     await this.gate.withRepositoryOperation(
@@ -2566,10 +2667,17 @@ export class SpaceSession {
   async applyHostedMerge(
     request: EidosSyncMergeApplyRequest
   ): Promise<EidosSyncMergeStatus> {
+    return this.applySyncMerge("origin/main", request)
+  }
+
+  private async applySyncMerge(
+    revision: string,
+    request: EidosSyncMergeApplyRequest
+  ): Promise<EidosSyncMergeStatus> {
     const merge = await this.materializeMergeOperation(
       "applyMerge",
       "apply-hosted-merge",
-      "Starting reviewed Local and Hosted merge",
+      "Applying and validating synchronized changes",
       null,
       async (signal, onWorktreePaths) => {
         // Graft applies the reviewed plan under HEAD, plan-token, and clean-worktree guards.
@@ -2582,7 +2690,7 @@ export class SpaceSession {
         }
         let merge = await this.graft.applyMerge(
           this.canonical.root,
-          "origin/main",
+          revision,
           request.expectedHead,
           request.planToken,
           { signal, onWorktreePaths: capturePaths }

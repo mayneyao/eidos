@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { registerPluginIpc } from "./plugins/plugin-ipc"
+import { PeerService } from "./peer/peer-service"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -622,6 +623,49 @@ export function registerIpc(
   openPluginPackage(filePath: string): Promise<boolean>
 } {
   const plugins = registerPluginIpc(controller)
+  const peers = new Map<string, PeerService>()
+  ipcMain.handle(
+    IPC_CHANNELS.peerSync,
+    async (event, action: unknown, deviceId: unknown) => {
+      const session = controller.requireSession(event.sender)
+      const id = session.canonical.id
+      let peer = peers.get(id)
+      if (action === "start") {
+        if (!peer) {
+          peer = new PeerService(session, app.getPath("userData"))
+          peers.set(id, peer)
+          const ownedPeer = peer
+          event.sender.once("destroyed", () => {
+            if (peers.get(id) !== ownedPeer) return
+            peers.delete(id)
+            void ownedPeer.close().catch((error) => {
+              console.warn("Could not stop device sync", error)
+            })
+          })
+        }
+        try {
+          return await peer.start()
+        } catch (error) {
+          await peer.close()
+          peers.delete(id)
+          throw error
+        }
+      }
+      if (action === "stop") {
+        await peer?.close()
+        peers.delete(id)
+        return { running: false, devices: [] }
+      }
+      if (action === "status")
+        return peer?.status() ?? { running: false, devices: [] }
+      if (!peer) throw new Error("Device sync is not running")
+      if (action === "approve" || action === "reject")
+        return peer.approve(action === "approve")
+      if (action === "revoke" && typeof deviceId === "string")
+        return peer.revoke(deviceId)
+      throw new Error("Invalid device sync action")
+    }
+  )
   const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
     controller.handleWorkspaceShortcutInput(owner, event, input)
   )
@@ -2452,6 +2496,7 @@ export function registerIpc(
         ;(await terminalSessionsPromise).close()
       }
       await syncQueue.close()
+      await Promise.all([...peers.values()].map((peer) => peer.close()))
     },
   }
 }
