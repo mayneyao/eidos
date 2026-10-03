@@ -1,0 +1,20 @@
+[package]
+name = "eidos-ios-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+anyhow = "1"
+qjs-host = { path = "../../cli/qjs-host", default-features = false }
+serde_json = "1"
+rquickjs = { version = "0.12", features = ["bindgen"] }
+graft-sdk = { git = "https://github.com/eidos-space/graft", rev = "5c99ad07ee1af7b66432c94c6e919c7faa5cacd5", features = ["bundled-sqlite"] }
+
+[dev-dependencies]
+tempfile = "3.19"
