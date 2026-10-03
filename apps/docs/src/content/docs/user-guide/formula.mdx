@@ -5,10 +5,29 @@ sidebar:
   order: 4
 ---
 
-Formula is a small, statically typed expression language, not arbitrary SQL.
-It uses quoted Field names and a fixed subset of SQLite 3.45 scalar functions.
-Runtime parses every expression and generates SQL; Formula source is never run
-as a SQL statement.
+Use a Formula field to calculate a value from other fields in the same table.
+The result is read-only. Change the source fields to change the result.
+
+## Try a calculation
+
+In a Books table, add Integer fields named **Pages** and **Pages read**.
+Create a Formula field with result type **integer** and this expression:
+
+```sql
+"Pages" - "Pages read"
+```
+
+Enter `120` for Pages and `45` for Pages read. The result is `75`.
+Change Pages read to `60`; the result becomes `60`.
+If either input is empty, this expression returns null.
+
+**Check:** review the expression preview before saving the field.
+
+## Language boundary
+
+Formula uses quoted field names and a fixed set of SQLite 3.45 scalar
+functions. Runtime parses the expression and checks its types before
+generating SQL. A Formula cannot execute a SQL statement.
 
 ## Expression syntax
 

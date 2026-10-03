@@ -1,32 +1,28 @@
 ---
-title: Choose where to start
-description: Pick the Eidos documentation path that matches your task.
-template: splash
+title: Start with one file
+description: Choose a tool, make a book list, and check where your work is saved.
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+Choose the tool that fits your task. All three work with the Eidos File format.
 
-<CardGrid>
-  <LinkCard
-    title="Eidos Lite"
-    description="Install the desktop app and work with local Spaces."
-    href="/user-guide/"
-  />
-  <LinkCard
-    title="Eidos CLI"
-    description="Install the command-line tool and work with Eidos Files from a terminal."
-    href="/cli/"
-  />
-  <LinkCard
-    title="Eidos Plugins"
-    description="Build formatters, commands, custom views, and pages."
-    href="/plugins/"
-  />
-  <LinkCard
-    title="Eidos File Specs"
-    description="Read the contracts for compatible implementations."
-    href="/specifications/"
-  />
-</CardGrid>
+| I want to… | Start here | Where work is saved |
+| --- | --- | --- |
+| Manage a folder of files and notes | [Eidos Lite](/getting-started/eidos-lite/) | Local files in a Space |
+| Try one file without installing an app | [Web Editor](/getting-started/browser/) | Save to disk or download the working copy |
+| Use commands or an agent | [CLI](/getting-started/cli/) | The file path supplied to the command |
 
-To open one file without installing anything, use the [Web Editor](/getting-started/browser/).
+## Make something small
+
+1. Open or create an Eidos File.
+2. Add a **Books** table with a **Title** field.
+3. Add a book, then create a **Status** Select field.
+4. Create a view that shows only books you are reading.
+5. Check that your changes are saved.
+
+Follow [the book-list walkthrough](/user-guide/eidos-file-basics/).
+If the names are unfamiliar, first read [how the pieces fit](/concepts/).
+
+## Go further
+
+[Build a plugin](/plugins/) to add an editor or a tool.
+Read the [specifications](/specifications/) when implementing a compatible application.

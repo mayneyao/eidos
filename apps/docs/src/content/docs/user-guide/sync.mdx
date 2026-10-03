@@ -1,53 +1,52 @@
 ---
-title: Sync Across Devices
-description: Enable cloud synchronization to use the exact same Space across multiple computers seamlessly.
+title: Use a Space on two devices
+description: Enable optional Sync and check that changes reach the other device.
 sidebar:
   order: 75
-  badge:
-    text: Pro
-    variant: tip
 ---
 
-import { Badge } from "@astrojs/starlight/components"
+Sync transfers Space changes between devices through the cloud.
+It requires an account and an eligible service plan.
+Local files remain usable while offline or signed out.
 
-<Badge text="Optional Cloud Service" variant="tip" />
+## Connect the first device
 
-**Eidos Sync** is an optional cloud synchronization service built for users who regularly switch between multiple computers (such as an office desktop and a personal laptop).
+1. Open the Space in Eidos Lite.
+2. Sign in through Settings.
+3. Open the Sync panel and enable Sync.
+4. Wait for the panel to report completion or show an action you need to take.
 
-Built strictly on local-first principles: your files remain fully functional offline on every machine. Whenever connected to the internet, your files, edits, and version history mirror silently in the background.
+Do not treat a connection indicator alone as proof that all changes arrived.
+Review the panel's status before switching devices.
 
----
+## Open the Space on another device
 
-## 1. Enable Sync in Three Steps
+Sign in to the same account on the second device.
+Use the option to sync an existing cloud Space, choose the Space, and let the
+initial download finish.
 
-1. **Sign In**: Open Settings from the bottom sidebar in Eidos Lite and sign into your Eidos account.
-2. **Open Sync Panel**: Click the **Sync** button (cloud icon) in the top-right corner of the window.
-3. **Turn on Sync**: Click **Enable Sync**. Eidos Lite automatically creates a private, encrypted sync channel for your Space in the cloud.
+**Check:** open a known file and confirm its contents before editing.
 
-Once active, the cloud icon subtly animates during sync activity and displays a green ready badge when your local files match the cloud.
+## Check a round trip
 
----
+1. Make a small, recognizable edit on the first device.
+2. Wait for Sync to complete.
+3. Open the file on the second device and check the edit.
 
-## 2. Continuing Work on a Second Machine
+This confirms that the expected Space is connected on both devices.
 
-On your second computer (macOS, Windows, or Linux):
+## Work offline
 
-1. Install Eidos Lite and sign in with the exact same Eidos account.
-2. On the welcome screen or file menu, choose **Sync existing Space from cloud**.
-3. All `.eidos` tables, Markdown notes, attachments, and full version timelines will download automatically. Edits on either device will now stay continuously synchronized.
+Continue editing local files without a connection.
+When the connection returns, check the Sync panel.
+If Sync requires review, inspect the reported changes and follow the offered
+resolution steps before continuing.
 
----
+## Keep a separate backup
 
-## 3. Working Offline & Safe Conflict Resolution
+Sync moves changes; it can also move unwanted edits or deletions.
+Keep an independent [backup](/user-guide/data-safety/).
 
-- **Seamless Offline Work**: When traveling or without WiFi, continue creating and editing your documents normally. The offline experience is identical to online.
-- **Automatic Catch-up**: As soon as internet connectivity returns, Eidos Lite smoothly reconciles and pushes your local changes.
-- **Smart Conflict Handling**: If two computers edit the exact same document while disconnected, Eidos never blindly overwrites your work. The Sync panel will prompt you to **Review changes**, letting you inspect both sides and choose which updates to keep.
-
----
-
-## 4. Storage Quotas & Service Plans
-
-- Using Eidos Lite locally is completely free and unconstrained.
-- Sync provides dedicated high-speed incremental cloud storage. You can activate Sync via the [Account Dashboard](https://eidos.space/account) or the [Pricing Page](https://eidos.space/pricing).
-- If your Sync subscription ever lapses, **your local files, tables, and version histories remain completely safe and accessible on your local hard drive**.
+Check the [account dashboard](https://eidos.space/account) for your current
+plan and storage allowance. Losing access to Sync does not remove the
+local files already on your device.

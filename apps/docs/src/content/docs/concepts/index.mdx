@@ -1,53 +1,59 @@
 ---
-title: Core Concepts
-description: Understand Spaces, Eidos Files, multiple views, and the local-first philosophy.
+title: How the pieces fit
+description: A Space contains files. An Eidos File contains tables. Views show their records.
 sidebar:
   order: 40
 ---
 
-Before diving into Eidos Lite, understanding these core concepts will help you effortlessly build personal databases, notes, and workflows.
+import FileMap from "../../../components/FileMap.astro"
+import ViewLab from "../../../components/ViewLab.astro"
 
----
+A **Space** is a local folder. An **Eidos File** is a structured document in that folder.
+A **table** groups records. A **view** selects and displays those records.
 
-## 1. Space (Your Workspace)
+## Follow one example
 
-**A Space is simply an ordinary local folder on your computer.**
+You want to track books and keep reading notes. Create a Space called
+`Research`. Put the book list in `books.eidos` and your notes in `notes.md`.
 
-- **Never proprietary**: Eidos Lite does not trap your files inside a locked database. You can open and inspect this folder in your operating system (Finder or File Explorer) at any time.
-- **Mix and match**: In the same Space, you can store `.eidos` database files, Markdown notes, PDFs, images, and other everyday files side by side.
-- **Portable**: You can move or copy your Space folder to an external SSD, USB drive, or cloud backup, and everything remains completely intact.
+<FileMap />
 
----
+The folder remains accessible in your file manager. Opening it in Eidos Lite
+does not convert your other documents into database records.
 
-## 2. Eidos File (`.eidos` Documents)
+## Inside an Eidos File
 
-**An `.eidos` file is a lightweight, self-contained structured document.**
+| Part | What it does | Books example |
+| --- | --- | --- |
+| Table | Groups one kind of item | Books |
+| Field | Describes a property | Title, Status |
+| Record | Stores one item | One book |
+| Record Label Field | Supplies the record's displayed title | Title |
+| Saved view | Stores query and display settings | Books with Status = Reading |
 
-- **Single-file portability**: Each `.eidos` file packages your tables, field definitions, records, and view layouts into a single standalone file.
-- **Offline first, instant response**: Open and edit thousands of records locally in milliseconds, with zero network lag and no mandatory sign-in.
-- **Easy sharing**: Just like sharing a regular spreadsheet or text document, you can email or transfer an `.eidos` file to a colleague, who can open it immediately with all views and layouts preserved.
+The file stores the table structure, records, and saved views. A File field
+can reference an external attachment. Include that attachment when moving
+the file. See [data storage](/user-guide/data-safety/).
 
----
+## One table, several views
 
-## 3. Multiple Views
+A Grid displays rows. A Gallery displays cards. A Kanban groups records.
+These are ways to display table data. Creating another view does not copy
+the records.
 
-**Inspect the exact same data from different perspectives.**
+<ViewLab />
 
-In traditional tools, creating a board or gallery often requires duplicating data. In Eidos:
+Filtering changes which records you see. Editing a record changes its values.
+If an edit stops a record from matching a filter, it disappears from that
+view but remains in the table.
 
-- **Table Grid**: Designed for high-density editing, rapid data entry, and multi-column comparisons.
-- **Kanban Board**: Group records into visual columns by single-select fields (e.g. "To Do", "In Progress", "Done") with drag-and-drop status updates.
-- **Card Gallery**: Feature cover images or attachment thumbnails to build a visual card showcase.
-- **Calendar**: Plot dates and milestones directly onto a clean monthly or weekly calendar.
+## Choose a way to open the file
 
-All views point to the exact same underlying records. Edits made in one view update across all other views in real time, with **zero duplicated copies**.
+- **Eidos Lite:** work with a folder, notes, files, local history, and optional Sync.
+- **Web Editor:** open one Eidos File in a browser. Check its save state before closing.
+- **CLI:** inspect, query, and change files from scripts. Use `eidos serve` for a local editor.
 
----
+Local work does not require an account. Sync and Publish are separate,
+optional services. [Compare saving, history, Sync, and backups](/user-guide/data-safety/).
 
-## 4. Local-First & Data Ownership
-
-**Your data stays strictly under your control.**
-
-- **Always usable offline**: You don't need to create an account or connect to a cloud service for everyday use.
-- **Built-in version history**: Snapshots let you travel back in time to any previous state without needing an account.
-- **Optional cloud superpowers**: When you need to work across multiple laptops, enable Sync. When you want to share a note or form with others, publish it as a live web page with one click.
+Next: [create a book table](/user-guide/eidos-file-basics/).

@@ -1,102 +1,36 @@
 ---
-title: Eidos Lite 用户指南
-description: 安装桌面应用，管理本地 Space，使用结构化表格、多重视图以及同步发布服务。
+title: 使用本地文件
+description: 创建表、查找记录，并让工作可以恢复。
 sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+Eidos Lite 把本地文件夹作为 **Space** 打开。
+把 `.eidos` 文件、Markdown 笔记和附件放在一起。本地使用无需登录。
 
-**Eidos Lite** 是为你电脑上的文件夹提供结构化数据管理、多重视图与笔记编辑能力的桌面应用。
+## 从建立书单开始
 
-你的 Space 就是一个普通的本地文件夹，可以自由混合存放 `.eidos` 表格、Markdown 文档、图片与各种日常文件。本地使用完全免登录，断网也能流畅使用。
+先[安装并打开 Space](/zh-cn/getting-started/eidos-lite/)，
+再[创建第一张表](/zh-cn/user-guide/eidos-file-basics/)。
+教程用同一个例子介绍字段、记录和视图。
 
-## 快速起步
+## 按任务查找
 
-<CardGrid>
-  <LinkCard
-    title="安装与界面概览"
-    description="下载应用，认识主界面布局，并开启第一个 Space。"
-    href="/zh-cn/getting-started/eidos-lite/"
-  />
-  <LinkCard
-    title="核心概念"
-    description="理解 Space、Eidos File、多重视图与本地优先的设计理念。"
-    href="/zh-cn/concepts/"
-  />
-  <LinkCard
-    title="Web 浏览器版"
-    description="无需安装客户端，直接在浏览器中打开并编辑单个 Eidos 文件。"
-    href="/zh-cn/getting-started/browser/"
-  />
-</CardGrid>
+| 任务 | 指南 |
+| --- | --- |
+| 理解文件、表和视图 | [核心概念](/zh-cn/concepts/) |
+| 选择字段类型，关联不同表 | [表与字段](/zh-cn/user-guide/tables-and-fields/) |
+| 计算字段值 | [公式表达式](/zh-cn/user-guide/formula/) |
+| 输入或修改记录 | [日常编辑](/zh-cn/user-guide/records-and-editing/) |
+| 查找和显示部分记录 | [视图、筛选与排序](/zh-cn/user-guide/views-and-querying/) |
+| 导入或导出表格数据 | [导入与导出](/zh-cn/user-guide/import-and-export/) |
+| 给普通文件添加标签 | [文件元数据](/zh-cn/user-guide/file-metadata/) |
 
-## 结构化数据与表格
+## 让工作可以恢复
 
-<CardGrid>
-  <LinkCard
-    title="从一份 Eidos File 开始"
-    description="理解数据表、字段、记录与多重视图的核心工作流。"
-    href="/zh-cn/user-guide/eidos-file-basics/"
-  />
-  <LinkCard
-    title="数据表与字段设计"
-    description="掌握文本、单选、评分、日期与跨表关联等丰富字段类型。"
-    href="/zh-cn/user-guide/tables-and-fields/"
-  />
-  <LinkCard
-    title="记录与日常编辑"
-    description="键盘高效流转、展开卡片详情、拖拽添加附件与撤销重做。"
-    href="/zh-cn/user-guide/records-and-editing/"
-  />
-  <LinkCard
-    title="多重视图与高级筛选"
-    description="在表格、看板、画廊与日历之间自由切换，搭配多条件筛选。"
-    href="/zh-cn/user-guide/views-and-querying/"
-  />
-  <LinkCard
-    title="公式与自动计算"
-    description="使用直观的表达式与内置函数实现自动统计与文本拼接。"
-    href="/zh-cn/user-guide/formula/"
-  />
-  <LinkCard
-    title="文件元数据管理"
-    description="在当前文件夹直接以表格管理文件属性，多层级文件夹各自独立。"
-    href="/zh-cn/user-guide/file-metadata/"
-  />
-  <LinkCard
-    title="导入与导出"
-    description="从 CSV 一键迁移数据，将视图或整表导出为标准 CSV。"
-    href="/zh-cn/user-guide/import-and-export/"
-  />
-</CardGrid>
+先了解[数据存储与备份](/zh-cn/user-guide/data-safety/)，
+再学习[保存和恢复版本](/zh-cn/user-guide/history-and-recovery/)。
 
-## 数据安全与云端服务
-
-<CardGrid>
-  <LinkCard
-    title="数据、附件与物理备份"
-    description="了解数据与附件保存在哪里，以及如何安全地进行物理备份。"
-    href="/zh-cn/user-guide/data-safety/"
-  />
-  <LinkCard
-    title="版本与时光机恢复"
-    description="本地免登录保存 Space 历史快照，随时一键回滚任意状态。"
-    href="/zh-cn/user-guide/history-and-recovery/"
-  />
-  <LinkCard
-    title="在设备间同步（Sync）"
-    description="开启云同步服务，在多台电脑之间无缝使用同一个 Space。"
-    href="/zh-cn/user-guide/sync/"
-  />
-  <LinkCard
-    title="发布文件与表单（Publish）"
-    description="将文档、表格或表单一键生成在线网页，随时与他人分享。"
-    href="/zh-cn/user-guide/publishing/"
-  />
-  <LinkCard
-    title="常见问题与快捷键"
-    description="常见交互提示的解决方法、常用快捷键速查与诊断指引。"
-    href="/zh-cn/user-guide/troubleshooting/"
-  />
-</CardGrid>
+通过 [Sync](/zh-cn/user-guide/sync/)在不同设备上工作。
+通过[发布](/zh-cn/user-guide/publishing/)把选定内容分享为托管页面。
+文件或操作遇到问题时，查看[故障排查](/zh-cn/user-guide/troubleshooting/)。

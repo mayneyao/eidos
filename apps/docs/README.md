@@ -55,6 +55,22 @@ specification routes, and the production search index input.
 
 ## Writing rules
 
+- Use a controlled-language style, without claiming ASD-STE100 compliance:
+  short sentences, one instruction per step, active verbs, and consistent terms.
+- Teach one concrete task before listing features. Include the expected result
+  so readers can check their work.
+- Use the same Books example across the introductory reading path. Keep English
+  and Simplified Chinese explanations and examples aligned.
+- Show relationships with `FileMap`, view behavior with `ViewLab`, and data
+  destinations with `DataChoices` from `src/components`. These components accept
+  `lang="zh-cn"`; English is the default. Keep examples explicitly separate from
+  the product: they do not open files, persist changes, or implement Runtime rules.
+- Use interaction only when it explains a change. Keep the explanation readable
+  without JavaScript, with native controls and keyboard access. Do not autoplay
+  animation or require audio to understand a guide.
+- Keep API contracts and specification text precise. Put long reference material
+  after the example, not in the first paragraph. Do not simplify normative text
+  by editing generated specification pages.
 - Lead with a reader outcome, then explain the model behind it.
 - Mark availability honestly. A roadmap feature is not an install instruction.
 - Prefer executable commands and name the expected result.

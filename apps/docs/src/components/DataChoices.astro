@@ -1,0 +1,33 @@
+---
+interface Props { lang?: "en" | "zh-cn" }
+const zh = Astro.props.lang === "zh-cn"
+const choices = zh ? [
+  ["保存", "编辑 → 本机文件", "保留当前工作。Eidos Lite 将已提交的编辑写入本地文件；网页编辑器需要检查保存状态。"],
+  ["版本", "本机文件 → 本机历史", "回看或恢复已记录的状态。先启用版本管理，再保存有意义的节点。历史与文件在同一台设备上。"],
+  ["Sync", "本机 ↔ 云端 ↔ 另一台设备", "在设备之间同步 Space。需要账户和网络；离线时仍可编辑本地文件。"],
+  ["发布", "选定内容 → 托管页面 → 读者", "分享可访问的页面。修改本地内容后，重新发布才会更新网页。"],
+  ["备份", "完整 Space → 独立存储", "应对设备丢失或磁盘故障。包含引用的附件，并检查副本能否恢复。"],
+] : [
+  ["Save", "Edit → local file", "Keep current work. Eidos Lite writes committed edits to local files. In the Web Editor, check the save state."],
+  ["Versions", "Local files → local history", "Review or restore recorded states. Enable versioning, then save useful milestones. History lives on the same device."],
+  ["Sync", "This device ↔ cloud ↔ another device", "Keep a Space on multiple devices. Sync needs an account and a connection. Local editing remains available offline."],
+  ["Publish", "Selected content → hosted page → reader", "Share a page others can open. Republish after local edits to update the hosted page."],
+  ["Backup", "Whole Space → independent storage", "Recover after device loss or drive failure. Include referenced attachments and check that you can restore the copy."],
+]
+---
+<section class="data-choices" aria-label={zh ? "数据去向" : "Where data goes"}>
+  <p>{zh ? "展开一项，看数据去了哪里。" : "Open a row to follow the data."}</p>
+  {choices.map(([title, flow, explanation], index) => <details open={index === 0}>
+    <summary>{title}</summary><div class="data-flow">{flow}</div><p>{explanation}</p>
+  </details>)}
+</section>
+<style>
+  .data-choices { margin-block: 2rem; }
+  .data-choices > p { font-size: var(--sl-text-sm); color: var(--sl-color-gray-2); }
+  details { border-top: 1px solid var(--sl-color-gray-5); padding: 1rem 0; }
+  details:last-child { border-bottom: 1px solid var(--sl-color-gray-5); }
+  summary { cursor: pointer; font-weight: 600; }
+  summary:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 4px; }
+  .data-flow { margin-top: 1rem; font-weight: 600; color: var(--sl-color-text-accent); }
+  details p { margin-bottom: 0; max-width: 60ch; }
+</style>

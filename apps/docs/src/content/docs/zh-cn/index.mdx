@@ -1,66 +1,40 @@
 ---
 title: Eidos 文档
-description: 从安装到进阶使用，学习 Eidos Lite、Eidos CLI、Eidos 插件以及规范。
+description: 看懂文件结构，选择适合你的使用方式。
 template: splash
 hero:
-  title: Eidos 文档
-  tagline: 从安装到进阶使用，学习 Eidos Lite、Eidos CLI、Eidos 插件以及规范。
+  title: 文件在本地，内容更清楚。
+  tagline: 把笔记、表格和附件放在同一个文件夹里。从一个具体例子开始，理解 Eidos，再动手使用。
   actions:
-    - text: 查看用户手册
-      link: /zh-cn/user-guide/
+    - text: 从一个文件开始
+      link: /zh-cn/getting-started/
       icon: right-arrow
     - text: 阅读文件规范
       link: /zh-cn/specifications/
       variant: minimal
 ---
 
-<section class="docs-home-index">
-  <h2 id="documentation-paths">选择文档模块</h2>
-  <nav aria-labelledby="documentation-paths" class="docs-home-index__list">
-    <a href="/zh-cn/user-guide/" class="docs-home-index__item">
-      <span class="docs-home-index__number">01</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos Lite</strong>
-        <span>安装桌面应用，管理本地 Space，并按需使用版本、同步与发布。</span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/zh-cn/cli/" class="docs-home-index__item">
-      <span class="docs-home-index__number">02</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos CLI</strong>
-        <span>安装命令行工具，创建、查询和自动化处理 Eidos File。</span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/zh-cn/plugins/" class="docs-home-index__item">
-      <span class="docs-home-index__number">03</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos 插件</strong>
-        <span>使用格式化工具、命令、文档视图和独立页面扩展 Space。</span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/zh-cn/specifications/" class="docs-home-index__item">
-      <span class="docs-home-index__number">04</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos File 规范</strong>
-        <span>阅读文件格式、Runtime、Adapter 和界面的兼容性契约。</span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-  </nav>
-  <p class="docs-home-index__secondary">
-    {"只需打开一个文件？直接使用 "}
-    <a href="/zh-cn/getting-started/browser/">{"网页编辑器"}</a>
-    {"，无需安装。"}
-  </p>
-</section>
+import FileMap from "../../../components/FileMap.astro"
+
+<div class="docs-home-index">
+
+## 先看文件里有什么
+
+**Eidos File** 是基于 SQLite 的文件格式，保存表、记录和视图。
+**Eidos Lite** 是桌面应用，用来打开包含这些文件、笔记和其他文档的文件夹。
+这个文件夹叫作 **Space**。
+
+<FileMap lang="zh-cn" />
+
+## 接下来做什么
+
+<nav class="docs-home-index__list" aria-label="文档阅读路径">
+  <a href="/zh-cn/getting-started/eidos-lite/" class="docs-home-index__item"><span class="docs-home-index__number">01</span><span class="docs-home-index__copy"><strong>管理本地文件夹</strong><span>安装 Eidos Lite，打开 Space，创建第一个文件。</span></span><span aria-hidden="true">→</span></a>
+  <a href="/zh-cn/getting-started/browser/" class="docs-home-index__item"><span class="docs-home-index__number">02</span><span class="docs-home-index__copy"><strong>在浏览器里打开文件</strong><span>无需安装应用，直接试用网页编辑器。</span></span><span aria-hidden="true">→</span></a>
+  <a href="/zh-cn/cli/" class="docs-home-index__item"><span class="docs-home-index__number">03</span><span class="docs-home-index__copy"><strong>让命令行完成重复工作</strong><span>使用 CLI 创建、查询和验证文件。</span></span><span aria-hidden="true">→</span></a>
+  <a href="/zh-cn/plugins/" class="docs-home-index__item"><span class="docs-home-index__number">04</span><span class="docs-home-index__copy"><strong>在 Eidos 中开发工具</strong><span>通过插件添加文件编辑器、独立页面或命令。</span></span><span aria-hidden="true">→</span></a>
+</nav>
+
+已经在使用 Eidos？查看[使用指南](/zh-cn/user-guide/)，或了解[数据存储与备份](/zh-cn/user-guide/data-safety/)。
+
+</div>

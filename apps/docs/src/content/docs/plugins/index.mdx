@@ -1,28 +1,45 @@
 ---
-title: Eidos Plugins
-description: Add file editors, independent pages and automation to Eidos.
+title: Add a tool with a plugin
+description: Choose a page or file View, build a text reader, and install it in a Space.
 sidebar:
   order: 1
 ---
 
-Plugins let you build file editors, dashboards and tools inside Eidos. You can give CSV files a spreadsheet interface, add a project overview page, or run a command that processes selected records.
+A plugin adds an interface or operation to Eidos.
+For example, build a reader for text files, a project overview page, or a
+command that processes selected records.
 
-## Choose how your view opens
+## Choose where the View opens
 
-A **page view** is an independent tool opened from the sidebar. Use it for a project home, journal index or workspace dashboard.
+| View kind | Opens from | Example |
+| --- | --- | --- |
+| `page` | Sidebar navigation | A project overview |
+| `file` | A file, or a table inside an Eidos File | A text reader or table visualization |
 
-A **file view** opens with a file and displays or edits its contents. Use it for a text editor, media player, or a visualization of a table inside an Eidos file.
+A page opens independently. A file View receives the file it is bound to.
+These are the two View kinds.
+A plugin can also provide commands, shortcuts, and document formatting.
+Theme packages provide light and dark palettes for Lite.
 
-One plugin can provide several views alongside commands, keyboard shortcuts and document formatting. You can also create a theme package with light and dark palettes for Eidos Lite.
+## Build a working example
 
-## Start building
+Follow [Create your first plugin](/plugins/guide/).
+You will declare a text reader, load its source in Lite, and check that it
+updates when the file changes.
 
-[Create your first plugin](/plugins/guide/) walks through a text reader: declare the view, build its interface, open it in Eidos Lite and observe content changes. You can load this example directly from source.
+Then read [plugin concepts](/plugins/concepts/) to understand data access and
+lifetime. Use the [API reference](/plugins/api/) for exact methods and types.
 
-Then read [core concepts](/plugins/concepts/) to understand how views connect to files and data, use the [API reference](/plugins/api/) to look up methods, and follow [development and distribution](/plugins/workflow/) to package your plugin for others.
+## Install a package
 
-## Install and use
+1. Install an `.eidos-plugin` package through Lite's Plugin Manager.
+2. Review its requested access.
+3. Enable it for the current Space.
+4. Open the entry point it declares.
 
-Plugins are distributed as `.eidos-plugin` files. Install one through Eidos Lite's Plugin Manager, then enable it for a Space. File views appear in **Open with**, pages appear in sidebar navigation, and commands run from entry points such as the command palette.
+File Views appear in **Open with**. Page Views appear in navigation.
+Commands use their declared entry points, such as the command palette.
 
-You can use a plugin in several Spaces. Each Space keeps its own enablement and plugin settings. Themes apply throughout Eidos Lite.
+Each Space keeps its own plugin enablement and settings.
+Themes apply throughout Eidos Lite.
+Follow [development and distribution](/plugins/workflow/) to package your work.

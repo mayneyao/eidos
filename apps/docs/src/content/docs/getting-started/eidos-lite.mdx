@@ -1,62 +1,49 @@
 ---
-title: Installation & Interface Overview
-description: Download Eidos Lite, tour the main workspace interface, and open your first Space.
+title: Open your first Space
+description: Install Eidos Lite, open a local folder, and create an Eidos File.
 sidebar:
   order: 10
 ---
 
-Eidos Lite is a focused desktop application that brings structured data, visual tables, and versatile note-taking to your local folders. It runs completely offline without requiring an account.
+import FileMap from "../../../components/FileMap.astro"
 
----
+Eidos Lite is the desktop app for working with local files.
+You can open a Space and edit its files without an account or internet connection.
 
-## 1. Download & Installation
+## Install Eidos Lite
 
-Visit the [official download page](https://eidos.space/download) to get the installer for your system:
+Get the package for your system from the [download page](https://eidos.space/download).
+Install it, then open Eidos Lite.
 
-- **macOS**: Native packages for both Apple Silicon (M series) and Intel Macs. Simply drag Eidos Lite into your Applications folder.
-- **Windows**: Download the installer and follow the standard setup wizard.
-- **Linux**: Available as `.deb` packages and standalone archives.
+## Open a folder
 
----
+Choose **New Space** to start in a new folder, or **Open Space** to use an
+existing folder. For this example, use a folder named `Research`.
 
-## 2. Open Your First Space
+**Check:** the sidebar shows the contents of that folder.
 
-When you launch Eidos Lite, choose one of two options on the welcome screen:
+<FileMap />
 
-- **New Space**: Pick or create an empty local folder to start a fresh workspace.
-- **Open Space**: Select an existing folder on your machine (such as an existing projects or documents folder).
+The diagram shows a possible folder after you add a book list, a note, and an
+image. Opening a Space does not create those example files.
 
-:::tip[A Space is Just an Ordinary Folder]
-The folder you select remains completely standard in your operating system. Eidos never converts it into a locked database. You can open and edit files directly in macOS Finder or Windows File Explorer at any time.
-:::
+## Create an Eidos File
 
----
+1. Open **New File** in the sidebar.
+2. Choose **Eidos** and name the file `books.eidos`.
+3. Open the file in the editor.
 
-## 3. Interface Overview
+**Check:** the sidebar contains `books.eidos`, and the editor displays the file.
 
-Eidos Lite is organized into four core functional zones:
+## Find your way around
 
-1. **Left Workspace Sidebar**:
-   - Navigate your folder tree with collapsible hierarchies.
-   - Quick action buttons at the top: **New Eidos File**, **New Markdown Note**, and **New Folder**.
-   - Right-click any file or folder to rename, reveal in your operating system, publish, or delete.
-   - Access **Plugin Manager** and **App Settings** from the bottom.
-2. **Tabs Bar**:
-   - Seamlessly switch between multiple open `.eidos` tables, Markdown notes, and sub-views just like in a modern code editor or web browser.
-3. **Main Editor Canvas**:
-   - When viewing an `.eidos` file, easily switch between Grid, Gallery, Kanban, and Calendar views with intuitive column customization panels.
-   - When viewing a `.md` file, enjoy an instant, distraction-free Markdown writing environment.
-4. **Action Bar (Top Right)**:
-   - **Version History (Clock Icon)**: Snapshot and restore states in your local workspace time machine.
-   - **Cloud Sync (Cloud Icon)**: Multi-device sync indicator and controls.
-   - **Publish (Rocket Icon)**: Share documents or form views as live web pages with one click.
+| Area | Use it to |
+| --- | --- |
+| Sidebar | Open, create, rename, or move files in the Space |
+| Tabs | Return to an open file |
+| Editor | Read notes or work with table records |
+| Versions | Review changes and saved history |
+| Sync | Check optional cross-device synchronization |
 
----
-
-## 4. Quick 3-Step Start
-
-1. Click the **New File** button in the sidebar and choose **Eidos**.
-2. Name your file (e.g. `Tasks.eidos` or `Projects.eidos`) and press Enter.
-3. In the opened table, double-click the first row to start typing, or click the **+** button on the far right of the header to add new custom columns.
-
-Next, read [Getting Started with Eidos Files](/user-guide/eidos-file-basics/) to learn how to design tables and views for your everyday workflows.
+Continue with [Create a book list](/user-guide/eidos-file-basics/).
+Before moving a Space to another drive, read [data storage and backups](/user-guide/data-safety/).

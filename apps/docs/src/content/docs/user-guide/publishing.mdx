@@ -1,76 +1,68 @@
 ---
-title: Publish Documents & Forms
-description: Publish Space files or form views as beautiful live web pages to share with anyone.
+title: Share a published copy
+description: Publish a file or form, check access, and update the hosted copy.
 sidebar:
   order: 85
-  badge:
-    text: Free + Pro
-    variant: note
 ---
 
-import { Badge } from "@astrojs/starlight/components"
+Publish creates a hosted page from selected content in your Space.
+Your computer can go offline after publication.
+Local edits reach the hosted page only when you republish.
 
-<Badge
-  text="Markdown Public Free · Advanced Features with Pro"
-  variant="note"
-/>
+## Publish a file
 
-**Eidos Publish** lets you instantly publish a single Markdown document, read-only data table, or response-collection form from your Space into a standalone web page accessible in any browser.
+1. Right-click a Markdown or Eidos File in the sidebar.
+2. Choose **Publish…**.
+3. Set the URL path and access mode.
+4. Review the content and choose **Publish**.
+5. Open the returned link and check the result.
 
-Once published, your computer does not need to stay online, and visitors do not need to install software or register an account to view your shared links.
+| Access mode | Who can open the page |
+| --- | --- |
+| Public | Anyone with access to the URL |
+| Password | Visitors who provide the password |
+| Private | The signed-in publisher |
 
----
+Available modes depend on the content and service plan.
+A published Eidos File is read-only for visitors; browsing it does not edit
+your local file.
 
-## 1. Publish a Document in Seconds
+## Collect form responses
 
-1. In the sidebar file tree, right-click the file you wish to publish (`.md` notes or `.eidos` files).
-2. Select **Publish…** from the context menu.
-3. **Custom URL (Slug)**: The staging build defaults to the full path relative to your Space root, including the extension (e.g. `notes/project.md`). You can change it to a custom path such as `project-roadmap` or `projects/roadmap`. Changing the URL does not change the file path provided to a plugin View.
-4. **Access Control**:
-   - **Public**: Anyone with the link can view.
-   - **Password**: Visitors must enter your password to view.
-   - **Private**: Accessible only to the signed-in publisher.
-5. Click **Publish**. Within seconds, a live link is generated—ready to be copied and shared with clients or colleagues.
+1. Create a Form view in the table.
+2. Open **Publish…** for the Eidos File.
+3. Under **Publish as**, select the form.
+4. Configure submission access and publish.
+5. Submit a test response through the hosted form.
+6. Open **Manage Publish…** in Lite and choose **Collect now**.
 
-:::tip[Visitors Cannot Alter Your Local Files]
-When publishing an `.eidos` table, visitors enjoy an interactive read-only experience. They can filter, sort, and browse cards, but can never modify your underlying local files.
-:::
-
----
-
-## 2. Publish Forms to Collect Responses
-
-If your `.eidos` table includes a **Form view**, you can publish it online to collect survey results, bug reports, or event registrations:
-
-1. Right-click the `.eidos` file and select **Publish…**.
-2. Under **Publish as**, select the desired Form view.
-3. Configure submission permissions and your custom URL slug, then click **Publish**.
-4. Anyone on a mobile or desktop browser can fill out and submit the form.
-5. **Collect Responses**: In Eidos Lite, right-click the file, select **Manage Publish…**, and click **Collect now** to import new online submissions directly into your local table!
-
----
+**Check:** the submitted response appears in the local table.
+Publishing a form and collecting its responses are separate operations.
 
 ## Ordinary files and plugin Views (staging preview)
 
-In the staging build, right-click an ordinary file and select **Publish…**.
-**Publish as** defaults to a download. If an enabled plugin provides a matching
-read-only file View, select it to publish an interactive page instead—for
-example, a GPX track as a map. A different slug lets you keep both links.
+The staging build can publish an ordinary file as a download.
+If an enabled plugin provides a compatible read-only file View, select it
+under **Publish as** to render the file as a page.
 
-This Pro preview snapshots the file and plugin together. Visitors do not need
-to install the plugin. Updates remain local until you republish. Views can
-read only the published file; each source file and plugin package must fit the
-16 MiB limit. See the [CLI guide](/cli/publish/#ordinary-files-and-plugin-views-staging-preview)
-for compatibility requirements.
+This Pro preview snapshots the source file and plugin together.
+Each must fit the 16 MiB limit. The View can read only the published file.
+Visitors do not need to install the plugin.
+See the [CLI compatibility requirements](/cli/publish/#ordinary-files-and-plugin-views-staging-preview).
 
-## 3. Updating and Unpublishing
+## Update or remove the page
 
-- **Intentional Updates**: Local edits are kept local until you are ready, preventing drafts from prematurely leaking. Right-click the file, open **Manage Publish…**, and click republish. **Your existing web URL remains identical.**
-- **Instant Takedown**: You can pause or unpublish any link anytime from the Manage Publish dialog.
+Open **Manage Publish…** to republish after local changes.
+Republishing updates the hosted content at the existing URL.
+Use the management controls to unpublish a page when it should no longer
+be available.
 
----
+**Check:** open the URL after each operation to verify the intended state.
 
-## 4. Plans & Capabilities
+## Check service access
 
-- **Publish Free**: Available to all verified Eidos accounts. Publish up to 10 active public Markdown pages.
-- **Publish Pro**: Unlocks interactive `.eidos` files, online form collections, and password protection. Manage subscriptions on your [Account Dashboard](https://eidos.space/account) or [Pricing Page](https://eidos.space/pricing#publish).
+Publishing requires an eligible account and plan.
+Check the [account dashboard](https://eidos.space/account) for available
+features and current limits.
+
+For sharing an editable local file instead, read [data storage and attachments](/user-guide/data-safety/).

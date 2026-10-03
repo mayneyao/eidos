@@ -1,0 +1,52 @@
+---
+import { FileTree } from "@astrojs/starlight/components"
+
+interface Props {
+  lang?: "en" | "zh-cn"
+}
+
+const zh = Astro.props.lang === "zh-cn"
+---
+
+<figure>
+  <figcaption>
+    {zh ? "一个 Space，几种普通文件" : "One Space. Ordinary files."}
+  </figcaption>
+  <FileTree>
+    <ul>
+      <li>
+        <span>Research/</span>
+        <span>{zh ? "Space · 本地文件夹" : "Space · a local folder"}</span>
+        <ul>
+          <li>
+            <strong>books.eidos</strong>
+            <span>{zh ? "表、字段、记录和视图" : "Tables, fields, records, and views"}</span>
+          </li>
+          <li>
+            <span>notes.md</span>
+            <span>{zh ? "Markdown 笔记" : "Markdown notes"}</span>
+          </li>
+          <li>
+            <span>assets/</span>
+            <ul>
+              <li>
+                <span>cover.jpg</span>
+                <span>{zh ? "书单引用的封面图片" : "A cover image referenced by the book list"}</span>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </FileTree>
+  <p>
+    {zh
+      ? "books.eidos 中的 Books 表包含 Title、Status 等字段，每条记录代表一本书。“正在读”视图保存筛选和布局。"
+      : "Inside books.eidos, the Books table has fields such as Title and Status. Each record represents a book. The Reading view saves its filter and layout."}
+  </p>
+  <p>
+    {zh
+      ? "移动数据时，也带上它引用的本地文件。"
+      : "When you move the data, include its referenced local files."}
+  </p>
+</figure>

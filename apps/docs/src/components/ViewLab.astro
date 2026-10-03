@@ -1,0 +1,95 @@
+---
+interface Props { lang?: "en" | "zh-cn" }
+const zh = Astro.props.lang === "zh-cn"
+const books = [
+  { title: "The Little Prince", author: "Antoine de Saint-Exupéry", done: false },
+  { title: "A Room of One’s Own", author: "Virginia Woolf", done: true },
+  { title: "Walden", author: "Henry David Thoreau", done: false },
+]
+---
+
+<view-lab data-lang={zh ? "zh-cn" : "en"} data-layout="grid">
+  <div class="lab-heading"><strong>{zh ? "试一试：同一组记录，不同的视图" : "Try it: same records, different views"}</strong><span>{zh ? "教学示例 · 不会修改你的文件" : "Learning example · does not change your files"}</span></div>
+  <form class="lab-controls" hidden>
+    <label>{zh ? "布局" : "Layout"}<select name="layout"><option value="grid">Grid</option><option value="gallery">Gallery</option></select></label>
+    <label class="lab-filter"><input type="checkbox" name="unfinished" />{zh ? "只看未读完" : "Show unfinished only"}</label>
+    <button type="reset">{zh ? "重置" : "Reset"}</button>
+  </form>
+  <ul class="lab-records" aria-label={zh ? "Books 示例表" : "Example Books table"}>
+    {books.map((book, index) => <li data-record>
+      <div><span class="lab-number" aria-hidden="true">0{index + 1}</span><strong>{book.title}</strong><span class="lab-author">{book.author}</span></div>
+      <label><input type="checkbox" data-done checked={book.done} disabled /><span>{zh ? "已读完" : "Finished"}</span><span class="sr-only">: {book.title}</span></label>
+    </li>)}
+  </ul>
+  <p class="lab-empty" hidden>{zh ? "没有符合条件的记录。取消筛选即可看到全部记录。" : "No matching records. Clear the filter to see them all."}</p>
+  <p class="lab-result" role="status" aria-live="polite" aria-atomic="true">{zh ? "显示 3 / 3 条记录。切换布局不会复制数据。" : "Showing 3 of 3 records. Switching layouts does not copy data."}</p>
+  <noscript><p>{zh ? "启用 JavaScript 可操作此示例。筛选只隐藏记录；勾选“已读完”才会修改示例值。" : "Enable JavaScript to use this example. Filtering only hides records; checking Finished changes an example value."}</p></noscript>
+</view-lab>
+
+<script>
+  class ViewLab extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.ready) return
+      this.dataset.ready = "true"
+      const form = this.querySelector<HTMLFormElement>("form")!
+      const layout = form.elements.namedItem("layout") as HTMLSelectElement
+      const filter = form.elements.namedItem("unfinished") as HTMLInputElement
+      const rows = Array.from(this.querySelectorAll<HTMLLIElement>("[data-record]"))
+      const result = this.querySelector<HTMLElement>(".lab-result")!
+      const empty = this.querySelector<HTMLElement>(".lab-empty")!
+      const zh = this.dataset.lang === "zh-cn"
+      form.hidden = false
+      rows.forEach(row => { row.querySelector<HTMLInputElement>("input")!.disabled = false })
+      const update = () => {
+        this.dataset.layout = layout.value
+        let visible = 0
+        for (const row of rows) {
+          row.hidden = filter.checked && row.querySelector<HTMLInputElement>("input")!.checked
+          if (row.hidden && row.contains(document.activeElement)) filter.focus()
+          if (!row.hidden) visible++
+        }
+        empty.hidden = visible !== 0
+        result.textContent = zh
+          ? `显示 ${visible} / ${rows.length} 条记录。筛选只改变显示范围，记录仍在表中。`
+          : `Showing ${visible} of ${rows.length} records. Filtering changes what you see; the records stay in the table.`
+      }
+      this.addEventListener("change", update)
+      form.addEventListener("reset", (event) => {
+        event.preventDefault()
+        layout.value = "grid"
+        filter.checked = false
+        for (const row of rows) {
+          const input = row.querySelector<HTMLInputElement>("input")!
+          input.checked = input.defaultChecked
+        }
+        update()
+      })
+    }
+  }
+  if (!customElements.get("view-lab")) customElements.define("view-lab", ViewLab)
+</script>
+
+<style>
+  view-lab { display: block; margin-block: 2rem; border: 1px solid var(--sl-color-gray-4); }
+  .lab-heading { padding: 1.25rem; display: grid; gap: .25rem; }
+  .lab-heading > span, .lab-result, .lab-empty { font-size: var(--sl-text-sm); color: var(--sl-color-gray-2); }
+  .lab-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.25rem; background: var(--sl-color-gray-6); border-block: 1px solid var(--sl-color-gray-5); }
+  label { display: flex; align-items: center; gap: .5rem; font-size: var(--sl-text-sm); }
+  select, button { font: inherit; color: var(--sl-color-text); background: var(--sl-color-bg); padding: .35rem .6rem; border: 1px solid var(--sl-color-gray-4); border-radius: .25rem; }
+  button { margin-left: auto; cursor: pointer; }
+  input { accent-color: var(--sl-color-text-accent); width: 1rem; height: 1rem; }
+  :is(input, select, button):focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 3px; }
+  .lab-records { list-style: none; padding: 0; margin: 0; }
+  .lab-records li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.25rem; margin: 0; border-bottom: 1px solid var(--sl-color-gray-5); }
+  .lab-records li > div { min-width: 0; }
+  .lab-records strong { font-size: var(--sl-text-sm); overflow-wrap: anywhere; }
+  .lab-number { color: var(--sl-color-gray-3); font-size: .75rem; margin-right: .75rem; font-variant-numeric: tabular-nums; }
+  .lab-author { display: block; color: var(--sl-color-gray-2); font-size: .75rem; margin-top: .25rem; }
+  .lab-records label { flex-shrink: 0; }
+  [data-layout="gallery"] .lab-records { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 1rem; padding: 1.25rem; }
+  [data-layout="gallery"] li { flex-direction: column; align-items: flex-start; padding: 1rem; border: 1px solid var(--sl-color-gray-5); }
+  [data-layout="gallery"] .lab-number { display: block; margin-bottom: 1rem; }
+  .lab-result, .lab-empty { margin: 0; padding: 1rem 1.25rem; }
+  [hidden] { display: none !important; }
+  @media (max-width: 30rem) { .lab-records li { align-items: flex-start; flex-direction: column; } button { margin-left: 0; } }
+</style>

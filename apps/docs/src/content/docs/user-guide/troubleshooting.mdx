@@ -1,52 +1,54 @@
 ---
-title: Troubleshooting & FAQs
-description: Practical solutions to common prompts, keyboard shortcuts reference, and diagnostic logging.
+title: Resolve a file problem
+description: Check the cause, recover safely, and collect diagnostics when needed.
 sidebar:
   order: 80
 ---
 
-If you encounter unexpected prompts or questions while using Eidos Lite, refer to this guide to resolve them quickly.
+Start with the message shown by Eidos Lite. Use the matching case below.
 
----
+## File is in use or locked
 
-## 1. Frequently Encountered Questions
+Close other windows or tools that are writing to the same file, then retry.
+If the message remains, check whether another process still owns the file.
+Do not delete lock or database sidecar files to bypass the message.
 
-### "File is in use or locked"
-- **Cause**: Another window, an external SQLite utility, or a backup tool holds an exclusive lock on that `.eidos` file.
-- **Solution**: Close any external programs or duplicate windows accessing the file, wait two seconds, and re-open it in Eidos Lite.
+## A file or Space will not open
 
-### Space folder or file cannot be opened
-- **Check Paths & Permissions**: Verify that the folder has not been moved, renamed, or trashed in your operating system's file manager.
-- **Valid File Format**: `.eidos` files contain specialized database schemas. Renaming an arbitrary blank text file to `.eidos` will not make it readable.
+1. Check that the path still exists.
+2. Check that your account can read and write the folder.
+3. For an Eidos File, confirm that it was created as an Eidos File.
 
-### "Please save current changes first" when restoring or syncing
-- **Solution**: Click the clock icon in the top right to open Versions. Under **Changes**, click **Save version** (or discard temporary edits). Once saved, proceed with your restore or sync operation.
+Renaming an arbitrary file to `.eidos` does not create the required schema.
+If the file is damaged, preserve a copy before attempting repairs.
 
-### Accidental deletion: how to recover lost files?
-1. **Operating System Trash**: Files deleted from the Eidos Lite sidebar are sent to your operating system's Trash or Recycle Bin first. You can restore them from there.
-2. **Restore from Versions**: If you have versioning enabled, click the clock icon, locate an earlier snapshot containing the file in **History**, and click restore.
+## A record disappeared
 
----
+Clear temporary search and review the view's filters.
+An edit can make a record stop matching the current view.
+Check another unfiltered view before assuming the record was deleted.
 
-## 2. Keyboard Shortcuts Cheat Sheet
+## Restore or Sync asks you to save changes
 
-| Shortcut (macOS) | Shortcut (Windows/Linux) | Action |
-| :--- | :--- | :--- |
-| <kbd>⌘</kbd> + <kbd>N</kbd> | <kbd>Ctrl</kbd> + <kbd>N</kbd> | Open New File dialog |
-| <kbd>⌘</kbd> + <kbd>Enter</kbd> | <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Add new row below and begin editing |
-| <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> | <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> | Navigate to next / previous cell |
-| <kbd>Space</kbd> | <kbd>Space</kbd> | Toggle checkbox in selected cell |
-| <kbd>Esc</kbd> | <kbd>Esc</kbd> | Cancel cell editing and restore previous value |
-| <kbd>⌘</kbd> + <kbd>Z</kbd> | <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo last action |
-| <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> | <kbd>Ctrl</kbd> + <kbd>Y</kbd> | Redo |
+Review current work in **Versions → Changes**.
+Save a version when prompted, then retry the operation.
+Do not discard changes unless you intend to lose them.
 
----
+## Recover a deleted file
 
-## 3. Diagnostics & Contacting Support
+Check your operating system's Trash or Recycle Bin.
+If it is not there, look for a version or independent backup that contains it.
+Read the restore scope before confirming: restoring a Space affects more than
+the selected file. See [version recovery](/user-guide/history-and-recovery/).
 
-If you encounter an issue that cannot be resolved:
+## Collect diagnostics
 
 1. Open **Settings → About**.
-2. Click **Copy diagnostics**.
-3. If requested by the team, click **Show logs folder** to find detailed application logs.
-4. Visit [GitHub Issues](https://github.com/mayneyao/eidos/issues) and submit your feedback along with the diagnostic snippet.
+2. Choose **Copy diagnostics**.
+3. Record the steps that caused the problem and the message shown.
+4. Submit an issue on [GitHub](https://github.com/mayneyao/eidos/issues).
+
+Use **Show logs folder** if logs are needed. Review diagnostics and logs for
+private paths or content before sharing them.
+
+For editing keys, see [everyday editing](/user-guide/records-and-editing/).

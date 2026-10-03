@@ -1,50 +1,43 @@
 ---
-title: Import & Export
-description: Migrate tables from CSV spreadsheets and export views or full tables as standard CSV files.
+title: Move data with CSV
+description: Import spreadsheet rows and choose what to export.
 sidebar:
   order: 50
 ---
 
-Eidos Lite provides seamless interoperability with standard CSV formats, making it easy to migrate data from Excel, Numbers, Google Sheets, or other tools, and export reports for external use.
+Use CSV to exchange rows with other tools. Use an Eidos File, together with
+its referenced assets, to preserve the file's structure and saved views.
 
----
+## Import a new table
 
-## 1. Import a CSV as a New Table
+1. Export your source spreadsheet as CSV.
+2. In the Eidos File, open the add-table menu and choose **Import CSV**.
+3. Select the CSV file.
+4. Review the table name, Record Label Field, and inferred field types.
+5. Start the import.
 
-If you have existing spreadsheet data (exported from Excel, Google Sheets, or other databases as a `.csv` file), you can import it in seconds:
+**Check:** compare the imported row count and a few values with the source.
+Pay particular attention to dates, empty values, and codes with leading zeros.
+Use Text for a code such as `00127` if its zeros must be preserved.
 
-1. In your `.eidos` file, click the **+** button in the table tab bar and select **Import CSV**.
-2. Select your `.csv` file.
-3. **Review & Configure**:
-   - **Table Name**: Defaults to the CSV filename; adjust if desired.
-   - **Record Label Field**: Pick which column represents the primary title of each record (e.g. "Product Name" or "Contact Name").
-   - **Field Types**: Eidos automatically infers column data types (numbers, dates, text, checkboxes). Adjust any dropdown if needed.
-4. Click **Start Import** to convert your spreadsheet rows into structured Eidos records.
+CSV import does not infer a Select field's create-time default.
+Review imported empty values before continuing.
 
-Once imported, you can customize option colors for single-select columns, create Kanban views, or establish cross-table relationships.
+## Choose an export scope
 
----
+| What you need | Operation | Result |
+| --- | --- | --- |
+| A report from the current view | Export Current View to CSV | The view's selected records and displayed fields |
+| All records and fields in a table | Export Entire Table to CSV | Table data without the view's filter |
 
-## 2. Export Current View to CSV
+Open the relevant view or table menu to export. Open the resulting CSV and
+check the headers and row count before sending it to someone else.
 
-When you only need to export the subset of data filtered in a specific view (e.g. "Completed Tasks for August"):
+## Know what CSV leaves out
 
-1. Open your target view.
-2. Open the view menu in the top right and choose **Export Current View to CSV**.
-3. Eidos exports exactly what you see: honoring column order, visible fields, and active filters—ideal for sharing reports or feeding analytics tools.
+CSV stores flat values. It does not preserve the complete Eidos schema,
+saved layouts, formulas as working field definitions, relations, or attachment
+files. Exporting a CSV is not a complete backup.
 
----
-
-## 3. Export Full Table to CSV
-
-If you want all raw records from a table without view filters or hidden columns:
-
-1. Open the table menu.
-2. Select **Export Entire Table to CSV** and save the file to your computer.
-
----
-
-## 4. Comparing CSV to .eidos Files
-
-- **CSV is for Data Interchange**: CSV is a universal flat text format designed to move raw table rows between different software applications.
-- **.eidos is for Complete Workspaces**: A flat CSV cannot store your Kanban layouts, gallery covers, saved filter presets, formulas, cross-table relationships, or binary attachments. To back up or share your full workspace, **always copy the `.eidos` file itself**.
+To preserve your work, follow [data storage and backups](/user-guide/data-safety/).
+To refine a report first, see [views and filters](/user-guide/views-and-querying/).

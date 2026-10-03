@@ -1,61 +1,69 @@
 ---
-title: Views, Filters & Sorting
-description: Work with Grid, Kanban, Gallery, and Calendar views using compound filters and multi-level sorting.
+title: Find records with views
+description: Change layouts, filter records, and sort results without copying the table.
 sidebar:
   order: 40
 ---
 
-A **View** is a saved, tailored perspective on the exact same underlying table. Instead of duplicating records, you can create distinct views for specific daily workflows—such as "My Open Tasks", "High Priority", or "Weekly Archive".
+import ViewLab from "../../../components/ViewLab.astro"
 
-Editing a record in one view updates all other views immediately.
+A saved table view stores how to select and display records.
+Use separate views for recurring tasks, such as **Reading now** or **Finished books**.
 
----
+## Try the difference between hiding and editing
 
-## 1. Four Core View Types
+1. Turn on **Show unfinished only**. One record disappears.
+2. Switch to **Gallery**. The same two records appear as cards.
+3. Mark a visible book as **Finished**. It no longer matches the filter.
+4. Clear the filter. All three records are still there.
 
-Click the **+** button in the view bar to add a new view and switch between formats effortlessly:
+<ViewLab />
 
-| View Type | Best Used For | Key Features & Interaction |
-| :--- | :--- | :--- |
-| **Grid** | High-density data comparison, mass entry, bulk edits | Browse all columns just like a classic spreadsheet; freely resize and reorder columns. |
-| **Kanban** | Workflow pipelines, stage tracking, project tasks | Cards are grouped into columns by single-select fields (e.g. "Status"); drag cards across columns to advance progress. |
-| **Gallery** | Visual asset catalogs, portfolios, movie posters | Set cover images to an attachment field for a rich card wall. |
-| **Calendar** | Milestones, publishing schedules, event deadlines | Plot records onto a clean monthly or weekly calendar by any date field. Click any day cell to add a new event on that date. |
+This example illustrates the relationship between data and a view.
+It is not connected to an Eidos File.
 
-:::tip[Temporary Search vs Saved Views]
-- **Top Search Bar**: Perfect for quick, ephemeral lookups (e.g. finding a specific name or keyword). Clearing the search box restores the full saved view instantly.
-- **Saved Views**: When you configure recurring filters (e.g. "Status = In Progress AND Priority = High"), sorting rules, or hidden columns, these settings are **permanently saved** to the current view.
-:::
+## Choose a layout for the task
 
----
+| Layout | Use it to | Configure |
+| --- | --- | --- |
+| Grid | Compare fields and edit rows | Field order, widths, visibility |
+| Gallery | Browse records as cards | Card content and cover field |
+| Kanban | Group records by a state | A single-select grouping field |
+| Calendar | See records by date | A Date or Date & time field |
+| Form | Enter a new record | Questions and submission settings |
+| Feed | Read records in a stream | Fields to display |
 
-## 2. Powerful Compound Filters
+For layout contracts, see [Standard Views](/specifications/standard-views-1-0/).
+For plugin development, **page** and **file** are the two View kinds;
+they describe where a plugin opens. See [plugin concepts](/plugins/concepts/).
 
-Click the **Filter** button in the toolbar to craft precise queries:
+## Search for a quick lookup
 
-- **Filter Conditions**:
-  - **Match ALL conditions (AND)**: Records must satisfy every rule simultaneously.
-  - **Match ANY condition (OR)**: Records matching at least one rule are displayed.
-- **Dynamic Relative Dates**:
-  - Date fields support dynamic relative filtering: **is Today**, **is This Week**, **in the Past 7 Days**, or **in the Next Month**.
-  - Once saved, the view shifts automatically with the real-world calendar—giving you an up-to-date queue every morning without manual date adjustments.
+Use **Search** to find a title or keyword. Clear the search to return to the
+saved view's results. Save a filter when you need the same selection repeatedly.
 
----
+## Combine filters
 
-## 3. Multi-Level Sorting
+Open **Filter**. Choose how to combine conditions:
 
-Click the **Sort** button in the toolbar to organize records:
+| Rule | Example | Result |
+| --- | --- | --- |
+| ALL (AND) | Status is Reading AND Rating is 5 | Only books satisfying both |
+| ANY (OR) | Status is Reading OR Rating is 5 | Books satisfying either |
 
-- Add multiple sorting criteria in priority order. For example: first sort by **Due Date (Ascending)**, and for tasks due on the exact same day, secondary sort by **Priority (Descending)**.
-- Easily toggle between ascending and descending orders, or drag sorting rules to adjust their priority.
+A record that fails the filter remains in the table.
+When a date filter is relative, its results can change as the date changes.
 
----
+## Sort results
 
-## 4. Column Visibility & Card Customization
+Open **Sort** and add rules in priority order.
+For example, sort by Status first, then by Title.
+The second rule orders records with the same value for the first.
 
-To keep views focused and clutter-free, open the **Fields** menu:
+## Show the fields you need
 
-- **Toggle Visibility**: Hide auxiliary columns that are not relevant to the current task. Hiding a column only affects display in that view and never deletes data.
-- **Card Badges & Cover Aspect Ratio**: In Kanban and Gallery views, choose exactly which property badges show up on the front of cards (e.g. Assignee avatar, tags, and due date), and choose the ideal card cover aspect ratio.
+Open **Fields** to change visibility and field order.
+Hiding a field does not delete its values. For card layouts, configure card
+content and the cover separately. A hidden field is not shown on the card.
 
-Next, read [Import and Export](/user-guide/import-and-export/) to learn how to move data to and from CSV spreadsheets.
+Next: [export a view](/user-guide/import-and-export/).

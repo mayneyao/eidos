@@ -1,69 +1,64 @@
 ---
-title: Records & Everyday Editing
-description: Rapid keyboard data entry, expanded record cards, multi-cell pasting, attachments, and undo/redo.
+title: Edit records
+description: Enter values, follow relations, and check changes.
 sidebar:
   order: 30
 ---
 
-Each row of a table represents a concrete **record**. Whether viewing items horizontally in a grid or visually as cards on a Kanban board or gallery, you are editing the exact same underlying record.
+A record is one item in a table. The same record can appear as a Grid row,
+a Gallery card, or an item in another view.
 
----
+## Change a value
 
-## 1. Rapid Entry & Keyboard Navigation
+1. Select a cell in Grid.
+2. Press **Enter** or double-click to edit.
+3. Enter the new value and commit the edit.
+4. Check the displayed value.
 
-Eidos Lite provides fluid keyboard navigation tailored for fast and intuitive data entry:
+Use **Escape** to cancel the current cell edit. Use **Tab** and **Shift + Tab**
+to move between cells. A calculated field, such as Formula or Lookup, cannot
+be edited directly; change its inputs instead.
 
-- **Create New Record**: Press <kbd>⌘</kbd> + <kbd>Enter</kbd> on macOS (<kbd>Ctrl</kbd> + <kbd>Enter</kbd> on Windows/Linux) anywhere in the grid to immediately insert a new row below and focus the first editable cell.
-- **In-Cell Editing**:
-  - Select any cell and start typing, or press <kbd>Enter</kbd> to edit.
-  - Press <kbd>Esc</kbd> to cancel edits and revert to the previous value.
-  - Press <kbd>Tab</kbd> to move to the cell on the right, or <kbd>Shift</kbd> + <kbd>Tab</kbd> to move to the left.
-  - Checkbox cells: select the cell and press <kbd>Space</kbd> to toggle the check state instantly.
+## Add a record
 
----
+Use **Add record**, or **Cmd + Enter** on macOS and **Ctrl + Enter** on
+Windows/Linux in Grid. Enter a recognizable title in the Record Label Field.
 
-## 2. Multi-Cell Copy & Paste
+If a new record is missing from the current view, check the view's filters.
+The record may not match them.
 
-You can copy tabular data directly from Excel, Numbers, Google Sheets, or formatted plain text, select a starting cell in Eidos Lite, and press <kbd>⌘</kbd> + <kbd>V</kbd> (or <kbd>Ctrl</kbd> + <kbd>V</kbd>):
+## Paste a block of cells
 
-- Eidos cleanly maps clipboard rows and columns into matching cells.
-- Dates and numeric values are formatted and validated automatically.
-- For importing large datasets with dozens of columns, consider using the [CSV Import Wizard](/user-guide/import-and-export/).
+Copy rows and columns from a spreadsheet. Select the destination cell and
+paste. Check that the columns align and that dates and numbers have the
+intended values. For a whole dataset, use [CSV import](/user-guide/import-and-export/).
 
----
+## Read a long record
 
-## 3. Expand Full Record Details
+Use the row's expand control to open its details.
+This gives long text, relations, and attachments more room than a Grid cell.
 
-When a record contains long paragraphs, extensive task descriptions, or multiple attachments, reading inside a narrow spreadsheet cell can feel cramped.
+## Link to another record
 
-- **Expand Card**: Hover over the row number and click the **Expand** icon (or use the shortcut) to open the record's dedicated detail card in a side drawer or modal.
-- **Focused Reading & Notes**: All fields are presented in spacious, customizable sections where you can compose rich notes, manage relationships, and inspect full images.
+1. Open a Relation cell.
+2. Search for a record in the target table.
+3. Select the record to link it.
 
----
+The relation stores the record's ID. The displayed label comes from the
+target table's Record Label Field. Renaming that label does not break the link.
 
-## 4. Linking & Jumping to Related Records
+## Add attachments
 
-For fields configured as **Relations**:
+Use a File field to add an attachment. Available import and preview controls
+depend on the app that opened the Eidos File.
+When moving the data, include referenced local attachments.
+See [data storage](/user-guide/data-safety/).
 
-1. Click the cell to open the record picker popup.
-2. The popup lists candidate records from the target table with instant search filtering.
-3. Select one or more records to establish the link.
-4. Click the small link icon next to a connected record to **jump directly** to that record's full details in the other table.
+## Undo an edit
 
----
+Use **Cmd + Z** on macOS or **Ctrl + Z** on Windows/Linux for edits supported
+by the active editor's undo history. Check the result after undoing.
+For older saved states, use [Versions](/user-guide/history-and-recovery/);
+undo is not a substitute for a backup.
 
-## 5. Drag-and-Drop Attachments & Images
-
-- **Drag and Drop**: Drag files, photos, or PDFs directly from your desktop or file manager into any Attachment cell.
-- **Instant Previews**: Image attachments automatically generate high-resolution thumbnails. Click any attachment thumbnail to open a full-screen preview with zoom and pan controls—no third-party app required.
-
----
-
-## 6. Undo & Redo
-
-Edit with peace of mind:
-
-- Press <kbd>⌘</kbd> + <kbd>Z</kbd> (<kbd>Ctrl</kbd> + <kbd>Z</kbd> on Windows/Linux) to undo any recent change or deletion.
-- Press <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> (<kbd>Ctrl</kbd> + <kbd>Y</kbd> on Windows/Linux) to redo.
-
-Next, read [Views and Querying](/user-guide/views-and-querying/) to learn how to create Kanban boards, galleries, and multi-criteria filters.
+Next: [find records with views](/user-guide/views-and-querying/).

@@ -5,9 +5,29 @@ sidebar:
   order: 4
 ---
 
-Formula 是一门小型、静态类型的表达式语言，不是任意 SQL。它使用带引号的 Field
-名称以及固定的 SQLite 3.45 scalar function 子集。Runtime 会解析每个表达式并生成
-SQL；Formula source 绝不会作为 SQL statement 直接执行。
+Formula 字段根据同一张表中的其他字段计算值。
+结果只读；需要改变结果时，修改源字段。
+
+## 试一个计算
+
+在 Books 表中添加两个整数字段：**Pages** 和 **Pages read**。
+创建结果类型为 **integer** 的 Formula 字段，输入表达式：
+
+```sql
+"Pages" - "Pages read"
+```
+
+Pages 输入 `120`，Pages read 输入 `45`，结果是 `75`。
+把 Pages read 改成 `60`，结果变为 `60`。
+任一输入为空时，这个表达式返回 null。
+
+**检查结果：**保存字段前，先查看表达式预览。
+
+## 语言边界
+
+Formula 使用带引号的字段名和固定的 SQLite 3.45 标量函数集合。
+Runtime 解析表达式并检查类型，再生成 SQL。
+Formula 不能执行 SQL 语句。
 
 ## 表达式语法
 

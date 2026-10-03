@@ -1,18 +1,24 @@
 html[data-has-hero] .hero {
   grid-template-columns: minmax(0, 1fr);
-  max-width: 50rem;
+  max-width: 48rem;
   margin-inline: auto;
-  padding-block: clamp(3rem, 8vw, 7rem) clamp(2rem, 5vw, 4rem);
+  padding-block: clamp(2rem, 6vw, 5rem) clamp(1rem, 3vw, 2rem);
 }
 
 html[data-has-hero] .hero .stack,
 html[data-has-hero] .hero .copy {
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
 }
 
 html[data-has-hero] .hero .actions {
-  justify-content: center;
+  justify-content: flex-start;
+}
+
+html[data-has-hero] .hero h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.2;
+  text-wrap: balance;
 }
 
 .docs-home-index {
@@ -25,9 +31,10 @@ html[data-has-hero] .hero .actions {
   padding-block: 0 clamp(2rem, 5vw, 4rem);
 }
 
-.docs-home-index > h2 {
-  margin-block: 0 var(--docs-home-gap-lg);
-  text-align: center;
+.docs-home-index > h2,
+.docs-home-index > .sl-heading-wrapper {
+  margin-block: var(--docs-home-gap-lg) var(--docs-home-gap-md);
+  text-align: left;
 }
 
 .docs-home-index__list {

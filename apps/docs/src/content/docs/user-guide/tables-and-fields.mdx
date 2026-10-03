@@ -5,9 +5,17 @@ sidebar:
   order: 20
 ---
 
-A table should describe one kind of thing: Tasks, People, Books, Orders, or
-Projects. Fields describe the properties shared by those records. Keeping that
-boundary clear makes filters, relations, imports, and automation predictable.
+A table groups one kind of item. A field describes one property of that item.
+For example, each record in Books represents a book. Title and Status are fields.
+
+## Start with two fields
+
+Create **Title** as Text and **Status** as Select. Give Status the options
+**To read**, **Reading**, and **Finished**. Set Title as the Record Label Field.
+
+**Check:** add a book and choose Reading. Its title identifies the record,
+and its status can be used in a filter. Add more fields when you need them.
+The [book-list walkthrough](/user-guide/eidos-file-basics/) shows the full task.
 
 ## Create and name a table
 

@@ -1,41 +1,17 @@
 ---
-title: Eidos CLI
-description: Create, inspect, query, edit, validate, serve, and publish Eidos Files from the terminal.
+title: Work with files from the terminal
+description: Inspect a file, query records, and choose the command for your task.
 sidebar:
   order: 1
 ---
 
-import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components"
+The `eidos` CLI reads and writes local `.eidos` files.
+It does not need Eidos Lite or a background service.
+Start with the [installation guide](/getting-started/cli/) if the command is not installed.
 
-The `eidos` CLI works directly with local `.eidos` files. It does not require Eidos Lite or a
-background service.
+## Inspect, query, check
 
-<Aside type="note" title="Eidos CLI 2.0">
-Eidos CLI 2.0 reorganizes commands into clear, atomic namespaces:
-- **`file`**: File-level operations (`new`, `inspect`, `validate`, `repair`)
-- **`schema`**: Relational structure (`dump`, `apply`, `table`, `field`, `view`)
-- **`data`**: Rows and records (`query`, `mutate`, `compact`, `asset`)
-- **`serve`**: Local/LAN web editor
-- **`cloud`**: Account and remote services (`login`, `whoami`, `logout`, `publish`, `collect`)
-- **`self`**: CLI maintenance and skills (`skill`, `upgrade`)
-- **`plugin`**: Local plugin package management (`list`, `install`, `remove`, `inspect`)
-
-Legacy 1.x flat commands (`eidos create`, `eidos context`, `eidos rows`, etc.) remain available as hidden aliases for backward compatibility.
-</Aside>
-
-## Install
-
-<CardGrid>
-  <LinkCard
-    title="Install Eidos CLI"
-    description="Install the standalone command, create a file, and open the local editor."
-    href="/getting-started/cli/"
-  />
-</CardGrid>
-
-## Basics
-
-Use command-first namespaced syntax:
+For an existing `tracker.eidos` file with a Tasks table:
 
 ```bash
 eidos file inspect tracker.eidos
@@ -43,76 +19,63 @@ eidos data query tracker.eidos Tasks --fields Title,Status --limit 50
 eidos file validate tracker.eidos --level full
 ```
 
-Commands print readable output by default. Add `--json` when a script or Agent needs the stable
-machine-readable result:
+The first command describes the file. The second returns up to 50 records.
+The third checks the file at the full validation level.
+Use your own file path and table name.
+
+## Choose a command group
+
+| Task | Command group |
+| --- | --- |
+| Create, inspect, validate, or repair a file | `eidos file` |
+| Manage tables, fields, and views | `eidos schema` |
+| Query or change records and attachments | `eidos data` |
+| Open a local web editor | `eidos serve` |
+| Sign in, publish, or collect submissions | `eidos cloud` |
+| Manage local plugin packages | `eidos plugin` |
+| Upgrade the CLI or install its agent skill | `eidos self` |
+
+Run `eidos --help` to list commands.
+Add `--help` to a command group to inspect its options.
+
+## Return data to a script
+
+Use `--json` for machine-readable output:
 
 ```bash
 eidos --json data query tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
-Use `eidos --help` to list commands, and `eidos <command> --help` for the options of one command.
+Check the exit status before using the result.
+For writes, [read context, apply with a revision check, then validate](/cli/automation-workflow/).
+Do not build a script around the human-readable output.
 
-## File editor plugins
+## Set up an agent
 
-Use `eidos plugin` to inspect and manage locally installed plugins:
+Install the bundled Eidos Skill in the current project:
+
+```bash
+eidos self skill init
+```
+
+Use `--global` for the current user, or `--space <DIR>` for another project.
+The initializer refuses to replace edited skill files unless you explicitly
+use `--force`. Start a new agent task after installation.
+
+## Add a local plugin
 
 ```bash
 eidos plugin list
 eidos plugin install ./my-plugin.eidos-plugin
-eidos plugin remove com.example.plugin
 ```
 
-To create and package new plugins, use `@eidos.space/plugin-tools`:
+Use `eidos plugin remove <PLUGIN_ID>` to remove an installed package.
+To build one, follow the [text-reader tutorial](/plugins/guide/).
 
-```bash
-npx @eidos.space/plugin-tools create my-plugin
-npx @eidos.space/plugin-tools check
-npx @eidos.space/plugin-tools pack
-```
+## Continue with a task
 
-Follow the [plugin development guide](/plugins/guide/) for a complete CSV editor walkthrough.
+- [Automate a safe write](/cli/automation-workflow/).
+- [Open the local editor](/cli/serve/).
+- [Publish a hosted copy](/cli/publish/).
 
-## Initialize the Agent Skill
-
-The CLI bundles the Eidos Skill, so an Agent setup does not need Node.js,
-`npm`, or `npx`:
-
-```bash
-# Install in the current Space/project.
-eidos self skill init
-
-# Install for the current user and all projects.
-eidos self skill init --global
-```
-
-Use `eidos self skill init --space <DIR>` for another Space. The command writes the
-standard `.agents/skills/eidos` layout, is safe to repeat, and refuses to
-replace locally edited files unless `--force` is explicit. Start a new Agent
-task after initialization.
-
-## Advanced
-
-<CardGrid>
-  <LinkCard
-    title="Safe automation"
-    description="Read context, apply revision-checked changes, and validate the result."
-    href="/cli/automation-workflow/"
-  />
-  <LinkCard
-    title="Serve the local editor"
-    description="Open one Eidos File in the shared editor on localhost or a trusted network."
-    href="/cli/serve/"
-  />
-  <LinkCard
-    title="Publish from the terminal"
-    description="Publish an Eidos File, Markdown document, or form to a stable address."
-    href="/cli/publish/"
-  />
-</CardGrid>
-
-The CLI manages Eidos Files, not Eidos Lite Spaces or local history. Use Eidos Lite when you need
-folder navigation, Space history, or Sync.
-
-For Agent workflows, the [safe automation guide](/cli/automation-workflow/) also covers intent
-commands for schema changes, Runtime-backed Formula/Lookup Fields, business-key mutations, and
-atomic mixed mutation batches, plus safe File-field attachment import and verification.
+The CLI manages files. Use Eidos Lite for Space navigation, local history, and Sync.

@@ -1,32 +1,28 @@
 ---
-title: 选择开始方式
-description: 根据当前任务选择对应的 Eidos 文档模块。
-template: splash
+title: 从一个文件开始
+description: 选择工具，建立书单，确认工作保存在哪里。
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+根据当前任务选择工具。下面三种方式都使用 Eidos File 格式。
 
-<CardGrid>
-  <LinkCard
-    title="Eidos Lite"
-    description="安装桌面应用，使用本地 Space。"
-    href="/zh-cn/user-guide/"
-  />
-  <LinkCard
-    title="Eidos CLI"
-    description="安装命令行工具，在终端中操作 Eidos File。"
-    href="/zh-cn/cli/"
-  />
-  <LinkCard
-    title="Eidos 插件"
-    description="开发格式化工具、命令、自定义视图和独立页面。"
-    href="/zh-cn/plugins/"
-  />
-  <LinkCard
-    title="Eidos File 规范"
-    description="阅读兼容实现需要遵循的契约。"
-    href="/zh-cn/specifications/"
-  />
-</CardGrid>
+| 我想…… | 从这里开始 | 保存位置 |
+| --- | --- | --- |
+| 管理文件夹里的文件和笔记 | [Eidos Lite](/zh-cn/getting-started/eidos-lite/) | Space 中的本地文件 |
+| 不安装应用，先试一个文件 | [网页编辑器](/zh-cn/getting-started/browser/) | 保存到磁盘或下载工作副本 |
+| 使用命令或智能体处理数据 | [CLI](/zh-cn/getting-started/cli/) | 命令指定的文件路径 |
 
-只想免安装打开一个文件时，可以使用[Web 编辑器](/zh-cn/getting-started/browser/)。
+## 先完成一个小任务
+
+1. 打开或创建一个 Eidos File。
+2. 添加 **Books** 表和 **Title** 字段。
+3. 添加一本书，再创建 **Status** 单选字段。
+4. 创建一个只显示正在阅读的书的视图。
+5. 确认改动已经保存。
+
+按[书单教程](/zh-cn/user-guide/eidos-file-basics/)操作。
+如果这些名称还不熟悉，先读[文件、表和视图](/zh-cn/concepts/)。
+
+## 继续深入
+
+通过[插件](/zh-cn/plugins/)添加编辑器或工具。
+开发兼容应用时，阅读[文件规范](/zh-cn/specifications/)。

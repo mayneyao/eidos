@@ -1,78 +1,41 @@
 ---
 title: Eidos Docs
-description: Learn Eidos Lite and Eidos CLI from installation through advanced use, or explore Eidos Plugins and specifications.
+description: Understand your files and choose how to work with Eidos.
 template: splash
 hero:
-  title: Eidos documentation
-  tagline: Learn Eidos Lite and Eidos CLI from installation through advanced use, or explore Eidos Plugins and specifications.
+  title: Your files. A clearer view.
+  tagline: Keep notes, tables, and attachments in a local folder. Learn how they fit together, then build something useful.
   actions:
-    - text: Open the user guide
-      link: /user-guide/
+    - text: Start with one file
+      link: /getting-started/
       icon: right-arrow
-    - text: Read the file specifications
+    - text: Read the specifications
       link: /specifications/
       variant: minimal
 ---
 
-<section class="docs-home-index">
-  <h2 id="documentation-paths">Choose a documentation path</h2>
-  <nav aria-labelledby="documentation-paths" class="docs-home-index__list">
-    <a href="/user-guide/" class="docs-home-index__item">
-      <span class="docs-home-index__number">01</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos Lite</strong>
-        <span>
-          Install the desktop app, manage local Spaces, then add Versions, Sync,
-          or Publish when needed.
-        </span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/cli/" class="docs-home-index__item">
-      <span class="docs-home-index__number">02</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos CLI</strong>
-        <span>
-          Install the command-line tool to create, query, and automate Eidos
-          Files.
-        </span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/plugins/" class="docs-home-index__item">
-      <span class="docs-home-index__number">03</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos Plugins</strong>
-        <span>
-          Build offline plugins with formatters, commands, custom views, and
-          independent pages.
-        </span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-    <a href="/specifications/" class="docs-home-index__item">
-      <span class="docs-home-index__number">04</span>
-      <span class="docs-home-index__copy">
-        <strong>Eidos File specifications</strong>
-        <span>
-          Read the compatibility contracts for the format, Runtime, Adapter, and
-          UI.
-        </span>
-      </span>
-      <span class="docs-home-index__arrow" aria-hidden="true">
-        {"→"}
-      </span>
-    </a>
-  </nav>
-  <p class="docs-home-index__secondary">
-    {"Only need to open one file? Use the "}
-    <a href="/getting-started/browser/">{"Web Editor"}</a>
-    {" without installing anything."}
-  </p>
-</section>
+import FileMap from "../../components/FileMap.astro"
+
+<div class="docs-home-index">
+
+## Start with the file
+
+**Eidos File** is a SQLite-backed format for tables, records, and saved views.
+**Eidos Lite** opens a folder of these files alongside your notes and other documents.
+That folder is your **Space**.
+
+<FileMap />
+
+## Choose your next step
+
+<nav class="docs-home-index__list" aria-label="Documentation paths">
+  <a href="/getting-started/eidos-lite/" class="docs-home-index__item"><span class="docs-home-index__number">01</span><span class="docs-home-index__copy"><strong>Work in a local folder</strong><span>Install Eidos Lite. Open a Space. Create your first file.</span></span><span aria-hidden="true">→</span></a>
+  <a href="/getting-started/browser/" class="docs-home-index__item"><span class="docs-home-index__number">02</span><span class="docs-home-index__copy"><strong>Open a file in your browser</strong><span>Try the Web Editor without installing an app.</span></span><span aria-hidden="true">→</span></a>
+  <a href="/cli/" class="docs-home-index__item"><span class="docs-home-index__number">03</span><span class="docs-home-index__copy"><strong>Automate a task</strong><span>Create, query, and validate files with the CLI.</span></span><span aria-hidden="true">→</span></a>
+  <a href="/plugins/" class="docs-home-index__item"><span class="docs-home-index__number">04</span><span class="docs-home-index__copy"><strong>Build a tool inside Eidos</strong><span>Add a file editor, a page, or a command with a plugin.</span></span><span aria-hidden="true">→</span></a>
+</nav>
+
+Already using Eidos? Open the [user guide](/user-guide/) or learn about
+[data storage and backups](/user-guide/data-safety/).
+
+</div>

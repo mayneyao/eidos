@@ -1,75 +1,69 @@
 ---
-title: Getting Started with Eidos Files
-description: Master the core workflow of tables, fields, records, and views to effortlessly organize your structured data.
+title: Create a book list
+description: Build one table, add records, and save a view for books you are reading.
 sidebar:
   order: 10
 ---
 
-An **Eidos File** (`.eidos` file) is a self-contained, lightweight, and capable local structured document. You can back it up, copy it across drives, or send it to friends just like a standard document, and open it locally in milliseconds without an internet connection.
+import ViewLab from "../../../components/ViewLab.astro"
 
----
+By the end of this guide, `books.eidos` will contain a book list and a saved
+view of books you are reading.
 
-## 1. Core Elements of a File
+Start with an open Eidos File in [Lite](/getting-started/eidos-lite/),
+the [Web Editor](/getting-started/browser/), or [CLI Serve](/getting-started/cli/).
 
-An `.eidos` file is composed of several intuitive building blocks:
+## 1. Create the table
 
-| Element | Description | Example |
-| :--- | :--- | :--- |
-| **Table** | A dedicated collection of records representing one type of entity | `Tasks`, `Customers`, `Books` |
-| **Field** | The columns of your table, defining properties and data formats | `Title` (Text), `Priority` (Select), `Due Date` (Date) |
-| **Record** | A single row in a table representing a specific item | A specific task, a customer contact, a book |
-| **View** | A distinct saved layout and filter preset for the same table | Table Grid, Kanban Board, Card Gallery, Calendar |
+Create a table named **Books**. Use a Text field named **Title** as its
+Record Label Field. Eidos uses this field as the displayed name of each book.
 
-:::tip[Edits in One View Update Everywhere]
-All views (Grid, Kanban, Gallery, etc.) are different lenses focusing on the exact same underlying records. If you drag a card from "In Progress" to "Done" in a Kanban board, switching back to the Grid view will immediately reflect the new status. There are never duplicated or out-of-sync copies.
-:::
+Add a Select field named **Status**, with the options **To read**, **Reading**,
+and **Finished**.
 
----
+| Field | Type | Purpose |
+| --- | --- | --- |
+| Title | Text | Name of the book; Record Label Field |
+| Status | Select | One reading state |
 
-## 2. Create Your First Table
+## 2. Add records
 
-When opening an `.eidos` file, you can use the default table or click the **+** button in the table tab bar:
+Add three records. Enter the title and choose the status for each.
 
-1. **Name Your Table**: Give it a clear, descriptive name (e.g. `Tasks`). A best practice is to keep each table focused on a single type of entity rather than mixing customers and receipts together.
-2. **Choose the Record Label Field**:
-   - Every table designates one primary column as its "Record Label Field" (usually the first column).
-   - This serves as the display title for records when viewing them as cards on a Kanban board or linking them across tables.
-   - Choose a field that humans immediately recognize, such as **Task Name**, **Full Name**, or **Book Title**, rather than an internal ID or timestamp.
+| Title | Status |
+| --- | --- |
+| The Little Prince | Reading |
+| A Room of One's Own | Finished |
+| Walden | To read |
 
----
+**Check:** Books contains three records. Each record describes one book.
 
-## 3. Entering Data & Adding Custom Columns
+## 3. Save a reading view
 
-### Quick Record Entry
-- Click **Add record** at the bottom of the table, or press <kbd>⌘</kbd> + <kbd>Enter</kbd> on macOS (<kbd>Ctrl</kbd> + <kbd>Enter</kbd> on Windows/Linux) to insert a new row below and immediately start typing.
-- Navigate seamlessly with keyboard shortcuts: press <kbd>Tab</kbd> to move to the next cell, and <kbd>Enter</kbd> to save.
+Add a Grid view named **Reading now**. Open **Filter** and add
+`Status = Reading`.
 
-### Add Custom Fields
-Click the **+** button on the far right of the table header:
-- Enter a column name (such as "Priority").
-- Select a field type (such as **Select**).
-- Add preset options (e.g. "High", "Medium", "Low") and pick distinct colors.
-- Optionally configure a **Default Option**: every newly created record will automatically be assigned this default value.
+**Check:** the view shows **The Little Prince**. The other two records are
+still in Books. Clear the filter to see them.
 
-For an exhaustive guide on all field options, see [Tables and Fields](/user-guide/tables-and-fields/).
+## 4. Try a different layout
 
----
+Create a Gallery view to see books as cards. Changing a book's Status there
+changes the same record you see in Grid.
 
-## 4. One-Click Switch: From Table to Kanban Board
+This small example uses a Finished checkbox to show the relationship.
+Its changes stay on this page and reset when you reload.
 
-Once you have entered some records, you can create tailored views for your workflow:
+<ViewLab />
 
-1. Click the **+** button in the view bar.
-2. Select **Kanban** as the view type.
-3. Select which single-select field to group columns by (e.g. "Status" or "Priority").
-4. Click create, and your spreadsheet instantly transforms into an interactive card board!
-5. Drag and drop cards across columns to update their status properties in real time.
+## 5. Check saving
 
-For advanced filtering, sorting, and gallery layouts, see [Views and Querying](/user-guide/views-and-querying/).
+In Lite and CLI Serve, committed edits write to the local file.
+In the Web Editor, check the save state and use **Save**, **Save As**, or
+**Download a copy**, as available.
 
----
+When moving `books.eidos`, include any local files its attachment fields
+reference. [Learn what to back up](/user-guide/data-safety/).
 
-## 5. Instant Local Saving & Portability
-
-- **Automatic Persistence**: Eidos Lite saves your changes continuously. Every keystroke and drag operation is written directly to the `.eidos` file on your drive, so you never have to remember to click "Save".
-- **Completely Portable**: When you close Eidos Lite, you can copy the `.eidos` file to a USB thumb drive or send it via email; it remains an entirely self-contained database with all your tables, fields, and views intact.
+Next: [choose fields](/user-guide/tables-and-fields/) or
+[configure views](/user-guide/views-and-querying/).

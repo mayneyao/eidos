@@ -8,15 +8,18 @@ sidebar:
 
 import { FileTree } from "@astrojs/starlight/components"
 
-When organizing local videos, design assets, photos, or contracts, operating system file managers typically only show filenames and modification dates. They offer no native way to tag files, assign ratings, track review statuses, or jot down notes.
+**File Metadata Management** displays files in a folder as table records.
+Add fields such as Status, Rating, or Tags to organize them.
 
-**File Metadata Management** presents an ordinary local folder as a structured table. Every custom attribute you enter is saved directly to the physical file itself, giving you an effortless way to categorize, tag, and filter your local digital assets.
+The configuration lives in `files.eidos`. Custom values live in the physical
+files' attributes. These are different storage locations: copying the
+configuration file alone does not copy your tags.
 
 ---
 
 ## 1. Quick Start
 
-Getting started takes just three steps:
+Start in the folder you want to manage:
 
 1. **Create a file**: In the Eidos Lite sidebar, click New File (shortcut: `Cmd/Ctrl + N`), and choose **Eidos** as the file type.
 2. **Enable management**: Check the **File Metadata Management** toggle. The filename is fixed to `files.eidos`, then click **Create**. Each folder gets one configuration; an existing file is never overwritten.
@@ -36,7 +39,7 @@ Existing metadata files with other names remain directly usable.
 
 ## 2. Daily Workflow & File Safety
 
-- **Zero duplication, safe and lossless**: All physical files remain in their original disk folders. Eidos never creates redundant copies that waste disk space, nor does it alter the raw contents of your files.
+- **Original files stay in place**: Editing custom fields changes file attributes, not the file's content bytes.
 - **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table detects the changes and updates in real time without requiring manual refreshes.
 - **Open physical files**: The read-only `file` cell offers Open without attachment removal or reordering. Local files, including large videos, open in the system application without loading their bytes into the editor. Image thumbnails retain their preview size limit.
 
