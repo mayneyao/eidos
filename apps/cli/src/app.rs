@@ -317,7 +317,16 @@ fn collect_form(args: CollectArgs, show_progress: bool) -> Result<CommandOutput>
     )?))
 }
 
-fn publish_file(args: PublishArgs, show_progress: bool) -> Result<CommandOutput> {
+fn publish_file(mut args: PublishArgs, show_progress: bool) -> Result<CommandOutput> {
+    if args.client_metadata_json.is_none() {
+        args.client_metadata_json = Some(
+            json!({
+                "name": "Eidos CLI", "version": env!("CARGO_PKG_VERSION"),
+                "platform": std::env::consts::OS, "arch": std::env::consts::ARCH,
+            })
+            .to_string(),
+        );
+    }
     let progress = crate::publish::PublishProgress::new(show_progress, args.progress_json);
     let attachment_root = publish_attachment_root(&args.file, args.attachment_root.as_deref());
     let extension = args

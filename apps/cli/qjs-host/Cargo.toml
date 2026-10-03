@@ -8,10 +8,15 @@ description = "Run the TypeScript Eidos File runtime inside QuickJS over a rusql
 [[bin]]
 name = "qjs-host"
 path = "src/main.rs"
+required-features = ["serve"]
+
+[features]
+default = ["serve"]
+serve = ["dep:flate2", "dep:tiny_http", "dep:open", "dep:rust-embed", "dep:futures-util", "dep:reqwest", "dep:tokio", "dep:tokio-tungstenite"]
 
 [dependencies]
 rquickjs = "0.12"
-rusqlite = { version = "0.32", features = [
+rusqlite = { version = "0.38", features = [
   "bundled",
   "serialize",
   "functions",
@@ -24,23 +29,23 @@ sha2 = "0.10"
 rand = "0.8"
 chrono = "0.4"
 anyhow = "1"
-flate2 = "1.0"
-tiny_http = "0.12"
-open = "5"
-rust-embed = { version = "8", features = ["debug-embed"] }
-futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = [
+flate2 = { version = "1.0", optional = true }
+tiny_http = { version = "0.12", optional = true }
+open = { version = "5", optional = true }
+rust-embed = { version = "8", features = ["debug-embed"], optional = true }
+futures-util = { version = "0.3", optional = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = [
   "blocking",
   "rustls-tls",
   "stream",
 ] }
-tokio = { version = "1", features = [
+tokio = { version = "1", optional = true, features = [
   "macros",
   "rt-multi-thread",
   "sync",
   "time",
 ] }
-tokio-tungstenite = { version = "0.27", default-features = false, features = [
+tokio-tungstenite = { version = "0.27", optional = true, default-features = false, features = [
   "connect",
   "rustls-tls-native-roots",
 ] }

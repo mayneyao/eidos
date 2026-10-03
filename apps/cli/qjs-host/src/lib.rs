@@ -9,13 +9,17 @@ use rusqlite::{
     functions::FunctionFlags,
     limits::Limit,
     types::{Value as SqlValue, ValueRef},
-    Connection, DatabaseName, OpenFlags,
+    Connection, OpenFlags, MAIN_DB,
 };
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "serve")]
 pub mod plugin_compatibility;
+#[cfg(feature = "serve")]
 pub mod plugin_store;
+#[cfg(feature = "serve")]
 pub mod relay;
+#[cfg(feature = "serve")]
 pub mod serve;
 
 const BUNDLE: &str = include_str!("../bundle/eidos-runtime.js");
@@ -288,8 +292,9 @@ fn wire_value_to_sql(value: &WireSqlValue) -> rusqlite::Result<SqlValue> {
         .map_err(|message| rusqlite::Error::UserFunctionError(message.into()))
 }
 
-fn host_register_scalar(state: &HostState, name: &str, arity: i32) -> String {
+fn host_register_scalar(state: &HostState, name: &str, arity: i32, dispatcher: &str) -> String {
     let name_owned = name.to_string();
+    let dispatcher = dispatcher.to_owned();
     let result = state.conn.create_scalar_function(
         name,
         arity,
@@ -312,10 +317,9 @@ fn host_register_scalar(state: &HostState, name: &str, arity: i32) -> String {
                     )
                 })?;
                 let globals = ctx.globals();
-                let dispatch: Function =
-                    globals.get("__eidos_scalar_dispatch").map_err(|error| {
-                        rusqlite::Error::UserFunctionError(error.to_string().into())
-                    })?;
+                let dispatch: Function = globals.get(dispatcher.as_str()).map_err(|error| {
+                    rusqlite::Error::UserFunctionError(error.to_string().into())
+                })?;
                 dispatch
                     .call::<(String, String), String>((name_owned.clone(), args_json))
                     .map_err(|error| rusqlite::Error::UserFunctionError(error.to_string().into()))
@@ -346,7 +350,12 @@ fn host_register_scalar(state: &HostState, name: &str, arity: i32) -> String {
     }
 }
 
-fn build_host_object(ctx: &Ctx<'_>, state: &Rc<HostState>) -> rquickjs::Result<()> {
+fn build_host_object(
+    ctx: &Ctx<'_>,
+    state: &Rc<HostState>,
+    name: &str,
+    dispatcher: &str,
+) -> rquickjs::Result<()> {
     let host = Object::new(ctx.clone())?;
 
     {
@@ -387,13 +396,14 @@ fn build_host_object(ctx: &Ctx<'_>, state: &Rc<HostState>) -> rquickjs::Result<(
     }
     {
         let state = state.clone();
+        let dispatcher = dispatcher.to_owned();
         host.set(
             "registerScalar",
             Function::new(
                 ctx.clone(),
                 move |ctx: Ctx<'_>, name: String, arity: i32| -> String {
                     activate_ctx(&ctx);
-                    host_register_scalar(&state, &name, arity)
+                    host_register_scalar(&state, &name, arity, &dispatcher)
                 },
             ),
         )?;
@@ -418,7 +428,7 @@ fn build_host_object(ctx: &Ctx<'_>, state: &Rc<HostState>) -> rquickjs::Result<(
         host.set(
             "serialize",
             Function::new(ctx.clone(), move || -> String {
-                match state.conn.serialize(DatabaseName::Main) {
+                match state.conn.serialize(MAIN_DB) {
                     Ok(bytes) => ok_envelope(&B64.encode(&*bytes)),
                     Err(error) => map_rusqlite_error(&error),
                 }
@@ -468,12 +478,18 @@ fn build_host_object(ctx: &Ctx<'_>, state: &Rc<HostState>) -> rquickjs::Result<(
             "limits",
             Function::new(ctx.clone(), move || -> String {
                 let conn = &state.conn;
-                ok_envelope(&serde_json::json!({
-                    "busyTimeoutMs": 5_000,
-                    "maxVariables": conn.limit(Limit::SQLITE_LIMIT_VARIABLE_NUMBER),
-                    "maxSqlBytes": conn.limit(Limit::SQLITE_LIMIT_SQL_LENGTH),
-                    "maxValueBytes": conn.limit(Limit::SQLITE_LIMIT_LENGTH),
-                }))
+                let limits = (|| -> rusqlite::Result<serde_json::Value> {
+                    Ok(serde_json::json!({
+                        "busyTimeoutMs": 5_000,
+                        "maxVariables": conn.limit(Limit::SQLITE_LIMIT_VARIABLE_NUMBER)?,
+                        "maxSqlBytes": conn.limit(Limit::SQLITE_LIMIT_SQL_LENGTH)?,
+                        "maxValueBytes": conn.limit(Limit::SQLITE_LIMIT_LENGTH)?,
+                    }))
+                })();
+                match limits {
+                    Ok(value) => ok_envelope(&value),
+                    Err(error) => map_rusqlite_error(&error),
+                }
             }),
         )?;
     }
@@ -497,7 +513,7 @@ fn build_host_object(ctx: &Ctx<'_>, state: &Rc<HostState>) -> rquickjs::Result<(
         )?;
     }
 
-    ctx.globals().set("__eidos_host", host)?;
+    ctx.globals().set(name, host)?;
     Ok(())
 }
 
@@ -513,11 +529,35 @@ pub fn clear_active_context() {
 }
 
 impl QjsHost {
+    /// Four independent connections for the canonical system-metadata merge.
+    /// The result is an existing private Graft seed; callers own file lifecycle.
+    pub fn for_system_merge(
+        base: &Rc<HostState>,
+        ours: &Rc<HostState>,
+        theirs: &Rc<HostState>,
+        result: &Rc<HostState>,
+    ) -> anyhow::Result<Self> {
+        let host = Self::new(result)?;
+        host.context.with(|ctx| {
+            for (side, state) in [("base", base), ("ours", ours), ("theirs", theirs)] {
+                build_host_object(
+                    &ctx,
+                    state,
+                    &format!("__eidos_host_{side}"),
+                    &format!("__eidos_scalar_dispatch_{side}"),
+                )
+                .map_err(|error| anyhow!("register merge input: {error:?}"))?;
+            }
+            Ok::<_, anyhow::Error>(())
+        })?;
+        Ok(host)
+    }
+
     pub fn new(state: &Rc<HostState>) -> anyhow::Result<Self> {
         let runtime = Runtime::new().context("create QuickJS runtime")?;
         let context = Context::full(&runtime).context("create QuickJS context")?;
         context.with(|ctx| {
-            build_host_object(&ctx, state)
+            build_host_object(&ctx, state, "__eidos_host", "__eidos_scalar_dispatch")
                 .map_err(|error| anyhow!("register host object: {error:?}"))?;
             if let Err(error) = ctx.eval::<(), _>(BUNDLE) {
                 let caught = ctx.catch();
@@ -712,6 +752,37 @@ pub fn run_open(db_path: &std::path::Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{host_exec, host_query, host_run, open_host_state_read_only, run_self_test};
+
+    #[test]
+    fn merge_connections_keep_scalar_dispatch_and_read_only_guards_isolated() {
+        use super::*;
+        let states = [true, true, true, false].map(|read_only| {
+            Rc::new(HostState {
+                conn: Connection::open_in_memory().unwrap(),
+                read_only,
+            })
+        });
+        let host =
+            QjsHost::for_system_merge(&states[0], &states[1], &states[2], &states[3]).unwrap();
+        let result = host.context.with(|ctx| ctx.eval::<bool, _>(r#"
+            (() => {
+              const suffixes = ['_base', '_ours', '_theirs', ''];
+              suffixes.forEach((suffix, index) => {
+                globalThis['__eidos_scalar_dispatch' + suffix] = () => JSON.stringify({value: {tag:'integer', value:String(index)}});
+                const response = JSON.parse(globalThis['__eidos_host' + suffix].registerScalar('side', 0));
+                if (!response.ok) throw Error('registration failed');
+              });
+              return suffixes.every((suffix, index) => {
+                const bridge = globalThis['__eidos_host' + suffix];
+                const row = JSON.parse(bridge.query('SELECT side()', '[]', false)).value.rows[0];
+                const write = JSON.parse(bridge.exec('CREATE TABLE sample(value TEXT)'));
+                return row[0].value === String(index) && write.ok === (index === 3);
+              });
+            })()
+        "#));
+        clear_active_context();
+        assert!(result.unwrap());
+    }
 
     #[test]
     fn bundled_runtime_passes_the_rusqlite_host_self_test() {

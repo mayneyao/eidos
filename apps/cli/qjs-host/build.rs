@@ -1,6 +1,9 @@
 use std::path::Path;
 
 fn main() {
+    if std::env::var_os("CARGO_FEATURE_SERVE").is_none() {
+        return;
+    }
     let ui = Path::new(env!("CARGO_MANIFEST_DIR")).join("ui");
     println!("cargo:rerun-if-changed={}", ui.display());
     if !ui.join("index.html").is_file() {

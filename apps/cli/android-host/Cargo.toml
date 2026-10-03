@@ -1,0 +1,26 @@
+[package]
+name = "eidos-android-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = "1"
+eidos-publish = { path = "../publish" }
+eidos-file-core = { path = "../core" }
+tempfile = "3.19"
+rusqlite = { version = "0.38", features = ["backup"] }
+qjs-host = { path = "../qjs-host", default-features = false }
+serde_json = "1"
+graft-sdk = { git = "https://github.com/eidos-space/graft", rev = "5c99ad07ee1af7b66432c94c6e919c7faa5cacd5", features = ["bundled-sqlite"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+rquickjs = { version = "0.12", features = ["bindgen"] }
+
+[dev-dependencies]
+tempfile = "3.19"
+tiny_http = "0.12"

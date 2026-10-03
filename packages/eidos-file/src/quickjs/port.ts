@@ -121,7 +121,8 @@ export class QuickJsConnectionPort implements ConnectionPort {
       busyTimeoutMs?: number
       maxResultRows?: number
       maxResultBytes?: number
-    } = {}
+    } = {},
+    private readonly host: QuickJsHostBridge = globalThis.__eidos_host
   ) {
     const busyTimeoutMs = positiveLimit(
       options.busyTimeoutMs,
@@ -136,7 +137,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
       DEFAULT_MAX_RESULT_BYTES
     )
     const sqliteVersion = this.runMandatoryProbes()
-    const limits = unwrap<QuickJsHostLimits>(globalThis.__eidos_host.limits())
+    const limits = unwrap<QuickJsHostLimits>(this.host.limits())
     this.connectionCapabilities = {
       adapterVersion: "1.0",
       sqliteVersion,
@@ -186,7 +187,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
     this.assertOpen()
     assertExactConnectionBindings(sql, bindings)
     const result = unwrap<{ columns: Column[]; rows: WireSqlValue[][] }>(
-      globalThis.__eidos_host.query(
+      this.host.query(
         sql,
         JSON.stringify(sqlValuesToWire(bindings)),
         this.transactionModes.at(-1) === "read"
@@ -222,7 +223,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
     this.assertOpen()
     assertExactConnectionBindings(sql, bindings)
     return unwrap<RunResult>(
-      globalThis.__eidos_host.run(
+      this.host.run(
         sql,
         JSON.stringify(sqlValuesToWire(bindings)),
         this.transactionModes.at(-1) === "read"
@@ -260,9 +261,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
         "Invalid ScalarDefinition"
       )
     }
-    unwrap(
-      globalThis.__eidos_host.registerScalar(definition.name, definition.arity)
-    )
+    unwrap(this.host.registerScalar(definition.name, definition.arity))
     this.scalars.set(definition.name, operation)
   }
 
@@ -359,13 +358,13 @@ export class QuickJsConnectionPort implements ConnectionPort {
 
   dataVersion(): string {
     this.assertOpen()
-    const value = unwrap<string>(globalThis.__eidos_host.dataVersion())
+    const value = unwrap<string>(this.host.dataVersion())
     return `${this.localCommit}:${value}`
   }
 
   interrupt(): void {
     this.assertOpen()
-    unwrap(globalThis.__eidos_host.interrupt())
+    unwrap(this.host.interrupt())
   }
 
   async snapshot(context: SnapshotContext): Promise<ConnectionSnapshot> {
@@ -409,9 +408,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
         "Database snapshot exceeds maxBytes"
       )
     }
-    const bytes = base64ToBytes(
-      unwrap<string>(globalThis.__eidos_host.serialize())
-    )
+    const bytes = base64ToBytes(unwrap<string>(this.host.serialize()))
     this.assertSnapshotContext(context, startedAt)
     if (BigInt(bytes.byteLength) > maxBytes) {
       throw new EidosAdapterError(
@@ -469,7 +466,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
   }
 
   private hostExec(sql: string): void {
-    unwrap(globalThis.__eidos_host.exec(sql))
+    unwrap(this.host.exec(sql))
   }
 
   private assertOpen(): void {
@@ -545,7 +542,7 @@ export class QuickJsConnectionPort implements ConnectionPort {
 
   private runMandatoryProbes(): string {
     const probe = unwrap<{ sqliteVersion: string; sourceId: string }>(
-      globalThis.__eidos_host.sqliteProbe()
+      this.host.sqliteProbe()
     )
     if (
       compareSqliteVersion(probe.sqliteVersion, "3.45.0") < 0 ||

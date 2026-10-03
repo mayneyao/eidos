@@ -17,8 +17,12 @@ import type { CancellationPort } from "./protocol-types"
 import { QuickJsConnectionPort } from "./quickjs/port"
 import { base64ToBytes, bytesToBase64 } from "./quickjs/wire"
 import { runSelfTest } from "./quickjs/selftest"
+import { mergeQuickJsSystemMetadata } from "./quickjs/system-merge"
+import { EIDOS_SYSTEM_METADATA_TABLES } from "./system-metadata-merge"
 
 interface EidosQuickJsRuntime {
+  systemMergeTables(): Promise<string>
+  mergeSystemMetadata(requestJson: string): Promise<string>
   selfTest(): Promise<string>
   open(requestJson: string): Promise<string>
   allocateFileEntry(requestJson: string): Promise<string>
@@ -110,6 +114,17 @@ const errorEnvelope = (error: unknown): string => {
 }
 
 globalThis.__eidos_runtime = {
+  async systemMergeTables(): Promise<string> {
+    return JSON.stringify({ ok: true, value: EIDOS_SYSTEM_METADATA_TABLES })
+  },
+  async mergeSystemMetadata(requestJson: string): Promise<string> {
+    try {
+      if (session) throw new Error("Merge requires an isolated Runtime host")
+      return mergeQuickJsSystemMetadata(requestJson)
+    } catch (error) {
+      return errorEnvelope(error)
+    }
+  },
   async selfTest(): Promise<string> {
     try {
       return await runSelfTest()
