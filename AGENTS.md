@@ -21,6 +21,7 @@ into the current branch.
 ```text
 apps/
 ├── cli/                 # Rust CLI and embedded `eidos serve` runtime
+├── eidos-android/       # Experimental native Android host (Kotlin / Compose)
 ├── docs/                # Current Eidos File / Lite documentation site
 ├── download/            # CLI installers and Lite update routing Worker
 ├── eidos-file-web/      # editor.eidos.space browser editor
@@ -43,6 +44,9 @@ skills/eidos/            # Public CLI workflow skill
   filter, field, conversion, revision, or validation behavior.
 - Web, Lite, and CLI Serve consume `packages/eidos-file-ui`. Shared components,
   semantic tokens, source aliases, and host styles belong there.
+- Android uses native Kotlin / Compose UI and calls the canonical Runtime via
+  the JNI host in `apps/cli/android-host`; do not reimplement File semantics in
+  Kotlin. Its Gradle build, version, and release lifecycle are independent.
 - Browser SQLite uses `@sqlite.org/sqlite-wasm`. Lite uses Node's built-in
   `node:sqlite` through its Electron utility boundary.
 - Lite owns filesystem access, locking, publication, Graft, account, and Sync
@@ -71,6 +75,15 @@ pnpm build:docs
 pnpm typecheck
 pnpm lint
 pnpm format:check
+```
+
+Android development is optional and does not run as part of the Web/desktop
+build. See `apps/eidos-android/README.md` for SDK, NDK, and Rust prerequisites.
+
+```bash
+pnpm build:eidos-android
+pnpm dev:eidos-android
+pnpm test:eidos-android
 ```
 
 ### Eidos Lite development UI verification

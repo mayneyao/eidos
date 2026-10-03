@@ -1,0 +1,18 @@
+{
+  "name": "@eidos.space/android-editor",
+  "private": true,
+  "type": "module",
+  "scripts": { "build:web": "vite build --config web/vite.config.ts", "typecheck": "tsc -p web/tsconfig.json --noEmit" },
+  "dependencies": {
+    "@eidos.space/eidos-file": "workspace:*",
+    "@eidos.space/eidos-file-ui": "workspace:*",
+    "@eidos.space/eidos-file-serve": "workspace:*",
+    "@eidos.space/markdown": "workspace:*",
+    "react": "^18.2.0", "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2", "@vitejs/plugin-react": "^5.2.0",
+    "@types/react": "^18.2.0", "@types/react-dom": "^18.2.0",
+    "typescript": "^5.8.0", "vite": "^8.1.5"
+  }
+}

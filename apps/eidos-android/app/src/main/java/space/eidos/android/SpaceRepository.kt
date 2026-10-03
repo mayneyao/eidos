@@ -1,0 +1,1386 @@
+package space.eidos.android
+
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.AtomicFile
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+
+data class SpaceFile(
+    val path: String,
+    val name: String,
+    val directory: Boolean,
+    val modified: Long,
+    val bytes: Long,
+) {
+    val markdown
+        get() = name.endsWith(".md", true) || name.endsWith(".markdown", true)
+
+    val eidos
+        get() = name.endsWith(".eidos", true)
+}
+
+data class TextDocument(
+    val path: String,
+    val text: String,
+    val digest: String,
+    val recovered: Boolean = false,
+)
+
+data class EidosTable(val id: String, val name: String, val labelFieldId: String)
+
+data class Favorite(val path: String, val name: String, val tableId: String? = null) {
+    val key: String
+        get() = JSONArray(listOf(path, tableId)).toString()
+}
+
+data class EidosField(
+    val id: String,
+    val name: String,
+    val kind: String,
+    val writable: Boolean,
+    val nullable: Boolean,
+    val settings: JSONObject,
+    val valueType: Any = kind,
+) {
+    // UI availability follows the Runtime's public TypeRef, including computed fields.
+    val sortable
+        get() =
+            valueType in
+                setOf(
+                    "text",
+                    "url",
+                    "select",
+                    "row-id",
+                    "integer",
+                    "number",
+                    "checkbox",
+                    "date",
+                    "datetime",
+                )
+
+    val editable
+        get() =
+            writable &&
+                kind in
+                    setOf(
+                        "text",
+                        "url",
+                        "integer",
+                        "number",
+                        "checkbox",
+                        "date",
+                        "datetime",
+                        "select",
+                        "multi-select",
+                        "file",
+                    )
+}
+
+data class EidosRecord(
+    val id: String,
+    val values: Map<String, Any>,
+    val relationLabels: Map<String, Map<String, String>> = emptyMap(),
+)
+
+data class SearchMatch(
+    val file: SpaceFile,
+    val query: String,
+    val tableId: String? = null,
+    val tableName: String? = null,
+    val preview: String? = null,
+) {
+    val key
+        get() = JSONArray(listOf(file.path, tableId)).toString()
+}
+
+data class SearchResults(val matches: List<SearchMatch>, val skipped: List<String>)
+
+data class CapturedFiles(val paths: List<String>, val failures: List<String>)
+
+class AttachmentCommitUncertain(cause: Exception) :
+    IllegalStateException("无法确认记录是否已保存。附件已保留，请重新打开表格检查后再分享。", cause)
+
+data class EidosSort(val fieldId: String, val descending: Boolean = false)
+
+data class EidosView(
+    val id: String,
+    val name: String,
+    val query: String,
+    val layout: String,
+    val supported: Boolean,
+    val position: Long = 0,
+)
+
+data class EidosFilter(val fieldId: String, val op: String, val value: Any? = null) {
+    fun json(): JSONObject =
+        JSONObject().put("fieldId", fieldId).put("op", op).also {
+            if (value != null) it.put("value", value)
+        }
+}
+
+data class EidosPage(
+    val path: String,
+    val tables: List<EidosTable>,
+    val table: EidosTable?,
+    val fields: List<EidosField>,
+    val rows: List<EidosRecord>,
+    val revision: String,
+    val nextCursor: String?,
+    val query: String,
+    val sort: EidosSort? = null,
+    val filters: List<EidosFilter> = emptyList(),
+    val views: List<EidosView> = emptyList(),
+    val view: EidosView? = null,
+)
+
+class SpaceRepository(
+    private val context: Context,
+    val spaceId: String = "personal",
+    private val storageSpace: StorageSpace = StorageSpace(),
+) {
+    init {
+        require(spaceId.matches(Regex("[A-Za-z0-9_-]+"))) { "无效的 Space 标识" }
+    }
+
+    // Android can expose filesDir through /data/user/0 while canonical paths
+    // resolve to /data/data. Relative identities must use the same root.
+    private val root = File(context.filesDir, "spaces/$spaceId").canonicalFile
+    // Same filesystem for atomic moves, outside the versioned Space so a crash
+    // cannot add an incomplete write/import to the next Graft checkpoint.
+    private val staging = File(context.filesDir, "staging/$spaceId").apply { mkdirs() }
+    private val local = LocalFiles(root, staging, storageSpace)
+    private val drafts =
+        File(context.filesDir, if (spaceId == "personal") "drafts" else "drafts-$spaceId").apply {
+            mkdirs()
+        }
+    // Share intents can open a second Activity with its own repository object.
+    // Keep file hash checks, writes, and sync atomic across those instances.
+    private val lock = nativeLock
+    private val preferences =
+        context.getSharedPreferences(
+            if (spaceId == "personal") "space" else "space-$spaceId",
+            Context.MODE_PRIVATE,
+        )
+    private val syncProfiles = SyncProfileStore(context, spaceId)
+
+    private companion object {
+        // JNI owns one active Graft session. Keep a complete multi-call operation
+        // atomic even when two Activities are working in different Spaces.
+        val nativeLock = Mutex()
+    }
+
+    private suspend fun <T> io(action: suspend () -> T): T =
+        withContext(Dispatchers.IO) { lock.withLock { action() } }
+
+    suspend fun close() = io {
+        NativeGraft.call(root.path, "close")
+        Unit
+    }
+
+    internal suspend fun embeddedRuntime(path: String, method: String, request: JSONObject): Any? =
+        io {
+            require(path.endsWith(".eidos", true))
+            val envelope =
+                JSONObject(
+                    NativeRuntime.execute(
+                        local.resolve(path).path,
+                        "web:$method",
+                        request.toString(),
+                    )
+                )
+            check(envelope.optBoolean("ok")) { envelope.optString("error", "数据操作失败") }
+            envelope.opt("value")
+        }
+
+    internal suspend fun embeddedImage(
+        document: String,
+        relative: String,
+    ): Pair<String, ByteArray> = io {
+        val folder = document.substringBeforeLast('/', "")
+        val target = local.resolve(if (folder.isEmpty()) relative else "$folder/$relative")
+        val mime =
+            when (target.extension.lowercase()) {
+                "png" -> "image/png"
+                "jpg",
+                "jpeg" -> "image/jpeg"
+                "gif" -> "image/gif"
+                "webp" -> "image/webp"
+                else -> error("不支持的图片格式")
+            }
+        require(target.isFile && target.length() <= 16 * 1024 * 1024)
+        mime to target.readBytes()
+    }
+
+    internal suspend fun publishFile(
+        file: SpaceFile,
+        session: PublishSession,
+        slug: String,
+        access: String,
+        password: String,
+        binding: PublicationBinding?,
+        remove: Boolean,
+        report: (JSONObject) -> Unit,
+    ): PublicationBinding = io {
+        val store = PublicationStore(context, spaceId, session.subject)
+        val host = session.tenant.getString("canonicalHost")
+        val request =
+            JSONObject()
+                .put("origin", SyncEnvironment.publish)
+                .put("token", session.token)
+                .put("path", file.path)
+                .put("slug", slug)
+                .put("access", access)
+                .put("password", password)
+        binding?.let { request.put("publicationId", it.id) }
+        val result =
+            NativePublish.call(root.path, if (remove) "unpublish" else "publish", request, report) {
+                store.save(file.path, publicationBinding(it, slug, host))
+            }
+        publicationBinding(result, slug, host).also { store.save(file.path, it) }
+    }
+
+    private fun graftState(result: JSONObject) =
+        GraftState(
+            initialized = result.getBoolean("initialized"),
+            remoteUrl = syncProfiles.load()?.url,
+            dirty =
+                result.optJSONObject("status")?.let {
+                    it.getBoolean("dirty") || (it.optJSONArray("staged_changes")?.length() ?: 0) > 0
+                } ?: false,
+            syncStatus = syncStatus(result),
+        )
+
+    private fun syncStatus(result: JSONObject): String {
+        val profile = syncProfiles.load() ?: return "local"
+        val status = result.optJSONObject("status")
+        val outcome = preferences.getString("sync.outcome", null)
+        if (outcome in setOf("failed", "interrupted", "needs_merge")) return checkNotNull(outcome)
+        if (outcome == "running") return "interrupted"
+        val head = status?.optString("current_head")
+        return if (
+            status?.optBoolean("dirty") == false &&
+                (status.optJSONArray("staged_changes")?.length() ?: 0) == 0 &&
+                !head.isNullOrBlank() &&
+                head != "null" &&
+                head == preferences.getString("sync.head", null) &&
+                profile.url == preferences.getString("sync.url", null)
+        )
+            "completed"
+        else "pending"
+    }
+
+    private fun syncOutcome(value: String) {
+        check(preferences.edit().putString("sync.outcome", value).commit()) { "无法保存同步状态" }
+    }
+
+    private fun syncCompleted(url: String, result: JSONObject) {
+        check(
+            preferences
+                .edit()
+                .putString("sync.outcome", "completed")
+                .putString("sync.head", result.optJSONObject("status")?.optString("current_head"))
+                .putString("sync.url", url)
+                .commit()
+        ) {
+            "无法保存同步状态"
+        }
+    }
+
+    suspend fun graftStatus(): GraftState = io { graftState(NativeGraft.call(root.path, "status")) }
+
+    suspend fun checkpoint(): GraftState = io {
+        graftState(NativeGraft.call(root.path, "checkpoint"))
+    }
+
+    suspend fun mergeReview(): MergeReview? = io { mergeReviewLocked() }
+
+    private fun mergeReviewLocked(): MergeReview? {
+        if (!File(root, ".graft").exists()) return null
+        val state = NativeGraft.call(root.path, "mergeStatus")
+        if (state.getString("state") == "none") return null
+        val token = state.getString("state_token")
+        val files = mutableListOf<MergeFile>()
+        var after: String? = null
+        do {
+            val page =
+                NativeGraft.call(
+                    root.path,
+                    "mergePaths",
+                    JSONObject().put("stateToken", token).put("after", after),
+                )
+            val items = page.getJSONArray("items")
+            for (i in 0 until items.length()) {
+                val item = items.getJSONObject(i)
+                files.add(
+                    MergeFile(
+                        item.getString("path"),
+                        item.getString("state") == "resolved",
+                        item.getBoolean("has_ours"),
+                        item.getBoolean("has_theirs"),
+                    )
+                )
+            }
+            after = page.optString("next_cursor").takeUnless { it.isBlank() || it == "null" }
+        } while (after != null)
+        return MergeReview(token, files, state.getInt("unmerged_count"))
+    }
+
+    suspend fun beginMerge(): MergeReview? = io {
+        NativeGraft.cancellable { id ->
+            val profile = checkNotNull(syncProfiles.load()) { "请先连接远程 Space" }
+            authorize(profile, id)
+            NativeGraft.call(root.path, "checkpoint", cancellationId = id)
+            NativeGraft.call(root.path, "fetch", cancellationId = id)
+            val applied = NativeGraft.call(root.path, "beginMerge", cancellationId = id)
+            val state = applied.getJSONObject("merge")
+            if (state.getString("state") == "merging")
+                NativeGraft.call(
+                    root.path,
+                    "mergeMetadata",
+                    JSONObject().put("stateToken", state.getString("state_token")),
+                    id,
+                )
+        }
+        mergeReviewLocked()
+    }
+
+    suspend fun chooseMerge(review: MergeReview, path: String, side: String): MergeReview? = io {
+        NativeGraft.call(
+            root.path,
+            "chooseMergePath",
+            JSONObject().put("stateToken", review.token).put("path", path).put("side", side),
+        )
+        mergeReviewLocked()
+    }
+
+    suspend fun finishMerge(review: MergeReview, abort: Boolean) = io {
+        NativeGraft.call(
+            root.path,
+            if (abort) "abortMerge" else "continueMerge",
+            JSONObject().put("stateToken", review.token),
+        )
+        if (!abort) syncOutcome("pending")
+        Unit
+    }
+
+    suspend fun compareMerge(review: MergeReview, path: String): MergeComparison = io {
+        fun read(side: String): String {
+            val content =
+                NativeGraft.call(
+                        root.path,
+                        "mergeText",
+                        JSONObject()
+                            .put("stateToken", review.token)
+                            .put("path", path)
+                            .put("side", side),
+                    )
+                    .getJSONObject("content")
+            return when (content.getString("state")) {
+                "utf8" -> content.getString("content")
+                "absent" -> "此版本中没有这个文件"
+                "too_large" -> "文件超过预览大小（32 KB）"
+                else -> "此文件不支持文本预览"
+            }
+        }
+        MergeComparison(path, read("ours"), read("theirs"))
+    }
+
+    private fun authorize(profile: SyncProfile, cancellationId: String? = null) {
+        NativeGraft.call(root.path, "clearCredentials", cancellationId = cancellationId)
+        val request =
+            JSONObject()
+                .put(
+                    "url",
+                    if (profile.url.startsWith("http:")) "graft+${profile.url}" else profile.url,
+                )
+        val token = SyncAccount(context).resolve(profile)
+        if (token.isNotEmpty()) request.put("token", token)
+        NativeGraft.call(root.path, "configureRemote", request, cancellationId)
+    }
+
+    suspend fun connectRemote(url: String, token: String): GraftState = io {
+        val profile = syncProfiles.validate(url, token)
+        authorize(profile)
+        syncProfiles.save(profile)
+        syncOutcome("pending")
+        check(preferences.edit().remove("sync.head").commit()) { "无法更新同步状态" }
+        graftState(NativeGraft.call(root.path, "status"))
+    }
+
+    suspend fun cloneRemote(
+        url: String,
+        token: String,
+        progress: (String, Long) -> Unit = { _, _ -> },
+    ): GraftState = io {
+        progress("正在验证连接", 0)
+        val profile = syncProfiles.validate(url, token)
+        check(root.listFiles()?.isEmpty() == true) { "下载目标必须是空 Space" }
+        val request =
+            JSONObject()
+                .put(
+                    "url",
+                    if (profile.url.startsWith("http:")) "graft+${profile.url}" else profile.url,
+                )
+        val accessToken = SyncAccount(context).resolve(profile)
+        if (accessToken.isNotEmpty()) request.put("token", accessToken)
+        NativeGraft.cancellable(onDownload = { bytes -> progress("正在下载并写入文件", bytes) }) { id ->
+            NativeGraft.call(root.path, "clone", request, id)
+            currentCoroutineContext().ensureActive()
+        }
+        progress("正在保存同步配置", 0)
+        syncProfiles.save(profile)
+        val status = NativeGraft.call(root.path, "status")
+        syncCompleted(profile.url, status)
+        graftState(status)
+    }
+
+    /** Roll back only a freshly allocated clone that has not entered the catalog. */
+    internal suspend fun discardPendingClone(clearCredentials: Boolean = true) = io {
+        check(SpaceCatalog(context).spaces().none { it.id == spaceId }) { "不能清理已注册的 Space" }
+        NativeGraft.call(root.path, "close")
+        if (clearCredentials) syncProfiles.clear()
+        if (root.exists())
+            Files.walk(root.toPath()).use { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
+            }
+        staging.delete()
+        drafts.delete()
+        context.deleteSharedPreferences("space-$spaceId")
+    }
+
+    suspend fun disconnectRemote(): GraftState = io {
+        syncProfiles.clear()
+        NativeGraft.call(root.path, "clearCredentials")
+        graftState(NativeGraft.call(root.path, "status"))
+    }
+
+    /** Called only with editors closed; all worktree replacement uses this IO lock. */
+    suspend fun syncRemote(publish: Boolean = false): String = io { syncRemoteLocked(publish) {} }
+
+    internal suspend fun syncPeer(
+        connection: PeerConnection,
+        transfer: (Long, Long) -> Unit = { _, _ -> },
+        progress: (String) -> Unit,
+    ) {
+        progress("电脑正在准备同步数据")
+        withContext(Dispatchers.IO) { connection.call("/sync") }
+        io {
+            NativeRuntime.close()
+            connection.tunnel(transfer).use { tunnel ->
+                NativeGraft.cancellable { cancellationId ->
+                    val configured = root.resolve(".graft").exists()
+                    if (configured) {
+                        val status =
+                            NativeGraft.call(root.path, "status", cancellationId = cancellationId)
+                                .getJSONObject("status")
+                        if (!status.isNull("current_head")) {
+                            progress("保存本地版本")
+                            NativeGraft.call(
+                                root.path,
+                                "checkpoint",
+                                cancellationId = cancellationId,
+                            )
+                        }
+                    }
+                    NativeGraft.call(
+                        root.path,
+                        "peerConfigure",
+                        JSONObject().put("url", tunnel.remoteUrl).put("token", connection.token),
+                        cancellationId,
+                    )
+                    progress("接收电脑上的版本")
+                    NativeGraft.call(root.path, "peerFetch", cancellationId = cancellationId)
+                    currentCoroutineContext().ensureActive()
+                    progress("正在写入本地文件")
+                    val outcome =
+                        NativeGraft.call(
+                            root.path,
+                            "peerFastForward",
+                            cancellationId = cancellationId,
+                        )
+                    check(outcome.getString("outcome") != "needs_merge") {
+                        "部分内容无法自动合并，双方版本已保留，请在同步设置中处理合并"
+                    }
+                    progress("发送本机版本")
+                    NativeGraft.call(root.path, "peerPush", cancellationId = cancellationId)
+                }
+            }
+        }
+        progress("等待电脑应用版本")
+        withContext(Dispatchers.IO) { connection.call("/sync") }
+    }
+
+    suspend fun syncInBackground(progress: suspend (String) -> Unit): String = io {
+        if (BackgroundSyncGate.blocked()) "deferred" else syncRemoteLocked(false, progress)
+    }
+
+    private suspend fun syncRemoteLocked(
+        publish: Boolean,
+        progress: suspend (String) -> Unit,
+    ): String =
+        try {
+            syncOutcome("running")
+            NativeGraft.cancellable { cancellationId ->
+                val profile = checkNotNull(syncProfiles.load()) { "请先连接远程 Space" }
+                currentCoroutineContext().ensureActive()
+                authorize(profile, cancellationId)
+                if (
+                    NativeGraft.call(root.path, "mergeStatus", cancellationId = cancellationId)
+                        .getString("state") == "merging"
+                )
+                    return@cancellable "needs_merge".also { syncOutcome(it) }
+                progress("保存本地版本")
+                currentCoroutineContext().ensureActive()
+                NativeGraft.call(root.path, "checkpoint", cancellationId = cancellationId)
+                if (!publish) {
+                    progress("获取远程更新")
+                    currentCoroutineContext().ensureActive()
+                    NativeGraft.call(root.path, "fetch", cancellationId = cancellationId)
+                    progress("更新本地文件")
+                    currentCoroutineContext().ensureActive()
+                    if (
+                        NativeGraft.call(root.path, "fastForward", cancellationId = cancellationId)
+                            .getString("outcome") == "needs_merge"
+                    )
+                        return@cancellable "needs_merge".also { syncOutcome(it) }
+                }
+                progress("上传本地版本")
+                currentCoroutineContext().ensureActive()
+                NativeGraft.call(root.path, "push", cancellationId = cancellationId)
+                syncCompleted(
+                    profile.url,
+                    NativeGraft.call(root.path, "status", cancellationId = cancellationId),
+                )
+                "synced"
+            }
+        } catch (error: Exception) {
+            try {
+                syncOutcome(
+                    if (error is kotlinx.coroutines.CancellationException) "interrupted"
+                    else "failed"
+                )
+            } catch (stateError: Exception) {
+                error.addSuppressed(stateError)
+            }
+            throw error
+        }
+
+    private fun entry(file: File) =
+        SpaceFile(
+            file.relativeTo(root).invariantSeparatorsPath,
+            file.name,
+            file.isDirectory,
+            file.lastModified(),
+            file.length(),
+        )
+
+    private fun visible(file: File) =
+        !Files.isSymbolicLink(file.toPath()) &&
+            !file.name.startsWith('.') &&
+            !file.name.endsWith("-wal") &&
+            !file.name.endsWith("-shm")
+
+    suspend fun files(folder: String): List<SpaceFile> = io { listFolder(folder) }
+
+    suspend fun shareFolders(folder: String): List<SpaceFile> = io {
+        if (folder == "收件箱" && !local.resolve(folder).exists()) emptyList()
+        else {
+            val folders = listFolder(folder).filter { it.directory || it.eidos }
+            if (folder.isEmpty() && !local.resolve("收件箱").exists())
+                listOf(SpaceFile("收件箱", "收件箱", true, 0, 0)) + folders
+            else folders
+        }
+    }
+
+    private fun listFolder(folder: String): List<SpaceFile> {
+        val directory = local.resolve(folder)
+        require(directory.isDirectory) { "目录不存在" }
+        return directory
+            .listFiles()
+            .orEmpty()
+            .filter(::visible)
+            .map(::entry)
+            .sortedWith(compareBy<SpaceFile> { !it.directory }.thenBy { it.name.lowercase() })
+    }
+
+    suspend fun recent(): List<SpaceFile> = io {
+        val paths = JSONArray(preferences.getString("recent", "[]"))
+        (0 until paths.length())
+            .map { local.resolve(paths.getString(it)) }
+            .filter { it.isFile }
+            .take(5)
+            .map(::entry)
+    }
+
+    private fun readFavorites(): List<Favorite> {
+        val saved = JSONArray(preferences.getString("personal.favorites", "[]"))
+        return (0 until saved.length()).map {
+            val item = saved.getJSONObject(it)
+            Favorite(
+                item.getString("path"),
+                item.getString("name"),
+                item.optString("tableId").takeIf(String::isNotEmpty),
+            )
+        }
+    }
+
+    suspend fun favorites(): List<Favorite> = io { readFavorites() }
+
+    suspend fun setFavorite(favorite: Favorite, selected: Boolean): List<Favorite> = io {
+        // Removing an unavailable target must work without opening or validating it.
+        if (selected) require(local.resolve(favorite.path).exists()) { "收藏的文件不存在" }
+        val next =
+            readFavorites()
+                .filter { it.key != favorite.key }
+                .let { if (selected) it + favorite else it }
+        val saved =
+            JSONArray(
+                next.map {
+                    JSONObject()
+                        .put("path", it.path)
+                        .put("name", it.name)
+                        .put("tableId", it.tableId)
+                }
+            )
+        check(preferences.edit().putString("personal.favorites", saved.toString()).commit()) {
+            "无法保存收藏，请重试"
+        }
+        next
+    }
+
+    suspend fun file(path: String): SpaceFile = io {
+        val file = local.resolve(path)
+        check(file.exists() && visible(file)) { "文件暂时不可用：$path" }
+        entry(file)
+    }
+
+    private fun remember(path: String) {
+        val previous = JSONArray(preferences.getString("recent", "[]"))
+        val paths =
+            listOf(path) +
+                (0 until previous.length()).map { previous.getString(it) }.filter { it != path }
+        preferences.edit().putString("recent", JSONArray(paths.take(12)).toString()).apply()
+    }
+
+    suspend fun search(query: String): SearchResults {
+        val coroutine = currentCoroutineContext()
+        return io {
+            val matches = mutableListOf<SearchMatch>()
+            val skipped = mutableListOf<String>()
+            if (query.isBlank()) return@io SearchResults(matches, skipped)
+            for (file in root.walkTopDown().onEnter { it == root || visible(it) }) {
+                coroutine.ensureActive()
+                if (matches.size >= 100) break
+                if (!file.isFile || !visible(file)) continue
+                val item = entry(file)
+                try {
+                    if (
+                        file.name.contains(query, true) ||
+                            (item.markdown &&
+                                file.length() <= LocalFiles.MAX_TEXT_BYTES &&
+                                local.readText(item.path).first.contains(query, true))
+                    ) {
+                        matches.add(SearchMatch(item, query))
+                    }
+                    if (!item.eidos) continue
+                    val schema =
+                        NativeRuntime.call(local.resolve(item.path).path, "searchSchema")
+                            .getJSONArray("objects")
+                    val objects = (0 until schema.length()).map(schema::getJSONObject)
+                    for (table in objects.filter { it.optString("object") == "table" }) {
+                        coroutine.ensureActive()
+                        if (matches.size >= 100) break
+                        val tableId = table.getString("id")
+                        val fields =
+                            objects
+                                .filter {
+                                    it.optString("object") == "field" &&
+                                        it.optString("tableId") == tableId &&
+                                        it.isNull("systemRole")
+                                }
+                                .map { it.getString("id") }
+                        val rows =
+                            NativeRuntime.call(
+                                    file.path,
+                                    "searchRows",
+                                    JSONObject()
+                                        .put("tableId", tableId)
+                                        .put("limit", 1)
+                                        .put(
+                                            "query",
+                                            JSONObject()
+                                                .put(
+                                                    "search",
+                                                    JSONObject()
+                                                        .put("text", query)
+                                                        .put("fields", JSONArray(fields)),
+                                                ),
+                                        )
+                                        .put(
+                                            "projection",
+                                            JSONObject()
+                                                .put(
+                                                    "fields",
+                                                    JSONArray().put(table.getString("labelFieldId")),
+                                                )
+                                                .put("resolveRelations", JSONArray()),
+                                        ),
+                                )
+                                .getJSONArray("rows")
+                        if (rows.length() > 0) {
+                            val label = rows.getJSONObject(0).getJSONArray("values").opt(0)
+                            matches.add(
+                                SearchMatch(
+                                    item,
+                                    query,
+                                    tableId,
+                                    table.getString("name"),
+                                    label?.takeUnless { it == JSONObject.NULL }?.toString(),
+                                )
+                            )
+                        }
+                    }
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    skipped.add(item.path)
+                }
+            }
+            SearchResults(matches, skipped)
+        }
+    }
+
+    private fun draftFile(path: String) =
+        AtomicFile(File(drafts, UUID.nameUUIDFromBytes(path.toByteArray()).toString()))
+
+    suspend fun pluginReadBinary(path: String): ByteArray = io {
+        val file = local.resolve(path)
+        require(file.isFile && visible(file)) { "文件暂时不可用" }
+        file.inputStream().use { input ->
+            val output = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                require(output.size() + count <= 16 * 1024 * 1024) { "插件文件超过 16 MiB" }
+                output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+        }
+    }
+
+    // Plugin previews receive committed bytes only, never editor recovery drafts.
+    suspend fun pluginTextSnapshot(path: String): TextDocument = io {
+        val file = local.resolve(path)
+        require(file.isFile && visible(file) && file.length() <= 2 * 1024 * 1024) {
+            "插件预览仅支持不超过 2 MiB 的 UTF-8 文本文件"
+        }
+        val (text, digest) = local.readText(path)
+        TextDocument(path, text, digest)
+    }
+
+    suspend fun readText(path: String): TextDocument = io {
+        val (text, digest) = local.readText(path)
+        remember(path)
+        val draft = draftFile(path)
+        if (draft.baseFile.exists()) {
+            val saved = JSONObject(String(draft.readFully(), Charsets.UTF_8))
+            if (saved.getString("text") == text) {
+                // Recover cleanly if the process stopped after committing the
+                // file but before removing its recovery draft.
+                draft.delete()
+                TextDocument(path, text, digest)
+            } else
+                TextDocument(
+                    path,
+                    saved.getString("text"),
+                    saved.getString("digest"),
+                    recovered = true,
+                )
+        } else TextDocument(path, text, digest)
+    }
+
+    suspend fun markdownImage(document: String, destination: String): ByteArray = io {
+        val file = local.resolve(markdownLocalPath(document, destination))
+        require(file.isFile) { "图片不存在" }
+        require(file.length() <= 16 * 1024 * 1024) { "图片文件超过 16 MB" }
+        file.readBytes()
+    }
+
+    suspend fun attachmentPreview(document: String, entry: JSONObject): AttachmentPreview = io {
+        val database = local.resolve(document)
+        NativeRuntime.call(database.path, "allocateFileEntry", entry)
+        prepareAttachmentPreview(context, root, document, entry)
+    }
+
+    suspend fun filePreview(path: String): AttachmentPreview = io {
+        val file = local.resolve(path)
+        require(file.isFile) { "文件不存在" }
+        val name = path.substringAfterLast('/')
+        val mediaType =
+            android.webkit.MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(file.extension.lowercase(java.util.Locale.ROOT))
+                ?: "application/octet-stream"
+        prepareAttachmentPreview(
+            context,
+            root,
+            path,
+            JSONObject()
+                .put("name", name)
+                .put("mediaType", mediaType)
+                .put("uri", java.net.URI(null, null, name, null).toASCIIString()),
+        )
+    }
+
+    suspend fun saveDraft(document: TextDocument) = io {
+        local.resolve(document.path)
+        val file = draftFile(document.path)
+        val stream = file.startWrite()
+        try {
+            stream.write(
+                JSONObject()
+                    .put("text", document.text)
+                    .put("digest", document.digest)
+                    .toString()
+                    .toByteArray()
+            )
+            file.finishWrite(stream)
+        } catch (error: Exception) {
+            file.failWrite(stream)
+            throw error
+        }
+    }
+
+    suspend fun saveText(document: TextDocument): TextDocument = io {
+        val digest = local.writeText(document.path, document.text, document.digest)
+        draftFile(document.path).delete()
+        document.copy(digest = digest, recovered = false)
+    }
+
+    suspend fun create(folder: String, name: String, kind: String): String = io {
+        val cleanName = local.validName(name)
+        val extension =
+            when (kind) {
+                "eidos" -> ".eidos"
+                "markdown" -> ".md"
+                else -> ""
+            }
+        val fullName =
+            if (extension.isNotEmpty() && !cleanName.endsWith(extension, true))
+                cleanName + extension
+            else cleanName
+        val path = if (folder.isEmpty()) fullName else "$folder/$fullName"
+        val target = local.resolve(path)
+        check(!target.exists()) { "名称已存在" }
+        when (kind) {
+            "folder" -> check(target.mkdir()) { "无法创建文件夹" }
+            "eidos" -> {
+                val temporary = File(staging, ".create-${UUID.randomUUID()}.eidos")
+                try {
+                    NativeRuntime.call(
+                        temporary.path,
+                        "create",
+                        JSONObject().put("title", cleanName.removeSuffix(".eidos")),
+                    )
+                    Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                } finally {
+                    temporary.delete()
+                }
+            }
+            else -> local.writeText(path, "")
+        }
+        path
+    }
+
+    suspend fun shareFolder(): String = io {
+        val saved = preferences.getString("share.folder", "收件箱") ?: "收件箱"
+        if (runCatching { local.resolve(saved).isDirectory }.getOrDefault(false)) saved else "收件箱"
+    }
+
+    suspend fun rememberShareFolder(folder: String) = io {
+        require(local.resolve(folder).isDirectory) { "目录不存在" }
+        check(preferences.edit().putString("share.folder", folder).remove("share.table").commit()) {
+            "无法保存分享位置"
+        }
+    }
+
+    suspend fun lastShareTable(): Favorite? = io {
+        preferences.getString("share.table", null)?.let {
+            val saved = JSONObject(it)
+            val path = saved.getString("path")
+            if (local.resolve(path).isFile)
+                Favorite(path, saved.getString("name"), saved.getString("tableId"))
+            else null
+        }
+    }
+
+    suspend fun rememberShareTable(page: EidosPage) = io {
+        val table = checkNotNull(page.table)
+        check(
+            preferences
+                .edit()
+                .putString(
+                    "share.table",
+                    JSONObject()
+                        .put("path", page.path)
+                        .put("name", table.name)
+                        .put("tableId", table.id)
+                        .toString(),
+                )
+                .commit()
+        ) {
+            "无法保存分享位置"
+        }
+    }
+
+    private fun captureDirectory(folder: String): File {
+        val target = local.resolve(folder)
+        if (folder == "收件箱") check(target.isDirectory || target.mkdirs()) { "无法创建收件箱" }
+        require(target.isDirectory) { "分享目标文件夹已不存在，请重新选择" }
+        return target
+    }
+
+    suspend fun capture(text: String, folder: String = "收件箱"): String = io {
+        val inbox = captureDirectory(folder)
+        val name = "分享-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(4)}.md"
+        val path = File(inbox, name).relativeTo(root).invariantSeparatorsPath
+        local.writeText(path, text)
+        path
+    }
+
+    suspend fun captureFiles(uris: List<Uri>, folder: String = "收件箱"): CapturedFiles = io {
+        require(uris.size <= 100) { "一次最多分享 100 个文件" }
+        captureDirectory(folder)
+        val paths = mutableListOf<String>()
+        val failures = mutableListOf<String>()
+        uris.distinct().forEachIndexed { index, uri ->
+            try {
+                require(uri.scheme == "content") { "仅支持通过 Android 内容提供程序分享的文件" }
+                paths.add(copyImport(uri, folder, uniqueName = true))
+            } catch (error: Exception) {
+                failures.add("文件 ${index + 1}：${error.message ?: "无法读取"}")
+            }
+        }
+        CapturedFiles(paths, failures)
+    }
+
+    suspend fun importFile(uri: Uri, folder: String): String = io { copyImport(uri, folder) }
+
+    suspend fun importDirectory(uri: Uri, folder: String): String = io {
+        val parent = local.resolve(folder)
+        check(parent.isDirectory) { "目标文件夹不存在" }
+        val temporary = File(staging, "tree-${UUID.randomUUID()}").apply { check(mkdir()) }
+        try {
+            val name =
+                local.validName(
+                    DocumentTreeTransfer(context.contentResolver, storageSpace)
+                        .import(uri, temporary)
+                )
+            var target = File(parent, name)
+            var index = 2
+            while (target.exists()) target = File(parent, "$name (${index++})")
+            Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            target.relativeTo(root).invariantSeparatorsPath
+        } finally {
+            temporary.deleteRecursively()
+        }
+    }
+
+    suspend fun exportDirectory(path: String, uri: Uri) = io {
+        val source = local.resolve(path)
+        check(source.isDirectory) { "目录不存在" }
+        NativeRuntime.close()
+        DocumentTreeTransfer(context.contentResolver).export(source, uri, source.name)
+    }
+
+    suspend fun importMarkdownImage(document: String, uri: Uri): String = io {
+        require(uri.scheme == "content") { "请选择系统提供的图片" }
+        val parent = local.resolve(document).parentFile!!
+        val folder = File(parent, "assets/markdown-${UUID.randomUUID()}")
+        val relative = folder.relativeTo(root).invariantSeparatorsPath
+        // Resolve before mkdirs so an existing assets symlink cannot escape the Space.
+        local.resolve(relative)
+        check(folder.mkdirs()) { "无法创建图片目录" }
+        try {
+            val path = copyImport(uri, relative, maxBytes = 16L * 1024 * 1024)
+            val file = local.resolve(path)
+            val options =
+                android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(file.path, options)
+            require(options.outWidth > 0 && options.outHeight > 0) { "请选择支持的本地图片格式" }
+            val link = file.relativeTo(parent).invariantSeparatorsPath
+            val encoded = Uri.encode(link, "/").replace("(", "%28").replace(")", "%29")
+            "![]($encoded)"
+        } catch (error: Exception) {
+            folder.deleteRecursively()
+            throw error
+        }
+    }
+
+    private fun copyImport(
+        uri: Uri,
+        folder: String,
+        uniqueName: Boolean = false,
+        maxBytes: Long = Long.MAX_VALUE,
+    ): String {
+        val resolver = context.contentResolver
+        val name =
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            } ?: "导入文件"
+        val safeName = local.validName(name)
+        var path = if (folder.isEmpty()) safeName else "$folder/$safeName"
+        if (uniqueName) {
+            val extension =
+                safeName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+            val stem = safeName.removeSuffix(extension)
+            var index = 2
+            while (local.resolve(path).exists()) {
+                val candidate = "$stem (${index++})$extension"
+                path = if (folder.isEmpty()) candidate else "$folder/$candidate"
+            }
+        }
+        val target = local.resolve(path)
+        check(!target.exists()) { "同名文件已存在，请先重命名后再导入" }
+        val temporary = File.createTempFile(".import-", ".tmp", staging)
+        try {
+            resolver.openInputStream(uri).use { input ->
+                checkNotNull(input) { "无法读取所选文件" }
+                FileOutputStream(temporary).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var written = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        written += count
+                        check(written <= maxBytes) { "附件超过导入大小限制" }
+                        storageSpace.requireBytes(staging, count.toLong())
+                        output.write(buffer, 0, count)
+                    }
+                    output.fd.sync()
+                }
+            }
+            Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temporary.delete()
+        }
+        return path
+    }
+
+    suspend fun exportFile(path: String, uri: Uri) = io {
+        local.resolve(path).inputStream().use { input ->
+            context.contentResolver.openOutputStream(uri, "wt").use { output ->
+                checkNotNull(output) { "无法写入导出位置" }
+                input.copyTo(output)
+            }
+        }
+    }
+
+    fun displayedFields(path: String, table: String): List<String>? {
+        val saved = preferences.getString("fields:$path:$table", null) ?: return null
+        val values = JSONArray(saved)
+        return (0 until values.length()).map(values::getString)
+    }
+
+    fun setDisplayedFields(path: String, table: String, fields: List<String>) {
+        preferences.edit().putString("fields:$path:$table", JSONArray(fields).toString()).apply()
+    }
+
+    suspend fun loadEidos(
+        path: String,
+        tableId: String? = null,
+        query: String = "",
+        cursor: String? = null,
+        sort: EidosSort? = null,
+        filters: List<EidosFilter> = emptyList(),
+        viewId: String? = null,
+    ): EidosPage = io {
+        val file = local.resolve(path)
+        val schema = NativeRuntime.call(file.path, "schema")
+        val objects = schema.getJSONArray("objects")
+        val all = (0 until objects.length()).map(objects::getJSONObject)
+        val tables =
+            all.filter { it.getString("object") == "table" }
+                .map {
+                    EidosTable(
+                        it.getString("id"),
+                        it.getString("name"),
+                        it.getString("labelFieldId"),
+                    )
+                }
+        val table =
+            if (tableId == null) tables.firstOrNull()
+            else checkNotNull(tables.find { it.id == tableId }) { "数据表已不存在，请重新选择；原有收藏可以取消" }
+        val fields =
+            all.filter {
+                    it.getString("object") == "field" &&
+                        it.optString("tableId") == table?.id &&
+                        it.isNull("systemRole")
+                }
+                .map {
+                    EidosField(
+                        it.getString("id"),
+                        it.getString("name"),
+                        it.getString("kind"),
+                        it.getBoolean("writable"),
+                        it.getBoolean("nullable"),
+                        it.getJSONObject("settings"),
+                        it.get("valueType"),
+                    )
+                }
+        remember(path)
+        val views =
+            all.filter { it.optString("object") == "view" && it.optString("tableId") == table?.id }
+                .map {
+                    EidosView(
+                        it.getString("id"),
+                        it.getString("name"),
+                        it.getJSONObject("query").toString(),
+                        it.getJSONObject("layout").toString(),
+                        it.optString("queryStatus") != "unsupported",
+                        it.getString("position").toLong(),
+                    )
+                }
+        val view = viewId?.let { id -> checkNotNull(views.find { it.id == id }) { "视图已不存在，请重新选择" } }
+        check(view?.supported != false) { "此视图的查询暂不受当前 Runtime 支持" }
+        if (table == null)
+            return@io EidosPage(
+                path,
+                tables,
+                null,
+                fields,
+                emptyList(),
+                schema.getJSONObject("snapshot").getString("revision"),
+                null,
+                query,
+            )
+        val rowQuery = effectiveViewQuery(view, filters, sort)
+        if (query.isNotBlank())
+            rowQuery.put(
+                "search",
+                JSONObject().put("text", query).put("fields", JSONArray(fields.map { it.id })),
+            )
+        val request =
+            JSONObject()
+                .put("tableId", table.id)
+                .put("query", rowQuery)
+                .put("limit", 50)
+                .put(
+                    "projection",
+                    JSONObject()
+                        .put("fields", JSONArray(fields.map { it.id }))
+                        .put(
+                            "resolveRelations",
+                            JSONArray(fields.filter { it.kind == "relation" }.map { it.id }),
+                        ),
+                )
+        if (cursor != null) request.put("cursor", cursor)
+        val page = NativeRuntime.call(file.path, "queryRows", request)
+        val columns = page.getJSONArray("columns")
+        val rows = page.getJSONArray("rows")
+        val records =
+            (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                EidosRecord(
+                    row.getString("id"),
+                    (0 until columns.length()).associate { column ->
+                        columns.getJSONObject(column).getString("fieldId") to
+                            row.getJSONArray("values").get(column)
+                    },
+                    parseRelationLabels(columns, row),
+                )
+            }
+        EidosPage(
+            path,
+            tables,
+            table,
+            fields,
+            records,
+            page.getString("revision"),
+            page.optString("nextCursor").takeUnless { it == "null" || it.isEmpty() },
+            query,
+            sort,
+            filters,
+            views,
+            view,
+        )
+    }
+
+    suspend fun saveView(page: EidosPage, name: String, visible: List<String>): String = io {
+        val table = checkNotNull(page.table)
+        val change =
+            JSONObject()
+                .put("kind", "create-view")
+                .put("clientKey", "mobile")
+                .put("tableId", table.id)
+                .put("name", name.trim())
+                .put("type", "grid")
+                .put(
+                    "position",
+                    Math.addExact(page.views.maxOfOrNull { it.position } ?: -1L, 1L).toString(),
+                )
+                .put("query", effectiveViewQuery(page.view, page.filters, page.sort))
+                .put(
+                    "layout",
+                    JSONObject()
+                        .put(
+                            "fieldOrder",
+                            JSONArray(
+                                (listOf(table.labelFieldId) + visible + page.fields.map { it.id })
+                                    .distinct()
+                            ),
+                        )
+                        .put(
+                            "hiddenFields",
+                            JSONArray(
+                                page.fields
+                                    .filter { it.id != table.labelFieldId && it.id !in visible }
+                                    .map { it.id }
+                            ),
+                        ),
+                )
+        NativeRuntime.call(
+                local.resolve(page.path).path,
+                "mutateView",
+                JSONObject()
+                    .put("expectedRevision", page.revision)
+                    .put("changes", JSONArray().put(change)),
+            )
+            .getJSONArray("createdViews")
+            .getJSONObject(0)
+            .getString("viewId")
+    }
+
+    suspend fun mutate(
+        page: EidosPage,
+        row: EidosRecord?,
+        changes: Map<String, Any>,
+        delete: Boolean = false,
+    ) = io { mutateRow(page, row, changes, delete) }
+
+    /** Bytes are published before the canonical row commit, under the same Space IO lock. */
+    suspend fun mutateWithAttachments(
+        page: EidosPage,
+        row: EidosRecord?,
+        changes: Map<String, Any>,
+        fieldId: String,
+        sources: List<Uri>,
+    ) = io {
+        require(sources.isNotEmpty() && sources.size <= 100) { "请选择 1–100 个附件" }
+        require(sources.all { it.scheme == "content" }) { "仅支持 Android 内容提供程序的附件" }
+        require(page.fields.any { it.id == fieldId && it.kind == "file" && it.writable }) {
+            "目标附件字段不可写入"
+        }
+        val database = local.resolve(page.path)
+        check(
+            NativeRuntime.call(database.path, "getSnapshot").getString("revision") == page.revision
+        ) {
+            "数据已变化，请重新打开记录"
+        }
+        val parent = page.path.substringBeforeLast('/', "")
+        val assetPath = if (parent.isEmpty()) "assets" else "$parent/assets"
+        local.resolve(assetPath)
+        var component = root
+        assetPath.split('/').forEach {
+            component = File(component, it)
+            require(!Files.isSymbolicLink(component.toPath())) { "附件目录不能经过符号链接" }
+        }
+        val assets = local.resolve(assetPath)
+        check(assets.isDirectory || assets.mkdir()) { "无法创建附件目录" }
+        val batchPath = "$assetPath/share-${UUID.randomUUID()}"
+        val batch = local.resolve(batchPath)
+        check(batch.mkdir()) { "无法创建附件导入目录" }
+        val published = mutableListOf<File>()
+        var mutationStarted = false
+        try {
+            val previous = changes[fieldId] ?: row?.values?.get(fieldId)
+            val entries = if (previous is JSONArray) JSONArray(previous.toString()) else JSONArray()
+            var remaining = 128L * 1024 * 1024
+            sources.distinct().forEach { uri ->
+                val path =
+                    copyImport(
+                        uri,
+                        batchPath,
+                        uniqueName = true,
+                        maxBytes = minOf(64L * 1024 * 1024, remaining),
+                    )
+                val file = local.resolve(path)
+                published.add(file)
+                remaining -= file.length()
+                val relative = file.relativeTo(database.parentFile!!).invariantSeparatorsPath
+                entries.put(
+                    NativeRuntime.call(
+                        database.path,
+                        "allocateFileEntry",
+                        JSONObject()
+                            .put("name", file.name)
+                            .put("size", file.length().toString())
+                            .put(
+                                "mediaType",
+                                context.contentResolver.getType(uri) ?: "application/octet-stream",
+                            )
+                            .put("uri", relative.split('/').joinToString("/") { Uri.encode(it) }),
+                    )
+                )
+            }
+            mutationStarted = true
+            mutateRow(page, row, changes + (fieldId to entries), false)
+        } catch (error: Exception) {
+            // A transport/close error may follow a committed SQLite transaction. Retain bytes
+            // unless the Runtime proves that the original revision is still current.
+            val unchanged =
+                !mutationStarted ||
+                    runCatching {
+                            NativeRuntime.call(database.path, "getSnapshot")
+                                .getString("revision") == page.revision
+                        }
+                        .getOrDefault(false)
+            if (unchanged) {
+                published.forEach { file ->
+                    if (!file.delete())
+                        error.addSuppressed(IllegalStateException("无法清理附件：${file.name}"))
+                }
+                batch.delete()
+            } else {
+                throw AttachmentCommitUncertain(error)
+            }
+            throw error
+        }
+    }
+
+    private fun mutateRow(
+        page: EidosPage,
+        row: EidosRecord?,
+        changes: Map<String, Any>,
+        delete: Boolean,
+    ): JSONObject {
+        val change =
+            JSONObject()
+                .put("kind", if (delete) "delete" else if (row == null) "create" else "update")
+        if (row == null) change.put("clientKey", UUID.randomUUID().toString())
+        else change.put("rowId", row.id)
+        if (!delete) change.put("values", JSONObject(changes))
+        return NativeRuntime.call(
+            local.resolve(page.path).path,
+            "mutateRows",
+            JSONObject()
+                .put("tableId", checkNotNull(page.table).id)
+                .put("expectedRevision", page.revision)
+                .put("changes", JSONArray().put(change)),
+        )
+    }
+}

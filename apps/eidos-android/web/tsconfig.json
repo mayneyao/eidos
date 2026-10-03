@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@eidos.space/eidos-file-ui": [
+        "../../../packages/eidos-file-ui/src/index.ts"
+      ],
+      "@eidos.space/eidos-file-ui/*": ["../../../packages/eidos-file-ui/src/*"],
+      "@eidos.space/eidos-file": ["../../../packages/eidos-file/src/index.ts"]
+    }
+  },
+  "include": ["*.ts", "*.tsx"]
+}

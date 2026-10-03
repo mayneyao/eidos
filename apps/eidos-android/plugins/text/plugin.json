@@ -1,0 +1,34 @@
+{
+  "apiVersion": 1,
+  "id": "space.eidos.android.text",
+  "name": "文本预览",
+  "version": "1.0.0",
+  "requires": { "pluginApi": "3.0.0" },
+  "views": [
+    {
+      "id": "text",
+      "title": "文本预览（只读）",
+      "entry": "./main.js",
+      "kind": "file",
+      "capabilities": ["document"],
+      "access": "read"
+    }
+  ],
+  "placements": [
+    {
+      "location": "file/open",
+      "view": "text",
+      "extensions": [
+        ".txt",
+        ".md",
+        ".markdown",
+        ".json",
+        ".csv",
+        ".log",
+        ".yaml",
+        ".yml",
+        ".xml"
+      ]
+    }
+  ]
+}

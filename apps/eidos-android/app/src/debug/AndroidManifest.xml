@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <provider android:name=".TestTreeProvider" android:authorities="${applicationId}.testtree"
+            android:exported="true" android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:grantUriPermissions="true" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.testshare"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/test_share_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,109 @@
+diff --git a/crates/graft-sqlite/src/pragma/repo_diff.rs b/crates/graft-sqlite/src/pragma/repo_diff.rs
+index 8ea6a11e..c39f1fc1 100644
+--- a/crates/graft-sqlite/src/pragma/repo_diff.rs
++++ b/crates/graft-sqlite/src/pragma/repo_diff.rs
+@@ -446,8 +446,10 @@ pub(crate) fn repo_status_for_file(
+                             });
+                         Some(RepoWorktreeChangeKind::Modified)
+                     }
+-                    Ok(true) => match physical_sqlite_file_matches_state(
++                    Ok(true) => match physical_sqlite_file_matches_cached_state(
+                         runtime,
++                        repo,
++                        &key,
+                         &physical_path,
+                         &expected_state,
+                     ) {
+diff --git a/crates/graft-sqlite/src/pragma/sqlite_worktree.rs b/crates/graft-sqlite/src/pragma/sqlite_worktree.rs
+index febc3efe..2eb40b87 100644
+--- a/crates/graft-sqlite/src/pragma/sqlite_worktree.rs
++++ b/crates/graft-sqlite/src/pragma/sqlite_worktree.rs
+@@ -1491,6 +1491,21 @@ pub(crate) fn physical_sqlite_file_matches_state(
+     physical.matches_state(runtime, expected)
+ }
+ 
++/// Status uses the same exact-state probe as diff. Retain the SQLite read lock while checking
++/// its fingerprint and content, so an unrelated Markdown edit does not copy and compare every
++/// unchanged database again. WAL and missing/invalid caches keep the authoritative fallback.
++pub(super) fn physical_sqlite_file_matches_cached_state(
++    runtime: &Runtime,
++    repo: &Repository,
++    key: &str,
++    path: &Path,
++    expected: &CommitFileState,
++) -> Result<bool, ErrCtx> {
++    with_consistent_physical_sqlite_reader(path, |physical| {
++        physical.matches_cached_state(runtime, repo, key, expected)
++    })
++}
++
+ /// Verifies an internally copied, stable worktree candidate against an immutable Graft state.
+ ///
+ /// The content-addressed page index turns the common path into one sequential candidate read.
+@@ -2605,6 +2620,39 @@ mod tests {
+         assert!(!matches_changed);
+     }
+ 
++    #[test]
++    fn cached_status_detects_external_writes_with_and_without_wal() {
++        for journal in ["delete", "wal"] {
++            let temp = tempfile::tempdir().unwrap();
++            let repo = Repository::init(temp.path()).unwrap();
++            let path = temp.path().join("app.sqlite");
++            let connection = create_database(&path, journal);
++            let runtime = test_runtime();
++            let expected = import_physical_sqlite_file_state(&runtime, &path, None).unwrap();
++            let matches = || {
++                physical_sqlite_file_matches_cached_state(
++                    &runtime,
++                    &repo,
++                    "app.sqlite",
++                    &path,
++                    &expected,
++                )
++                .unwrap()
++            };
++            assert!(matches());
++            assert!(matches());
++            // Same-size external writes must invalidate a warm probe, including WAL-only writes.
++            connection
++                .execute(
++                    "UPDATE records SET payload = ?1 WHERE id = 48",
++                    [vec![0x5A_u8; 3_000]],
++                )
++                .unwrap();
++            assert!(!matches());
++            assert!(!matches());
++        }
++    }
++
+     #[test]
+     fn overflow_allocation_from_freelist_keeps_exact_table_candidates() {
+         let temp = tempfile::tempdir().unwrap();
+diff --git a/crates/graft/src/remote.rs b/crates/graft/src/remote.rs
+index 1f9c7cd8..f1c11694 100644
+--- a/crates/graft/src/remote.rs
++++ b/crates/graft/src/remote.rs
+@@ -383,7 +383,10 @@ fn build_http_client() -> std::result::Result<reqwest::Client, reqwest::Error> {
+         // across the entire repository session so proxies never mix request
+         // types with different response-body behavior on one connection.
+         .http1_only()
+-        .hickory_dns(true)
++        // Android resolves through the platform network service, not
++        // /etc/resolv.conf. Hickory's Unix system configuration cannot load
++        // there; reqwest's system resolver uses Android's getaddrinfo instead.
++        .hickory_dns(!cfg!(target_os = "android"))
+         .connect_timeout(Duration::from_secs(5))
+         // Do not put a wall-clock deadline on the shared client. Reads attach
+         // their own bounded request timeout, while mutation uploads remain
+@@ -722,8 +725,8 @@ impl Remote {
+                     // use http1 to maximize throughput
+                     // http2 routes all requests through a single connection
+                     .http1_only()
+-                    // enable hickory DNS resolver for DNS caching
+-                    .hickory_dns(true)
++                    // Android has no /etc/resolv.conf; use its system resolver.
++                    .hickory_dns(!cfg!(target_os = "android"))
+                     .connect_timeout(Duration::from_secs(5))
+                     // .tcp_user_timeout(Duration::from_secs(60))
+                     .build()?;
