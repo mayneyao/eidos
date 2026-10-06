@@ -1,0 +1,449 @@
+:root {
+  font-family: system-ui, sans-serif;
+  --theme-surface: #fafafa;
+  --theme-ink: #242427;
+  --theme-accent: #242427;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --theme-surface: #202022;
+  --theme-ink: #ededee;
+  --theme-accent: #ededee;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+  font-family: var(--font-ui, system-ui);
+}
+#app {
+  padding: 16px 16px 32px;
+}
+.plugin-readme {
+  --background: var(--theme-surface);
+  --foreground: var(--theme-ink);
+  font-size: 16px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.plugin-readme img {
+  max-width: 100%;
+  height: auto;
+}
+.plugin-readme pre,
+.plugin-readme table {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+.plugin-readme a {
+  color: inherit;
+  text-decoration: underline;
+}
+.plugin-readme-page > [role="status"] {
+  font-size: 14px;
+  opacity: 0.7;
+}
+h1 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+h2 {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+section {
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-ink) 15%, transparent);
+}
+p {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button,
+input,
+select {
+  font: inherit;
+  font-size: 15px;
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--theme-ink) 22%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+}
+button {
+  margin: 4px 8px 4px 0;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+label {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+select {
+  margin: 4px 8px 4px 0;
+}
+label input {
+  width: 100%;
+}
+.plugin-surface {
+  height: 70dvh;
+  min-height: 0;
+}
+html,
+body {
+  min-height: 100%;
+}
+#app.file-view {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-view > .plugin-surface {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.file-view > [role="status"]:empty {
+  display: none;
+}
+.file-view > [role="status"] {
+  padding: 8px 16px;
+}
+dialog {
+  max-width: calc(100% - 32px);
+  max-height: 80dvh;
+  overflow: auto;
+  border: 0;
+  border-radius: 20px;
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+  padding: 24px;
+}
+dialog::backdrop {
+  background: #0006;
+}
+footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The native app bar provides the page title and Back action. */
+#app.plugin-manager {
+  --pm-muted: color-mix(in srgb, var(--theme-ink) 60%, var(--theme-surface));
+  --pm-line: color-mix(in srgb, var(--theme-ink) 10%, var(--theme-surface));
+  --pm-fill: color-mix(in srgb, var(--theme-ink) 5%, var(--theme-surface));
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pm-tabs {
+  display: flex;
+  gap: 26px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--pm-line);
+  flex: none;
+}
+.pm-tabs button {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+.pm-tab {
+  height: 49px;
+  color: var(--pm-muted);
+  position: relative;
+}
+.pm-tab.selected {
+  color: var(--theme-ink);
+  font-weight: 600;
+}
+.pm-tab.selected::after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  background: currentColor;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+.pm-tabs .pm-more {
+  margin-left: auto;
+  min-width: 44px;
+  font-size: 24px;
+}
+.pm-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 20px 24px;
+  overscroll-behavior: contain;
+}
+.pm-status {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  flex: none;
+}
+.pm-status:empty {
+  display: none;
+}
+.pm-scope {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 24px 0 8px;
+}
+.pm-hint,
+.pm-footnote {
+  font-size: 12px;
+  color: var(--pm-muted);
+  line-height: 1.8;
+  margin: 0 0 12px;
+}
+.pm-footnote {
+  margin-top: 24px;
+}
+.pm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--pm-line);
+  min-width: 0;
+}
+.pm-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  min-width: 0;
+  padding: 19px 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.pm-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.pm-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pm-description {
+  font-size: 12px;
+  color: var(--pm-muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.pm-version {
+  font-size: 11px;
+  color: var(
+    --pm-muted,
+    color-mix(in srgb, var(--theme-ink) 60%, var(--theme-surface))
+  );
+}
+.pm-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border: 1px solid var(--pm-line);
+  background: var(--pm-fill);
+  border-radius: 10px;
+  font-size: 19px;
+  font-weight: 500;
+}
+.pm-icon svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pm-toggle {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  position: relative;
+}
+.pm-toggle::before {
+  content: "";
+  position: absolute;
+  width: 40px;
+  height: 25px;
+  border-radius: 20px;
+  top: 12px;
+  left: 4px;
+  background: color-mix(in srgb, var(--theme-ink) 18%, var(--theme-surface));
+}
+.pm-toggle::after {
+  content: "";
+  position: absolute;
+  width: 19px;
+  height: 19px;
+  left: 7px;
+  top: 15px;
+  border-radius: 50%;
+  background: var(--theme-surface);
+}
+.pm-toggle[aria-checked="true"]::before {
+  background: var(--theme-ink);
+}
+.pm-toggle[aria-checked="true"]::after {
+  left: 22px;
+}
+.pm-search {
+  width: 100%;
+  margin: 20px 0 14px;
+  border: 0;
+  background: var(--pm-fill);
+  font-size: 14px;
+  border-radius: 10px;
+}
+.pm-filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.pm-filters button {
+  flex: none;
+  font-size: 12px;
+  padding: 8px 12px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+}
+.pm-filters button.selected {
+  background: var(--theme-ink);
+  color: var(--theme-surface);
+}
+.pm-count {
+  color: var(--pm-muted);
+  font-size: 12px;
+  margin: 16px 0 0;
+}
+.pm-install {
+  flex: none;
+  border: 0;
+  padding: 8px 14px;
+  margin: 0;
+  border-radius: 24px;
+  background: var(--pm-fill);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pm-installed {
+  color: var(--pm-muted);
+  font-size: 12px;
+  flex: none;
+}
+.pm-empty-title {
+  font-size: 18px;
+  margin: 40px 0 12px;
+}
+dialog.pm-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85dvh;
+  padding: 20px 22px max(24px, env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+}
+.pm-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pm-sheet-header h2 {
+  flex: 1;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pm-close {
+  margin: 0;
+  width: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 23px;
+}
+.pm-detail-description {
+  color: color-mix(in srgb, var(--theme-ink) 65%, var(--theme-surface));
+  font-size: 13px;
+}
+.pm-action {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 16px 0;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--theme-ink) 10%, var(--theme-surface));
+  border-radius: 0;
+  font-size: 14px;
+}
+.pm-danger {
+  color: #b74c48;
+}
+.pm-permissions {
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--theme-ink) 10%, var(--theme-surface));
+}
+.pm-permissions summary {
+  padding: 16px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pm-permissions p {
+  font-size: 12px;
+}
+.pm-setting {
+  font-size: 13px;
+}
+.pm-sheet .pm-status {
+  padding: 8px 0;
+}
