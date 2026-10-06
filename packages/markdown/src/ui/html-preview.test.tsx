@@ -42,7 +42,7 @@ it("renders README HTML alignment and resolves local images through the host", a
     ).toContain("horizontal-dark.webp")
     expect(
       host.querySelector('img[width="1280"]')?.getAttribute("src")
-    ).toContain("eidos-lite-grid.webp")
+    ).toContain("eidos-cross-platform.webp")
   } finally {
     await act(async () => root.unmount())
     host.remove()

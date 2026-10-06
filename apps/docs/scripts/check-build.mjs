@@ -74,6 +74,17 @@ for (const route of [
 
 for (const sourceFile of htmlFiles) {
   const source = await readFile(sourceFile, "utf8")
+  // Topic indices are internal plugin labels, never public navigation titles.
+  for (const [, summary] of source.matchAll(
+    /<summary\b[^>]*>([\s\S]*?)<\/summary>/gu
+  )) {
+    const label = summary.replace(/<[^>]*>/gu, "").trim()
+    if (/^\d+$/u.test(label)) {
+      failures.push(
+        `${path.relative(outputRoot, sourceFile)} exposes numeric navigation group: ${label}`
+      )
+    }
+  }
   if (/<style\b[^>]*\bset:html=/u.test(source)) {
     failures.push(
       `${path.relative(outputRoot, sourceFile)} has inert inline styles`

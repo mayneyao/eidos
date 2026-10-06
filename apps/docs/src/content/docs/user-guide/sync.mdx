@@ -1,52 +1,77 @@
 ---
 title: Use a Space on two devices
-description: Enable optional Sync and check that changes reach the other device.
+description: Pair a phone with Eidos Lite over your local network, download a Space, and synchronize changes.
 sidebar:
   order: 75
 ---
 
-Sync transfers Space changes between devices through the cloud.
-It requires an account and an eligible service plan.
-Local files remain usable while offline or signed out.
+Sync keeps a local copy of a Space on each device.
 
-## Connect the first device
+| Connection | Requirements | Where changes travel |
+| --- | --- | --- |
+| LAN sync | Eidos Lite on a computer and an Android or iOS app with LAN sync, on the same reachable local network | Directly between the paired phone and computer; no cloud account required |
+| Cloud sync | An account and an eligible service plan | Through the cloud service |
+
+Local files remain usable offline. The steps below cover LAN sync first.
+
+## Pair your phone and computer
+
+1. Connect both devices to the same local network, such as your home Wi-Fi. Keep Eidos Lite running and the mobile app in the foreground during setup and transfers. Allow local-network access when the operating system asks.
+2. On the computer, open **Settings → Devices** (**设置 → 设备**) and turn on **局域网服务** (LAN service). Pairing does not require an open Space.
+3. Choose **显示配对码** (Show pairing code).
+4. On the phone, open **同步** (Sync) and choose **扫描配对二维码** (Scan pairing QR code). Alternatively, choose **使用配对码** (Use pairing code) and paste the code copied from the computer.
+5. When the phone shows **等待电脑授权** (Waiting for computer approval), check the device name and accept its request on the computer.
+
+If the approval dialog is in the background, open Eidos Lite through its notification or return to **Settings → Devices**. Codes expire after five minutes. Generate a new code if the request expires or is rejected.
+
+Pairing grants access to the computer's Spaces that you open for LAN sync, rather than every folder. Transfers use encrypted connections tied to the paired computer's identity.
+
+## Make a Space available and download it
 
 1. Open the Space in Eidos Lite.
-2. Sign in through Settings.
-3. Open the Sync panel and enable Sync.
-4. Wait for the panel to report completion or show an action you need to take.
+2. Open **Sync → 局域网同步** (LAN sync) and enable LAN sync for this Space.
+3. On the phone's **同步** page, select the paired computer. Under **这台电脑的 Spaces** (This computer's Spaces), choose **下载** (Download) beside the Space.
+4. Wait for the initial download and local preparation to finish. The app adds the downloaded Space to **资料** (Files), where you can use it offline.
+5. Open a known note or record and check an attachment before starting work.
 
-Do not treat a connection indicator alone as proof that all changes arrived.
-Review the panel's status before switching devices.
+The phone creates a separate local copy. An interrupted first download is not shown as a ready Space; retry from the Sync page. To add another Space, enable it on the computer and download it from the same device list. You do not need to pair again.
 
-## Open the Space on another device
+Some transferred files may require features available only on the computer.
+The phone can preserve these files without being able to open or edit them.
 
-Sign in to the same account on the second device.
-Use the option to sync an existing cloud Space, choose the Space, and let the
-initial download finish.
+An enabled Space stays available when you switch Spaces or close its editor window, provided Eidos Lite is still running. Quitting the app stops access. After restarting Eidos Lite, turn the LAN service and the Space's sharing back on. Paired-device authorization is retained.
 
-**Check:** open a known file and confirm its contents before editing.
+## Synchronize changes in both directions
 
-## Check a round trip
+LAN sync is started manually from the phone. Saving locally does not by itself mean that an edit has reached the other device.
 
-1. Make a small, recognizable edit on the first device.
-2. Wait for Sync to complete.
-3. Open the file on the second device and check the edit.
+1. Finish editing and let the file save.
+2. On the phone, open **同步**, select the computer, and choose **同步** beside the downloaded Space.
+3. Keep both devices reachable until the operation finishes. Check the stage, transferred bytes, and last successful sync time shown by the app.
+4. Open the changed file on the other device to confirm its contents.
 
-This confirms that the expected Space is connected on both devices.
+For a first round-trip check, edit a short note on the computer, sync from the phone, and check it there. Then edit it on the phone, sync again, and check it on the computer. An online indicator only confirms connectivity. Transferred bytes alone are not a completion signal: the app may still need to prepare and apply the downloaded files.
 
-## Work offline
+## Offline work, interruptions, and conflicts
 
-Continue editing local files without a connection.
-When the connection returns, check the Sync panel.
-If Sync requires review, inspect the reported changes and follow the offered
-resolution steps before continuing.
+Continue using downloaded files offline. When both devices are available again, start sync from the phone. Use **停止同步** (Stop sync) to cancel an active operation, then retry when ready. Do not delete the local Space as a retry step.
+
+Compatible changes are merged automatically on the computer. If changes conflict, the phone keeps its files and directs you to the computer's **Sync** panel. Resolve the conflict there, then sync again from the phone. A conflict does not count as a successful sync. Phone edits made while waiting are included in the next attempt.
+
+For connection and download errors, see [LAN troubleshooting](/user-guide/troubleshooting/#lan-sync-cannot-connect-or-find-a-space).
+
+## Stop sharing or remove a device
+
+- Turn off LAN sync in a Space's Sync panel to stop sharing that Space.
+- Turn off **局域网服务** in **Settings → Devices** to stop all LAN sharing. Pairings remain; enable sharing again when needed.
+- Revoke a device in **Settings → Devices** to remove its access. On the phone, **解除配对** (Unpair) is in the selected computer's menu. Unpairing preserves downloaded files and history; reconnecting requires pairing again.
+
+## Use cloud sync
+
+Cloud sync is configured separately. Sign in through Eidos Lite's Settings, open **Sync → 云同步** (Cloud sync), enable it for the Space, and wait for completion. On another supported device, sign in to the same account and use the option to sync an existing cloud Space. Let the first download finish, then check a known file before editing.
+
+Check the [account dashboard](https://eidos.space/account) for your current plan and storage allowance. Losing access to cloud sync does not remove local files.
 
 ## Keep a separate backup
 
-Sync moves changes; it can also move unwanted edits or deletions.
-Keep an independent [backup](/user-guide/data-safety/).
-
-Check the [account dashboard](https://eidos.space/account) for your current
-plan and storage allowance. Losing access to Sync does not remove the
-local files already on your device.
+Both connection types can carry unwanted edits or deletions to another device. Keep an independent [backup](/user-guide/data-safety/).

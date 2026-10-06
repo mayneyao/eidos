@@ -51,6 +51,7 @@ export default defineConfig({
         starlightSidebarTopics(
           [
             {
+              id: "lite",
               label: {
                 en: "Eidos Lite",
                 "zh-CN": "Eidos Lite",
@@ -62,6 +63,7 @@ export default defineConfig({
                   label: "Install",
                   translations: { "zh-CN": "安装" },
                   items: [
+                    "getting-started",
                     "getting-started/eidos-lite",
                     "getting-started/browser",
                   ],
@@ -193,14 +195,10 @@ export default defineConfig({
             },
           ],
           {
-            exclude: [
-              "/",
-              "/zh-cn/",
-              "/getting-started",
-              "/zh-cn/getting-started",
-              "/legacy",
-              "/zh-cn/legacy",
-            ],
+            exclude: ["/", "/zh-cn/"],
+            topics: {
+              lite: ["/legacy", "/zh-cn/legacy"],
+            },
           }
         ),
       ],

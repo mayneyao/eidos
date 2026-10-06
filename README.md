@@ -8,7 +8,8 @@
   <h3>A single-file relational spreadsheet, for you and your agent.</h3>
   <p>
     Eidos File is an open, single-file format built on standard SQLite.<br />
-    Eidos Lite is the desktop app for working with Eidos Files and ordinary files in a local folder.
+    Eidos Lite is the desktop app for working with Eidos Files and ordinary files in a local folder.<br />
+    Experimental Android and iOS apps bring local Eidos Files and Markdown editing to your phone.
   </p>
   <p>
     <a href="https://eidos.space/download#eidos-lite"><img src="https://img.shields.io/badge/download-Eidos%20Lite-8b5cf6.svg?style=flat-square" alt="Download Eidos Lite" /></a>
@@ -22,12 +23,23 @@
 </div>
 
 <p align="center">
-  <img alt="Eidos Lite showing a relational spreadsheet for a personal library with typed fields, relations, and multiple views" src="static/assets/images/eidos-lite-grid.webp" width="1280" />
+  <img alt="Eidos on desktop, Android, and iOS: a personal library table and a Markdown editor" src="static/assets/images/eidos-cross-platform.webp" width="1280" />
 </p>
+
+## On your phone
+
+Browse local files, edit Markdown, and work with Eidos File tables and records on
+Android and iOS. Files and bundled editors remain usable offline without an
+account. Pair with Eidos Lite to sync a local Space over the same LAN.
+
+Both mobile apps are experimental and built from source. See the
+[Android guide](./apps/eidos-android/README.md) and
+[iOS guide](./apps/eidos-ios/README.md) for setup and platform limitations.
 
 ## Get started
 
 - **Desktop:** [Download Eidos Lite](https://eidos.space/download#eidos-lite) to work with a local folder. No account is required for local use.
+- **Mobile:** Build the experimental [Android](./apps/eidos-android/README.md) or [iOS](./apps/eidos-ios/README.md) app for local editing and LAN sync with your desktop.
 - **Browser:** Open [editor.eidos.space](https://editor.eidos.space/) to create or edit a local `.eidos` file without installing anything.
 - **CLI:** Install `eidos` to create, inspect, query, update, and serve Eidos Files.
 
@@ -65,6 +77,7 @@ See the [Eidos CLI guide](./apps/cli/README.md) for agent and automation workflo
   fidelity checks, and its plugin API, while hosts own persistence and
   attachment storage.
 - [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop) is the desktop app.
+- [`apps/eidos-android`](./apps/eidos-android) and [`apps/eidos-ios`](./apps/eidos-ios) are the experimental native mobile hosts, with shared embedded editors.
 - [`apps/eidos-file-web`](./apps/eidos-file-web) powers the browser editor.
 - [`apps/markdown-editor-playground`](./apps/markdown-editor-playground) is the
   isolated development and compatibility playground for the shared Markdown
@@ -97,6 +110,10 @@ CLI development stays in its Rust workspace:
 cd apps/cli
 cargo test --workspace --locked
 ```
+
+Mobile builds run independently of the desktop and browser builds. Follow the
+[Android](./apps/eidos-android/README.md) or [iOS](./apps/eidos-ios/README.md)
+instructions for the required platform SDKs and Rust targets.
 
 See the [documentation site](./apps/docs) and the normative
 [Eidos File specifications](./docs/specs) for more detail.

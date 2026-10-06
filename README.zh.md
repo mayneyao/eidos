@@ -8,7 +8,8 @@
   <h3>单文件多维表格，为你，也为智能体。</h3>
   <p>
     Eidos File 是基于标准 SQLite 的开放单文件格式。<br />
-    Eidos Lite 是用于管理本地文件夹中 Eidos File 与普通文件的桌面应用。
+    Eidos Lite 是用于管理本地文件夹中 Eidos File 与普通文件的桌面应用。<br />
+    实验性的 Android 与 iOS 应用，让你在手机上编辑本地 Eidos File 和 Markdown。
   </p>
   <p>
     <a href="https://eidos.space/zh/download#eidos-lite"><img src="https://img.shields.io/badge/下载-Eidos%20Lite-8b5cf6.svg?style=flat-square" alt="下载 Eidos Lite" /></a>
@@ -22,12 +23,21 @@
 </div>
 
 <p align="center">
-  <img alt="Eidos Lite 中包含类型化字段、关系与多种视图的个人书影音多维表格" src="static/assets/images/eidos-lite-grid.webp" width="1280" />
+  <img alt="桌面、Android 与 iOS 上的 Eidos：个人书影音资料库表格与 Markdown 编辑器" src="static/assets/images/eidos-cross-platform.webp" width="1280" />
 </p>
+
+## 在手机上使用
+
+Android 与 iOS 支持浏览本地文件、编辑 Markdown，以及查看和编辑 Eidos File 表格与记录。
+文件和内置编辑器离线可用，无需账号。与 Eidos Lite 配对后，可通过同一局域网同步本地 Space。
+
+两个移动端目前均为实验性应用，需从源码构建。安装步骤与平台限制见
+[Android 指南](./apps/eidos-android/README.md)和 [iOS 指南](./apps/eidos-ios/README.md)。
 
 ## 快速开始
 
 - **桌面端：** [下载 Eidos Lite](https://eidos.space/zh/download#eidos-lite)，直接使用本地文件夹。本地功能无需账号。
+- **移动端：** 构建实验性的 [Android](./apps/eidos-android/README.md) 或 [iOS](./apps/eidos-ios/README.md) 应用，在手机上本地编辑并与桌面端进行局域网同步。
 - **浏览器：** 打开 [editor.eidos.space](https://editor.eidos.space/)，无需安装即可创建或编辑本地 `.eidos` 文件。
 - **命令行：** 安装 `eidos`，创建、检查、查询、修改或在本地打开 Eidos File。
 
@@ -63,6 +73,7 @@ eidos serve example.eidos --open
   Eidos Flavored Markdown 共享所见即所得编辑器。Markdown 始终是规范值；该包负责导入、
   编辑、序列化、保真检查与插件 API，持久化和附件存储则由宿主负责。
 - [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop) 是桌面应用。
+- [`apps/eidos-android`](./apps/eidos-android) 与 [`apps/eidos-ios`](./apps/eidos-ios) 是实验性的原生移动端，内嵌共享编辑器。
 - [`apps/eidos-file-web`](./apps/eidos-file-web) 是浏览器编辑器。
 - [`apps/markdown-editor-playground`](./apps/markdown-editor-playground) 是共享
   Markdown 编辑器独立的开发与兼容性验证环境。
@@ -93,6 +104,9 @@ CLI 在独立的 Rust workspace 中开发：
 cd apps/cli
 cargo test --workspace --locked
 ```
+
+移动端独立于桌面端和浏览器构建。所需的平台 SDK 与 Rust 目标见
+[Android](./apps/eidos-android/README.md) 和 [iOS](./apps/eidos-ios/README.md) 指南。
 
 更多内容见[文档站点](./apps/docs)与规范性的
 [Eidos File 规范](./docs/specs)。

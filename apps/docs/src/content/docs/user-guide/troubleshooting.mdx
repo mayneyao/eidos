@@ -43,6 +43,9 @@ the selected file. See [version recovery](/user-guide/history-and-recovery/).
 
 ## Collect diagnostics
 
+For LAN sync problems, first use the checks below. For other problems or a
+sync failure that persists, collect diagnostics from the computer:
+
 1. Open **Settings → About**.
 2. Choose **Copy diagnostics**.
 3. Record the steps that caused the problem and the message shown.
@@ -52,3 +55,36 @@ Use **Show logs folder** if logs are needed. Review diagnostics and logs for
 private paths or content before sharing them.
 
 For editing keys, see [everyday editing](/user-guide/records-and-editing/).
+
+## LAN sync cannot connect or find a Space
+
+1. Check that the phone and computer are on the same reachable local network,
+   Eidos Lite is running, and the phone app is in the foreground. Check the
+   operating system's local-network permission and firewall access for Eidos Lite.
+   Guest Wi-Fi or client isolation can prevent devices from reaching one another.
+2. On the computer, check **Settings → Devices → 局域网服务**. Then check that
+   the intended Space is enabled in **Sync → 局域网同步**. Pairing alone does
+   not make a Space available; restart requires enabling sharing again.
+3. On the phone, select the intended computer and choose **刷新设备状态**
+   (Refresh device status) in its menu. An online computer may still have the
+   Space's sharing switched off.
+4. If pairing is waiting for approval, check the computer's dialog or
+   **Settings → Devices**. For an expired code, generate a new one. If camera
+   access is unavailable, use the copied pairing code instead.
+
+## A LAN download times out or fails validation
+
+Keep the source Space on the computer and any existing phone copy. Check the
+connection and retry from the phone's Sync page. A partial first download is
+not a completed local Space. Do not bypass validation or delete database,
+history, or lock files to force it open.
+
+If it fails again, record the exact message, the file and stage shown, the
+direction of transfer, both app versions, and whether this was the first
+download or a later sync. Include the elapsed time and transferred bytes for
+a stall, along with the computer diagnostics described above. An online
+indicator or a byte counter is not proof of a completed sync.
+
+If the phone asks you to resolve a conflict on the computer, open the computer's
+**Sync** panel, review the conflict, and sync from the phone again after resolving
+it. See the [sync guide](/user-guide/sync/).

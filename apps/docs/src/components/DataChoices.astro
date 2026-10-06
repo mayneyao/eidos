@@ -4,13 +4,15 @@ const zh = Astro.props.lang === "zh-cn"
 const choices = zh ? [
   ["保存", "编辑 → 本机文件", "保留当前工作。Eidos Lite 将已提交的编辑写入本地文件；网页编辑器需要检查保存状态。"],
   ["版本", "本机文件 → 本机历史", "回看或恢复已记录的状态。先启用版本管理，再保存有意义的节点。历史与文件在同一台设备上。"],
-  ["Sync", "本机 ↔ 云端 ↔ 另一台设备", "在设备之间同步 Space。需要账户和网络；离线时仍可编辑本地文件。"],
+  ["局域网同步", "手机 ↔ 已配对电脑", "在同一局域网手动同步已开放的 Space，无需云端账号。每台设备保留本地副本，离线仍可使用。"],
+  ["云同步", "本机 ↔ 云端 ↔ 另一台设备", "通过云端同步 Space，需要账户及符合条件的服务方案。离线时仍可编辑本地文件。"],
   ["发布", "选定内容 → 托管页面 → 读者", "分享可访问的页面。修改本地内容后，重新发布才会更新网页。"],
   ["备份", "完整 Space → 独立存储", "应对设备丢失或磁盘故障。包含引用的附件，并检查副本能否恢复。"],
 ] : [
   ["Save", "Edit → local file", "Keep current work. Eidos Lite writes committed edits to local files. In the Web Editor, check the save state."],
   ["Versions", "Local files → local history", "Review or restore recorded states. Enable versioning, then save useful milestones. History lives on the same device."],
-  ["Sync", "This device ↔ cloud ↔ another device", "Keep a Space on multiple devices. Sync needs an account and a connection. Local editing remains available offline."],
+  ["LAN sync", "Phone ↔ paired computer", "Manually sync shared Spaces over the same local network, without a cloud account. Each device keeps a local copy for offline use."],
+  ["Cloud sync", "This device ↔ cloud ↔ another device", "Sync a Space through the cloud with an account and an eligible service plan. Local editing remains available offline."],
   ["Publish", "Selected content → hosted page → reader", "Share a page others can open. Republish after local edits to update the hosted page."],
   ["Backup", "Whole Space → independent storage", "Recover after device loss or drive failure. Include referenced attachments and check that you can restore the copy."],
 ]
