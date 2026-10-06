@@ -114,6 +114,14 @@ export interface MarkdownUnsupportedFeature {
 }
 
 export interface MarkdownEditorLabels {
+  imageSettings: string
+  closeImageSettings: string
+  imageUrl: string
+  imageAlt: string
+  imageTitle: string
+  deleteImage: string
+  invalidImageUrl: string
+  saveImage: string
   findInDocument: string
   noTextMatches: string
   previousMatch: string
@@ -141,6 +149,10 @@ export interface MarkdownEditorLabels {
   inlineCode: string
   undo: string
   redo: string
+  textFormat: string
+  hideKeyboard: string
+  indent: string
+  outdent: string
   saveBlock: string
   cancelBlockEdit: string
   insertBlock: string
@@ -155,6 +167,7 @@ export interface MarkdownEditorLabels {
   callout: string
   frontmatter: string
   image: string
+  attachFile: string
   footnote: string
   rawHtml: string
   table: string
@@ -211,6 +224,17 @@ export interface MarkdownEditorProps {
   onTextSearchUnavailable?: () => void
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */
   onPasteImage?: MarkdownEditorPasteImageHandler
+  /** Mobile insertion: the host picks and persists files before returning portable destinations. */
+  onImportFiles?: (request: {
+    kind: "image" | "file"
+    signal: AbortSignal
+  }) => Promise<
+    readonly {
+      markdownUrl: string
+      name: string
+      mediaType: string
+    }[]
+  >
   /** Resolves a canonical image URL to a safe URL usable by the current DOM. */
   resolveImageUrl?: MarkdownEditorImageUrlResolver
   onError?(error: Error): void
@@ -233,6 +257,8 @@ export interface MarkdownEditorProps {
   showToolbar?: boolean
   /** Touch toolbar docked to the host viewport; desktop remains floating. */
   toolbarMode?: "floating" | "mobile"
+  /** Native hosts dismiss the software keyboard when a touch panel opens. */
+  onDismissKeyboard?: () => void
   /** Independent interaction switches. Explicit values override legacy defaults. */
   interactions?: MarkdownEditorInteractions
   /** Custom fenced-code tokenizer, or false to disable syntax highlighting. */

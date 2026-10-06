@@ -113,7 +113,8 @@ describe("SourceRangeEditingPlugin integration", () => {
   const renderEditor = async (
     markdown: string,
     readOnly = false,
-    profile?: MarkdownProfile
+    profile?: MarkdownProfile,
+    toolbarMode: "floating" | "mobile" = "floating"
   ) => {
     await act(async () => {
       root.render(
@@ -124,6 +125,7 @@ describe("SourceRangeEditingPlugin integration", () => {
           onError={onError}
           {...(profile ? { profile } : { plugins })}
           readOnly={readOnly}
+          toolbarMode={toolbarMode}
           showToolbar={false}
         />
       )
@@ -162,6 +164,56 @@ describe("SourceRangeEditingPlugin integration", () => {
     } else {
       Reflect.deleteProperty(Range.prototype, "getBoundingClientRect")
     }
+  })
+
+  it("opens a source-backed list on a mobile tap and saves it in place", async () => {
+    const markdown = "- # First\n- Second"
+    await renderEditor(markdown, false, undefined, "mobile")
+    const item = container.querySelector<HTMLElement>("li")!
+    expect(item).not.toBeNull()
+    await act(async () => item.click())
+    await flushEditor()
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      "[data-source-range-textarea='true']"
+    )!
+    expect(textarea).not.toBeNull()
+    expect(textarea.value).toBe(markdown)
+    await act(async () => {
+      changeTextarea(textarea, "- # Changed\n- Second")
+      commitTextarea(textarea)
+    })
+    await flushEditor()
+    expect(onMarkdownChange).toHaveBeenLastCalledWith("- # Changed\n- Second")
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["desktop", false, "floating"],
+    ["read-only mobile", true, "mobile"],
+  ] as const)(
+    "does not open source editing on %s tap",
+    async (_, readOnly, mode) => {
+      await renderEditor("- # First\n- Second", readOnly, undefined, mode)
+      await act(async () => container.querySelector<HTMLElement>("li")!.click())
+      await flushEditor()
+      expect(container.querySelector("[data-source-range-textarea]")).toBeNull()
+      expect(onMarkdownChange).not.toHaveBeenCalled()
+    }
+  )
+
+  it("keeps mobile list links interactive without opening source editing", async () => {
+    await renderEditor(
+      "- # [First](#first)\n- Second",
+      false,
+      undefined,
+      "mobile"
+    )
+    await act(async () =>
+      container.querySelector<HTMLAnchorElement>("li a")!.click()
+    )
+    await flushEditor()
+    expect(container.querySelector("[data-source-range-textarea]")).toBeNull()
+    expect(onMarkdownChange).not.toHaveBeenCalled()
   })
 
   it.each(["save", "cancel"])(

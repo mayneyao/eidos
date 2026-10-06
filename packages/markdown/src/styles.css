@@ -197,6 +197,59 @@
     color-mix(in srgb, var(--eme-foreground) 8%, transparent);
 }
 
+.eme-mobile-image-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  max-height: 85dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+  background: var(--eme-background);
+  color: var(--eme-foreground);
+}
+.eme-mobile-image-sheet::backdrop {
+  background: rgb(0 0 0 / 25%);
+}
+.eme-mobile-image-sheet form,
+.eme-mobile-image-sheet label {
+  display: grid;
+  gap: 12px;
+}
+.eme-mobile-image-sheet header,
+.eme-mobile-image-sheet footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eme-mobile-image-sheet :is(input, button) {
+  font: inherit;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 8px 12px;
+}
+.eme-mobile-image-sheet input {
+  width: 100%;
+  border: 1px solid var(--eme-border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+.eme-mobile-image-sheet button {
+  border-radius: 8px;
+  background: var(--eme-accent);
+  color: inherit;
+}
+.eme-editor:has(.eme-mobile-tools) .eme-efm-image-block {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
 .eme-editor-stage {
   position: relative;
   height: 100%;
@@ -204,9 +257,31 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
-  scrollbar-color: var(--eme-border) transparent;
+  scrollbar-color: transparent transparent;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+
+.eme-editor-stage:hover,
+.eme-editor-stage:focus-within {
+  scrollbar-color: var(--eme-border) transparent;
+}
+
+/* Keep the gutter geometry unchanged when revealing the thumb. */
+.eme-editor-stage::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.eme-editor-stage::-webkit-scrollbar-track,
+.eme-editor-stage::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.eme-editor-stage::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+}
+.eme-editor-stage:hover::-webkit-scrollbar-thumb,
+.eme-editor-stage:focus-within::-webkit-scrollbar-thumb {
+  background: var(--eme-border);
 }
 
 .eme-document-find {
@@ -1847,22 +1922,32 @@
   cursor: pointer;
 }
 /* Opt-in touch toolbar. The host owns viewport resizing around the software keyboard. */
-.eme-mobile-toolbar {
+.eme-mobile-dock {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 40;
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--background, Canvas);
   color: var(--foreground, CanvasText);
   border-top: 1px solid var(--border, GrayText);
-  overscroll-behavior-x: contain;
 }
-.eme-mobile-toolbar button {
+.eme-mobile-toolbar {
+  display: flex;
+  padding: 2px 6px;
+}
+.eme-mobile-tools {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.eme-mobile-tools::-webkit-scrollbar {
+  display: none;
+}
+.eme-mobile-dock button {
   flex: 0 0 auto;
   min-width: 44px;
   min-height: 44px;
@@ -1873,7 +1958,66 @@
   font: inherit;
   touch-action: manipulation;
 }
-.eme-mobile-toolbar button[aria-pressed="true"],
-.eme-mobile-toolbar button:active {
+.eme-mobile-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  padding: 4px;
+}
+.eme-mobile-dock button[aria-pressed="true"],
+.eme-mobile-dock button[aria-expanded="true"],
+.eme-mobile-dock button:active {
   background: var(--muted, ButtonFace);
+}
+.eme-mobile-dock button:focus-visible {
+  outline: 2px solid var(--ring, Highlight);
+  outline-offset: -2px;
+}
+.eme-mobile-toolbar .eme-mobile-dismiss {
+  border-left: 1px solid var(--border, GrayText);
+  border-radius: 0;
+  margin-left: 4px;
+}
+.eme-mobile-panel {
+  height: min(320px, 44dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border-top: 1px solid var(--border, GrayText);
+  background: color-mix(
+    in srgb,
+    var(--foreground, CanvasText) 3%,
+    var(--background, Canvas)
+  );
+}
+.eme-mobile-panel > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted-foreground, GrayText);
+}
+.eme-mobile-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.eme-mobile-panel-grid button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 12px;
+  background: var(--background, Canvas);
+  text-align: left;
+  font-size: 18px;
+}
+.eme-mobile-panel-grid button span {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.eme-editor-shell:has(.eme-mobile-dock) .eme-heading-h1 {
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: 2rem;
+  line-height: 1.25;
 }

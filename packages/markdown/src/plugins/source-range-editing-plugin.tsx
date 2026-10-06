@@ -14,6 +14,8 @@ import {
   type LexicalNode,
 } from "lexical"
 import { useEffect } from "react"
+import { mergeRegister } from "@lexical/utils"
+import { EDIT_SELECTED_SOURCE_COMMAND } from "../ui/efm-block-selection"
 
 import { resolveEditableSourceRange } from "../core/source-range"
 import { $isEfmBlockNode } from "../nodes/efm-semantic-node"
@@ -104,133 +106,154 @@ export function SourceRangeEditingPlugin({
 
   useEffect(
     () =>
-      editor.registerCommand(
-        KEY_DOWN_COMMAND,
-        (event) => {
-          if (readOnly || !matches(event, "selection.edit-source")) {
-            return false
-          }
-
-          const selection = $getSelection()
-          const hasNodeSelection = $isNodeSelection(selection)
-          if (
-            !canOpenSourceRangeEditorFromEvent(
-              event,
-              editor.isComposing(),
-              hasNodeSelection
-            )
-          ) {
-            return false
-          }
-
-          event.preventDefault()
-          if (!selection || !$isNodeSelection(selection) || activeDrafts > 0) {
-            return true
-          }
-
-          const root = $getRoot()
-          const rootChildren = root.getChildren()
-          const selectedKeys = new Set(
-            selection.getNodes().map((node) => node.getKey())
-          )
-          const rootKeys = new Set(rootChildren.map((node) => node.getKey()))
-          if ([...selectedKeys].some((key) => !rootKeys.has(key))) return true
-
-          const sourceMappedChildren = rootChildren.flatMap((node, rootIndex) =>
-            nodeOwnsMarkdownSource(node, transformers)
-              ? [{ node, rootIndex }]
-              : []
-          )
-          const selectedSourceIndices = sourceMappedChildren.flatMap(
-            ({ node }, sourceIndex) =>
-              selectedKeys.has(node.getKey()) && nodeCanJoinSourceRange(node)
-                ? [sourceIndex]
-                : []
-          )
-          const selectedIndices = sourceMappedChildren.flatMap(
-            ({ node, rootIndex }) =>
-              selectedKeys.has(node.getKey()) && nodeCanJoinSourceRange(node)
-                ? [rootIndex]
-                : []
-          )
-          if (selectedIndices.length === 0) return true
-
-          const acceptedMarkdown = getAcceptedMarkdown()
-          const resolved = resolveEditableSourceRange({
-            analyze: (markdown, options) => codec.analyze(markdown, options),
-            inputProfile,
-            markdown: acceptedMarkdown,
-            selectedIndices: selectedSourceIndices,
-            syntaxFeatures,
-            topLevelCount: sourceMappedChildren.length,
-          })
-          if (!resolved.range) {
-            if (resolved.reason === "source-map-mismatch") {
-              onError(
-                new Error(
-                  "The selected blocks do not have one unambiguous Markdown source range."
-                )
-              )
+      mergeRegister(
+        editor.registerCommand(
+          KEY_DOWN_COMMAND,
+          (event) => {
+            if (readOnly || !matches(event, "selection.edit-source")) {
+              return false
             }
-            return true
-          }
 
-          const markdownSelection = $createNodeSelection()
-          for (const node of selectedIndices.map(
-            (index) => rootChildren[index]
-          )) {
-            addNodeAndDescendants(markdownSelection, node)
-          }
-          const canonicalSource = $convertSelectionToMarkdownString(
-            [...transformers],
-            markdownSelection
-          )
-          if (!canonicalSource) return true
+            const selection = $getSelection()
+            const hasNodeSelection = $isNodeSelection(selection)
+            if (
+              !canOpenSourceRangeEditorFromEvent(
+                event,
+                editor.isComposing(),
+                hasNodeSelection
+              )
+            ) {
+              return false
+            }
 
-          const selectedElements = selectedIndices.flatMap((index) => {
-            const element = editor.getElementByKey(rootChildren[index].getKey())
-            return element ? [element] : []
-          })
-          const minimumHeight =
-            selectedElements.length > 0
-              ? Math.max(
-                  ...selectedElements.map(
-                    (element) => element.getBoundingClientRect().bottom
-                  )
-                ) -
-                Math.min(
-                  ...selectedElements.map(
-                    (element) => element.getBoundingClientRect().top
+            event.preventDefault()
+            return editor.dispatchCommand(
+              EDIT_SELECTED_SOURCE_COMMAND,
+              undefined
+            )
+          },
+          COMMAND_PRIORITY_HIGH
+        ),
+        editor.registerCommand(
+          EDIT_SELECTED_SOURCE_COMMAND,
+          () => {
+            if (readOnly || editor.isComposing()) return false
+            const selection = $getSelection()
+            if (
+              !selection ||
+              !$isNodeSelection(selection) ||
+              activeDrafts > 0
+            ) {
+              return true
+            }
+
+            const root = $getRoot()
+            const rootChildren = root.getChildren()
+            const selectedKeys = new Set(
+              selection.getNodes().map((node) => node.getKey())
+            )
+            const rootKeys = new Set(rootChildren.map((node) => node.getKey()))
+            if ([...selectedKeys].some((key) => !rootKeys.has(key))) return true
+
+            const sourceMappedChildren = rootChildren.flatMap(
+              (node, rootIndex) =>
+                nodeOwnsMarkdownSource(node, transformers)
+                  ? [{ node, rootIndex }]
+                  : []
+            )
+            const selectedSourceIndices = sourceMappedChildren.flatMap(
+              ({ node }, sourceIndex) =>
+                selectedKeys.has(node.getKey()) && nodeCanJoinSourceRange(node)
+                  ? [sourceIndex]
+                  : []
+            )
+            const selectedIndices = sourceMappedChildren.flatMap(
+              ({ node, rootIndex }) =>
+                selectedKeys.has(node.getKey()) && nodeCanJoinSourceRange(node)
+                  ? [rootIndex]
+                  : []
+            )
+            if (selectedIndices.length === 0) return true
+
+            const acceptedMarkdown = getAcceptedMarkdown()
+            const resolved = resolveEditableSourceRange({
+              analyze: (markdown, options) => codec.analyze(markdown, options),
+              inputProfile,
+              markdown: acceptedMarkdown,
+              selectedIndices: selectedSourceIndices,
+              syntaxFeatures,
+              topLevelCount: sourceMappedChildren.length,
+            })
+            if (!resolved.range) {
+              if (resolved.reason === "source-map-mismatch") {
+                onError(
+                  new Error(
+                    "The selected blocks do not have one unambiguous Markdown source range."
                   )
                 )
-              : 0
-          const selectedNodes = selectedIndices.map(
-            (index) => rootChildren[index]
-          )
-          const first = selectedNodes[0]
-          if (!first) return true
+              }
+              return true
+            }
 
-          const sourceNode = $createEfmSourceRangeNode({
-            canonicalSource,
-            documentInputProfile: inputProfile,
-            expectedSource: resolved.range.expectedSource,
-            inputProfile: resolved.range.inputProfile,
-            minimumHeight,
-            protectedSourceSuffix: resolved.range.protectedSourceSuffix,
-            selectionIndex: selectedIndices[0],
-            source: resolved.range.source,
-            sourceStart: resolved.range.start,
-            sourceEnd: resolved.range.end,
-          })
-          first.replace(sourceNode)
-          for (const node of selectedNodes.slice(1)) node.remove()
-          const nextSelection = $createNodeSelection()
-          nextSelection.add(sourceNode.getKey())
-          $setSelection(nextSelection)
-          $addUpdateTag(HISTORIC_TAG)
-          return true
-        },
-        COMMAND_PRIORITY_HIGH
+            const markdownSelection = $createNodeSelection()
+            for (const node of selectedIndices.map(
+              (index) => rootChildren[index]
+            )) {
+              addNodeAndDescendants(markdownSelection, node)
+            }
+            const canonicalSource = $convertSelectionToMarkdownString(
+              [...transformers],
+              markdownSelection
+            )
+            if (!canonicalSource) return true
+
+            const selectedElements = selectedIndices.flatMap((index) => {
+              const element = editor.getElementByKey(
+                rootChildren[index].getKey()
+              )
+              return element ? [element] : []
+            })
+            const minimumHeight =
+              selectedElements.length > 0
+                ? Math.max(
+                    ...selectedElements.map(
+                      (element) => element.getBoundingClientRect().bottom
+                    )
+                  ) -
+                  Math.min(
+                    ...selectedElements.map(
+                      (element) => element.getBoundingClientRect().top
+                    )
+                  )
+                : 0
+            const selectedNodes = selectedIndices.map(
+              (index) => rootChildren[index]
+            )
+            const first = selectedNodes[0]
+            if (!first) return true
+
+            const sourceNode = $createEfmSourceRangeNode({
+              canonicalSource,
+              documentInputProfile: inputProfile,
+              expectedSource: resolved.range.expectedSource,
+              inputProfile: resolved.range.inputProfile,
+              minimumHeight,
+              protectedSourceSuffix: resolved.range.protectedSourceSuffix,
+              selectionIndex: selectedIndices[0],
+              source: resolved.range.source,
+              sourceStart: resolved.range.start,
+              sourceEnd: resolved.range.end,
+            })
+            first.replace(sourceNode)
+            for (const node of selectedNodes.slice(1)) node.remove()
+            const nextSelection = $createNodeSelection()
+            nextSelection.add(sourceNode.getKey())
+            $setSelection(nextSelection)
+            $addUpdateTag(HISTORIC_TAG)
+            return true
+          },
+          COMMAND_PRIORITY_HIGH
+        )
       ),
     [
       activeDrafts,

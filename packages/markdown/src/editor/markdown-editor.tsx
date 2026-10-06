@@ -43,6 +43,7 @@ import { DocumentFindPlugin } from "../plugins/document-find-plugin"
 import { RequestedTextSearchPlugin } from "../plugins/requested-text-search-plugin"
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
 import { MobileToolbarPlugin } from "../plugins/mobile-toolbar-plugin"
+import { MobileImagePlugin } from "../plugins/mobile-image-plugin"
 import {
   MarkdownShortcutProvider,
   useMarkdownShortcuts,
@@ -51,6 +52,14 @@ import type { MarkdownEditorLabels, MarkdownEditorProps } from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
 
 const DEFAULT_LABELS: MarkdownEditorLabels = {
+  imageSettings: "Image settings",
+  closeImageSettings: "Close image settings",
+  imageUrl: "Image URL",
+  imageAlt: "Alt text",
+  imageTitle: "Image title",
+  deleteImage: "Delete image",
+  invalidImageUrl: "Enter a valid image URL",
+  saveImage: "Save",
   findInDocument: "Find in document",
   noTextMatches: "No matches",
   previousMatch: "Previous match",
@@ -72,6 +81,10 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   inlineCode: "Inline code",
   undo: "Undo",
   redo: "Redo",
+  textFormat: "Text format",
+  hideKeyboard: "Hide keyboard",
+  indent: "Indent",
+  outdent: "Outdent",
   saveBlock: "Done",
   cancelBlockEdit: "Cancel",
   insertBlock: "Insert block",
@@ -92,6 +105,7 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   callout: "Callout",
   frontmatter: "Document properties",
   image: "Image",
+  attachFile: "File",
   footnote: "Footnote",
   rawHtml: "HTML",
   table: "Table",
@@ -239,6 +253,7 @@ function MarkdownEditorImplementation({
   navigationTarget,
   onTextSearchUnavailable,
   onPasteImage,
+  onImportFiles,
   resolveImageUrl,
   onError,
   labels,
@@ -248,6 +263,7 @@ function MarkdownEditorImplementation({
   autoFocus = false,
   showToolbar = true,
   toolbarMode = "floating",
+  onDismissKeyboard,
   interactions,
   codeHighlightTokenizer,
   inputProfile = "document",
@@ -313,10 +329,17 @@ function MarkdownEditorImplementation({
     >
       <LexicalComposer initialConfig={initialConfig}>
         <div className="eme-editor-shell">
+          {!readOnly && toolbarMode === "mobile" && (
+            <MobileImagePlugin labels={resolvedLabels} />
+          )}
           <DocumentFindPlugin labels={resolvedLabels} />
           {!readOnly && controls.toolbar ? (
             toolbarMode === "mobile" ? (
               <MobileToolbarPlugin
+                onImportFiles={onImportFiles}
+                onError={handleError}
+                baseUri={baseUri}
+                onDismissKeyboard={onDismissKeyboard}
                 items={registry.toolbar}
                 insertions={registry.insertions}
                 labels={resolvedLabels}
@@ -474,9 +497,9 @@ function MarkdownEditorImplementation({
                 controls.collapsibleHeadings) ? (
                 <InsertBlockPlugin
                   documentPath={documentPath}
-                  key={`${controls.insertMenu}:${controls.blockDrag}`}
-                  enableMenu={controls.insertMenu}
-                  enableDrag={controls.blockDrag}
+                  key={`${toolbarMode}:${controls.insertMenu}:${controls.blockDrag}`}
+                  enableMenu={toolbarMode !== "mobile" && controls.insertMenu}
+                  enableDrag={toolbarMode !== "mobile" && controls.blockDrag}
                   inputProfile={inputProfile}
                   insertions={registry.insertions}
                   blockBoundaries={registry.blockBoundaries}
@@ -577,6 +600,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
     <section
       className={`eme-editor${props.className ? ` ${props.className}` : ""}`}
       data-markdown-editor="wysiwyg"
+      data-toolbar-mode={props.toolbarMode ?? "floating"}
       data-markdown-document-key={props.documentKey}
       data-markdown-profile={profile.id}
       data-theme={props.theme ?? "light"}

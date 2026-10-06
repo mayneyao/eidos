@@ -6,6 +6,7 @@ import {
   $setSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
+  createCommand,
   getComposedEventTarget,
   type LexicalEditor,
   type NodeKey,
@@ -13,6 +14,10 @@ import {
 import { useCallback, useEffect, useState } from "react"
 
 type EfmBlockSelectionKind = "node" | null
+
+export const EDIT_SELECTED_SOURCE_COMMAND = createCommand<void>(
+  "EDIT_SELECTED_SOURCE_COMMAND"
+)
 
 const INTERACTIVE_SELECTOR = [
   "[data-efm-editor-interactive='true']",
@@ -94,6 +99,12 @@ export function EfmBlockSelection({
         const nextSelection = $createNodeSelection()
         nextSelection.add(nodeKey)
         $setSelection(nextSelection)
+        if (
+          editor.isEditable() &&
+          block.closest('[data-toolbar-mode="mobile"]')
+        ) {
+          editor.dispatchCommand(EDIT_SELECTED_SOURCE_COMMAND, undefined)
+        }
         return true
       },
       COMMAND_PRIORITY_LOW

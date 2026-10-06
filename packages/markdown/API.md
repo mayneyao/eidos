@@ -26,12 +26,25 @@ source replacements from right to left to preserve all unrelated source bytes.
 ## Installation and imports
 
 For a touch host, set `toolbarMode="mobile"` to dock formatting controls at the
-bottom of the viewport. The default is `"floating"`. The host must reserve space
-below the editor content for the 52px toolbar and resize its viewport for the
-software keyboard. It can control `readOnly` to separate reading from editing.
+bottom of the viewport. The default is `"floating"`. The mobile bar opens a
+two-column block panel with `+` and a text-format panel with `Aa`. It preserves
+the text selection while choosing an operation and returns focus to the editor
+after applying it. Set `onDismissKeyboard` to the native host's keyboard-dismiss
+callback. The host must reserve space below the content for the 52px toolbar
+and, while `.eme-mobile-panel` is present, its `min(320px, 44dvh)` panel. Resize
+the host viewport for the software keyboard. It can control `readOnly` to
+separate reading from editing.
 Disable `interactions.blockDrag` and `interactions.blockSelection` when native
 touch selection should take precedence. Commands use the active syntax profile;
 unsupported block controls are omitted.
+
+Set `onImportFiles` to add Image and File actions to the mobile block panel.
+The callback receives `{ kind: "image" | "file", signal: AbortSignal }` and
+returns an array of `{ markdownUrl, name, mediaType }` after the host has saved
+the selected files. Return an empty array when the picker is cancelled. Images
+are inserted as image blocks; files become Markdown links at the saved selection.
+The editor reports import errors through `onError` and aborts pending insertion
+when its session is disposed. Hosts own file selection, storage and URL resolution.
 
 The component requires React 18 or 19 and a browser DOM. It is currently a
 workspace-private prerelease, not a published stable package.
