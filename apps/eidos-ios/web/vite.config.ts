@@ -10,9 +10,36 @@ export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: [...eidosFileUiSourceAliases(), ...markdownEditorSourceAliases()],
+    alias: [
+      {
+        find: /^\.\/browser-module$/,
+        replacement: fileURLToPath(
+          new URL(
+            "../../../packages/mobile-plugin-host/src/browser-module.ts",
+            import.meta.url
+          )
+        ),
+      },
+      {
+        find: /^\.\/toolchain$/,
+        replacement: fileURLToPath(
+          new URL(
+            "../../../packages/mobile-plugin-host/src/browser-toolchain.ts",
+            import.meta.url
+          )
+        ),
+      },
+      ...eidosFileUiSourceAliases(),
+      ...markdownEditorSourceAliases(),
+    ],
   },
   build: {
+    rollupOptions: {
+      input: {
+        editor: fileURLToPath(new URL("./index.html", import.meta.url)),
+        plugins: fileURLToPath(new URL("./plugins.html", import.meta.url)),
+      },
+    },
     outDir: "../build/editor",
     emptyOutDir: true,
     chunkSizeWarningLimit: 4096,

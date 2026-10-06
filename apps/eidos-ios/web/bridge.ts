@@ -6,6 +6,7 @@ declare global {
       }
     }
     eidosLeave: (mode: string) => void
+    eidosFlush?: () => Promise<void>
   }
 }
 const pending = new Set<Promise<unknown>>()

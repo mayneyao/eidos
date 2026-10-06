@@ -10,27 +10,43 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: 1
-    CODE_SIGNING_ALLOWED: NO
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
 targets:
   EidosIOS:
     type: application
     platform: iOS
     sources:
       - path: Sources
+      - path: Shared
+      - path: Assets.xcassets
+      - path: Resources
+      - path: ../../packages/mobile-plugin-host/locales
+        type: folder
+        buildPhase: resources
       - path: build/editor
         type: folder
         buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: space.eidos.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_OBJC_BRIDGING_HEADER: Sources/NativeBridge.h
         LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/build/native/$(PLATFORM_NAME)"
-        OTHER_LDFLAGS: "$(inherited) -leidos_ios_host -liconv"
+        OTHER_LDFLAGS: "$(inherited) -leidos_ios_host -liconv -lz"
         TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: EidosShare
+        embed: true
+    entitlements:
+      path: build/Eidos.entitlements
+      properties:
+        com.apple.security.application-groups: ["group.space.eidos.ios"]
     info:
       path: build/Info.plist
       properties:
         CFBundleDisplayName: Eidos
+        CFBundleLocalizations: [en, zh]
+        CFBundleDevelopmentRegion: en
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -42,6 +58,51 @@ targets:
           ]
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
+        NSLocalNetworkUsageDescription: "Find Eidos computers on your local network and sync your Space."
+        NSCameraUsageDescription: "Scan the Eidos pairing QR code on your computer to connect over the local network."
+        NSFaceIDUsageDescription: "Verify your identity before deleting a local Space to protect files and version history."
+        UIBackgroundModes: ["processing"]
+        BGTaskSchedulerPermittedIdentifiers: ["space.eidos.ios.sync"]
+        NSBonjourServices: ["_eidos-peer._tcp"]
+        CFBundleURLTypes:
+          - CFBundleURLName: space.eidos.ios.oauth
+            CFBundleURLSchemes: ["space.eidos.ios"]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  EidosShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+      - path: Shared
+      - path: Sources/AppLanguage.swift
+      - path: ../../packages/mobile-plugin-host/locales
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: space.eidos.ios.share
+        APPLICATION_EXTENSION_API_ONLY: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+    entitlements:
+      path: build/Share.entitlements
+      properties:
+        com.apple.security.application-groups: ["group.space.eidos.ios"]
+    info:
+      path: build/Share-Info.plist
+      properties:
+        CFBundleDisplayName: Eidos
+        CFBundleLocalizations: [en, zh]
+        CFBundleDevelopmentRegion: en
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 10
+              NSExtensionActivationSupportsImageWithMaxCount: 100
+              NSExtensionActivationSupportsFileWithMaxCount: 100
   EidosIOSTests:
     type: bundle.unit-test
     platform: iOS

@@ -1,0 +1,3 @@
+"NSLocalNetworkUsageDescription" = "发现同一局域网的 Eidos 电脑，并同步你的 Space。";
+"NSCameraUsageDescription" = "扫描电脑上的 Eidos 配对二维码，连接同一局域网的电脑。";
+"NSFaceIDUsageDescription" = "删除本地 Space 前验证你的身份，保护本机文件和版本历史。";

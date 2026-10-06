@@ -1,0 +1,3 @@
+"NSLocalNetworkUsageDescription" = "Find Eidos computers on your local network and sync your Space.";
+"NSCameraUsageDescription" = "Scan the Eidos pairing QR code on your computer to connect over the local network.";
+"NSFaceIDUsageDescription" = "Verify your identity before deleting a local Space to protect files and version history.";

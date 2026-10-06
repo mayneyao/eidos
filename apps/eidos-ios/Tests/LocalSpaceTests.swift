@@ -2,6 +2,43 @@ import XCTest
 @testable import EidosIOS
 
 final class LocalSpaceTests: XCTestCase {
+    func testUntitledCreationAvoidsCollisionsInCurrentDirectory() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: space.privateRoot) }
+        let first = try space.create(markdown: true)
+        XCTAssertEqual(first.lastPathComponent, "Untitled.md")
+        XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "")
+        XCTAssertEqual(try space.create(markdown: true).lastPathComponent, "Untitled 2.md")
+        let data = try space.create(markdown: false)
+        XCTAssertEqual(data.lastPathComponent, "Untitled.eidos")
+        _ = try Runtime.call(data, "close")
+        let secondData = try space.create(markdown: false)
+        XCTAssertEqual(secondData.lastPathComponent, "Untitled 2.eidos")
+        _ = try Runtime.call(secondData, "close")
+        let folder = try space.createFolder("Untitled", in: root)
+        XCTAssertEqual(space.availableURL("Untitled", extension: "", in: root).lastPathComponent, "Untitled 2")
+        XCTAssertEqual(try space.create(markdown: true, in: folder).lastPathComponent, "Untitled.md")
+        XCTAssertEqual(try space.rename(first, to: "Named.md").lastPathComponent, "Named.md")
+    }
+    func testEditorImportsAttachmentsUsingCanonicalFileEntries() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root:root)
+        defer { try? FileManager.default.removeItem(at:root); try? FileManager.default.removeItem(at:space.privateRoot) }
+        let document = try space.create(markdown:false)
+        let source = root.appendingPathComponent("photo sample.png")
+        try Data([1,2,3]).write(to:source)
+        let entries = try LocalSpace.importEditorFiles(document:document,sources:[source])
+        let entry = try XCTUnwrap(entries.first as? [String:Any])
+        XCTAssertNotNil(entry["id"])
+        XCTAssertEqual(entry["mediaType"] as? String,"image/png")
+        let uri = try XCTUnwrap(entry["uri"] as? String)
+        XCTAssertTrue(uri.hasPrefix("assets/import-"))
+        XCTAssertTrue(uri.contains("%20"))
+        XCTAssertEqual(try Data(contentsOf:try LocalSpace.resource(uri.removingPercentEncoding!,under:root)),Data([1,2,3]))
+        XCTAssertThrowsError(try LocalSpace.importEditorFiles(document:document,sources:Array(repeating:source,count:101)))
+        _ = try Runtime.call(document,"close")
+    }
     func testFoldersRenameTrashRestoreAndSnapshot() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: root)

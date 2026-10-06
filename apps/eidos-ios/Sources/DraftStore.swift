@@ -11,7 +11,7 @@ final class DraftStore {
     init(root: URL) { self.root = root }
     private func key(_ file: URL) -> URL { root.appendingPathComponent(LocalSpace.digest(Data(LocalSpace.storageIdentity(file).utf8))).appendingPathExtension("json") }
     func stage(_ file: URL, text: String, digest: String) throws {
-        guard text.utf8.count <= 2 * 1024 * 1024 else { throw LocalError.message("Markdown 编辑上限为 2 MB") }
+        guard text.utf8.count <= 2 * 1024 * 1024 else { throw LocalError.message(tr("Markdown 编辑上限为 2 MB")) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try JSONEncoder().encode(Draft(path: LocalSpace.storageIdentity(file), text: text, digest: digest)).write(to: key(file), options: [.atomic, .completeFileProtectionUnlessOpen])
     }
@@ -44,6 +44,16 @@ final class DraftStore {
             guard let data = try? Data(contentsOf: url), let draft = try? JSONDecoder().decode(Draft.self, from: data) else { return true }
             let identity = LocalSpace.storageIdentity(file)
             return draft.path == identity || draft.path.hasPrefix(identity + "/")
+        }
+    }
+
+    func discardAll(under directory: URL) throws {
+        guard FileManager.default.fileExists(atPath: root.path) else { return }
+        let identity = LocalSpace.storageIdentity(directory)
+        for url in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
+            guard let data = try? Data(contentsOf: url), let draft = try? JSONDecoder().decode(Draft.self, from: data),
+                  draft.path == identity || draft.path.hasPrefix(identity + "/") else { continue }
+            try FileManager.default.removeItem(at: url)
         }
     }
 }

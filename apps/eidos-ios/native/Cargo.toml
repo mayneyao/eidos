@@ -11,6 +11,7 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 anyhow = "1"
+mobile-host = { package = "eidos-android-host", path = "../../cli/android-host" }
 qjs-host = { path = "../../cli/qjs-host", default-features = false }
 serde_json = "1"
 rquickjs = { version = "0.12", features = ["bindgen"] }

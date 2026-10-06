@@ -22,17 +22,27 @@ body {
   font-family: system-ui, sans-serif;
   font-size: 14px;
 }
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
 }
 button {
   min-height: 40px;
   padding: 6px 12px;
   touch-action: manipulation;
+}
+/* WKWebView zooms focused small text fields. Keep editable text readable at
+   the current viewport scale without disabling the user's pinch zoom. */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select,
+[contenteditable="true"] {
+  font-size: max(16px, 1em) !important;
 }
 .markdown-page,
 .database-page {
@@ -73,6 +83,10 @@ button {
   padding-bottom: 76px;
   scroll-padding-bottom: 76px;
 }
+.markdown-content:has(.eme-mobile-panel) {
+  padding-bottom: calc(min(320px, 44dvh) + 76px);
+  scroll-padding-bottom: calc(min(320px, 44dvh) + 76px);
+}
 .markdown-content [contenteditable] {
   font-size: 16px;
   line-height: 1.7;
@@ -82,11 +96,77 @@ button {
   min-height: 44px;
 }
 .view-tools {
-  justify-content: space-between;
-}
-.view-tools select {
-  max-width: 65%;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0;
+  padding: 0 4px;
   min-width: 0;
+  border-bottom: 1px solid var(--border);
+}
+.view-tools > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 48px;
+}
+.view-tools > button[data-active="true"] {
+  color: var(--primary);
+  background: var(--accent);
+}
+.mobile-view-tabs {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mobile-view-tabs::-webkit-scrollbar {
+  display: none;
+}
+.mobile-view-tabs [role="tablist"] {
+  display: flex;
+  flex: none;
+}
+.mobile-view-tabs button {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: none;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.mobile-view-tabs button[aria-selected="true"] {
+  color: var(--foreground);
+  border-bottom-color: var(--foreground);
+}
+.mobile-view-tabs select {
+  appearance: none;
+  text-align: center;
+  width: 44px;
+  min-width: 44px;
+  height: 48px;
+  flex: none;
+  padding: 0;
+  font-size: 22px;
+}
+.data-content *::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.data-content *::-webkit-scrollbar-thumb {
+  border: 0;
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+.data-content *::-webkit-scrollbar-track {
+  background: transparent;
 }
 .markdown-content textarea {
   width: 100%;
@@ -109,4 +189,40 @@ button {
   padding: 8px 12px;
   color: var(--destructive);
   overflow-wrap: anywhere;
+}
+.record-draft {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+.record-draft > header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.record-draft > header strong {
+  flex: 1;
+}
+.record-draft > header button,
+.record-draft > footer button,
+.record-draft > div > button {
+  min-height: 44px;
+  padding: 8px 12px;
+}
+.record-draft > footer {
+  padding: 12px;
+}
+.record-draft > header,
+.record-draft > footer {
+  flex-shrink: 0;
+}
+.record-draft-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }

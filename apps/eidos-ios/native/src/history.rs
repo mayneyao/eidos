@@ -72,6 +72,7 @@ mod tests {
         let mut host = crate::Host::default();
         host.execute(root.join("data.eidos"), "create", json!({"title":"iOS"}))?;
         host.execute(root.into(), "graft:checkpoint", json!({}))?;
+        host.execute(root.into(), "graft:close", json!({}))?;
         let history = execute(root, "history", json!({}))?;
         assert_eq!(history["commits"].as_array().unwrap().len(), 1);
         assert!(history["commits"][0]["files"]["data.eidos"].is_object());

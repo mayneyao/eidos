@@ -8,7 +8,10 @@ use std::{
     rc::Rc,
     sync::{mpsc, OnceLock},
 };
+#[cfg(test)]
 mod history;
+#[cfg(test)]
+mod sync_tests;
 
 struct Session(QjsHost);
 impl Drop for Session {
@@ -32,19 +35,54 @@ fn call(session: &Session, method: &str, request: Value) -> Result<Value> {
         ],
     )?)
 }
-#[derive(Default)]
 struct Host {
     session: Option<(PathBuf, Session)>,
+    graft: mobile_host::graft::GraftHost,
+}
+impl Default for Host {
+    fn default() -> Self {
+        Self {
+            session: None,
+            graft: mobile_host::graft::GraftHost::with_identity("Eidos iOS", "ios@eidos.local"),
+        }
+    }
 }
 impl Host {
     fn execute(&mut self, path: PathBuf, method: &str, request: Value) -> Result<Value> {
+        if let Some(operation) = method.strip_prefix("publish:") {
+            if operation == "progress" {
+                return Ok(mobile_host::publish::progress());
+            }
+            self.session = None;
+            let mut request = request;
+            request["clientPlatform"] = json!("ios");
+            return mobile_host::publish::execute(&path, operation, request);
+        }
         if let Some(operation) = method.strip_prefix("graft:") {
             self.session = None;
-            return history::execute(&path, operation, request);
+            if operation == "history" && !path.join(".graft").exists() {
+                ensure!(path.is_dir(), "Space directory does not exist");
+                return Ok(json!({"commits": []}));
+            }
+            let mut request = request;
+            let cancellation = request
+                .as_object_mut()
+                .and_then(|value| value.remove("_iosCancellation"));
+            return mobile_host::cancellation::run(
+                cancellation.as_ref().and_then(Value::as_str),
+                || self.graft.execute(&path, operation, request),
+            );
         }
         if method == "close" {
             self.session = None;
             return Ok(Value::Null);
+        }
+        if matches!(
+            method,
+            "searchSchema" | "searchRows" | "validate" | "checkIntegrity"
+        ) {
+            self.session = None;
+            return mobile_host::execute(&path, method, request);
         }
         let creating = method == "create";
         ensure!(
@@ -67,6 +105,7 @@ impl Host {
                         | "getSchemaPlanDependencies"
                         | "mutateSchema"
                         | "validate"
+                        | "allocateFileEntry"
                 ),
             "Unsupported Runtime operation"
         );
@@ -93,6 +132,13 @@ impl Host {
             self.session = Some((path, session));
         }
         let session = &self.session.as_ref().unwrap().1;
+        if method == "allocateFileEntry" {
+            return unwrap(
+                session
+                    .0
+                    .invoke("allocateFileEntry", &[request.to_string()])?,
+            );
+        }
         if !creating {
             return call(session, method, request);
         }
@@ -113,6 +159,49 @@ impl Host {
             "planToken":plan["planToken"],"actionsHash":plan["actionsHash"]}),
         )
     }
+}
+
+/// Control is independent of the worker queue so an expired iOS task can stop a transfer.
+/// # Safety
+/// `identity` must be a valid NUL-terminated UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn eidos_ios_cancellation(identity: *const c_char, action: i32) -> bool {
+    if identity.is_null() {
+        return false;
+    }
+    let Ok(id) = CStr::from_ptr(identity).to_str() else {
+        return false;
+    };
+    match action {
+        0 => mobile_host::cancellation::begin(id).is_ok(),
+        1 => {
+            mobile_host::cancellation::cancel(id);
+            true
+        }
+        2 => {
+            mobile_host::cancellation::end(id);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Read transfer counters without waiting for the busy native worker.
+/// # Safety
+/// `identity` must be a valid NUL-terminated UTF-8 string. Free the result with
+/// `eidos_ios_free`.
+#[no_mangle]
+pub unsafe extern "C" fn eidos_ios_transfer_progress(identity: *const c_char) -> *mut c_char {
+    let value = if identity.is_null() {
+        Value::Null
+    } else {
+        CStr::from_ptr(identity)
+            .to_str()
+            .ok()
+            .and_then(mobile_host::cancellation::progress)
+            .unwrap_or(Value::Null)
+    };
+    CString::new(value.to_string()).unwrap().into_raw()
 }
 fn dispatch(path: PathBuf, method: String, request: Value) -> Result<Value> {
     type Message = (PathBuf, String, Value, mpsc::SyncSender<Result<Value>>);
@@ -177,6 +266,28 @@ pub unsafe extern "C" fn eidos_ios_free(value: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn attachment_entries_use_canonical_allocator() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("attachments.eidos");
+        let mut host = Host::default();
+        host.execute(path.clone(), "create", json!({"title":"Attachments"}))?;
+        let entry = host.execute(
+            path.clone(),
+            "allocateFileEntry",
+            json!({"name":"photo.png","size":"3","mediaType":"image/png","uri":"assets/photo.png"}),
+        )?;
+        assert!(entry["id"].is_string());
+        assert_eq!(entry["uri"], "assets/photo.png");
+        assert!(host
+            .execute(
+                path,
+                "allocateFileEntry",
+                json!({"name":"bad","size":"-1","mediaType":"image/png","uri":"assets/bad.png"})
+            )
+            .is_err());
+        Ok(())
+    }
     #[test]
     fn persistent_plans_rows_and_stale_revisions() -> Result<()> {
         let dir = tempfile::tempdir()?;
