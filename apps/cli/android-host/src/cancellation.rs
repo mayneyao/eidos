@@ -1,6 +1,7 @@
 //! Per-operation cancellation, independently reachable while the Graft host is busy.
 use anyhow::{anyhow, ensure, Result};
-use graft_sdk::{CancellationToken, TransferDirection, TransferProgressReporter};
+use graft_sdk::{CancellationToken, TransferDirection, TransferProgress, TransferProgressReporter};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock, Mutex},
@@ -10,6 +11,8 @@ use std::{
 struct Operation {
     token: CancellationToken,
     downloaded: Arc<Mutex<u64>>,
+    progress: Arc<Mutex<(Option<TransferProgress>, Option<TransferProgress>)>>,
+    reporter: TransferProgressReporter,
 }
 
 static TOKENS: LazyLock<Mutex<HashMap<String, Operation>>> =
@@ -27,11 +30,30 @@ pub fn begin(id: &str) -> Result<()> {
         tokens.len() < 1024 && !tokens.contains_key(id),
         "Cancellation identity already active or registry full"
     );
+    let downloaded = Arc::new(Mutex::new(0));
+    let progress = Arc::new(Mutex::new((None, None)));
+    let bytes = downloaded.clone();
+    let transfer = progress.clone();
+    let reporter = TransferProgressReporter::new(move |event| {
+        if event.direction == TransferDirection::Download {
+            if let Ok(mut bytes) = bytes.lock() {
+                *bytes = event.transferred_bytes;
+            }
+        }
+        if let Ok(mut transfer) = transfer.lock() {
+            match event.direction {
+                TransferDirection::Download => transfer.0 = Some(event),
+                TransferDirection::Upload => transfer.1 = Some(event),
+            }
+        }
+    });
     tokens.insert(
         id.into(),
         Operation {
             token: CancellationToken::new(),
-            downloaded: Arc::new(Mutex::new(0)),
+            downloaded,
+            progress,
+            reporter,
         },
     );
     Ok(())
@@ -57,6 +79,30 @@ pub fn downloaded(id: &str) -> Option<u64> {
     Some(bytes)
 }
 
+pub fn progress(id: &str) -> Option<Value> {
+    let operation = TOKENS.lock().ok()?.get(id)?.clone();
+    let progress = operation.progress.lock().ok()?;
+    let value = |event: &Option<TransferProgress>| match event {
+        Some(event) => {
+            json!({"transferred": event.transferred_bytes, "total": event.total_bytes, "planned": planned_total(event)})
+        }
+        None => Value::Null,
+    };
+    Some(json!({"download": value(&progress.0), "upload": value(&progress.1)}))
+}
+
+fn planned_total(event: &TransferProgress) -> bool {
+    #[cfg(feature = "planned-transfer-progress")]
+    {
+        event.total_is_final
+    }
+    #[cfg(not(feature = "planned-transfer-progress"))]
+    {
+        let _ = event;
+        false
+    }
+}
+
 pub fn run<T>(id: Option<&str>, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     let Some(id) = id else {
         return operation();
@@ -68,16 +114,11 @@ pub fn run<T>(id: Option<&str>, operation: impl FnOnce() -> Result<T>) -> Result
         .cloned()
         .ok_or_else(|| anyhow!("Cancellation identity is not active"))?;
     ensure!(!token.token.is_cancelled(), "Graft operation cancelled");
-    let bytes = token.downloaded.clone();
-    let reporter = TransferProgressReporter::new(move |progress| {
-        if progress.direction == TransferDirection::Download {
-            if let Ok(mut bytes) = bytes.lock() {
-                *bytes = progress.transferred_bytes;
-            }
-        }
-    });
+    // One reporter spans the user's operation (fetch plus checkout), so the
+    // planned total includes metadata already received and never resets at a
+    // native dispatch boundary. Upload and download retain separate counters.
     graft_sdk::with_cancellation(&token.token, || {
-        graft_sdk::with_transfer_progress(&reporter, operation)
+        graft_sdk::with_transfer_progress(&token.reporter, operation)
     })
 }
 

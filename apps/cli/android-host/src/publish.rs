@@ -177,9 +177,11 @@ pub fn execute(root: &Path, method: &str, request: Value) -> Result<Value> {
         token: token.to_owned(),
         wait_seconds: 1800,
         progress_json: false,
-        client_metadata_json: Some(
-            json!({"name":"Eidos Android", "platform":"android"}).to_string(),
-        ),
+        client_metadata_json: Some(if request["clientPlatform"] == "ios" {
+            json!({"name":"Eidos iOS", "platform":"ios"}).to_string()
+        } else {
+            json!({"name":"Eidos Android", "platform":"android"}).to_string()
+        }),
     };
     transport(run(args, kind, attachments, None, progress))
 }

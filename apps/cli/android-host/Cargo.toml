@@ -7,6 +7,10 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Mobile builds enable this with the verified patch until the pinned SDK has it.
+planned-transfer-progress = []
+
 [dependencies]
 anyhow = "1"
 eidos-publish = { path = "../publish" }

@@ -114,6 +114,23 @@ pub extern "system" fn Java_space_eidos_android_NativeGraft_downloadedBytes(
         .unwrap_or(-1)
 }
 
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_space_eidos_android_NativeGraft_transferProgress(
+    mut env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    id: jni::objects::JString,
+) -> jni::sys::jstring {
+    let value = env
+        .get_string(&id)
+        .ok()
+        .and_then(|id| cancellation::progress(&String::from(id)))
+        .unwrap_or(Value::Null);
+    env.new_string(value.to_string())
+        .map(|value| value.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
 // SQLite scalar callbacks retain a QuickJS context in thread-local storage.
 // Always release it before dropping the host, including on errors.
 struct ActiveContextGuard;
@@ -143,6 +160,17 @@ fn call(host: &QjsHost, method: &str, request: Value) -> Result<Value> {
 /// Each invocation owns its connection and VM on the calling worker thread.
 /// Android serializes calls with file writes and future Graft materialization.
 pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
+    if method == "checkIntegrity" {
+        let connection = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        let mut statement = connection.prepare("PRAGMA quick_check")?;
+        let checks = statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        return Ok(json!({"valid": checks == ["ok"]}));
+    }
     let creating = method == "create";
     if creating {
         ensure!(!path.exists(), "File already exists");
@@ -262,6 +290,40 @@ pub extern "system" fn Java_space_eidos_android_NativeRuntime_execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capability_failure_is_distinct_from_sqlite_integrity() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("files.eidos");
+        execute(&path, "create", json!({"title": "Files"}))?;
+        let connection = rusqlite::Connection::open(&path)?;
+        connection.execute(
+            "INSERT INTO eidos__features VALUES ('vtab:fs_meta','1',1,'{}')",
+            [],
+        )?;
+        drop(connection);
+        let before = std::fs::read(&path)?;
+        let report = execute(
+            &path,
+            "validate",
+            json!({"level": "full", "diagnosticsLimit": 100}),
+        )?;
+        assert_eq!(report["valid"], false);
+        assert_eq!(report["diagnostics"][0]["code"], "file-feature-unsupported");
+        assert_eq!(
+            execute(
+                &path,
+                "validate",
+                json!({"level": "identity", "diagnosticsLimit": 100})
+            )?["valid"],
+            true
+        );
+        assert_eq!(execute(&path, "checkIntegrity", json!({}))?["valid"], true);
+        assert_eq!(std::fs::read(&path)?, before);
+        std::fs::write(&path, b"incomplete download")?;
+        assert!(execute(&path, "checkIntegrity", json!({})).is_err());
+        Ok(())
+    }
 
     #[test]
     fn create_reopen_mutate_and_reject_stale_revision() -> Result<()> {

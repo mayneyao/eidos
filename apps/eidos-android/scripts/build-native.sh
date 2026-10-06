@@ -26,11 +26,12 @@ export BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android="--sysroot=$ndk_root/toolc
 export BINDGEN_EXTRA_CLANG_ARGS_x86_64_linux_android="--sysroot=$ndk_root/toolchains/llvm/prebuilt/$host_tag/sysroot -I$ndk_root/toolchains/llvm/prebuilt/$host_tag/sysroot/usr/include/x86_64-linux-android"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
 export CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
-cd "$android_root/../cli"
+native_workspace="$(node "$android_root/../../scripts/prepare-mobile-native.mjs" android)"
+cd "$native_workspace"
 for entry in 'aarch64-linux-android arm64-v8a' 'x86_64-linux-android x86_64'; do
   read -r target abi <<< "$entry"
-  cargo "+$android_rust_toolchain" build -p eidos-android-host --release --locked --target "$target"
+  cargo "+$android_rust_toolchain" build -p eidos-android-host --features planned-transfer-progress --release --locked --target "$target" --target-dir "$android_root/../cli/target"
   destination="$android_root/app/build/native/jniLibs/$abi"
   mkdir -p "$destination"
-  cp "target/$target/release/libeidos_android_host.so" "$destination/"
+  cp "$android_root/../cli/target/$target/release/libeidos_android_host.so" "$destination/"
 done

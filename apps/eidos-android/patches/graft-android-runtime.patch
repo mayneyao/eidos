@@ -80,15 +80,763 @@ index febc3efe..2eb40b87 100644
      #[test]
      fn overflow_allocation_from_freelist_keeps_exact_table_candidates() {
          let temp = tempfile::tempdir().unwrap();
+diff --git a/crates/graft-sqlite/src/pragma/repo_snapshot.rs b/crates/graft-sqlite/src/pragma/repo_snapshot.rs
+index 23173697..a563b6e8 100644
+--- a/crates/graft-sqlite/src/pragma/repo_snapshot.rs
++++ b/crates/graft-sqlite/src/pragma/repo_snapshot.rs
+@@ -308,6 +308,15 @@ impl<'a> RepoSnapshotResolver<'a> {
+         plan: &CheckoutPlan,
+     ) -> Result<CheckoutPlan, ErrCtx> {
+         let mut plan = plan.clone();
++        if let Some(remote) = self.remote.clone() {
++            let snapshots = plan
++                .files
++                .values()
++                .map(|state| state.snapshot.to_snapshot())
++                .collect::<Vec<_>>();
++            self.runtime
++                .prepare_snapshots_download(&snapshots, remote)?;
++        }
+         for state in plan.files.values_mut() {
+             *state = self.resolve_file_state(state)?;
+         }
+diff --git a/crates/graft/src/rt/runtime.rs b/crates/graft/src/rt/runtime.rs
+index 0cf8e31a..88d4131e 100644
+--- a/crates/graft/src/rt/runtime.rs
++++ b/crates/graft/src/rt/runtime.rs
+@@ -480,6 +480,43 @@ impl Runtime {
+         self.run_action(HydrateSnapshot { snapshot })
+     }
+ 
++    /// Fetch only snapshot metadata, then plan the exact compressed segment
++    /// bytes missing from local storage across the entire checkout. Shared
++    /// frames count once. This does not hydrate pages or change the worktree.
++    /// Call before hydrating these snapshots in the same progress scope.
++    pub fn prepare_snapshots_download(
++        &self,
++        snapshots: &[Snapshot],
++        remote: Arc<Remote>,
++    ) -> Result<u64> {
++        let mut ranges = std::collections::BTreeMap::<SegmentId, Vec<std::ops::Range<u64>>>::new();
++        for snapshot in snapshots {
++            if self.snapshot_hydration_cached(snapshot)? {
++                continue;
++            }
++            self.snapshot_fetch_from(snapshot, remote.clone())?;
++            for frame in self.storage().read().find_missing_frames(snapshot)? {
++                ranges.entry(frame.sid).or_default().push(frame.bytes);
++            }
++        }
++        let mut bytes = 0u64;
++        for ranges in ranges.values_mut() {
++            ranges.sort_unstable_by_key(|range| (range.start, range.end));
++            let mut end = 0;
++            for range in ranges {
++                let start = range.start.max(end);
++                bytes = bytes
++                    .checked_add(range.end.saturating_sub(start))
++                    .ok_or_else(|| {
++                        LogicalErr::Other("snapshot download size exceeds u64".into())
++                    })?;
++                end = end.max(range.end);
++            }
++        }
++        crate::repo::plan_remaining_transfer(crate::repo::TransferDirection::Download, bytes);
++        Ok(bytes)
++    }
++
+     /// Returns whether a previous complete hydration of this exact snapshot is
+     /// recorded in the local storage index.
+     pub fn snapshot_hydration_cached(&self, snapshot: &Snapshot) -> Result<bool> {
+@@ -885,6 +922,60 @@ mod tests {
+         assert!(!runtime.snapshot_hydration_cached(&snapshot).unwrap());
+     }
+ 
++    #[test]
++    fn download_plan_deduplicates_snapshots_and_excludes_cached_frames() {
++        let tokio_rt = tokio::runtime::Builder::new_current_thread()
++            .enable_all()
++            .build()
++            .unwrap();
++        let remote = Arc::new(RemoteConfig::Memory.build().unwrap());
++        let source = Runtime::new(
++            tokio_rt.handle().clone(),
++            remote.clone(),
++            Arc::new(FjallStorage::open_temporary().unwrap()),
++            None,
++        );
++        let vid = source.volume_open(None, None, None).unwrap().vid;
++        let mut writer = source.volume_writer(vid.clone()).unwrap();
++        writer
++            .write_page(PageIdx::must_new(1), Page::test_filled(7))
++            .unwrap();
++        writer.commit().unwrap();
++        let snapshot = source.volume_snapshot(&vid).unwrap();
++        source
++            .snapshot_push_to(snapshot.clone(), remote.clone())
++            .unwrap();
++        let destination = Runtime::new(
++            tokio_rt.handle().clone(),
++            remote.clone(),
++            Arc::new(FjallStorage::open_temporary().unwrap()),
++            None,
++        );
++        let one = destination
++            .prepare_snapshots_download(std::slice::from_ref(&snapshot), remote.clone())
++            .unwrap();
++        assert!(one > 0);
++        assert!(
++            !destination
++                .snapshot_missing_pages(&snapshot)
++                .unwrap()
++                .is_empty()
++        );
++        let duplicate = destination
++            .prepare_snapshots_download(&[snapshot.clone(), snapshot.clone()], remote.clone())
++            .unwrap();
++        assert_eq!(duplicate, one);
++        destination
++            .snapshot_hydrate_from(snapshot.clone(), remote.clone())
++            .unwrap();
++        assert_eq!(
++            destination
++                .prepare_snapshots_download(&[snapshot], remote)
++                .unwrap(),
++            0
++        );
++    }
++
+     #[test]
+     fn local_commit_hash_is_recorded_and_legacy_hash_is_backfilled() {
+         let tokio_rt = tokio::runtime::Builder::new_current_thread()
+diff --git a/crates/graft-sdk/src/lib.rs b/crates/graft-sdk/src/lib.rs
+index 2ef8fe76..5e4a2b0a 100644
+--- a/crates/graft-sdk/src/lib.rs
++++ b/crates/graft-sdk/src/lib.rs
+@@ -5942,6 +5942,56 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn fast_forward_artifact_edit_preserves_unchanged_sqlite_files() {
++        let directory = tempfile::tempdir().unwrap();
++        let database = directory.path().join("unchanged.eidos");
++        let note = directory.path().join("new.md");
++        Connection::open(&database).unwrap().execute_batch("CREATE TABLE records(id INTEGER PRIMARY KEY, value TEXT); INSERT INTO records VALUES(1,'base');").unwrap();
++        let session = RepositorySession::new(directory.path());
++        session.open().unwrap();
++        session.init().unwrap();
++        session.add_all().unwrap();
++        session.commit("base").unwrap();
++        session.close().unwrap();
++        Repository::open(directory.path())
++            .unwrap()
++            .switch_new_branch("target", None)
++            .unwrap();
++        session.open().unwrap();
++        fs::write(&note, "from phone\n").unwrap();
++        session.add_all().unwrap();
++        session.commit("artifact only").unwrap();
++        session.close().unwrap();
++        Repository::open(directory.path())
++            .unwrap()
++            .switch_branch("main")
++            .unwrap();
++        fs::remove_file(&note).unwrap();
++        session.open().unwrap();
++        let before = fs::metadata(&database).unwrap().modified().unwrap();
++        let contents = fs::read(&database).unwrap();
++        let head = session.repository_metadata().unwrap().current_head;
++        let plan = session
++            .plan_merge(&PlanMergeOptions {
++                revision: "target".into(),
++                expected_head: head.clone(),
++            })
++            .unwrap();
++        let result = session
++            .apply_merge(&ApplyMergeOptions {
++                revision: "target".into(),
++                expected_head: head,
++                plan_token: plan.plan_token,
++            })
++            .unwrap();
++        assert_eq!(result.worktree_paths, vec!["new.md"]);
++        assert_eq!(fs::metadata(&database).unwrap().modified().unwrap(), before);
++        assert_eq!(fs::read(&database).unwrap(), contents);
++        assert_eq!(fs::read_to_string(&note).unwrap(), "from phone\n");
++        assert_eq!(session.status().unwrap()["dirty"], false);
++    }
++
+     #[test]
+     fn git_like_text_merge_survives_reopen_and_stages_edited_result() {
+         let directory = tempfile::tempdir().unwrap();
+diff --git a/crates/graft-sqlite/src/pragma/repo_merge.rs b/crates/graft-sqlite/src/pragma/repo_merge.rs
+index 89934536..78a9ccba 100644
+--- a/crates/graft-sqlite/src/pragma/repo_merge.rs
++++ b/crates/graft-sqlite/src/pragma/repo_merge.rs
+@@ -111,10 +111,25 @@ pub(super) fn run_repo_merge(
+         &plan.checkout,
+         &status,
+     )?;
+-    let previous_files = current_repo_files_for_checkout(&repo)?;
+-    let previous_artifacts = current_repo_artifacts_for_checkout(&repo)?;
++    let mut previous_files = current_repo_files_for_checkout(&repo)?;
++    let mut previous_artifacts = current_repo_artifacts_for_checkout(&repo)?;
++    let mut checkout = plan.checkout.clone();
++    if matches!(plan.outcome, MergeOutcome::FastForward { .. }) {
++        // The authoritative clean-worktree check above already compared each
++        // physical file with its current committed state. Equal immutable
++        // states need no replacement, backup, rehydration, or host validation.
++        // Keep the complete plan for moving HEAD; narrow only filesystem work.
++        checkout
++            .files
++            .retain(|key, state| previous_files.get(key) != Some(state));
++        checkout
++            .artifacts
++            .retain(|key, state| previous_artifacts.get(key) != Some(state));
++        previous_files.retain(|key, state| plan.checkout.files.get(key) != Some(state));
++        previous_artifacts.retain(|key, state| plan.checkout.artifacts.get(key) != Some(state));
++    }
+     let mut _sqlite_replacement_guards =
+-        preflight_workspace_checkout(&repo, &plan.checkout, &previous_files)?;
++        preflight_workspace_checkout(&repo, &checkout, &previous_files)?;
+     let mut outcome = repo.apply_merge_plan(&plan)?;
+     release_sqlite_guards_for_filesystem_change(&mut _sqlite_replacement_guards);
+     checkout_merge_outcome(
+@@ -122,7 +137,7 @@ pub(super) fn run_repo_merge(
+         file,
+         &repo,
+         &outcome,
+-        Some(&plan.checkout),
++        Some(&checkout),
+         &previous_files,
+         &previous_artifacts,
+         None,
+@@ -158,7 +173,7 @@ pub(super) fn run_repo_merge(
+     let paths = merge_path_actions(
+         &repo,
+         &outcome,
+-        Some(&plan.checkout),
++        Some(&checkout),
+         &previous_files,
+         &previous_artifacts,
+     )?;
+diff --git a/crates/graft/src/remote_wasm.rs b/crates/graft/src/remote_wasm.rs
+index 7efc0c92..8b7564ce 100644
+--- a/crates/graft/src/remote_wasm.rs
++++ b/crates/graft/src/remote_wasm.rs
+@@ -419,6 +419,18 @@ impl Remote {
+             .contains_key(path))
+     }
+ 
++    pub(crate) async fn get_raw_bounded(
++        &self,
++        path: &str,
++        max_bytes: usize,
++    ) -> Result<Option<Bytes>> {
++        let bytes = self.get_raw(path).await?;
++        if bytes.as_ref().is_some_and(|value| value.len() > max_bytes) {
++            return Err(RemoteErr::BundledObjectTooLarge { path: path.into() });
++        }
++        Ok(bytes)
++    }
++
+     pub(crate) async fn download_upload_bundle(
+         &self,
+         _ref_path: &str,
+diff --git a/crates/graft/src/repo/remote_objects.rs b/crates/graft/src/repo/remote_objects.rs
+index 4b821df4..629165bd 100644
+--- a/crates/graft/src/repo/remote_objects.rs
++++ b/crates/graft/src/repo/remote_objects.rs
+@@ -3,6 +3,66 @@ use super::*;
+ pub(super) const LEGACY_PACK_PREFETCH_MAX_PACKS: usize = 128;
+ const LEGACY_PACK_PREFETCH_MAX_BYTES: u64 = 48 * 1024 * 1024;
+ 
++#[cfg(test)]
++mod payload_prefetch_tests {
++    use super::*;
++
++    #[test]
++    fn small_payload_prefetch_preserves_hash_checks_and_large_file_fallback() {
++        let root = tempfile::tempdir().unwrap();
++        let remote_root = tempfile::tempdir().unwrap();
++        let repo = Repository::init(root.path()).unwrap();
++        repo.remote_add(
++            "origin",
++            RemoteConfig::Fs {
++                root: remote_root.path().to_string_lossy().into_owned(),
++            },
++        )
++        .unwrap();
++        for (name, size) in [("small.bin", 1024), ("large.bin", 5 * 1024 * 1024)] {
++            let path = root.path().join(name);
++            fs::write(&path, vec![7u8; size]).unwrap();
++            repo.stage_artifact_path_with_inline_text_threshold(&path, 4)
++                .unwrap();
++        }
++        let head = repo.commit_staged("payloads").unwrap();
++        repo.push("origin", "main").unwrap();
++        let payloads = repo.referenced_large_file_payloads().unwrap();
++        for id in &payloads {
++            fs::remove_file(repo.large_file_content_path(id)).unwrap();
++        }
++        let remote = repo.remote_store("origin").unwrap();
++        let head = object::ObjectId::from_str(&head.id).unwrap();
++        repo.prefetch_local_large_file_contents(&remote, &head)
++            .unwrap();
++        for id in &payloads {
++            let remote_path = remote_root
++                .path()
++                .join(large_file_content_relative_path(id));
++            let size = fs::metadata(&remote_path).unwrap().len();
++            assert_eq!(
++                repo.large_file_content_path(id).exists(),
++                size <= 4 * 1024 * 1024
++            );
++            if size == 1024 {
++                fs::remove_file(repo.large_file_content_path(id)).unwrap();
++                fs::write(&remote_path, vec![8u8; 1024]).unwrap();
++                assert!(
++                    repo.prefetch_local_large_file_contents(&remote, &head)
++                        .is_err()
++                );
++                assert!(!repo.large_file_content_path(id).exists());
++                fs::write(&remote_path, vec![7u8; 2048]).unwrap();
++                assert!(
++                    repo.prefetch_local_large_file_contents(&remote, &head)
++                        .is_err()
++                );
++                assert!(!repo.large_file_content_path(id).exists());
++            }
++        }
++    }
++}
++
+ impl Repository {
+     pub fn read_object(&self, id: &str) -> Result<object::Object> {
+         let id = object::ObjectId::from_str(id)?;
+@@ -164,6 +224,7 @@ impl Repository {
+         if self.object_store().read_raw(&head_id)?.is_none() {
+             self.prefetch_commit_pack_chain(remote, &head_id, &mut pack_cache)?;
+         }
++        self.prefetch_local_large_file_contents(remote, &head_id)?;
+         while let Some(id) = stack.pop() {
+             if seen.insert(id.clone(), ()).is_some() {
+                 continue;
+@@ -755,6 +816,78 @@ impl Repository {
+         Ok(())
+     }
+ 
++    /// Packs expose file pointers before their payloads are fetched. Download
++    /// small missing payloads concurrently; cap each at 4 MiB so four active
++    /// requests retain at most 16 MiB of payload data on mobile hosts. Larger
++    /// files and graphs absent from the pack retain the authoritative fallback.
++    fn prefetch_local_large_file_contents(
++        &self,
++        remote: &crate::remote::Remote,
++        head: &object::ObjectId,
++    ) -> Result<()> {
++        let mut stack = vec![head.clone()];
++        let mut seen = BTreeSet::new();
++        let mut payloads = BTreeMap::new();
++        while let Some(id) = stack.pop() {
++            if !seen.insert(id.clone()) {
++                continue;
++            }
++            let Some(bytes) = self.object_store().read_raw(&id)? else {
++                continue;
++            };
++            let actual = object::ObjectId::for_bytes(&bytes);
++            if actual != id {
++                return Err(RepoErr::Object(object::ObjectErr::ObjectIdMismatch {
++                    expected: id,
++                    actual,
++                }));
++            }
++            match object::Object::decode(&bytes)? {
++                object::Object::Commit(commit) => {
++                    stack.push(commit.tree);
++                    stack.extend(commit.parents);
++                }
++                object::Object::Tree(tree) => {
++                    stack.extend(tree.entries.into_iter().map(|entry| entry.oid))
++                }
++                object::Object::Blob(object::BlobObject::LargeFilePointer(pointer))
++                    if pointer.size <= 4 * 1024 * 1024
++                        && !self.large_file_content_path(&pointer.content_hash).exists() =>
++                {
++                    if let Some(previous) =
++                        payloads.insert(pointer.content_hash.clone(), pointer.size)
++                        && previous != pointer.size
++                    {
++                        return Err(RepoErr::InvalidRemoteObject {
++                            path: id.to_string(),
++                            message: "external payload has conflicting sizes".into(),
++                        });
++                    }
++                }
++                _ => {}
++            }
++        }
++        block_on_remote(async {
++            let result = stream::iter(payloads)
++                .map(Ok::<_, RepoErr>)
++                .try_for_each_concurrent(4, |(id, size)| async move {
++                    let path = large_file_content_relative_path(&id);
++                    let bytes = remote
++                        .get_raw_bounded(&path, size as usize)
++                        .await?
++                        .ok_or_else(|| RepoErr::InvalidRemoteObject {
++                            path,
++                            message: format!("missing external payload {id}"),
++                        })?;
++                    validate_large_file_content(&id, size, &bytes)?;
++                    self.write_large_file_content(&id, &bytes)?;
++                    Ok(())
++                })
++                .await;
++            Ok::<_, RemoteErr>(result)
++        })?
++    }
++
+     pub(super) fn repair_artifact_state_from_remote(
+         &self,
+         remote: &crate::remote::Remote,
+diff --git a/crates/graft/src/repo.rs b/crates/graft/src/repo.rs
+index 01885140..462abe2c 100644
+--- a/crates/graft/src/repo.rs
++++ b/crates/graft/src/repo.rs
+@@ -109,6 +109,9 @@ pub struct TransferProgress {
+     pub direction: TransferDirection,
+     pub transferred_bytes: u64,
+     pub total_bytes: Option<u64>,
++    /// True when a complete remaining-transfer plan was declared. A total
++    /// inferred from individual HTTP responses is not a fixed denominator.
++    pub total_is_final: bool,
+ }
+ 
+ #[derive(Default)]
+@@ -122,6 +125,7 @@ struct TransferProgressDirectionCounters {
+     transferred_bytes: u64,
+     total_bytes: u64,
+     indeterminate: bool,
++    total_is_final: bool,
+     declared_remaining_bytes: u64,
+     last_emit: Option<Instant>,
+ }
+@@ -153,11 +157,17 @@ impl TransferProgressReporter {
+             match total_bytes {
+                 Some(total_bytes) => {
+                     let declared = counters.declared_remaining_bytes.min(total_bytes);
++                    if total_bytes > declared {
++                        counters.total_is_final = false;
++                    }
+                     counters.declared_remaining_bytes -= declared;
+                     counters.total_bytes =
+                         counters.total_bytes.saturating_add(total_bytes - declared);
+                 }
+-                None => counters.indeterminate = true,
++                None => {
++                    counters.indeterminate = true;
++                    counters.total_is_final = false;
++                }
+             }
+             due_transfer_progress(direction, counters)
+         };
+@@ -171,6 +181,7 @@ impl TransferProgressReporter {
+             let mut counters = self.inner.counters.lock().unwrap();
+             let counters = direction_counters(&mut counters, direction);
+             counters.total_bytes = counters.total_bytes.saturating_add(total_bytes);
++            counters.total_is_final = true;
+             counters.declared_remaining_bytes = counters
+                 .declared_remaining_bytes
+                 .saturating_add(total_bytes);
+@@ -181,6 +192,21 @@ impl TransferProgressReporter {
+         }
+     }
+ 
++    fn plan_remaining(&self, direction: TransferDirection, remaining: u64) {
++        let progress = {
++            let mut counters = self.inner.counters.lock().unwrap();
++            let counters = direction_counters(&mut counters, direction);
++            counters.total_bytes = counters.transferred_bytes.saturating_add(remaining);
++            counters.declared_remaining_bytes = remaining;
++            counters.indeterminate = false;
++            counters.total_is_final = true;
++            counters.last_emit = Some(Instant::now());
++            transfer_progress(direction, counters)
++        };
++        // Planning is a phase boundary, so it must not be throttled away.
++        (self.inner.callback)(progress);
++    }
++
+     fn advance(&self, direction: TransferDirection, bytes: u64) {
+         let progress = {
+             let mut counters = self.inner.counters.lock().unwrap();
+@@ -247,6 +273,7 @@ fn transfer_progress(
+         direction,
+         transferred_bytes: counters.transferred_bytes,
+         total_bytes: (!counters.indeterminate).then_some(counters.total_bytes),
++        total_is_final: counters.total_is_final && !counters.indeterminate,
+     }
+ }
+ 
+@@ -284,6 +311,14 @@ pub(crate) fn declare_transfer_progress_total(direction: TransferDirection, tota
+     });
+ }
+ 
++pub(crate) fn plan_remaining_transfer(direction: TransferDirection, bytes: u64) {
++    ACTIVE_TRANSFER_PROGRESS.with(|active| {
++        if let Some(reporter) = active.borrow().as_ref() {
++            reporter.plan_remaining(direction, bytes);
++        }
++    });
++}
++
+ pub struct TransferProgressScope(Option<TransferProgressReporter>);
+ 
+ impl TransferProgressScope {
+@@ -2543,20 +2578,24 @@ fn commit_parent_ids(commit: &CommitObject) -> Vec<String> {
+ fn block_on_remote<T>(
+     future: impl std::future::Future<Output = std::result::Result<T, RemoteErr>>,
+ ) -> Result<T> {
+-    thread_local! {
+-        static REMOTE_RUNTIME: RefCell<Option<tokio::runtime::Runtime>> = const { RefCell::new(None) };
+-    }
+-
+-    REMOTE_RUNTIME.with(|runtime| {
+-        let mut runtime = runtime.borrow_mut();
+-        if runtime.is_none() {
+-            *runtime = Some(
+-                tokio::runtime::Builder::new_current_thread()
++    #[cfg(not(target_arch = "wasm32"))]
++    {
++        // HTTP clients are shared with snapshot hydration. Their connection
++        // drivers must keep running after a synchronous repository call ends,
++        // including while another executor uses or drops the pooled client.
++        // One process-wide worker also bounds the cost across SDK sessions.
++        static REMOTE_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
++        let runtime = match REMOTE_RUNTIME.get() {
++            Some(runtime) => runtime,
++            None => {
++                let candidate = tokio::runtime::Builder::new_multi_thread()
++                    .worker_threads(1)
++                    .thread_name("graft-repository-io")
+                     .enable_all()
+-                    .build()?,
+-            );
+-        }
+-        let runtime = runtime.as_ref().expect("runtime initialized");
++                    .build()?;
++                REMOTE_RUNTIME.get_or_init(|| candidate)
++            }
++        };
+         if let Some(cancellation) = active_cancellation_token() {
+             return runtime.block_on(async {
+                 tokio::select! {
+@@ -2565,8 +2604,35 @@ fn block_on_remote<T>(
+                 }
+             });
+         }
+-        Ok(runtime.block_on(future)?)
+-    })
++        Ok(runtime.block_on(future)?)
++    }
++    #[cfg(target_arch = "wasm32")]
++    {
++        thread_local! {
++            static REMOTE_RUNTIME: RefCell<Option<tokio::runtime::Runtime>> = const { RefCell::new(None) };
++        }
++
++        REMOTE_RUNTIME.with(|runtime| {
++            let mut runtime = runtime.borrow_mut();
++            if runtime.is_none() {
++                *runtime = Some(
++                    tokio::runtime::Builder::new_current_thread()
++                        .enable_all()
++                        .build()?,
++                );
++            }
++            let runtime = runtime.as_ref().expect("runtime initialized");
++            if let Some(cancellation) = active_cancellation_token() {
++                return runtime.block_on(async {
++                    tokio::select! {
++                        result = future => Ok(result?),
++                        () = wait_for_cancellation(cancellation) => Err(RepoErr::Cancelled),
++                    }
++                });
++            }
++            Ok(runtime.block_on(future)?)
++        })
++    }
+ }
+ 
+ pub(crate) async fn wait_for_cancellation(cancellation: CancellationToken) {
+diff --git a/crates/graft/src/repo/tests.rs b/crates/graft/src/repo/tests.rs
+index 798cad0f..1d9d66a4 100644
+--- a/crates/graft/src/repo/tests.rs
++++ b/crates/graft/src/repo/tests.rs
+@@ -1130,6 +1130,7 @@ fn transfer_progress_reports_known_and_unknown_body_lengths() {
+         direction: TransferDirection::Upload,
+         transferred_bytes: 5,
+         total_bytes: Some(5),
++        total_is_final: false,
+     }));
+     assert_eq!(
+         events.last(),
+@@ -1137,11 +1138,45 @@ fn transfer_progress_reports_known_and_unknown_body_lengths() {
+             direction: TransferDirection::Download,
+             transferred_bytes: 7,
+             total_bytes: None,
++            total_is_final: false,
+         })
+     );
+     assert!(begin_transfer_progress(TransferDirection::Upload, Some(1)).is_none());
+ }
+ 
++#[test]
++fn planned_download_has_a_fixed_total_and_invalidates_unplanned_requests() {
++    let events = Arc::new(Mutex::new(Vec::new()));
++    let captured = events.clone();
++    let reporter = TransferProgressReporter::new(move |event| captured.lock().unwrap().push(event));
++    with_transfer_progress(&reporter, || {
++        let mut metadata = begin_transfer_progress(TransferDirection::Download, None).unwrap();
++        metadata.advance(7);
++        plan_remaining_transfer(TransferDirection::Download, 30);
++        for size in [10, 20] {
++            let mut body =
++                begin_transfer_progress(TransferDirection::Download, Some(size)).unwrap();
++            body.advance(size);
++            body.finish();
++        }
++    });
++    let planned = events
++        .lock()
++        .unwrap()
++        .iter()
++        .copied()
++        .filter(|e| e.total_is_final)
++        .collect::<Vec<_>>();
++    assert_eq!(planned.first().unwrap().transferred_bytes, 7);
++    assert!(planned.iter().all(|e| e.total_bytes == Some(37)));
++    assert_eq!(planned.last().unwrap().transferred_bytes, 37);
++    with_transfer_progress(&reporter, || {
++        let mut unexpected = begin_transfer_progress(TransferDirection::Download, Some(5)).unwrap();
++        unexpected.advance(5);
++    });
++    assert!(!events.lock().unwrap().last().unwrap().total_is_final);
++}
++
+ #[test]
+ fn transfer_progress_coalesces_short_transfers_and_flushes_the_aggregate_total() {
+     let events = Arc::new(Mutex::new(Vec::new()));
+@@ -1171,6 +1206,7 @@ fn transfer_progress_coalesces_short_transfers_and_flushes_the_aggregate_total()
+             direction: TransferDirection::Upload,
+             transferred_bytes: 0,
+             total_bytes: Some(100_000),
++            total_is_final: true,
+         })
+     );
+     assert_eq!(
+@@ -1179,6 +1215,7 @@ fn transfer_progress_coalesces_short_transfers_and_flushes_the_aggregate_total()
+             direction: TransferDirection::Upload,
+             transferred_bytes: 100_000,
+             total_bytes: Some(100_000),
++            total_is_final: true,
+         })
+     );
+ }
+@@ -1203,6 +1240,7 @@ fn transfer_progress_retains_periodic_partial_updates() {
+         direction: TransferDirection::Upload,
+         transferred_bytes: 40,
+         total_bytes: Some(100),
++        total_is_final: false,
+     }));
+     assert_eq!(
+         events.last(),
+@@ -1210,6 +1248,7 @@ fn transfer_progress_retains_periodic_partial_updates() {
+             direction: TransferDirection::Upload,
+             transferred_bytes: 100,
+             total_bytes: Some(100),
++            total_is_final: false,
+         })
+     );
+ }
+@@ -5390,6 +5429,61 @@ fn remote_pack_indexes_are_persisted_and_repaired_as_disposable_hints() {
+     decode_remote_object_pack_index(repaired_path, &fs::read(repaired_cache).unwrap()).unwrap();
+ }
+ 
++#[test]
++fn repository_http_pool_keeps_driving_between_executors() {
++    use std::io::{Read, Write};
++    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
++    let address = listener.local_addr().unwrap();
++    let server = std::thread::spawn(move || {
++        let (mut socket, _) = listener.accept().unwrap();
++        socket
++            .set_read_timeout(Some(Duration::from_secs(2)))
++            .unwrap();
++        for _ in 0..2 {
++            let mut request = Vec::new();
++            while !request.ends_with(b"\r\n\r\n") {
++                let mut byte = [0];
++                if socket.read_exact(&mut byte).is_err() {
++                    return;
++                }
++                request.push(byte[0]);
++            }
++            socket
++                .write_all(b"HTTP/1.1 200 OK\r\nGraft-Protocol: 1\r\nContent-Length: 2\r\n\r\nok")
++                .unwrap();
++        }
++    });
++    let remote = RemoteConfig::Http {
++        url: format!("http://{address}/repo"),
++        token_env: None,
++    }
++    .build()
++    .unwrap();
++    assert_eq!(
++        block_on_remote(remote.get_raw("first"))
++            .unwrap()
++            .unwrap()
++            .as_ref(),
++        b"ok"
++    );
++    let other = tokio::runtime::Builder::new_current_thread()
++        .enable_all()
++        .build()
++        .unwrap();
++    let result = other.block_on(async {
++        tokio::time::timeout(Duration::from_secs(1), remote.get_raw("second")).await
++    });
++    server.join().unwrap();
++    assert_eq!(
++        result
++            .expect("repository pool stopped driving when its caller returned")
++            .unwrap()
++            .unwrap()
++            .as_ref(),
++        b"ok"
++    );
++}
++
+ #[test]
+ fn remote_pack_index_cache_rejects_non_content_addressed_paths() {
+     let cache = Path::new("cache");
 diff --git a/crates/graft/src/remote.rs b/crates/graft/src/remote.rs
-index 1f9c7cd8..f1c11694 100644
+index 1f9c7cd8..8cf97815 100644
 --- a/crates/graft/src/remote.rs
 +++ b/crates/graft/src/remote.rs
-@@ -383,7 +383,10 @@ fn build_http_client() -> std::result::Result<reqwest::Client, reqwest::Error> {
+@@ -383,7 +383,14 @@ fn build_http_client() -> std::result::Result<reqwest::Client, reqwest::Error> {
          // across the entire repository session so proxies never mix request
          // types with different response-body behavior on one connection.
          .http1_only()
 -        .hickory_dns(true)
++        // Read, probe, and upload pools share the transport's connection budget.
++        // Keep one warm idle connection per pool; completed parallel probes
++        // must not occupy every relay slot needed by the next upload burst.
++        .pool_max_idle_per_host(1)
 +        // Android resolves through the platform network service, not
 +        // /etc/resolv.conf. Hickory's Unix system configuration cannot load
 +        // there; reqwest's system resolver uses Android's getaddrinfo instead.
@@ -96,7 +844,7 @@ index 1f9c7cd8..f1c11694 100644
          .connect_timeout(Duration::from_secs(5))
          // Do not put a wall-clock deadline on the shared client. Reads attach
          // their own bounded request timeout, while mutation uploads remain
-@@ -722,8 +725,8 @@ impl Remote {
+@@ -722,8 +729,8 @@ impl Remote {
                      // use http1 to maximize throughput
                      // http2 routes all requests through a single connection
                      .http1_only()
@@ -107,3 +855,806 @@ index 1f9c7cd8..f1c11694 100644
                      .connect_timeout(Duration::from_secs(5))
                      // .tcp_user_timeout(Duration::from_secs(60))
                      .build()?;
+@@ -915,6 +922,45 @@ impl Remote {
+         }
+     }
+ 
++    /// Read a small immutable payload without buffering an oversized response.
++    pub(crate) async fn get_raw_bounded(
++        &self,
++        path: &str,
++        max_bytes: usize,
++    ) -> Result<Option<Bytes>> {
++        match &self.backend {
++            RemoteBackend::ObjectStore(store) => {
++                let size = match store.stat(path).await {
++                    Ok(metadata) => metadata.content_length(),
++                    Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
++                    Err(err) => return Err(err.into()),
++                };
++                if size > max_bytes as u64 {
++                    return Err(payload_size_error(path));
++                }
++                if size == 0 {
++                    return Ok(Some(Bytes::new()));
++                }
++                let result = store
++                    .read_options(
++                        path,
++                        ReadOptions {
++                            range: (0..size).into(),
++                            ..ReadOptions::default()
++                        },
++                    )
++                    .await;
++                match result {
++                    Ok(buffer) if buffer.len() <= max_bytes => Ok(Some(buffer.to_bytes())),
++                    Ok(_) => Err(payload_size_error(path)),
++                    Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
++                    Err(err) => Err(err.into()),
++                }
++            }
++            RemoteBackend::Http(remote) => remote.get_raw_with_limit(path, Some(max_bytes)).await,
++        }
++    }
++
+     #[tracing::instrument(level = "trace", err(level = "debug"), skip(self))]
+     pub async fn get_raw_range(&self, path: &str, bytes: Range<u64>) -> Result<Bytes> {
+         match &self.backend {
+@@ -1760,6 +1806,14 @@ impl HttpRemote {
+     }
+ 
+     async fn get_raw(&self, path: &str) -> Result<Option<Bytes>> {
++        self.get_raw_with_limit(path, None).await
++    }
++
++    async fn get_raw_with_limit(
++        &self,
++        path: &str,
++        max_bytes: Option<usize>,
++    ) -> Result<Option<Bytes>> {
+         let response = self
+             .send(
+                 self.request(reqwest::Method::GET, self.raw_url("raw", path)),
+@@ -1777,7 +1831,13 @@ impl HttpRemote {
+         }
+         let response = Self::check_response(response, path).await?;
+         Ok(Some(
+-            tracked_response_bytes(response, "get_body", TransferDirection::Download).await?,
++            tracked_response_bytes_with_limit(
++                response,
++                "get_body",
++                TransferDirection::Download,
++                max_bytes.map(|limit| (path, limit)),
++            )
++            .await?,
+         ))
+     }
+ 
+@@ -2626,13 +2686,40 @@ async fn tracked_response_bytes(
+     response: reqwest::Response,
+     operation: &'static str,
+     direction: TransferDirection,
++) -> Result<Bytes> {
++    tracked_response_bytes_with_limit(response, operation, direction, None).await
++}
++
++fn payload_size_error(path: &str) -> RemoteErr {
++    RemoteErr::HttpStatus {
++        status: 413,
++        path: path.into(),
++        message: "remote payload exceeds its declared size".into(),
++    }
++}
++
++async fn tracked_response_bytes_with_limit(
++    response: reqwest::Response,
++    operation: &'static str,
++    direction: TransferDirection,
++    limit: Option<(&str, usize)>,
+ ) -> Result<Bytes> {
+     let total_bytes = response.content_length();
++    if let Some((path, max_bytes)) = limit
++        && total_bytes.is_some_and(|bytes| bytes > max_bytes as u64)
++    {
++        return Err(payload_size_error(path));
++    }
+     let mut progress = begin_transfer_progress(direction, total_bytes);
+     let mut body = response.bytes_stream();
+     let mut output = Vec::new();
+     while let Some(chunk) = body.next().await {
+         let chunk = chunk.map_err(|err| RemoteErr::http_transport(operation, err))?;
++        if let Some((path, max_bytes)) = limit
++            && chunk.len() > max_bytes.saturating_sub(output.len())
++        {
++            return Err(payload_size_error(path));
++        }
+         if let Some(progress) = progress.as_mut() {
+             progress.advance(chunk.len() as u64);
+         }
+@@ -4546,6 +4633,80 @@ mod tests {
+         server.await.unwrap();
+     }
+ 
++    #[tokio::test]
++    async fn bounded_payload_reads_reject_declared_and_chunked_oversize() {
++        for headers_and_body in [
++            "Content-Length: 9\r\n\r\noversized",
++            "Transfer-Encoding: chunked\r\n\r\n9\r\noversized\r\n0\r\n\r\n",
++            "Content-Length: 4\r\n\r\ngood",
++        ] {
++            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++            let address = listener.local_addr().unwrap();
++            let server = tokio::spawn(async move {
++                let (mut socket, _) = listener.accept().await.unwrap();
++                let mut request = [0u8; 4096];
++                socket.read(&mut request).await.unwrap();
++                socket.write_all(format!("HTTP/1.1 200 OK\r\nGraft-Protocol: 1\r\nConnection: close\r\n{headers_and_body}").as_bytes()).await.unwrap();
++            });
++            let remote = RemoteConfig::Http {
++                url: format!("http://{address}/repo"),
++                token_env: None,
++            }
++            .build_with_credentials("origin", &RemoteCredentials::explicit())
++            .unwrap();
++            let result = remote.get_raw_bounded("store/files/payload", 4).await;
++            if headers_and_body.ends_with("good") {
++                assert_eq!(result.unwrap().unwrap().as_ref(), b"good");
++            } else {
++                assert!(matches!(
++                    result,
++                    Err(RemoteErr::HttpStatus { status: 413, .. })
++                ));
++            }
++            server.await.unwrap();
++        }
++    }
++
++    #[tokio::test]
++    async fn completed_parallel_probes_release_excess_idle_connections() {
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let barrier = Arc::new(tokio::sync::Barrier::new(5));
++        let server = tokio::spawn(async move {
++            let mut tasks = Vec::new();
++            for _ in 0..5 {
++                let (mut socket, _) = listener.accept().await.unwrap();
++                let barrier = barrier.clone();
++                tasks.push(tokio::spawn(async move {
++                    read_http_request(&mut socket).await;
++                    barrier.wait().await;
++                    socket.write_all(b"HTTP/1.1 204 No Content\r\nGraft-Protocol: 1\r\nContent-Length: 0\r\n\r\n").await.unwrap();
++                    let mut byte = [0];
++                    matches!(tokio::time::timeout(Duration::from_secs(2), socket.read(&mut byte)).await, Ok(Ok(0)))
++                }));
++            }
++            let mut released = 0;
++            for task in tasks {
++                released += usize::from(task.await.unwrap());
++            }
++            released
++        });
++        let remote = HttpRemote::new(format!("http://{address}/repo"), None).unwrap();
++        let probes = (0..5).map(|_| remote.has_raw("store/files/payload"));
++        assert!(
++            futures::future::try_join_all(probes)
++                .await
++                .unwrap()
++                .into_iter()
++                .all(|exists| exists)
++        );
++        assert_eq!(
++            server.await.unwrap(),
++            4,
++            "only one probe connection may remain idle"
++        );
++    }
++
+     #[tokio::test]
+     async fn resetting_repository_credentials_starts_a_fresh_probe_connection() {
+         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+diff --git a/crates/graft/src/repo/remote_objects.rs b/crates/graft/src/repo/remote_objects.rs
+--- a/crates/graft/src/repo/remote_objects.rs
++++ b/crates/graft/src/repo/remote_objects.rs
+@@ -6,6 +6,83 @@
+ #[cfg(test)]
+ mod payload_prefetch_tests {
+     use super::*;
++
++    #[test]
++    fn prepared_fetch_plans_deduplicated_payloads_before_download_and_keeps_refs_on_failure() {
++        let source = tempfile::tempdir().unwrap();
++        let remote = tempfile::tempdir().unwrap();
++        let destination = tempfile::tempdir().unwrap();
++        let writer = Repository::init(source.path()).unwrap();
++        let reader = Repository::init(destination.path()).unwrap();
++        for repo in [&writer, &reader] {
++            repo.remote_add(
++                "origin",
++                RemoteConfig::Fs {
++                    root: remote.path().to_string_lossy().into_owned(),
++                },
++            )
++            .unwrap();
++        }
++        for name in ["one.bin", "duplicate.bin"] {
++            let path = source.path().join(name);
++            fs::write(&path, vec![7u8; 1024]).unwrap();
++            writer
++                .stage_artifact_path_with_inline_text_threshold(&path, 4)
++                .unwrap();
++        }
++        let large = source.path().join("large.bin");
++        fs::write(&large, vec![8u8; 5 * 1024 * 1024]).unwrap();
++        writer
++            .stage_artifact_path_with_inline_text_threshold(&large, 4)
++            .unwrap();
++        let head = writer.commit_staged("files").unwrap();
++        writer.push("origin", "main").unwrap();
++        let payloads = writer.referenced_large_file_payloads().unwrap();
++        let prepared = reader.prepare_fetch("origin", "main").unwrap();
++        assert_eq!(prepared.head(), head.id);
++        assert_eq!(reader.remote_tracking_ref("origin", "main").unwrap(), None);
++        for id in &payloads {
++            assert!(!reader.large_file_content_path(id).exists());
++        }
++        let events = Arc::new(Mutex::new(Vec::new()));
++        let sink = events.clone();
++        let reporter = TransferProgressReporter::new(move |event| sink.lock().unwrap().push(event));
++        let _scope = TransferProgressScope::enter(&reporter);
++        prepared.plan_download(99).unwrap();
++        let event = events.lock().unwrap()[0];
++        assert!(event.total_is_final);
++        assert_eq!(event.transferred_bytes, 0);
++        assert_eq!(event.total_bytes, Some(1024 + 5 * 1024 * 1024 + 99));
++        drop(prepared);
++        assert_eq!(reader.remote_tracking_ref("origin", "main").unwrap(), None);
++        // A corrupt payload must not publish the tracking ref or touch user files.
++        let id = payloads.iter().next().unwrap();
++        let path = remote.path().join(large_file_content_relative_path(id));
++        let original = fs::read(&path).unwrap();
++        fs::write(&path, vec![0u8; original.len()]).unwrap();
++        assert!(
++            reader
++                .prepare_fetch("origin", "main")
++                .unwrap()
++                .finish()
++                .is_err()
++        );
++        assert_eq!(reader.remote_tracking_ref("origin", "main").unwrap(), None);
++        assert!(!destination.path().join("one.bin").exists());
++        fs::write(path, original).unwrap();
++        reader
++            .prepare_fetch("origin", "main")
++            .unwrap()
++            .finish()
++            .unwrap();
++        assert_eq!(
++            reader.remote_tracking_ref("origin", "main").unwrap(),
++            Some(head.id)
++        );
++        let cached = reader.prepare_fetch("origin", "main").unwrap();
++        cached.plan_download(0).unwrap();
++        assert_eq!(events.lock().unwrap().last().unwrap().total_bytes, Some(0));
++    }
+ 
+     #[test]
+     fn small_payload_prefetch_preserves_hash_checks_and_large_file_fallback() {
+@@ -206,6 +283,80 @@
+         Ok(Some(pack_bytes.slice(offset..end)))
+     }
+ 
++    /// Resolve and validate the complete immutable graph, collecting missing
++    /// external content exactly once without fetching its body.
++    pub(super) fn fetch_graph_metadata(
++        &self,
++        remote: &crate::remote::Remote,
++        head: &str,
++    ) -> Result<(usize, u64)> {
++        let mut stack = vec![object::ObjectId::from_str(head)?];
++        let mut seen = BTreeSet::new();
++        let mut payloads = BTreeMap::new();
++        let mut commits = 0;
++        let mut pack_cache = RemoteObjectPackCache::persistent(
++            self.graft_dir.join(DIR_CACHE_REMOTE_OBJECT_PACK_INDEXES),
++        );
++        while let Some(id) = stack.pop() {
++            if !seen.insert(id.clone()) {
++                continue;
++            }
++            let object = match self.object_store().read_raw(&id)? {
++                Some(bytes) => {
++                    let actual = object::ObjectId::for_bytes(&bytes);
++                    if actual != id {
++                        return Err(RepoErr::Object(object::ObjectErr::ObjectIdMismatch {
++                            expected: id,
++                            actual,
++                        }));
++                    }
++                    object::Object::decode(&bytes)?
++                }
++                None => {
++                    let object = self.fetch_remote_object(remote, &id, &mut pack_cache)?;
++                    if matches!(object, object::Object::Commit(_)) {
++                        commits += 1;
++                    }
++                    object
++                }
++            };
++            match object {
++                object::Object::Commit(commit) => {
++                    stack.push(commit.tree);
++                    stack.extend(commit.parents);
++                }
++                object::Object::Tree(tree) => {
++                    stack.extend(tree.entries.into_iter().map(|entry| entry.oid))
++                }
++                object::Object::Blob(object::BlobObject::LargeFilePointer(pointer)) => {
++                    if let Some(previous) = payloads.insert(pointer.content_hash, pointer.size)
++                        && previous != pointer.size
++                    {
++                        return Err(RepoErr::InvalidRemoteObject {
++                            path: id.to_string(),
++                            message: "external payload has conflicting sizes".into(),
++                        });
++                    }
++                }
++                _ => {}
++            }
++        }
++        let mut bytes = 0u64;
++        for (id, size) in payloads {
++            if self.large_file_content_path(&id).exists() {
++                self.read_large_file_content(&id, size)?;
++            } else {
++                bytes = bytes
++                    .checked_add(size)
++                    .ok_or_else(|| RepoErr::InvalidRemoteObject {
++                        path: head.into(),
++                        message: "download size exceeds u64".into(),
++                    })?;
++            }
++        }
++        Ok((commits, bytes))
++    }
++
+     pub(super) fn fetch_commit_chain(
+         &self,
+         remote: &crate::remote::Remote,
+diff --git a/crates/graft/src/repo/sync.rs b/crates/graft/src/repo/sync.rs
+--- a/crates/graft/src/repo/sync.rs
++++ b/crates/graft/src/repo/sync.rs
+@@ -1,6 +1,108 @@
+ use super::*;
+ 
++/// Immutable metadata fetched for a branch, before external payload downloads.
++/// Dropping this preparation leaves refs, index, and worktree unchanged.
++pub struct PreparedFetch<'a> {
++    repository: &'a Repository,
++    remote: Remote,
++    outcome: FetchOutcome,
++    payload_bytes: u64,
++}
++
++impl PreparedFetch<'_> {
++    pub fn head(&self) -> &str {
++        &self.outcome.head
++    }
++
++    /// Declare the combined external-file and adapter-owned download budget.
++    pub fn plan_download(&self, additional_bytes: u64) -> Result<()> {
++        let bytes = self
++            .payload_bytes
++            .checked_add(additional_bytes)
++            .ok_or_else(|| RepoErr::InvalidRemoteObject {
++                path: self.outcome.head.clone(),
++                message: "download size exceeds u64".into(),
++            })?;
++        plan_remaining_transfer(TransferDirection::Download, bytes);
++        Ok(())
++    }
++
++    /// Download and validate external payloads, then publish the tracking ref.
++    pub fn finish(self) -> Result<FetchOutcome> {
++        self.repository
++            .fetch_commit_chain(&self.remote, &self.outcome.head)?;
++        self.repository.set_remote_tracking_ref(
++            &self.outcome.remote,
++            &self.outcome.branch,
++            &self.outcome.head,
++        )?;
++        Ok(self.outcome)
++    }
++}
++
+ impl Repository {
++    /// Fetch the immutable graph without downloading external file contents.
++    /// Adapters can add their snapshot budget before completing this fetch.
++    pub fn prepare_fetch(&self, remote: &str, branch: &str) -> Result<PreparedFetch<'_>> {
++        validate_remote_name(remote)?;
++        validate_ref_name(branch)?;
++        ACTIVE_TRANSFER_PROGRESS.with(|active| {
++            if let Some(reporter) = active.borrow().as_ref() {
++                reporter.start_planning(TransferDirection::Download);
++            }
++        });
++        let remote_store = self.remote_store(remote)?;
++        let head_path = format!("refs/heads/{branch}");
++        let have = self.remote_tracking_ref(remote, branch)?;
++        let bundle = tempfile::tempdir()?;
++        let downloaded = block_on_remote(remote_store.download_fetch_bundle(
++            &head_path,
++            have.as_deref(),
++            bundle.path(),
++        ))?;
++        let (head, imported) = match downloaded {
++            FetchBundleOutcome::Downloaded => {
++                let store = RemoteConfig::Fs {
++                    root: bundle.path().to_string_lossy().into_owned(),
++                }
++                .build()?;
++                let head = block_on_remote(store.get_raw(&head_path))?.ok_or_else(|| {
++                    RepoErr::InvalidRemoteObject {
++                        path: head_path.clone(),
++                        message: "fetch-bundle omitted its reference".into(),
++                    }
++                })?;
++                (
++                    parse_remote_ref(&head_path, head)?,
++                    self.import_remote_object_pack_bundle(bundle.path())?,
++                )
++            }
++            FetchBundleOutcome::Unsupported => {
++                let head = block_on_remote(remote_store.get_raw(&head_path))?.ok_or_else(|| {
++                    RepoErr::RemoteBranchNotFound {
++                        remote: remote.into(),
++                        branch: branch.into(),
++                    }
++                })?;
++                (parse_remote_ref(&head_path, head)?, BTreeSet::new())
++            }
++        };
++        let (fetched, payload_bytes) = self.fetch_graph_metadata(&remote_store, &head)?;
++        let reachable = self.commit_ancestors_inclusive(&head)?;
++        let commits = fetched + imported.intersection(&reachable).count();
++        Ok(PreparedFetch {
++            repository: self,
++            remote: remote_store,
++            outcome: FetchOutcome {
++                remote: remote.into(),
++                branch: branch.into(),
++                head,
++                commits,
++            },
++            payload_bytes,
++        })
++    }
++
+     pub fn fetch(&self, remote: &str, branch: &str) -> Result<FetchOutcome> {
+         validate_remote_name(remote)?;
+         validate_ref_name(branch)?;
+diff --git a/crates/graft/src/repo.rs b/crates/graft/src/repo.rs
+--- a/crates/graft/src/repo.rs
++++ b/crates/graft/src/repo.rs
+@@ -35,6 +35,7 @@
+ mod remote_objects;
+ mod staging;
+ mod sync;
++pub use sync::PreparedFetch;
+ mod worktree;
+ mod worktree_state;
+ 
+@@ -190,6 +191,20 @@
+         if let Some(progress) = progress {
+             (self.inner.callback)(progress);
+         }
++    }
++
++    fn start_planning(&self, direction: TransferDirection) {
++        let progress = {
++            let mut counters = self.inner.counters.lock().unwrap();
++            let counters = direction_counters(&mut counters, direction);
++            counters.total_bytes = counters.transferred_bytes;
++            counters.declared_remaining_bytes = 0;
++            counters.indeterminate = true;
++            counters.total_is_final = false;
++            counters.last_emit = Some(Instant::now());
++            transfer_progress(direction, counters)
++        };
++        (self.inner.callback)(progress);
+     }
+ 
+     fn plan_remaining(&self, direction: TransferDirection, remaining: u64) {
+diff --git a/crates/graft/src/rt/runtime.rs b/crates/graft/src/rt/runtime.rs
+--- a/crates/graft/src/rt/runtime.rs
++++ b/crates/graft/src/rt/runtime.rs
+@@ -489,6 +489,18 @@
+         snapshots: &[Snapshot],
+         remote: Arc<Remote>,
+     ) -> Result<u64> {
++        let bytes = self.snapshots_download_bytes(snapshots, remote)?;
++        crate::repo::plan_remaining_transfer(crate::repo::TransferDirection::Download, bytes);
++        Ok(bytes)
++    }
++
++    /// Fetch log metadata and count missing compressed segment ranges without
++    /// downloading segment bodies or declaring an operation-wide total.
++    pub fn snapshots_download_bytes(
++        &self,
++        snapshots: &[Snapshot],
++        remote: Arc<Remote>,
++    ) -> Result<u64> {
+         let mut ranges = std::collections::BTreeMap::<SegmentId, Vec<std::ops::Range<u64>>>::new();
+         for snapshot in snapshots {
+             if self.snapshot_hydration_cached(snapshot)? {
+@@ -513,7 +525,6 @@
+                 end = end.max(range.end);
+             }
+         }
+-        crate::repo::plan_remaining_transfer(crate::repo::TransferDirection::Download, bytes);
+         Ok(bytes)
+     }
+ 
+diff --git a/crates/graft-sdk/src/lib.rs b/crates/graft-sdk/src/lib.rs
+--- a/crates/graft-sdk/src/lib.rs
++++ b/crates/graft-sdk/src/lib.rs
+@@ -2280,6 +2280,17 @@
+         self.execute_json_mutating("json_pull", argument.as_deref())
+     }
+ 
++    /// Fetch and hydrate a branch with one planned download budget. Does not
++    /// change HEAD, index, or worktree; a subsequent merge applies the version.
++    pub fn fetch_for_checkout(&self, remote: &str, branch: &str) -> Result<Value> {
++        self.with_service(|service| {
++            let outcome = service
++                .fetch_for_checkout(remote, branch)
++                .map_err(repository_command_error)?;
++            Ok(serde_json::json!(outcome))
++        })
++    }
++
+     /// Returns the effective merge policy and its stable compare-and-swap token.
+     pub fn get_merge_policy(&self) -> Result<MergePolicyResult> {
+         self.with_service(|service| {
+@@ -5724,6 +5735,89 @@
+     use super::*;
+ 
+     #[test]
++    fn planned_fetch_hydrates_target_without_materializing_and_applies_offline() {
++        let source = tempfile::tempdir().unwrap();
++        let target = tempfile::tempdir().unwrap();
++        let remote = tempfile::tempdir().unwrap();
++        let writer = RepositorySession::new(source.path());
++        let reader = RepositorySession::new(target.path());
++        for session in [&writer, &reader] {
++            session.open().unwrap();
++            session.init().unwrap();
++            session
++                .with_service(|service| {
++                    service
++                        .repository()
++                        .unwrap()
++                        .remote_add(
++                            "origin",
++                            RemoteConfig::Fs {
++                                root: remote.path().join("store").to_string_lossy().into_owned(),
++                            },
++                        )
++                        .unwrap();
++                    Ok(())
++                })
++                .unwrap();
++        }
++        let database = source.path().join("data.db");
++        Connection::open(&database)
++            .unwrap()
++            .execute_batch(
++                "CREATE TABLE items(value BLOB); INSERT INTO items VALUES(randomblob(65536));",
++            )
++            .unwrap();
++        let payload = vec![7u8; 1024 * 1024];
++        fs::write(source.path().join("file.bin"), &payload).unwrap();
++        writer.add_all().unwrap();
++        writer.commit("data and file").unwrap();
++        writer.push(Some("origin"), Some("main")).unwrap();
++        let events = Arc::new(parking_lot::Mutex::new(Vec::new()));
++        let sink = events.clone();
++        let target_path = target.path().to_path_buf();
++        let reporter = graft::repo::TransferProgressReporter::new(move |event| {
++            assert!(!target_path.join("data.db").exists());
++            assert!(!target_path.join("file.bin").exists());
++            sink.lock().push(event);
++        });
++        let result = graft::repo::with_transfer_progress(&reporter, || {
++            reader.fetch_for_checkout("origin", "main")
++        })
++        .unwrap();
++        let planned = events
++            .lock()
++            .iter()
++            .copied()
++            .filter(|event| event.total_is_final)
++            .collect::<Vec<_>>();
++        assert_eq!(planned.len(), 1);
++        assert!(planned[0].total_bytes.unwrap() > payload.len() as u64);
++        assert!(reader.repository_metadata().unwrap().current_head.is_none());
++        // Taking the entire remote away proves application uses only prepared data.
++        fs::rename(remote.path().join("store"), remote.path().join("offline")).unwrap();
++        let revision = result["head"].as_str().unwrap().to_string();
++        let plan = reader
++            .plan_merge(&PlanMergeOptions {
++                revision: revision.clone(),
++                expected_head: None,
++            })
++            .unwrap();
++        reader
++            .apply_merge(&ApplyMergeOptions {
++                revision,
++                expected_head: None,
++                plan_token: plan.plan_token,
++            })
++            .unwrap();
++        assert_eq!(fs::read(target.path().join("file.bin")).unwrap(), payload);
++        let count: i64 = Connection::open(target.path().join("data.db"))
++            .unwrap()
++            .query_row("SELECT length(value) FROM items", [], |row| row.get(0))
++            .unwrap();
++        assert_eq!(count, 65536);
++    }
++
++    #[test]
+     fn operation_materialization_contract_is_explicit() {
+         assert!(RepositoryOperation::Restore.materializes_worktree());
+         assert!(RepositoryOperation::RestorePaths.materializes_worktree());
+diff --git a/crates/graft-sqlite/src/pragma/repo_snapshot.rs b/crates/graft-sqlite/src/pragma/repo_snapshot.rs
+--- a/crates/graft-sqlite/src/pragma/repo_snapshot.rs
++++ b/crates/graft-sqlite/src/pragma/repo_snapshot.rs
+@@ -110,7 +110,7 @@
+     }
+ }
+ 
+-pub(super) fn hydrate_repo_file_state(
++pub(crate) fn hydrate_repo_file_state(
+     runtime: &Runtime,
+     state: &CommitFileState,
+     remote: Option<Arc<Remote>>,
+diff --git a/crates/graft-sqlite/src/pragma.rs b/crates/graft-sqlite/src/pragma.rs
+--- a/crates/graft-sqlite/src/pragma.rs
++++ b/crates/graft-sqlite/src/pragma.rs
+@@ -64,7 +64,7 @@
+ mod repo_paths;
+ mod repo_refs;
+ mod repo_remote_output;
+-mod repo_snapshot;
++pub(crate) mod repo_snapshot;
+ mod repo_staging;
+ mod repo_switch;
+ mod repo_sync;
+diff --git a/crates/graft-sqlite/src/repo_service.rs b/crates/graft-sqlite/src/repo_service.rs
+--- a/crates/graft-sqlite/src/repo_service.rs
++++ b/crates/graft-sqlite/src/repo_service.rs
+@@ -368,6 +368,35 @@
+     /// Returns the repository retained by this service, discovering it after `init` when needed.
+     pub fn repository(&mut self) -> Result<Repository, ErrCtx> {
+         repo_for_file(&mut self.file)
++    }
++
++    /// Fetch a branch and hydrate its target snapshots before worktree application.
++    /// Plan external files and SQLite segments together before downloading either.
++    pub fn fetch_for_checkout(
++        &mut self,
++        remote: &str,
++        branch: &str,
++    ) -> Result<graft::repo::FetchOutcome, ErrCtx> {
++        let repo = self.repository()?;
++        let runtime = self.file.runtime().clone();
++        let prepared = repo.prepare_fetch(remote, branch)?;
++        let plan = repo.plan_revision_checkout(prepared.head())?;
++        let store = Arc::new(repo.remote_store(remote)?);
++        let snapshots = plan
++            .files
++            .values()
++            .map(|state| state.snapshot.to_snapshot())
++            .collect::<Vec<_>>();
++        let bytes = runtime.snapshots_download_bytes(&snapshots, store.clone())?;
++        prepared.plan_download(bytes)?;
++        for state in plan.files.values() {
++            crate::pragma::repo_snapshot::hydrate_repo_file_state(
++                &runtime,
++                state,
++                Some(store.clone()),
++            )?;
++        }
++        Ok(prepared.finish()?)
+     }
+ 
+     /// Computes the repository status while retaining the service runtime.
+diff --git a/crates/graft/src/remote.rs b/crates/graft/src/remote.rs
+--- a/crates/graft/src/remote.rs
++++ b/crates/graft/src/remote.rs
+@@ -4645,7 +4645,7 @@
+             let server = tokio::spawn(async move {
+                 let (mut socket, _) = listener.accept().await.unwrap();
+                 let mut request = [0u8; 4096];
+-                socket.read(&mut request).await.unwrap();
++                assert!(socket.read(&mut request).await.unwrap() > 0);
+                 socket.write_all(format!("HTTP/1.1 200 OK\r\nGraft-Protocol: 1\r\nConnection: close\r\n{headers_and_body}").as_bytes()).await.unwrap();
+             });
+             let remote = RemoteConfig::Http {
+diff --git a/crates/graft/src/repo/remote_objects.rs b/crates/graft/src/repo/remote_objects.rs
+--- a/crates/graft/src/repo/remote_objects.rs
++++ b/crates/graft/src/repo/remote_objects.rs
+@@ -54,6 +54,14 @@
+         assert_eq!(event.transferred_bytes, 0);
+         assert_eq!(event.total_bytes, Some(1024 + 5 * 1024 * 1024 + 99));
+         drop(prepared);
++        assert_eq!(reader.remote_tracking_ref("origin", "main").unwrap(), None);
++        let prepared = reader.prepare_fetch("origin", "main").unwrap();
++        let cancelled = CancellationToken::new();
++        cancelled.cancel();
++        assert!(matches!(
++            with_cancellation(&cancelled, || prepared.finish()),
++            Err(RepoErr::Cancelled)
++        ));
+         assert_eq!(reader.remote_tracking_ref("origin", "main").unwrap(), None);
+         // A corrupt payload must not publish the tracking ref or touch user files.
+         let id = payloads.iter().next().unwrap();
+@@ -298,6 +306,7 @@
+             self.graft_dir.join(DIR_CACHE_REMOTE_OBJECT_PACK_INDEXES),
+         );
+         while let Some(id) = stack.pop() {
++            cancellation_checkpoint()?;
+             if !seen.insert(id.clone()) {
+                 continue;
+             }
+diff --git a/crates/graft/src/repo/sync.rs b/crates/graft/src/repo/sync.rs
+--- a/crates/graft/src/repo/sync.rs
++++ b/crates/graft/src/repo/sync.rs
+@@ -29,8 +29,10 @@
+ 
+     /// Download and validate external payloads, then publish the tracking ref.
+     pub fn finish(self) -> Result<FetchOutcome> {
++        cancellation_checkpoint()?;
+         self.repository
+             .fetch_commit_chain(&self.remote, &self.outcome.head)?;
++        cancellation_checkpoint()?;
+         self.repository.set_remote_tracking_ref(
+             &self.outcome.remote,
+             &self.outcome.branch,
+@@ -44,6 +46,7 @@
+     /// Fetch the immutable graph without downloading external file contents.
+     /// Adapters can add their snapshot budget before completing this fetch.
+     pub fn prepare_fetch(&self, remote: &str, branch: &str) -> Result<PreparedFetch<'_>> {
++        cancellation_checkpoint()?;
+         validate_remote_name(remote)?;
+         validate_ref_name(branch)?;
+         ACTIVE_TRANSFER_PROGRESS.with(|active| {
+diff --git a/crates/graft-sdk/src/lib.rs b/crates/graft-sdk/src/lib.rs
+--- a/crates/graft-sdk/src/lib.rs
++++ b/crates/graft-sdk/src/lib.rs
+@@ -5790,7 +5790,12 @@
+             .copied()
+             .filter(|event| event.total_is_final)
+             .collect::<Vec<_>>();
+-        assert_eq!(planned.len(), 1);
++        assert!(!planned.is_empty());
++        assert!(
++            planned
++                .iter()
++                .all(|event| event.total_bytes == planned[0].total_bytes)
++        );
+         assert!(planned[0].total_bytes.unwrap() > payload.len() as u64);
+         assert!(reader.repository_metadata().unwrap().current_head.is_none());
+         // Taking the entire remote away proves application uses only prepared data.
+diff --git a/crates/graft-sqlite/src/repo_service.rs b/crates/graft-sqlite/src/repo_service.rs
+--- a/crates/graft-sqlite/src/repo_service.rs
++++ b/crates/graft-sqlite/src/repo_service.rs
+@@ -371,7 +371,7 @@
+     }
+ 
+     /// Fetch a branch and hydrate its target snapshots before worktree application.
+-    /// Plan external files and SQLite segments together before downloading either.
++    /// Plan external files and `SQLite` segments together before downloading either.
+     pub fn fetch_for_checkout(
+         &mut self,
+         remote: &str,

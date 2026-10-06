@@ -184,7 +184,7 @@ pub fn finish(session: &RepositorySession, root: &Path, expected: &str) -> Resul
     }
     Ok(serde_json::to_value(session.continue_merge(
         &graft_sdk::ContinueMergeOptions {
-            message: "Merge Android and remote changes".into(),
+            message: "Merge local and remote changes".into(),
             expected_state_token: expected.into(),
         },
     )?)?)

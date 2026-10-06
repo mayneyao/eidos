@@ -9,12 +9,28 @@ use graft_sdk::{
 };
 use serde_json::{json, Value};
 
-#[derive(Default)]
 pub struct GraftHost {
     session: Option<(PathBuf, RepositorySession)>,
+    identity: RepositorySessionIdentity,
+}
+
+impl Default for GraftHost {
+    fn default() -> Self {
+        Self::with_identity("Eidos Android", "android@eidos.local")
+    }
 }
 
 impl GraftHost {
+    pub fn with_identity(name: &str, email: &str) -> Self {
+        Self {
+            session: None,
+            identity: RepositorySessionIdentity {
+                name: name.into(),
+                email: email.into(),
+            },
+        }
+    }
+
     pub fn execute(&mut self, root: &Path, method: &str, request: Value) -> Result<Value> {
         ensure!(root.is_dir(), "Space directory does not exist");
         let root = root.canonicalize()?;
@@ -36,8 +52,8 @@ impl GraftHost {
             let session = RepositorySession::new_with_identity(
                 &root,
                 Some(RepositorySessionIdentity {
-                    name: "Eidos Android".into(),
-                    email: "android@eidos.local".into(),
+                    name: self.identity.name.clone(),
+                    email: self.identity.email.clone(),
                 }),
             );
             session.open()?;
@@ -130,18 +146,39 @@ impl GraftHost {
                     request["token"].as_str().map(str::to_owned),
                 )?)
             }
-            "fetch" | "peerFetch" => Ok(session.fetch(
-                Some(if method == "peerFetch" {
-                    "eidos-peer"
-                } else {
-                    "origin"
-                }),
-                Some("main"),
-            )?),
+            "fetch" => Ok(session.fetch(Some("origin"), Some("main"))?),
+            "peerFetch" => {
+                #[cfg(feature = "planned-transfer-progress")]
+                {
+                    Ok(session.fetch_for_checkout("eidos-peer", "main")?)
+                }
+                #[cfg(not(feature = "planned-transfer-progress"))]
+                {
+                    Ok(session.fetch(Some("eidos-peer"), Some("main"))?)
+                }
+            }
+            "peerPublish" => {
+                ensure!(
+                    session.status()?["current_branch"] == "main",
+                    "Sync requires the main branch"
+                );
+                ensure!(
+                    matches!(session.get_merge_status()?, graft_sdk::MergeStatus::None),
+                    "Complete or abort the active merge before device sync"
+                );
+                session.configure_remote(&RemoteConfigureOptions {
+                    name: "eidos-incoming".into(),
+                    url: required(&request, "url")?.into(),
+                    bearer_token: request["token"].as_str().map(str::to_owned),
+                    overwrite: true,
+                    upstream_branch: None,
+                })?;
+                Ok(session.push(Some("eidos-incoming"), Some("main"))?)
+            }
             "push" | "peerPush" => {
                 ensure!(
                     session.status()?["current_branch"] == "main",
-                    "Android sync requires the main branch"
+                    "Sync requires the main branch"
                 );
                 Ok(session.push(
                     Some(if method == "peerPush" {
@@ -153,6 +190,7 @@ impl GraftHost {
                 )?)
             }
             "fastForward" | "peerFastForward" => {
+                let started = std::time::Instant::now();
                 let revision = if method == "peerFastForward" {
                     "eidos-peer/main"
                 } else {
@@ -161,7 +199,7 @@ impl GraftHost {
                 let status = session.status()?;
                 ensure!(
                     status["current_branch"] == "main",
-                    "Android sync requires the main branch"
+                    "Sync requires the main branch"
                 );
                 ensure!(
                     status["dirty"] != true
@@ -172,11 +210,13 @@ impl GraftHost {
                     "Save local changes and resolve conflicts before updating files"
                 );
                 let head = status["current_head"].as_str().map(str::to_owned);
+                let checked_ms = started.elapsed().as_millis();
                 let plan = session.plan_merge(&PlanMergeOptions {
                     revision: revision.into(),
                     expected_head: head.clone(),
                 })?;
-                if plan.kind == MergePlanKind::ThreeWay && method != "peerFastForward" {
+                let planned_ms = started.elapsed().as_millis();
+                if plan.kind == MergePlanKind::ThreeWay {
                     // Divergence needs Eidos's semantic merge provider and a
                     // conflict workflow; never silently pick a whole file.
                     return Ok(json!({"outcome": "needs_merge", "plan": plan}));
@@ -186,25 +226,11 @@ impl GraftHost {
                     expected_head: head,
                     plan_token: plan.plan_token,
                 })?;
-                if method == "peerFastForward" {
-                    let mut state = session.get_merge_status()?;
-                    if let graft_sdk::MergeStatus::Merging { state_token, .. } = &state {
-                        crate::merge::metadata(session, state_token)?;
-                        state = session.get_merge_status()?;
-                    }
-                    if let graft_sdk::MergeStatus::Merging {
-                        state_token,
-                        unmerged_count,
-                        ..
-                    } = &state
-                    {
-                        if *unmerged_count > 0 {
-                            return Ok(json!({"outcome": "needs_merge", "merge": state}));
-                        }
-                        crate::merge::finish(session, &root, state_token)?;
-                    }
-                }
-                Ok(json!({"outcome": "updated", "merge": result}))
+                Ok(json!({"outcome": "updated", "merge": result, "timing_ms": {
+                    "check": checked_ms,
+                    "plan": planned_ms - checked_ms,
+                    "apply": started.elapsed().as_millis() - planned_ms
+                }}))
             }
             "checkpoint" => {
                 let started = std::time::Instant::now();
@@ -228,7 +254,7 @@ impl GraftHost {
                     .as_array()
                     .is_some_and(|changes| !changes.is_empty())
                 {
-                    session.commit("Save Android changes")?;
+                    session.commit(&format!("Save {} changes", self.identity.name))?;
                 }
                 let committed_ms = started.elapsed().as_millis();
                 let status = session.status()?;
