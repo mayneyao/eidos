@@ -67,16 +67,13 @@ jobs:
           node .codex/skills/eidos-release/scripts/audit-release-notes.mjs "${audit_args[@]}"
 
       - name: Check formatting
-        working-directory: apps/cli
         run: cargo fmt --all --check
 
       - name: Run Clippy
-        working-directory: apps/cli
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
 
       - name: Run tests
-        working-directory: apps/cli
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked --features eidos-mobile-host/ffi
 
       - name: Test release contract and Unix installer
         run: node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs
@@ -104,19 +101,19 @@ jobs:
         include:
           - os: macos-15
             target: aarch64-apple-darwin
-            binary: apps/cli/target/release/eidos
+            binary: target/release/eidos
             archive: tar.gz
           - os: macos-15-intel
             target: x86_64-apple-darwin
-            binary: apps/cli/target/release/eidos
+            binary: target/release/eidos
             archive: tar.gz
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            binary: apps/cli/target/release/eidos
+            binary: target/release/eidos
             archive: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            binary: apps/cli/target/release/eidos.exe
+            binary: target/release/eidos.exe
             archive: zip
     runs-on: ${{ matrix.os }}
     steps:
@@ -127,8 +124,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build release binary
-        working-directory: apps/cli
-        run: cargo build --release --locked
+        run: cargo build -p eidos --release --locked
 
       - name: Verify binary version
         shell: bash

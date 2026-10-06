@@ -4,11 +4,11 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const cliRoot = path.resolve(appRoot, "../cli")
+const cliRoot = path.resolve(appRoot, "../..")
 const executableName = process.platform === "win32" ? "eidos.exe" : "eidos"
 const build = spawnSync(
   "cargo",
-  ["build", "--release", "--locked", "--manifest-path", "Cargo.toml"],
+  ["build", "-p", "eidos", "--release", "--locked"],
   { cwd: cliRoot, stdio: "inherit" }
 )
 if (build.error) throw build.error

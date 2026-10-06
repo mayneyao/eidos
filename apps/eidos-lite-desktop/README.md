@@ -60,10 +60,8 @@ Use the platform's `.so` or `.dll` on Linux or Windows. Release verification use
 Native resource integration tests require a freshly built CLI from this checkout:
 
 ```bash
-cd apps/cli
 cargo build --locked --bin eidos
-cd ../..
-EIDOS_PLUGIN_FS_TEST_BINARY="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/eidos-lite-desktop test src/main/plugins/plugin-filesystem.integration.test.ts
+EIDOS_PLUGIN_FS_TEST_BINARY="$PWD/target/debug/eidos" pnpm --filter @eidos.space/eidos-lite-desktop test src/main/plugins/plugin-filesystem.integration.test.ts
 ```
 
 Without that explicit binary, the integration suite is skipped. Current native

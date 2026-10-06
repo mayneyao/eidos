@@ -467,7 +467,7 @@ The script removes its adb forwarding and stops its fixture services on exit.
 ## Architecture
 
 ```text
-Compose → EidosModel → SpaceRepository → JNI → qjs-host → Eidos Runtime
+Compose → EidosModel → SpaceRepository → JNI → eidos-runtime-host → Eidos Runtime
                           │                               │
                    local file IO                        SQLite
 
@@ -484,15 +484,21 @@ The bridge is bound to the open file and permits only explicit Runtime methods;
 it exposes neither arbitrary SQL nor account credentials. The WebView serves
 packaged assets and bounded local raster images, and blocks other resource loads.
 
-The JNI crate lives in `apps/cli/android-host`, inside the existing Rust
-workspace. It depends on `qjs-host` with its `serve` feature disabled, so the
-Android binary does not embed the CLI Serve UI, plugin server, or relay.
-The default CLI build retains those features. The Runtime bundle remains
-generated from `packages/eidos-file`:
+The shared mobile crate lives in `crates/eidos-mobile-host`, inside the
+repository-root Rust workspace. It exposes JNI on Android and C FFI for iOS, and
+depends on `eidos-runtime-host`, whose default features are empty. Android embeds
+the canonical Runtime; the CLI explicitly enables `serve` for its server, plugin
+host, and relay. The Runtime bundle is generated and committed in
+`packages/eidos-file/generated/quickjs/`:
 
 ```sh
 pnpm --filter @eidos.space/eidos-file build:quickjs
 ```
+
+The native script explicitly enables `planned-transfer-progress` against the
+patched Graft mirror. Rust output lives in the root `target/<target>/release/`;
+the script copies `libeidos_mobile_host.so` into
+`app/build/native/jniLibs/<abi>/` for Gradle packaging.
 
 Android must not implement its own filter, conversion, formula, revision, or
 validation semantics. The native system-merge adapter invokes the canonical

@@ -86,7 +86,7 @@ pub fn sign_in_and_claim(
     account_origin: &str,
     relay_origin: &str,
     share: bool,
-) -> anyhow::Result<qjs_host::relay::RelayConfig> {
+) -> anyhow::Result<eidos_runtime_host::relay::RelayConfig> {
     let account_origin = service_origin(account_origin, "Eidos account")?;
     let relay_origin = service_origin(relay_origin, "Eidos Relay")?;
     let client = oauth_client()?;
@@ -203,7 +203,7 @@ fn claim_tunnel(
     relay_origin: &Url,
     access_token: &str,
     share: bool,
-) -> anyhow::Result<qjs_host::relay::RelayConfig> {
+) -> anyhow::Result<eidos_runtime_host::relay::RelayConfig> {
     let claim_endpoint = relay_origin
         .join("/v1/tunnels")
         .context("build the Eidos Relay claim endpoint")?;
@@ -667,8 +667,8 @@ fn validate_claim(
     claim: ClaimResponse,
     relay_origin: &Url,
     share: bool,
-) -> anyhow::Result<qjs_host::relay::RelayConfig> {
-    if claim.protocol != qjs_host::relay::RELAY_PROTOCOL_VERSION
+) -> anyhow::Result<eidos_runtime_host::relay::RelayConfig> {
+    if claim.protocol != eidos_runtime_host::relay::RELAY_PROTOCOL_VERSION
         || claim.browser_access != if share { "share" } else { "account" }
         || claim.connector_token.is_empty()
         || claim.connector_token.len() > 8 * 1024
@@ -677,9 +677,9 @@ fn validate_claim(
         bail!("the Eidos Relay service returned an invalid claim");
     }
     let browser_access = if share {
-        qjs_host::relay::RelayBrowserAccess::Share
+        eidos_runtime_host::relay::RelayBrowserAccess::Share
     } else {
-        qjs_host::relay::RelayBrowserAccess::Account
+        eidos_runtime_host::relay::RelayBrowserAccess::Account
     };
     let public_url = Url::parse(&claim.public_url).context("parse the Eidos Relay public URL")?;
     let public_host = public_url.host_str().unwrap_or("");
@@ -743,7 +743,7 @@ fn validate_claim(
     {
         bail!("the Eidos Relay service returned an invalid connector URL");
     }
-    Ok(qjs_host::relay::RelayConfig {
+    Ok(eidos_runtime_host::relay::RelayConfig {
         browser_access,
         public_url: claim.public_url,
         connector_url: claim.connector_url,
@@ -772,7 +772,7 @@ mod tests {
         ClaimResponse, STORED_CREDENTIAL_VERSION, StoredCredential, load_credential_file,
         now_millis, service_origin, store_credential_file, validate_claim,
     };
-    use qjs_host::relay::RelayBrowserAccess;
+    use eidos_runtime_host::relay::RelayBrowserAccess;
 
     #[test]
     fn accepts_only_exact_https_service_origins() {

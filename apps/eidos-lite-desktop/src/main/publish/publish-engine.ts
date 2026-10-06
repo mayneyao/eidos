@@ -387,12 +387,12 @@ function publishEngineCandidates(): string[] {
     ...(app.isPackaged
       ? [path.join(process.resourcesPath, "publish-engine", executable)]
       : []),
-    path.resolve(app.getAppPath(), "../cli/target/debug", executable),
-    path.resolve(app.getAppPath(), "../cli/target/release", executable),
-    path.resolve(process.cwd(), "apps/cli/target/debug", executable),
-    path.resolve(process.cwd(), "apps/cli/target/release", executable),
-    path.resolve(process.cwd(), "../cli/target/debug", executable),
-    path.resolve(process.cwd(), "../cli/target/release", executable),
+    path.resolve(app.getAppPath(), "../../target/debug", executable),
+    path.resolve(app.getAppPath(), "../../target/release", executable),
+    path.resolve(process.cwd(), "target/debug", executable),
+    path.resolve(process.cwd(), "target/release", executable),
+    path.resolve(process.cwd(), "../../target/debug", executable),
+    path.resolve(process.cwd(), "../../target/release", executable),
   ]
 }
 

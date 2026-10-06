@@ -26,17 +26,24 @@ function stripEmbeddedChunkTrailingWhitespace(): Plugin {
   }
 }
 
-// The build output is embedded into the `eidos` CLI binary via qjs-host's
-// rust-embed folder, so it must land inside apps/cli/qjs-host/ui and be
-// committed (the same pattern as the bundled QuickJS runtime).
+// Commit the generated UI beside its source; the Rust Runtime host embeds it.
 export default defineConfig({
   plugins: [tailwindcss(), react(), stripEmbeddedChunkTrailingWhitespace()],
   base: "./",
   resolve: {
-    alias: [...eidosFileUiSourceAliases(), ...markdownEditorSourceAliases()],
+    alias: [
+      {
+        find: /^@eidos\.space\/eidos-file$/u,
+        replacement: fileURLToPath(
+          new URL("../eidos-file/src/index.ts", import.meta.url)
+        ),
+      },
+      ...eidosFileUiSourceAliases(),
+      ...markdownEditorSourceAliases(),
+    ],
   },
   build: {
-    outDir: "../../apps/cli/qjs-host/ui",
+    outDir: "generated/ui",
     emptyOutDir: true,
     chunkSizeWarningLimit: 4096,
   },
@@ -56,3 +63,4 @@ export default defineConfig({
     },
   },
 })
+import { fileURLToPath } from "node:url"

@@ -30,8 +30,8 @@ native_workspace="$(node "$android_root/../../scripts/prepare-mobile-native.mjs"
 cd "$native_workspace"
 for entry in 'aarch64-linux-android arm64-v8a' 'x86_64-linux-android x86_64'; do
   read -r target abi <<< "$entry"
-  cargo "+$android_rust_toolchain" build -p eidos-android-host --features planned-transfer-progress --release --locked --target "$target" --target-dir "$android_root/../cli/target"
+  cargo "+$android_rust_toolchain" build -p eidos-mobile-host --features planned-transfer-progress --release --locked --target "$target" --target-dir "$android_root/../../target"
   destination="$android_root/app/build/native/jniLibs/$abi"
   mkdir -p "$destination"
-  cp "$android_root/../cli/target/$target/release/libeidos_android_host.so" "$destination/"
+  cp "$android_root/../../target/$target/release/libeidos_mobile_host.so" "$destination/"
 done

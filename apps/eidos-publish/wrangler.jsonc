@@ -9,7 +9,7 @@
   "build": { "command": "pnpm --filter @eidos.space/markdown build" },
   "rules": [{ "type": "Text", "globs": ["**/*.css"], "fallthrough": true }],
   "assets": {
-    "directory": "../cli/qjs-host/ui",
+    "directory": "../../packages/eidos-file-serve/generated/ui",
     "binding": "ASSETS",
     "html_handling": "none",
     "not_found_handling": "none",

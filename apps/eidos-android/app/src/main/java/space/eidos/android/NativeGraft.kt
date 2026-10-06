@@ -9,7 +9,7 @@ class GraftException(val code: String, message: String) : IllegalStateException(
 /** Shares the Space repository's IO mutex with file writes and Runtime calls. */
 object NativeGraft {
     init {
-        System.loadLibrary("eidos_android_host")
+        System.loadLibrary("eidos_mobile_host")
     }
 
     @JvmStatic external fun execute(root: String, method: String, request: String): String

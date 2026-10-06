@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile)
 const files = {
   app: "apps/cli/src/app.rs",
   cargo: "apps/cli/Cargo.toml",
-  cargoLock: "apps/cli/Cargo.lock",
+  cargoLock: "Cargo.lock",
   liteWorkflow: ".github/workflows/build-and-release-eidos-lite.yml",
   latest: "apps/cli/LATEST",
   releaseNotes: "apps/cli/RELEASE_NOTES.md",
@@ -49,7 +49,7 @@ test("standalone CLI release owns its version and stable pointer", async () => {
   assert.equal(
     lockedVersion,
     version,
-    "apps/cli/Cargo.lock must match the CLI package version"
+    "Cargo.lock must match the CLI package version"
   )
   if (!version.includes("-")) {
     assert.equal(
@@ -116,7 +116,10 @@ test("Windows builds include and smoke-test the embedded serve runtime", async (
     read(files.windowsSmoke),
   ])
 
-  assert.match(cargo, /^qjs-host = \{ path = "qjs-host" \}$/mu)
+  assert.match(
+    cargo,
+    /^eidos-runtime-host = \{ workspace = true, features = \["serve"\] \}$/mu
+  )
   assert.doesNotMatch(cargo, /cfg\(not\(windows\)\)/u)
   assert.doesNotMatch(app, /cfg\((?:not\()?windows/u)
   assert.doesNotMatch(app, /serve is not supported on Windows/u)
@@ -249,8 +252,15 @@ test("Eidos Lite publishes one audited release-note source", async () => {
 })
 
 test("embedded Serve UI tracks every generated asset dependency", async () => {
-  const uiRoot = "apps/cli/qjs-host/ui"
-  const { stdout } = await execFileAsync("git", ["ls-files", "--", uiRoot])
+  const uiRoot = "packages/eidos-file-serve/generated/ui"
+  const { stdout } = await execFileAsync("git", [
+    "ls-files",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+    "--",
+    uiRoot,
+  ])
   const trackedFiles = new Set(stdout.trim().split("\n").filter(Boolean))
   const sourceFiles = [...trackedFiles].filter((file) =>
     /\.(?:css|html|js)$/u.test(file)
@@ -270,6 +280,54 @@ test("embedded Serve UI tracks every generated asset dependency", async () => {
       assert.ok(
         trackedFiles.has(dependency),
         `${sourceFile} references untracked Serve UI asset ${dependency}`
+      )
+    }
+  }
+})
+
+test("Rust consumers share one workspace and mobile excludes Serve by default", async () => {
+  const { stdout } = await execFileAsync("cargo", [
+    "metadata",
+    "--locked",
+    "--no-deps",
+    "--format-version",
+    "1",
+  ])
+  const metadata = JSON.parse(stdout)
+  assert.equal(metadata.workspace_root, process.cwd())
+  assert.equal(metadata.target_directory, path.join(process.cwd(), "target"))
+  const packages = new Map(
+    metadata.packages.map((entry) => [entry.name, entry])
+  )
+  assert.deepEqual([...packages.keys()].sort(), [
+    "eidos",
+    "eidos-file-core",
+    "eidos-mobile-host",
+    "eidos-publish",
+    "eidos-runtime-host",
+  ])
+  const runtime = packages.get("eidos-runtime-host")
+  assert.deepEqual(runtime.features.default, [])
+  const mobile = packages.get("eidos-mobile-host")
+  const mobileRuntime = mobile.dependencies.find(
+    (entry) => entry.name === runtime.name
+  )
+  assert.equal(mobileRuntime.uses_default_features, false)
+  assert.deepEqual(mobileRuntime.features, [])
+  const cliRuntime = packages
+    .get("eidos")
+    .dependencies.find((entry) => entry.name === runtime.name)
+  assert.deepEqual(cliRuntime.features, ["serve"])
+  for (const entry of packages.values()) {
+    assert.deepEqual(entry.publish, [])
+    if (entry.name !== "eidos") {
+      assert.ok(
+        entry.manifest_path.startsWith(
+          path.join(process.cwd(), "crates") + path.sep
+        )
+      )
+      assert.ok(
+        !entry.dependencies.some((dependency) => dependency.name === "eidos")
       )
     }
   }

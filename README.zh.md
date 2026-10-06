@@ -67,6 +67,10 @@ eidos serve example.eidos --open
 
 ## 仓库组成
 
+`apps/` 存放应用与可部署服务，`crates/` 存放私有 Rust 库，`packages/` 存放共享
+TypeScript 包。Eidos File 语义始终由 `packages/eidos-file` 实现，Rust 宿主运行同一份
+规范 Runtime。
+
 - [`packages/eidos-file`](./packages/eidos-file) 实现 Eidos File 格式与 Runtime。
 - [`packages/eidos-file-ui`](./packages/eidos-file-ui) 提供共享的 React 编辑器界面。
 - [`packages/markdown`](./packages/markdown) 提供基于 Lexical 的
@@ -78,7 +82,22 @@ eidos serve example.eidos --open
 - [`apps/markdown-editor-playground`](./apps/markdown-editor-playground) 是共享
   Markdown 编辑器独立的开发与兼容性验证环境。
 - [`apps/cli`](./apps/cli) 包含面向智能体的 CLI 与本地服务。
+- [`crates`](./crates) 存放 Runtime、SQLite 辅助库、发布引擎及移动端桥接库。
+  所有 Rust 消费方共用根目录的 `Cargo.toml` 与 `Cargo.lock`，各应用独立发布。
 - [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer) 是独立的只读 SQLite 查看器。
+
+Rust 库共用一个 workspace 和依赖锁文件：
+
+| Crate                                               | 职责                                                     |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| [`eidos-file-core`](./crates/eidos-file-core)       | SQLite 格式辅助库                                        |
+| [`eidos-runtime-host`](./crates/eidos-runtime-host) | 规范 TypeScript Runtime 的 QuickJS 宿主，可选 Serve 服务 |
+| [`eidos-publish`](./crates/eidos-publish)           | 共享发布引擎                                             |
+| [`eidos-mobile-host`](./crates/eidos-mobile-host)   | 共享移动端会话与 Graft 编排、Android JNI、iOS C FFI      |
+
+所有 crate 均为私有库（`publish = false`）。根 workspace 统一固定 Graft 与 SQLite
+依赖。CLI 与各原生应用保持各自的发布生命周期；Eidos File 和 Eidos File UI
+继续以共享的 npm 版本一起发布。
 
 Eidos Lite 使用 [Graft](https://github.com/eidos-space/graft) 提供本地版本历史与可选
 Sync。Graft 是独立开发、面向开发者的应用状态版本控制系统。
@@ -98,12 +117,31 @@ pnpm test:eidos-file
 pnpm test:markdown-editor
 ```
 
-CLI 在独立的 Rust workspace 中开发：
+JavaScript 与 Rust 命令均从仓库根目录运行。Rust 构建产物写入根目录的 `target/`：
 
 ```bash
-cd apps/cli
-cargo test --workspace --locked
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+cargo test --workspace --locked --features eidos-mobile-host/ffi
+cargo build -p eidos --release --locked
 ```
+
+Runtime 宿主默认不启用任何 feature。CLI 显式开启 `serve`，Android 使用 JNI，iOS
+开启移动端宿主的 `ffi` feature。标准移动端构建脚本在隔离的源码镜像中应用已验证的
+Graft 补丁并开启 `planned-transfer-progress`，保持根锁文件中的依赖版本不变。
+
+QuickJS bundle 与 Serve UI 由源码生成，并与源码一起提交在对应的 TS 包内：
+
+```bash
+# packages/eidos-file/generated/quickjs/
+pnpm --filter @eidos.space/eidos-file build:quickjs
+
+# packages/eidos-file-serve/generated/ui/
+pnpm --filter @eidos.space/eidos-file-serve build
+```
+
+修改相关源码后需重新生成。Rust 构建会校验源码与产物的哈希，拒绝陈旧生成物。
+Serve UI 构建直接引用 workspace 中的 Eidos File 源码。
 
 移动端独立于桌面端和浏览器构建。所需的平台 SDK 与 Rust 目标见
 [Android](./apps/eidos-android/README.md) 和 [iOS](./apps/eidos-ios/README.md) 指南。

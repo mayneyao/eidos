@@ -41,11 +41,11 @@ def instrument(phase):
         raise RuntimeError(result.stdout + result.stderr)
 
 
-command(["cargo", "build", "--locked", "-p", "eidos"], cwd=repo / "apps/cli")
+command(["cargo", "build", "--locked", "-p", "eidos"], cwd=repo)
 command([str(android / "gradlew"), "-p", str(android), ":app:assembleDebug", ":app:assembleDebugAndroidTest"])
 command(device + ["install", "-r", str(android / "app/build/outputs/apk/debug/app-debug.apk")])
 command(device + ["install", "-r", str(android / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")])
-cli = str(repo / "apps/cli/target/debug/eidos")
+cli = str(repo / "target/debug/eidos")
 with tempfile.TemporaryDirectory(prefix="eidos-android-compatibility-") as temporary:
     local = Path(temporary)
     instrument("prepare")

@@ -17,7 +17,7 @@ install:
 
 # Run tests
 test:
-	cargo test --workspace
+	cargo test --workspace --locked --features eidos-mobile-host/ffi
 
 # Format code
 fmt:
@@ -38,7 +38,7 @@ clean:
 # Run in development mode with args
 # Usage: make dev ARGS="tracker.eidos inspect"
 dev:
-	cargo run -- $(ARGS)
+	cargo run --bin eidos -- $(ARGS)
 
 # Watch for changes and rebuild
 watch:

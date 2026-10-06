@@ -12,7 +12,7 @@ const eidos =
   process.env.EIDOS_CLI_PATH ??
   path.join(
     cliDirectory,
-    "target",
+    "../../target",
     "debug",
     process.platform === "win32" ? "eidos.exe" : "eidos"
   )

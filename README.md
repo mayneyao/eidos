@@ -69,6 +69,10 @@ See the [Eidos CLI guide](./apps/cli/README.md) for agent and automation workflo
 
 ## Repository
 
+`apps/` contains applications and deployable services, `crates/` contains private
+Rust libraries, and `packages/` contains shared TypeScript packages. Eidos File
+semantics remain in `packages/eidos-file`; Rust hosts run that canonical Runtime.
+
 - [`packages/eidos-file`](./packages/eidos-file) implements the Eidos File format and Runtime.
 - [`packages/eidos-file-ui`](./packages/eidos-file-ui) provides the shared React editor UI.
 - [`packages/markdown`](./packages/markdown) provides the shared
@@ -83,7 +87,23 @@ See the [Eidos CLI guide](./apps/cli/README.md) for agent and automation workflo
   isolated development and compatibility playground for the shared Markdown
   editor.
 - [`apps/cli`](./apps/cli) contains the agent-first CLI and local server.
+- [`crates`](./crates) contains private Rust libraries for the Runtime, SQLite
+  helpers, publication, and mobile transports. All Rust consumers share the root
+  `Cargo.toml` and `Cargo.lock`; applications keep independent releases.
 - [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer) is a standalone, read-only SQLite viewer.
+
+The Rust libraries share one workspace and dependency lockfile:
+
+| Crate                                               | Responsibility                                                             |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`eidos-file-core`](./crates/eidos-file-core)       | SQLite format helpers                                                      |
+| [`eidos-runtime-host`](./crates/eidos-runtime-host) | QuickJS host for the canonical TypeScript Runtime; optional Serve server   |
+| [`eidos-publish`](./crates/eidos-publish)           | Shared publication engine                                                  |
+| [`eidos-mobile-host`](./crates/eidos-mobile-host)   | Shared mobile sessions and Graft orchestration, Android JNI, and iOS C FFI |
+
+All crates are private (`publish = false`). The root workspace pins Graft and
+SQLite dependencies. CLI and native apps retain their own release lifecycles;
+Eidos File and Eidos File UI continue to release together with a shared npm version.
 
 Eidos Lite uses [Graft](https://github.com/eidos-space/graft) for local version
 history and optional Sync. Graft is developed as an independent,
@@ -104,12 +124,34 @@ pnpm test:eidos-file
 pnpm test:markdown-editor
 ```
 
-CLI development stays in its Rust workspace:
+Run JavaScript and Rust commands from the repository root. Rust builds write to
+the root `target/` directory:
 
 ```bash
-cd apps/cli
-cargo test --workspace --locked
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+cargo test --workspace --locked --features eidos-mobile-host/ffi
+cargo build -p eidos --release --locked
 ```
+
+The Runtime host has no default features. The CLI explicitly enables `serve`;
+Android uses JNI, and iOS enables the mobile host's `ffi` feature. Standard mobile
+build scripts enable `planned-transfer-progress` with the verified Graft patch in
+an isolated source mirror, preserving the root lockfile's dependency versions.
+
+The QuickJS bundle and Serve UI are generated and committed beside their sources:
+
+```bash
+# packages/eidos-file/generated/quickjs/
+pnpm --filter @eidos.space/eidos-file build:quickjs
+
+# packages/eidos-file-serve/generated/ui/
+pnpm --filter @eidos.space/eidos-file-serve build
+```
+
+Refresh them after changing their sources. Rust builds verify source and output
+hashes and reject stale artifacts. Serve UI builds resolve Eidos File directly to
+workspace source.
 
 Mobile builds run independently of the desktop and browser builds. Follow the
 [Android](./apps/eidos-android/README.md) or [iOS](./apps/eidos-ios/README.md)

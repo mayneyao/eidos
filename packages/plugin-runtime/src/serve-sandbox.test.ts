@@ -12,7 +12,10 @@ afterEach(() => {
 it("exposes the Serve contract and disposes observers independently", async () => {
   // Exercise the actual JavaScript embedded by Rust, not a parallel mock SDK.
   const source = readFileSync(
-    path.resolve(__dirname, "../../../apps/cli/qjs-host/src/plugin_store.rs"),
+    path.resolve(
+      __dirname,
+      "../../../crates/eidos-runtime-host/src/plugin_store.rs"
+    ),
     "utf8"
   )
   const bootstrap = source.match(

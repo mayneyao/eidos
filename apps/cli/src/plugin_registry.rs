@@ -332,7 +332,7 @@ pub fn install_package_bytes(
     force: bool,
 ) -> Result<InstalledPluginInfo> {
     let envelope = decode_package(bytes)?;
-    qjs_host::plugin_compatibility::ensure(
+    eidos_runtime_host::plugin_compatibility::ensure(
         &serde_json::to_value(&envelope.manifest).map_err(|e| AppError::internal(e.to_string()))?,
     )
     .map_err(AppError::invalid_request)?;

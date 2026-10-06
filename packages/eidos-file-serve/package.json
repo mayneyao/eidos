@@ -10,7 +10,7 @@
     "./record-view": "./src/record-view.tsx"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/generated-assets.mjs serve",
     "dev": "vite",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

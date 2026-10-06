@@ -82,7 +82,7 @@ internal class PublicationStore(context: Context, space: String, private val sub
 
 internal object NativePublish {
     init {
-        System.loadLibrary("eidos_android_host")
+        System.loadLibrary("eidos_mobile_host")
     }
 
     @JvmStatic external fun execute(root: String, method: String, request: String): String

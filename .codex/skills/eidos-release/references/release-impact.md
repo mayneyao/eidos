@@ -45,20 +45,24 @@ packages/eidos-file
 ├── public @eidos.space/eidos-file package
 ├── Lite source build
 ├── editor.eidos.space source build
-└── build:quickjs -> apps/cli/qjs-host/bundle/eidos-runtime.js
+└── build:quickjs -> packages/eidos-file/generated/quickjs/eidos-runtime.js
     └── CLI binary -> standalone CLI, Lite Publish engine, Publish Container
 
 packages/eidos-file-ui
 ├── public @eidos.space/eidos-file-ui package
 ├── Lite source build
 ├── editor.eidos.space source build
-└── packages/eidos-file-serve build -> apps/cli/qjs-host/ui
+└── packages/eidos-file-serve build -> packages/eidos-file-serve/generated/ui
     ├── standalone CLI embedded Serve UI
     └── Publish static assets and Publish Container UI
 
 packages/eidos-file-serve
 ├── editor.eidos.space client and shared host behavior
-└── generated apps/cli/qjs-host/ui -> CLI and Publish
+└── generated packages/eidos-file-serve/generated/ui -> CLI and Publish
+
+crates/eidos-runtime-host -> CLI, Android, iOS
+crates/eidos-publish -> CLI, Android, iOS
+crates/eidos-mobile-host -> Android, iOS
 
 apps/cli
 ├── standalone CLI release
@@ -73,15 +77,19 @@ The generated boundaries matter:
 
 - `packages/eidos-file build:quickjs` writes the committed CLI Runtime bundle.
 - `packages/eidos-file-serve build` writes the committed CLI Serve UI.
-- Lite packaging builds the current CLI workspace and copies the resulting
+- Lite packaging builds the CLI from the root Rust workspace and copies the resulting
   `eidos` binary as its Publish engine; it does not consume a CLI GitHub Release.
 - Publish serves the committed CLI Serve UI as Worker assets and builds the
-  current CLI workspace into its Container image.
+  CLI from the root Rust workspace into its Container image.
 
 During assessment, mark generated freshness as **unproven** when relevant source
 changed but the committed output cannot be shown to match. Refresh generated
 files only after release preparation is authorized. Treat the resulting diff as
 evidence that a consumer changes, not as a separate user-facing feature.
+
+Shared Rust library changes in `crates/` affect their consumers. Root
+`Cargo.toml` or `Cargo.lock` changes require checking CLI and mobile builds;
+app versions and release tags remain independent.
 
 ## Classify candidates semantically
 

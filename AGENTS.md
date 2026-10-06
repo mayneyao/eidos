@@ -20,14 +20,20 @@ into the current branch.
 
 ```text
 apps/
-├── cli/                 # Rust CLI and embedded `eidos serve` runtime
-├── eidos-android/       # Experimental native Android host (Kotlin / Compose)
+├── cli/                 # CLI binaries, installers, and supervisor
+├── eidos-android/       # Native Android app (Kotlin / Compose)
+├── eidos-ios/           # Native iOS app (Swift)
 ├── docs/                # Current Eidos File / Lite documentation site
 ├── download/            # CLI installers and Lite update routing Worker
 ├── eidos-file-web/      # editor.eidos.space browser editor
 ├── eidos-lite-desktop/  # Primary Electron desktop application
 ├── graft-remote/        # Hosted Lite Sync protocol service
 └── sqlite-web-viewer/   # Standalone read-only SQLite browser utility
+crates/                  # Private Rust libraries in the root Cargo workspace
+├── eidos-file-core/     # SQLite format helpers
+├── eidos-runtime-host/  # Canonical TS Runtime host; serve is opt-in
+├── eidos-publish/       # Shared publication engine
+└── eidos-mobile-host/   # Shared sessions, JNI (Android), and C FFI (iOS)
 packages/
 ├── eidos-file/          # Format and Runtime implementation (MIT)
 ├── eidos-file-ui/       # Shared React editor UI and semantic theme (MIT)
@@ -44,9 +50,14 @@ skills/eidos/            # Public CLI workflow skill
   filter, field, conversion, revision, or validation behavior.
 - Web, Lite, and CLI Serve consume `packages/eidos-file-ui`. Shared components,
   semantic tokens, source aliases, and host styles belong there.
-- Android uses native Kotlin / Compose UI and calls the canonical Runtime via
-  the JNI host in `apps/cli/android-host`; do not reimplement File semantics in
-  Kotlin. Its Gradle build, version, and release lifecycle are independent.
+- Android and iOS call the canonical Runtime through `crates/eidos-mobile-host`
+  (JNI on Android, the `ffi` feature on iOS). Native UI must not reimplement File
+  semantics. Each app retains its own build, version, and release lifecycle.
+- Rust libraries live in `crates/`; `apps/` contains deliverables. The root
+  `Cargo.toml` and `Cargo.lock` own dependency resolution, including the pinned
+  Graft SDK and SQLite version. The CLI explicitly enables Runtime `serve`;
+  mobile builds enable `planned-transfer-progress` only with the verified Graft
+  patch in the isolated workspace created by `scripts/prepare-mobile-native.mjs`.
 - Browser SQLite uses `@sqlite.org/sqlite-wasm`. Lite uses Node's built-in
   `node:sqlite` through its Electron utility boundary.
 - Lite owns filesystem access, locking, publication, Graft, account, and Sync
@@ -116,18 +127,19 @@ pnpm test:eidos-android
   installed application, reuse another worktree's Electron window, or terminate
   an unrelated process merely to make the test proceed.
 
-CLI work stays inside its Rust workspace:
+Run Rust commands from the repository root:
 
 ```bash
-cd apps/cli
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cargo build --release --locked
+cargo test --workspace --locked --features eidos-mobile-host/ffi
+cargo build -p eidos --release --locked
 ```
 
-The CLI's QuickJS Runtime and serve UI are generated but committed. Refresh
-them after changing their sources:
+The committed QuickJS bundle lives in `packages/eidos-file/generated/quickjs`;
+the Serve UI lives in `packages/eidos-file-serve/generated/ui`. Runtime host
+builds verify source and artifact hashes and reject stale generated files.
+Refresh them after changing their sources:
 
 ```bash
 pnpm --filter @eidos.space/eidos-file build:quickjs

@@ -20,7 +20,7 @@ pub fn run(args: PluginArgs, human: bool) -> Result<CommandOutput> {
             let compatibility = if let Some(path) = package {
                 let bytes = fs::read(path).map_err(|e| AppError::invalid_request(e.to_string()))?;
                 let package = crate::plugin_registry::decode_package(&bytes)?;
-                Some(qjs_host::plugin_compatibility::check(
+                Some(eidos_runtime_host::plugin_compatibility::check(
                     &serde_json::to_value(package.manifest)
                         .map_err(|e| AppError::internal(e.to_string()))?,
                 ))
@@ -28,7 +28,7 @@ pub fn run(args: PluginArgs, human: bool) -> Result<CommandOutput> {
                 None
             };
             Ok(CommandOutput::success(json!({
-                "command": "plugin doctor", "host": qjs_host::plugin_compatibility::host_info(),
+                "command": "plugin doctor", "host": eidos_runtime_host::plugin_compatibility::host_info(),
                 "hostVersion": env!("CARGO_PKG_VERSION"), "compatibility": compatibility
             })))
         }

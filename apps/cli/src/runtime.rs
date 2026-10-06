@@ -1,13 +1,15 @@
 //! Thin one-shot bridge from the Agent CLI to the canonical TypeScript Runtime.
 //!
 //! Formula and Lookup semantics belong to `packages/eidos-file`. The CLI
-//! opens the same file through qjs-host and forwards Runtime requests instead
+//! opens the same file through eidos-runtime-host and forwards Runtime requests instead
 //! of implementing a second evaluator in Rust.
 
 use std::path::Path;
 use std::rc::Rc;
 
-use qjs_host::{QjsHost, clear_active_context, open_host_state, open_host_state_read_only};
+use eidos_runtime_host::{
+    QjsHost, clear_active_context, open_host_state, open_host_state_read_only,
+};
 use serde_json::{Value, json};
 
 use crate::error::{AppError, Result};

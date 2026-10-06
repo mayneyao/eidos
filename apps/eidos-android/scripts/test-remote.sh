@@ -43,8 +43,8 @@ if [[ ! "$remote_url" =~ ^http://127\.0\.0\.1:[0-9]+$ ]]; then
 fi
 port="${remote_url##*:}"
 export EIDOS_ANDROID_TEST_REMOTE="$remote_url"
-cd "$android_root/../cli"
-cargo test -p eidos-android-host http_remote_roundtrip --locked -- --ignored
+cd "$android_root/../.."
+cargo test -p eidos-mobile-host http_remote_roundtrip --locked -- --ignored
 "$adb_command" reverse "tcp:$port" "tcp:$port"
 mapped=true
 cd "$android_root"

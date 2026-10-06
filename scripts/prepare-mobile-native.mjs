@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 
 // Build a pinned, patched dependency in a private workspace. Never edit Cargo's
-// Git cache or the developer's Graft checkout. The source lockfiles stay intact.
+// Git cache or the developer's Graft checkout. The root lockfile stays intact.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const platform = process.argv[2]
 if (!["android", "ios"].includes(platform))
@@ -13,7 +13,9 @@ if (!["android", "ios"].includes(platform))
 const build = path.join(root, `apps/eidos-${platform}/build/native-workspace`)
 const workspace = path.join(build, "workspace")
 const source = path.join(build, "graft-source")
-const revision = "5c99ad07ee1af7b66432c94c6e919c7faa5cacd5"
+const rootManifest = await fs.readFile(path.join(root, "Cargo.toml"), "utf8")
+const revision = rootManifest.match(/^graft-sdk = .*rev = "([a-f0-9]+)"/m)?.[1]
+if (!revision) throw new Error("Root workspace must pin the Graft SDK revision")
 const patch = path.join(
   root,
   "apps/eidos-android/patches/graft-android-runtime.patch"
@@ -67,6 +69,9 @@ if (
   run("git", ["apply", "--reverse", "--check", patch], source, patchOptions)
   await fs.writeFile(path.join(source, ".eidos-patch"), stamp)
 }
+// Mirror exactly so deleted/moved sources and their fingerprints cannot linger.
+// Build outputs live in the repository target directory, outside this mirror.
+await fs.rm(workspace, { recursive: true, force: true })
 const copy = async (relative) => {
   await fs.cp(path.join(root, relative), path.join(workspace, relative), {
     recursive: true,
@@ -74,13 +79,17 @@ const copy = async (relative) => {
       !["target", "build", ".git"].includes(path.basename(entry)),
   })
 }
+await copy("Cargo.toml")
+await copy("Cargo.lock")
+await copy("crates")
 await copy("apps/cli")
+await copy("packages/eidos-file/src")
+await copy("packages/eidos-file/package.json")
+await copy("packages/eidos-file/generated/quickjs")
+await copy("scripts/build-quickjs.mjs")
+await copy("scripts/generated-assets.mjs")
 await copy("packages/plugin-runtime/src/compatibility-data.json")
-if (platform === "ios") await copy("apps/eidos-ios/native")
-const manifestDirectory = path.join(
-  workspace,
-  platform === "ios" ? "apps/eidos-ios/native" : "apps/cli"
-)
+const manifestDirectory = workspace
 const manifest = path.join(manifestDirectory, "Cargo.toml")
 await fs.appendFile(
   manifest,

@@ -17,13 +17,11 @@ pnpm --filter @eidos.space/eidos-file build
 pnpm --filter @eidos.space/plugin-sdk build
 pnpm --filter @eidos.space/plugin-runtime build
 pnpm --filter @eidos.space/plugin-tools build
-cd apps/cli
 cargo build --locked
-cd ../..
 node packages/plugin-tools/bin/eidos-plugin.mjs create /tmp/my-csv-editor
 node packages/plugin-tools/bin/eidos-plugin.mjs check /tmp/my-csv-editor
 node packages/plugin-tools/bin/eidos-plugin.mjs pack /tmp/my-csv-editor --out /tmp/my-csv-editor.eidos-plugin
-EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
+EIDOS_PLUGIN_CLI="$PWD/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
 ```
 
 The bridge requires Node.js >=22.12. `@eidos.space/plugin-tools` bundles its
@@ -82,7 +80,7 @@ Build the Rust binary before testing CLI migration errors and compatibility
 inspection of packages produced by this tool:
 
 ```sh
-EIDOS_PLUGIN_CLI="$PWD/apps/cli/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
+EIDOS_PLUGIN_CLI="$PWD/target/debug/eidos" pnpm --filter @eidos.space/plugin-tools test
 ```
 
 The tests compile all templates, test action

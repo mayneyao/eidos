@@ -31,8 +31,8 @@
   "printWidth": 80,
   "sortPackageJson": false,
   "ignorePatterns": [
-    "apps/cli/qjs-host/bundle",
-    "apps/cli/qjs-host/ui",
+    "packages/eidos-file/generated/quickjs",
+    "packages/eidos-file-serve/generated/ui",
     "cache",
     ".cache",
     "package.json",

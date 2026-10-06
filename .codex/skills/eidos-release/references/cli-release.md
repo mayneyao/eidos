@@ -10,7 +10,7 @@ templates against the candidate CLI wherever they claim Serve support.
 ## Establish the release contract
 
 - `apps/cli/Cargo.toml` is the CLI version source of truth.
-- `apps/cli/Cargo.lock` must contain the same `eidos` package version.
+- `Cargo.lock` must contain the same `eidos` package version.
 - Stable releases update `apps/cli/LATEST`; prereleases do not move it.
 - `apps/cli/RELEASE_NOTES.md` is the exact body for one standalone CLI version.
   It is a single-release manifest, not a cumulative changelog. Replace it for
@@ -23,8 +23,8 @@ templates against the candidate CLI wherever they claim Serve support.
 - Eidos Lite version bumps never rewrite the CLI version.
 - CLI Releases set `make_latest: false` so they do not replace the repository's
   Eidos Lite Latest Release pointer.
-- the CLI embeds the committed QuickJS Runtime in `qjs-host/bundle` and Serve UI
-  in `qjs-host/ui`. The same source and generated UI are also inputs to the
+- the CLI embeds the committed QuickJS Runtime in `packages/eidos-file/generated/quickjs` and Serve UI
+  in `packages/eidos-file-serve/generated/ui`. The same source and generated UI are also inputs to the
   Publish Container, and Lite builds the CLI as its bundled Publish engine.
   Releasing the CLI does not deploy Publish or release Lite; assess both
   independently when the changed CLI path affects them.
@@ -48,9 +48,8 @@ Require a clean worktree before release preparation. Update the package version
 in `apps/cli/Cargo.toml`, then refresh and inspect the lockfile:
 
 ```bash
-cd apps/cli
 cargo check --workspace
-git diff -- Cargo.toml Cargo.lock
+git diff -- apps/cli/Cargo.toml Cargo.lock
 ```
 
 Before the version commit, refresh committed generated inputs when their source
@@ -59,7 +58,7 @@ changed:
 ```bash
 pnpm --filter @eidos.space/eidos-file build:quickjs
 pnpm --filter @eidos.space/eidos-file-serve build
-git diff -- apps/cli/qjs-host/bundle apps/cli/qjs-host/ui
+git diff -- packages/eidos-file/generated/quickjs packages/eidos-file-serve/generated/ui
 ```
 
 Reject stale or unrelated generated churn. The generated diff is delivery
@@ -93,11 +92,9 @@ remote tag exists.
 Run:
 
 ```bash
-cd apps/cli
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ../..
+cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+cargo test --workspace --locked --features eidos-mobile-host/ffi
 node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs
 node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
   --surface cli \

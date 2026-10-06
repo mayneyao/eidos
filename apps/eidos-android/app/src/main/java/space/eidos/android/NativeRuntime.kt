@@ -5,7 +5,7 @@ import org.json.JSONObject
 /** Blocking API: call on the Space repository's serialized IO boundary. */
 object NativeRuntime {
     init {
-        System.loadLibrary("eidos_android_host")
+        System.loadLibrary("eidos_mobile_host")
     }
 
     @JvmStatic external fun execute(path: String, method: String, request: String): String

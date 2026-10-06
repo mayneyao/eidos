@@ -94,8 +94,10 @@ Show context first and do not mutate yet.
 
 ## Quick start
 
+Run these development commands from the repository root:
+
 ```bash
-cargo build
+cargo build -p eidos --locked
 
 target/debug/eidos create tracker.eidos \
   --table Tasks \
@@ -482,31 +484,33 @@ high-level intent surface.
 
 ## Development
 
+Run these checks from the repository root:
+
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release
+cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+cargo test --workspace --locked --features eidos-mobile-host/ffi
+cargo build -p eidos --release --locked
 ```
 
 The embedded artifacts are generated but committed, so a clean checkout builds
 with cargo alone. Refresh them after changing the runtime or the serve UI:
 
 ```bash
-# QuickJS runtime bundle (packages/eidos-file) -> qjs-host/bundle/
+# QuickJS runtime bundle (packages/eidos-file) -> packages/eidos-file/generated/quickjs/
 pnpm --filter @eidos.space/eidos-file build:quickjs
 
-# Serve UI (packages/eidos-file-serve) -> qjs-host/ui/
+# Serve UI (packages/eidos-file-serve) -> packages/eidos-file-serve/generated/ui/
 pnpm --filter @eidos.space/eidos-file-serve build
 ```
 
 ## Standalone release
 
-The CLI owns the version in `Cargo.toml`; Eidos Lite version bumps do not
+The CLI owns the version in `apps/cli/Cargo.toml`; Eidos Lite version bumps do not
 change it. To prepare a CLI release:
 
 1. Update `apps/cli/Cargo.toml` to the exact semantic version.
-2. Run `cargo check --workspace` in `apps/cli` and commit the resulting
+2. Run `cargo check --workspace` from the repository root and commit the resulting
    `Cargo.lock` change.
 3. For a stable release, update `apps/cli/LATEST` to the same version.
 4. Rewrite `apps/cli/RELEASE_NOTES.md` for that exact CLI version. Keep it
@@ -520,15 +524,23 @@ which rebuilds and verifies four platform archives, generates `SHA256SUMS`,
 and creates a dedicated GitHub Release from the checked-in CLI release notes
 without changing the repository's Eidos Lite “Latest Release” pointer.
 
-The workspace contains:
+The repository-root Cargo workspace contains:
 
 ```text
+Cargo.toml / Cargo.lock
+crates/
+├── eidos-file-core/     # SQLite format helpers
+├── eidos-runtime-host/  # Canonical TypeScript Runtime over rusqlite
+├── eidos-publish/       # Publication engine
+└── eidos-mobile-host/   # Shared mobile sessions, JNI, and C FFI
 apps/cli/
-├── core/       # Eidos File format, query, mutation, and validation library
-├── qjs-host/   # Embedded QuickJS host bridging the TypeScript runtime to rusqlite
-├── src/        # CLI output, commands, and agent-facing normalization
-└── tests/      # End-to-end external-agent contract tests
+├── src/                # CLI commands and supervisor binaries
+└── tests/              # External-agent contract tests
 ```
+
+Run Rust checks from the repository root. The CLI explicitly enables `serve`;
+Runtime host defaults contain no server. Generated artifact manifests bind
+source and output hashes, so stale bundles fail the Rust build.
 
 ## Plugin development
 

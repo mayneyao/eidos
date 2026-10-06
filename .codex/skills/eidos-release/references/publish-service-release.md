@@ -9,8 +9,8 @@ Publish is not only a Worker:
 
 - `apps/eidos-publish` owns the control Worker, Workflow, R2/SQLite Durable
   Object contracts, Gateway, bindings, and Container configuration.
-- `apps/cli/qjs-host/ui` is served directly as the Worker's static UI.
-- the Container Dockerfile builds the current CLI workspace into `eidos` and
+- `packages/eidos-file-serve/generated/ui` is served directly as the Worker's static UI.
+- the Container Dockerfile builds the CLI from the root Rust workspace into `eidos` and
   `eidos-publish-supervisor`; the CLI's embedded QuickJS Runtime and Serve UI
   are therefore Container inputs too.
 - production `*.eidos.ink/*` ingress is owned by `apps/eidos-file-relay`, which
@@ -69,7 +69,7 @@ When shared UI or Serve UI source changed and Publish should consume it:
 pnpm --filter @eidos.space/eidos-file-serve build
 ```
 
-Review `apps/cli/qjs-host/bundle` and `apps/cli/qjs-host/ui` after generation.
+Review `packages/eidos-file/generated/quickjs` and `packages/eidos-file-serve/generated/ui` after generation.
 Require every referenced asset to be tracked and reject unrelated generated
 churn. Commit and push source plus generated outputs before deployment. Never
 deploy a dirty local bundle whose bytes cannot be reconstructed from the
@@ -90,11 +90,9 @@ pnpm --filter @eidos.space/eidos-file-serve test
 pnpm --filter @eidos.space/eidos-file-serve typecheck
 pnpm --filter @eidos.space/eidos-file-serve build
 node --test apps/cli/release.test.mjs
-cd apps/cli
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ../..
+cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+cargo test --workspace --locked --features eidos-mobile-host/ffi
 pnpm --filter @eidos.space/publish-service check
 pnpm --filter @eidos.space/publish-service test
 pnpm --filter @eidos.space/publish-service dry-run:staging
@@ -172,7 +170,7 @@ Do not claim success from Wrangler's exit code alone. Verify:
 - the public control origin and a controlled `*.eidos.ink` publication route
   reach the intended Worker/Relay path;
 - the public static UI hash or a release-specific marker matches the committed
-  `apps/cli/qjs-host/ui` output;
+  `packages/eidos-file-serve/generated/ui` output;
 - a fresh Container starts the committed Runtime/Supervisor and serves a
   read-only publication;
 - the changed public/password/private, attachment, Form, rollback, or lifecycle

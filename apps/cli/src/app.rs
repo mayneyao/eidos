@@ -478,9 +478,9 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     } else {
         None
     };
-    qjs_host::serve::run_serve(
+    eidos_runtime_host::serve::run_serve(
         &args.file,
-        qjs_host::serve::ServeOptions {
+        eidos_runtime_host::serve::ServeOptions {
             port: args.port,
             ui_dir: args.ui_dir,
             assets_dir: args.assets_dir,

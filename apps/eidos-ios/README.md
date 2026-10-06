@@ -45,7 +45,7 @@ Simulator builds use ad-hoc signing so Keychain works during testing. Physical-d
 
 Open **Space 操作 → 本地版本** to inspect local changes and save a checkpoint. A checkpoint captures the complete Space, including SQLite data, Markdown, and ordinary attachments. It requires no account or network. The screen lists the latest 50 commits. Opening history does not initialize a repository; saving the first version does. Recovery drafts and the recycle bin live outside the versioned Space.
 
-The iOS host reuses Android's portable Rust Graft and semantic merge modules. Runtime connections close before version operations, and the native storage queue serializes edits and checkpoints. The WebView cannot invoke Graft operations. An existing native merge blocks checkpoints. LAN conflicts are reviewed on the desktop; the phone keeps a normal editable local copy while awaiting resolution.
+Android and iOS share the portable Graft and semantic merge modules in `crates/eidos-mobile-host`. Runtime connections close before version operations, and the native storage queue serializes edits and checkpoints. The WebView cannot invoke Graft operations. An existing native merge blocks checkpoints. LAN conflicts are reviewed on the desktop; the phone keeps a normal editable local copy while awaiting resolution.
 
 ## LAN Sync
 
@@ -82,18 +82,25 @@ Account login, cloud Sync and Publish entry points are hidden from the mobile UI
 
 `Sources/` owns the file picker, sandboxed local Space, atomic Markdown writes, navigation, and WKWebView resource/message boundaries. `web/` owns the iOS entry point, using `@eidos.space/markdown`, `@eidos.space/eidos-file-ui`, and the Serve Runtime client adapter. Its initial shell was copied from the Android embedded editor; it is independent of Android assets and JNI builds. Shared editor behavior remains in the shared packages.
 
-`native/` is an independent Rust workspace producing a C static library. It depends on `apps/cli/qjs-host` and the portable modules in `apps/cli/android-host`; JNI remains Android-only. A dedicated Rust thread keeps SQLite and QuickJS sessions alive across calls, including authenticated cursors and schema plans. The committed canonical QuickJS bundle provides Eidos File semantics; Swift does not implement field conversion, querying, validation, or revision rules.
+`crates/eidos-mobile-host` produces the C static library with its `ffi` feature in the repository-root Rust workspace. It shares Runtime sessions and Graft orchestration with Android; JNI remains Android-only. A dedicated Rust thread keeps SQLite and QuickJS sessions alive across calls, including authenticated cursors and schema plans. The committed canonical QuickJS bundle provides Eidos File semantics; Swift does not implement field conversion, querying, validation, or revision rules.
+
+The build explicitly enables `ffi,planned-transfer-progress` against the patched
+Graft mirror. Rust output lives in the root `target/<target>/release/`; the script
+copies `libeidos_mobile_host.a` into `build/native/<platform>/` for Xcode. The
+canonical QuickJS bundle lives in `packages/eidos-file/generated/quickjs/`.
 
 `eidos://app/editor/` serves only bundled editor resources. `eidos://app/document/` serves supported local raster images with canonical path and symlink containment checks. Only main-frame editor messages are accepted; the native side selects the open file and allowlists Runtime operations. External HTTP(S) links open through the system, outside the editor.
 
 ## Validation
 
+Run these commands from the repository root:
+
 ```bash
 pnpm --filter @eidos.space/ios-editor typecheck
 pnpm --filter @eidos.space/ios-editor build:web
-cargo fmt --manifest-path apps/eidos-ios/native/Cargo.toml --check
-cargo clippy --manifest-path apps/eidos-ios/native/Cargo.toml --all-targets --locked -- -D warnings
-cargo test --manifest-path apps/eidos-ios/native/Cargo.toml --locked
+cargo fmt --all --check
+cargo clippy -p eidos-mobile-host --features ffi --all-targets --locked -- -D warnings
+cargo test -p eidos-mobile-host --features ffi --locked
 xcodebuild -project apps/eidos-ios/EidosIOS.xcodeproj -scheme EidosIOS \
   -destination 'platform=iOS Simulator,id=<simulator-uuid>' \
   -derivedDataPath apps/eidos-ios/build/DerivedData test

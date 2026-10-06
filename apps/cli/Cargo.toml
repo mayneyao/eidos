@@ -6,6 +6,7 @@ description = "Agent-first command-line interface for Eidos File"
 authors = ["mayneyao"]
 license = "AGPL-3.0"
 build = "build.rs"
+publish = false
 
 [[bin]]
 name = "eidos"
@@ -16,7 +17,7 @@ name = "eidos-publish-supervisor"
 path = "src/bin/eidos-publish-supervisor.rs"
 
 [dependencies]
-eidos-publish = { path = "publish" }
+eidos-publish.workspace = true
 anyhow = "1"
 base64 = "0.22"
 clap = { version = "4.5", features = ["derive", "env"] }
@@ -36,22 +37,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 tiny_http = "0.12"
-rusqlite = { version = "0.38", features = ["bundled"] }
-eidos-file-core = { path = "core" }
-qjs-host = { path = "qjs-host" }
+rusqlite.workspace = true
+eidos-file-core.workspace = true
+eidos-runtime-host = { workspace = true, features = ["serve"] }
 cap-std = "4.0.2"
 cap-fs-ext = "4.0.2"
 
 [dev-dependencies]
 tempfile = "3.19"
-
-# Cargo workspace root. The workspace lives entirely under apps/cli so that
-# target/ stays at apps/cli/target and standalone builds remain self-contained.
-[workspace]
-members = ["core", "qjs-host", "android-host", "publish"]
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-strip = true

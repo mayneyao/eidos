@@ -82,12 +82,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build CLI for authoring integration
-        working-directory: apps/cli
         run: cargo build --locked --bin eidos
 
       - name: Test Plugin Tools
         env:
-          EIDOS_PLUGIN_CLI: ${{ github.workspace }}/apps/cli/target/debug/eidos
+          EIDOS_PLUGIN_CLI: ${{ github.workspace }}/target/debug/eidos
         run: pnpm --filter @eidos.space/plugin-tools test
 
       - name: Pack reviewed artifacts

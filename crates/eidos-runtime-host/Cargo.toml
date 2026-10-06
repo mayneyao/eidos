@@ -1,0 +1,57 @@
+[package]
+name = "eidos-runtime-host"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Run the TypeScript Eidos File runtime inside QuickJS over a rusqlite bridge"
+
+[features]
+default = []
+serve = [
+  "dep:flate2",
+  "dep:tiny_http",
+  "dep:open",
+  "dep:rust-embed",
+  "dep:futures-util",
+  "dep:reqwest",
+  "dep:tokio",
+  "dep:tokio-tungstenite",
+]
+
+[dependencies]
+rquickjs = "0.12"
+rusqlite = { workspace = true, features = ["serialize", "functions", "limits"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+chrono = "0.4"
+anyhow = "1"
+flate2 = { version = "1.0", optional = true }
+tiny_http = { version = "0.12", optional = true }
+open = { version = "5", optional = true }
+rust-embed = { version = "8", features = ["debug-embed"], optional = true }
+futures-util = { version = "0.3", optional = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = [
+  "blocking",
+  "rustls-tls",
+  "stream",
+] }
+tokio = { version = "1", optional = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
+tokio-tungstenite = { version = "0.27", optional = true, default-features = false, features = [
+  "connect",
+  "rustls-tls-native-roots",
+] }
+
+[dev-dependencies]
+tempfile = "3.19"
+
+[build-dependencies]
+serde_json = "1"
+sha2 = "0.10"
