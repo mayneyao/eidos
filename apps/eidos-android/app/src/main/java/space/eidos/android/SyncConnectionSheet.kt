@@ -29,16 +29,16 @@ fun SyncConnectionSheet(
             Modifier.verticalScroll(rememberScrollState()).padding(24.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("手动连接 Graft 远程", style = MaterialTheme.typography.titleLarge)
+            Text(tr("手动连接 Graft 远程"), style = MaterialTheme.typography.titleLarge)
             Text(
-                "输入远程 Space 的 HTTPS 地址和访问令牌。配置保存后，由你选择同步或发布本机版本。",
+                tr("输入远程 Space 的 HTTPS 地址和访问令牌。配置保存后，由你选择同步或发布本机版本。"),
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedTextField(
                 url,
                 { url = it },
                 Modifier.fillMaxWidth(),
-                label = { Text("远程地址") },
+                label = { Text(tr("远程地址")) },
                 singleLine = true,
                 enabled = !busy,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -47,14 +47,14 @@ fun SyncConnectionSheet(
                 token,
                 { token = it },
                 Modifier.fillMaxWidth(),
-                label = { Text("访问令牌（可选）") },
+                label = { Text(tr("访问令牌（可选）")) },
                 singleLine = true,
                 enabled = !busy,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             )
             Text(
-                "令牌使用 Android Keystore 加密保存在本机，不会写入 Space 文件。留空会清除旧令牌。",
+                tr("令牌使用 Android Keystore 加密保存在本机，不会写入 Space 文件。留空会清除旧令牌。"),
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(
@@ -62,7 +62,7 @@ fun SyncConnectionSheet(
                 enabled = !busy && url.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("保存连接")
+                Text(tr("保存连接"))
             }
         }
     }

@@ -62,7 +62,7 @@ object BackgroundSync {
                         .remove("reason")
                         .commit()
                 ) {
-                    "无法保存自动同步设置"
+                    tr("无法保存自动同步设置")
                 }
             }
             val manager = WorkManager.getInstance(context)
@@ -79,7 +79,7 @@ object BackgroundSync {
                         .result
                         .get()
                 } catch (error: Exception) {
-                    pauseAutomatic(context, spaceId, "自动同步调度失败，请重新开启", epoch)
+                    pauseAutomatic(context, spaceId, tr("自动同步调度失败，请重新开启"), epoch)
                     throw error
                 }
         }
@@ -132,7 +132,7 @@ object BackgroundSync {
                 .putString("reason", reason)
                 .commit()
         ) {
-            "无法暂停自动同步"
+            tr("无法暂停自动同步")
         }
         WorkManager.getInstance(context).cancelUniqueWork(automaticName(spaceId))
     }
@@ -159,8 +159,8 @@ object BackgroundSync {
                                 infos,
                                 BackgroundSyncDetails(context, spaceId, automatic = true),
                             )
-                            ?.message ?: "等待 Android 调度自动同步"
-                    else "自动同步已关闭"
+                            ?.message ?: tr("等待 Android 调度自动同步")
+                    else tr("自动同步已关闭")
             AutomaticSyncState(config.enabled, message)
         }
     }
@@ -196,7 +196,7 @@ internal data class AutomaticSyncSettings(
     val reason: String?,
 )
 
-data class AutomaticSyncState(val enabled: Boolean = false, val message: String = "自动同步已关闭")
+data class AutomaticSyncState(val enabled: Boolean = false, val message: String = tr("自动同步已关闭"))
 
 data class BackgroundSyncState(val state: String, val message: String) {
     val pending: Boolean
@@ -234,7 +234,7 @@ internal class BackgroundSyncDetails(
                 .putInt("failures", failures)
                 .commit()
         ) {
-            "无法保存后台同步状态"
+            tr("无法保存后台同步状态")
         }
         return failures
     }
@@ -259,24 +259,24 @@ internal fun backgroundSyncState(
         message
             ?: when (info.state) {
                 WorkInfo.State.ENQUEUED,
-                WorkInfo.State.BLOCKED -> "等待网络和后台运行条件"
-                WorkInfo.State.RUNNING -> "后台同步中"
-                WorkInfo.State.SUCCEEDED -> "后台同步已完成"
-                WorkInfo.State.CANCELLED -> "后台同步已取消"
-                else -> "后台同步失败，请检查连接后重试"
+                WorkInfo.State.BLOCKED -> tr("等待网络和后台运行条件")
+                WorkInfo.State.RUNNING -> tr("后台同步中")
+                WorkInfo.State.SUCCEEDED -> tr("后台同步已完成")
+                WorkInfo.State.CANCELLED -> tr("后台同步已取消")
+                else -> tr("后台同步失败，请检查连接后重试")
             },
     )
 }
 
 private class SyncForegroundUnavailable(cause: Exception) :
-    IllegalStateException("Android 暂时无法启动同步服务", cause)
+    IllegalStateException(tr("Android 暂时无法启动同步服务"), cause)
 
 class SpaceSyncWorker(context: Context, parameters: WorkerParameters) :
     CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         val spaceId = inputData.getString("spaceId") ?: return Result.failure()
         if (SpaceCatalog(applicationContext).spaces().none { it.id == spaceId })
-            return Result.failure(workDataOf("message" to "Space 已不存在"))
+            return Result.failure(workDataOf("message" to tr("Space 已不存在")))
         val automatic = inputData.getBoolean("automatic", false)
         val epoch = inputData.getString("automaticEpoch")
         val settings = BackgroundSync.automaticSettings(applicationContext, spaceId)
@@ -307,15 +307,15 @@ class SpaceSyncWorker(context: Context, parameters: WorkerParameters) :
                 }
             return when (outcome) {
                 "deferred" -> {
-                    progress("等待退出编辑并离开应用")
+                    progress(tr("等待退出编辑并离开应用"))
                     Result.retry()
                 }
                 "needs_merge" -> {
-                    val message = "双方都有新版本，需要合并；本地与远端版本均已保留"
+                    val message = tr("双方都有新版本，需要合并；本地与远端版本均已保留")
                     BackgroundSync.pauseAutomatic(
                         applicationContext,
                         spaceId,
-                        "自动同步已暂停：$message",
+                        tr("自动同步已暂停：{0}", message),
                         if (automatic) epoch else null,
                     )
                     Result.failure(workDataOf("message" to message))
@@ -323,10 +323,10 @@ class SpaceSyncWorker(context: Context, parameters: WorkerParameters) :
                 else -> {
                     details.record(
                         id.toString(),
-                        if (automatic) "自动同步已完成，等待下一轮" else "后台同步已完成",
+                        if (automatic) tr("自动同步已完成，等待下一轮") else tr("后台同步已完成"),
                         resetFailures = true,
                     )
-                    Result.success(workDataOf("message" to "后台同步已完成"))
+                    Result.success(workDataOf("message" to tr("后台同步已完成")))
                 }
             }
         } catch (error: CancellationException) {
@@ -344,17 +344,17 @@ class SpaceSyncWorker(context: Context, parameters: WorkerParameters) :
                                 "GRAFT_SDK_REPOSITORY_BUSY",
                                 "GRAFT_SDK_REPOSITORY_COMMAND",
                             )
-            val message = (error.message ?: "同步失败").take(1500)
+            val message = (error.message ?: tr("同步失败")).take(1500)
             val failures = details.record(id.toString(), message, failed = true)
             if (retryable && failures <= 5) {
-                progress("第 $failures 次同步未完成，将自动重试：$message")
+                progress(tr("第 {0} 次同步未完成，将自动重试：{1}", failures, message))
                 return Result.retry()
             }
             if (automatic)
                 BackgroundSync.pauseAutomatic(
                     applicationContext,
                     spaceId,
-                    "自动同步已暂停：$message",
+                    tr("自动同步已暂停：{0}", message),
                     epoch,
                 )
             return Result.failure(workDataOf("message" to message))

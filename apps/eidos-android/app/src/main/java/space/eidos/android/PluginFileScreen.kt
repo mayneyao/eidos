@@ -116,7 +116,7 @@ fun PluginFileScreen(session: PluginFileSession, repository: SpaceRepository, cl
                 title = { Text(session.file.name, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = close) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, tr("返回"))
                     }
                 },
             )

@@ -1,6 +1,7 @@
 <!doctype html>
-<html lang="zh">
+<html lang="__EIDOS_LOCALE__">
   <head>
+    <meta name="eidos-locale" content="__EIDOS_LOCALE__" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -8,8 +9,9 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self' 'nonce-__EIDOS_PLUGIN_NONCE__' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src https:; frame-src about:; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
+    <meta name="eidos-plugin-nonce" content="__EIDOS_PLUGIN_NONCE__" />
     <title>Eidos 编辑器</title>
   </head>
   <body>

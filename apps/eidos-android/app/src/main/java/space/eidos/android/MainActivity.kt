@@ -60,11 +60,10 @@ class MainActivity : ComponentActivity() {
                 intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
             )
         if (files.isNotEmpty() || !text.isNullOrBlank()) model.receiveShare(files, text)
-        else model.linkError("分享内容中没有可读取的文件或文本")
+        else model.linkError(tr("分享内容中没有可读取的文件或文本"))
     }
 
     override fun onStop() {
-        model.persistDraft()
         model.backgroundStarted()
         super.onStop()
     }

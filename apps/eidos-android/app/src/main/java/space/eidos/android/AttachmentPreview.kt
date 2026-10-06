@@ -40,7 +40,7 @@ internal fun prepareAttachmentPreview(
         )
     val cache =
         File(context.cacheDir, "attachment-previews").apply {
-            check(isDirectory || mkdirs()) { "无法创建附件缓存" }
+            check(isDirectory || mkdirs()) { tr("无法创建附件缓存") }
         }
     // Snapshots remain available when another app reads them after the chooser returns.
     // Bound storage independently of attachment metadata and keep no Space paths in grants.
@@ -63,7 +63,7 @@ internal fun prepareAttachmentPreview(
         }
     }
     val directory =
-        File(cache, UUID.randomUUID().toString()).apply { check(mkdir()) { "无法创建附件快照" } }
+        File(cache, UUID.randomUUID().toString()).apply { check(mkdir()) { tr("无法创建附件快照") } }
     val target = File(directory, "resource")
     try {
         val input =
@@ -77,20 +77,20 @@ internal fun prepareAttachmentPreview(
                         relative.rawQuery == null &&
                         relative.rawFragment == null
                 ) {
-                    "不支持此附件地址"
+                    tr("不支持此附件地址")
                 }
                 val parent = File(root, document).parentFile!!.canonicalFile
                 val decoded = relative.path
                 require(
                     decoded.isNotEmpty() && !decoded.startsWith('/') && !decoded.contains('\\')
                 ) {
-                    "附件地址无效"
+                    tr("附件地址无效")
                 }
                 val file = File(parent, decoded).canonicalFile
                 require(file.toPath().startsWith(parent.toPath()) && file != parent) {
-                    "附件超出数据文件所在目录"
+                    tr("附件超出数据文件所在目录")
                 }
-                require(file.toPath().startsWith(root.canonicalFile.toPath())) { "附件超出 Space" }
+                require(file.toPath().startsWith(root.canonicalFile.toPath())) { tr("附件超出 Space") }
                 var component = root
                 File(root, document)
                     .parentFile!!
@@ -100,11 +100,11 @@ internal fun prepareAttachmentPreview(
                     .filter { it.isNotEmpty() }
                     .plus(decoded.split('/'))
                     .forEach {
-                        require(it == ".." || it == "." || !it.startsWith('.')) { "附件不能访问内部目录" }
+                        require(it == ".." || it == "." || !it.startsWith('.')) { tr("附件不能访问内部目录") }
                         component = File(component, it)
-                        require(!Files.isSymbolicLink(component.toPath())) { "附件不能经过符号链接" }
+                        require(!Files.isSymbolicLink(component.toPath())) { tr("附件不能经过符号链接") }
                     }
-                require(file.isFile) { "附件文件不存在" }
+                require(file.isFile) { tr("附件文件不存在") }
                 file.inputStream()
             }
         input.use { source ->
@@ -115,7 +115,7 @@ internal fun prepareAttachmentPreview(
                     val count = source.read(buffer)
                     if (count < 0) break
                     copied += count
-                    require(copied <= 64L * 1024 * 1024) { "附件超过 64 MiB 打开限制" }
+                    require(copied <= 64L * 1024 * 1024) { tr("附件超过 64 MiB 打开限制") }
                     output.write(buffer, 0, count)
                 }
                 output.fd.sync()

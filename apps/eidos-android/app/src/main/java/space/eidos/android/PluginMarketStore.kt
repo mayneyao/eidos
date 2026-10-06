@@ -15,18 +15,30 @@ data class MarketPlugin(
     val version: String,
     val url: String,
     val hash: String,
+    val category: String = "",
+    val icon: JSONObject? = null,
 )
 
 data class PreparedPlugin(
     val json: String,
     val manifest: JSONObject,
     val revision: String,
-    val origin: String = "本地文件（未通过市场校验）",
+    val origin: String = tr("本地文件（未通过市场校验）"),
 )
 
 data class InstalledPlugin(val manifest: JSONObject, val revision: String, val enabled: Boolean) {
     val id
         get() = manifest.getString("id")
+}
+
+data class PluginNavigationPage(
+    val pluginId: String,
+    val viewId: String,
+    val title: String,
+    val revision: String,
+) {
+    val key
+        get() = "$pluginId/$viewId"
 }
 
 class PluginMarketStore(private val context: Context, storageName: String = "plugin-market") {
@@ -62,7 +74,7 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                         Charsets.UTF_8,
                     )
                 )
-            require(root.getInt("schemaVersion") == 1) { "不支持的插件市场目录" }
+            require(root.getInt("schemaVersion") == 1) { tr("不支持的插件市场目录") }
             val items = root.getJSONArray("plugins")
             require(items.length() <= 1000)
             val ids = mutableSetOf<String>()
@@ -81,6 +93,7 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                 )
                 require(tag.matches(Regex("[a-zA-Z0-9][a-zA-Z0-9._-]*")))
                 require(asset == "$id-$version.eidos-plugin" && hash.matches(Regex("[a-f0-9]{64}")))
+                preferences.edit().putString("readme-repo:$id", repo).apply()
                 MarketPlugin(
                     id,
                     p.getString("name").take(128),
@@ -88,7 +101,49 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                     version,
                     "https://github.com/$repo/releases/download/$tag/$asset",
                     hash,
+                    p.optString("category").take(64),
+                    p.optJSONObject("icon"),
                 )
+            }
+        }
+
+    suspend fun readme(id: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            require(id.matches(Regex("[a-z][a-z0-9.-]{1,127}")))
+            val cached = preferences.getString("readme:$id", null)?.let { JSONObject(it) }
+            if (
+                cached != null &&
+                    System.currentTimeMillis() - cached.optLong("fetchedAt") < 86_400_000
+            ) {
+                return@withContext cached.put("cached", true)
+            }
+            try {
+                if (!preferences.contains("readme-repo:$id")) market()
+                val repo = preferences.getString("readme-repo:$id", null) ?: return@withContext null
+                var failure: Exception? = null
+                for (branch in listOf("main", "master")) {
+                    try {
+                        val base = "https://raw.githubusercontent.com/$repo/$branch/"
+                        val markdown =
+                            String(
+                                PluginMarketTransport.download(base + "README.md", 1024 * 1024),
+                                Charsets.UTF_8,
+                            )
+                        val result =
+                            JSONObject()
+                                .put("markdown", markdown)
+                                .put("baseUrl", base)
+                                .put("fetchedAt", System.currentTimeMillis())
+                        preferences.edit().putString("readme:$id", result.toString()).apply()
+                        return@withContext result
+                    } catch (error: Exception) {
+                        failure = error
+                    }
+                }
+                throw failure ?: IllegalStateException(tr("说明加载失败"))
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                cached?.put("cached", true) ?: throw error
             }
         }
 
@@ -97,15 +152,15 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             withContext(Dispatchers.IO) {
                 PluginMarketTransport.download(entry.url, PluginMarketTransport.packageLimit)
             }
-        require(PluginMarketTransport.hash(bytes) == entry.hash) { "插件校验和与市场目录不一致" }
+        require(PluginMarketTransport.hash(bytes) == entry.hash) { tr("插件校验和与市场目录不一致") }
         val prepared = prepareBytes(bytes)
         require(
             prepared.manifest.getString("id") == entry.id &&
                 prepared.manifest.getString("version") == entry.version
         ) {
-            "插件身份与目录不一致"
+            tr("插件身份与目录不一致")
         }
-        return prepared.copy(origin = "插件市场（SHA-256 已匹配）\n${entry.url}")
+        return prepared.copy(origin = tr("插件市场（SHA-256 已匹配）\n{0}", entry.url))
     }
 
     suspend fun prepare(uri: Uri): PreparedPlugin {
@@ -113,7 +168,7 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             withContext(Dispatchers.IO) {
                 context.contentResolver.openInputStream(uri)?.use {
                     PluginMarketTransport.bounded(it, PluginMarketTransport.packageLimit)
-                } ?: error("无法读取插件包")
+                } ?: error(tr("无法读取插件包"))
             }
         return prepareBytes(bytes)
     }
@@ -141,11 +196,37 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                 InstalledPlugin(
                     record.getJSONObject("manifest"),
                     revision,
-                    preferences.getString("enabled:$space:$id", null) == revision,
+                    record.getJSONObject("manifest").optString("kind") != "theme" &&
+                        preferences.getString("enabled:$space:$id", null) == revision,
                 )
             }
             .toList()
     }
+
+    fun navigationPages(space: String): List<PluginNavigationPage> =
+        installed(space)
+            .filter { it.enabled }
+            .flatMap { plugin ->
+                val views = plugin.manifest.optJSONArray("views") ?: org.json.JSONArray()
+                val placements = plugin.manifest.optJSONArray("placements") ?: org.json.JSONArray()
+                (0 until placements.length()).mapNotNull { index ->
+                    val placement = placements.getJSONObject(index)
+                    if (placement.optString("location") != "navigation") return@mapNotNull null
+                    val view =
+                        (0 until views.length()).map(views::getJSONObject).find {
+                            it.optString("id") == placement.optString("view") &&
+                                it.optString("kind") == "page"
+                        } ?: return@mapNotNull null
+                    PluginNavigationPage(
+                        plugin.id,
+                        view.getString("id"),
+                        view.getString("title"),
+                        plugin.revision,
+                    )
+                }
+            }
+            .distinctBy { it.key }
+            .sortedBy { it.key }
 
     suspend fun install(prepared: PreparedPlugin) =
         withContext(Dispatchers.IO) {
@@ -169,7 +250,7 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                                 .put("manifest", prepared.manifest),
                         )
                 check(preferences.edit().putString("installed", records.toString()).commit()) {
-                    "无法保存插件安装信息"
+                    tr("无法保存插件安装信息")
                 }
                 prunePackages()
             }
@@ -177,8 +258,9 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
 
     fun setEnabled(space: String, plugin: InstalledPlugin, enabled: Boolean) =
         synchronized(mutationLock) {
+            require(!enabled || plugin.manifest.optString("kind") != "theme") { tr("移动端不支持插件主题") }
             require(records().getJSONObject(plugin.id).getString("revision") == plugin.revision) {
-                "插件版本已变更，请刷新"
+                tr("插件版本已变更，请刷新")
             }
             check(
                 preferences
@@ -229,21 +311,30 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                     .filter { it.enabled }
                     .flatMap { plugin ->
                         val manifest = plugin.manifest
-                        val views = manifest.getJSONArray("views")
-                        val placements = manifest.getJSONArray("placements")
+                        val views = manifest.optJSONArray("views") ?: org.json.JSONArray()
+                        val placements = manifest.optJSONArray("placements") ?: org.json.JSONArray()
                         val browser = manifest.optJSONObject("browser")
-                        (0 until views.length()).map { index ->
+                        (0 until views.length()).mapNotNull { index ->
                             val view = views.getJSONObject(index)
+                            if (
+                                view.optString("kind") != "file"
+                            )
+                                return@mapNotNull null
                             val extensions =
                                 (0 until placements.length())
                                     .map { placements.getJSONObject(it) }
-                                    .filter { it.getString("view") == view.getString("id") }
+                                    .filter {
+                                        it.optString("location") == "file/open" &&
+                                            it.optString("view") == view.getString("id")
+                                    }
                                     .flatMap { p ->
                                         p.getJSONArray("extensions").let { values ->
                                             (0 until values.length()).map(values::getString)
                                         }
                                     }
                                     .toSet()
+                            if (extensions.isEmpty())
+                                return@mapNotNull null
                             PluginFileView(
                                 "${plugin.id}/${view.getString("id")}",
                                 view.getString("title"),
@@ -265,6 +356,17 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
         )
     }
 
+    suspend fun program(space: String, id: String): JSONObject =
+        withContext(Dispatchers.IO) {
+            val plugin = installed(space).single { it.id == id && it.enabled }
+            val bytes =
+                File(directory, "${plugin.revision}.json").inputStream().use {
+                    PluginMarketTransport.bounded(it, PluginMarketTransport.packageLimit)
+                }
+            require(PluginMarketTransport.hash(bytes) == plugin.revision) { tr("插件校验失败，请重新安装") }
+            JSONObject(String(bytes, Charsets.UTF_8))
+        }
+
     suspend fun source(space: String, view: PluginFileView): String? =
         withContext(Dispatchers.IO) {
             val revision = view.revision ?: return@withContext null
@@ -273,13 +375,13 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                     it.enabled && it.id == view.id.substringBefore('/') && it.revision == revision
                 }
             ) {
-                "插件未在当前 Space 启用"
+                tr("插件未在当前 Space 启用")
             }
             val bytes =
                 File(directory, "$revision.json").inputStream().use {
                     PluginMarketTransport.bounded(it, PluginMarketTransport.packageLimit)
                 }
-            require(PluginMarketTransport.hash(bytes) == revision) { "插件文件校验失败，请重新安装" }
+            require(PluginMarketTransport.hash(bytes) == revision) { tr("插件文件校验失败，请重新安装") }
             JSONObject(String(bytes, Charsets.UTF_8))
                 .getJSONObject("modules")
                 .getString(checkNotNull(view.entry))

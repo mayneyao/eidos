@@ -18,8 +18,8 @@ internal fun parseRelationLabels(
                 val item = items.getJSONObject(itemIndex)
                 item.getString("id") to
                     if (item.optString("state") == "resolved")
-                        relationLabel(item.opt("label")).ifBlank { "未命名记录" }
-                    else "关联记录不可用"
+                        relationLabel(item.opt("label")).ifBlank { tr("未命名记录") }
+                    else tr("关联记录不可用")
             }
     }
 }
@@ -30,15 +30,5 @@ private fun relationLabel(value: Any?): String =
         JSONObject.NULL -> ""
         is JSONArray -> (0 until value.length()).joinToString("、") { relationLabel(value.opt(it)) }
         is JSONObject -> ""
-        else -> displayValue(value)
+        else -> value.toString()
     }
-
-internal fun relationDisplay(value: Any?, labels: Map<String, String>?): String {
-    val ids = value as? JSONArray ?: return "未关联记录"
-    if (ids.length() == 0) return "未关联记录"
-    return (0 until ids.length()).joinToString("、") { labels?.get(ids.getString(it)) ?: "关联记录不可用" }
-}
-
-internal fun EidosRecord.fieldDisplay(field: EidosField): String =
-    if (field.kind == "relation") relationDisplay(values[field.id], relationLabels[field.id])
-    else displayValue(values[field.id])

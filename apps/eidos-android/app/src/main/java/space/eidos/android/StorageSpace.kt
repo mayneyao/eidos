@@ -9,7 +9,7 @@ class StorageSpace(private val availableBytes: (File) -> Long = { it.usableSpace
         require(bytes >= 0)
         val available = availableBytes(directory)
         if (available < RESERVE || bytes > available - RESERVE) {
-            throw IOException("本机空间不足，请释放空间后重试；已有文件未被覆盖")
+            throw IOException(tr("本机空间不足，请释放空间后重试；已有文件未被覆盖"))
         }
     }
 

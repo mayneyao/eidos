@@ -13,12 +13,15 @@ data class PeerLocalSpace(
     val fingerprint: String,
     val remoteId: String,
     val lastSynced: Long?,
+    val unsupportedFiles: List<String> = emptyList(),
 )
 
 class SpaceCatalog(context: Context) {
     private val preferences = context.getSharedPreferences("space-catalog", Context.MODE_PRIVATE)
     private val peerSpaces = context.getSharedPreferences("peer-spaces", Context.MODE_PRIVATE)
     private val peerTimes = context.getSharedPreferences("peer-sync-times", Context.MODE_PRIVATE)
+    private val peerDownloads = context.getSharedPreferences("peer-downloads", Context.MODE_PRIVATE)
+    private val peerWarnings = context.getSharedPreferences("peer-download-warnings", Context.MODE_PRIVATE)
 
     fun peerLocalSpaces(): List<PeerLocalSpace> =
         synchronized(lock) {
@@ -33,12 +36,22 @@ class SpaceCatalog(context: Context) {
                     key.substring(0, separator),
                     key.substring(separator + 1),
                     peerTimes.getLong(space.id, 0).takeIf { it > 0 },
+                    downloadWarnings(space.id),
                 )
             }
         }
 
     fun recordPeerSync(id: String) {
-        check(peerTimes.edit().putLong(id, System.currentTimeMillis()).commit()) { "无法保存同步时间" }
+        check(peerTimes.edit().putLong(id, System.currentTimeMillis()).commit()) { tr("无法保存同步时间") }
+    }
+
+    internal fun recordDownloadWarnings(id: String, files: List<String>) {
+        check(peerWarnings.edit().putString(id, JSONArray(files).toString()).commit()) { tr("无法保存文件兼容性提示") }
+    }
+
+    internal fun downloadWarnings(id: String): List<String> {
+        val files = JSONArray(peerWarnings.getString(id, "[]"))
+        return (0 until files.length()).map { files.getString(it) }
     }
 
     internal fun peerRemoteSpace(fingerprint: String, localId: String): String? =
@@ -63,24 +76,36 @@ class SpaceCatalog(context: Context) {
                 ?.let {
                     return@synchronized it
                 }
-            val device = deviceName.filter { it.code >= 32 }.trim().ifEmpty { "电脑" }
-            val base = "${device.take(70)} 的 Space"
+            peerDownloads.getString(key, null)?.let {
+                val saved = JSONObject(it)
+                return@synchronized LocalSpace(saved.getString("id"), saved.getString("name"))
+            }
+            val device = deviceName.filter { it.code >= 32 }.trim().ifEmpty { tr("电脑") }
+            val base = device.take(70)
             var name = base
             var number = 2
-            while (all.any { it.name.equals(name, true) }) {
+            val pendingNames = peerDownloads.all.values.map { JSONObject(it as String).getString("name") }
+            while (all.any { it.name.equals(name, true) } || pendingNames.any { it.equals(name, true) }) {
                 val suffix = " ($number)"
                 name = base.take(80 - suffix.length) + suffix
                 number++
             }
-            val space = create(name)
-            check(peerSpaces.edit().putString(key, space.id).commit()) { "无法保存设备 Space 关联" }
+            val space = prepare(name)
+            check(peerDownloads.edit().putString(key, JSONObject().put("id", space.id).put("name", space.name).toString()).commit()) { tr("无法保存下载进度") }
             space
         }
+
+    internal fun completePeerSpace(fingerprint: String, remoteSpace: String, space: LocalSpace) = synchronized(lock) {
+        if (spaces().none { it.id == space.id }) register(space)
+        val key = "$fingerprint:$remoteSpace"
+        check(peerSpaces.edit().putString(key, space.id).commit()) { tr("无法保存设备 Space 关联") }
+        check(peerDownloads.edit().remove(key).commit()) { tr("无法完成 Space 导入") }
+    }
 
     fun spaces(): List<LocalSpace> =
         synchronized(lock) {
             val saved = JSONArray(preferences.getString("spaces", "[]"))
-            listOf(LocalSpace("personal", "个人 Space")) +
+            (if (preferences.getBoolean("personal-deleted", false)) emptyList() else listOf(LocalSpace("personal", tr("个人 Space")))) +
                 (0 until saved.length()).map { index ->
                     val entry = saved.getJSONObject(index)
                     LocalSpace(entry.getString("id"), entry.getString("name"))
@@ -91,22 +116,36 @@ class SpaceCatalog(context: Context) {
         synchronized(lock) {
             preferences.getString("active", "personal").takeIf { id ->
                 spaces().any { it.id == id }
-            } ?: "personal"
+            } ?: spaces().first().id
         }
 
     fun select(id: String) =
         synchronized(lock) {
-            require(spaces().any { it.id == id }) { "Space 已不存在" }
-            check(preferences.edit().putString("active", id).commit()) { "无法保存 Space 选择" }
+            require(spaces().any { it.id == id }) { tr("Space 已不存在") }
+            check(preferences.edit().putString("active", id).commit()) { tr("无法保存 Space 选择") }
         }
+
+    internal fun removeLocal(id: String) = synchronized(lock) {
+        val remaining = spaces().filter { it.id != id }
+        require(remaining.isNotEmpty()) { tr("请先创建或选择另一个 Space") }
+        val editor = preferences.edit().putString("spaces", JSONArray(remaining.filter { it.id != "personal" }.map { JSONObject().put("id", it.id).put("name", it.name) }).toString())
+        if (id == "personal") editor.putBoolean("personal-deleted", true)
+        if (activeId() == id) editor.putString("active", remaining.first().id)
+        check(editor.commit()) { tr("无法保存 Space 列表") }
+        val links = peerSpaces.edit()
+        peerSpaces.all.filterValues { it == id }.keys.forEach { links.remove(it) }
+        check(links.commit()) { tr("无法清理同步关联") }
+        check(peerTimes.edit().remove(id).commit()) { tr("无法清理同步记录") }
+        check(peerWarnings.edit().remove(id).commit()) { tr("无法清理文件兼容性提示") }
+    }
 
     fun prepare(name: String): LocalSpace =
         synchronized(lock) {
             val clean = name.trim()
             require(clean.isNotEmpty() && clean.length <= 80 && clean.none { it.code < 32 }) {
-                "请输入 1–80 个字符的 Space 名称"
+                tr("请输入 1–80 个字符的 Space 名称")
             }
-            require(spaces().none { it.name.equals(clean, true) }) { "Space 名称已存在" }
+            require(spaces().none { it.name.equals(clean, true) }) { tr("Space 名称已存在") }
             LocalSpace("space-${UUID.randomUUID()}", clean)
         }
 
@@ -114,9 +153,9 @@ class SpaceCatalog(context: Context) {
 
     fun register(space: LocalSpace): LocalSpace =
         synchronized(lock) {
-            require(space.id.matches(Regex("space-[0-9a-f-]{36}"))) { "无效的 Space 标识" }
+            require(space.id.matches(Regex("space-[0-9a-f-]{36}"))) { tr("无效的 Space 标识") }
             require(spaces().none { it.id == space.id || it.name.equals(space.name, true) }) {
-                "Space 已存在"
+                tr("Space 已存在")
             }
             val all = spaces().filter { it.id != "personal" } + space
             check(
@@ -129,7 +168,7 @@ class SpaceCatalog(context: Context) {
                     )
                     .commit()
             ) {
-                "无法保存 Space"
+                tr("无法保存 Space")
             }
             space
         }

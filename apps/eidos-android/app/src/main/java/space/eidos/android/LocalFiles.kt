@@ -15,15 +15,15 @@ class LocalFiles(
     private val storageSpace: StorageSpace = StorageSpace(),
 ) {
     init {
-        check(root.isDirectory || root.mkdirs()) { "无法创建 Space" }
-        if (staging != null) check(staging.isDirectory || staging.mkdirs()) { "无法创建临时目录" }
+        check(root.isDirectory || root.mkdirs()) { tr("无法创建 Space") }
+        if (staging != null) check(staging.isDirectory || staging.mkdirs()) { tr("无法创建临时目录") }
     }
 
     fun resolve(relative: String): File {
-        require(!File(relative).isAbsolute) { "需要 Space 内的相对路径" }
+        require(!File(relative).isAbsolute) { tr("需要 Space 内的相对路径") }
         val target = File(root, relative).canonicalFile
-        require(target.toPath().startsWith(root.canonicalFile.toPath())) { "路径超出 Space" }
-        require(relative.split('/').none { it.startsWith('.') && it != "" }) { "不能访问内部文件" }
+        require(target.toPath().startsWith(root.canonicalFile.toPath())) { tr("路径超出 Space") }
+        require(relative.split('/').none { it.startsWith('.') && it != "" }) { tr("不能访问内部文件") }
         return target
     }
 
@@ -42,7 +42,7 @@ class LocalFiles(
 
     fun readText(relative: String): Pair<String, String> {
         val file = resolve(relative)
-        require(file.length() <= MAX_TEXT_BYTES) { "文件超过 2 MB，暂不支持在手机上编辑" }
+        require(file.length() <= MAX_TEXT_BYTES) { tr("文件超过 2 MB，暂不支持在手机上编辑") }
         val bytes = file.readBytes()
         val text =
             Charsets.UTF_8.newDecoder()
@@ -61,13 +61,13 @@ class LocalFiles(
         val target = resolve(relative)
         if (expectedDigest != null) {
             check(target.isFile && digest(target) == expectedDigest) {
-                "文件已被其他操作修改。你的草稿已保留，请重新打开文件后处理。"
+                tr("文件已被其他操作修改。你的草稿已保留，请重新打开文件后处理。")
             }
         } else {
-            check(!target.exists()) { "文件已存在，请使用其他名称" }
+            check(!target.exists()) { tr("文件已存在，请使用其他名称") }
         }
         val bytes = text.toByteArray(Charsets.UTF_8)
-        require(bytes.size <= MAX_TEXT_BYTES) { "内容超过 2 MB" }
+        require(bytes.size <= MAX_TEXT_BYTES) { tr("内容超过 2 MB") }
         storageSpace.requireBytes(staging ?: target.parentFile!!, bytes.size.toLong())
         val temporary = File.createTempFile(".eidos-write-", ".tmp", staging ?: target.parentFile)
         try {
@@ -94,9 +94,9 @@ class LocalFiles(
                 !name.startsWith('.') &&
                 name.none { it == '/' || it == '\\' || it.code < 32 }
         ) {
-            "请输入有效的文件名称"
+            tr("请输入有效的文件名称")
         }
-        require(name.toByteArray().size <= 200) { "名称太长" }
+        require(name.toByteArray().size <= 200) { tr("名称太长") }
         return name
     }
 

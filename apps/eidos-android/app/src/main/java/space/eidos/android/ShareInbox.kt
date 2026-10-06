@@ -28,6 +28,8 @@ data class InboxShare(
     val form: ShareForm? = null,
 )
 
+data class RecordDraft(val revision: String, val changes: String)
+
 data class ShareForm(
     val path: String,
     val table: String,
@@ -70,7 +72,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
 
     private fun directory(id: String): File {
         require(id.matches(Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))) {
-            "无效的分享记录"
+            tr("无效的分享记录")
         }
         return File(root, id)
     }
@@ -101,7 +103,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
                 val entry = files.getJSONObject(index)
                 val file = File(directory, entry.getString("path")).canonicalFile
                 check(file.toPath().startsWith(directory.canonicalFile.toPath()) && file.isFile) {
-                    "暂存的分享文件不可用"
+                    tr("暂存的分享文件不可用")
                 }
                 FileProvider.getUriForFile(context, "${context.packageName}.attachments", file)
                     .buildUpon()
@@ -125,18 +127,18 @@ class ShareInbox(private val context: Context, spaceId: String) {
         lock.withLock {
             withContext(Dispatchers.IO) {
                 val unique = uris.distinct()
-                require(unique.size <= 100) { "一次最多接收 100 个文件" }
-                require(unique.isNotEmpty() || !text.isNullOrBlank()) { "分享内容为空" }
-                require((text?.toByteArray()?.size ?: 0) <= 2 * 1024 * 1024) { "分享文本超过 2 MB" }
-                check(root.isDirectory || root.mkdirs()) { "无法创建分享暂存目录" }
-                check(root.listFiles().orEmpty().size < 20) { "请先处理已有的待分享内容" }
+                require(unique.size <= 100) { tr("一次最多接收 100 个文件") }
+                require(unique.isNotEmpty() || !text.isNullOrBlank()) { tr("分享内容为空") }
+                require((text?.toByteArray()?.size ?: 0) <= 2 * 1024 * 1024) { tr("分享文本超过 2 MB") }
+                check(root.isDirectory || root.mkdirs()) { tr("无法创建分享暂存目录") }
+                check(root.listFiles().orEmpty().size < 20) { tr("请先处理已有的待分享内容") }
                 val directory = directory(UUID.randomUUID().toString())
-                check(directory.mkdir()) { "无法创建分享暂存目录" }
+                check(directory.mkdir()) { tr("无法创建分享暂存目录") }
                 try {
                     var total = 0L
                     val files =
                         unique.mapIndexed { index, uri ->
-                            require(uri.scheme == "content") { "分享文件需要 content URI" }
+                            require(uri.scheme == "content") { tr("分享文件需要 content URI") }
                             val resolver = context.contentResolver
                             val name =
                                 resolver
@@ -148,17 +150,17 @@ class ShareInbox(private val context: Context, spaceId: String) {
                                         null,
                                     )
                                     ?.use { if (it.moveToFirst()) it.getString(0) else null }
-                                    ?: "分享文件"
+                                    ?: tr("分享文件")
                             require(
                                 name.isNotBlank() &&
                                     name !in setOf(".", "..") &&
                                     name.none { it == '/' || it == '\\' || it.code < 32 }
                             ) {
-                                "分享文件名无效"
+                                tr("分享文件名无效")
                             }
                             val folder = File(directory, index.toString()).apply { check(mkdir()) }
                             val target = File(folder, name)
-                            checkNotNull(resolver.openInputStream(uri)) { "无法读取分享文件" }
+                            checkNotNull(resolver.openInputStream(uri)) { tr("无法读取分享文件") }
                                 .use { input ->
                                     FileOutputStream(target).use { output ->
                                         val buffer = ByteArray(64 * 1024)
@@ -173,7 +175,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
                                                 count <= 64L * 1024 * 1024 &&
                                                     total <= 128L * 1024 * 1024
                                             ) {
-                                                "分享文件超出暂存大小限制"
+                                                tr("分享文件超出暂存大小限制")
                                             }
                                             output.write(buffer, 0, size)
                                         }
@@ -210,7 +212,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
                         !File(it, "manifest.json").exists() &&
                             !File(it, "manifest.json.bak").exists()
                     }
-                    .forEach { check(it.deleteRecursively()) { "无法清理中断的暂存文件" } }
+                    .forEach { check(it.deleteRecursively()) { tr("无法清理中断的暂存文件") } }
                 root
                     .listFiles()
                     .orEmpty()
@@ -239,7 +241,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
 
     suspend fun remove(id: String) =
         lock.withLock {
-            withContext(Dispatchers.IO) { check(directory(id).deleteRecursively()) { "无法移除暂存分享" } }
+            withContext(Dispatchers.IO) { check(directory(id).deleteRecursively()) { tr("无法移除暂存分享") } }
         }
 
     private fun formKey(path: String, table: String) = JSONArray(listOf(path, table)).toString()
@@ -279,7 +281,7 @@ class ShareInbox(private val context: Context, spaceId: String) {
             withContext(NonCancellable + Dispatchers.IO) {
                 val folder = directory(id)
                 val value = read(folder)
-                check(!value.getBoolean("submitting")) { "请先检查上次保存的结果" }
+                check(!value.getBoolean("submitting")) { tr("请先检查上次保存的结果") }
                 val forms = value.getJSONObject("forms")
                 val key = formKey(path, table)
                 val form = ShareForm.from(forms.getJSONObject(key))

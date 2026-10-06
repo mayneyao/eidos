@@ -29,7 +29,7 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
             (store.getKey(alias, null) as? SecretKey)?.let {
                 return@synchronized it
             }
-            check(!store.containsAlias(alias)) { "同步加密密钥不可用，请重新配置连接" }
+            check(!store.containsAlias(alias)) { tr("同步加密密钥不可用，请重新配置连接") }
             KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
                 .apply {
                     init(
@@ -52,12 +52,12 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
     fun validate(url: String, token: String): SyncProfile {
         val clean = url.trim().removeSuffix("/")
         val uri =
-            runCatching { URI(clean) }.getOrElse { throw IllegalArgumentException("请输入有效的远程地址") }
+            runCatching { URI(clean) }.getOrElse { throw IllegalArgumentException(tr("请输入有效的远程地址")) }
         val debugLoopback =
             (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
                 uri.host == "127.0.0.1"
         require(uri.scheme == "https" || (uri.scheme == "http" && debugLoopback)) {
-            "请输入 HTTPS 远程地址"
+            tr("请输入 HTTPS 远程地址")
         }
         require(
             !uri.host.isNullOrBlank() &&
@@ -66,9 +66,9 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
                 uri.rawFragment == null &&
                 (uri.port == -1 || uri.port in 1..65535)
         ) {
-            "地址不能包含凭证、查询参数或片段"
+            tr("地址不能包含凭证、查询参数或片段")
         }
-        require(token.none { it == '\r' || it == '\n' }) { "访问令牌不能包含换行" }
+        require(token.none { it == '\r' || it == '\n' }) { tr("访问令牌不能包含换行") }
         return SyncProfile(clean, token.trim())
     }
 
@@ -86,13 +86,13 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
             Base64.encodeToString(cipher.iv, Base64.NO_WRAP) +
                 "." +
                 Base64.encodeToString(cipher.doFinal(value), Base64.NO_WRAP)
-        check(preferences.edit().putString(entry, encrypted).commit()) { "无法保存连接配置" }
+        check(preferences.edit().putString(entry, encrypted).commit()) { tr("无法保存连接配置") }
     }
 
     fun load(): SyncProfile? {
         val value = preferences.getString(entry, null) ?: return null
         val parts = value.split('.')
-        check(parts.size == 2) { "连接配置已损坏，请重新连接" }
+        check(parts.size == 2) { tr("连接配置已损坏，请重新连接") }
         val cipher =
             Cipher.getInstance("AES/GCM/NoPadding").apply {
                 init(
@@ -110,6 +110,6 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
     }
 
     fun clear() {
-        check(preferences.edit().remove(entry).commit()) { "无法清除连接配置" }
+        check(preferences.edit().remove(entry).commit()) { tr("无法清除连接配置") }
     }
 }

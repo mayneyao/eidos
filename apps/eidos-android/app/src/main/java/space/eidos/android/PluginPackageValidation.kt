@@ -63,7 +63,7 @@ object PluginPackageValidation {
                                     )
                                         return
                                     try {
-                                        require(value.length < 256 * 1024) { "插件元数据过大" }
+                                        require(value.length < 256 * 1024) { tr("插件元数据过大") }
                                         val result = JSONObject(value)
                                         if (result.has("error")) error(result.getString("error"))
                                         continuation.resume(result.getJSONObject("manifest"))

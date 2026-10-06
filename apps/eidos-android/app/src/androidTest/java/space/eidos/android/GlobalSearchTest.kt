@@ -3,6 +3,7 @@ package space.eidos.android
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import java.io.File
 import java.util.UUID
@@ -42,21 +43,41 @@ class GlobalSearchTest {
                 compose.activity.setContent { EidosApp(isolated) }
             }
             compose.waitUntil(15_000) { model?.state?.value?.busy == false }
-            compose.onNodeWithText("搜索").performClick()
+            compose.onNodeWithContentDescription("搜索").performClick()
+            compose
+                .onNodeWithTag("global-search-sheet")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(200.dp)
+            assertEquals(MainTab.Files, model!!.state.value.tab)
             compose.onNodeWithText("搜索文件、Markdown 和数据记录").performTextInput("needle")
-            compose.waitUntil(15_000) {
-                model?.state?.value?.searching == false && model?.state?.value?.matches?.size == 2
-            }
+            compose.waitUntil(60_000) { model?.state?.value?.searching == false }
+            assertEquals("needle", model!!.state.value.search)
+            assertNull(model!!.state.value.error)
+            assertEquals(2, model!!.state.value.matches.size)
             compose.onNodeWithText("原生搜索结果").performClick()
             compose.waitUntil(15_000) {
-                model?.state?.value?.page?.query == "needle" && model?.state?.value?.busy == false
+                model?.state?.value?.webQuery == "needle" && model?.state?.value?.busy == false
             }
-            assertEquals(page.table.id, model!!.state.value.page?.table?.id)
-            assertEquals("原生搜索结果", model!!.state.value.page!!.rows.single().values[label])
-            compose.onNodeWithContentDescription("返回").performClick()
+            assertEquals(page.table.id, model!!.state.value.webTableId)
+            assertEquals("needle", model!!.state.value.webQuery)
+            compose.onNodeWithContentDescription("返回文件").performClick()
             compose.waitUntil(15_000) {
-                model?.state?.value?.page == null && model?.state?.value?.busy == false
+                model?.state?.value?.webFile == null && model?.state?.value?.busy == false
             }
+            compose.onNodeWithText("搜索文件、Markdown 和数据记录").assertDoesNotExist()
+            compose.onNodeWithContentDescription("搜索").performClick()
+            compose.onNodeWithText("needle").assertExists()
+            compose
+                .onNode(hasText("手记.md") and hasAnyAncestor(hasTestTag("global-search-sheet")))
+                .performTouchInput { longClick() }
+            compose
+                .onNodeWithTag("file-actions-sheet")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(200.dp)
+            compose
+                .onNode(hasText("收藏") and hasAnyAncestor(hasTestTag("file-actions-sheet")))
+                .performClick()
+            compose.onNodeWithTag("file-actions-sheet").assertDoesNotExist()
             compose.onNodeWithText("needle").assertExists()
         } finally {
             compose.runOnUiThread { model?.viewModelScope?.cancel() }

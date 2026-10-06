@@ -53,7 +53,7 @@ internal fun RatingInput(
         if (!compact) Text(field.name, style = MaterialTheme.typography.labelLarge)
         if (!compact || outside || value == JSONObject.NULL)
             Text(
-                if (text.isEmpty()) "未评分" else "$text 分",
+                if (text.isEmpty()) tr("未评分") else tr("{0} 分", text),
                 style = MaterialTheme.typography.bodyMedium,
             )
         if (range != null) {
@@ -64,7 +64,7 @@ internal fun RatingInput(
                         enabled = enabled,
                         modifier =
                             Modifier.semantics {
-                                contentDescription = "${field.name}：0 分"
+                                contentDescription = tr("{0}：0 分", field.name)
                                 selected = integer == 0L
                             },
                     ) {
@@ -76,7 +76,7 @@ internal fun RatingInput(
                         enabled = enabled,
                         modifier =
                             Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = "${field.name}：$score 分"
+                                contentDescription = tr("{0}：{1} 分", field.name, score)
                                 selected = integer == score.toLong()
                             },
                     ) {
@@ -90,11 +90,11 @@ internal fun RatingInput(
                 if (compact)
                     Box {
                         IconButton(onClick = { menu = true }, enabled = enabled) {
-                            Icon(Icons.Outlined.MoreVert, "${field.name}操作")
+                            Icon(Icons.Outlined.MoreVert, tr("{0}操作", field.name))
                         }
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem(
-                                text = { Text("输入数值") },
+                                text = { Text(tr("输入数值")) },
                                 onClick = {
                                     manual = true
                                     menu = false
@@ -102,7 +102,7 @@ internal fun RatingInput(
                             )
                             if (range?.first == 0)
                                 DropdownMenuItem(
-                                    text = { Text("设为 0 分") },
+                                    text = { Text(tr("设为 0 分")) },
                                     onClick = {
                                         update("0")
                                         menu = false
@@ -110,7 +110,7 @@ internal fun RatingInput(
                                 )
                             if (field.nullable)
                                 DropdownMenuItem(
-                                    text = { Text("清空评分") },
+                                    text = { Text(tr("清空评分")) },
                                     onClick = {
                                         update(JSONObject.NULL)
                                         menu = false
@@ -127,14 +127,14 @@ internal fun RatingInput(
                     update(if (it.isEmpty() && field.nullable) JSONObject.NULL else it)
                 },
                 enabled = enabled,
-                label = { Text("${field.name}数值") },
+                label = { Text(tr("{0}数值", field.name)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
         } else if (!compact)
-            TextButton(onClick = { manual = true }, enabled = enabled) { Text("输入数值") }
+            TextButton(onClick = { manual = true }, enabled = enabled) { Text(tr("输入数值")) }
         if (!compact && field.nullable && value != JSONObject.NULL)
-            TextButton(onClick = { update(JSONObject.NULL) }, enabled = enabled) { Text("清空评分") }
+            TextButton(onClick = { update(JSONObject.NULL) }, enabled = enabled) { Text(tr("清空评分")) }
     }
 }

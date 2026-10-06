@@ -22,7 +22,7 @@ internal object SyncEnvironment {
         else "https://publish.eidos.space"
     val client = if (BuildConfig.DEBUG) "android.dev.eidos.space" else "android.eidos.space"
     val redirect = "${BuildConfig.APPLICATION_ID}://oauth/callback"
-    val label = if (BuildConfig.DEBUG) "Staging · 开发环境" else "Eidos Sync"
+    val label get() = if (BuildConfig.DEBUG) tr("Staging · 开发环境") else "Eidos Sync"
 
     fun requireRemote(url: String) {
         val parsed = URI(url)
@@ -33,7 +33,7 @@ internal object SyncEnvironment {
                 parsed.rawFragment == null &&
                 parsed.rawPath.matches(Regex("/[A-Za-z0-9_-]+/[A-Za-z0-9._-]+"))
         ) {
-            "云端 Space 地址不属于当前环境"
+            tr("云端 Space 地址不属于当前环境")
         }
     }
 }
@@ -77,12 +77,12 @@ internal constructor(
 
     internal fun publishSession(): PublishSession =
         synchronized(lock) {
-            val identity = view() ?: error("请先登录 Eidos 账号")
+            val identity = view() ?: error(tr("请先登录 Eidos 账号"))
             val token = accessToken(registerSync = false)
             val user = request(SyncEnvironment.account + "/api/publish/userinfo", bearer = token)
-            check(user.getString("sub") == identity.subject) { "发布账号不一致，请重新登录" }
+            check(user.getString("sub") == identity.subject) { tr("发布账号不一致，请重新登录") }
             val grant = user.getJSONObject("publish_access")
-            check(grant.getString("state") == "active") { "当前账号暂时无法发布" }
+            check(grant.getString("state") == "active") { tr("当前账号暂时无法发布") }
             val tenant = request(SyncEnvironment.publish + "/api/tenant", bearer = token)
             PublishSession(
                 identity.subject,
@@ -108,7 +108,7 @@ internal constructor(
                         .toString()
                         .contains("\"S256\"")
             ) {
-                "账号服务配置与当前环境不匹配"
+                tr("账号服务配置与当前环境不匹配")
             }
             val verifier = random()
             val state = random()
@@ -143,9 +143,9 @@ internal constructor(
                 uri.toString().substringBefore('?') == SyncEnvironment.redirect &&
                     uri.fragment == null
             ) {
-                "无效的登录回调"
+                tr("无效的登录回调")
             }
-            val transaction = pending.load()?.let { JSONObject(it.token) } ?: error("登录请求已过期，请重新登录")
+            val transaction = pending.load()?.let { JSONObject(it.token) } ?: error(tr("登录请求已过期，请重新登录"))
             require(
                 uri.getQueryParameters("state").size == 1 &&
                     MessageDigest.isEqual(
@@ -154,13 +154,13 @@ internal constructor(
                     ) &&
                     System.currentTimeMillis() - transaction.getLong("created") in 0..600_000
             ) {
-                "登录校验失败，请重新登录"
+                tr("登录校验失败，请重新登录")
             }
             pending.clear()
-            check(uri.getQueryParameter("error") == null) { "登录已取消，请重试" }
+            check(uri.getQueryParameter("error") == null) { tr("登录已取消，请重试") }
             val code =
-                uri.getQueryParameter("code")?.takeIf { it.isNotBlank() } ?: error("登录回调缺少授权码")
-            require(uri.getQueryParameters("code").size == 1) { "无效的授权码" }
+                uri.getQueryParameter("code")?.takeIf { it.isNotBlank() } ?: error(tr("登录回调缺少授权码"))
+            require(uri.getQueryParameters("code").size == 1) { tr("无效的授权码") }
             val tokens =
                 token(
                     mapOf(
@@ -196,19 +196,19 @@ internal constructor(
             result.getString("access_token").isNotBlank() &&
                 result.optString("token_type", "Bearer").equals("Bearer", true)
         ) {
-            "账号服务返回无效凭证"
+            tr("账号服务返回无效凭证")
         }
         val seconds = result.getLong("expires_in")
-        check(seconds in 1..31_536_000) { "凭证有效期无效" }
+        check(seconds in 1..31_536_000) { tr("凭证有效期无效") }
         result.put("expiresAt", System.currentTimeMillis() + seconds * 1000)
         return result
     }
 
     private fun accessToken(registerSync: Boolean = true): String {
-        var value = read() ?: error("请先登录 Eidos 账号")
+        var value = read() ?: error(tr("请先登录 Eidos 账号"))
         if (value.getLong("expiresAt") <= System.currentTimeMillis() + 60_000) {
             val refresh =
-                value.optString("refresh_token").takeIf { it.isNotBlank() } ?: error("登录已过期，请重新登录")
+                value.optString("refresh_token").takeIf { it.isNotBlank() } ?: error(tr("登录已过期，请重新登录"))
             val next = token(mapOf("grant_type" to "refresh_token", "refresh_token" to refresh))
             next.put("subject", value.getString("subject")).put("name", value.getString("name"))
             if (next.optString("refresh_token").isBlank()) next.put("refresh_token", refresh)
@@ -224,7 +224,7 @@ internal constructor(
         val id =
             device.getString("id", null)
                 ?: UUID.randomUUID().toString().also {
-                    check(device.edit().putString("id", it).commit()) { "无法保存设备身份" }
+                    check(device.edit().putString("id", it).commit()) { tr("无法保存设备身份") }
                 }
         request(
             SyncEnvironment.account + "/api/sync/devices/register",
@@ -242,13 +242,13 @@ internal constructor(
     }
 
     fun credential(): String =
-        synchronized(lock) { MARKER + (read() ?: error("请先登录 Eidos 账号")).getString("subject") }
+        synchronized(lock) { MARKER + (read() ?: error(tr("请先登录 Eidos 账号"))).getString("subject") }
 
     fun resolve(profile: SyncProfile): String =
         synchronized(lock) {
             if (!profile.token.startsWith(MARKER)) return@synchronized profile.token
             SyncEnvironment.requireRemote(profile.url)
-            check(profile.token == credential()) { "此 Space 属于其他账号，请登录原账号" }
+            check(profile.token == credential()) { tr("此 Space 属于其他账号，请登录原账号") }
             accessToken()
         }
 
@@ -262,7 +262,7 @@ internal constructor(
                 value.getJSONObject("authentication").getString("authority") ==
                     SyncEnvironment.account
         ) {
-            "同步服务配置与当前环境不匹配"
+            tr("同步服务配置与当前环境不匹配")
         }
     }
 
@@ -328,14 +328,14 @@ internal constructor(
                         url.startsWith(SyncEnvironment.account + "/api/publish/")
                 when (status) {
                     400,
-                    401 -> "登录凭证无效或已过期，请重新登录（HTTP $status）"
+                    401 -> tr("登录凭证无效或已过期，请重新登录（HTTP {0}）", status)
                     403 ->
-                        if (publishing) "当前账号没有此发布权限，请检查 Publish 服务"
-                        else "当前账号尚未获得同步权限，请在账号页面检查 Sync 服务"
-                    409 -> "设备或云端 Space 状态发生变化，请检查账号中的设备授权"
+                        if (publishing) tr("当前账号没有此发布权限，请检查 Publish 服务")
+                        else tr("当前账号尚未获得同步权限，请在账号页面检查 Sync 服务")
+                    409 -> tr("设备或云端 Space 状态发生变化，请检查账号中的设备授权")
                     else ->
-                        if (publishing) "发布服务暂时不可用（HTTP $status），请重试"
-                        else "账号或同步服务暂时不可用（HTTP $status），请重试"
+                        if (publishing) tr("发布服务暂时不可用（HTTP {0}），请重试", status)
+                        else tr("账号或同步服务暂时不可用（HTTP {0}），请重试", status)
                 }
             }
             val bytes =
@@ -345,7 +345,7 @@ internal constructor(
                     while (true) {
                         val count = input.read(buffer)
                         if (count < 0) break
-                        check(output.size() + count <= 1_048_576) { "服务响应过大" }
+                        check(output.size() + count <= 1_048_576) { tr("服务响应过大") }
                         output.write(buffer, 0, count)
                     }
                     output.toByteArray()

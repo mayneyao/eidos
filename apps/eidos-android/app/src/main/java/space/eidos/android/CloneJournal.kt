@@ -13,7 +13,7 @@ data class PendingClone(val space: LocalSpace, val ready: Boolean)
 
 data class DownloadProgress(
     val name: String,
-    val stage: String = "准备下载",
+    val stage: String = tr("准备下载"),
     val receivedBytes: Long = 0,
 )
 
@@ -25,7 +25,7 @@ class CloneJournal(private val context: Context) {
         val raw = prefs.getString("job", null) ?: return null
         val value = JSONObject(raw)
         val id = value.getString("id")
-        require(id.matches(Regex("space-[0-9a-f-]{36}"))) { "下载记录无效" }
+        require(id.matches(Regex("space-[0-9a-f-]{36}"))) { tr("下载记录无效") }
         return PendingClone(LocalSpace(id, value.getString("name")), value.getBoolean("ready"))
     }
 
@@ -43,12 +43,12 @@ class CloneJournal(private val context: Context) {
                 )
                 .commit()
         ) {
-            "无法保存下载进度"
+            tr("无法保存下载进度")
         }
     }
 
     private fun clear() {
-        check(prefs.edit().remove("job").commit()) { "无法清除下载记录" }
+        check(prefs.edit().remove("job").commit()) { tr("无法清除下载记录") }
     }
 
     suspend fun download(
@@ -59,7 +59,7 @@ class CloneJournal(private val context: Context) {
     ): LocalSpace =
         withContext(Dispatchers.IO) {
             lock.withLock {
-                check(pending() == null) { "请先处理尚未完成的下载" }
+                check(pending() == null) { tr("请先处理尚未完成的下载") }
                 val space = SpaceCatalog(context).prepare(name)
                 val profiles = SyncProfileStore(context, space.id)
                 val profile = profiles.validate(url, token)
@@ -82,13 +82,13 @@ class CloneJournal(private val context: Context) {
     suspend fun resume(expectedId: String, progress: (DownloadProgress) -> Unit = {}): LocalSpace =
         withContext(Dispatchers.IO) {
             lock.withLock {
-                val job = checkNotNull(pending()) { "没有待恢复的下载" }
-                check(job.space.id == expectedId) { "下载记录已变化，请重新打开" }
+                val job = checkNotNull(pending()) { tr("没有待恢复的下载") }
+                check(job.space.id == expectedId) { tr("下载记录已变化，请重新打开") }
                 if (job.ready || SpaceCatalog(context).spaces().any { it.id == job.space.id })
                     return@withLock register(job)
                 val profile =
                     checkNotNull(SyncProfileStore(context, job.space.id).load()) {
-                        "下载凭证不可用，请取消后重新连接"
+                        tr("下载凭证不可用，请取消后重新连接")
                     }
                 // The current SDK has no partial-clone resume API. Restart only the
                 // unregistered download root; never reinterpret partial bytes as complete.
@@ -101,7 +101,7 @@ class CloneJournal(private val context: Context) {
         withContext(Dispatchers.IO) {
             lock.withLock {
                 val job = pending() ?: return@withLock
-                check(job.space.id == expectedId) { "下载记录已变化，请重新打开" }
+                check(job.space.id == expectedId) { tr("下载记录已变化，请重新打开") }
                 if (SpaceCatalog(context).spaces().none { it.id == job.space.id })
                     SpaceRepository(context, job.space.id).discardPendingClone()
                 clear()
@@ -119,7 +119,7 @@ class CloneJournal(private val context: Context) {
                 bytes ->
                 progress(DownloadProgress(job.space.name, stage, bytes))
             }
-            progress(DownloadProgress(job.space.name, "正在导入本机 Space"))
+            progress(DownloadProgress(job.space.name, tr("正在导入本机 Space")))
             save(job.copy(ready = true))
             return register(job.copy(ready = true))
         } catch (error: CancellationException) {
@@ -142,7 +142,7 @@ class CloneJournal(private val context: Context) {
     private fun register(job: PendingClone): LocalSpace {
         val catalog = SpaceCatalog(context)
         val existing = catalog.spaces().firstOrNull { it.id == job.space.id }
-        check(job.ready || existing != null) { "下载尚未完成" }
+        check(job.ready || existing != null) { tr("下载尚未完成") }
         val space = existing ?: catalog.register(job.space)
         clear()
         return space

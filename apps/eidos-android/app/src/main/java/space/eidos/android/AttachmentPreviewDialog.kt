@@ -34,7 +34,7 @@ internal fun AttachmentPreviewDialog(preview: AttachmentPreview, dismiss: () -> 
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    TextButton(onClick = dismiss) { Text("关闭预览") }
+                    TextButton(onClick = dismiss) { Text(tr("关闭预览")) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     if (preview.image != null)
@@ -46,7 +46,7 @@ internal fun AttachmentPreviewDialog(preview: AttachmentPreview, dismiss: () -> 
                         )
                     else
                         Text(
-                            if (preview.remote) "在线附件 · 点击后使用浏览器打开" else "使用已安装的应用查看此附件",
+                            if (preview.remote) tr("在线附件 · 点击后使用浏览器打开") else tr("使用已安装的应用查看此附件"),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                 }
@@ -63,16 +63,16 @@ internal fun AttachmentPreviewDialog(preview: AttachmentPreview, dismiss: () -> 
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                 }
-                            context.startActivity(Intent.createChooser(intent, "打开附件"))
+                            context.startActivity(Intent.createChooser(intent, tr("打开附件")))
                         } catch (_: android.content.ActivityNotFoundException) {
-                            error = "没有可打开此附件的应用"
+                            error = tr("没有可打开此附件的应用")
                         } catch (_: SecurityException) {
-                            error = "无法向其他应用提供此附件"
+                            error = tr("无法向其他应用提供此附件")
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (preview.remote) "在浏览器中打开" else "打开方式")
+                    Text(if (preview.remote) tr("在浏览器中打开") else tr("打开方式"))
                 }
             }
         }

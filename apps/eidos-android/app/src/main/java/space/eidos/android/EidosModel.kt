@@ -16,10 +16,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 enum class MainTab {
     Files,
-    Search,
     Sync,
 }
 
@@ -35,6 +35,7 @@ data class PendingShare(
 data class AppState(
     val peerBusy: Boolean = false,
     val peerMessage: String? = null,
+    val peerWaitingComputer: String? = null,
     val peerProgress: PeerSyncProgress? = null,
     val peerDevices: List<PeerDevice> = emptyList(),
     val peerAvailability: Map<String, PeerAvailability> = emptyMap(),
@@ -44,21 +45,27 @@ data class AppState(
     val pluginGeneration: Int = 0,
     val pluginFile: PluginFileSession? = null,
     val webFile: SpaceFile? = null,
+    val editorGeneration: Int = 0,
+    val webTableId: String? = null,
+    val webQuery: String = "",
+    val webAddRecord: Boolean = false,
     val publish: PublishPage? = null,
     val account: SyncAccountView? = null,
     val cloudSpaces: List<CloudSpace>? = null,
     val spaceId: String = "personal",
-    val spaceName: String = "个人 Space",
+    val spaceName: String = tr("个人 Space"),
     val spaces: List<LocalSpace> = emptyList(),
     val pendingClone: PendingClone? = null,
     val downloadProgress: DownloadProgress? = null,
     val tab: MainTab = MainTab.Files,
     val folder: String = "",
     val files: List<SpaceFile> = emptyList(),
+    val fileSort: FileSort = FileSort(),
     val recent: List<SpaceFile> = emptyList(),
     val favorites: List<Favorite> = emptyList(),
-    val addRecord: Boolean = false,
+    val favoriteFiles: Map<String, SpaceFile> = emptyMap(),
     val graft: GraftState? = null,
+    val localVersions: List<LocalVersion> = emptyList(),
     val syncMessage: String? = null,
     val syncing: Boolean = false,
     val mergeReview: MergeReview? = null,
@@ -78,15 +85,8 @@ data class AppState(
     val lastShareTable: Favorite? = null,
     val shareDatabase: EidosPage? = null,
     val shareRecord: EidosPage? = null,
-    val shareInitialValues: String = "{}",
     val shareAttachmentFieldId: String? = null,
-    val document: TextDocument? = null,
-    val editing: Boolean = false,
-    val dirty: Boolean = false,
-    val draftSaved: Boolean = false,
-    val page: EidosPage? = null,
     val busy: Boolean = false,
-    val rowLoading: Boolean = false,
     val error: String? = null,
 )
 
@@ -102,31 +102,41 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     private val catalog = SpaceCatalog(application)
     private val cloneJournal = CloneJournal(application)
     private val account = SyncAccount(application)
-    private val editorPreferences = application.getSharedPreferences("editor", 0)
-    private var useWebEditor = editorPreferences.getBoolean("web", true)
     val pluginMarket = PluginMarketStore(application)
     val pluginOpenWith
         get() = pluginMarket.registry(mutable.value.spaceId)
 
-    private val mutable = MutableStateFlow(AppState())
+    private val filePreferences = application.getSharedPreferences("file-browser", 0)
+    private val initialSpaces = catalog.spaces()
+    private val mutable =
+        MutableStateFlow(
+            AppState(
+                spaceId = repository.spaceId,
+                spaceName = initialSpaces.find { it.id == repository.spaceId }?.name ?: tr("本地 Space"),
+                spaces = initialSpaces,
+                fileSort =
+                    FileSort(
+                        filePreferences.getString("sort-by", "name")?.takeIf {
+                            it in listOf("name", "modified", "type")
+                        } ?: "name",
+                        filePreferences.getBoolean("sort-descending", false),
+                    ),
+            )
+        )
+
+    fun sortFiles(sort: FileSort) {
+        filePreferences
+            .edit()
+            .putString("sort-by", sort.by)
+            .putBoolean("sort-descending", sort.descending)
+            .apply()
+        mutable.update { it.copy(fileSort = sort) }
+    }
+
     val state = mutable.asStateFlow()
-    private var draftJob: Job? = null
     private var searchJob: Job? = null
     private var searchVersion = 0
-    private var rowJob: Job? = null
-
-    private data class RowRequest(
-        val path: String,
-        val table: String?,
-        val query: String,
-        val sort: EidosSort?,
-        val filters: List<EidosFilter>,
-        val viewId: String? = null,
-    )
-
-    private var pendingRows: RowRequest? = null
     private var navigationVersion = 0
-    private var shareQueryChanged = false
     private var foreground = false
     private val documentHistory = mutableListOf<String>()
 
@@ -171,7 +181,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
-                        mutable.update { it.copy(error = error.message ?: "自动同步任务恢复失败") }
+                        mutable.update { it.copy(error = error.message ?: tr("自动同步任务恢复失败")) }
                     }
                     val details = BackgroundSyncDetails(getApplication(), id)
                     combine(
@@ -201,9 +211,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             this,
             foreground ||
                 current.busy ||
+                current.peerBusy ||
                 current.mergeReview != null ||
-                current.document != null ||
-                current.page != null ||
                 current.webFile != null ||
                 current.pluginFile != null ||
                 current.pendingShares.isNotEmpty(),
@@ -214,11 +223,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         foreground = true
         updateBackgroundGate()
         if (
-            !mutable.value.busy &&
-                mutable.value.document == null &&
-                mutable.value.page == null &&
-                mutable.value.webFile == null &&
-                mutable.value.pluginFile == null
+            !mutable.value.busy && mutable.value.webFile == null && mutable.value.pluginFile == null
         )
             launchAction {
                 try {
@@ -241,7 +246,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     private var returnedFilesJob: Job? = null
 
     private fun launchAction(action: suspend () -> Unit) {
-        if (mutable.value.busy) return
+        if (mutable.value.busy || mutable.value.peerBusy) return
+        graftRefreshJob?.cancel()
         returnedFilesJob?.cancel()
         viewModelScope.launch {
             mutable.update { it.copy(busy = true, error = null) }
@@ -251,7 +257,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutable.update { it.copy(error = error.message ?: "操作失败，请重试") }
+                mutable.update { it.copy(error = error.message ?: tr("操作失败，请重试")) }
             } finally {
                 mutable.update { it.copy(busy = false) }
                 updateBackgroundGate()
@@ -260,11 +266,16 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun refresh() = launchAction {
+        refreshFiles(includeGraft = false)
         recoverMerge()
-        refreshFiles()
+        if (mutable.value.tab == MainTab.Sync)
+            mutable.update { it.copy(graft = repository.graftStatus()) }
         recoverShares()
     }
 
+    // Keep unfinished pairing input across Files/Sync navigation, only in memory.
+    internal var peerPairingCode = ""
+    internal var peerSelectedDevice: String? = null
     private var peerJob: Job? = null
 
     fun cancelPeerPairing() {
@@ -275,7 +286,17 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         if (peerJob?.isActive == true) return
         peerJob =
             viewModelScope.launch {
-                mutable.update { it.copy(peerBusy = true, peerMessage = "正在连接电脑", error = null) }
+                mutable.update {
+                    it.copy(
+                        peerBusy = true,
+                        peerWaitingComputer = null,
+                        peerProgress = null,
+                        peerMessage = tr("正在连接电脑"),
+                        error = null,
+                    )
+                }
+                var pairingConnection: PeerConnection? = null
+                var accepted = false
                 try {
                     val invitation = PeerInvitation.parse(code)
                     val connection =
@@ -294,30 +315,47 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                                 "device-${invitation.fingerprint}",
                             )
                         }
+                    pairingConnection = connection
                     val approved =
                         if (known != null) org.json.JSONObject().put("token", known.token)
                         else
-                            kotlinx.coroutines.withTimeout(5 * 60_000L) {
-                                var result = org.json.JSONObject()
-                                while (result.optString("state") != "approved") {
-                                    result =
-                                        kotlinx.coroutines.withContext(
-                                            kotlinx.coroutines.Dispatchers.IO
-                                        ) {
-                                            connection.call(
-                                                "/pair",
-                                                org.json
-                                                    .JSONObject()
-                                                    .put("name", android.os.Build.MODEL.take(80)),
-                                            )
+                            connection.cancellable {
+                                kotlinx.coroutines.withTimeout(5 * 60_000L) {
+                                    var result = org.json.JSONObject()
+                                    while (result.optString("state") != "approved") {
+                                        result =
+                                            kotlinx.coroutines.withContext(
+                                                kotlinx.coroutines.Dispatchers.IO
+                                            ) {
+                                                connection.call(
+                                                    "/pair",
+                                                    org.json
+                                                        .JSONObject()
+                                                        .put(
+                                                            "name",
+                                                            android.os.Build.MODEL.take(80),
+                                                        ),
+                                                    timeoutMillis = 10_000,
+                                                )
+                                            }
+                                        check(result.optString("state") != "rejected") {
+                                            tr("电脑已拒绝此设备，请在电脑上生成新的配对码后重试")
                                         }
-                                    if (result.optString("state") != "approved") {
-                                        mutable.update { it.copy(peerMessage = "请在电脑上允许此设备") }
-                                        delay(1000)
+                                        if (result.optString("state") != "approved") {
+                                            mutable.update {
+                                                it.copy(
+                                                    peerWaitingComputer = invitation.name,
+                                                    peerMessage =
+                                                        tr("请到「{0}」的 Eidos Lite 配对弹窗点击「接受」。若未看到弹窗，请点击系统通知，或打开「设置 → 设备」。", invitation.name),
+                                                )
+                                            }
+                                            delay(1000)
+                                        }
                                     }
+                                    result
                                 }
-                                result
                             }
+                    accepted = true
                     val trusted =
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             PeerConnection(
@@ -333,20 +371,43 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                             trusted.saveDevice(getApplication())
                             spaces
                         }
+                    peerSelectedDevice = trusted.fingerprint
                     mutable.update {
                         it.copy(
                             peerDevices = PeerConnection.devices(getApplication()),
-                            peerSpaces = available,
+                            peerSpaces =
+                                it.peerSpaces.filter { peer ->
+                                    peer.fingerprint != trusted.fingerprint
+                                } + available,
                             peerMessage = "设备已连接，请选择要同步的 Space",
                         )
                     }
+                } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
+                    mutable.update { it.copy(peerMessage = tr("等待电脑授权超时，请在电脑上生成新的配对码后重试")) }
                 } catch (error: CancellationException) {
-                    mutable.update { it.copy(peerMessage = "配对已取消") }
+                    mutable.update { it.copy(peerMessage = tr("配对已取消")) }
                     throw error
                 } catch (error: Exception) {
-                    mutable.update { it.copy(error = error.message, peerMessage = "配对未完成") }
+                    mutable.update {
+                        it.copy(
+                            error =
+                                error.message?.replace(
+                                    "Pairing code expired",
+                                    tr("配对码已过期，请在电脑上生成新的配对码"),
+                                ),
+                            peerMessage = tr("配对未完成"),
+                        )
+                    }
                 } finally {
-                    mutable.update { it.copy(peerBusy = false) }
+                    if (!accepted)
+                        kotlinx.coroutines.withContext(
+                            kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO
+                        ) {
+                            runCatching {
+                                pairingConnection?.call("/pair/cancel", timeoutMillis = 3000)
+                            }
+                        }
+                    mutable.update { it.copy(peerBusy = false, peerWaitingComputer = null) }
                 }
             }
     }
@@ -362,6 +423,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update { it.copy(peerChecking = true) }
         try {
             for (device in mutable.value.peerDevices) {
+                var available: List<PeerSpace>? = null
                 val result =
                     try {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -373,10 +435,9 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                                     )
                                 )
                             val connection = PeerConnection.reconnect(getApplication(), saved)
-                            PeerAvailability(
-                                true,
-                                connection.spaces(timeoutMillis = 2000).map { it.id }.toSet(),
-                            )
+                            val spaces = connection.spaces(timeoutMillis = 2000)
+                            available = spaces
+                            PeerAvailability(true, spaces.map { it.id }.toSet())
                         }
                     } catch (error: CancellationException) {
                         throw error
@@ -387,7 +448,13 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     if (it.peerDevices.none { peer -> peer.fingerprint == device.fingerprint }) it
                     else
                         it.copy(
-                            peerAvailability = it.peerAvailability + (device.fingerprint to result)
+                            peerAvailability = it.peerAvailability + (device.fingerprint to result),
+                            peerSpaces =
+                                available?.let { spaces ->
+                                    it.peerSpaces.filter { peer ->
+                                        peer.fingerprint != device.fingerprint
+                                    } + spaces
+                                } ?: it.peerSpaces,
                         )
                 }
             }
@@ -402,15 +469,16 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val device =
                     checkNotNull(PeerConnection.load(getApplication(), "device-$fingerprint")) {
-                        "请先配对设备"
+                        tr("请先配对设备")
                     }
                 val connected = PeerConnection.reconnect(getApplication(), device)
                 connected.spaces().also { connected.saveDevice(getApplication()) }
             }
         mutable.update {
             it.copy(
-                peerSpaces = available,
-                peerMessage = if (available.isEmpty()) "电脑尚未开放 Space" else "选择要同步的 Space",
+                peerSpaces =
+                    it.peerSpaces.filter { peer -> peer.fingerprint != fingerprint } + available,
+                peerMessage = if (available.isEmpty()) tr("电脑尚未开放 Space") else tr("选择要同步的 Space"),
             )
         }
     }
@@ -420,46 +488,70 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update {
             it.copy(
                 peerDevices = PeerConnection.devices(getApplication()),
-                peerSpaces = emptyList(),
+                peerSpaces = it.peerSpaces.filter { peer -> peer.fingerprint != fingerprint },
             )
         }
     }
 
-    private fun launchPeerSync(name: String = mutable.value.spaceName, action: suspend () -> Unit) =
-        launchAction {
-            mutable.update {
-                it.copy(peerProgress = PeerSyncProgress(spaceName = name), peerMessage = null)
-            }
-            try {
-                action()
-                val graft = repository.graftStatus()
-                catalog.recordPeerSync(repository.spaceId)
+    private fun launchPeerSync(
+        name: String = mutable.value.spaceName,
+        fingerprint: String? = null,
+        remoteId: String? = null,
+        action: suspend () -> Unit,
+    ) {
+        if (mutable.value.busy || peerJob?.isActive == true) return
+        graftRefreshJob?.cancel()
+        peerJob =
+            viewModelScope.launch {
                 mutable.update {
                     it.copy(
-                        peerLocalSpaces = catalog.peerLocalSpaces(),
-                        graft = graft,
+                        peerBusy = true,
                         peerProgress =
-                            it.peerProgress?.copy(
-                                stage = "同步完成",
-                                finishedAt = android.os.SystemClock.elapsedRealtime(),
+                            PeerSyncProgress(
+                                spaceName = name,
+                                fingerprint = fingerprint,
+                                remoteId = remoteId,
                             ),
+                        peerMessage = null,
+                        error = null,
                     )
                 }
-            } catch (error: Exception) {
-                if (error !is CancellationException) runCatching { recoverMerge() }
-                mutable.update {
-                    it.copy(
-                        peerProgress =
-                            it.peerProgress?.copy(
-                                stage = if (error is CancellationException) "同步已中断" else "同步未完成",
-                                finishedAt = android.os.SystemClock.elapsedRealtime(),
-                                error = error.message ?: "请稍后重试",
-                            )
-                    )
+                updateBackgroundGate()
+                try {
+                    action()
+                    val graft = repository.graftStatus()
+                    catalog.recordPeerSync(repository.spaceId)
+                    mutable.update {
+                        it.copy(
+                            peerLocalSpaces = catalog.peerLocalSpaces(),
+                            graft = graft,
+                            peerProgress =
+                                it.peerProgress?.copy(
+                                    stage = tr("同步完成"),
+                                    finishedAt = android.os.SystemClock.elapsedRealtime(),
+                                ),
+                        )
+                    }
+                } catch (error: Exception) {
+                    if (error !is CancellationException) runCatching { recoverMerge() }
+                    mutable.update {
+                        it.copy(
+                            peerProgress =
+                                it.peerProgress?.copy(
+                                    stage =
+                                        if (error is CancellationException) tr("同步已中断") else tr("同步未完成"),
+                                    finishedAt = android.os.SystemClock.elapsedRealtime(),
+                                    error = error.message ?: tr("请稍后重试"),
+                                )
+                        )
+                    }
+                    if (error is CancellationException) throw error
+                } finally {
+                    mutable.update { it.copy(peerBusy = false) }
+                    updateBackgroundGate()
                 }
-                throw error
             }
-        }
+    }
 
     private fun reportPeerTransfer(received: Long, sent: Long) {
         mutable.update { state ->
@@ -479,23 +571,36 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update { it.copy(peerProgress = it.peerProgress?.copy(stage = stage)) }
     }
 
+    private fun reportGraftTransfer(value: JSONObject) {
+        mutable.update { state ->
+            val download = value.optJSONObject("download")
+            val upload = value.optJSONObject("upload")
+            state.copy(
+                peerProgress =
+                    state.peerProgress?.copy(
+                        stage = peerDownloadStage(state.peerProgress.stage, download?.optBoolean("planned") == true),
+                        downloadBytes = download?.optLong("transferred") ?: 0,
+                        downloadTotal =
+                            download?.takeUnless { it.isNull("total") }?.optLong("total"),
+                        downloadPlanned = download?.optBoolean("planned") == true,
+                        uploadBytes = upload?.optLong("transferred") ?: 0,
+                        uploadTotal = upload?.takeUnless { it.isNull("total") }?.optLong("total"),
+                        uploadPlanned = upload?.optBoolean("planned") == true,
+                    )
+            )
+        }
+    }
+
     fun connectPeerSpace(space: PeerSpace) =
-        launchPeerSync(space.name) {
-            check(
-                mutable.value.webFile == null &&
-                    mutable.value.document == null &&
-                    mutable.value.page == null &&
-                    mutable.value.pluginFile == null
-            ) {
-                "请先完成编辑"
-            }
+        launchPeerSync(space.name, space.fingerprint, space.id) {
+            check(mutable.value.webFile == null && mutable.value.pluginFile == null) { tr("请先完成编辑") }
             val connection =
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val device =
                         checkNotNull(
                             PeerConnection.load(getApplication(), "device-${space.fingerprint}")
                         ) {
-                            "请先配对设备"
+                            tr("请先配对设备")
                         }
                     PeerConnection.reconnect(
                         getApplication(),
@@ -503,23 +608,45 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                         space.id,
                     )
                 }
-            val id = catalog.getOrCreatePeerSpace(space.fingerprint, space.id, space.name).id
+            val local = catalog.getOrCreatePeerSpace(space.fingerprint, space.id, space.name)
+            val id = local.id
             connection.save(getApplication(), id)
             connection.saveDevice(getApplication())
+            // An initial copy stays outside navigation until all files are
+            // received and written to the local worktree.
+            val destination = SpaceRepository(getApplication(), id)
+            try {
+                destination.syncPeer(
+                    connection,
+                    ::reportPeerTransfer,
+                    ::reportGraftTransfer,
+                    ::reportPeerStage,
+                )
+                destination.finalizePeerDownload(::reportPeerStage)
+                catalog.completePeerSpace(space.fingerprint, space.id, local)
+            } finally {
+                destination.close()
+            }
             activateSpace(id)
-            repository.syncPeer(connection, ::reportPeerTransfer, ::reportPeerStage)
-            reportPeerStage("正在刷新本地文件列表")
+            reportPeerStage(tr("正在刷新本地文件列表"))
             refreshFiles(includeGraft = false)
-            mutable.update { it.copy(peerMessage = "已同步，可离线使用") }
+            mutable.update { it.copy(peerMessage = tr("已同步，可离线使用")) }
         }
 
     fun syncPeer() = launchPeerSync { syncCurrentPeer() }
 
-    fun syncPeerSpace(id: String) =
-        launchPeerSync(catalog.spaces().firstOrNull { it.id == id }?.name ?: "Space") {
+    fun syncPeerSpace(id: String) {
+        val local = catalog.peerLocalSpaces().firstOrNull { it.id == id } ?: return
+        launchPeerSync(local.name, local.fingerprint, local.remoteId) {
             activateSpace(id)
             syncCurrentPeer()
         }
+    }
+
+    fun beginPeerPairing() {
+        if (!mutable.value.peerBusy)
+            mutable.update { it.copy(peerProgress = null, peerMessage = null, error = null) }
+    }
 
     fun openPeerFiles(id: String) = launchAction {
         activateSpace(id)
@@ -527,14 +654,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     private suspend fun syncCurrentPeer() {
-        check(
-            mutable.value.webFile == null &&
-                mutable.value.document == null &&
-                mutable.value.page == null &&
-                mutable.value.pluginFile == null
-        ) {
-            "请先完成编辑"
-        }
+        check(mutable.value.webFile == null && mutable.value.pluginFile == null) { tr("请先完成编辑") }
         val connection =
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 PeerConnection.load(getApplication(), repository.spaceId)?.let { saved ->
@@ -542,7 +662,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                         checkNotNull(
                             catalog.peerRemoteSpace(saved.fingerprint, repository.spaceId)
                         ) {
-                            "请从已配对设备中重新选择此 Space"
+                            tr("请从已配对设备中重新选择此 Space")
                         }
                     PeerConnection.reconnect(getApplication(), saved, remoteSpace).also {
                         it.save(getApplication(), repository.spaceId)
@@ -550,11 +670,16 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     }
                 }
             }
-        checkNotNull(connection) { "此 Space 尚未配对电脑" }
-        repository.syncPeer(connection, ::reportPeerTransfer, ::reportPeerStage)
-        reportPeerStage("正在刷新本地文件列表")
+        checkNotNull(connection) { tr("此 Space 尚未配对电脑") }
+        repository.syncPeer(
+            connection,
+            ::reportPeerTransfer,
+            ::reportGraftTransfer,
+            ::reportPeerStage,
+        )
+        reportPeerStage(tr("正在刷新本地文件列表"))
         refreshFiles(includeGraft = false)
-        mutable.update { it.copy(peerMessage = "已与 ${connection.name} 同步") }
+        mutable.update { it.copy(peerMessage = tr("已与 {0} 同步", connection.name)) }
     }
 
     private suspend fun recoverMerge() {
@@ -569,19 +694,13 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun beginMerge() = launchAction {
-        check(
-            mutable.value.document == null &&
-                mutable.value.page == null &&
-                mutable.value.pendingShares.isEmpty()
-        ) {
-            "请先完成编辑或分享"
-        }
-        BackgroundSync.pauseAutomatic(getApplication(), repository.spaceId, "自动同步已暂停：正在处理合并")
+        check(mutable.value.pendingShares.isEmpty()) { tr("请先完成编辑或分享") }
+        BackgroundSync.pauseAutomatic(getApplication(), repository.spaceId, tr("自动同步已暂停：正在处理合并"))
         BackgroundSync.cancel(getApplication(), repository.spaceId)
         try {
             val review = repository.beginMerge()
             mutable.update {
-                it.copy(syncMessage = if (review == null) "当前没有需要处理的合并" else "已准备合并，请检查结果")
+                it.copy(syncMessage = if (review == null) tr("当前没有需要处理的合并") else tr("已准备合并，请检查结果"))
             }
         } finally {
             recoverMerge()
@@ -607,7 +726,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         try {
             repository.finishMerge(checkNotNull(mutable.value.mergeReview), abort)
             mutable.update {
-                it.copy(syncMessage = if (abort) "合并已中止，已恢复本地版本" else "合并已保存到本机；点击立即同步上传")
+                it.copy(syncMessage = if (abort) tr("合并已中止，已恢复本地版本") else tr("合并已保存到本机；点击立即同步上传"))
             }
         } finally {
             recoverMerge()
@@ -630,6 +749,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         val files = repository.files(folder)
         val recent = repository.recent()
         val favorites = repository.favorites()
+        val favoriteFiles = repository.favoriteFiles(favorites)
         val spaces = catalog.spaces()
         val graft = if (includeGraft) repository.graftStatus() else mutable.value.graft
         mutable.update {
@@ -638,9 +758,10 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 graft = graft,
                 recent = recent,
                 favorites = favorites,
+                favoriteFiles = favoriteFiles,
                 spaceId = repository.spaceId,
                 spaceName =
-                    spaces.find { space -> space.id == repository.spaceId }?.name ?: "本地 Space",
+                    spaces.find { space -> space.id == repository.spaceId }?.name ?: tr("本地 Space"),
                 spaces = spaces,
                 pendingClone = cloneJournal.pending(),
             )
@@ -648,6 +769,31 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun switchSpace(id: String) = launchAction { activateSpace(id) }
+
+    internal fun deleteLocalSpaceAfterUnlock(id: String) = launchAction {
+        require(mutable.value.spaceId == id) { tr("当前 Space 已变更，请重新确认删除") }
+        val old = repository
+        BackgroundSync.setAutomatic(getApplication(), id, false)
+        BackgroundSync.cancel(getApplication(), id)
+        val next =
+            catalog.spaces().firstOrNull { it.id != id }
+                ?: catalog.create(
+                    if (mutable.value.spaceName == tr("本机 Space")) tr("新的 Space") else tr("本机 Space")
+                )
+        activateSpace(next.id)
+        try {
+            old.deleteLocalSpace()
+        } finally {
+            mutable.update {
+                it.copy(
+                    spaces = catalog.spaces(),
+                    peerLocalSpaces = catalog.peerLocalSpaces(),
+                    peerProgress = null,
+                )
+            }
+        }
+        mutable.update { it.copy(captureNotice = tr("已删除本地 Space，电脑上的副本保留")) }
+    }
 
     fun openPublish(file: SpaceFile) = launchAction {
         mutable.update { it.copy(publish = PublishPage(file)) }
@@ -734,12 +880,12 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         account.publishSession()
                     }
-                check(session.subject == page.subject) { "账号已改变，请重新打开发布页面" }
+                check(session.subject == page.subject) { tr("账号已改变，请重新打开发布页面") }
                 check(remove || !page.file.eidos || session.plan != "free") {
-                    "发布 .eidos 文件需要 Publish Pro"
+                    tr("发布 .eidos 文件需要 Publish Pro")
                 }
                 check(remove || access !in listOf("private", "password") || session.privateAccess) {
-                    "当前套餐不支持此访问方式"
+                    tr("当前套餐不支持此访问方式")
                 }
                 val binding =
                     repository.publishFile(
@@ -835,7 +981,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun enableAccountSync() = launchAction {
-        check(mutable.value.graft?.remoteUrl == null) { "当前 Space 已连接远程" }
+        check(mutable.value.graft?.remoteUrl == null) { tr("当前 Space 已连接远程") }
         val name = mutable.value.spaceName
         val id = repository.spaceId
         val (url, credential) =
@@ -852,7 +998,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             }
         val graft = repository.connectRemote(url, credential)
         mutable.update {
-            it.copy(graft = graft, syncMessage = "已连接云端 Space。请进入同步设置，首次发布本机版本，然后使用同步。")
+            it.copy(graft = graft, syncMessage = tr("已连接云端 Space。请进入同步设置，首次发布本机版本，然后使用同步。"))
         }
     }
 
@@ -861,11 +1007,11 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         val credential =
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 SyncEnvironment.requireRemote(url)
-                check(account.repositories().any { it.url == url }) { "此云端 Space 不属于当前账号" }
+                check(account.repositories().any { it.url == url }) { tr("此云端 Space 不属于当前账号") }
                 account.credential()
             }
         val graft = repository.connectRemote(url, credential)
-        mutable.update { it.copy(graft = graft, syncMessage = "此 Space 已改用账号登录，凭证会自动刷新") }
+        mutable.update { it.copy(graft = graft, syncMessage = tr("此 Space 已改用账号登录，凭证会自动刷新")) }
     }
 
     private fun reportDownload(progress: DownloadProgress) {
@@ -892,7 +1038,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 }
             val local = cloneJournal.download(space.name, space.url, credential, ::reportDownload)
             activateSpace(local.id)
-            mutable.update { it.copy(cloudSpaces = null, captureNotice = "云端 Space 已下载，可离线使用") }
+            mutable.update { it.copy(cloudSpaces = null, captureNotice = tr("云端 Space 已下载，可离线使用")) }
         } finally {
             mutable.update {
                 it.copy(pendingClone = cloneJournal.pending(), downloadProgress = null)
@@ -911,7 +1057,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         try {
             val space = cloneJournal.download(name, url, token, ::reportDownload)
             activateSpace(space.id)
-            mutable.update { it.copy(captureNotice = "远程 Space 已下载到本机，可离线使用") }
+            mutable.update { it.copy(captureNotice = tr("远程 Space 已下载到本机，可离线使用")) }
             done()
         } finally {
             mutable.update {
@@ -932,7 +1078,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 }
                 val space = cloneJournal.resume(id, ::reportDownload)
                 activateSpace(space.id)
-                mutable.update { it.copy(captureNotice = "远程 Space 已下载到本机，可离线使用") }
+                mutable.update { it.copy(captureNotice = tr("远程 Space 已下载到本机，可离线使用")) }
             }
         } finally {
             mutable.update {
@@ -942,32 +1088,34 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     private suspend fun activateSpace(id: String) {
-        require(catalog.spaces().any { it.id == id }) { "Space 已不存在" }
+        require(catalog.spaces().any { it.id == id }) { tr("Space 已不存在") }
         if (repository.spaceId == id) return
         navigationVersion++
         searchVersion++
         searchJob?.cancelAndJoinSafely()
-        rowJob?.cancelAndJoinSafely()
-        draftJob?.cancelAndJoinSafely()
+
         val current = mutable.value
-        if (current.dirty && current.document != null) repository.saveDraft(current.document)
+
         val next = SpaceRepository(getApplication(), id)
         val files = next.files("")
         val recent = next.recent()
         val favorites = next.favorites()
+        val favoriteFiles = next.favoriteFiles(favorites)
         repository.close()
         catalog.select(id)
         repository = next
         documentHistory.clear()
-        pendingRows = null
+
         val spaces = catalog.spaces()
         mutable.value =
             AppState(
+                fileSort = current.fileSort,
                 tab =
                     if (current.peerProgress?.finishedAt == null && current.peerProgress != null)
                         MainTab.Sync
                     else MainTab.Files,
                 peerProgress = current.peerProgress?.takeIf { it.finishedAt == null },
+                peerBusy = current.peerBusy,
                 peerDevices = current.peerDevices,
                 peerAvailability = current.peerAvailability,
                 peerChecking = current.peerChecking,
@@ -981,7 +1129,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 files = files,
                 recent = recent,
                 favorites = favorites,
-                busy = true,
+                favoriteFiles = favoriteFiles,
+                busy = current.busy,
             )
         recoverMerge()
         recoverShares()
@@ -991,7 +1140,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     fun toggleFavorite(favorite: Favorite) = launchAction {
         val selected = mutable.value.favorites.none { it.key == favorite.key }
         val favorites = repository.setFavorite(favorite, selected)
-        mutable.update { it.copy(favorites = favorites) }
+        val favoriteFiles = repository.favoriteFiles(favorites)
+        mutable.update { it.copy(favorites = favorites, favoriteFiles = favoriteFiles) }
     }
 
     fun openFavorite(favorite: Favorite, addRecord: Boolean = false, done: () -> Unit = {}) =
@@ -1000,30 +1150,63 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             done()
         }
 
-    fun recordRequestHandled() {
-        mutable.update { it.copy(addRecord = false) }
-    }
-
     fun tab(tab: MainTab) {
         if (mutable.value.busy) return
         mutable.update { it.copy(tab = tab) }
-        if (tab == MainTab.Sync) refreshGraft()
+        if (tab == MainTab.Sync) refreshGraft() else graftRefreshJob?.cancel()
     }
 
-    fun refreshGraft() = launchAction {
-        recoverMerge()
-        val graft = repository.graftStatus()
-        mutable.update { it.copy(graft = graft, syncMessage = null) }
+    private var graftRefreshJob: Job? = null
+
+    fun refreshGraft() {
+        if (mutable.value.busy || graftRefreshJob?.isActive == true) return
+        val source = repository
+        // A read can queue behind background sync. Keep cached content and navigation usable.
+        graftRefreshJob =
+            viewModelScope.launch {
+                try {
+                    val review = source.mergeReview()
+                    val graft = source.graftStatus()
+                    if (repository !== source || mutable.value.tab != MainTab.Sync) return@launch
+                    mutable.update {
+                        it.copy(
+                            mergeReview = review,
+                            mergeComparison = null,
+                            graft = graft,
+                            syncMessage = null,
+                        )
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (repository === source && mutable.value.tab == MainTab.Sync)
+                        mutable.update { it.copy(syncMessage = error.message ?: tr("无法读取同步状态，请重试")) }
+                }
+            }
     }
 
     fun checkpoint() = launchAction {
         val graft = repository.checkpoint()
-        mutable.update { it.copy(graft = graft, syncMessage = null) }
+        val versions = repository.localVersions()
+        mutable.update { it.copy(graft = graft, localVersions = versions, syncMessage = null) }
+    }
+
+    fun refreshLocalVersions() = launchAction {
+        val graft = repository.graftStatus()
+        val versions = repository.localVersions()
+        mutable.update { it.copy(graft = graft, localVersions = versions, syncMessage = null) }
+    }
+
+    fun showPeerVersions(id: String) = launchAction {
+        activateSpace(id)
+        val graft = repository.graftStatus()
+        val versions = repository.localVersions()
+        mutable.update { it.copy(graft = graft, localVersions = versions, syncMessage = null) }
     }
 
     fun connectRemote(url: String, token: String, done: () -> Unit) = launchAction {
         val graft = repository.connectRemote(url, token)
-        mutable.update { it.copy(graft = graft, syncMessage = "连接配置已保存，尚未验证远程访问") }
+        mutable.update { it.copy(graft = graft, syncMessage = tr("连接配置已保存，尚未验证远程访问")) }
         done()
     }
 
@@ -1031,20 +1214,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         BackgroundSync.setAutomatic(getApplication(), repository.spaceId, false)
         BackgroundSync.cancel(getApplication(), repository.spaceId)
         val graft = repository.disconnectRemote()
-        mutable.update { it.copy(graft = graft, syncMessage = "已清除本机同步凭证，文件仍保留在本机") }
+        mutable.update { it.copy(graft = graft, syncMessage = tr("已清除本机同步凭证，文件仍保留在本机")) }
     }
 
     fun enqueueBackgroundSync() = launchAction {
-        check(
-            mutable.value.document == null &&
-                mutable.value.page == null &&
-                mutable.value.webFile == null
-        ) {
-            "请先完成编辑再同步"
-        }
-        check(repository.graftStatus().remoteUrl != null) { "请先连接远程 Space" }
+        check(mutable.value.webFile == null) { tr("请先完成编辑再同步") }
+        check(repository.graftStatus().remoteUrl != null) { tr("请先连接远程 Space") }
         BackgroundSync.enqueue(getApplication(), repository.spaceId)
-        mutable.update { it.copy(syncMessage = "任务已加入后台队列，离开应用后在有网络时运行") }
+        mutable.update { it.copy(syncMessage = tr("任务已加入后台队列，离开应用后在有网络时运行")) }
     }
 
     fun cancelBackgroundSync() {
@@ -1052,20 +1229,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun setAutomaticSync(enabled: Boolean) = launchAction {
-        if (enabled) check(repository.graftStatus().remoteUrl != null) { "请先连接远程 Space" }
+        if (enabled) check(repository.graftStatus().remoteUrl != null) { tr("请先连接远程 Space") }
         BackgroundSync.setAutomatic(getApplication(), repository.spaceId, enabled)
     }
 
     fun syncRemote(publish: Boolean = false) = launchAction {
-        check(
-            mutable.value.document == null &&
-                mutable.value.page == null &&
-                mutable.value.webFile == null
-        ) {
-            "请先完成编辑再同步"
-        }
+        check(mutable.value.webFile == null) { tr("请先完成编辑再同步") }
         navigationVersion++
-        rowJob?.cancelAndJoinSafely()
+
         mutable.update { it.copy(syncMessage = null) }
         mutable.update { it.copy(syncing = true) }
         try {
@@ -1074,15 +1245,15 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 BackgroundSync.pauseAutomatic(
                     getApplication(),
                     repository.spaceId,
-                    "自动同步已暂停：需要合并本地与远端版本",
+                    tr("自动同步已暂停：需要合并本地与远端版本"),
                 )
             val graft = repository.graftStatus()
             mutable.update {
                 it.copy(
                     graft = graft,
                     syncMessage =
-                        if (outcome == "needs_merge") "双方都有新版本，需要合并。本地修改和远端版本均已保留，点击检查并合并继续。"
-                        else if (publish) "本机版本已发布到远程" else "本次同步已完成",
+                        if (outcome == "needs_merge") tr("双方都有新版本，需要合并。本地修改和远端版本均已保留，点击检查并合并继续。")
+                        else if (publish) tr("本机版本已发布到远程") else tr("本次同步已完成"),
                 )
             }
             try {
@@ -1103,31 +1274,17 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update { it.copy(error = null) }
     }
 
-    fun edit() {
-        mutable.update { it.copy(editing = true) }
-    }
-
-    fun beginRecordEdit() {
-        rowJob?.cancel()
-        navigationVersion++
-    }
-
     fun openWithPlugin(file: SpaceFile, viewId: String) = launchAction {
         val current = mutable.value
-        check(
-            current.document == null &&
-                current.page == null &&
-                current.webFile == null &&
-                current.pluginFile == null
-        )
+        check((current.webFile == null || current.webFile.path == file.path) && current.pluginFile == null)
         val actual = repository.file(file.path)
         val view = pluginOpenWith.resolve(actual, viewId)
-        require(actual.bytes <= if (view.document) 2 * 1024 * 1024 else 16 * 1024 * 1024) {
-            "文件超过插件读取大小限制"
+        require(actual.eidos || actual.bytes <= if (view.document) 2 * 1024 * 1024 else 16 * 1024 * 1024) {
+            tr("文件超过插件读取大小限制")
         }
         val snapshot = if (view.document) repository.pluginTextSnapshot(actual.path) else null
         val source = pluginMarket.source(current.spaceId, view)
-        require(pluginMarket.authorized(current.spaceId, view)) { "插件授权已变更" }
+        require(pluginMarket.authorized(current.spaceId, view)) { tr("插件授权已变更") }
         mutable.update { it.copy(pluginFile = PluginFileSession(view, actual, snapshot, source)) }
     }
 
@@ -1141,23 +1298,20 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         documentHistory.clear()
     }
 
-    fun leaveWebEditor(native: Boolean) {
-        val file = mutable.value.webFile ?: return
-        if (mutable.value.busy) return
-        if (native) {
-            launchAction {
-                useWebEditor = false
-                editorPreferences.edit().putBoolean("web", false).apply()
-                openTarget(file.path, native = true)
-                mutable.update { it.copy(webFile = null) }
-            }
-        } else {
-            // The bridge has already flushed local writes. Graft is unrelated to
-            // the editor lifetime; closing/reopening it here blocks local navigation.
-            mutable.update { it.copy(webFile = null) }
-            updateBackgroundGate()
-            refreshReturnedFiles()
+    fun leaveWebEditor() {
+        if (mutable.value.shareRecord != null) {
+            closeShareTable()
+            return
         }
+        if (mutable.value.busy) return
+        if (documentHistory.isNotEmpty()) {
+            val path = documentHistory.removeAt(documentHistory.lastIndex)
+            launchAction { openTarget(path) }
+            return
+        }
+        mutable.update { it.copy(webFile = null) }
+        updateBackgroundGate()
+        refreshReturnedFiles()
     }
 
     private fun refreshReturnedFiles() {
@@ -1183,25 +1337,16 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     throw error
                 } catch (error: Exception) {
                     if (repository === owner && navigationVersion == version)
-                        mutable.update { it.copy(error = error.message ?: "文件信息更新失败") }
+                        mutable.update { it.copy(error = error.message ?: tr("文件信息更新失败")) }
                 }
             }
     }
 
-    fun useSharedEditor(path: String) = launchAction {
-        val current = mutable.value
-        if (current.dirty && current.document != null) repository.saveText(current.document)
-        useWebEditor = true
-        editorPreferences.edit().putBoolean("web", true).apply()
-        openTarget(path)
-    }
-
     fun openMarkdownLink(source: String, destination: String) = launchAction {
-        val current = mutable.value
-        check(current.document?.path == source && !current.editing) { "请先完成编辑" }
+        check(mutable.value.webFile?.path == source) { tr("文档已关闭") }
         val path = markdownLocalPath(source, destination)
         val file = repository.file(path)
-        require(file.markdown || file.eidos) { "此链接文件暂不支持预览，请从文件列表导出" }
+        require(file.markdown || file.eidos) { tr("此链接文件暂不支持预览，请从文件列表导出") }
         openTarget(path)
         documentHistory.add(source)
     }
@@ -1214,235 +1359,54 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         path: String,
         tableId: String? = null,
         addRecord: Boolean = false,
-        native: Boolean = false,
+        query: String = "",
     ) {
         navigationVersion++
-        rowJob?.cancelAndJoinSafely()
         val file = repository.file(path)
         when {
-            !native &&
-                useWebEditor &&
-                !addRecord &&
-                tableId == null &&
-                (file.markdown || file.eidos) -> {
+            file.markdown || file.eidos ->
                 mutable.update {
                     it.copy(
                         webFile = file,
-                        document = null,
-                        page = null,
-                        editing = false,
-                        dirty = false,
+                        editorGeneration = it.editorGeneration + 1,
+                        webTableId = tableId,
+                        webQuery = query,
+                        webAddRecord = addRecord,
                     )
                 }
-            }
-            tableId != null -> {
-                val page = repository.loadEidos(path, tableId)
-                mutable.update { it.copy(page = page, addRecord = addRecord) }
-            }
             file.directory -> {
                 val files = repository.files(path)
                 mutable.update { it.copy(folder = path, files = files, tab = MainTab.Files) }
             }
-            file.markdown -> {
-                val document = repository.readText(file.path)
-                mutable.update {
-                    it.copy(
-                        document = document,
-                        page = null,
-                        editing = document.recovered,
-                        dirty = document.recovered,
-                        draftSaved = document.recovered,
-                    )
-                }
-            }
-            file.eidos -> {
-                val page = repository.loadEidos(file.path)
-                mutable.update {
-                    it.copy(page = page, document = null, editing = false, dirty = false)
-                }
-            }
-            else -> {
-                val preview = repository.filePreview(file.path)
-                mutable.update { it.copy(attachmentPreview = preview) }
-            }
+            else ->
+                mutable.update { it.copy(attachmentPreview = repository.filePreview(file.path)) }
         }
     }
 
     fun back() = launchAction {
         navigationVersion++
-        rowJob?.cancel()
-        draftJob?.cancelAndJoinSafely()
-        val current = mutable.value
-        if (current.document != null) {
-            if (current.dirty) {
-                repository.saveDraft(current.document)
-                repository.saveText(current.document)
-            }
-        }
-        if (documentHistory.isNotEmpty()) {
-            // A deleted source must not trap the user in an endless Back failure.
-            val source = documentHistory.removeAt(documentHistory.lastIndex)
-            openTarget(source)
-            return@launchAction
-        }
-        if (current.document != null || current.page != null) {
-            mutable.update { it.copy(document = null, page = null, editing = false, dirty = false) }
-            refreshReturnedFiles()
-            return@launchAction
-        }
-        val folder = current.folder.substringBeforeLast('/', "")
+        val folder = mutable.value.folder.substringBeforeLast('/', "")
         val files = repository.files(folder)
         val recent = repository.recent()
-        mutable.update {
-            it.copy(
-                document = null,
-                page = null,
-                editing = false,
-                dirty = false,
-                folder = folder,
-                files = files,
-                recent = recent,
-            )
-        }
+        mutable.update { it.copy(folder = folder, files = files, recent = recent) }
     }
 
-    fun textChanged(text: String) {
-        val current = mutable.value
-        val document = current.document ?: return
-        // Finishing IME composition can deliver a duplicate callback as the
-        // editor leaves focus. It must not recreate a draft after committing.
-        if (!current.editing || current.busy || text == document.text) return
-        val updated = document.copy(text = text)
-        mutable.update { it.copy(document = updated, dirty = true, draftSaved = false) }
-        val previous = draftJob
-        previous?.cancel()
-        draftJob =
-            viewModelScope.launch {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                    previous?.join()
-                }
-                delay(150)
-                try {
-                    val pending = mutable.value.document ?: return@launch
-                    repository.saveDraft(pending)
-                    if (mutable.value.document == pending)
-                        mutable.update { it.copy(draftSaved = true) }
-                    delay(600)
-                    // Finish a started atomic write and advance the digest even
-                    // when another keystroke cancels this debounce job.
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                        val snapshot = mutable.value.document ?: return@withContext
-                        val saved = repository.saveText(snapshot)
-                        val latest = mutable.value.document ?: return@withContext
-                        if (latest.path == saved.path) {
-                            val next = latest.copy(digest = saved.digest, recovered = false)
-                            val dirty = next.text != saved.text
-                            mutable.update {
-                                it.copy(document = next, dirty = dirty, draftSaved = false)
-                            }
-                            if (dirty) {
-                                repository.saveDraft(next)
-                                if (mutable.value.document == next)
-                                    mutable.update { it.copy(draftSaved = true) }
-                            }
-                        }
-                    }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    mutable.update { it.copy(error = error.message, draftSaved = false) }
-                }
-            }
-    }
-
-    fun saveDocument() = launchAction {
-        draftJob?.cancelAndJoinSafely()
-        val current = mutable.value
-        val document = current.document ?: return@launchAction
-        if (current.dirty) {
-            repository.saveDraft(document)
-            val saved = repository.saveText(document)
-            mutable.update {
-                it.copy(document = saved, dirty = false, draftSaved = false, editing = false)
-            }
-        } else mutable.update { it.copy(editing = false) }
-    }
-
-    fun insertMarkdownImage(path: String, text: String, start: Int, end: Int, uri: Uri) =
-        launchAction {
-            draftJob?.cancelAndJoinSafely()
-            val current = mutable.value
-            val document = checkNotNull(current.document) { "文档已关闭" }
-            check(current.editing && document.path == path && document.text == text) {
-                "文档已变化，请重新选择图片"
-            }
-            val from = minOf(start, end)
-            val to = maxOf(start, end)
-            require(from >= 0 && to <= text.length) { "插入位置已变化" }
-            val markdown = repository.importMarkdownImage(path, uri)
-            val updated = document.copy(text = text.replaceRange(from, to, markdown))
-            // Preserve the imported bytes if the document commit fails; the recovered
-            // draft must never refer to a file that cleanup has removed.
-            mutable.update { it.copy(document = updated, dirty = true, draftSaved = false) }
-            repository.saveDraft(updated)
-            mutable.update { it.copy(draftSaved = true) }
-            val saved = repository.saveText(updated)
-            mutable.update { it.copy(document = saved, dirty = false, draftSaved = false) }
+    fun rename(file: SpaceFile, name: String, done: () -> Unit) = launchAction {
+        val path = repository.rename(file.path, name)
+        if (mutable.value.webFile?.path == file.path) {
+            val renamed = repository.file(path)
+            mutable.update { it.copy(webFile = renamed, editorGeneration = it.editorGeneration + 1) }
         }
-
-    fun toggleMarkdownTask(expected: TextDocument, offset: Int, checked: Boolean) = launchAction {
-        val current = mutable.value
-        check(current.document == expected && !current.editing && !current.dirty) { "内容已变化，请先完成编辑" }
-        check(
-            expected.text.getOrNull(offset - 1) == '[' && expected.text.getOrNull(offset + 1) == ']'
-        ) {
-            "任务位置已变化"
-        }
-        check(expected.text.getOrNull(offset) in if (checked) setOf('x', 'X') else setOf(' ')) {
-            "任务状态已变化"
-        }
-        val updated =
-            expected.copy(
-                text = expected.text.replaceRange(offset, offset + 1, if (checked) " " else "x")
-            )
-        val saved = repository.saveText(updated)
-        mutable.update { it.copy(document = saved) }
-    }
-
-    fun persistDraft() {
-        val current = mutable.value
-        if (current.dirty && current.document != null) {
-            val previous = draftJob
-            previous?.cancel()
-            draftJob =
-                viewModelScope.launch {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                        previous?.join()
-                    }
-                    try {
-                        mutable.value.document
-                            ?.takeIf { mutable.value.dirty }
-                            ?.let { repository.saveDraft(it) }
-                    } catch (error: Exception) {
-                        mutable.update { it.copy(error = error.message) }
-                    }
-                }
-        }
+        refreshFiles()
+        done()
     }
 
     fun create(name: String, kind: String, done: () -> Unit) = launchAction {
-        val path = repository.create(mutable.value.folder, name, kind)
+        val path =
+            if (name.isEmpty()) repository.createUntitled(mutable.value.folder, kind)
+            else repository.create(mutable.value.folder, name, kind)
         refreshFiles()
-        if (useWebEditor && kind in listOf("markdown", "eidos")) {
-            openTarget(path)
-            done()
-            return@launchAction
-        }
-        if (kind == "markdown")
-            mutable.update {
-                it.copy(document = repository.readText(path), editing = true, dirty = false)
-            }
-        if (kind == "eidos") mutable.update { it.copy(page = repository.loadEidos(path)) }
+        openTarget(path)
         done()
     }
 
@@ -1454,7 +1418,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         viewModelScope.launch {
             state.first { !it.busy }
             launchAction {
-                check(repository === owner) { "Space 已切换，请重新选择导入文件" }
+                check(repository === owner) { tr("Space 已切换，请重新选择导入文件") }
                 mutable.update { it.copy(captureNotice = null) }
                 action(folder)
             }
@@ -1463,7 +1427,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     fun import(uri: Uri) = importResult { folder ->
         val path = repository.importFile(uri, folder)
-        mutable.update { it.copy(captureNotice = "已导入 ${path.substringAfterLast('/')} 到本机") }
+        mutable.update { it.copy(captureNotice = tr("已导入 {0} 到本机", path.substringAfterLast('/'))) }
         refreshFiles(includeGraft = false)
     }
 
@@ -1471,14 +1435,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     fun importDirectory(uri: Uri) = importResult { folder ->
         repository.importDirectory(uri, folder)
-        mutable.update { it.copy(captureNotice = "目录已完整导入本机") }
+        mutable.update { it.copy(captureNotice = tr("目录已完整导入本机")) }
         refreshFiles(includeGraft = false)
     }
 
     fun exportDirectory(path: String, uri: Uri) = launchAction {
-        check(mutable.value.document == null && mutable.value.page == null) { "请先关闭编辑器" }
+        check(mutable.value.webFile == null) { tr("请先关闭编辑器") }
         repository.exportDirectory(path, uri)
-        mutable.update { it.copy(captureNotice = "目录已完整导出") }
+        mutable.update { it.copy(captureNotice = tr("目录已完整导出")) }
     }
 
     fun receiveShare(files: List<Uri>, text: String?) {
@@ -1488,7 +1452,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             launchAction {
                 val received = ShareInbox(getApplication(), receivingSpace).receive(files, text)
                 if (receivingSpace != repository.spaceId) {
-                    mutable.update { it.copy(captureNotice = "分享已暂存，请切换回接收时的 Space 继续处理") }
+                    mutable.update { it.copy(captureNotice = tr("分享已暂存，请切换回接收时的 Space 继续处理")) }
                     return@launchAction
                 }
                 val folder =
@@ -1513,6 +1477,10 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     private suspend fun recoverShares() {
         val saved = ShareInbox(getApplication(), repository.spaceId).pending()
+        if (saved.isEmpty()) {
+            mutable.update { it.copy(pendingShares = emptyList()) }
+            return
+        }
         val folder =
             if (mutable.value.pendingShares.isEmpty()) repository.shareFolder()
             else mutable.value.shareFolder
@@ -1542,7 +1510,6 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update {
             it.copy(shareInboxVisible = show, shareRecord = null, shareDatabase = null)
         }
-        if (!show) restoreShareQuery()
     }
 
     fun retryInterruptedShare() = launchAction {
@@ -1556,7 +1523,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         destination: String,
         action: suspend () -> Unit,
     ) {
-        check(!share.submitting) { "请先检查上次保存的结果" }
+        check(!share.submitting) { tr("请先检查上次保存的结果") }
         ShareInbox(getApplication(), repository.spaceId)
             .markSubmitting(share.inboxId, true, destination)
         try {
@@ -1585,64 +1552,40 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 shareRecord = null,
             )
         }
-        restoreShareQuery()
     }
 
     fun closeShareTable() = launchAction {
         mutable.update { it.copy(shareDatabase = null, shareRecord = null) }
-        restoreShareQuery()
-        recoverShares()
-    }
 
-    private suspend fun restoreShareQuery() {
-        if (!shareQueryChanged) return
-        // Browsing another file replaces the native query session. Restore a usable cursor
-        // for the retained page before returning to it.
-        val previous = mutable.value.page
-        val restored =
-            previous?.let {
-                repository.loadEidos(
-                    it.path,
-                    it.table?.id,
-                    it.query,
-                    sort = it.sort,
-                    filters = it.filters,
-                    viewId = it.view?.id,
-                )
-            }
-        mutable.update { it.copy(page = restored) }
-        shareQueryChanged = false
+        recoverShares()
     }
 
     fun openShareTable(path: String, tableId: String? = null) = launchAction {
         val share = mutable.value.pendingShares.firstOrNull() ?: return@launchAction
-        require(share.files.isNotEmpty() || !share.text.isNullOrBlank()) { "分享内容为空" }
-        rowJob?.cancelAndJoinSafely()
-        shareQueryChanged = true
+        require(share.files.isNotEmpty() || !share.text.isNullOrBlank()) { tr("分享内容为空") }
+
         val page = repository.loadEidos(path, tableId)
         if (tableId == null) {
             mutable.update { it.copy(shareDatabase = page) }
         } else {
-            require(page.table?.id == tableId) { "目标表已不存在，请重新选择" }
+            require(page.table?.id == tableId) { tr("目标表已不存在，请重新选择") }
             val field =
                 page.fields.firstOrNull {
                     it.id == page.table.labelFieldId &&
                         it.editable &&
                         it.kind in setOf("text", "url")
                 } ?: page.fields.firstOrNull { it.editable && it.kind == "text" }
-            if (!share.text.isNullOrBlank()) requireNotNull(field) { "这张表没有可写入分享文本的字段" }
+            if (!share.text.isNullOrBlank()) requireNotNull(field) { tr("这张表没有可写入分享文本的字段") }
             val attachmentField = page.fields.firstOrNull { it.kind == "file" && it.writable }
             if (share.files.isNotEmpty())
-                requireNotNull(attachmentField) { "这张表没有可写入的附件字段，请选择其他表或文件夹" }
-            rowJob?.cancelAndJoinSafely()
-            draftJob?.cancelAndJoinSafely()
-            mutable.value.document?.takeIf { mutable.value.dirty }?.let { repository.saveDraft(it) }
+                requireNotNull(attachmentField) { tr("这张表没有可写入的附件字段，请选择其他表或文件夹") }
+
             val initial =
                 org.json
                     .JSONObject()
                     .apply {
                         if (field != null)
-                            put(field.id, share.text?.takeIf { it.isNotBlank() } ?: "分享附件")
+                            put(field.id, share.text?.takeIf { it.isNotBlank() } ?: tr("分享附件"))
                     }
                     .toString()
             val form =
@@ -1654,16 +1597,16 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             mutable.update {
                 it.copy(
                     shareRecord = page,
-                    shareInitialValues = initial,
+                    editorGeneration = it.editorGeneration + 1,
                     shareAttachmentFieldId = form.attachmentField,
                 )
             }
         }
     }
 
-    fun saveShareRecord(values: Map<String, Any>, expectedRevision: String? = null) = launchAction {
-        val currentPage = mutable.value.shareRecord ?: return@launchAction
-        val share = mutable.value.pendingShares.firstOrNull() ?: return@launchAction
+    suspend fun saveShareRecord(values: Map<String, Any>, expectedRevision: String? = null) {
+        val currentPage = checkNotNull(mutable.value.shareRecord)
+        val share = checkNotNull(mutable.value.pendingShares.firstOrNull())
         val stored =
             ShareInbox(getApplication(), repository.spaceId)
                 .form(share.inboxId, currentPage.path, checkNotNull(currentPage.table).id)
@@ -1692,36 +1635,32 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 }
                 throw error
             }
-            shareQueryChanged = false
-            ShareInbox(getApplication(), repository.spaceId).remove(share.inboxId)
-            mutable.update {
-                it.copy(
-                    shareRecord = null,
-                    shareDatabase = null,
-                    pendingShares = it.pendingShares.drop(1),
-                    document = null,
-                    page = page,
-                    editing = false,
-                    dirty = false,
-                    addRecord = false,
-                    captureNotice = "已保存到${page.table?.name}",
-                )
-            }
-            documentHistory.clear()
-            navigationVersion++
-            repository.rememberShareTable(page)
-            val refreshed = repository.loadEidos(page.path, page.table?.id)
-            mutable.update {
-                it.copy(
-                    page = refreshed,
-                    lastShareTable =
-                        Favorite(page.path, checkNotNull(page.table).name, page.table.id),
-                )
+
+            // Complete post-commit bookkeeping before replacing the bridge's screen.
+            // The file write must not be cancelled by its own successful navigation.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                ShareInbox(getApplication(), repository.spaceId).remove(share.inboxId)
+                try {
+                    repository.rememberShareTable(page)
+                    documentHistory.clear()
+                    openTarget(page.path, page.table?.id)
+                } finally {
+                    mutable.update {
+                        it.copy(
+                            shareRecord = null,
+                            shareDatabase = null,
+                            pendingShares = it.pendingShares.drop(1),
+                            captureNotice = tr("已保存到{0}", page.table?.name),
+                            lastShareTable =
+                                Favorite(page.path, checkNotNull(page.table).name, page.table.id),
+                        )
+                    }
+                }
             }
         }
     }
 
-    fun selectShareAttachmentField(fieldId: String) = launchAction {
+    suspend fun selectShareAttachmentField(fieldId: String) {
         if (
             mutable.value.shareRecord?.fields?.any {
                 it.id == fieldId && it.kind == "file" && it.writable
@@ -1742,11 +1681,9 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     fun saveShare() = launchAction {
         val share = mutable.value.pendingShares.firstOrNull() ?: return@launchAction
-        committingShare(share, mutable.value.shareFolder.ifEmpty { "Space 根目录" }) {
+        committingShare(share, mutable.value.shareFolder.ifEmpty { tr("Space 根目录") }) {
             val folder = mutable.value.shareFolder
-            rowJob?.cancelAndJoinSafely()
-            draftJob?.cancelAndJoinSafely()
-            mutable.value.document?.takeIf { mutable.value.dirty }?.let { repository.saveDraft(it) }
+
             val result = repository.captureFiles(share.files, folder)
             val failures = result.failures.toMutableList()
             val caption =
@@ -1755,13 +1692,13 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    failures.add("附带文本：${error.message}")
+                    failures.add(tr("附带文本：{0}", error.message))
                     null
                 }
             documentHistory.clear()
             navigationVersion++
             val count = result.paths.size + if (caption == null) 0 else 1
-            if (count == 0) error(failures.joinToString("\n").ifEmpty { "分享内容为空" })
+            if (count == 0) error(failures.joinToString("\n").ifEmpty { tr("分享内容为空") })
             if (failures.isEmpty())
                 ShareInbox(getApplication(), repository.spaceId).remove(share.inboxId)
             // Partial imports retain their staged bytes and require review before retrying.
@@ -1769,14 +1706,10 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             // so retrying those operations cannot duplicate successful files.
             mutable.update {
                 it.copy(
-                    document = null,
-                    page = null,
-                    editing = false,
-                    dirty = false,
                     tab = MainTab.Files,
                     folder = folder,
                     pendingShares = it.pendingShares.drop(1),
-                    captureNotice = "已存入${folder.ifEmpty { "Space 根目录" }}：$count 个文件",
+                    captureNotice = tr("已存入{0}：{1} 个文件", folder.ifEmpty { tr("Space 根目录") }, count),
                     error = failures.takeIf { it.isNotEmpty() }?.joinToString("\n"),
                 )
             }
@@ -1810,143 +1743,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     fun openSearchMatch(match: SearchMatch) = launchAction {
         searchJob?.cancelAndJoinSafely()
-        if (match.tableId == null) openTarget(match.file.path)
-        else {
-            navigationVersion++
-            rowJob?.cancelAndJoinSafely()
-            val page = repository.loadEidos(match.file.path, match.tableId, match.query)
-            mutable.update { it.copy(page = page, document = null, editing = false, dirty = false) }
-        }
+        openTarget(match.file.path, match.tableId, query = match.query)
         documentHistory.clear()
-    }
-
-    fun sortRows(query: String, sort: EidosSort?) {
-        val page = mutable.value.page ?: return
-        requestRows(currentRowRequest(page).copy(query = query, sort = sort))
-    }
-
-    fun filterRows(query: String, filters: List<EidosFilter>) {
-        val page = mutable.value.page ?: return
-        requestRows(currentRowRequest(page).copy(query = query, filters = filters))
-    }
-
-    private fun currentRowRequest(page: EidosPage): RowRequest =
-        pendingRows?.takeIf { rowJob?.isActive == true && it.path == page.path }
-            ?: RowRequest(
-                page.path,
-                page.table?.id,
-                page.query,
-                page.sort,
-                page.filters,
-                page.view?.id,
-            )
-
-    fun selectView(id: String?) {
-        val page = mutable.value.page ?: return
-        requestRows(RowRequest(page.path, page.table?.id, "", null, emptyList(), id))
-    }
-
-    fun saveView(name: String, fields: List<String>, done: () -> Unit) = launchAction {
-        val page = mutable.value.page ?: return@launchAction
-        rowJob?.cancelAndJoinSafely()
-        val id = repository.saveView(page, name, fields)
-        done()
-        val next = repository.loadEidos(page.path, page.table?.id, page.query, viewId = id)
-        mutable.update { it.copy(page = next) }
-    }
-
-    fun queryRows(query: String, tableId: String? = null) {
-        val page = mutable.value.page ?: return
-        val current = currentRowRequest(page)
-        requestRows(
-            if (tableId != null && tableId != current.table)
-                RowRequest(page.path, tableId, query, null, emptyList())
-            else current.copy(query = query)
-        )
-    }
-
-    private fun requestRows(request: RowRequest) {
-        val version = navigationVersion
-        rowJob?.cancel()
-        pendingRows = request
-        mutable.update { it.copy(rowLoading = true) }
-        rowJob =
-            viewModelScope.launch {
-                try {
-                    delay(250)
-                    val next =
-                        repository.loadEidos(
-                            request.path,
-                            request.table,
-                            request.query,
-                            sort = request.sort,
-                            filters = request.filters,
-                            viewId = request.viewId,
-                        )
-                    if (version == navigationVersion && mutable.value.page?.path == request.path)
-                        mutable.update { it.copy(page = next) }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    mutable.update { it.copy(error = error.message) }
-                } finally {
-                    if (pendingRows === request) mutable.update { it.copy(rowLoading = false) }
-                }
-            }
-    }
-
-    fun nextPage() = launchAction {
-        val page = mutable.value.page ?: return@launchAction
-        val cursor = page.nextCursor ?: return@launchAction
-        rowJob?.cancelAndJoinSafely()
-        val next =
-            repository.loadEidos(
-                page.path,
-                page.table?.id,
-                page.query,
-                cursor,
-                page.sort,
-                page.filters,
-                page.view?.id,
-            )
-        check(next.revision == page.revision) { "数据已变化，请重新搜索或打开文件" }
-        mutable.update { it.copy(page = next.copy(rows = page.rows + next.rows)) }
-    }
-
-    fun mutate(
-        row: EidosRecord?,
-        changes: Map<String, Any>,
-        delete: Boolean = false,
-        expectedRevision: String? = null,
-        done: () -> Unit,
-    ) = launchAction {
-        val page = mutable.value.page ?: return@launchAction
-        rowJob?.cancelAndJoinSafely()
-        repository.mutate(
-            page.copy(revision = expectedRevision ?: page.revision),
-            row,
-            changes,
-            delete,
-        )
-        try {
-            RecordDraftStore(getApplication(), repository.spaceId)
-                .clear(page.path, checkNotNull(page.table).id, row?.id)
-        } finally {
-            done() // The mutation committed even if draft cleanup or the following refresh fails.
-        }
-        mutable.update {
-            it.copy(
-                page =
-                    repository.loadEidos(
-                        page.path,
-                        page.table?.id,
-                        page.query,
-                        sort = page.sort,
-                        filters = page.filters,
-                        viewId = page.view?.id,
-                    )
-            )
-        }
     }
 }
 

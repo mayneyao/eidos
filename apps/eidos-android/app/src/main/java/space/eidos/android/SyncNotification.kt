@@ -28,7 +28,7 @@ internal object SyncNotification {
         context
             .getSystemService(NotificationManager::class.java)
             .createNotificationChannel(
-                NotificationChannel(CHANNEL, "文件同步", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL, tr("文件同步"), NotificationManager.IMPORTANCE_LOW)
             )
         val cancel =
             PendingIntent.getBroadcast(
@@ -45,7 +45,7 @@ internal object SyncNotification {
         val notification =
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_eidos)
-                .setContentTitle("正在同步 · $name")
+                .setContentTitle(tr("正在同步 · {0}", name))
                 .setContentText(phase)
                 .setContentIntent(
                     PendingIntent.getActivity(
@@ -63,7 +63,7 @@ internal object SyncNotification {
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setCategory(NotificationCompat.CATEGORY_PROGRESS)
                 .setProgress(0, 0, true)
-                .addAction(0, if (epoch == null) "取消同步" else "暂停自动同步", cancel)
+                .addAction(0, if (epoch == null) tr("取消同步") else tr("暂停自动同步"), cancel)
                 .build()
         val notificationId = workId.hashCode() and Int.MAX_VALUE
         return if (Build.VERSION.SDK_INT >= 29)
@@ -87,7 +87,7 @@ class SyncCancelReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 if (epoch != null)
-                    BackgroundSync.pauseAutomatic(context, spaceId, "已从通知暂停自动同步", epoch)
+                    BackgroundSync.pauseAutomatic(context, spaceId, tr("已从通知暂停自动同步"), epoch)
                 WorkManager.getInstance(context).cancelWorkById(id).result.get()
             } catch (_: Exception) {
                 android.util.Log.w(

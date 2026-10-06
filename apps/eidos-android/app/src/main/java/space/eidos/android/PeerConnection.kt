@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import javax.net.ssl.*
 import org.json.JSONObject
+import kotlinx.coroutines.*
 
 internal data class PeerInvitation(
     val url: String,
@@ -23,8 +24,8 @@ internal data class PeerInvitation(
 ) {
     companion object {
         fun parse(code: String): PeerInvitation {
-            require(code.length <= 8192) { "配对码过长" }
-            require(code.trim().startsWith("eidos-peer:")) { "请输入电脑显示的设备配对码" }
+            require(code.length <= 8192) { tr("配对码过长") }
+            require(code.trim().startsWith("eidos-peer:")) { tr("请输入电脑显示的设备配对码") }
             val value =
                 JSONObject(
                     String(
@@ -35,7 +36,7 @@ internal data class PeerInvitation(
                         Charsets.UTF_8,
                     )
                 )
-            require(value.getInt("version") == 1) { "不支持此配对版本" }
+            require(value.getInt("version") == 1) { tr("不支持此配对版本") }
             val uri = URI(value.getString("url"))
             require(
                 uri.scheme == "https" &&
@@ -46,11 +47,11 @@ internal data class PeerInvitation(
                     uri.rawFragment == null &&
                     uri.path.isNullOrEmpty()
             ) {
-                "无效的设备地址"
+                tr("无效的设备地址")
             }
             val fingerprint = value.getString("fingerprint")
-            require(fingerprint.matches(Regex("[a-f0-9]{64}"))) { "无效的设备指纹" }
-            require(value.getString("ticket").matches(Regex("[A-Za-z0-9_-]{43}"))) { "无效的配对凭据" }
+            require(fingerprint.matches(Regex("[a-f0-9]{64}"))) { tr("无效的设备指纹") }
+            require(value.getString("ticket").matches(Regex("[A-Za-z0-9_-]{43}"))) { tr("无效的配对凭据") }
             return PeerInvitation(
                 uri.toString(),
                 fingerprint,
@@ -72,10 +73,17 @@ internal class PeerConnection(
     val token: String,
     val name: String,
 ) {
+    private val requests = ConcurrentHashMap.newKeySet<HttpsURLConnection>()
+    internal suspend fun <T> cancellable(action: suspend () -> T): T = coroutineScope {
+        val watcher = launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() } finally { requests.forEach { it.disconnect() } }
+        }
+        try { action() } finally { withContext(NonCancellable) { watcher.cancelAndJoin() } }
+    }
     private val uri = URI(url)
     private val address: InetAddress =
         InetAddress.getByName(uri.host).also {
-            require(it.isSiteLocalAddress || it.isLoopbackAddress) { "第一版设备同步仅支持局域网" }
+            require(it.isSiteLocalAddress || it.isLoopbackAddress) { tr("第一版设备同步仅支持局域网") }
         }
     private val tls =
         SSLContext.getInstance("TLS").apply {
@@ -109,7 +117,7 @@ internal class PeerConnection(
                                     .digest(certificate.encoded)
                                     .joinToString("") { "%02x".format(it) }
                             if (actual != fingerprint)
-                                throw java.security.cert.CertificateException("设备身份已改变，请重新配对")
+                                throw java.security.cert.CertificateException(tr("设备身份已改变，请重新配对"))
                         }
                     }
                 ),
@@ -144,6 +152,7 @@ internal class PeerConnection(
         connection.doOutput = true
         connection.setRequestProperty("Authorization", "Bearer $token")
         connection.setRequestProperty("Content-Type", "application/json")
+        requests.add(connection)
         try {
             connection.outputStream.use { it.write(body.toString().toByteArray()) }
             if (BuildConfig.DEBUG)
@@ -159,9 +168,10 @@ internal class PeerConnection(
                     "PeerTiming",
                     "$route read ${android.os.SystemClock.elapsedRealtime() - started}ms",
                 )
-            check(status in 200..299) { result.optString("error", "设备连接失败 ($status)") }
+            check(status in 200..299) { result.optString("error", tr("设备连接失败 ({0})", status)) }
             return result
         } finally {
+            requests.remove(connection)
             connection.disconnect()
             if (BuildConfig.DEBUG)
                 android.util.Log.d(
@@ -212,52 +222,84 @@ internal class PeerConnection(
                         } catch (_: Exception) {
                             break
                         }
-                    if (!slots.tryAcquire()) {
-                        local.close()
-                        continue
-                    }
+                    // Keep concurrency bounded, but apply backpressure instead
+                    // of failing a valid request while an earlier socket closes.
+                    // Only this accept loop waits; no unbounded task queue forms.
                     sockets.add(local)
-                    executor.execute {
-                        var remote: SSLSocket? = null
-                        try {
-                            val started = android.os.SystemClock.elapsedRealtime()
-                            remote = socketFactory.createSocket() as SSLSocket
-                            sockets.add(remote)
-                            remote.connect(java.net.InetSocketAddress(address, uri.port), 10_000)
-                            if (BuildConfig.DEBUG)
-                                android.util.Log.d(
-                                    "PeerTiming",
-                                    "tunnel connected ${android.os.SystemClock.elapsedRealtime() - started}ms",
-                                )
-                            remote.soTimeout = 120_000
-                            local.soTimeout = 120_000
-                            remote.startHandshake()
-                            if (BuildConfig.DEBUG)
-                                android.util.Log.d(
-                                    "PeerTiming",
-                                    "tunnel TLS ${android.os.SystemClock.elapsedRealtime() - started}ms",
-                                )
-                            val upstream = remote
-                            executor.execute {
-                                try {
-                                    transfer(local.getInputStream(), upstream.outputStream, sent)
-                                } catch (_: Exception) {} finally {
-                                    runCatching { upstream.shutdownOutput() }
+                    try {
+                        slots.acquire()
+                    } catch (_: InterruptedException) {
+                        local.close()
+                        sockets.remove(local)
+                        break
+                    }
+                    if (listener.isClosed) {
+                        local.close()
+                        sockets.remove(local)
+                        slots.release()
+                        break
+                    }
+                    try {
+                        executor.execute {
+                            var remote: SSLSocket? = null
+                            try {
+                                // Relay headers and small range responses immediately;
+                                // neither leg should wait for Nagle/delayed ACKs.
+                                local.tcpNoDelay = true
+                                val started = android.os.SystemClock.elapsedRealtime()
+                                remote = socketFactory.createSocket() as SSLSocket
+                                remote.tcpNoDelay = true
+                                sockets.add(remote)
+                                remote.connect(java.net.InetSocketAddress(address, uri.port), 10_000)
+                                if (BuildConfig.DEBUG)
+                                    android.util.Log.d(
+                                        "PeerTiming",
+                                        "tunnel connected ${android.os.SystemClock.elapsedRealtime() - started}ms",
+                                    )
+                                remote.soTimeout = 120_000
+                                local.soTimeout = 120_000
+                                remote.startHandshake()
+                                if (BuildConfig.DEBUG)
+                                    android.util.Log.d(
+                                        "PeerTiming",
+                                        "tunnel TLS ${android.os.SystemClock.elapsedRealtime() - started}ms",
+                                    )
+                                val upstream = remote
+                                executor.execute {
+                                    try {
+                                        transfer(local.getInputStream(), upstream.outputStream, sent)
+                                    } catch (_: Exception) {} finally {
+                                        // A closed local HTTP connection has no further
+                                        // response consumer. Close both directions so the
+                                        // downstream read exits and releases its relay slot.
+                                        runCatching { upstream.close() }
+                                        runCatching { local.close() }
+                                    }
                                 }
+                                transfer(remote.inputStream, local.getOutputStream(), received)
+                            } catch (error: Exception) {
+                                if (BuildConfig.DEBUG && !local.isClosed && remote?.isClosed != true)
+                                    android.util.Log.d(
+                                        "PeerTiming",
+                                        "tunnel ${error.javaClass.simpleName}: ${error.message}",
+                                    )
+                                // Graft receives an interrupted transport and retains retryable
+                                // objects.
+                            } finally {
+                                local.close()
+                                sockets.remove(local)
+                                remote?.let {
+                                    it.close()
+                                    sockets.remove(it)
+                                }
+                                slots.release()
                             }
-                            transfer(remote.inputStream, local.getOutputStream(), received)
-                        } catch (_: Exception) {
-                            // Graft receives an interrupted transport and retains retryable
-                            // objects.
-                        } finally {
-                            local.close()
-                            sockets.remove(local)
-                            remote?.let {
-                                it.close()
-                                sockets.remove(it)
-                            }
-                            slots.release()
                         }
+                    } catch (_: java.util.concurrent.RejectedExecutionException) {
+                        local.close()
+                        sockets.remove(local)
+                        slots.release()
+                        break
                     }
                 }
             }
@@ -287,7 +329,7 @@ internal class PeerConnection(
     fun saveDevice(context: Context) {
         save(context, "device-$fingerprint")
         val preferences = context.getSharedPreferences("peer-devices", Context.MODE_PRIVATE)
-        check(preferences.edit().putString(fingerprint, name).commit()) { "无法保存设备" }
+        check(preferences.edit().putString(fingerprint, name).commit()) { tr("无法保存设备") }
     }
 
     fun spaces(timeoutMillis: Int = 120_000): List<PeerSpace> {
@@ -304,7 +346,7 @@ internal class PeerConnection(
                     endpoint.rawFragment == null &&
                     endpoint.path.isNullOrEmpty()
             ) {
-                "无效的 Space 地址"
+                tr("无效的 Space 地址")
             }
             PeerSpace(
                 value.getString("id"),
@@ -326,7 +368,7 @@ internal class PeerConnection(
                     try {
                         val candidate =
                             PeerConnection(url, saved.fingerprint, saved.token, saved.name)
-                        val spaces = candidate.spaces(timeoutMillis = 2000)
+                        val spaces = candidate.cancellable { candidate.spaces(timeoutMillis = 2000) }
                         if (remoteSpace == null) candidate
                         else
                             spaces
@@ -347,9 +389,11 @@ internal class PeerConnection(
                         null
                     }
                 }
+            val device = load(context, "device-${saved.fingerprint}")
             return verify(saved.url)
+                ?: device?.takeIf { it.fingerprint == saved.fingerprint && it.url != saved.url }?.let { verify(it.url) }
                 ?: PeerDiscovery.find(context, saved.fingerprint, remoteSpace, ::verify)
-                ?: error("未找到已配对电脑。请确认在同一局域网，且电脑已开启此 Space 的设备同步")
+                ?: error(tr("未找到已配对电脑。请确认在同一局域网，且电脑已开启此 Space 的设备同步"))
         }
 
         fun devices(context: Context): List<PeerDevice> =

@@ -61,15 +61,8 @@ class SpaceSwitchTest {
             assertEquals("甲的收藏", model!!.state.value.favorites.single().name)
             assertEquals("甲的内容", model!!.repository.readText(path).text)
             val file = repository.file(path)
-            compose.runOnUiThread { model!!.open(file) }
-            compose.waitUntil(15_000) {
-                model?.state?.value?.document != null && model?.state?.value?.busy == false
-            }
-            compose.runOnUiThread {
-                model!!.edit()
-                model!!.textChanged("甲的未提交草稿")
-                model!!.switchSpace(second)
-            }
+            repository.saveDraft(repository.readText(path).copy(text = "甲的未提交草稿"))
+            compose.runOnUiThread { model!!.switchSpace(second) }
             compose.waitUntil(15_000) {
                 model?.state?.value?.spaceId == second && model?.state?.value?.busy == false
             }
@@ -78,7 +71,7 @@ class SpaceSwitchTest {
             val recovered = SpaceRepository(app, first.id).readText(path)
             assertTrue(recovered.recovered)
             assertEquals("甲的未提交草稿", recovered.text)
-            assertNull(model!!.state.value.document)
+            assertNull(model!!.state.value.webFile)
             assertEquals("local", model!!.state.value.graft?.syncStatus)
             assertNull(model!!.state.value.graft?.remoteUrl)
             assertTrue(model!!.state.value.matches.isEmpty())

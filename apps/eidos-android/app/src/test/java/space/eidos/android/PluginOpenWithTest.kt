@@ -21,6 +21,18 @@ class PluginOpenWithTest {
     }
 
     @Test
+    fun installedFileViewsCanOpenEidosFiles() {
+        val databaseView = view.copy(
+            id = "local.database/main", extensions = setOf(".eidos"),
+            document = false, revision = "verified-package",
+        )
+        val installed = PluginOpenWithRegistry(listOf(databaseView))
+        assertEquals(listOf(databaseView), installed.candidates(file("books.EIDOS")))
+        assertTrue(installed.candidates(file("notes.md")).isEmpty())
+        assertTrue(installed.candidates(file("folder.eidos", true)).isEmpty())
+    }
+
+    @Test
     fun rejectsStaleSelectionsAndEscapingPaths() {
         for (path in listOf("../a.txt", "/a.txt", "a/../b.txt", "a\\b.txt", "a//b.txt")) assertTrue(
             registry.candidates(file(path)).isEmpty()

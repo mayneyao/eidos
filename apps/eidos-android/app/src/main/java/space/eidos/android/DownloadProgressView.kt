@@ -20,12 +20,12 @@ internal fun DownloadProgressView(progress: DownloadProgress?) {
         LoadingIndicator(progress != null)
         if (progress != null) {
             Text(
-                progress.stage,
+                tr(progress.stage),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             Text(
-                "已接收 " +
+                tr("已接收 ") +
                     android.text.format.Formatter.formatFileSize(
                         LocalContext.current,
                         progress.receivedBytes,

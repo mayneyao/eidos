@@ -36,7 +36,7 @@ object PluginMarketTransport {
         while (true) {
             val count = input.read(buffer)
             if (count < 0) return output.toByteArray()
-            require(output.size() + count <= limit) { "插件数据超过大小限制" }
+            require(output.size() + count <= limit) { tr("插件数据超过大小限制") }
             output.write(buffer, 0, count)
         }
     }
@@ -45,8 +45,8 @@ object PluginMarketTransport {
         var url = initial
         val deadline = System.nanoTime() + 30_000_000_000L
         repeat(5) {
-            require(trusted(url)) { "不受信任的插件下载地址" }
-            check(System.nanoTime() < deadline) { "插件下载超时" }
+            require(trusted(url)) { tr("不受信任的插件下载地址") }
+            check(System.nanoTime() < deadline) { tr("插件下载超时") }
             val connection = URI(url).toURL().openConnection() as HttpURLConnection
             try {
                 connection.instanceFollowRedirects = false
@@ -62,7 +62,7 @@ object PluginMarketTransport {
                         url =
                             URI(url)
                                 .resolve(
-                                    connection.getHeaderField("Location") ?: error("下载重定向缺少地址")
+                                    connection.getHeaderField("Location") ?: error(tr("下载重定向缺少地址"))
                                 )
                                 .toString()
                     }
@@ -75,27 +75,27 @@ object PluginMarketTransport {
                                         offset: Int,
                                         length: Int,
                                     ): Int {
-                                        check(System.nanoTime() < deadline) { "插件下载超时" }
+                                        check(System.nanoTime() < deadline) { tr("插件下载超时") }
                                         return super.read(bytes, offset, length)
                                     }
                                 },
                                 limit,
                             )
                         }
-                    else -> error("插件下载失败：HTTP ${connection.responseCode}")
+                    else -> error(tr("插件下载失败：HTTP {0}", connection.responseCode))
                 }
             } finally {
                 connection.disconnect()
             }
         }
-        error("插件下载重定向过多")
+        error(tr("插件下载重定向过多"))
     }
 
     fun hash(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     fun unpack(bytes: ByteArray): String {
-        require(bytes.size <= packageLimit) { "插件包超过 16 MiB" }
+        require(bytes.size <= packageLimit) { tr("插件包超过 16 MiB") }
         val raw = GZIPInputStream(bytes.inputStream()).use { bounded(it, packageLimit) }
         return Charsets.UTF_8.newDecoder()
             .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)

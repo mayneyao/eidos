@@ -36,10 +36,12 @@ class ShareFormDraftTest {
             }
             withContext(Dispatchers.Main) { restored.openShareTable(path, table.id) }
             withTimeout(15_000) { restored.state.first { !it.busy && it.shareRecord != null } }
-            withContext(Dispatchers.Main) {
-                restored.saveShareRecord(mapOf(table.labelFieldId to "未提交分享"))
+            val result = runCatching {
+                withContext(Dispatchers.Main) {
+                    restored.saveShareRecord(mapOf(table.labelFieldId to "未提交分享"))
+                }
             }
-            withTimeout(15_000) { restored.state.first { !it.busy && it.error != null } }
+            assertTrue(result.isFailure)
             assertEquals("后来新增", repo.loadEidos(path).rows.single().values[table.labelFieldId])
             assertEquals(original.revision, inbox.pending().single().form?.revision)
             assertEquals(values, inbox.pending().single().form?.changes)
@@ -60,32 +62,46 @@ class ShareFormDraftTest {
         try {
             val first = ShareForm("one.eidos", "table", "old-revision", "{}", "first-file-field")
             inbox.ensureForm(share.id, first)
-            val store = ShareFormDraftStore(inbox, share.id)
             val values = JSONObject().put("title", "draft").put("empty", JSONObject.NULL).toString()
-            store.save(first.path, first.table, null, RecordDraft(first.revision, values))
+            inbox.updateForm(
+                share.id,
+                first.path,
+                first.table,
+                draft = RecordDraft(first.revision, values),
+            )
             inbox.updateForm(
                 share.id,
                 first.path,
                 first.table,
                 attachmentField = "second-file-field",
             )
-            store.save(first.path, first.table, null, RecordDraft(first.revision, values))
+            inbox.updateForm(
+                share.id,
+                first.path,
+                first.table,
+                draft = RecordDraft(first.revision, values),
+            )
             val second = first.copy(path = "two.eidos", revision = "another-revision")
             inbox.ensureForm(share.id, second)
-            assertEquals("{}", store.load(second.path, second.table, null)?.changes)
+            assertEquals("{}", inbox.form(share.id, second.path, second.table)?.changes)
             val restored =
                 ShareInbox(context, id).ensureForm(share.id, first.copy(revision = "new-revision"))
             assertEquals("old-revision", restored.revision)
             assertEquals(values, restored.changes)
             assertEquals("second-file-field", restored.attachmentField)
             assertEquals(restored, ShareInbox(context, id).pending().single().form)
-            store.clear(first.path, first.table, null)
-            assertNull(store.load(first.path, first.table, null))
-            assertNotNull(store.load(second.path, second.table, null))
+            inbox.clearForm(share.id, first.path, first.table)
+            assertNull(inbox.form(share.id, first.path, first.table))
+            assertNotNull(inbox.form(share.id, second.path, second.table))
             inbox.markSubmitting(share.id, true)
             assertTrue(
                 runCatching {
-                        store.save(second.path, second.table, null, RecordDraft("revision", "{}"))
+                        inbox.updateForm(
+                            share.id,
+                            second.path,
+                            second.table,
+                            draft = RecordDraft("revision", "{}"),
+                        )
                     }
                     .isFailure
             )

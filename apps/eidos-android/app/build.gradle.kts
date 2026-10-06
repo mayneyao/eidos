@@ -15,7 +15,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "space.eidos.android.EidosTestRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
     buildTypes { debug { applicationIdSuffix = ".dev" } }
@@ -30,6 +30,7 @@ android {
     sourceSets["main"].jniLibs.directories.add("build/native/jniLibs")
     sourceSets["main"].assets.directories.add("build/editor-assets")
     sourceSets["main"].assets.directories.add("build/plugin-assets")
+    sourceSets["main"].assets.directories.add(rootProject.file("../../packages/mobile-plugin-host/locales").path)
     packaging { jniLibs.useLegacyPackaging = false }
 }
 
@@ -48,6 +49,8 @@ val buildNative =
         inputs.file(rootProject.file("../cli/qjs-host/Cargo.toml"))
         inputs.file(rootProject.file("../cli/qjs-host/build.rs"))
         inputs.file(rootProject.file("scripts/build-native.sh"))
+        inputs.file(rootProject.file("../../scripts/prepare-mobile-native.mjs"))
+        inputs.file(rootProject.file("patches/graft-android-runtime.patch"))
         outputs.dir(layout.buildDirectory.dir("native/jniLibs"))
     }
 
@@ -62,6 +65,9 @@ val buildWebEditor = tasks.register<Exec>("buildWebEditor") {
     inputs.dir(rootProject.file("../../packages/eidos-file/src"))
     inputs.dir(rootProject.file("../../packages/markdown/src"))
     inputs.dir(rootProject.file("../../packages/eidos-file-serve/src"))
+    inputs.dir(rootProject.file("../../packages/mobile-plugin-host/src"))
+    inputs.dir(rootProject.file("../../packages/mobile-plugin-host/locales"))
+    inputs.dir(rootProject.file("../../packages/plugin-runtime/src"))
     outputs.dir(layout.buildDirectory.dir("editor-assets"))
 }
 tasks.named("preBuild") { dependsOn(buildWebEditor) }
@@ -82,6 +88,7 @@ val buildPlugins = tasks.register<Exec>("buildPlugins") {
     inputs.dir(rootProject.file("plugins"))
     inputs.file(rootProject.file("scripts/build-plugins.mjs"))
     inputs.dir(rootProject.file("../../packages/plugin-runtime/src"))
+    inputs.dir(rootProject.file("../../packages/mobile-plugin-host/src"))
     inputs.dir(rootProject.file("../../packages/plugin-sdk/src"))
     inputs.file(rootProject.file("../../pnpm-lock.yaml"))
     outputs.dir(layout.buildDirectory.dir("plugin-assets"))
@@ -133,14 +140,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("io.noties.markwon:core:4.6.2")
     // Source spans keep native task toggles tied to exact Markdown characters.
     implementation("com.atlassian.commonmark:commonmark:0.17.0")
     implementation("com.atlassian.commonmark:commonmark-ext-gfm-tables:0.17.0")
     implementation("com.atlassian.commonmark:commonmark-ext-gfm-strikethrough:0.17.0")
-    implementation("io.noties.markwon:image:4.6.2")
-    implementation("io.noties.markwon:ext-tables:4.6.2")
-    implementation("io.noties.markwon:ext-strikethrough:4.6.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

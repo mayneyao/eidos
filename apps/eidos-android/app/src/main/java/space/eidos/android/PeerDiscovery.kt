@@ -77,6 +77,10 @@ internal object PeerDiscovery {
                                         if (continuation.isActive) continuation.resume(info)
                                     }
                                 }
+                            continuation.invokeOnCancellation {
+                                if (android.os.Build.VERSION.SDK_INT >= 34)
+                                    runCatching { manager.stopServiceResolution(resolver) }
+                            }
                             try {
                                 manager.resolveService(service, resolver)
                             } catch (_: Exception) {

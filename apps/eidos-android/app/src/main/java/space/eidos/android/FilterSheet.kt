@@ -18,16 +18,16 @@ private data class FilterDraft(
 
 private val operatorNames =
     linkedMapOf(
-        "is-not-null" to "不为空",
-        "is-null" to "为空",
-        "eq" to "等于",
-        "ne" to "不等于",
-        "contains" to "包含",
-        "starts-with" to "开头是",
-        "gt" to "大于",
-        "gte" to "大于等于",
-        "lt" to "小于",
-        "lte" to "小于等于",
+        "is-not-null" to tr("不为空"),
+        "is-null" to tr("为空"),
+        "eq" to tr("等于"),
+        "ne" to tr("不等于"),
+        "contains" to tr("包含"),
+        "starts-with" to tr("开头是"),
+        "gt" to tr("大于"),
+        "gte" to tr("大于等于"),
+        "lt" to tr("小于"),
+        "lte" to tr("小于等于"),
     )
 
 @Composable
@@ -75,9 +75,9 @@ internal fun FilterSheet(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("筛选", style = MaterialTheme.typography.titleLarge)
+            Text(tr("筛选"), style = MaterialTheme.typography.titleLarge)
             Text(
-                if (page.view == null) "显示满足所有条件的记录" else "在已保存视图的基础上，追加以下条件",
+                if (page.view == null) tr("显示满足所有条件的记录") else tr("在已保存视图的基础上，追加以下条件"),
                 style = MaterialTheme.typography.bodySmall,
             )
             drafts.forEachIndexed { index, draft ->
@@ -88,7 +88,7 @@ internal fun FilterSheet(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChoice(
-                        field?.name ?: "字段已不存在",
+                        field?.name ?: tr("字段已不存在"),
                         page.fields.map { it.id to it.name },
                         enabled,
                     ) {
@@ -122,8 +122,8 @@ internal fun FilterSheet(
                     if (draft.op !in setOf("is-null", "is-not-null")) {
                         if (field?.valueType == "checkbox")
                             FilterChoice(
-                                if (draft.text == "true") "是" else "否",
-                                listOf("true" to "是", "false" to "否"),
+                                if (draft.text == "true") tr("是") else tr("否"),
+                                listOf("true" to tr("是"), "false" to tr("否")),
                                 enabled,
                             ) {
                                 update(draft.copy(text = it))
@@ -132,7 +132,7 @@ internal fun FilterSheet(
                             OutlinedTextField(
                                 draft.text,
                                 { update(draft.copy(text = it)) },
-                                label = { Text("比较值") },
+                                label = { Text(tr("比较值")) },
                                 enabled = enabled,
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -143,7 +143,7 @@ internal fun FilterSheet(
                         },
                         enabled = enabled,
                     ) {
-                        Text("移除此条件")
+                        Text(tr("移除此条件"))
                     }
                     HorizontalDivider()
                 }
@@ -154,7 +154,7 @@ internal fun FilterSheet(
                 },
                 enabled = enabled && page.fields.isNotEmpty(),
             ) {
-                Text("添加条件")
+                Text(tr("添加条件"))
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
@@ -163,7 +163,7 @@ internal fun FilterSheet(
                         drafts.map { draft ->
                             val field =
                                 checkNotNull(page.fields.find { it.id == draft.field }) {
-                                    "请选择可用字段"
+                                    tr("请选择可用字段")
                                 }
                             val value: Any? =
                                 if (draft.op in setOf("is-null", "is-not-null")) null
@@ -175,7 +175,7 @@ internal fun FilterSheet(
                                                     it.isFinite()
                                                 }
                                             ) {
-                                                "${field.name}：请输入有效数字"
+                                                tr("{0}：请输入有效数字", field.name)
                                             }
                                         "checkbox" -> draft.text == "true"
                                         else -> draft.text
@@ -188,9 +188,9 @@ internal fun FilterSheet(
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("应用筛选")
+                Text(tr("应用筛选"))
             }
-            TextButton(onClick = { apply(emptyList()) }, enabled = enabled) { Text("清除筛选") }
+            TextButton(onClick = { apply(emptyList()) }, enabled = enabled) { Text(tr("清除筛选")) }
         }
     }
 }

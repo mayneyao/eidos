@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <meta name="eidos-locale" content="__EIDOS_LOCALE__" />
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- Runs before module imports, including when the module graph fails to load. -->
+    <script>
+      ;(function () {
+        var started = false
+        var ready = false
+        var failed = false
+        var panel = document.createElement("div")
+        panel.style.cssText =
+          "padding:24px;font:14px/1.7 sans-serif;color:#242427;background:#fafafa;overflow-wrap:anywhere"
+        panel.textContent = "正在启动插件页面…"
+        document.body.insertBefore(panel, document.getElementById("app"))
+        function fail(message) {
+          failed = true
+          panel.hidden = false
+          panel.replaceChildren()
+          var title = document.createElement("strong")
+          title.textContent = "插件页面未能启动"
+          var detail = document.createElement("p")
+          detail.textContent = String(message)
+          var version = document.createElement("p")
+          version.textContent = navigator.userAgent
+          var retry = document.createElement("button")
+          retry.textContent = "重新加载"
+          retry.style.cssText = "min-height:44px;padding:8px 16px"
+          retry.onclick = function () {
+            location.reload()
+          }
+          panel.append(title, detail, version, retry)
+        }
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event.target
+            if (target && target.tagName === "SCRIPT") {
+              fail("脚本加载失败：" + (target.src || "内联脚本"))
+            } else if (event.message) {
+              fail(
+                event.message +
+                  "\n" +
+                  (event.filename || "") +
+                  ":" +
+                  (event.lineno || "")
+              )
+            }
+          },
+          true
+        )
+        window.addEventListener("unhandledrejection", function (event) {
+          fail((event.reason && event.reason.message) || String(event.reason))
+        })
+        window.addEventListener("eidos-mobile-ready", function () {
+          ready = true
+        })
+        window.addEventListener("eidos-mobile-started", function () {
+          started = true
+          panel.hidden = true
+        })
+        setTimeout(function () {
+          if (!started && !failed)
+            fail(
+              ready
+                ? "脚本已加载，但未收到 Android 宿主的启动信号。"
+                : "启动脚本未就绪。请记录此信息及下方 WebView 版本。"
+            )
+        }, 15000)
+      })()
+    </script>
+    <script type="module" src="./plugins.ts"></script>
+  </body>
+</html>

@@ -75,7 +75,7 @@ internal class PublicationStore(context: Context, space: String, private val sub
                 )
                 .commit()
         ) {
-            "无法保存发布记录"
+            tr("无法保存发布记录")
         }
     }
 }
@@ -112,7 +112,7 @@ internal object NativePublish {
         try {
             val result = JSONObject(execute(root, method, request.toString()))
             result.optJSONObject("publication")?.let(bind)
-            check(result.getBoolean("ok")) { result.optString("error", "发布失败，请重试") }
+            check(result.getBoolean("ok")) { result.optString("error", tr("发布失败，请重试")) }
             result.optJSONObject("value") ?: JSONObject()
         } finally {
             watcher.cancelAndJoin()

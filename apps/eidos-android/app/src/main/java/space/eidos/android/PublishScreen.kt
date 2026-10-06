@@ -40,10 +40,10 @@ fun PublishScreen(state: AppState, model: EidosModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (binding == null) "发布" else "管理发布") },
+                title = { Text(if (binding == null) tr("发布") else tr("管理发布")) },
                 navigationIcon = {
                     IconButton(onClick = model::closePublish, enabled = !state.busy) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回文件")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, tr("返回文件"))
                     }
                 },
             )
@@ -61,13 +61,13 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                 modifier = Modifier.padding(top = 16.dp),
             )
             Text(
-                "将当前文件和引用的本地附件发布到网页。修改本地文件后，需要再次发布才会更新网页。",
+                tr("将当前文件和引用的本地附件发布到网页。修改本地文件后，需要再次发布才会更新网页。"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
             )
             if (state.account == null) {
-                Text("登录 Eidos 账号后即可发布。")
+                Text(tr("登录 Eidos 账号后即可发布。"))
                 Button(
                     onClick = {
                         model.signIn { context.startActivity(Intent(Intent.ACTION_VIEW, it)) }
@@ -75,7 +75,7 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                     enabled = !state.busy,
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 ) {
-                    Text("登录 Eidos")
+                    Text(tr("登录 Eidos"))
                 }
             } else {
                 Text(
@@ -85,11 +85,11 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (BuildConfig.DEBUG)
-                    Text("Staging · 开发环境", style = MaterialTheme.typography.labelSmall)
+                    Text(tr("Staging · 开发环境"), style = MaterialTheme.typography.labelSmall)
                 HorizontalDivider(Modifier.padding(vertical = 20.dp))
                 if (binding != null) {
                     Text(
-                        if (binding.active) "网页已发布" else "网页未发布",
+                        if (binding.active) tr("网页已发布") else tr("网页未发布"),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
@@ -103,11 +103,11 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                                 onClick = {
                                     (context.getSystemService(Context.CLIPBOARD_SERVICE)
                                             as ClipboardManager)
-                                        .setPrimaryClip(ClipData.newPlainText("发布链接", binding.url))
+                                        .setPrimaryClip(ClipData.newPlainText(tr("发布链接"), binding.url))
                                     copied = true
                                 }
                             ) {
-                                Text(if (copied) "已复制" else "复制链接")
+                                Text(if (copied) tr("已复制") else tr("复制链接"))
                             }
                             TextButton(
                                 onClick = {
@@ -117,12 +117,12 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                                                 type = "text/plain"
                                                 putExtra(Intent.EXTRA_TEXT, binding.url)
                                             },
-                                            "分享发布链接",
+                                            tr("分享发布链接"),
                                         )
                                     )
                                 }
                             ) {
-                                Text("分享")
+                                Text(tr("分享"))
                             }
                         }
                     HorizontalDivider(Modifier.padding(vertical = 16.dp))
@@ -130,20 +130,20 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                     OutlinedTextField(
                         value = slug,
                         onValueChange = { slug = it },
-                        label = { Text("发布路径") },
-                        supportingText = { Text(page.host?.let { "https://$it/" } ?: "正在获取发布地址") },
+                        label = { Text(tr("发布路径")) },
+                        supportingText = { Text(page.host?.let { "https://$it/" } ?: tr("正在获取发布地址")) },
                         enabled = page.ready && !state.busy,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 Text(
-                    "谁可以访问",
+                    tr("谁可以访问"),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("public" to "所有人", "password" to "持有密码", "private" to "仅自己").forEach {
+                    listOf("public" to tr("所有人"), "password" to tr("持有密码"), "private" to tr("仅自己")).forEach {
                         (value, label) ->
                         FilterChip(
                             selected = access == value,
@@ -158,9 +158,9 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                 }
                 Text(
                     when (access) {
-                        "private" -> "需要登录当前 Eidos 账号才能打开网页。"
-                        "password" -> "访问者需要输入密码才能打开网页。"
-                        else -> "任何拿到链接的人都可以访问。"
+                        "private" -> tr("需要登录当前 Eidos 账号才能打开网页。")
+                        "password" -> tr("访问者需要输入密码才能打开网页。")
+                        else -> tr("任何拿到链接的人都可以访问。")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -170,9 +170,9 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                         value = password,
                         onValueChange = { password = it },
                         label = {
-                            Text(if (binding?.access == "password") "新密码（留空保留原密码）" else "访问密码")
+                            Text(if (binding?.access == "password") tr("新密码（留空保留原密码）") else tr("访问密码"))
                         },
-                        supportingText = { Text("8–128 个字符") },
+                        supportingText = { Text(tr("8–128 个字符")) },
                         visualTransformation = PasswordVisualTransformation(),
                         enabled = !state.busy,
                         singleLine = true,
@@ -180,8 +180,8 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                     )
                 if (page.plan == "free")
                     Text(
-                        if (page.file.eidos) "发布 .eidos 文件需要 Publish Pro。"
-                        else "密码访问和私有网页需要 Publish Pro。",
+                        if (page.file.eidos) tr("发布 .eidos 文件需要 Publish Pro。")
+                        else tr("密码访问和私有网页需要 Publish Pro。"),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 16.dp),
                     )
@@ -201,13 +201,13 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                         Text(
                             if (bytes)
                                 "${event!!.optString("currentBytes")} / ${event.optString("totalBytes")} bytes"
-                            else "正在准备或发布，请保持应用打开…",
+                            else tr("正在准备或发布，请保持应用打开…"),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     } else if (page.complete)
                         Text(
-                            if (binding?.active == true) "发布完成，链接已更新。" else "已取消发布，本地文件仍保留。",
+                            if (binding?.active == true) tr("发布完成，链接已更新。") else tr("已取消发布，本地文件仍保留。"),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                 }
@@ -223,7 +223,7 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                         onClick = model::refreshPublish,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("重新加载")
+                        Text(tr("重新加载"))
                     }
                 Button(
                     onClick = {
@@ -248,7 +248,7 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                                 (password.isEmpty() && binding?.access == "password")),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (binding?.active == true) "更新网页" else "发布网页")
+                    Text(if (binding?.active == true) tr("更新网页") else tr("发布网页"))
                 }
                 if (binding?.active == true)
                     TextButton(
@@ -256,7 +256,7 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                         enabled = !state.busy,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("取消发布")
+                        Text(tr("取消发布"))
                     }
             }
             Spacer(Modifier.height(24.dp))
@@ -265,8 +265,8 @@ fun PublishScreen(state: AppState, model: EidosModel) {
     if (confirmRemoval)
         AlertDialog(
             onDismissRequest = { confirmRemoval = false },
-            title = { Text("取消发布？") },
-            text = { Text("链接将无法访问。本地文件不会被删除。") },
+            title = { Text(tr("取消发布？")) },
+            text = { Text(tr("链接将无法访问。本地文件不会被删除。")) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -279,9 +279,9 @@ fun PublishScreen(state: AppState, model: EidosModel) {
                         )
                     }
                 ) {
-                    Text("取消发布")
+                    Text(tr("取消发布"))
                 }
             },
-            dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text("保留网页") } },
+            dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text(tr("保留网页")) } },
         )
 }

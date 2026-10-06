@@ -1,8 +1,31 @@
-import { useEffect, useRef, useState } from "react"
+import {
+  mobileText,
+  getMobileLocale,
+  subscribeMobileLocale,
+} from "../../../packages/mobile-plugin-host/src/locale"
+import { ShareRecordEditor } from "./share-record"
+import {
+  MobileRecordPage,
+  useMobileRecordRoute,
+} from "@eidos.space/eidos-file-ui/mobile-record-route"
+import {
+  MobileRecordSearch,
+  MobileNewViewButton,
+  MobileViewSwitcher,
+  MobileTableSwitcher,
+  MobileNewRecordButton,
+} from "@eidos.space/eidos-file-ui/mobile-toolbar"
+import { MobileViewSettings } from "@eidos.space/eidos-file-ui/mobile-view-settings"
+import { nextEidosFileViewName } from "@eidos.space/eidos-file-ui/eidos-file-view-name"
+import { handleMobileBack } from "@eidos.space/eidos-file-ui/mobile-back"
+import { useMobileTableHeader } from "@eidos.space/eidos-file-ui/mobile-table-header"
+import { MobileTableSettings } from "@eidos.space/eidos-file-ui/mobile-table-settings"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createRoot } from "react-dom/client"
-import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+import type { EidosFileSnapshot, FileEntry } from "@eidos.space/eidos-file"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import { createMobileAssets } from "@eidos.space/eidos-file-ui/mobile-assets"
 import { EidosFileRelatedRecordPanel } from "@eidos.space/eidos-file-ui/eidos-file-related-record-panel"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
@@ -12,8 +35,12 @@ import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
 import { createEidosFilePluginRegistry } from "@eidos.space/eidos-file-ui/plugin"
 import { HttpRuntimeClient } from "@eidos.space/eidos-file-serve"
 import { BrowserEidosFileEditorView } from "@eidos.space/eidos-file-serve/record-view"
-import { RecordContentProvider } from "@eidos.space/eidos-file-serve/record-content"
+import {
+  RecordContentProvider,
+  getMobileMarkdownOptions,
+} from "@eidos.space/eidos-file-serve/record-content"
 import { MarkdownEditor } from "@eidos.space/markdown"
+import { useMobilePlugins } from "@eidos.space/eidos-file-ui/mobile-plugins"
 import { eidosPreset } from "@eidos.space/markdown/presets"
 import {
   createRequest,
@@ -25,6 +52,11 @@ import "./style.css"
 
 type Document = {
   path: string
+  tableId?: string
+  query?: string
+  addRecord?: boolean
+  share?: boolean
+  recordPath?: string
   kind: "markdown" | "eidos"
   text?: string
   digest?: string
@@ -48,7 +80,6 @@ const viewTypes = {
   form: "表单",
   feed: "动态",
 }
-const viewRegistry = createEidosFilePluginRegistry(viewPlugins)
 
 function Markdown({
   document,
@@ -59,6 +90,7 @@ function Markdown({
   request: BridgeRequest
   session: string
 }) {
+  useMobilePlugins(request, true)
   const [text, setText] = useState(document.text ?? "")
   const [error, setError] = useState("")
   const digest = useRef(document.digest!)
@@ -116,6 +148,7 @@ function Markdown({
         throw error
       })
     window.eidosLeave = (mode) => {
+      if (mode === "back" && handleMobileBack()) return
       void finish()
         .then(() => request("leave", { mode }))
         .catch((error) => setError(errorText(error)))
@@ -135,7 +168,7 @@ function Markdown({
               void flush().catch((error) => setError(errorText(error)))
             }
           >
-            重试保存
+            {mobileText("重试保存")}
           </button>
         </div>
       )}
@@ -150,27 +183,21 @@ function Markdown({
           theme={document.dark ? "dark" : "light"}
           layout="embedded"
           autoFocus
-          toolbarMode="mobile"
-          interactions={{
-            toolbar: true,
-            blockDrag: false,
-            blockSelection: false,
-            insertMenu: true,
+          {...getMobileMarkdownOptions(getMobileLocale())}
+          onDismissKeyboard={() => {
+            void request("keyboard.hide").catch(() => {})
           }}
-          labels={{
-            bold: "加粗",
-            italic: "斜体",
-            strikethrough: "删除线",
-            highlight: "高亮",
-            inlineCode: "行内代码",
-            undo: "撤销",
-            redo: "重做",
-            heading2: "二级标题",
-            quote: "引用",
-            bulletList: "无序列表",
-            checkList: "待办列表",
+          ariaLabel={mobileText("Markdown 编辑器")}
+          onImportFiles={async ({ kind }) => {
+            const files = await request<
+              Pick<FileEntry, "uri" | "name" | "mediaType">[]
+            >("files.import", { imagesOnly: kind === "image" })
+            return files.map((file) => ({
+              markdownUrl: file.uri,
+              name: file.name,
+              mediaType: file.mediaType,
+            }))
           }}
-          ariaLabel="Markdown 编辑器"
           baseUri={`https://appassets.androidplatform.net/document/${session}/`}
           resolveImageUrl={async ({ markdownUrl }) => {
             const url = new URL(
@@ -182,7 +209,14 @@ function Markdown({
               ? url.href
               : null
           }}
-          onOpenExternalUrl={(url) => request<void>("openLink", { url })}
+          onOpenExternalUrl={async (url) => {
+            await finish()
+            await request<void>("openLink", { url })
+          }}
+          onOpenInternalLink={async ({ target }) => {
+            await finish()
+            await request<void>("openLink", { url: target })
+          }}
           onError={(error) => setError(error.message)}
         />
       </div>
@@ -191,21 +225,47 @@ function Markdown({
 }
 
 function Database({
+  filePath,
+  navigation,
   source,
   initialSnapshot,
   request,
+  importFiles,
 }: {
+  filePath: string
+  navigation: Document
   source: EidosRuntimeEditorDataSource
   initialSnapshot: EidosFileSnapshot
   request: BridgeRequest
+  importFiles: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
 }) {
+  const mobilePlugins = useMobilePlugins(request)
+  const plugins = [...viewPlugins, ...mobilePlugins]
+  const viewRegistry = createEidosFilePluginRegistry(plugins)
+  const availableViewTypes: Record<string, string> = {
+    ...Object.fromEntries(
+      Object.entries(viewTypes).map(([key, label]) => [key, mobileText(label)])
+    ),
+    ...Object.fromEntries(
+      mobilePlugins.flatMap((p) => p.views ?? []).map((v) => [v.type, v.label])
+    ),
+  }
   const [snapshot, setSnapshot] = useState(initialSnapshot)
-  const [tableId, setTable] = useState("")
-  const [search, setSearch] = useState("")
+  const [tableId, setTable] = useState(navigation.tableId ?? "")
+  const [search, setSearch] = useState(navigation.query ?? "")
   const [error, setError] = useState("")
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false)
-  const [record, setRecord] = useState<string | null>(null)
+  const recordRoute = useMobileRecordRoute(
+    filePath,
+    (active) => request("editor.recordPage", { active }),
+    (error) => setError(errorText(error))
+  )
+  const record = recordRoute.route?.rowId ?? null
+  const setRecord = (id: string | null) => {
+    if (id && table) recordRoute.open(table.table.id, id)
+    else recordRoute.close()
+  }
   const [viewId, setViewId] = useState("")
   const load = () =>
     source
@@ -224,6 +284,7 @@ function Database({
         throw error
       })
     window.eidosLeave = (mode) => {
+      if (mode === "back" && handleMobileBack()) return
       void finish()
         .then(() => request("leave", { mode }))
         .catch((error) => setError(errorText(error)))
@@ -232,123 +293,237 @@ function Database({
       delete window.eidosFlush
     }
   }, [source, request])
-  const table =
-    snapshot?.tables.find((value) => value.table.id === tableId) ??
-    snapshot?.tables[0]
+  const table = tableId
+    ? snapshot.tables.find((value) => value.table.id === tableId)
+    : snapshot.tables[0]
+  const createdInitial = useRef(false)
+  useEffect(() => {
+    if (!navigation.addRecord || !table || createdInitial.current) return
+    createdInitial.current = true
+    setBusy(true)
+    void source
+      .insertRow(table.table.id, {})
+      .then(async (result) => {
+        setSnapshot(await source.getSnapshot())
+        recordRoute.open(table.table.id, String(result.row._id))
+        setReload((value) => value + 1)
+      })
+      .catch((error) => setError(errorText(error)))
+      .finally(() => setBusy(false))
+  }, [navigation.addRecord, table?.table.id])
+  const recordTable = snapshot.tables.find(
+    (item) => item.table.id === recordRoute.route?.tableId
+  )
+  const rememberedViews = useRef(new Map<string, string>())
+  useEffect(() => {
+    if (table?.table.id && viewId)
+      rememberedViews.current.set(table.table.id, viewId)
+  }, [table?.table.id, viewId])
   const view =
     table?.views.find((value) => value.id === viewId) ?? table?.views[0]
+  useMobileTableHeader(
+    snapshot.tables,
+    table?.table.id,
+    async (id) => {
+      if (busy) return
+      if (window.document.activeElement instanceof HTMLElement)
+        window.document.activeElement.blur()
+      await drainRequests()
+      setRecord(null)
+      setSearch("")
+      setTable(id)
+      setViewId(rememberedViews.current.get(id) ?? "")
+    },
+    request,
+    (error) => setError(errorText(error))
+  )
   return (
-    <main className="database-page">
-      <div className="tools">
-        <select
-          aria-label="数据表"
-          value={table?.table.id ?? ""}
-          onChange={(event) => {
-            setRecord(null)
-            setTable(event.target.value)
-            setViewId("")
+    <main
+      className="database-page"
+      style={
+        record ? { visibility: "hidden", pointerEvents: "none" } : undefined
+      }
+      aria-hidden={record ? true : undefined}
+    >
+      {tableId && !table && (
+        <p role="alert">{mobileText("数据表已不存在，请选择其他数据表。")}</p>
+      )}
+      {record && (
+        <RecordContentProvider
+          onDismissKeyboard={() => {
+            void request("keyboard.hide").catch(() => {})
+          }}
+          onImportFiles={async ({ kind }) => {
+            const files = await importFiles({ imagesOnly: kind === "image" })
+            return files.map((file) => ({
+              markdownUrl: file.uri,
+              name: file.name,
+              mediaType: file.mediaType,
+            }))
           }}
         >
-          {snapshot?.tables.map((value) => (
-            <option key={value.table.id} value={value.table.id}>
-              {value.table.name}
-            </option>
-          ))}
-        </select>
-        <input
-          aria-label="搜索记录"
-          placeholder="搜索记录"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <button
-          disabled={!table || busy}
-          onClick={async () => {
-            if (!table) return
+          <MobileRecordPage>
+            {recordTable ? (
+              <EidosFileRelatedRecordPanel
+                onSnapshot={setSnapshot}
+                onImportFiles={importFiles}
+                source={source}
+                table={recordTable}
+                target={{
+                  tableId: recordRoute.route!.tableId,
+                  rowId: record,
+                  title: "",
+                }}
+                onNavigate={(id) =>
+                  recordRoute.open(recordRoute.route!.tableId, id)
+                }
+                presentation="page"
+                onClose={() => setRecord(null)}
+                onMutation={() => setReload((value) => value + 1)}
+                onError={(error) => setError(errorText(error))}
+              />
+            ) : (
+              <div className="p-6">
+                <button onClick={() => recordRoute.close()}>
+                  {mobileText("返回文件")}
+                </button>
+                <p role="alert">{mobileText("记录所属的数据表不存在。")}</p>
+              </div>
+            )}
+          </MobileRecordPage>
+        </RecordContentProvider>
+      )}
+      <MobileTableSettings
+        key={table?.table.id ?? "empty"}
+        source={source}
+        table={table}
+        onSnapshot={setSnapshot}
+        onSelect={(id) => {
+          setTable(id)
+          setViewId("")
+          setSearch("")
+          setRecord(null)
+        }}
+      />
+      <div className="view-tools">
+        <MobileTableSwitcher
+          tables={snapshot.tables.map(({ table }) => table)}
+          activeId={table?.table.id}
+          disabled={busy}
+          onReorder={async (ids) => {
+            setTable(table?.table.id ?? "")
             setBusy(true)
             try {
-              const result = await source.insertRow(table.table.id, {})
-              setSnapshot(await source.getSnapshot())
-              setRecord(String(result.row._id))
-              setReload((value) => value + 1)
-            } catch (error) {
-              setError(errorText(error))
+              setSnapshot(await source.reorderTables(ids))
             } finally {
               setBusy(false)
             }
           }}
-        >
-          新增
-        </button>
-      </div>
-      {table && !record && (
-        <div className="view-tools">
-          <div className="mobile-view-tabs" role="tablist" aria-label="视图">
-            {!table.views.length && (
-              <button role="tab" aria-selected>
-                默认表格
-              </button>
-            )}
-            {table.views.map((value) => (
-              <button
-                key={value.id}
-                role="tab"
-                aria-selected={value.id === view?.id}
-                disabled={busy}
-                onClick={() => setViewId(value.id)}
-              >
-                {value.name}
-              </button>
-            ))}
-          </div>
-          <select
-            aria-label="新建视图"
-            value=""
-            disabled={busy}
-            onChange={async (event) => {
-              const type = event.target.value as keyof typeof viewTypes
-              if (!type) return
-              setBusy(true)
-              try {
-                const created = await source.createView(table.table.id, {
-                  name: viewTypes[type],
-                  type,
-                  properties: viewRegistry.views[type]?.create?.properties?.(
-                    table.fields
-                  ),
-                })
-                setSnapshot(created)
-                setViewId(
-                  created.tables
-                    .find((value) => value.table.id === table.table.id)
-                    ?.views.find(
-                      (value) => !table.views.some((old) => old.id === value.id)
-                    )?.id ?? ""
-                )
-              } catch (error) {
-                setError(errorText(error))
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            <option value="">＋ 新建视图</option>
-            {Object.entries(viewTypes).map(([type, name]) => (
-              <option
-                key={type}
-                value={type}
-                disabled={
-                  viewRegistry.views[type]?.create?.isAvailable?.(
-                    table.fields
-                  ) === false
+        />
+        {table && (
+          <>
+            <span className="mobile-view-path-separator" aria-hidden="true">
+              /
+            </span>
+            <MobileViewSwitcher
+              key={`view-switcher:${table.table.id}`}
+              views={table.views.map((view) => ({
+                ...view,
+                icon: viewRegistry.views[view.type]?.icon,
+              }))}
+              activeId={view?.id}
+              disabled={busy}
+              onSelect={setViewId}
+              onReorder={async (ids) => {
+                setViewId(view?.id ?? "")
+                setBusy(true)
+                try {
+                  setSnapshot(await source.reorderViews(table.table.id, ids))
+                } finally {
+                  setBusy(false)
                 }
-              >
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+              }}
+            >
+              <MobileNewViewButton
+                disabled={busy}
+                options={Object.entries(availableViewTypes).map(
+                  ([type, name]) => ({
+                    type,
+                    name,
+                    pluginName: type.startsWith("plugin:")
+                      ? viewRegistry.views[type]?.description
+                      : undefined,
+                    icon: viewRegistry.views[type]?.icon,
+                    disabled:
+                      viewRegistry.views[type]?.create?.isAvailable?.(
+                        table.fields
+                      ) === false,
+                  })
+                )}
+                onCreate={async (value) => {
+                  const type = value as keyof typeof viewTypes
+                  setBusy(true)
+                  try {
+                    const created = await source.createView(table.table.id, {
+                      name: nextEidosFileViewName(
+                        availableViewTypes[type],
+                        table.views
+                      ),
+                      type,
+                      properties: viewRegistry.views[
+                        type
+                      ]?.create?.properties?.(table.fields),
+                    })
+                    setSnapshot(created)
+                    setViewId(
+                      created.tables
+                        .find((value) => value.table.id === table.table.id)
+                        ?.views.find(
+                          (value) =>
+                            !table.views.some((old) => old.id === value.id)
+                        )?.id ?? ""
+                    )
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              />
+            </MobileViewSwitcher>
+            <MobileRecordSearch value={search} onChange={setSearch} />
+            <MobileViewSettings
+              key={`view-settings:${table.table.id}`}
+              source={source}
+              table={table}
+              tables={snapshot.tables}
+              view={view}
+              plugin={view ? viewRegistry.views[view.type] : undefined}
+              onSnapshot={(next) => {
+                setSnapshot(next)
+                setReload((value) => value + 1)
+              }}
+            />
+            <MobileNewRecordButton
+              aria-label={mobileText("新记录")}
+              title={mobileText("新记录")}
+              disabled={!table || busy}
+              onClick={async () => {
+                if (!table) return
+                setBusy(true)
+                try {
+                  const result = await source.insertRow(table.table.id, {})
+                  setSnapshot(await source.getSnapshot())
+                  setRecord(String(result.row._id))
+                  setReload((value) => value + 1)
+                } catch (error) {
+                  setError(errorText(error))
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            />
+          </>
+        )}
+      </div>
       {error && (
         <div role="alert">
           {error}
@@ -359,54 +534,61 @@ function Database({
               setReload((value) => value + 1)
             }}
           >
-            重新加载
+            {mobileText("重新加载")}
           </button>
         </div>
       )}
       {!table ? (
-        <p>当前文件没有数据表，请切换原生编辑器或在桌面端创建。</p>
+        <p>{mobileText("请选择“数据表”菜单，新建或切换数据表。")}</p>
       ) : (
         <div className="data-content">
-          <RecordContentProvider>
-            {record ? (
-              <EidosFileRelatedRecordPanel
-                source={source}
-                table={table}
-                target={{ tableId: table.table.id, rowId: record, title: "" }}
-                presentation="page"
-                onClose={() => setRecord(null)}
-                onMutation={() => setReload((value) => value + 1)}
-                onError={(error) => setError(errorText(error))}
-              />
-            ) : (
-              <BrowserEidosFileEditorView
-                key={table.table.id}
-                source={source}
-                table={table}
-                tables={snapshot.tables}
-                view={view}
-                plugins={viewPlugins}
-                recordPresentation="page"
-                search={search}
-                reloadToken={reload}
-                disabled={busy}
-                showRowMarkers={false}
-                allowFrozenColumns={false}
-                onError={(error) => setError(errorText(error))}
-                onSnapshot={setSnapshot}
-                onMutation={() => setReload((value) => value + 1)}
-                onDeleteRows={async (ranges, query) => {
-                  const result = await source.deleteRowRanges(
-                    table.table.id,
-                    ranges,
-                    query
-                  )
-                  setSnapshot(await source.getSnapshot())
-                  setReload((value) => value + 1)
-                  return result
-                }}
-              />
-            )}
+          <RecordContentProvider
+            onDismissKeyboard={() => {
+              void request("keyboard.hide").catch(() => {})
+            }}
+            onImportFiles={async ({ kind }) => {
+              const files = await importFiles({ imagesOnly: kind === "image" })
+              return files.map((file) => ({
+                markdownUrl: file.uri,
+                name: file.name,
+                mediaType: file.mediaType,
+              }))
+            }}
+          >
+            <BrowserEidosFileEditorView
+              onImportFiles={importFiles}
+              key={table.table.id}
+              source={source}
+              table={table}
+              tables={snapshot.tables}
+              view={view}
+              plugins={plugins}
+              onOpenRecord={(id) => setRecord(id)}
+              recordPresentation="page"
+              search={search}
+              reloadToken={reload}
+              disabled={busy}
+              showRowMarkers={false}
+              allowFrozenColumns={false}
+              onError={(error) => setError(errorText(error))}
+              onSnapshot={setSnapshot}
+              onMutation={() => setReload((value) => value + 1)}
+              onDeleteRows={async (ranges, query) => {
+                const result = await source.deleteRowRanges(
+                  table.table.id,
+                  ranges,
+                  query
+                )
+                setSnapshot(await source.getSnapshot())
+                setReload((value) => value + 1)
+                return result
+              }}
+              onDeleteRow={async (row) => {
+                await source.deleteRows(table.table.id, [String(row._id)])
+                setSnapshot(await source.getSnapshot())
+                setReload((value) => value + 1)
+              }}
+            />
           </RecordContentProvider>
         </div>
       )}
@@ -429,13 +611,23 @@ function App({
   session: string
   request: BridgeRequest
 }) {
+  const locale = useSyncExternalStore(subscribeMobileLocale, getMobileLocale)
   const [opened, setOpened] = useState<OpenedDocument | null>(null)
+  const [assets] = useState(() =>
+    createMobileAssets(
+      session,
+      `https://appassets.androidplatform.net/document/${session}/`
+    )
+  )
   const [error, setError] = useState("")
   useEffect(() => {
     let active = true
     request<Document>("init")
       .then(async (document) => {
         window.document.documentElement.classList.toggle("dark", document.dark)
+        window.document.documentElement.dataset.theme = document.dark
+          ? "dark"
+          : "light"
         window.document.documentElement.classList.toggle(
           "light",
           !document.dark
@@ -447,9 +639,14 @@ function App({
         let database: OpenedDocument["database"]
         if (document.kind === "eidos") {
           const source = new EidosRuntimeEditorDataSource(
-            new HttpRuntimeClient((method, params) =>
-              request("runtime", { method, request: params })
-            ),
+            new HttpRuntimeClient(async (method, params) => {
+              const value = await request("runtime", {
+                method,
+                request: params,
+              })
+              assets.observe(value)
+              return value
+            }),
             document.path
           )
           database = { source, initialSnapshot: await source.initialize() }
@@ -461,10 +658,14 @@ function App({
       })
     return () => {
       active = false
+      assets.close()
     }
   }, [])
   useEffect(() => {
-    if (opened || error) void request("editor.ready").catch(() => {})
+    if (opened || error) {
+      window.document.documentElement.dataset.editorSession = session
+      void request("editor.ready").catch(() => {})
+    }
   }, [opened, error])
   if (error) return <p role="alert">{error}</p>
   // Native owns startup feedback; mount the editor only with its document and schema ready.
@@ -472,29 +673,64 @@ function App({
   const { document, database } = opened
   return (
     <EidosFileUIProvider
+      assetSession={assets.session}
+      assetPresenter={assets.presenter}
+      contentImageBaseUrl={`https://appassets.androidplatform.net/document/${session}/`}
       interactionMode="mobile"
       themeName={document.dark ? "dark" : "light"}
-      locale="zh"
+      locale={locale}
       activateUrl={(url) => request<void>("openLink", { url })}
     >
       {document.kind === "markdown" ? (
         <Markdown document={document} request={request} session={session} />
+      ) : document.share && database ? (
+        <ShareRecordEditor
+          {...database}
+          request={request}
+          importFiles={async (options) => {
+            const entries = await request<FileEntry[]>("files.import", options)
+            assets.observe(entries)
+            return entries
+          }}
+        />
       ) : (
-        database && <Database {...database} request={request} />
+        database && (
+          <Database
+            navigation={document}
+            {...database}
+            filePath={document.recordPath ?? document.path}
+            request={request}
+            importFiles={async (options) => {
+              const entries = await request<FileEntry[]>(
+                "files.import",
+                options
+              )
+              assets.observe(entries)
+              return entries
+            }}
+          />
+        )
       )}
     </EidosFileUIProvider>
   )
 }
 const root = createRoot(document.getElementById("root")!)
+let openedSession: string | null = null
 window.eidosOpen = (session) => {
+  if (openedSession === session) return
+  openedSession = session
   resetSession(session)
   const request = createRequest(session)
+  window.eidosFileActionReady = () => {
+    void request("editor.fileAction").catch(() => {})
+  }
   window.eidosLeave = (mode) => {
     void request("leave", { mode }).catch(() => {})
   }
   root.render(<App key={session} session={session} request={request} />)
 }
 window.eidosSuspend = () => {
+  openedSession = null
   resetSession("")
   window.eidosLeave = () => {}
   root.render(null)

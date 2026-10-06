@@ -26,7 +26,7 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             Column(Modifier.fillMaxWidth().padding(24.dp)) {
-                Text("选择目标表", style = MaterialTheme.typography.titleLarge)
+                Text(tr("选择目标表"), style = MaterialTheme.typography.titleLarge)
                 Text(database.path, style = MaterialTheme.typography.bodySmall)
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(database.tables, key = { it.id }) { table ->
@@ -39,10 +39,10 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                                 },
                         )
                     }
-                    if (database.tables.isEmpty()) item { Text("此文件没有数据表") }
+                    if (database.tables.isEmpty()) item { Text(tr("此文件没有数据表")) }
                 }
                 TextButton(onClick = model::closeShareTable, enabled = !state.busy) {
-                    Text("返回选择位置")
+                    Text(tr("返回选择位置"))
                 }
             }
         }
@@ -53,10 +53,10 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-            Text("保存分享内容", style = MaterialTheme.typography.titleLarge)
+            Text(tr("保存分享内容"), style = MaterialTheme.typography.titleLarge)
             Text(
-                if (share.files.isEmpty()) "保存为 Markdown，或选择 Eidos 表格新增记录"
-                else "${share.files.size} 个文件 · 可存入文件夹或表格附件字段",
+                if (share.files.isEmpty()) tr("保存为 Markdown，或选择 Eidos 表格新增记录")
+                else tr("{0} 个文件 · 可存入文件夹或表格附件字段", share.files.size),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
@@ -73,7 +73,7 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                     enabled = !state.busy,
                     onClick = { model.openShareTable(form.path, form.table) },
                 ) {
-                    Text("继续填写分享记录")
+                    Text(tr("继续填写分享记录"))
                 }
             }
             Text(
@@ -89,10 +89,10 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                         },
                         enabled = !state.busy,
                     ) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "选择上级文件夹")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, tr("选择上级文件夹"))
                     }
                 Text(
-                    state.shareFolder.ifEmpty { "Space 根目录" },
+                    state.shareFolder.ifEmpty { tr("Space 根目录") },
                     modifier = Modifier.weight(1f).padding(vertical = 14.dp),
                     style = MaterialTheme.typography.titleSmall,
                 )
@@ -109,7 +109,7 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                             headlineContent = { Text(table.name) },
                             supportingContent = {
                                 Text(
-                                    if (table == state.lastShareTable) "上次保存的表格 · ${table.path}"
+                                    if (table == state.lastShareTable) tr("上次保存的表格 · {0}", table.path)
                                     else table.path
                                 )
                             },
@@ -141,7 +141,7 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                 if (state.shareFolders.isEmpty())
                     item {
                         Text(
-                            "没有子文件夹",
+                            tr("没有子文件夹"),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(vertical = 16.dp),
                         )
@@ -153,7 +153,7 @@ internal fun ShareDestinationSheet(state: AppState, model: EidosModel) {
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             ) {
-                Text("保存到此文件夹")
+                Text(tr("保存到此文件夹"))
             }
         }
     }

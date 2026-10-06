@@ -35,7 +35,9 @@ class PluginOpenWithRegistry(private val views: List<PluginFileView>) {
         require(views.all { view -> view.networkOrigins.all(PluginResourcePolicy::validOrigin) })
         require(
             views.all { view ->
-                view.extensions.all { it.matches(Regex("\\.[a-z0-9]{1,16}")) && it != ".eidos" }
+                view.extensions.all {
+                    it.matches(Regex("\\.[a-z0-9]{1,16}")) && (it != ".eidos" || view.revision != null)
+                }
             }
         )
     }
@@ -44,7 +46,7 @@ class PluginOpenWithRegistry(private val views: List<PluginFileView>) {
         if (file.directory) emptyList() else views.filter { it.accepts(file.path) }
 
     fun resolve(file: SpaceFile, id: String): PluginFileView =
-        candidates(file).singleOrNull { it.id == id } ?: error("此打开方式不适用于当前文件")
+        candidates(file).singleOrNull { it.id == id } ?: error(tr("此打开方式不适用于当前文件"))
 
     companion object {
         fun bundled(assets: AssetManager): PluginOpenWithRegistry {

@@ -30,12 +30,12 @@ internal fun CloneSpaceSheet(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("下载远程 Space", style = MaterialTheme.typography.titleLarge)
-            Text("将远程文件和附件下载到新的本地 Space，完成后即可离线使用。", style = MaterialTheme.typography.bodySmall)
+            Text(tr("下载远程 Space"), style = MaterialTheme.typography.titleLarge)
+            Text(tr("将远程文件和附件下载到新的本地 Space，完成后即可离线使用。"), style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(
                 name,
                 { name = it },
-                label = { Text("Space 名称") },
+                label = { Text(tr("Space 名称")) },
                 singleLine = true,
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
@@ -43,7 +43,7 @@ internal fun CloneSpaceSheet(
             OutlinedTextField(
                 url,
                 { url = it },
-                label = { Text("远程地址") },
+                label = { Text(tr("远程地址")) },
                 singleLine = true,
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
@@ -51,7 +51,7 @@ internal fun CloneSpaceSheet(
             OutlinedTextField(
                 token,
                 { token = it },
-                label = { Text("访问令牌（可选）") },
+                label = { Text(tr("访问令牌（可选）")) },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 enabled = !busy,
@@ -63,7 +63,7 @@ internal fun CloneSpaceSheet(
                 enabled = !busy && name.isNotBlank() && url.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("下载到本机")
+                Text(tr("下载到本机"))
             }
         }
     }

@@ -1,11 +1,18 @@
-# Android file views
+# Android plugins and bundled file views
+
+The installation screen uses the [shared mobile plugin workbench](../../../packages/mobile-plugin-host/README.md).
+It supports the published document, table, page, action, settings, and connection
+packages. Plugin themes are disabled on mobile. The restricted profile below applies only to
+optional build-time bundles. Installed **打开方式** contributions use the shared
+host, with the current file already bound; no second file selection is needed.
+Workspace commands such as Journals Overview appear on the plugin home screen.
 
 The file menu's **打开方式** sheet lists the default opener and compatible
 bundled read-only file views. Choosing one does not change the default editor.
 
 ## Marketplace and package installation
 
-Open **当前文件夹操作 → 插件市场**. The native screen lists the same registry
+Open **当前文件夹操作 → 插件 → 浏览插件市场**. The workbench lists the same registry
 as Lite. **检查安装** downloads a package through an HTTPS host allowlist,
 checks its SHA-256 and registry identity, then validates Android compatibility.
 **导入插件包** uses the system document picker for a local `.eidos-plugin`.
@@ -56,7 +63,7 @@ sprites, and receives requested viewport coordinates and network metadata.
 GPX bytes stay local. Parsing and timeline interaction remain available when
 map requests fail; there are no offline map-region downloads.
 
-## Host profile and boundaries
+## Legacy open-with host profile and boundaries
 
 The host accepts Plugin API 3.0.0 read-only `file/open` views with either
 `capabilities: ["document"]` or no bound-data declarations.

@@ -9,6 +9,7 @@ declare global {
     eidosOpen: (session: string) => void
     eidosSuspend: () => void
     eidosFlush?: () => Promise<void>
+    eidosFileActionReady: () => void
   }
 }
 const pending = new Map<

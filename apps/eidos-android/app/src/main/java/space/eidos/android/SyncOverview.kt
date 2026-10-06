@@ -34,7 +34,7 @@ internal fun SyncOverview(
         else state.graft?.syncStatus in setOf("failed", "interrupted", "needs_merge")
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            "当前 Space",
+            tr("当前 Space"),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -48,7 +48,7 @@ internal fun SyncOverview(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            if (direct) "同步此 Space" else syncOverviewTitle(state),
+            if (direct) tr("同步此 Space") else syncOverviewTitle(state),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -64,7 +64,7 @@ internal fun SyncOverview(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                if (direct) "本次通过设备直连交换修改" else if (connected) "通过云端交换修改" else "文件可离线查看和编辑",
+                if (direct) tr("本次通过设备直连交换修改") else if (connected) tr("通过云端交换修改") else tr("文件可离线查看和编辑"),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
@@ -74,12 +74,12 @@ internal fun SyncOverview(
         if (progress == null) {
             Text(
                 when {
-                    direct && state.graft?.dirty == true -> "有本地修改，等待同步"
+                    direct && state.graft?.dirty == true -> tr("有本地修改，等待同步")
                     direct && peer?.lastSynced != null ->
-                        "上次同步 · ${java.text.SimpleDateFormat("MM-dd HH:mm", locale).format(java.util.Date(peer.lastSynced))}"
-                    direct -> "连接同一 Wi-Fi，并保持电脑上的 Space 打开"
-                    connected -> "将本机修改上传，并接收云端更新"
-                    else -> "连接电脑，或从下方选择云端 Space"
+                        tr("上次同步 · {0}", java.text.SimpleDateFormat("MM-dd HH:mm", locale).format(java.util.Date(peer.lastSynced)))
+                    direct -> tr("连接同一 Wi-Fi，并保持电脑上的 Space 打开")
+                    connected -> tr("将本机修改上传，并接收云端更新")
+                    else -> tr("连接电脑，或从下方选择云端 Space")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -105,11 +105,11 @@ internal fun SyncOverview(
             Spacer(Modifier.width(8.dp))
             Text(
                 when {
-                    direct -> "同步"
-                    !connected -> "连接电脑"
-                    state.graft?.syncStatus == "needs_merge" -> "检查并合并"
-                    attention -> "重试同步"
-                    else -> "立即同步"
+                    direct -> tr("同步")
+                    !connected -> tr("连接电脑")
+                    state.graft?.syncStatus == "needs_merge" -> tr("检查并合并")
+                    attention -> tr("重试同步")
+                    else -> tr("立即同步")
                 }
             )
         }
@@ -125,7 +125,7 @@ internal fun SyncOverview(
                     onClick = model::refreshPeerAvailability,
                     enabled = ready && !state.peerChecking,
                 ) {
-                    Text(if (state.peerChecking) "正在检测…" else "重新检测连接")
+                    Text(if (state.peerChecking) tr("正在检测…") else tr("重新检测连接"))
                 }
         }
         if (!direct)
@@ -140,21 +140,21 @@ internal fun SyncOverview(
             }
     }
     HorizontalDivider()
-    SyncSectionLabel("此 Space 的连接")
+    SyncSectionLabel(tr("此 Space 的连接"))
     Column {
         SyncNavigationRow(
-            "设备直连",
-            if (direct) "当前目标 · ${computer!!.name.removeSuffix(".local")}" else "连接电脑，无需登录",
+            tr("设备直连"),
+            if (direct) tr("当前目标 · {0}", computer!!.name.removeSuffix(".local")) else tr("连接电脑，无需登录"),
             Icons.Outlined.Devices,
             ready,
             devices,
         )
         SyncNavigationRow(
-            "云端 Space",
+            tr("云端 Space"),
             when {
-                connected -> "已连接 · 浏览云端 Space"
-                state.account != null -> "开启同步或下载已有 Space"
-                else -> "登录后开启同步或下载 Space"
+                connected -> tr("已连接 · 浏览云端 Space")
+                state.account != null -> tr("开启同步或下载已有 Space")
+                else -> tr("登录后开启同步或下载 Space")
             },
             Icons.Outlined.Cloud,
             ready,
@@ -162,16 +162,16 @@ internal fun SyncOverview(
         )
     }
     HorizontalDivider()
-    SyncSectionLabel("本地与设置")
+    SyncSectionLabel(tr("本地与设置"))
     Column {
         SyncNavigationRow(
-            "本地版本",
+            tr("本地版本"),
             localVersionSummary(state.graft),
             Icons.Outlined.History,
             ready,
             versions,
         )
-        SyncNavigationRow("同步设置", "自动同步与高级连接", Icons.Outlined.Settings, ready, settings)
+        SyncNavigationRow(tr("同步设置"), tr("自动同步与高级连接"), Icons.Outlined.Settings, ready, settings)
     }
 }
 
