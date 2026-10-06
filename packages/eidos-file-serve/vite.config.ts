@@ -5,6 +5,8 @@ import { defineConfig, type Plugin } from "vite"
 import { eidosFileUiSourceAliases } from "../eidos-file-ui/vite-source-aliases"
 import { markdownEditorSourceAliases } from "../markdown/vite-source-aliases"
 
+const runtimeTarget = process.env.EIDOS_SERVE_TARGET ?? "http://127.0.0.1:8420"
+
 function stripEmbeddedChunkTrailingWhitespace(): Plugin {
   const strip = (code: string) => code.replace(/[\t ]+$/gmu, "")
   return {
@@ -41,7 +43,16 @@ export default defineConfig({
   server: {
     // `vite dev` proxies the runtime bridge to a running `eidos serve`.
     proxy: {
-      "/api": "http://127.0.0.1:8420",
+      "/api": {
+        target: runtimeTarget,
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on("proxyReq", (request) => {
+            if (request.getHeader("origin"))
+              request.setHeader("origin", new URL(runtimeTarget).origin)
+          })
+        },
+      },
     },
   },
 })

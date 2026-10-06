@@ -55,3 +55,28 @@ it("owns non-grid record opening, presentation, navigation and reloads", async (
     vi.unstubAllGlobals()
   }
 })
+
+it("delegates record navigation to the host without opening an embedded inspector", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  const onOpenRecord = vi.fn()
+  const props = {
+    source: {},
+    table: { table: { id: "notes" }, fields: [], views: [] },
+    view: { id: "gallery", type: "gallery", properties: {}, sorts: [] },
+    onOpenRecord,
+  } as unknown as EidosFileEditorViewProps
+  try {
+    await act(async () =>
+      root.render(<BrowserEidosFileEditorView {...props} />)
+    )
+    await act(async () => observed.view?.onInspectedRowChange?.("record"))
+    expect(onOpenRecord).toHaveBeenCalledWith("record")
+    expect(host.querySelector("[data-record-panel]")).toBeNull()
+    expect(observed.view?.onOpenRecord).toBe(onOpenRecord)
+  } finally {
+    await act(async () => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

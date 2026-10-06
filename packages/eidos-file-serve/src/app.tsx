@@ -354,6 +354,12 @@ export function ServeApp() {
   const readOnly = manifest?.access === "read"
   const published = manifest?.mode === "publish"
   const compactPublishViewport = useCompactPublishViewport()
+  const interactionOverride = new URLSearchParams(window.location.search).get(
+    "interaction"
+  )
+  const mobileInteraction =
+    interactionOverride === "mobile" ||
+    (interactionOverride !== "desktop" && compactPublishViewport)
   const renderedActiveView = useMemo(() => {
     if (!published || !compactPublishViewport || activeView?.type !== "grid") {
       return activeView
@@ -1108,6 +1114,7 @@ export function ServeApp() {
     <EidosFileUIProvider
       themeName={theme}
       locale={locale}
+      interactionMode={mobileInteraction ? "mobile" : "desktop"}
       activateUrl={activateCliHostUrl}
       assetSession={assetSession}
       assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
@@ -1370,7 +1377,9 @@ export function ServeApp() {
                 tables={snapshot.tables}
                 view={renderedActiveView}
                 search={search}
-                showRowMarkers={!published || !compactPublishViewport}
+                showRowMarkers={
+                  !mobileInteraction && (!published || !compactPublishViewport)
+                }
                 disabled={mutationDisabled}
                 reloadToken={viewReloadToken}
                 capabilities={{

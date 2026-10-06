@@ -30,7 +30,13 @@ export function BrowserEidosFileEditorView(props: EidosFileEditorViewProps) {
       <EidosFileEditorView
         {...props}
         inspectedRowId={rowId}
-        onInspectedRowChange={setRowId}
+        onInspectedRowChange={
+          props.onOpenRecord
+            ? (id) => {
+                if (id) props.onOpenRecord?.(id)
+              }
+            : setRowId
+        }
         recordPresentation={presentation}
         onRecordPresentationToggle={togglePresentation}
         reloadToken={reloadToken}
@@ -50,6 +56,7 @@ export function BrowserEidosFileEditorView(props: EidosFileEditorViewProps) {
             setRecordReload((current) => current + 1)
             props.onMutation?.(result)
           }}
+          onSnapshot={props.onSnapshot}
           disabled={props.disabled}
           onError={props.onError}
           onImportFiles={props.onImportFiles}

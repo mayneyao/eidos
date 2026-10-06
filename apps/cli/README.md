@@ -301,6 +301,18 @@ writes straight to the file — there is no separate save step.
 target/debug/eidos serve tracker.eidos --port 8420 --open
 ```
 
+For shared mobile UI testing, use a viewport at most 42rem wide or append
+`?interaction=mobile` to force touch interactions at any width. Use
+`?interaction=desktop` to compare desktop behavior. This covers shared editor
+components; the Serve toolbar and native Android/iOS host features differ.
+
+For UI hot reload, keep Serve running and start the source UI from the repository
+root with `pnpm --filter @eidos.space/eidos-file-serve dev`. Its `/api` proxy
+defaults to `http://127.0.0.1:8420`. Set `EIDOS_SERVE_TARGET` to the running Serve
+origin when using another address. For phone testing, pass Vite
+`--host <private-ip>`, and use the access fragment from Serve's printed pairing
+link on the Vite URL. Both editors write to the same file immediately.
+
 Relative File entries and uploads remain disabled until an existing assets
 folder is explicitly mounted. With a mount, the embedded UI can preview,
 open, download, choose, drop, paste, and upload files in File fields:
