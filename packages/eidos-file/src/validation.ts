@@ -1,4 +1,5 @@
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
+import { scanStableRowPages } from "./stable-row-scan"
 import { isEidosFileUriReference } from "./canonical-conversion"
 import {
   EIDOS_FILE_APPLICATION_ID,
@@ -2331,6 +2332,7 @@ export function validateEidosFile(
         `SQLite quick_check failed: ${quickCheck?.quick_check ?? "unknown"}`
       )
     }
+    const contentSchemaValid = errors.length === 0
     for (const [tableId, fields] of fieldsByTable) {
       const table = tableRowsById.get(tableId)!
       const stored = fields.filter((field) => field.physicalName)
@@ -2338,122 +2340,146 @@ export function validateEidosFile(
       const selection = stored
         .map((field) => quoteIdentifier(field.physicalName!))
         .join(", ")
-      for (const row of connection.query<Record<string, EidosFileSqlPrimitive>>(
-        `SELECT ${selection} FROM ${quoteIdentifier(table.physical_name)}`
-      )) {
-        for (const field of stored) {
-          const value = row[field.physicalName!]
-          if (value === null || value === undefined) continue
-          if (field.type === "row-id") {
-            const isVirtual =
-              tableSettingsById.get(tableId)?.tableType === "virtual" ||
-              Boolean(tableSettingsById.get(tableId)?.vtabModule)
-            if (!isVirtual && !isEidosFileUuid(value)) {
-              add(
-                errors,
-                "invalid-value",
-                `${table.name}._id must be canonical lowercase UUIDv7 TEXT`
-              )
-            }
-          }
-          if (
-            field.type === "number" &&
-            (typeof value !== "number" || !Number.isFinite(value))
-          ) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be finite REAL`
-            )
-          }
-          if (field.type === "checkbox" && value !== 0 && value !== 1) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be 0, 1, or NULL`
-            )
-          }
-          if (field.type === "date" && !isCanonicalEidosFileDate(value)) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be canonical YYYY-MM-DD text`
-            )
-          }
-          if (field.type === "url" && !isEidosFileUriReference(value)) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be a valid URI-reference`
-            )
-          }
-          if (
-            ["datetime", "created-time", "last-edited-time"].includes(
-              field.type
-            ) &&
-            !isCanonicalEidosFileInstant(value)
-          ) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be canonical UTC millisecond text`
-            )
-          }
-          if (["multi-select", "file"].includes(field.type)) {
-            let parsed: unknown = null
-            if (field.type === "file" && typeof value === "string") {
-              try {
-                parsed = decodeEidosFileValues(value)
-              } catch (error) {
+      const validateRows = (rows: Record<string, EidosFileSqlPrimitive>[]) => {
+        for (const row of rows) {
+          for (const field of stored) {
+            const value = row[field.physicalName!]
+            if (value === null || value === undefined) continue
+            if (field.type === "row-id") {
+              const isVirtual =
+                tableSettingsById.get(tableId)?.tableType === "virtual" ||
+                Boolean(tableSettingsById.get(tableId)?.vtabModule)
+              if (!isVirtual && !isEidosFileUuid(value)) {
                 add(
                   errors,
                   "invalid-value",
-                  `${table.name}.${field.name}: ${error instanceof Error ? error.message : "invalid File value"}`
+                  `${table.name}._id must be canonical lowercase UUIDv7 TEXT`
                 )
               }
-            } else if (
-              typeof value === "string" &&
-              isCanonicalEidosFileJson(value)
-            ) {
-              parsed = parseEidosFileJson(value)
             }
-            if (!Array.isArray(parsed)) {
+            if (
+              field.type === "number" &&
+              (typeof value !== "number" || !Number.isFinite(value))
+            ) {
               add(
                 errors,
                 "invalid-value",
-                `${table.name}.${field.name} must be a canonical JSON array`
+                `${table.name}.${field.name} must be finite REAL`
+              )
+            }
+            if (field.type === "checkbox" && value !== 0 && value !== 1) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be 0, 1, or NULL`
+              )
+            }
+            if (field.type === "date" && !isCanonicalEidosFileDate(value)) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be canonical YYYY-MM-DD text`
+              )
+            }
+            if (field.type === "url" && !isEidosFileUriReference(value)) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be a valid URI-reference`
               )
             }
             if (
-              field.type === "multi-select" &&
-              Array.isArray(parsed) &&
-              (!parsed.every((entry) => typeof entry === "string") ||
-                new Set(parsed).size !== parsed.length)
+              ["datetime", "created-time", "last-edited-time"].includes(
+                field.type
+              ) &&
+              !isCanonicalEidosFileInstant(value)
             ) {
               add(
                 errors,
                 "invalid-value",
-                `${table.name}.${field.name} must be a unique string array`
+                `${table.name}.${field.name} must be canonical UTC millisecond text`
               )
             }
-          }
-          if (field.type === "relation") {
-            const ids = relationIds(value)
-            const relation = relations.get(field.id!)
-            if (!ids || relation?.direction !== "forward") {
-              add(
-                errors,
-                "invalid-value",
-                `${table.name}.${field.name} must be a canonical UUID array`
-              )
-            } else if (relation.cardinality === "one" && ids.length > 1) {
-              add(
-                errors,
-                "invalid-value",
-                `${table.name}.${field.name} exceeds cardinality one`
-              )
+            if (["multi-select", "file"].includes(field.type)) {
+              let parsed: unknown = null
+              if (field.type === "file" && typeof value === "string") {
+                try {
+                  parsed = decodeEidosFileValues(value)
+                } catch (error) {
+                  add(
+                    errors,
+                    "invalid-value",
+                    `${table.name}.${field.name}: ${error instanceof Error ? error.message : "invalid File value"}`
+                  )
+                }
+              } else if (
+                typeof value === "string" &&
+                isCanonicalEidosFileJson(value)
+              ) {
+                parsed = parseEidosFileJson(value)
+              }
+              if (!Array.isArray(parsed)) {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name} must be a canonical JSON array`
+                )
+              }
+              if (
+                field.type === "multi-select" &&
+                Array.isArray(parsed) &&
+                (!parsed.every((entry) => typeof entry === "string") ||
+                  new Set(parsed).size !== parsed.length)
+              ) {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name} must be a unique string array`
+                )
+              }
+            }
+            if (field.type === "relation") {
+              const ids = relationIds(value)
+              const relation = relations.get(field.id!)
+              if (!ids || relation?.direction !== "forward") {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name} must be a canonical UUID array`
+                )
+              } else if (relation.cardinality === "one" && ids.length > 1) {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name} exceeds cardinality one`
+                )
+              }
             }
           }
+        }
+      }
+      const rowId = stored.find((field) => field.type === "row-id")
+      if (rowId?.physicalName && contentSchemaValid) {
+        scanStableRowPages<Record<string, EidosFileSqlPrimitive>>(
+          connection,
+          {
+            columnsSql: selection,
+            tableSql: quoteIdentifier(table.physical_name),
+            rowIdSql: quoteIdentifier(rowId.physicalName),
+            rowIdKey: rowId.physicalName,
+          },
+          validateRows
+        )
+      } else {
+        // Malformed schemas may lack a usable unique Row ID. Keep collecting
+        // diagnostics in bounded pages rather than allocating the whole table.
+        for (let offset = 0; ; offset += 256) {
+          const rows = connection.query<Record<string, EidosFileSqlPrimitive>>(
+            `SELECT ${selection} FROM ${quoteIdentifier(table.physical_name)} LIMIT 256 OFFSET ?`,
+            [offset]
+          )
+          validateRows(rows)
+          if (rows.length < 256) break
         }
       }
       for (const field of fields) {

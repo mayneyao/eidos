@@ -5150,6 +5150,7 @@ function validationDiagnostic(
 }
 
 function validationCode(code: string): RuntimeDiagnostic["code"] {
+  if (code === "unsupported-feature") return "file-feature-unsupported"
   const known = new Set<RuntimeDiagnostic["code"]>([
     "file-not-sqlite",
     "file-identity-invalid",

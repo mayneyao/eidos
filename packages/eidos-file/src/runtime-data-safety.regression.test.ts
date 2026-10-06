@@ -137,6 +137,81 @@ async function createTable(
 }
 
 describe("Eidos Runtime P0 data safety regressions", () => {
+  it("validates every content page within adapter budgets and catches late invalid values", async () => {
+    const { runtime, connection } = await createRuntime("Paged validation", {
+      maxResultBytes: 32_768,
+    })
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "url", name: "Website", kind: "url" },
+      ])
+      const timestamp = "2026-07-26T00:00:00.000Z"
+      for (let index = 0; index < 600; index++) {
+        connection.run(
+          'INSERT INTO "Items" ("_id","_created_at","_updated_at","Title","Website") VALUES (?1,?2,?3,?4,?5)',
+          [
+            `00000000-0000-7000-8000-${index.toString(16).padStart(12, "0")}`,
+            timestamp,
+            timestamp,
+            "x".repeat(2048),
+            "https://eidos.space",
+          ].map((value) => ({ tag: "text" as const, value }))
+        )
+      }
+      await expect(
+        runtime.validate(
+          { level: "full", diagnosticsLimit: 100 },
+          context("paged-valid")
+        )
+      ).resolves.toMatchObject({ valid: true })
+      connection.run(
+        'UPDATE "Items" SET "Website"=?1 WHERE "_id"=?2',
+        ["invalid URI with spaces", "00000000-0000-7000-8000-000000000257"].map(
+          (value) => ({ tag: "text" as const, value })
+        )
+      )
+      await expect(
+        runtime.validate(
+          { level: "full", diagnosticsLimit: 100 },
+          context("paged-invalid")
+        )
+      ).resolves.toMatchObject({
+        valid: false,
+        diagnostics: [
+          expect.objectContaining({
+            severity: "error",
+            message: expect.stringContaining("Website"),
+          }),
+        ],
+      })
+      expect(table.tableId).toBeTruthy()
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+  it("reports missing native modules as capability diagnostics", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      connection.run(
+        "INSERT INTO eidos__features VALUES ('vtab:fs_meta','1',1,'{}')"
+      )
+      await expect(
+        runtime.validate(
+          { level: "full", diagnosticsLimit: 100 },
+          context("validate-module")
+        )
+      ).resolves.toMatchObject({
+        valid: false,
+        diagnostics: [{ code: "file-feature-unsupported", severity: "error" }],
+        truncated: false,
+      })
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
   const roots: string[] = []
 
   afterEach(() => {
