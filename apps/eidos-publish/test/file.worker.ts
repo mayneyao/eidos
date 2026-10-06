@@ -349,6 +349,14 @@ describe("File publications", () => {
     )
     expect(response.status).toBe(200)
     const html = await response.text()
+    expect(html).toContain('href="/_eidos/publish-brand.v5.css"')
+    expect(html).toContain('class="eidos-publish-brand-footer"')
+    const styleDirective = response.headers
+      .get("content-security-policy")!
+      .split(";")
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith("style-src "))!
+    expect(styleDirective.split(/\s+/)).toContain("'self'")
     expect(html).toContain('sandbox="allow-scripts"')
     expect(html).not.toContain('sandbox="allow-scripts allow-same-origin"')
     expect(html).toContain("Only the published file is available")

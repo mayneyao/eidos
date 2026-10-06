@@ -17,7 +17,7 @@ const MAX_VIEW_BYTES = 16 * 1024 * 1024
 const decoder = new TextDecoder("utf-8", { fatal: true })
 
 export const FILE_VIEW_CSP =
-  "default-src 'none'; script-src 'unsafe-inline' blob: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; connect-src 'self' https:; img-src data: blob: https:; font-src data:; media-src blob: data: https:; worker-src blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  "default-src 'none'; script-src 'unsafe-inline' blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src data: blob: https:; font-src data:; media-src blob: data: https:; worker-src blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 export async function loadFileBundle(
   env: Env,
