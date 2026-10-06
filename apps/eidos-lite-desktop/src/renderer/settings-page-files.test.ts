@@ -373,11 +373,7 @@ describe("SettingsPage Files - Default file editors", () => {
       const root = createRoot(host)
 
       await act(async () => {
-        root.render(
-          createElement(SettingsPage, {
-            onClose: () => {},
-          })
-        )
+        root.render(createElement(SettingsPage))
       })
 
       await act(async () => {

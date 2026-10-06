@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { SyncInspector } from "./sync-inspector"
-import { PeerSyncPanel } from "./peer-sync-panel"
+import { SyncTransportTabs } from "./sync-transport-tabs"
 import { useEidosLiteI18n } from "./i18n"
 import {
   AlertTriangle,
@@ -165,6 +165,7 @@ export function SyncPanel({
     initialSnapshot?.spaceBytes === undefined ? "idle" : "cached"
   )
   const [preflightRefreshKey, setPreflightRefreshKey] = useState(0)
+  const [preflightChecking, setPreflightChecking] = useState(false)
   const [confirmWarnings, setConfirmWarnings] = useState(false)
   const [syncResult, setSyncResult] = useState<EidosSyncRunResult | null>(null)
   const [syncFailure, setSyncFailure] = useState<EidosSyncFailure | null>(null)
@@ -349,6 +350,7 @@ export function SyncPanel({
 
   useEffect(() => {
     if (!shouldLoadSpaceSize) {
+      setPreflightChecking(false)
       setSpaceSizeState("idle")
       return
     }
@@ -362,9 +364,11 @@ export function SyncPanel({
       )
       return
     }
+    setPreflightChecking(true)
     void window.eidosLite.getSyncPreflight().then(
       (value) => {
         if (!active) return
+        setPreflightChecking(false)
         setPreflight(value)
         setSpaceBytes(value.totalBytes)
         setConfirmWarnings(false)
@@ -379,6 +383,8 @@ export function SyncPanel({
         }
       },
       (cause) => {
+        if (!active) return
+        setPreflightChecking(false)
         console.error("Could not calculate this Space size", cause)
         if (!active) return
         setPreflight(null)
@@ -872,11 +878,11 @@ export function SyncPanel({
   if (
     variant === "inspector" &&
     mode === "enable" &&
-    status.remote.state === "connected"
+    (status.remote.state === "connected" || mergeStatus?.state === "merging")
   ) {
     return renderInspector()
   }
-  if (shouldRenderSyncAccessGate(status)) {
+  if (shouldRenderSyncAccessGate(status) && mergeStatus?.state !== "merging") {
     return (
       <SyncAccessGate
         key={cacheKey}
@@ -1133,6 +1139,11 @@ export function SyncPanel({
                   preflight={preflight}
                   confirmWarnings={confirmWarnings}
                   onConfirmWarnings={setConfirmWarnings}
+                  refreshing={preflightChecking}
+                  onRefresh={() => {
+                    setConfirmWarnings(false)
+                    setPreflightRefreshKey((current) => current + 1)
+                  }}
                 />
               ) : null}
               <div className="sync-actions">
@@ -1145,6 +1156,7 @@ export function SyncPanel({
                       busy !== null ||
                       operationsBlocked ||
                       !preflight ||
+                      preflightChecking ||
                       preflight.blockerCount > 0 ||
                       (preflight.warningCount > 0 && !confirmWarnings)
                     }
@@ -1616,8 +1628,9 @@ export function SyncPanel({
           </div>
         </header>
 
-        {mode === "enable" && <PeerSyncPanel key={cacheKey} />}
-        {setupContent}
+        <SyncTransportTabs key={cacheKey} enabled={mode === "enable"}>
+          {setupContent}
+        </SyncTransportTabs>
       </aside>
     </div>
   )
@@ -1703,60 +1716,67 @@ function SyncAccessGate({
             <X />
           </button>
         </header>
-        {mode === "enable" && <PeerSyncPanel />}
-        <div className="sync-dialog-body sync-gate">
-          <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
-            {signedOut ? <LogIn /> : <ShieldCheck />}
-          </span>
-          <h2>{signedOut ? "Sign in to use Sync" : "Sync access required"}</h2>
-          <p>
-            {signedOut
-              ? "Use your eidos.space account to check whether Sync is available."
-              : blocked
-                ? "Manage your Sync access on eidos.space, then check again here."
-                : "Apply for or review Sync access on eidos.space, then check again here."}
-          </p>
-          <div className="sync-actions">
-            {signedOut ? (
-              <button
-                type="button"
-                className="primary-action"
-                data-sync-sign-in=""
-                disabled={busy !== null}
-                onClick={onSignIn}
-              >
-                {busy === "sign-in" ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <LogIn />
-                )}
-                {busy === "sign-in" ? "Waiting for your browser…" : "Sign in"}
-              </button>
-            ) : (
-              <>
+        <SyncTransportTabs enabled={mode === "enable"}>
+          <div className="sync-dialog-body sync-gate">
+            <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
+              {signedOut ? <LogIn /> : <ShieldCheck />}
+            </span>
+            <h2>
+              {signedOut ? "Sign in to use Sync" : "Sync access required"}
+            </h2>
+            <p>
+              {signedOut
+                ? "Use your eidos.space account to check whether Sync is available."
+                : blocked
+                  ? "Manage your Sync access on eidos.space, then check again here."
+                  : "Apply for or review Sync access on eidos.space, then check again here."}
+            </p>
+            <div className="sync-actions">
+              {signedOut ? (
                 <button
                   type="button"
                   className="primary-action"
-                  data-sync-manage-access=""
+                  data-sync-sign-in=""
                   disabled={busy !== null}
-                  onClick={onManageAccess}
+                  onClick={onSignIn}
                 >
-                  <UserRound /> Manage Sync access
+                  {busy === "sign-in" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <LogIn />
+                  )}
+                  {busy === "sign-in" ? "Waiting for your browser…" : "Sign in"}
                 </button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-check-access=""
-                  disabled={busy !== null || checking}
-                  onClick={onCheckAgain}
-                >
-                  {checking ? <LoaderCircle className="spin" /> : <RefreshCw />}
-                  {checking ? "Checking…" : "Check again"}
-                </button>
-              </>
-            )}
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    data-sync-manage-access=""
+                    disabled={busy !== null}
+                    onClick={onManageAccess}
+                  >
+                    <UserRound /> Manage Sync access
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    data-sync-check-access=""
+                    disabled={busy !== null || checking}
+                    onClick={onCheckAgain}
+                  >
+                    {checking ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <RefreshCw />
+                    )}
+                    {checking ? "Checking…" : "Check again"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </SyncTransportTabs>
       </aside>
     </div>
   )
@@ -2547,10 +2567,14 @@ function SyncSafetyReview({
   preflight,
   confirmWarnings,
   onConfirmWarnings,
+  refreshing,
+  onRefresh,
 }: {
   preflight: EidosSyncPreflight | null
   confirmWarnings: boolean
   onConfirmWarnings(value: boolean): void
+  refreshing: boolean
+  onRefresh(): void
 }) {
   return (
     <section
@@ -2560,6 +2584,16 @@ function SyncSafetyReview({
     >
       <div className="sync-section-head">
         <h3>First upload check</h3>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Recheck files"
+          title="Recheck files after changing .graftignore"
+          disabled={refreshing}
+          onClick={onRefresh}
+        >
+          <RefreshCw />
+        </button>
         {preflight ? (
           <span className="sync-section-count">
             {preflight.fileCount} files · {formatBytes(preflight.totalBytes)} ·{" "}
@@ -2727,6 +2761,8 @@ function concernLabel(
   concern: EidosSyncPreflight["warnings"][number]["concerns"][number]
 ) {
   return {
+    "tracked-ignored":
+      "already in version history; .graftignore does not exclude it from sync",
     hidden: "hidden file",
     "suspected-secret": "may contain private data",
     "large-file": "large file",

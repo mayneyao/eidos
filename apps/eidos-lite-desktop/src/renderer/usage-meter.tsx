@@ -71,22 +71,25 @@ export function UsageMeter({
           />
         ) : null}
       </div>
-      <ul className="usage-meter-legend">
-        {visible.map((segment) => (
-          <li key={segment.key}>
-            <i className={`is-${segment.tone}`} aria-hidden="true" />
-            {segment.label}
-            <span>{formatValue(segment.value)}</span>
-          </li>
-        ))}
-        {remaining > 0 ? (
-          <li>
-            <i className="is-free" aria-hidden="true" />
-            {freeLabel}
-            <span>{formatValue(remaining)}</span>
-          </li>
-        ) : null}
-      </ul>
+      {visible.length > 1 ||
+      visible.some((segment) => segment.tone !== "accent") ? (
+        <ul className="usage-meter-legend">
+          {visible.map((segment) => (
+            <li key={segment.key}>
+              <i className={`is-${segment.tone}`} aria-hidden="true" />
+              {segment.label}
+              <span>{formatValue(segment.value)}</span>
+            </li>
+          ))}
+          {remaining > 0 ? (
+            <li>
+              <i className="is-free" aria-hidden="true" />
+              {freeLabel}
+              <span>{formatValue(remaining)}</span>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
     </div>
   )
 }

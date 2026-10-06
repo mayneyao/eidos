@@ -101,6 +101,29 @@ export class WindowController {
     LaunchNotificationRetry
   >()
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
+  private readonly sharedSessions = new Map<string, SpaceSession>()
+
+  retainDeviceSync(session: SpaceSession): void {
+    this.sharedSessions.set(session.canonical.id, session)
+  }
+  async openDeviceSyncSpace(id: string): Promise<void> {
+    const session = this.sharedSessions.get(id)
+    if (!session) throw new Error("此 Space 尚未开放局域网同步")
+    await this.createSpaceWindow(session.canonical.root)
+  }
+
+  async releaseDeviceSync(id: string): Promise<void> {
+    const session = this.sharedSessions.get(id)
+    this.sharedSessions.delete(id)
+    if (session && ![...this.sessionByWebContents.values()].includes(session))
+      await this.sessionCloses.close(session)
+  }
+
+  private closeEditorSession(session: SpaceSession): Promise<void> {
+    return this.sharedSessions.get(session.canonical.id) === session
+      ? Promise.resolve()
+      : this.sessionCloses.close(session)
+  }
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
   private preferencesStore: EidosLitePreferencesStore | null = null
@@ -119,6 +142,10 @@ export class WindowController {
     ...DEFAULT_EIDOS_LITE_PREFERENCES.builtInPlugins,
   }
   private closing = false
+  private readonly bindingOwners = new Set<number>()
+  private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
+  private readonly detachSpaceListeners = new Map<number, () => void>()
+  onSpaceReleased: (ownerId: number) => void = () => {}
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {
     nativeTheme.on("updated", () => {
@@ -156,6 +183,15 @@ export class WindowController {
             installId
           )
         }
+      }
+      if (!installId && route === "/settings/devices") {
+        if (this.settingsWindow.webContents.isLoading())
+          void this.loadRenderer(this.settingsWindow, route)
+        else
+          this.settingsWindow.webContents.send(
+            IPC_CHANNELS.settingsNavigate,
+            "devices"
+          )
       }
       return this.settingsWindow
     }
@@ -261,9 +297,6 @@ export class WindowController {
   async chooseAndBindSpace(
     webContents: WebContents
   ): Promise<SpaceSnapshot | null> {
-    if (this.sessionByWebContents.has(webContents.id)) {
-      throw new Error("This window already owns a Space")
-    }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const locale = await this.locale()
     const t = (message: string) => translateEidosLite(locale, message)
@@ -282,9 +315,6 @@ export class WindowController {
   async newAndBindSpace(
     webContents: WebContents
   ): Promise<SpaceSnapshot | null> {
-    if (this.sessionByWebContents.has(webContents.id)) {
-      throw new Error("This window already owns a Space")
-    }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const preferences = await this.preferences().get()
     const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
@@ -320,9 +350,6 @@ export class WindowController {
     reportProgress: CloneProgressReporter = () => undefined,
     reportTransfer: (progress: GraftTransferProgress) => void = () => undefined
   ): Promise<SpaceSnapshot | null> {
-    if (this.sessionByWebContents.has(webContents.id)) {
-      throw new Error("This window already owns a Space")
-    }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const locale = await this.locale()
     const t = (message: string) => translateEidosLite(locale, message)
@@ -608,6 +635,10 @@ export class WindowController {
   async openSettingsDestination(
     destination: EidosLiteSettingsDestination
   ): Promise<void> {
+    if (destination === "devices") {
+      this.showSettingsWindow("/settings/devices")
+      return
+    }
     if (destination === "logs") {
       const error = await shell.openPath(app.getPath("logs"))
       if (error) throw new Error(error)
@@ -726,6 +757,9 @@ export class WindowController {
     for (const session of new Set(this.sessionByWebContents.values())) {
       this.sessionCloses.close(session)
     }
+    for (const session of this.sharedSessions.values())
+      this.sessionCloses.close(session)
+    this.sharedSessions.clear()
     this.sessionByWebContents.clear()
     this.windowBySpaceId.clear()
     this.pendingLaunchFilesByWebContents.clear()
@@ -805,6 +839,21 @@ export class WindowController {
     webContents: WebContents,
     root: string
   ): Promise<SpaceSnapshot | null> {
+    if (this.bindingOwners.has(webContents.id))
+      throw new Error("A Space is already opening")
+    this.bindingOwners.add(webContents.id)
+    try {
+      return await this.bindSpaceNow(webContents, root)
+    } finally {
+      this.bindingOwners.delete(webContents.id)
+      this.textDraftClose.cancel(webContents)
+    }
+  }
+
+  private async bindSpaceNow(
+    webContents: WebContents,
+    root: string
+  ): Promise<SpaceSnapshot | null> {
     if (this.closing) throw new Error("Eidos Lite is closing")
     const canonical = await canonicalizeSpaceRoot(root)
     const existing = this.windowBySpaceId.get(canonical.id)
@@ -820,14 +869,12 @@ export class WindowController {
     }
     this.windowBySpaceId.set(canonical.id, window)
     let session: SpaceSession
-    const opening = SpaceSession.createCanonical(
-      canonical,
-      app.getPath("userData"),
-      {
-        graft: this.createGraftClient(),
-        workerPath: this.runtimeWorkerPath(),
-      }
-    )
+    const opening = this.sharedSessions.has(canonical.id)
+      ? Promise.resolve(this.sharedSessions.get(canonical.id)!)
+      : SpaceSession.createCanonical(canonical, app.getPath("userData"), {
+          graft: this.createGraftClient(),
+          workerPath: this.runtimeWorkerPath(),
+        })
     this.openingSessions.add(opening)
     try {
       session = await opening
@@ -843,52 +890,99 @@ export class WindowController {
       if (this.windowBySpaceId.get(canonical.id) === window) {
         this.windowBySpaceId.delete(canonical.id)
       }
-      await this.sessionCloses.close(session)
+      await this.closeEditorSession(session)
       throw new Error("The requesting window no longer exists")
     }
+    let snapshot: SpaceSnapshot
+    try {
+      snapshot = await session.snapshot()
+    } catch (error) {
+      this.windowBySpaceId.delete(canonical.id)
+      await this.closeEditorSession(session)
+      throw error
+    }
+    const previous = this.sessionByWebContents.get(webContents.id)
+    if (previous && !(await this.textDraftClose.prepare(webContents))) {
+      this.windowBySpaceId.delete(canonical.id)
+      await this.closeEditorSession(session)
+      return null
+    }
+    if (window.isDestroyed() || this.closing) {
+      this.windowBySpaceId.delete(canonical.id)
+      await this.closeEditorSession(session)
+      return null
+    }
+    if (previous) {
+      try {
+        await this.closeEditorSession(previous)
+      } catch (error) {
+        this.windowBySpaceId.delete(canonical.id)
+        await this.closeEditorSession(session)
+        throw error
+      }
+      this.detachSpaceListeners.get(webContents.id)?.()
+      this.windowBySpaceId.delete(previous.canonical.id)
+      this.clearPendingLaunchFiles(webContents.id)
+      this.onSpaceReleased(webContents.id)
+    }
     this.sessionByWebContents.set(webContents.id, session)
-    let closeApproved = false
-    let checkingDrafts = false
-    window.on("close", (event) => {
-      if (this.closing || closeApproved) return
-      event.preventDefault()
-      if (checkingDrafts) return
-      checkingDrafts = true
-      void this.textDraftClose.prepare(webContents).then((allowed) => {
-        checkingDrafts = false
-        if (allowed && !window.isDestroyed()) {
-          closeApproved = true
-          window.close()
-        } else {
-          this.textDraftClose.cancel(webContents)
-        }
+    if (!this.spaceCloseInstalled.has(window)) {
+      this.spaceCloseInstalled.add(window)
+      let closeApproved = false
+      let checkingDrafts = false
+      window.on("close", (event) => {
+        if (this.closing || closeApproved) return
+        event.preventDefault()
+        if (this.bindingOwners.has(webContents.id)) return
+        if (checkingDrafts) return
+        checkingDrafts = true
+        void this.textDraftClose.prepare(webContents).then((allowed) => {
+          checkingDrafts = false
+          if (allowed && !window.isDestroyed()) {
+            closeApproved = true
+            window.close()
+          } else {
+            this.textDraftClose.cancel(webContents)
+          }
+        })
       })
-    })
-    window.once("closed", () => this.textDraftClose.cancel(webContents))
+      window.once("closed", () => this.textDraftClose.cancel(webContents))
+    }
     this.promoteToSpaceWindow(window)
-    session.onChanged((snapshot) => {
-      if (!webContents.isDestroyed()) {
+    const unsubscribe = session.onChanged((snapshot) => {
+      if (
+        !webContents.isDestroyed() &&
+        this.sessionByWebContents.get(webContents.id) === session
+      ) {
         webContents.send(IPC_CHANNELS.spaceChanged, snapshot)
       }
     })
     window.setTitle(`${session.canonical.name} — Eidos Lite`)
-    window.once("closed", () => {
+    const onClosed = () => {
+      if (this.sessionByWebContents.get(webContents.id) !== session) return
+      this.detachSpaceListeners.get(webContents.id)?.()
       this.sessionByWebContents.delete(webContents.id)
       this.clearPendingLaunchFiles(webContents.id)
       if (this.windowBySpaceId.get(session.canonical.id) === window) {
         this.windowBySpaceId.delete(session.canonical.id)
       }
-      void this.sessionCloses.close(session).catch((error: unknown) => {
+      void this.closeEditorSession(session).catch((error: unknown) => {
         console.error("Failed to close Space session", error)
       })
       this.showWelcomeAfterSpaceClosed()
+    }
+    window.once("closed", onClosed)
+    this.detachSpaceListeners.set(webContents.id, () => {
+      unsubscribe()
+      window.removeListener("closed", onClosed)
+      this.detachSpaceListeners.delete(webContents.id)
     })
     await this.recentSpaces()
       .record(session.canonical)
       .catch((error) => {
         console.warn("Could not update recent Spaces", error)
       })
-    return session.snapshot()
+    return snapshot
   }
 
   private recentSpaces(): RecentSpacesStore {

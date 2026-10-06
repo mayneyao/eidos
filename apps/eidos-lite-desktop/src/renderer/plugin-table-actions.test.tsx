@@ -43,7 +43,7 @@ vi.mock("./plugin-editor", () => ({
           })) as Array<{ readToken: string }>
           const output = {
             readToken: rows[0]!.readToken,
-            values: { field: "sales" },
+            values: { field: "Long article paragraph.\n".repeat(12000) },
           }
           expect(
             await request("table.task.declareOutputs", { rows: [output] })

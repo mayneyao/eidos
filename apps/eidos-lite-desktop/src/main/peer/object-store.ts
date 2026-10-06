@@ -15,7 +15,10 @@ import type {
 export class PeerObjectStore implements GraftRepositoryBackend {
   private readonly db: DatabaseSync
   private readonly blobs: string
-  constructor(directory: string) {
+  constructor(
+    directory: string,
+    private readonly reviewed?: PeerObjectStore
+  ) {
     this.blobs = path.join(directory, "blobs")
     fs.mkdirSync(this.blobs, { recursive: true, mode: 0o700 })
     this.db = new DatabaseSync(path.join(directory, "objects.sqlite"))
@@ -31,13 +34,40 @@ export class PeerObjectStore implements GraftRepositoryBackend {
       .prepare("SELECT blob, size FROM objects WHERE path=?")
       .get(key) as { blob: string; size: number } | undefined
   }
-  head(key: string) {
+  head(key: string): { size: number; etag: string } | null {
     const row = this.row(key)
-    return row ? { size: row.size, etag: row.blob } : null
+    return row
+      ? { size: row.size, etag: row.blob }
+      : this.isStorageKey(key)
+        ? (this.reviewed?.head(key) ?? null)
+        : null
   }
-  get(key: string, range?: GraftByteRange) {
+  private isStorageKey(key: string) {
+    // External file payloads are immutable and named by content hash, just like
+    // storage history. Reuse reviewed bytes when a phone publishes its first
+    // incoming head; otherwise an unchanged downloaded Space uploads them all.
+    // Branch refs and repository packs remain private to each incoming store.
+    return (
+      key.startsWith("segments/") ||
+      key.startsWith("logs/") ||
+      /^store\/files\/[a-f0-9]{2}\/[a-f0-9]{62}$/.test(key)
+    )
+  }
+  get(
+    key: string,
+    range?: GraftByteRange
+  ): {
+    body: ReadableStream<Uint8Array<ArrayBuffer>>
+    size: number
+    etag: string
+  } | null {
     const row = this.row(key)
-    if (!row) return null
+    // Historical snapshots already downloaded from this Space can be lazy:
+    // hydration during a push needs the original immutable segment bytes.
+    if (!row)
+      return this.isStorageKey(key)
+        ? (this.reviewed?.get(key, range) ?? null)
+        : null
     const body = Readable.toWeb(
       fs.createReadStream(
         path.join(this.blobs, row.blob),

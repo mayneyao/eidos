@@ -29,7 +29,6 @@ import {
   FolderOpen,
   FolderPlus,
   GitMerge,
-  HardDrive,
   History,
   LoaderCircle,
   PanelLeft,
@@ -43,6 +42,8 @@ import {
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { WorkspaceHeading } from "./workspace-heading"
+import { SpaceSwitcher } from "./space-switcher"
+import appLogo from "../../assets/logo.svg"
 import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
 import { EXPLORER_SORT_STORAGE_KEY, readExplorerSort } from "./explorer-sort"
 import { PluginEditor } from "./plugin-editor"
@@ -688,7 +689,6 @@ function Welcome({
       data-welcome-ready={appInfo ? "true" : "false"}
     >
       <header className="welcome-titlebar">
-        <strong>Eidos Lite</strong>
         <button
           type="button"
           className="icon-button welcome-settings-button"
@@ -700,104 +700,114 @@ function Welcome({
           <Settings />
         </button>
       </header>
-      <section className="welcome-copy" aria-labelledby="welcome-title">
-        <p className="eyebrow">{t("Local-first workspace")}</p>
-        <h1 id="welcome-title">{t("Choose a Space")}</h1>
-        <p className="welcome-detail">
-          {t(
-            "Open an ordinary folder and work across its Eidos Files. Local work never requires an account."
-          )}
-        </p>
-        <div className="welcome-actions">
-          <button
-            type="button"
-            className="primary-action"
-            onClick={onNew}
-            disabled={opening}
-          >
-            {opening ? <LoaderCircle className="spin" /> : <FolderPlus />}
-            {opening ? t("Opening Space…") : t("New Space")}
-          </button>
-          <button
-            type="button"
-            className="secondary-action"
-            onClick={onOpen}
-            disabled={opening}
-          >
-            <FolderOpen /> {t("Open Space")}
-          </button>
-          <button type="button" className="secondary-action" onClick={onClone}>
-            <CloudDownload /> {t("Open Synced Space")}
-          </button>
+      <div className="welcome-body">
+        <section className="welcome-copy" aria-labelledby="welcome-title">
+          <img className="welcome-logo" src={appLogo} alt="" />
+          <h1 id="welcome-title">Eidos Lite</h1>
+          <p className="welcome-version">
+            {appInfo
+              ? t("Version {version}", { version: appInfo.version })
+              : ""}
+          </p>
+          <div className="welcome-actions">
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={onOpen}
+              disabled={opening}
+            >
+              {opening ? <LoaderCircle className="spin" /> : <FolderOpen />}
+              {opening ? t("Opening Space…") : t("Open Space")}
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={onClone}
+              disabled={opening}
+            >
+              <CloudDownload /> {t("Open Synced Space")}
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={onNew}
+              disabled={opening}
+            >
+              <FolderPlus /> {t("New Space")}
+            </button>
+          </div>
+          {error ? (
+            <p className="welcome-error" role="alert">
+              <CircleAlert />
+              {error}
+            </p>
+          ) : null}
+        </section>
+        <section className="welcome-recents" aria-label={t("Recent Spaces")}>
+          <div className="recent-spaces">
+            {recents.map((recent) => (
+              <div className="recent-space" key={recent.id}>
+                <button
+                  type="button"
+                  className="recent-space-open"
+                  disabled={opening || !recent.available}
+                  onClick={() => onOpenRecent(recent.id)}
+                  title={recent.path}
+                >
+                  <FolderOpen />
+                  <span>
+                    <strong>{recent.name}</strong>
+                    <small>
+                      {recent.available ? recent.path : t("Folder unavailable")}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="recent-space-remove"
+                  onClick={() => onRemoveRecent(recent.id)}
+                  aria-label={t("Remove {name} from recent Spaces", {
+                    name: recent.name,
+                  })}
+                  title={t("Remove from recents")}
+                >
+                  <X />
+                </button>
+              </div>
+            ))}
+            {recents.length === 0 && (
+              <div className="welcome-empty">
+                <strong>{t("No recent Spaces")}</strong>
+                <p>{t("Open a folder or create your first Space.")}</p>
+              </div>
+            )}
+          </div>
+        </section>
+        <footer className="welcome-footer">
           <button
             type="button"
             className="secondary-action welcome-diagnostics"
             data-copy-diagnostics
             onClick={onCopyDiagnostics}
           >
-            <Copy />{" "}
+            <Copy />
             {diagnosticsCopied
               ? t("Diagnostics copied")
               : t("Copy diagnostics")}
           </button>
-        </div>
-        {error ? (
-          <p className="welcome-error" role="alert">
-            <CircleAlert />
-            {error}
-          </p>
-        ) : null}
-      </section>
-      <aside className="welcome-principles" aria-label={t("Recent Spaces")}>
-        <header>
-          <span>{t("Recent Spaces")}</span>
-          <small>
-            {recents.length ? t("Local folders") : t("No recent Spaces")}
-          </small>
-        </header>
-        <div className="recent-spaces">
-          {recents.map((recent) => (
-            <div className="recent-space" key={recent.id}>
-              <button
-                type="button"
-                className="recent-space-open"
-                disabled={opening || !recent.available}
-                onClick={() => onOpenRecent(recent.id)}
-                title={recent.path}
-              >
-                <HardDrive />
-                <span>
-                  <strong>{recent.name}</strong>
-                  <small>
-                    {recent.available ? recent.path : t("Folder unavailable")}
-                  </small>
-                </span>
-              </button>
-              <button
-                type="button"
-                className="recent-space-remove"
-                onClick={() => onRemoveRecent(recent.id)}
-                aria-label={t("Remove {name} from recent Spaces", {
-                  name: recent.name,
-                })}
-                title={t("Remove from recents")}
-              >
-                <X />
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="recent-spaces-note">
-          {t(
-            "Spaces remain ordinary folders. Removing one here never deletes its files."
-          )}
-        </p>
-      </aside>
+        </footer>
+      </div>
     </main>
   )
 }
 
-function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
+function WorkspaceApp({
+  theme,
+  onSpaceReplaced,
+}: {
+  theme: ResolvedAppearance
+  onSpaceReplaced(): void
+}) {
   const whatsNew = useWhatsNew()
   const { t } = useEidosLiteI18n()
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
@@ -1554,13 +1564,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     }
   }, [space?.id])
 
+  const activeFile =
+    cachedFiles.find((file) => file.sessionId === activeSession) ?? null
+  const activeDocumentPath =
+    activeFile?.relativePath ?? textPreview?.relativePath ?? null
+
   useEffect(() => {
     if (!space || typeof window.eidosLite.getSyncMergeStatus !== "function") {
       setSyncMergeStatus({ state: "none" })
       return
     }
     let active = true
-    setSyncMergeStatus({ state: "none" })
     void window.eidosLite.getSyncMergeStatus().then(
       (response) => {
         if (!active || !response.ok) return
@@ -1568,6 +1582,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         if (response.value.state === "merging") {
           setSyncPanelMode("enable")
           setVersionPanelOpen(false)
+        } else {
+          const location = navigationSnapshotRef.current?.location
+          if (typeof location === "object" && location?.type === "merge") {
+            // The repository event can finish a merge before its inspector's
+            // IPC callback returns. Reconcile the route from durable status too.
+            recordNavigationLocation(activeDocumentPath)
+            setVersionPanelOpen(false)
+            setSyncPanelMode("enable")
+            void window.eidosLite.refreshSpace().then(
+              (snapshot) => {
+                if (active && snapshot) acceptSpaceSnapshot(snapshot)
+              },
+              () => undefined
+            )
+          }
         }
       },
       () => undefined
@@ -1575,7 +1604,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     return () => {
       active = false
     }
-  }, [space?.id])
+  }, [
+    space?.id,
+    space?.graft.changeToken,
+    activeDocumentPath,
+    recordNavigationLocation,
+    acceptSpaceSnapshot,
+  ])
 
   useEffect(() => {
     setActiveSession(null)
@@ -1641,15 +1676,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     )
   }, [rightSidebarWidth])
 
-  const activeFile =
-    cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const recentFiles =
     recentFileState.spaceId === space?.id ? recentFileState.files : []
   const spaceTreeIncomplete = space
     ? hasUnloadedDirectories(space.entries)
     : false
-  const activeDocumentPath =
-    activeFile?.relativePath ?? textPreview?.relativePath ?? null
   const pluginExplorerState = {
     rootDirectory: explorerDirectory,
     activePath: activeDocumentPath,
@@ -2081,7 +2112,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setError(null)
       try {
         const opened = await open()
-        if (opened) acceptSpaceSnapshot(opened)
+        if (opened) {
+          if (space && opened.id !== space.id) onSpaceReplaced()
+          else acceptSpaceSnapshot(opened)
+        }
         setRecentSpaces(await window.eidosLite.listRecentSpaces())
       } catch (cause) {
         setError(errorMessage(cause))
@@ -2089,7 +2123,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setOpeningSpace(false)
       }
     },
-    [acceptSpaceSnapshot]
+    [acceptSpaceSnapshot, space, onSpaceReplaced]
   )
 
   const openSpace = useCallback(
@@ -3333,6 +3367,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const mergeConflictCount =
     syncMergeStatus.state === "merging" ? syncMergeStatus.unmergedCount : 0
   const syncBadgeCount = mergeConflictCount || space.graft.sync?.ahead || 0
+  const hostedSyncQueueStatus = space.graft.sync ? syncQueueStatus : null
   const versionChangeCount =
     syncMergeStatus.state !== "merging" &&
     space.graft.initialized &&
@@ -3480,6 +3515,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         sort={explorerSort}
         onSortChange={setExplorerSort}
         name={space.name}
+        spaceSwitcher={
+          <SpaceSwitcher
+            name={space.name}
+            currentId={space.id}
+            recents={recentSpaces}
+            disabled={openingSpace || localInteractionBlocked}
+            onOpen={openSpace}
+            onNew={newSpace}
+            onRecent={openRecentSpace}
+            onClone={() => setSyncPanelMode("clone")}
+          />
+        }
         path={space.displayPath}
         directory={explorerDirectory}
         onNavigateDirectory={(path) => void navigateExplorerDirectory(path)}
@@ -4016,14 +4063,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               type="button"
               className="icon-button titlebar-tool-button"
               data-titlebar-action="sync"
-              data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
+              data-sync-queue-state={hostedSyncQueueStatus?.state ?? "idle"}
               aria-pressed={syncPanelMode === "enable"}
               aria-label={
                 mergeConflictCount > 0
                   ? `Sync, ${mergeConflictCount} unresolved conflicts`
                   : syncBadgeCount > 0
                     ? t("{count} versions to upload", { count: syncBadgeCount })
-                    : syncQueueLabel(syncQueueStatus)
+                    : syncQueueLabel(hostedSyncQueueStatus)
               }
               aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
                 "toggle-sync",
@@ -4034,13 +4081,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               title={shortcutTitle(
                 syncBadgeCount > 0 && mergeConflictCount === 0
                   ? t("{count} versions to upload", { count: syncBadgeCount })
-                  : syncQueueLabel(syncQueueStatus),
+                  : syncQueueLabel(hostedSyncQueueStatus),
                 syncShortcutLabel
               )}
             >
               {mergeConflictCount > 0 ? (
                 <GitMerge />
-              ) : syncQueueStatus?.state === "running" ? (
+              ) : hostedSyncQueueStatus?.state === "running" ? (
                 <LoaderCircle className="spin" />
               ) : (
                 <Cloud />
@@ -4699,6 +4746,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             variant="inspector"
             platform={platform}
             cacheKey={space.id}
+            onClone={() => {
+              setSyncPanelMode(null)
+              onSpaceReplaced()
+            }}
             hasUncheckpointedChanges={
               syncMergeStatus.state !== "merging" &&
               space.graft.initialized &&
@@ -4711,7 +4762,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setSyncPanelMode(null)
               setVersionPanelOpen(true)
             }}
-            onMergeStatusChange={setSyncMergeStatus}
+            onMergeStatusChange={(merge) => {
+              setSyncMergeStatus(merge)
+              if (merge.state === "none" && mergeInitialPath !== undefined) {
+                setVersionRefreshKey((current) => current + 1)
+                reloadVersionDiffRoute()
+                setVersionPanelOpen(false)
+                recordNavigationLocation(activeDocumentPath)
+                setSyncPanelMode("enable")
+              }
+            }}
             mergeStatus={syncMergeStatus}
             onReviewMerge={(path, table) => {
               recordNavigationLocation({
@@ -5191,9 +5251,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
 export function App() {
   const theme = useAppTheme()
+  const [workspaceGeneration, setWorkspaceGeneration] = useState(0)
+  const replaceSpace = useCallback(() => {
+    window.history.replaceState(null, "", window.location.pathname)
+    setWorkspaceGeneration((generation) => generation + 1)
+  }, [])
   return /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
     <SettingsPage />
   ) : (
-    <WorkspaceApp theme={theme} />
+    <WorkspaceApp
+      key={workspaceGeneration}
+      theme={theme}
+      onSpaceReplaced={replaceSpace}
+    />
   )
 }

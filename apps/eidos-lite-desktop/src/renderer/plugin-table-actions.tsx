@@ -5,7 +5,6 @@ import {
   type EidosFileViewRendererProps,
 } from "@eidos.space/eidos-file-ui"
 import {
-  canonicalizeEidosFileJson,
   type EidosFileDataSource,
   type EidosFileSnapshot,
   type EidosFileTableSnapshot,
@@ -510,8 +509,6 @@ function TableRunner(
         args.rows.some((raw) => !run.records.has(String(object(raw).readToken)))
       )
         throw new Error("Invalid output samples")
-      if (canonicalizeEidosFileJson(args.rows).length > 65536)
-        throw new Error("Output samples exceed the size limit")
       for (const raw of args.rows) {
         const entry = object(raw)
         object(entry.values)

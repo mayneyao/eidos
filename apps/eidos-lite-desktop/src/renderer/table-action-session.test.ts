@@ -63,6 +63,58 @@ async function fixture(count = 4) {
   }
 }
 describe("table action authority with native Runtime", () => {
+  it("writes a full long Markdown sample and retains undo/redo and sample matching", async () => {
+    const f = await fixture(1)
+    try {
+      const session = new TableActionSession(f.source, f.tableId)
+      await session.capture({}, null)
+      const [row] = await session.readRows(0, 1, [f.category])
+      const content = "# 长文章\n\n" + "完整正文，不截断。\n".repeat(12000)
+      const output = {
+        readToken: row!.readToken,
+        values: { [f.category]: content },
+      }
+      session.declareOutputs([output])
+      await expect(
+        session.update(output.readToken, { [f.category]: "truncated" })
+      ).rejects.toThrow("Output differs")
+      await session.update(output.readToken, output.values)
+      expect(
+        (await session.readRows(0, 1, [f.category]))[0]!.values[f.category]
+      ).toBe(content)
+      await session.revert("undo")
+      expect(
+        (await session.readRows(0, 1, [f.category]))[0]!.values[f.category]
+      ).toBe("")
+      await session.revert("redo")
+      expect(
+        (await session.readRows(0, 1, [f.category]))[0]!.values[f.category]
+      ).toBe(content)
+    } finally {
+      await f.close()
+    }
+  })
+  it("rejects output samples above the UTF-8 byte limit before writing", async () => {
+    const f = await fixture(1)
+    try {
+      const session = new TableActionSession(f.source, f.tableId)
+      await session.capture({}, null)
+      const [row] = await session.readRows(0, 1, [f.category])
+      // Fewer than 4 MiB UTF-16 units, but more than 4 MiB encoded bytes.
+      expect(() =>
+        session.declareOutputs([
+          {
+            readToken: row!.readToken,
+            values: { [f.category]: "中".repeat(1_400_000) },
+          },
+        ])
+      ).toThrow("Output samples are too large")
+      expect(session.outputsDeclared).toBe(false)
+      expect(session.undo).toEqual([])
+    } finally {
+      await f.close()
+    }
+  })
   it("does not write or retain receipts when the result is unchanged", async () => {
     const f = await fixture(1)
     try {

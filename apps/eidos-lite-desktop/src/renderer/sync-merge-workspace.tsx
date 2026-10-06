@@ -464,7 +464,7 @@ export function SyncMergeWorkbench({
   const [textResult, setTextResult] = useState("")
   const [textResultSource, setTextResultSource] =
     useState<TextResultSource>(null)
-  const [message, setMessage] = useState("Merge Hosted changes")
+  const [message, setMessage] = useState("Merge incoming changes")
   const [showBase, setShowBase] = useState(false)
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
   const [busy, setBusy] = useState<MergeBusy>("status")
@@ -1286,6 +1286,7 @@ function TextMergeResolution({
   onEditResult(value: string): void
   onSave(): void
 }) {
+  const { t } = useEidosLiteI18n()
   const resolved = path.state === "resolved"
   const text = (version: "base" | "ours" | "theirs") => {
     const content = versions.find((item) => item.version === version)?.content
@@ -1306,7 +1307,7 @@ function TextMergeResolution({
     resultSource === "ours"
       ? "Local selected · Review, then Save & Stage"
       : resultSource === "theirs"
-        ? "Hosted selected · Review, then Save & Stage"
+        ? "Incoming selected · Review, then Save & Stage"
         : resultSource === "edited"
           ? "Edited result · Review, then Save & Stage"
           : "Editable merge output"
@@ -1334,7 +1335,7 @@ function TextMergeResolution({
           <InlineTextDiff
             content={diff("ours")}
             theme={theme}
-            title="Local changes"
+            title={t("Local changes")}
             fixedLayout="unified"
             toolbarEnd={
               resolved ? undefined : (
@@ -1349,7 +1350,7 @@ function TextMergeResolution({
                   onClick={() => onUseVersion("ours", text("ours"))}
                 >
                   {resultSource === "ours" ? <Check /> : null}
-                  {resultSource === "ours" ? "Using Local" : "Use Local"}
+                  {t(resultSource === "ours" ? "Using Local" : "Use Local")}
                 </button>
               )
             }
@@ -1359,7 +1360,7 @@ function TextMergeResolution({
           <InlineTextDiff
             content={diff("theirs")}
             theme={theme}
-            title="Hosted changes"
+            title={t("Incoming changes")}
             fixedLayout="unified"
             toolbarEnd={
               resolved ? undefined : (
@@ -1374,7 +1375,11 @@ function TextMergeResolution({
                   onClick={() => onUseVersion("theirs", text("theirs"))}
                 >
                   {resultSource === "theirs" ? <Check /> : null}
-                  {resultSource === "theirs" ? "Using Hosted" : "Use Hosted"}
+                  {t(
+                    resultSource === "theirs"
+                      ? "Using Incoming"
+                      : "Use Incoming"
+                  )}
                 </button>
               )
             }

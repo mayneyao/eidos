@@ -194,19 +194,17 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
-  it("keeps Recent Spaces visible when the Welcome layout becomes one column", () => {
-    const breakpoint = "@media (max-width: 43rem)"
-    const compactShell = ruleAfter(".welcome-shell", breakpoint)
-    const compactCopy = ruleAfter(".welcome-copy", breakpoint)
-    const compactRecents = ruleAfter(".welcome-principles", breakpoint)
-
-    expect(compactShell).toContain(
-      "grid-template-rows: minmax(0, 0.95fr) minmax(12rem, 1.05fr)"
+  it("keeps the centered Welcome list scrollable below its three actions", () => {
+    expect(rule(".welcome-shell")).toContain("flex-direction: column")
+    expect(rule(".welcome-body")).toContain("width: min(100%, 38rem)")
+    expect(rule(".welcome-actions")).toContain(
+      "grid-template-columns: repeat(3, minmax(0, 1fr))"
     )
-    expect(compactShell).toContain("overflow: hidden")
-    expect(compactCopy).toContain("overflow-y: auto")
-    expect(compactRecents).toContain("overflow: hidden")
-    expect(ruleAfter(".welcome-shell", "@media (max-width: 56rem)")).toBe("")
+    expect(rule(".welcome-recents")).toContain("min-height: 9rem")
+    expect(rule(".recent-spaces")).toContain("overflow-y: auto")
+    expect(ruleAfter(".welcome-logo", "@media (max-height: 34rem)")).toContain(
+      "height: 3.5rem"
+    )
   })
 
   it("aligns text editor content with the file title without moving the scrollbar", () => {

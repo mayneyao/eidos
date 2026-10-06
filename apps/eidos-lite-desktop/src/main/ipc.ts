@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { registerPluginIpc } from "./plugins/plugin-ipc"
 import { PeerService } from "./peer/peer-service"
+import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -624,46 +625,113 @@ export function registerIpc(
 } {
   const plugins = registerPluginIpc(controller)
   const peers = new Map<string, PeerService>()
+  const peerNames = new Map<string, string>()
+  const pairingPrompt = new PairingPrompt(
+    (allow, id) => devices.approve(allow, id),
+    () => controller.showSettingsWindow("/settings/devices")
+  )
+  const devices = new PeerService(null, app.getPath("userData"), (request) =>
+    pairingPrompt.update(request)
+  )
+  let peerActions: Promise<unknown> = Promise.resolve()
   ipcMain.handle(
     IPC_CHANNELS.peerSync,
-    async (event, action: unknown, deviceId: unknown) => {
-      const session = controller.requireSession(event.sender)
-      const id = session.canonical.id
-      let peer = peers.get(id)
-      if (action === "start") {
-        if (!peer) {
-          peer = new PeerService(session, app.getPath("userData"))
-          peers.set(id, peer)
-          const ownedPeer = peer
-          event.sender.once("destroyed", () => {
-            if (peers.get(id) !== ownedPeer) return
+    (event, action: unknown, deviceId: unknown) => {
+      const task = peerActions
+        .catch(() => {})
+        .then(async () => {
+          if (typeof action !== "string")
+            throw new Error("Invalid device sync action")
+          if (action.startsWith("devices-")) {
+            let status
+            switch (action) {
+              case "devices-status":
+                status = await devices.knownStatus()
+                break
+              case "devices-open-space":
+                if (typeof deviceId !== "string")
+                  throw new Error("Invalid Space")
+                await controller.openDeviceSyncSpace(deviceId)
+                status = await devices.knownStatus()
+                break
+              case "devices-start":
+                status = await devices.start(false)
+                break
+              case "devices-invite":
+                status = await devices.start()
+                break
+              case "devices-stop":
+                for (const [id, peer] of peers) {
+                  await peer.close()
+                  await controller.releaseDeviceSync(id)
+                }
+                peers.clear()
+                peerNames.clear()
+                await devices.close()
+                status = await devices.knownStatus()
+                break
+              case "devices-approve":
+                status = await devices.approve(true)
+                break
+              case "devices-reject":
+                status = await devices.approve(false)
+                break
+              case "devices-revoke":
+                if (typeof deviceId !== "string")
+                  throw new Error("Invalid device")
+                await devices.knownStatus()
+                status = await devices.revoke(deviceId)
+                break
+              default:
+                throw new Error("Invalid device action")
+            }
+            return {
+              ...status,
+              spaces: [...peerNames].map(([id, name]) => ({ id, name })),
+            }
+          }
+          const session = controller.requireSession(event.sender)
+          const id = session.canonical.id
+          let peer = peers.get(id)
+          if (action === "start") {
+            if (!devices.status().running)
+              throw new Error("请先在设置 → 设备中开启局域网服务")
+            if (!peer) {
+              peer = new PeerService(session, app.getPath("userData"))
+              peers.set(id, peer)
+            }
+            controller.retainDeviceSync(session)
+            try {
+              const status = await peer.start(false)
+              peerNames.set(id, session.canonical.name)
+              return { ...status, serviceRunning: true }
+            } catch (error) {
+              await peer.close()
+              peers.delete(id)
+              await controller.releaseDeviceSync(id)
+              throw error
+            }
+          }
+          if (action === "stop") {
+            await peer?.close()
             peers.delete(id)
-            void ownedPeer.close().catch((error) => {
-              console.warn("Could not stop device sync", error)
-            })
-          })
-        }
-        try {
-          return await peer.start()
-        } catch (error) {
-          await peer.close()
-          peers.delete(id)
-          throw error
-        }
-      }
-      if (action === "stop") {
-        await peer?.close()
-        peers.delete(id)
-        return { running: false, devices: [] }
-      }
-      if (action === "status")
-        return peer?.status() ?? { running: false, devices: [] }
-      if (!peer) throw new Error("Device sync is not running")
-      if (action === "approve" || action === "reject")
-        return peer.approve(action === "approve")
-      if (action === "revoke" && typeof deviceId === "string")
-        return peer.revoke(deviceId)
-      throw new Error("Invalid device sync action")
+            peerNames.delete(id)
+            await controller.releaseDeviceSync(id)
+          } else if (action !== "status")
+            throw new Error("配对和设备管理请前往设置 → 设备")
+          const globalStatus = await devices.knownStatus()
+          return {
+            ...(action === "stop"
+              ? { running: false, devices: globalStatus.devices }
+              : (peer?.status() ?? {
+                  running: false,
+                  devices: globalStatus.devices,
+                })),
+            serviceRunning: globalStatus.running,
+          }
+        })
+      peerActions = task
+      return task
     }
   )
   const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
@@ -1049,7 +1117,8 @@ export function registerIpc(
         value !== "documentation" &&
         value !== "website" &&
         value !== "github" &&
-        value !== "logs"
+        value !== "logs" &&
+        value !== "devices"
       ) {
         throw new Error("Invalid Settings destination")
       }
@@ -1067,6 +1136,9 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.openSpace, (event) =>
     controller.chooseAndBindSpace(event.sender)
   )
+  controller.onSpaceReleased = (ownerId) => {
+    void terminalSessionsPromise?.then((manager) => manager.closeOwner(ownerId))
+  }
   ipcMain.handle(IPC_CHANNELS.newSpace, (event) =>
     controller.newAndBindSpace(event.sender)
   )
@@ -2386,6 +2458,9 @@ export function registerIpc(
       })
       if (response.ok && response.value.state === "none") {
         try {
+          // Device merges also complete through this handler. They must not
+          // create a failed Hosted Sync job for a local-only Space.
+          if ((await currentRemoteUrl(event)) === null) return response
           const { session } = await attachSyncQueue(event)
           await syncQueue.enqueue(session.canonical.id, "local-checkpoint")
         } catch (error) {
@@ -2496,7 +2571,9 @@ export function registerIpc(
         ;(await terminalSessionsPromise).close()
       }
       await syncQueue.close()
+      await peerActions.catch(() => {})
       await Promise.all([...peers.values()].map((peer) => peer.close()))
+      await devices.close()
     },
   }
 }

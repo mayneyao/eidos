@@ -28,7 +28,7 @@ import type {
 } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 import { SyncMergeWorkspace } from "./sync-merge-workspace"
-import { PeerSyncPanel } from "./peer-sync-panel"
+import { SyncTransportTabs } from "./sync-transport-tabs"
 
 export interface SyncInspectorState {
   history?: SpaceSyncHistoryStatus
@@ -321,7 +321,7 @@ export function SyncInspector({
         <header>
           <div className="sync-inspector-heading">
             <strong>{t("Sync")}</strong>
-            {!setupContent ? (
+            {!setupContent && !merging ? (
               <small
                 title={`${t("Last checked")}: ${history?.checkedAtMs ? new Date(history.checkedAtMs).toLocaleString() : t("Not checked")}`}
               >
@@ -345,7 +345,7 @@ export function SyncInspector({
               </small>
             ) : null}
           </div>
-          {account ? (
+          {merging ? null : account ? (
             account({
               buttonRef: settingsButtonRef,
               expanded: settings,
@@ -370,192 +370,204 @@ export function SyncInspector({
             <X />
           </button>
         </header>
-        <PeerSyncPanel key={spaceKey} />
-        {!setupContent ? (
-          <div className="sync-inspector-b-status" aria-live="polite">
-            <Icon aria-hidden="true" className={active ? "spin" : undefined} />
-            <h2>{title}</h2>
-            {merge.state === "merging" ? (
-              <p>
-                {t("{count} files remaining", { count: merge.unmergedCount })}
-              </p>
-            ) : history ? (
-              <p className="sync-version-counts" data-sync-version-counts>
-                <span>
-                  {t("Local to upload")}:{" "}
-                  <strong>{history.ahead ?? "—"}</strong>
-                </span>
-                <span>
-                  {t("Remote to receive")}:{" "}
-                  <strong>{history.behind ?? "—"}</strong>
-                </span>
-              </p>
-            ) : null}
-            {state.failure ? (
-              <p>{state.failure.message}</p>
-            ) : merging ? (
-              <p>
-                {t(
-                  merge.state === "merging"
-                    ? "Review the merge before completing."
-                    : "Compatible changes merge automatically. Only conflicts need your attention."
-                )}
-              </p>
-            ) : state.readOnly ? (
-              <p className="sync-readonly-notice" data-sync-readonly>
-                {t(
-                  "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
-                )}
-              </p>
-            ) : null}
-            {active ? (
-              <div className="sync-inspector-transfer" role="status">
-                <progress
-                  max={transfer?.totalBytes || undefined}
-                  value={
-                    transfer?.totalBytes ? transfer.transferredBytes : undefined
-                  }
-                />
-                <small>
-                  {transfer
-                    ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MB` : ""}`
-                    : t("Working…")}
-                </small>
-              </div>
-            ) : state.failure ? (
-              <button className="primary-action" onClick={onRetry}>
-                {state.failure.actionLabel || t("Retry")}
-              </button>
-            ) : !merging ? (
-              <button
-                className="primary-action"
-                data-sync-next={state.readOnly ? "account" : action}
-                disabled={
-                  state.busy ||
-                  state.checking ||
-                  (!state.readOnly && action === "review" && !onReview)
-                }
-                onClick={state.readOnly ? onAccount : run}
-              >
-                {state.readOnly ? t("Manage Sync access") : label}
-              </button>
-            ) : null}
-            {!active &&
-            !merging &&
-            (state.failure || action !== "fetch" || state.readOnly) ? (
-              <button
-                className="sync-inspector-link"
-                data-sync-check-remote
-                onClick={() => onAction("fetch")}
-              >
-                {t("Check remote updates")}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="sync-inspector-b-content">
-          {setupContent}
-          {!setupContent && merging && merge.state !== "merging" ? (
-            <>
-              {renderVersions("receive", history?.behind ?? 0)}
-              {renderVersions("upload", history?.ahead ?? 0)}
-            </>
-          ) : null}
-          {setupContent ? null : merging ? (
-            <SyncMergeWorkspace
-              externalStatus={mergeStatus}
-              compact
-              onStatusChange={(next) => {
-                setMerge(next)
-                onMergeStatusChange?.(next)
-              }}
-              onReviewMerge={onReviewMerge}
-              onSpaceChange={onSpaceChange}
-              onFilesMaterialized={onFilesMaterialized}
-            />
-          ) : (
-            <>
-              {state.failure && history?.checkedAtMs ? (
-                <p className="sync-inspector-caption">
-                  {t("Results from the last successful check")}
+        <SyncTransportTabs
+          key={spaceKey}
+          reviewRequired={merging || settings}
+          reviewLabel={merging ? t("Resolve merge conflicts") : undefined}
+        >
+          {!setupContent ? (
+            <div className="sync-inspector-b-status" aria-live="polite">
+              <Icon
+                aria-hidden="true"
+                className={active ? "spin" : undefined}
+              />
+              <h2>{title}</h2>
+              {merge.state === "merging" ? (
+                <p>
+                  {t("{count} files remaining", { count: merge.unmergedCount })}
+                </p>
+              ) : history ? (
+                <p className="sync-version-counts" data-sync-version-counts>
+                  <span>
+                    {t("Local to upload")}:{" "}
+                    <strong>{history.ahead ?? "—"}</strong>
+                  </span>
+                  <span>
+                    {t("Remote to receive")}:{" "}
+                    <strong>{history.behind ?? "—"}</strong>
+                  </span>
                 </p>
               ) : null}
-              {renderVersions("receive", history?.behind ?? 0)}
-              {renderVersions("upload", history?.ahead ?? 0)}
-              {!history?.ahead && !history?.behind ? (
-                <p className="sync-inspector-empty">
+              {state.failure ? (
+                <p>{state.failure.message}</p>
+              ) : merging ? (
+                <p>
                   {t(
-                    history?.checkedAtMs
-                      ? "No versions waiting to transfer"
-                      : "Check remote updates to see incoming versions."
+                    merge.state === "merging"
+                      ? "Review the merge before completing."
+                      : "Compatible changes merge automatically. Only conflicts need your attention."
+                  )}
+                </p>
+              ) : state.readOnly ? (
+                <p className="sync-readonly-notice" data-sync-readonly>
+                  {t(
+                    "Your Sync plan is read-only or expired. Downloads and exports still work; renew to upload saved versions again."
                   )}
                 </p>
               ) : null}
-              {listState === "error" ? (
-                <p role="alert">
-                  {t("Version list unavailable. Your local versions are safe.")}
-                </p>
+              {active ? (
+                <div className="sync-inspector-transfer" role="status">
+                  <progress
+                    max={transfer?.totalBytes || undefined}
+                    value={
+                      transfer?.totalBytes
+                        ? transfer.transferredBytes
+                        : undefined
+                    }
+                  />
+                  <small>
+                    {transfer
+                      ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MB` : ""}`
+                      : t("Working…")}
+                  </small>
+                </div>
+              ) : state.failure ? (
+                <button className="primary-action" onClick={onRetry}>
+                  {state.failure.actionLabel || t("Retry")}
+                </button>
+              ) : !merging ? (
+                <button
+                  className="primary-action"
+                  data-sync-next={state.readOnly ? "account" : action}
+                  disabled={
+                    state.busy ||
+                    state.checking ||
+                    (!state.readOnly && action === "review" && !onReview)
+                  }
+                  onClick={state.readOnly ? onAccount : run}
+                >
+                  {state.readOnly ? t("Manage Sync access") : label}
+                </button>
               ) : null}
-            </>
-          )}
-          {settings ? (
-            <section
-              ref={settingsRef}
-              className="sync-inspector-settings"
-              aria-label={t("Account menu")}
-              onClick={(event) => {
-                if (
-                  event.target instanceof Element &&
-                  event.target.closest("button")
-                ) {
-                  setSettings(false)
-                }
-              }}
-            >
-              <button className="sync-inspector-link" onClick={onAccount}>
-                {t("Manage account")}
-              </button>
-              {merging ? (
-                <>
-                  <button
-                    className="sync-inspector-link"
-                    disabled={merge.state === "merging" || active}
-                    onClick={onLocalRecovery}
-                  >
-                    {t("Keep a local copy")}
-                  </button>
-                  <button
-                    className="sync-inspector-link"
-                    disabled={merge.state === "merging" || active}
-                    onClick={onRemoteRecovery}
-                  >
-                    {t("Open a cloud copy")}
-                  </button>
-                </>
+              {!active &&
+              !merging &&
+              (state.failure || action !== "fetch" || state.readOnly) ? (
+                <button
+                  className="sync-inspector-link"
+                  data-sync-check-remote
+                  onClick={() => onAction("fetch")}
+                >
+                  {t("Check remote updates")}
+                </button>
               ) : null}
-              <button
-                className="sync-inspector-link"
-                onClick={() =>
-                  void window.eidosLite.openSettingsDestination("logs")
-                }
-              >
-                {t("Open logs")}
-              </button>
-            </section>
-          ) : null}
-        </div>
-        {!setupContent && state.dirty && !merging ? (
-          <footer>
-            <div className="sync-inspector-local">
-              <span>
-                {t("Local changes have not been saved as a version.")}
-              </span>
-              <button className="sync-inspector-link" onClick={onReview}>
-                {t("Review local changes")}
-              </button>
             </div>
-          </footer>
-        ) : null}
+          ) : null}
+          <div className="sync-inspector-b-content">
+            {!merging ? setupContent : null}
+            {!setupContent && merging && merge.state !== "merging" ? (
+              <>
+                {renderVersions("receive", history?.behind ?? 0)}
+                {renderVersions("upload", history?.ahead ?? 0)}
+              </>
+            ) : null}
+            {merging ? (
+              <SyncMergeWorkspace
+                externalStatus={mergeStatus}
+                compact
+                onStatusChange={(next) => {
+                  setMerge(next)
+                  onMergeStatusChange?.(next)
+                }}
+                onReviewMerge={onReviewMerge}
+                onSpaceChange={onSpaceChange}
+                onFilesMaterialized={onFilesMaterialized}
+              />
+            ) : setupContent ? null : (
+              <>
+                {state.failure && history?.checkedAtMs ? (
+                  <p className="sync-inspector-caption">
+                    {t("Results from the last successful check")}
+                  </p>
+                ) : null}
+                {renderVersions("receive", history?.behind ?? 0)}
+                {renderVersions("upload", history?.ahead ?? 0)}
+                {!history?.ahead && !history?.behind ? (
+                  <p className="sync-inspector-empty">
+                    {t(
+                      history?.checkedAtMs
+                        ? "No versions waiting to transfer"
+                        : "Check remote updates to see incoming versions."
+                    )}
+                  </p>
+                ) : null}
+                {listState === "error" ? (
+                  <p role="alert">
+                    {t(
+                      "Version list unavailable. Your local versions are safe."
+                    )}
+                  </p>
+                ) : null}
+              </>
+            )}
+            {settings ? (
+              <section
+                ref={settingsRef}
+                className="sync-inspector-settings"
+                aria-label={t("Account menu")}
+                onClick={(event) => {
+                  if (
+                    event.target instanceof Element &&
+                    event.target.closest("button")
+                  ) {
+                    setSettings(false)
+                  }
+                }}
+              >
+                <button className="sync-inspector-link" onClick={onAccount}>
+                  {t("Manage account")}
+                </button>
+                {merging ? (
+                  <>
+                    <button
+                      className="sync-inspector-link"
+                      disabled={merge.state === "merging" || active}
+                      onClick={onLocalRecovery}
+                    >
+                      {t("Keep a local copy")}
+                    </button>
+                    <button
+                      className="sync-inspector-link"
+                      disabled={merge.state === "merging" || active}
+                      onClick={onRemoteRecovery}
+                    >
+                      {t("Open a cloud copy")}
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  className="sync-inspector-link"
+                  onClick={() =>
+                    void window.eidosLite.openSettingsDestination("logs")
+                  }
+                >
+                  {t("Open logs")}
+                </button>
+              </section>
+            ) : null}
+          </div>
+          {!setupContent && state.dirty && !merging ? (
+            <footer>
+              <div className="sync-inspector-local">
+                <span>
+                  {t("Local changes have not been saved as a version.")}
+                </span>
+                <button className="sync-inspector-link" onClick={onReview}>
+                  {t("Review local changes")}
+                </button>
+              </div>
+            </footer>
+          ) : null}
+        </SyncTransportTabs>
       </aside>
     </div>
   )

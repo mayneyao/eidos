@@ -1,5 +1,27 @@
 # Eidos Lite Desktop
 
+Local device connections are managed in **Settings → Devices**, including the
+LAN service, pairing codes, approval, and revoking a device. Pairing works without
+an open Space and does not require a cloud account. Each Space's **Sync → Device
+Sync** panel controls whether that Space is available and displays transfer or
+conflict status. Shared Spaces remain available when switching Spaces or closing
+their editor window while Eidos Lite is running. Stop sharing in the Space panel,
+or stop the LAN service to stop all sharing. Paired-device authorization is retained
+when the service stops; sharing must be enabled again after restarting the app.
+
+After a phone submits the pairing code, it shows **等待电脑授权** and the computer
+name. Eidos Lite presents a native dialog identifying the phone, with Accept and
+Reject actions. Each request sends one system notification with the default system
+sound; notification permissions, sound preferences and Do Not Disturb control its
+delivery. Background and minimized windows are not forced to the foreground.
+Click the notification to return to the dialog, or open **Settings → Devices**.
+Cancel on the phone to dismiss a pending request. Requests expire with the pairing
+code after five minutes; rejection or expiry requires a new code.
+
+Use the Space name at the top of the Explorer to switch recent Spaces, open
+or create a folder, or open a synced Space. Switching Spaces checks unsaved
+text drafts before releasing the previous local session.
+
 File editor plugins: [specification](../../docs/specs/eidos-lite-plugins-1.0.md),
 [SDK](../../packages/plugin-sdk/README.md), and
 [developer quick start](../../packages/plugin-tools/README.md).

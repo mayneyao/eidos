@@ -635,11 +635,11 @@ describe("SyncMergeWorkbench", () => {
         ?.disabled
     ).toBe(true)
 
-    const useHosted = button(host, "Use Hosted")
+    const useHosted = button(host, "Use Incoming")
     await act(async () => useHosted.click())
 
     expect(writeSyncMergeText).not.toHaveBeenCalled()
-    expect(useHosted.textContent).toContain("Using Hosted")
+    expect(useHosted.textContent).toContain("Using Incoming")
     expect(useHosted.getAttribute("aria-pressed")).toBe("true")
     expect(
       host.querySelector<HTMLTextAreaElement>("[aria-label='Merge result']")
@@ -647,13 +647,13 @@ describe("SyncMergeWorkbench", () => {
     ).toBe("hosted\n")
     expect(
       host.querySelector("[data-sync-merge-text-result-source]")?.textContent
-    ).toContain("Hosted selected")
+    ).toContain("Incoming selected")
 
     const useLocal = button(host, "Use Local")
     await act(async () => useLocal.click())
     expect(useLocal.textContent).toContain("Using Local")
     expect(useLocal.getAttribute("aria-pressed")).toBe("true")
-    expect(useHosted.textContent).toContain("Use Hosted")
+    expect(useHosted.textContent).toContain("Use Incoming")
     expect(useHosted.getAttribute("aria-pressed")).toBe("false")
 
     await act(async () => useHosted.click())
@@ -687,7 +687,7 @@ describe("SyncMergeWorkbench", () => {
     await act(async () => continueButton?.click())
     expect(continueSyncMerge).toHaveBeenCalledWith({
       stateToken: secondToken,
-      message: "Merge Hosted changes",
+      message: "Merge incoming changes",
     })
     expect(onStatusChange).toHaveBeenLastCalledWith({ state: "none" })
   })

@@ -1431,6 +1431,25 @@ describe("SyncPanel failure states", () => {
       })
       expect(enable?.disabled).toBe(false)
 
+      let completeCheck: ((value: EidosSyncPreflight) => void) | undefined
+      vi.mocked(api.getSyncPreflight).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            completeCheck = resolve
+          })
+      )
+      await act(async () => {
+        scope
+          ?.querySelector<HTMLButtonElement>('[aria-label="Recheck files"]')
+          ?.click()
+      })
+      expect(api.getSyncPreflight).toHaveBeenCalledTimes(2)
+      expect(enable?.disabled).toBe(true)
+      expect(scope?.textContent).toContain("4 files")
+      await act(async () => completeCheck?.(preflight))
+      expect(confirm?.checked).toBe(false)
+      await act(async () => confirm?.click())
+
       await act(async () => {
         enable?.click()
       })

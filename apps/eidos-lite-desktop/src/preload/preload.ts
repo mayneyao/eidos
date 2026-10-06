@@ -166,6 +166,13 @@ const api: EidosLiteApi = {
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateDownload),
   restartToInstallUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateInstall),
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsOpen),
+  onSettingsNavigate: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, page: "devices") =>
+      listener(page)
+    ipcRenderer.on(IPC_CHANNELS.settingsNavigate, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.settingsNavigate, handler)
+  },
   openWhatsNew: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewOpen),
   openWhatsNewRelease: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewRelease),
   onWhatsNew: (listener) => {

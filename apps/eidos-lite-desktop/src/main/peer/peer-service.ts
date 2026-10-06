@@ -13,7 +13,10 @@ import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { createRequire } from "node:module"
 import QRCode from "qrcode"
-import { createGraftRemoteHandler } from "@eidos.space/graft-remote"
+import {
+  createGraftRemoteHandler,
+  GraftProtocolError,
+} from "@eidos.space/graft-remote"
 import { PeerObjectStore } from "./object-store"
 import { PeerAdvertisement } from "./peer-discovery"
 import type { SpaceSession } from "../space/space-session"
@@ -27,21 +30,35 @@ const secret = () => randomBytes(32).toString("base64url")
 const { generate } = createRequire(import.meta.url)(
   "selfsigned"
 ) as typeof Selfsigned
-type Device = { id: string; name: string; tokenHash: string }
+type Device = {
+  id: string
+  name: string
+  tokenHash: string
+  lastSeenAt?: number
+}
 type Invitation = {
+  id: string
   ticket: string
   expires: number
   name?: string
   token?: string
   deviceId?: string
+  rejected?: boolean
 }
+export type PeerPairingRequest = { id: string; name: string; expires: number }
 export type PeerStatus = {
   running: boolean
   invitation?: string
   qr?: string
   pending?: string
-  devices: { id: string; name: string }[]
+  devices: { id: string; name: string; lastSeenAt?: number }[]
+  deviceName?: string
   error?: string
+  activity?: {
+    device: string
+    state: "syncing" | "completed" | "review" | "failed"
+    updatedAt: number
+  }
 }
 
 export class PeerService {
@@ -64,28 +81,72 @@ export class PeerService {
   private advertisement?: PeerAdvertisement
   private loopback?: http.Server
   private store?: PeerObjectStore
+  private incomingStores = new Map<string, PeerObjectStore>()
   private invitation?: Invitation
   private fingerprint = ""
   private address = ""
   private localUrl = ""
   private readonly localToken = secret()
+  private activity: PeerStatus["activity"]
+  private readonly transfers = new Map<string, number>()
   private seeded = false
+  private remote = ""
+  // Versioned export cache repairs older caches seeded with unrelated tracking refs.
+  private get exportDirectory() {
+    return path.join(this.directory, "export-v2")
+  }
   private activeSync: Promise<void> | null = null
   private readonly requests = new Set<Promise<void>>()
   private stopping = false
   private readonly directory: string
   private readonly deviceDirectory: string
   constructor(
-    private readonly session: SpaceSession,
-    userData: string
+    private readonly session: SpaceSession | null,
+    userData: string,
+    private readonly pairingChanged: (
+      request: PeerPairingRequest | null
+    ) => void = () => {}
   ) {
-    this.directory = path.join(userData, "peer-sync", session.canonical.id)
+    this.directory = path.join(
+      userData,
+      "peer-sync",
+      session?.canonical.id ?? "gateway"
+    )
     this.deviceDirectory = path.join(userData, "peer-sync", "device")
   }
-  async start(): Promise<PeerStatus> {
-    if (this.tls) return this.invite()
+  ownsSession(session: SpaceSession): boolean {
+    return this.session === session
+  }
+  async start(pair = true): Promise<PeerStatus> {
+    if (this.session?.isClosed)
+      throw new Error("请重新打开此 Space 后开启局域网同步")
+    if (this.tls) return pair ? this.invite() : this.status()
     this.stopping = false
     await fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
+    const identity = await this.initializeHost()
+    this.fingerprint = new X509Certificate(identity.cert).fingerprint256
+      .replaceAll(":", "")
+      .toLowerCase()
+    await fs.mkdir(this.exportDirectory, { recursive: true, mode: 0o700 })
+    const identityFile = path.join(this.exportDirectory, "remote-id")
+    let remoteId: string
+    try {
+      remoteId = await fs.readFile(identityFile, "utf8")
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+      remoteId = randomUUID()
+      await fs.writeFile(identityFile, remoteId, { mode: 0o600, flag: "wx" })
+    }
+    this.remote = `eidos-peer-${remoteId}`
+    this.seeded = await fs.stat(path.join(this.exportDirectory, "seeded")).then(
+      () => true,
+      () => false
+    )
+    this.store = new PeerObjectStore(this.exportDirectory)
+    const status = await this.startServers(identity)
+    return pair ? this.invite() : status
+  }
+  private async initializeHost() {
     let host = PeerService.hosts.get(this.deviceDirectory)
     if (!host) {
       const state = {
@@ -111,16 +172,7 @@ export class PeerService {
       host = state
     }
     this.host = host
-    const identity = await host.ready
-    this.fingerprint = new X509Certificate(identity.cert).fingerprint256
-      .replaceAll(":", "")
-      .toLowerCase()
-    this.seeded = await fs.stat(path.join(this.directory, "seeded")).then(
-      () => true,
-      () => false
-    )
-    this.store = new PeerObjectStore(this.directory)
-    return this.startServers(identity)
+    return host.ready
   }
   private async loadDeviceIdentity() {
     await fs.mkdir(this.deviceDirectory, { recursive: true, mode: 0o700 })
@@ -202,13 +254,18 @@ export class PeerService {
     this.advertisement = new PeerAdvertisement(
       (this.tls.address() as AddressInfo).port,
       this.fingerprint,
-      this.session.canonical.id
+      this.session?.canonical.id ?? "device"
     )
     this.advertisement.start()
-    return this.invite()
+    return this.status()
   }
   async invite(): Promise<PeerStatus> {
-    this.invitation = { ticket: secret(), expires: Date.now() + 5 * 60_000 }
+    this.pairingChanged(null)
+    this.invitation = {
+      id: randomUUID(),
+      ticket: secret(),
+      expires: Date.now() + 5 * 60_000,
+    }
     const value =
       "eidos-peer:" +
       Buffer.from(
@@ -217,7 +274,7 @@ export class PeerService {
           url: this.address,
           fingerprint: this.fingerprint,
           ticket: this.invitation.ticket,
-          space: this.session.canonical.id,
+          space: this.session?.canonical.id ?? "device",
           name: hostname(),
         })
       ).toString("base64url")
@@ -230,29 +287,68 @@ export class PeerService {
   status(): PeerStatus {
     return {
       running: Boolean(this.tls),
+      deviceName: hostname(),
+      activity: this.transfers.size
+        ? {
+            device: [...this.transfers.keys()].join("、"),
+            state: "syncing",
+            updatedAt: Date.now(),
+          }
+        : this.activity,
       pending:
         this.invitation &&
         this.invitation.expires > Date.now() &&
-        !this.invitation.token
+        !this.invitation.token &&
+        !this.invitation.rejected
           ? this.invitation.name
           : undefined,
-      devices: (this.host?.devices ?? []).map(({ id, name }) => ({ id, name })),
+      devices: (this.host?.devices ?? []).map(({ id, name, lastSeenAt }) => ({
+        id,
+        name,
+        lastSeenAt,
+      })),
     }
   }
-  async approve(allow: boolean) {
+  async knownStatus(): Promise<PeerStatus> {
+    if (this.host) return this.status()
+    try {
+      const devices: Device[] = JSON.parse(
+        await fs.readFile(
+          path.join(this.deviceDirectory, "devices.json"),
+          "utf8"
+        )
+      )
+      return {
+        ...this.status(),
+        devices: devices.map(({ id, name, lastSeenAt }) => ({
+          id,
+          name,
+          lastSeenAt,
+        })),
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+      return this.status()
+    }
+  }
+  async approve(allow: boolean, requestId?: string) {
     const invitation = this.invitation
     if (
       !invitation?.name ||
-      invitation.expires < Date.now() ||
-      invitation.token
+      invitation.expires <= Date.now() ||
+      invitation.token ||
+      invitation.rejected ||
+      (requestId !== undefined && invitation.id !== requestId)
     )
       throw new Error("Pairing request expired")
     if (!allow) {
-      this.invitation = undefined
+      invitation.rejected = true
+      this.pairingChanged(null)
       return this.status()
     }
     invitation.token = secret()
     invitation.deviceId = randomUUID()
+    this.pairingChanged(null)
     this.host.devices.push({
       id: invitation.deviceId,
       name: invitation.name,
@@ -262,6 +358,7 @@ export class PeerService {
     return this.status()
   }
   async revoke(id: string) {
+    await this.initializeHost()
     this.host.devices = this.host.devices.filter((device) => device.id !== id)
     for (const service of this.host.services)
       if (service.invitation?.deviceId === id) service.invitation = undefined
@@ -279,33 +376,70 @@ export class PeerService {
     this.host.write = task.catch(() => {})
     await task
   }
-  private synchronize() {
-    if (!this.activeSync) {
-      const task = this.session
-        .syncPeerRemote(this.localUrl, this.localToken, this.seeded)
-        .then(async () => {
-          await fs.writeFile(path.join(this.directory, "seeded"), "1", {
-            mode: 0o600,
-          })
-          this.seeded = true
-        })
-      this.activeSync = task.finally(() => {
-        this.activeSync = null
-      })
+  private incomingStore(id: string) {
+    let store = this.incomingStores.get(id)
+    if (!store) {
+      store = new PeerObjectStore(
+        path.join(this.directory, "incoming", id),
+        this.store
+      )
+      this.incomingStores.set(id, store)
     }
+    return store
+  }
+  private synchronize(deviceId?: string) {
+    // Do not coalesce requests from different devices: each incoming head
+    // must be fetched and reviewed. SpaceSession serializes repository work.
+    const session = this.session
+    if (!session) throw new Error("Device gateway has no Space")
+    const task = (this.activeSync ?? Promise.resolve())
+      .catch(() => {})
+      .then(() =>
+        session.syncPeerRemote(
+          this.localUrl,
+          this.localToken,
+          deviceId ? true : this.seeded,
+          deviceId
+            ? this.localUrl.replace("/peer/space", `/incoming/${deviceId}`)
+            : undefined,
+          this.remote,
+          deviceId ? `${this.remote}-${deviceId}` : this.remote
+        )
+      )
+      .then(async () => {
+        await fs.writeFile(path.join(this.exportDirectory, "seeded"), "1", {
+          mode: 0o600,
+        })
+        this.seeded = true
+      })
+    const active = task.finally(() => {
+      if (this.activeSync === active) this.activeSync = null
+    })
+    this.activeSync = active
     return this.activeSync
   }
   private async handle(
     incoming: http.IncomingMessage,
     response: http.ServerResponse
   ) {
+    // Compatibility for the currently published Graft SDK, whose repository
+    // executor can leave pooled connections idle between synchronous calls.
+    // Remove this relay policy when adopting Graft's continuously driven IO pool.
     const url = new URL(incoming.url ?? "/", "https://peer.invalid")
+    // Keep artifact pooling so small files do not each require a TLS handshake.
+    if (
+      ((incoming.method === "GET" || incoming.method === "HEAD") &&
+        !url.pathname.includes("/raw/store/files/")) ||
+      url.pathname.endsWith("/read-bundle")
+    )
+      response.setHeader("Connection", "close")
     const bearer = incoming.headers.authorization?.replace(/^Bearer /, "") ?? ""
     const local =
       incoming.socket.localAddress === "127.0.0.1" && bearer === this.localToken
-    const authorized =
-      local ||
-      this.host.devices.some((device) => device.tokenHash === digest(bearer))
+    const device = this.host.devices.find(
+      (device) => device.tokenHash === digest(bearer)
+    )
+    const authorized = local || Boolean(device)
     const json = (status: number, value: unknown) => {
       response.writeHead(status, {
         "Content-Type": "application/json",
@@ -315,6 +449,16 @@ export class PeerService {
     }
     if (this.stopping && !local)
       return json(503, { error: "Device sync is stopping" })
+    if (url.pathname === "/pair/cancel" && incoming.method === "POST") {
+      if (!this.invitation || bearer !== this.invitation.ticket)
+        return json(403, { error: "Pairing code expired" })
+      // A cancelled wait must not revoke an already accepted device.
+      if (!this.invitation.token) {
+        this.invitation = undefined
+        this.pairingChanged(null)
+      }
+      return json(200, { state: "cancelled" })
+    }
     if (url.pathname === "/pair" && incoming.method === "POST") {
       const invitation = this.invitation
       if (
@@ -323,6 +467,7 @@ export class PeerService {
         bearer !== invitation.ticket
       )
         return json(403, { error: "Pairing code expired" })
+      if (invitation.rejected) return json(200, { state: "rejected" })
       if (invitation.token) {
         this.invitation = undefined
         return json(200, {
@@ -337,30 +482,122 @@ export class PeerService {
         if (body.length > 4096) return json(413, { error: "Request too large" })
       }
       const name = (JSON.parse(body) as { name?: unknown }).name
+      if (this.invitation !== invitation || invitation.expires <= Date.now())
+        return json(403, { error: "Pairing code expired" })
+      if (invitation.rejected) return json(200, { state: "rejected" })
       if (typeof name !== "string" || !name.trim() || name.length > 80)
         return json(400, { error: "Invalid device name" })
       if (invitation.name && invitation.name !== name)
         return json(409, { error: "Another device is pairing" })
-      invitation.name = name
+      if (!invitation.name) {
+        invitation.name = name
+        this.pairingChanged({
+          id: invitation.id,
+          name,
+          expires: invitation.expires,
+        })
+      }
       return json(202, { state: "pending" })
     }
     if (!authorized) return json(401, { error: "Device is not authorized" })
+    if (device) device.lastSeenAt = Date.now()
+    if (device && this.session && url.pathname !== "/spaces") {
+      const name = device.name
+      this.transfers.set(name, (this.transfers.get(name) ?? 0) + 1)
+      let finished = false
+      const finish = () => {
+        if (finished) return
+        finished = true
+        const count = (this.transfers.get(name) ?? 1) - 1
+        if (count) this.transfers.set(name, count)
+        else this.transfers.delete(name)
+        if (
+          this.activity?.state !== "review" &&
+          this.activity?.state !== "failed"
+        )
+          this.activity = {
+            device: name,
+            state:
+              response.writableFinished && response.statusCode < 400
+                ? "completed"
+                : "failed",
+            updatedAt: Date.now(),
+          }
+      }
+      response.once("finish", finish)
+      response.once("close", finish)
+    }
     if (url.pathname === "/spaces" && incoming.method === "POST") {
       return json(200, {
         spaces: [...this.host.services]
-          .filter((service) => !service.stopping)
+          .filter(
+            (service) =>
+              !service.stopping && service.session && !service.session.isClosed
+          )
           .map((service) => ({
-            id: service.session.canonical.id,
-            name: path.basename(service.session.canonical.root),
+            id: service.session!.canonical.id,
+            name: path.basename(service.session!.canonical.root),
             url: `https://${incoming.socket.localAddress?.replace(/^::ffff:/, "") || new URL(service.address).hostname}:${(service.tls!.address() as AddressInfo).port}`,
           })),
       })
     }
     if (url.pathname === "/sync" && incoming.method === "POST") {
+      if (!this.session || this.session.isClosed)
+        return json(409, {
+          error: "电脑已关闭此 Space，请重新打开并开启局域网同步",
+        })
       try {
-        await this.synchronize()
-        return json(200, { state: "ready" })
+        let body = ""
+        for await (const chunk of incoming) {
+          body += chunk
+          if (body.length > 4096)
+            return json(413, { error: "Request too large" })
+        }
+        const publish = body
+          ? (JSON.parse(body) as { incoming?: unknown }).incoming === true
+          : false
+        if (publish && !device)
+          return json(400, { error: "A paired device is required" })
+        if (
+          this.seeded &&
+          (await this.session.getSyncMergeStatus()).state === "merging"
+        ) {
+          this.activity = {
+            device: device?.name ?? "设备",
+            state: "review",
+            updatedAt: Date.now(),
+          }
+          return json(200, { state: "needs_review", protocol: 2 })
+        }
+        this.activity = {
+          device: device?.name ?? "设备",
+          state: "syncing",
+          updatedAt: Date.now(),
+        }
+        await this.synchronize(publish ? device!.id : undefined)
+        this.activity = {
+          ...this.activity,
+          state: "completed",
+          updatedAt: Date.now(),
+        }
+        return json(200, { state: "ready", protocol: 2 })
       } catch (error) {
+        this.activity = {
+          device: device?.name ?? "设备",
+          state: "failed",
+          updatedAt: Date.now(),
+        }
+        if (
+          (await this.session.getSyncMergeStatus().catch(() => undefined))
+            ?.state === "merging"
+        ) {
+          this.activity = {
+            device: device?.name ?? "设备",
+            state: "review",
+            updatedAt: Date.now(),
+          }
+          return json(200, { state: "needs_review", protocol: 2 })
+        }
         return json(409, {
           error:
             error instanceof Error
@@ -369,11 +606,30 @@ export class PeerService {
         })
       }
     }
+    if (!this.session)
+      return json(404, { error: "Choose an offered Space first" })
     const parts = url.pathname.split("/").slice(1).map(decodeURIComponent)
-    if (parts[0] !== "peer" || parts[1] !== "space")
+    let backend = this.store!
+    if (parts[0] === "peer" && parts[1] === "incoming" && device) {
+      backend = this.incomingStore(device.id)
+    } else if (
+      parts[0] === "incoming" &&
+      local &&
+      this.host.devices.some((entry) => entry.id === parts[1])
+    ) {
+      backend = this.incomingStore(parts[1])
+    } else if (parts[0] !== "peer" || parts[1] !== "space")
       return json(404, { error: "Not found" })
     const handler = createGraftRemoteHandler({
-      backend: () => this.store!,
+      authorize: ({ action }) => {
+        if (action === "write" && !local && backend === this.store)
+          throw new GraftProtocolError(
+            403,
+            "reviewed_history_read_only",
+            "Reviewed history is read-only; publish to the device incoming remote"
+          )
+      },
+      backend: () => backend,
       limits: { maxRequestBytes: 256 * 1024 * 1024 },
     })
     const request = new Request(url, {
@@ -407,6 +663,7 @@ export class PeerService {
     this.advertisement = undefined
     this.host?.services.delete(this)
     this.invitation = undefined
+    this.pairingChanged(null)
     // Let accepted repository operations finish before closing their object store.
     await this.activeSync?.catch(() => {})
     for (const server of [this.tls, this.loopback])
@@ -419,5 +676,7 @@ export class PeerService {
     await Promise.allSettled([...this.requests])
     this.store?.close()
     this.store = undefined
+    for (const store of this.incomingStores.values()) store.close()
+    this.incomingStores.clear()
   }
 }

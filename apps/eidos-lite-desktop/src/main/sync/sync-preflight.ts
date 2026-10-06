@@ -38,6 +38,7 @@ const SECRET_FILE_EXTENSIONS = new Set([
 ])
 
 interface ManifestCandidate {
+  trackedIgnored: boolean
   relativePath: string
   kind: "eidos" | "file" | "symlink" | "unsupported"
   size: number
@@ -96,6 +97,7 @@ function classifyCandidate(candidate: ManifestCandidate): {
   blocker?: EidosSyncPreflightEntry
 } {
   const concerns: EidosSyncPreflightConcern[] = []
+  if (candidate.trackedIgnored) concerns.push("tracked-ignored")
   if (isHiddenPath(candidate.relativePath)) concerns.push("hidden")
   if (isSuspectedSecret(candidate.relativePath)) {
     concerns.push("suspected-secret")
@@ -226,6 +228,10 @@ export async function createSyncPreflight(
             ? Number.MAX_SAFE_INTEGER
             : Number(stats.size)
         candidates.push({
+          trackedIgnored: Boolean(
+            ignoreInspections.get(item.relativePath)?.isIgnored &&
+            ignoreInspections.get(item.relativePath)?.isTracked
+          ),
           relativePath: item.relativePath,
           kind: stats.isSymbolicLink()
             ? "symlink"
@@ -267,6 +273,7 @@ export async function createSyncPreflight(
           kind: candidate.kind,
           size: candidate.sizeFingerprint,
           modified: candidate.modifiedFingerprint,
+          trackedIgnored: candidate.trackedIgnored,
         })),
         excluded,
       })

@@ -178,6 +178,7 @@ export const IPC_CHANNELS = {
   syncClone: "eidos-lite:sync-clone",
   syncRun: "eidos-lite:sync-run",
   peerSync: "eidos-lite:peer-sync",
+  settingsNavigate: "eidos-lite:settings-navigate",
   syncProgress: "eidos-lite:sync-progress",
   syncQueueStatus: "eidos-lite:sync-queue-status",
   syncQueueChanged: "eidos-lite:sync-queue-changed",
@@ -790,6 +791,7 @@ export interface EidosLitePreferences {
 }
 
 export type EidosLiteSettingsDestination =
+  | "devices"
   | "documentation"
   | "website"
   | "github"
@@ -925,6 +927,7 @@ export interface EidosSyncStatus {
 }
 
 export type EidosSyncPreflightConcern =
+  | "tracked-ignored"
   | "hidden"
   | "suspected-secret"
   | "large-file"
@@ -1759,6 +1762,7 @@ export interface EidosLiteApi extends PluginApi {
   downloadUpdate(): Promise<EidosLiteUpdateStatus>
   restartToInstallUpdate(): Promise<void>
   openSettings(): Promise<void>
+  onSettingsNavigate?(listener: (page: "devices") => void): () => void
   openWhatsNew(): Promise<void>
   openWhatsNewRelease(): Promise<void>
   onWhatsNew(listener: () => void): () => void
@@ -1962,14 +1966,36 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
   peerSync(
-    action: "start" | "status" | "stop" | "approve" | "reject" | "revoke",
+    action:
+      | "start"
+      | "status"
+      | "stop"
+      | "approve"
+      | "reject"
+      | "revoke"
+      | "devices-start"
+      | "devices-status"
+      | "devices-stop"
+      | "devices-invite"
+      | "devices-approve"
+      | "devices-reject"
+      | "devices-revoke"
+      | "devices-open-space",
     deviceId?: string
   ): Promise<{
     running: boolean
     invitation?: string
     qr?: string
     pending?: string
-    devices: { id: string; name: string }[]
+    devices: { id: string; name: string; lastSeenAt?: number }[]
+    deviceName?: string
+    serviceRunning?: boolean
+    spaces?: { id: string; name: string }[]
+    activity?: {
+      device: string
+      state: "syncing" | "completed" | "review" | "failed"
+      updatedAt: number
+    }
   }>
   onSyncProgress(listener: (progress: EidosSyncProgress) => void): () => void
   getSyncQueueStatus(): Promise<EidosSyncQueueStatus | null>

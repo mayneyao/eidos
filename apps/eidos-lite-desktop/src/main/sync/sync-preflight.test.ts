@@ -145,6 +145,11 @@ describe("Eidos Sync preflight", () => {
       })
 
       expect(preflight.fileCount).toBe(3)
+      expect(preflight.warnings).toContainEqual({
+        relativePath: "generated/tracked.txt",
+        size: 4,
+        concerns: ["tracked-ignored"],
+      })
       expect(ignoreBatches).toBe(2)
       expect(preflight.excluded).toContainEqual({
         relativePath: "node_modules",

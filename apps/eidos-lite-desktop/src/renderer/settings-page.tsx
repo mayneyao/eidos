@@ -2,9 +2,11 @@ import { viewResource } from "@eidos.space/plugin-runtime/view"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PluginListing } from "../shared/plugins"
 import { PluginManager } from "./plugin-manager"
+import { DevicesSettings } from "./peer-sync-panel"
 import {
   Blocks,
   Cloud,
+  Laptop,
   Copy,
   ExternalLink,
   FolderOpen,
@@ -71,6 +73,7 @@ const TERMINAL_LAYOUT_OPTIONS: Array<{
 
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
+  { id: "devices", label: "Devices", icon: Laptop },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "files", label: "Files", icon: FileText },
   { id: "plugins", label: "Plugins", icon: Blocks },
@@ -108,6 +111,14 @@ export function SettingsPage() {
     )
   }
   const [activePage, setActivePage] = useState<SettingsPageId>(readPage)
+  useEffect(
+    () =>
+      window.eidosLite.onSettingsNavigate?.((page) => {
+        setActivePage(page)
+        window.history.pushState(null, "", `#/settings/${page}`)
+      }),
+    []
+  )
   const installRequestSequence = useRef(0)
   const [installRequests, setInstallRequests] = useState<
     { id: string; sequence: number }[]
@@ -619,8 +630,8 @@ export function SettingsPage() {
     : t("Publish")
   const publishPlanSummary = publishAccount
     ? publishAccount.plan === "free"
-      ? t("10 public Markdown pages · 100 MiB shared storage")
-      : t("Eidos Files, Markdown, and Forms")
+      ? t("Up to 10 Markdown pages")
+      : t("Eidos File · Markdown · Forms")
     : publishAccountFailed
       ? t("Publish plan could not be checked. Check your connection and retry.")
       : t("Checking Publish plan…")
@@ -674,6 +685,7 @@ export function SettingsPage() {
         </aside>
         <div className="settings-content">
           <div className="settings-page" data-settings-page={activePage}>
+            {activePage === "devices" && <DevicesSettings />}
             <section
               aria-labelledby="settings-preferences"
               hidden={activePage !== "preferences"}
@@ -773,7 +785,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="settings-row">
+                <div className="settings-row settings-row-stacked">
                   <div className="settings-row-copy">
                     <strong>{t("Time zone")}</strong>
                     <small>
@@ -854,7 +866,10 @@ export function SettingsPage() {
             >
               <h2 id="settings-files">{t("Files")}</h2>
               <div className="settings-group" data-default-file-editors>
-                <div className="settings-row" data-markdown-file-editing-mode>
+                <div
+                  className="settings-row settings-row-stacked"
+                  data-markdown-file-editing-mode
+                >
                   <div className="settings-row-copy">
                     <strong>{t("Markdown file editor")}</strong>
                     <small>
@@ -949,7 +964,10 @@ export function SettingsPage() {
                     )}
                   </select>
                 </div>
-                <div className="settings-row" data-html-file-open-mode>
+                <div
+                  className="settings-row settings-row-stacked"
+                  data-html-file-open-mode
+                >
                   <div className="settings-row-copy">
                     <strong>{t("HTML default open mode")}</strong>
                     <small>
@@ -1052,7 +1070,10 @@ export function SettingsPage() {
                   </select>
                 </div>
                 {fileEditorGroups.map((group) => (
-                  <div className="settings-row" key={group.label}>
+                  <div
+                    className="settings-row settings-row-stacked"
+                    key={group.label}
+                  >
                     <div className="settings-row-copy">
                       <strong>{group.label}</strong>
                       <small>
@@ -1140,7 +1161,7 @@ export function SettingsPage() {
                       <small>
                         {syncAccount?.account.state === "signed-in"
                           ? (syncAccount.account.user?.email ?? t("Signed in"))
-                          : t("Not signed in")}
+                          : t("Sign in to use Sync and Publish.")}
                       </small>
                     </span>
                   </div>
@@ -1189,8 +1210,10 @@ export function SettingsPage() {
                   <>
                     <div className="settings-row">
                       <div className="settings-row-copy">
-                        <strong>{t("Sync access")}</strong>
-                        <small>{syncAccessLabel}</small>
+                        <strong>{t("Access")}</strong>
+                        <small title={syncDeviceLabel ?? undefined}>
+                          {syncAccessLabel}
+                        </small>
                       </div>
                       <div className="settings-row-actions">
                         <button
@@ -1198,7 +1221,7 @@ export function SettingsPage() {
                           className="settings-button settings-button-quiet"
                           onClick={() => void manageSyncAccess()}
                         >
-                          {t("Manage Sync access")} <ExternalLink />
+                          {t("Manage Sync")} <ExternalLink />
                         </button>
                         <button
                           type="button"
@@ -1211,16 +1234,18 @@ export function SettingsPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="settings-row">
-                      <div className="settings-row-copy">
-                        <strong>{t("Device")}</strong>
-                        <small>{syncDeviceLabel}</small>
+                    {syncSignedIn && syncAccount.device.state !== "active" ? (
+                      <div className="settings-row">
+                        <div className="settings-row-copy">
+                          <strong>{t("Device")}</strong>
+                          <small>{t("Not registered")}</small>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                     {syncQuotaBytes !== undefined &&
                     syncUsedBytes !== undefined ? (
                       <UsageMeter
-                        title={t("Sync storage")}
+                        title={t("Storage")}
                         total={syncQuotaBytes}
                         usedLabel={t("{used} of {total} used", {
                           used: formatUsageBytes(syncUsedBytes),
@@ -1266,13 +1291,6 @@ export function SettingsPage() {
                       <div className="settings-row-copy">
                         <strong>{publishPlanTitle}</strong>
                         <small>{publishPlanSummary}</small>
-                        {publishAccount?.plan === "free" ? (
-                          <small>
-                            {t(
-                              "Markdown up to 2 MiB · 20 attachments, 25 MiB each · 20 new versions per day"
-                            )}
-                          </small>
-                        ) : null}
                         {publishRestriction ? (
                           <small className="settings-publish-warning">
                             {publishRestriction}
@@ -1290,7 +1308,7 @@ export function SettingsPage() {
                               )
                             }
                           >
-                            {t("Manage published pages")} <ExternalLink />
+                            {t("Manage Publish")} <ExternalLink />
                           </button>
                         ) : null}
                         {publishAccount?.plan === "free" ? (
@@ -1325,7 +1343,7 @@ export function SettingsPage() {
                     publishUsedBytes !== null &&
                     publishQuotaBytes ? (
                       <UsageMeter
-                        title={t("Publish storage")}
+                        title={t("Storage")}
                         total={publishQuotaBytes}
                         usedLabel={t("{used} of {total} used", {
                           used: formatUsageBytes(publishUsedBytes),
@@ -1373,11 +1391,6 @@ export function SettingsPage() {
                   </div>
                 )}
               </div>
-              <p className="settings-section-note">
-                {t(
-                  "Sign in once to use Sync and Publish. Your credentials remain in secure system storage; only your email and avatar are cached for the interface."
-                )}
-              </p>
             </section>
 
             <section

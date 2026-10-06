@@ -31,7 +31,9 @@ export function WorkspaceHeading({
   navigationDisabled = false,
   sort,
   onSortChange,
+  spaceSwitcher,
 }: {
+  spaceSwitcher?: ReactNode
   name: string
   path: string
   directory?: string | null
@@ -181,7 +183,7 @@ export function WorkspaceHeading({
               )}
             </nav>
           ) : (
-            <strong title={path}>{name}</strong>
+            (spaceSwitcher ?? <strong title={path}>{name}</strong>)
           )}
           <button
             ref={searchRef}

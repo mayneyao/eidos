@@ -4,6 +4,14 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Local changes": "本机修改",
+  "Incoming changes": "对方修改",
+  "Use Local": "使用本机版本",
+  "Using Local": "已选择本机版本",
+  "Use Incoming": "使用对方版本",
+  "Using Incoming": "已选择对方版本",
+  Devices: "设备",
+  "Switch Space": "切换 Space",
   "Configure the connection API key first": "请先在插件设置中配置 API Key",
   Stop: "停止",
   Close: "关闭",
@@ -224,6 +232,12 @@ const zh: Record<string, string> = {
   "{used} of {total} used": "已使用 {used} / {total}",
   Free: "剩余",
   "Sync storage": "同步存储",
+  Storage: "存储空间",
+  "Manage Sync": "管理同步",
+  "Manage Publish": "管理发布",
+  "Up to 10 Markdown pages": "最多发布 10 个 Markdown 页面",
+  "Eidos File · Markdown · Forms": "Eidos File · Markdown · 表单",
+  "Sign in to use Sync and Publish.": "登录以使用同步与发布。",
   "Synced data": "已同步数据",
   Reserved: "已预留",
   "Publish storage": "Publish 存储",
@@ -390,6 +404,8 @@ const zh: Record<string, string> = {
   "Historical copy saved. Current files and drafts are unchanged.":
     "历史副本已保存。当前文件和草稿未改变。",
   "Search Space text": "搜索空间文本",
+  "Search Spaces": "搜索 Space 名称或路径",
+  "No matching Spaces": "没有匹配的 Space",
   "Search saved text": "搜索已保存的文本",
   "Close search": "关闭搜索",
   "Saved Markdown and text files only. Unsaved drafts and Eidos tables are not searched.":
@@ -628,6 +644,9 @@ const zh: Record<string, string> = {
   "Recent Spaces": "最近空间",
   "Local folders": "本地文件夹",
   "No recent Spaces": "没有最近空间",
+  "Version {version}": "版本 {version}",
+  "Open a folder or create your first Space.":
+    "打开文件夹，或创建你的第一个空间。",
   "Folder unavailable": "文件夹不可用",
   "Remove from recents": "从最近空间中移除",
   "Remove {name} from recent Spaces": "从最近空间中移除 {name}",

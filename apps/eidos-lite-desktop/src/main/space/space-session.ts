@@ -472,6 +472,9 @@ export class SpaceSession {
   private closeInFlight: Promise<void> | null = null
   private versioningEnabled = false
   private closed = false
+  get isClosed(): boolean {
+    return this.closed || Boolean(this.closeInFlight)
+  }
   private textSearch: {
     requestId: string
     controller: AbortController
@@ -2150,7 +2153,10 @@ export class SpaceSession {
   async syncPeerRemote(
     url: string,
     token: string,
-    seeded: boolean
+    seeded: boolean,
+    incomingUrl?: string,
+    remote = "eidos-peer",
+    incomingRemote = remote
   ): Promise<void> {
     return this.withSyncTask(async () => {
       await this.enableVersioning()
@@ -2173,9 +2179,19 @@ export class SpaceSession {
               "Device sync checkpoint"
             )
           }
-          await this.graft.configurePeer(this.canonical.root, url, token)
+          await this.graft.configurePeer(
+            this.canonical.root,
+            incomingUrl ?? url,
+            token,
+            incomingUrl ? incomingRemote : remote
+          )
           if (seeded)
-            await this.graft.transferPeer(this.canonical.root, "fetch", signal)
+            await this.graft.transferPeer(
+              this.canonical.root,
+              "fetch",
+              signal,
+              incomingUrl ? incomingRemote : remote
+            )
         }
       )
       if (seeded) {
@@ -2190,7 +2206,7 @@ export class SpaceSession {
               this.assertGraftPathsSafeForMerge(current)
               const initialPlan = await this.graft.planMerge(
                 this.canonical.root,
-                "eidos-peer/main",
+                `${incomingUrl ? incomingRemote : remote}/main`,
                 current.currentHead ?? null,
                 { signal }
               )
@@ -2198,17 +2214,20 @@ export class SpaceSession {
               await this.ensureEidosMergePolicy(signal)
               return this.graft.planMerge(
                 this.canonical.root,
-                "eidos-peer/main",
+                `${incomingUrl ? incomingRemote : remote}/main`,
                 current.currentHead ?? null,
                 { signal }
               )
             }
           )
         if (plan.kind === "fast_forward" || plan.kind === "three_way") {
-          const merge = await this.applySyncMerge("eidos-peer/main", {
-            expectedHead: plan.expectedHead,
-            planToken: plan.planToken,
-          })
+          const merge = await this.applySyncMerge(
+            `${incomingUrl ? incomingRemote : remote}/main`,
+            {
+              expectedHead: plan.expectedHead,
+              planToken: plan.planToken,
+            }
+          )
           if (merge.state === "merging")
             throw new Error(
               "Some changes could not be merged automatically. Both versions are retained; review the conflicting files in Sync settings."
@@ -2217,7 +2236,22 @@ export class SpaceSession {
       }
       await this.gate.withRepositoryOperation(
         "Sending device updates",
-        (signal) => this.graft.transferPeer(this.canonical.root, "push", signal)
+        async (signal) => {
+          // Incoming phone history has its own durable Remote. Only reviewed
+          // desktop history is published to the Remote downloaded by phones.
+          await this.graft.configurePeer(
+            this.canonical.root,
+            url,
+            token,
+            remote
+          )
+          await this.graft.transferPeer(
+            this.canonical.root,
+            "push",
+            signal,
+            remote
+          )
+        }
       )
       await this.freshSnapshotAndEmit(true)
     })
