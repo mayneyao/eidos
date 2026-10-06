@@ -9,6 +9,7 @@ export function EidosFileRelationOptionList({
   activeOptionId,
   availableValues,
   disabled = false,
+  readOnly = false,
   listboxId,
   multiple,
   optionId,
@@ -23,6 +24,7 @@ export function EidosFileRelationOptionList({
   activeOptionId: string | null
   availableValues: EidosFileRelationValue[]
   disabled?: boolean
+  readOnly?: boolean
   listboxId: string
   multiple: boolean
   optionId: (index: number) => string
@@ -33,7 +35,8 @@ export function EidosFileRelationOptionList({
   onOpenRecord?: () => void
   onToggle: (option: EidosFileRelationValue) => void
 }) {
-  const { openRelationRecord, translate: t } = useEidosFileUI()
+  const { openRelationRecord, translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   return (
     <div
       id={listboxId}
@@ -56,7 +59,8 @@ export function EidosFileRelationOptionList({
             <div
               key={option.id}
               className={cn(
-                "group flex h-8 w-full items-center rounded-sm text-xs hover:bg-accent",
+                "group flex w-full items-center rounded-sm hover:bg-accent",
+                mobile ? "min-h-12 text-base" : "h-8 text-xs",
                 activeOptionId === option.id && "bg-accent"
               )}
               onMouseEnter={() => onActiveOptionChange(option.id)}
@@ -68,7 +72,7 @@ export function EidosFileRelationOptionList({
                 aria-selected={true}
                 tabIndex={-1}
                 className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-sm px-2 text-left disabled:opacity-50"
-                disabled={disabled}
+                disabled={disabled || readOnly}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onToggle(option)}
               >
@@ -80,7 +84,10 @@ export function EidosFileRelationOptionList({
               {openRelationRecord && targetTableId ? (
                 <button
                   type="button"
-                  className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className={cn(
+                    "mr-1 flex shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    mobile ? "h-12 w-12" : "h-7 w-7"
+                  )}
                   aria-label={t("Open linked record {title}", {
                     title: option.title,
                   })}
@@ -115,7 +122,8 @@ export function EidosFileRelationOptionList({
             aria-selected={false}
             tabIndex={-1}
             className={cn(
-              "flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent disabled:opacity-50",
+              "flex w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-accent disabled:opacity-50",
+              mobile ? "min-h-12 text-base" : "h-8 text-xs",
               activeOptionId === option.id && "bg-accent"
             )}
             disabled={disabled}

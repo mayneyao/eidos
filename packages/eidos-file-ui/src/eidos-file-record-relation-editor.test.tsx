@@ -126,6 +126,40 @@ describe("EidosFileRecordRelationEditor", () => {
     expect(trigger?.textContent).not.toContain(ADA_ID)
   })
 
+  it("keeps the inline single-relation picker searchable after a selection", async () => {
+    const onChange = vi.fn(async () => undefined)
+    const onSearch = vi.fn(async () => [{ id: ADA_ID, title: "Ada Lovelace" }])
+    await act(async () =>
+      root.render(
+        <EidosFileRecordRelationEditor
+          inline
+          row={{ _id: "project_1", owners: null }}
+          field={{ ...field, property: { ...field.property, multiple: false } }}
+          disabled={false}
+          onChange={onChange}
+          onSearch={onSearch}
+        />
+      )
+    )
+    await act(async () => {
+      await vi.waitFor(() => expect(onSearch).toHaveBeenCalled(), {
+        interval: 5,
+      })
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Ada Lovelace"))
+        ?.click()
+    })
+    expect(onChange).toHaveBeenCalled()
+    expect(
+      container
+        .querySelector('[role="combobox"]')
+        ?.getAttribute("aria-expanded")
+    ).toBe("true")
+    expect(container.querySelector('[role="listbox"]')).not.toBeNull()
+  })
+
   it("opens an already linked record without changing the relation", async () => {
     const openRelationRecord = vi.fn()
     const onChange = vi.fn(async (_value: string | null) => undefined)

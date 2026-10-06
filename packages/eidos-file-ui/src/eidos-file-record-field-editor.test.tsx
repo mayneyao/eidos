@@ -159,6 +159,49 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     container.remove()
   })
 
+  it("opens the edited URL through the host and hides navigation for unsafe values", async () => {
+    const activateUrl = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider activateUrl={activateUrl}>
+          <EidosFileRecordFieldEditor
+            field={{ ...numberField(), type: "url" }}
+            row={{ score: "https://example.com" }}
+            disabled={false}
+            onChange={vi.fn()}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="url"]')!
+    await act(async () => {
+      enterInputValue(input, "https://example.com/edited")
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Open URL"]')!
+        .click()
+    })
+    expect(activateUrl).toHaveBeenCalledWith("https://example.com/edited")
+    activateUrl.mockRejectedValue(new Error("Host rejected navigation"))
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Open URL"]')!
+        .click()
+    })
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    for (const value of [
+      "",
+      "javascript:alert(1)",
+      "https://user:secret@example.com",
+    ]) {
+      await act(async () => enterInputValue(input, value))
+      expect(container.querySelector('[aria-label="Open URL"]')).toBeNull()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+    }
+  })
+
   it("keeps a single-select option color in its selected value and menu", async () => {
     await act(async () => {
       root.render(

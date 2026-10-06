@@ -37,6 +37,8 @@ export interface EidosFileViewRendererProps {
   allowFrozenColumns?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  /** Host-owned navigation replaces the embedded record inspector. */
+  onOpenRecord?: (rowId: string) => void
   /** Runtime presentation for a record opened from this view. */
   recordPresentation?: "panel" | "page"
   onRecordPresentationToggle?: () => void
@@ -71,7 +73,7 @@ export interface EidosFileViewRendererProps {
   ) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -157,6 +159,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       allowFrozenColumns={props.allowFrozenColumns}
       inspectedRowId={props.inspectedRowId}
       onInspectedRowChange={props.onInspectedRowChange}
+      onOpenRecord={props.onOpenRecord}
       recordPresentation={props.recordPresentation}
       onRecordPresentationToggle={props.onRecordPresentationToggle}
       disabled={props.disabled}

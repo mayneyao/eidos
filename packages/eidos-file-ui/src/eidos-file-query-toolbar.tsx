@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
+  ChevronRight,
   Filter,
   LoaderCircle,
   Plus,
@@ -38,9 +39,6 @@ import {
   CommandGroup,
   CommandItem,
   Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -50,6 +48,7 @@ import {
 
 import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import { EidosFileQueryRelationFilter } from "./eidos-file-query-relation-filter"
 
 import {
@@ -576,7 +575,7 @@ function EidosFileFilterRuleEditor({
     fields[0]
   if (!field) return null
   return (
-    <div className="grid grid-cols-[110px_172px_minmax(120px,1fr)_28px] items-start gap-1.5">
+    <div className="eidos-filter-rule grid grid-cols-[110px_172px_minmax(120px,1fr)_28px] items-start gap-1.5">
       <Select
         value={eidosFileFieldKey(field)}
         onValueChange={(fieldId) => {
@@ -649,17 +648,19 @@ function EidosFileFilterRuleEditor({
           ))}
         </SelectContent>
       </Select>
-      <FilterValueEditor
-        field={field}
-        rule={rule}
-        source={source}
-        onChange={(value) => onChange({ ...rule, value })}
-      />
+      <div className="eidos-filter-value">
+        <FilterValueEditor
+          field={field}
+          rule={rule}
+          source={source}
+          onChange={(value) => onChange({ ...rule, value })}
+        />
+      </div>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 text-muted-foreground"
+        className="eidos-filter-remove h-7 w-7 text-muted-foreground"
         aria-label={t("Remove filter")}
         onClick={onRemove}
       >
@@ -678,8 +679,22 @@ function EidosFileFilterAddMenu({
   onAddRule: () => void
   onAddGroup: () => void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const [open, setOpen] = useState(false)
+  if (interactionMode === "mobile")
+    return (
+      <div className="eidos-mobile-filter-add">
+        <Button type="button" variant="ghost" onClick={onAddRule}>
+          <Plus size={18} />
+          {t("Add condition")}
+        </Button>
+        {canAddGroup && (
+          <Button type="button" variant="ghost" onClick={onAddGroup}>
+            {t("Add group")}
+          </Button>
+        )}
+      </div>
+    )
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -734,7 +749,7 @@ function EidosFileFilterGroupEditor({
   source?: EidosFileEditorDataSource
   onChange: (group: EidosFileFilterGroup) => void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const updateChild = (
     index: number,
     child: EidosFileFilterRule | EidosFileFilterGroup
@@ -756,13 +771,19 @@ function EidosFileFilterGroupEditor({
   return (
     <div
       className={cn(
-        "space-y-2",
+        "eidos-filter-group space-y-2",
         depth > 0 && "rounded-md border bg-muted/20 p-2"
       )}
     >
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">
-          {depth === 0 ? t("Show rows where") : t("Group where")}
+          {depth === 0
+            ? t(
+                interactionMode === "mobile"
+                  ? "Match conditions"
+                  : "Show rows where"
+              )
+            : t("Group where")}
         </span>
         <Select
           value={group.conjunction}
@@ -849,7 +870,7 @@ function EidosFileFilterGroupEditor({
   )
 }
 
-function EidosFileFilterPopover({
+export function EidosFileFilterPopover({
   fields,
   value,
   disabled,
@@ -862,7 +883,8 @@ function EidosFileFilterPopover({
   source?: EidosFileEditorDataSource
   onChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const availableFields = useMemo(() => filterableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<EidosFileFilterGroup>(
@@ -926,10 +948,12 @@ function EidosFileFilterPopover({
               {countFilterRules(value)}
             </span>
           ) : null}
+          {mobile && <ChevronRight className="ml-auto h-4 w-4" />}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         data-eidos-file-filter-popover
+        aria-label={t("Filter")}
         align="end"
         className="max-h-[min(640px,calc(100vh-32px))] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto p-3"
         aria-busy={pendingAction ? "true" : undefined}
@@ -953,20 +977,30 @@ function EidosFileFilterPopover({
               {error}
             </p>
           ) : null}
-          <div className="mt-3 flex justify-end border-t pt-3">
+          <div className="eidos-query-footer mt-3 flex justify-end border-t pt-3">
             <div className="flex gap-1.5">
-              {value ? (
+              {value || mobile ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
-                  onClick={() => void commit(null, "clear")}
+                  onClick={() =>
+                    mobile
+                      ? setDraft({
+                          type: "group",
+                          conjunction: "and",
+                          children: [],
+                        })
+                      : void commit(null, "clear")
+                  }
                 >
                   {pendingAction === "clear" ? (
                     <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                   ) : null}
-                  {pendingAction === "clear" ? t("Clearing…") : t("Clear")}
+                  {pendingAction === "clear"
+                    ? t("Clearing…")
+                    : t(mobile ? "Reset" : "Clear")}
                 </Button>
               ) : null}
               <Button
@@ -980,7 +1014,9 @@ function EidosFileFilterPopover({
                 {pendingAction === "apply" ? (
                   <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                 ) : null}
-                {pendingAction === "apply" ? t("Applying…") : t("Apply")}
+                {pendingAction === "apply"
+                  ? t("Applying…")
+                  : t(mobile ? "Apply filters" : "Apply")}
               </Button>
             </div>
           </div>
@@ -990,7 +1026,7 @@ function EidosFileFilterPopover({
   )
 }
 
-function EidosFileSortPopover({
+export function EidosFileSortPopover({
   fields,
   value,
   disabled,
@@ -1001,7 +1037,7 @@ function EidosFileSortPopover({
   disabled?: boolean
   onChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const availableFields = useMemo(() => sortableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -1060,10 +1096,14 @@ function EidosFileSortPopover({
               {value.length}
             </span>
           ) : null}
+          {interactionMode === "mobile" && (
+            <ChevronRight className="ml-auto h-4 w-4" />
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         data-eidos-file-sort-popover
+        aria-label={t("Sort")}
         align="end"
         className="w-[360px] p-3"
         aria-busy={pendingAction ? "true" : undefined}
@@ -1170,7 +1210,7 @@ function EidosFileSortPopover({
               {error}
             </p>
           ) : null}
-          <div className="mt-3 flex items-center justify-between border-t pt-3">
+          <div className="eidos-query-footer mt-3 flex items-center justify-between border-t pt-3">
             <Button
               type="button"
               variant="ghost"

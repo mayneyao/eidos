@@ -84,6 +84,7 @@ function columnNameFor(
 
 export interface EidosFileFieldCreatePopoverProps {
   open: boolean
+  embedded?: boolean
   onOpenChange: (open: boolean) => void
   table: EidosFileTableSnapshot
   tables: EidosFileTableSnapshot[]
@@ -97,6 +98,7 @@ export interface EidosFileFieldCreatePopoverProps {
 
 export function EidosFileFieldCreatePopover({
   open,
+  embedded = false,
   onOpenChange,
   table,
   tables,
@@ -296,6 +298,242 @@ export function EidosFileFieldCreatePopover({
     }
   }
 
+  const content = (
+    <>
+      <div className="border-b px-4 py-3">
+        <h2 className="text-sm font-semibold">{t("New field")}</h2>
+        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+          {t("Add a stored, related, or computed field to {table}.", {
+            table: table.table.name,
+          })}
+        </p>
+      </div>
+      <form ref={formRef} onSubmit={(event) => void submit(event)}>
+        <div className="grid gap-4 px-4 py-3">
+          <label className="grid gap-1.5 text-xs font-medium" htmlFor={nameId}>
+            {t("Name")}
+            <Input
+              id={nameId}
+              value={name}
+              autoFocus
+              disabled={busy}
+              placeholder={t("Status")}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium">
+            {t("Type")}
+            <EidosFileFieldTypePicker
+              value={fieldType}
+              onChange={setFieldType}
+              allowedTypes={availableTypes}
+              disabled={busy}
+            />
+          </label>
+          {fieldType === "select" || fieldType === "multi-select" ? (
+            <EidosFileOptionsEditor
+              options={options}
+              disabled={busy}
+              onChange={setOptions}
+              className="border-t-0 pt-0"
+            />
+          ) : null}
+          {fieldType === "number" ? (
+            <EidosFileNumberPropertiesEditor
+              property={numberProperty}
+              disabled={busy}
+              onChange={setNumberProperty}
+              className="border-t-0 pt-0"
+            />
+          ) : null}
+          {fieldType === "relation" ? (
+            <div className="grid gap-3">
+              <label className="grid gap-1.5 text-xs font-medium">
+                {t("Related table")}
+                <Select
+                  value={targetTable?.table.id ?? ""}
+                  disabled={busy}
+                  onValueChange={(value) => {
+                    setTargetTableId(value)
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("Choose a table")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationTables.map((candidate) => (
+                      <SelectItem
+                        key={candidate.table.id}
+                        value={candidate.table.id}
+                      >
+                        {candidate.table.name}
+                        {candidate.table.id === table.table.id
+                          ? t(" (this table)")
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                {t("Related rows use the target table’s Record Label Field.")}
+              </p>
+              <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
+                <div>
+                  <p className="text-xs font-medium">
+                    {t("Allow multiple records")}
+                  </p>
+                  <p className="text-[10px] leading-4 text-muted-foreground">
+                    {t("Relation values stay ordered in a JSON array.")}
+                  </p>
+                </div>
+                <Switch
+                  checked={multiple}
+                  disabled={busy}
+                  aria-label={t("Allow multiple related records")}
+                  onCheckedChange={setMultiple}
+                />
+              </div>
+            </div>
+          ) : null}
+          {fieldType === "formula" ? (
+            <div className="-mx-4 border-y">
+              <EidosFileFormulaComposer
+                field={null}
+                fields={table.fields}
+                name={name.trim() || "Formula"}
+                columnName={columnName}
+                formula={formula}
+                displayType={formulaDisplayType}
+                onFormulaChange={(value) => {
+                  setFormula(value)
+                  setError(null)
+                }}
+                onDisplayTypeChange={setFormulaDisplayType}
+                onPreview={onPreviewFormula}
+                onValidityChange={setFormulaValid}
+                onEscape={() => onOpenChange(false)}
+                onSaveShortcut={() => formRef.current?.requestSubmit()}
+                disabled={busy}
+              />
+            </div>
+          ) : null}
+          {fieldType === "lookup" ? (
+            <div className="grid gap-3">
+              <label className="grid gap-1.5 text-xs font-medium">
+                {t("Relation")}
+                <Select
+                  value={selectedRelation?.id ?? ""}
+                  disabled={busy}
+                  onValueChange={(value) => {
+                    setLookupRelationField(value)
+                    setLookupTargetField("")
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("Choose a relation")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationFields.map((candidate) => (
+                      <SelectItem key={candidate.id!} value={candidate.id!}>
+                        {candidate.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-medium">
+                {t("Target field")}
+                <Select
+                  value={selectedLookupTarget?.id ?? ""}
+                  disabled={busy}
+                  onValueChange={setLookupTargetField}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("Choose a target field")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lookupTargetFields.map((candidate) => (
+                      <SelectItem key={candidate.id!} value={candidate.id!}>
+                        {candidate.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-medium">
+                {t("Calculate")}
+                <Select
+                  value={lookupAggregate}
+                  disabled={busy}
+                  onValueChange={(value) =>
+                    setLookupAggregate(value as EidosFileLookupAggregate)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOOKUP_AGGREGATES.map((aggregate) => (
+                      <SelectItem
+                        key={aggregate.value}
+                        value={aggregate.value}
+                        disabled={
+                          !!selectedLookupTarget &&
+                          !eidosFileLookupAggregateSupportsTarget(
+                            aggregate.value,
+                            selectedLookupTarget
+                          )
+                        }
+                      >
+                        {t(aggregate.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              {relationFields.length === 0 ? (
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  {t("Add a Relation field before creating a Lookup.")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {error ? (
+            <p className="text-xs text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
+        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t bg-popover px-4 py-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
+            {t("Cancel")}
+          </Button>
+          <Button
+            type="submit"
+            disabled={
+              busy ||
+              !name.trim() ||
+              (fieldType === "relation" && !targetTable) ||
+              (fieldType === "formula" && (!formula.trim() || !formulaValid)) ||
+              (fieldType === "lookup" &&
+                (!selectedRelation ||
+                  !selectedLookupTarget ||
+                  !lookupAggregateSupported))
+            }
+          >
+            {submitting ? t("Creating…") : t("Create field")}
+          </Button>
+        </div>
+      </form>
+    </>
+  )
+  if (embedded) return content
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverAnchor asChild>
@@ -314,241 +552,7 @@ export function EidosFileFieldCreatePopover({
             : "w-80 max-w-[calc(100vw-24px)] p-0"
         }
       >
-        <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">{t("New field")}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-            {t("Add a stored, related, or computed field to {table}.", {
-              table: table.table.name,
-            })}
-          </p>
-        </div>
-        <form ref={formRef} onSubmit={(event) => void submit(event)}>
-          <div className="grid gap-4 px-4 py-3">
-            <label
-              className="grid gap-1.5 text-xs font-medium"
-              htmlFor={nameId}
-            >
-              {t("Name")}
-              <Input
-                id={nameId}
-                value={name}
-                autoFocus
-                disabled={busy}
-                placeholder={t("Status")}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label className="grid gap-1.5 text-xs font-medium">
-              {t("Type")}
-              <EidosFileFieldTypePicker
-                value={fieldType}
-                onChange={setFieldType}
-                allowedTypes={availableTypes}
-                disabled={busy}
-              />
-            </label>
-            {fieldType === "select" || fieldType === "multi-select" ? (
-              <EidosFileOptionsEditor
-                options={options}
-                disabled={busy}
-                onChange={setOptions}
-                className="border-t-0 pt-0"
-              />
-            ) : null}
-            {fieldType === "number" ? (
-              <EidosFileNumberPropertiesEditor
-                property={numberProperty}
-                disabled={busy}
-                onChange={setNumberProperty}
-                className="border-t-0 pt-0"
-              />
-            ) : null}
-            {fieldType === "relation" ? (
-              <div className="grid gap-3">
-                <label className="grid gap-1.5 text-xs font-medium">
-                  {t("Related table")}
-                  <Select
-                    value={targetTable?.table.id ?? ""}
-                    disabled={busy}
-                    onValueChange={(value) => {
-                      setTargetTableId(value)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("Choose a table")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {relationTables.map((candidate) => (
-                        <SelectItem
-                          key={candidate.table.id}
-                          value={candidate.table.id}
-                        >
-                          {candidate.table.name}
-                          {candidate.table.id === table.table.id
-                            ? t(" (this table)")
-                            : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
-                <p className="text-[11px] leading-4 text-muted-foreground">
-                  {t("Related rows use the target table’s Record Label Field.")}
-                </p>
-                <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-                  <div>
-                    <p className="text-xs font-medium">
-                      {t("Allow multiple records")}
-                    </p>
-                    <p className="text-[10px] leading-4 text-muted-foreground">
-                      {t("Relation values stay ordered in a JSON array.")}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={multiple}
-                    disabled={busy}
-                    aria-label={t("Allow multiple related records")}
-                    onCheckedChange={setMultiple}
-                  />
-                </div>
-              </div>
-            ) : null}
-            {fieldType === "formula" ? (
-              <div className="-mx-4 border-y">
-                <EidosFileFormulaComposer
-                  field={null}
-                  fields={table.fields}
-                  name={name.trim() || "Formula"}
-                  columnName={columnName}
-                  formula={formula}
-                  displayType={formulaDisplayType}
-                  onFormulaChange={(value) => {
-                    setFormula(value)
-                    setError(null)
-                  }}
-                  onDisplayTypeChange={setFormulaDisplayType}
-                  onPreview={onPreviewFormula}
-                  onValidityChange={setFormulaValid}
-                  onEscape={() => onOpenChange(false)}
-                  onSaveShortcut={() => formRef.current?.requestSubmit()}
-                  disabled={busy}
-                />
-              </div>
-            ) : null}
-            {fieldType === "lookup" ? (
-              <div className="grid gap-3">
-                <label className="grid gap-1.5 text-xs font-medium">
-                  {t("Relation")}
-                  <Select
-                    value={selectedRelation?.id ?? ""}
-                    disabled={busy}
-                    onValueChange={(value) => {
-                      setLookupRelationField(value)
-                      setLookupTargetField("")
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("Choose a relation")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {relationFields.map((candidate) => (
-                        <SelectItem key={candidate.id!} value={candidate.id!}>
-                          {candidate.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
-                <label className="grid gap-1.5 text-xs font-medium">
-                  {t("Target field")}
-                  <Select
-                    value={selectedLookupTarget?.id ?? ""}
-                    disabled={busy}
-                    onValueChange={setLookupTargetField}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("Choose a target field")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lookupTargetFields.map((candidate) => (
-                        <SelectItem key={candidate.id!} value={candidate.id!}>
-                          {candidate.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
-                <label className="grid gap-1.5 text-xs font-medium">
-                  {t("Calculate")}
-                  <Select
-                    value={lookupAggregate}
-                    disabled={busy}
-                    onValueChange={(value) =>
-                      setLookupAggregate(value as EidosFileLookupAggregate)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LOOKUP_AGGREGATES.map((aggregate) => (
-                        <SelectItem
-                          key={aggregate.value}
-                          value={aggregate.value}
-                          disabled={
-                            !!selectedLookupTarget &&
-                            !eidosFileLookupAggregateSupportsTarget(
-                              aggregate.value,
-                              selectedLookupTarget
-                            )
-                          }
-                        >
-                          {t(aggregate.label)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
-                {relationFields.length === 0 ? (
-                  <p className="text-[11px] leading-4 text-muted-foreground">
-                    {t("Add a Relation field before creating a Lookup.")}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            {error ? (
-              <p className="text-xs text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-          </div>
-          <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t bg-popover px-4 py-2.5">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => onOpenChange(false)}
-            >
-              {t("Cancel")}
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                busy ||
-                !name.trim() ||
-                (fieldType === "relation" && !targetTable) ||
-                (fieldType === "formula" &&
-                  (!formula.trim() || !formulaValid)) ||
-                (fieldType === "lookup" &&
-                  (!selectedRelation ||
-                    !selectedLookupTarget ||
-                    !lookupAggregateSupported))
-              }
-            >
-              {submitting ? t("Creating…") : t("Create field")}
-            </Button>
-          </div>
-        </form>
+        {content}
       </PopoverContent>
     </Popover>
   )

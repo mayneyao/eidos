@@ -35,21 +35,14 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import type { EidosFileViewRendererProps } from "./eidos-file-editor-view"
 import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { EidosFileRecordAttachmentEditor } from "./eidos-file-record-attachment-editor"
 import { EidosFileRecordFieldEditor } from "./eidos-file-record-field-editor"
 import { cn } from "./lib/cn"
 import { SortableContainer } from "./ui/sortable"
-import {
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Textarea,
-} from "./ui/primitives"
+import { Button, Input, Switch, Textarea } from "./ui/primitives"
 
 export type EidosFileFormEditorMode = "build" | "preview"
 type FormInputField = EidosFileFieldInfo & {
@@ -240,7 +233,11 @@ function SortableFormBlock({
   onSelect: () => void
 }) {
   const { translate: t } = useEidosFileUI()
-  const sortable = useSortable({ id: field.id, disabled })
+  const { interactionMode } = useEidosFileUI()
+  const sortable = useSortable({
+    id: field.id,
+    disabled: disabled || interactionMode === "mobile",
+  })
   return (
     <section
       ref={sortable.setNodeRef}
@@ -539,7 +536,8 @@ function QuestionOptionsPopover({
 }
 
 export function EidosFileFormView(props: EidosFileViewRendererProps) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const { source, table, view } = props
   const compatibleFields = useMemo(
     () => table.fields.filter(isEidosFileFormInputField),
@@ -770,7 +768,12 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
   }
 
   return (
-    <div className="h-full min-h-0 bg-background">
+    <div
+      className={cn(
+        "h-full min-h-0 bg-background",
+        mobile && "eidos-mobile-form"
+      )}
+    >
       <main
         className="h-full min-h-0 overflow-y-auto"
         aria-label={mode === "build" ? t("Form builder") : t("Form preview")}
@@ -824,7 +827,7 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
               {fields.length > 0 ? (
                 <SortableContainer
                   items={fields}
-                  disabled={settingsDisabled}
+                  disabled={settingsDisabled || mobile}
                   onReorder={reorderFields}
                   className="grid"
                   renderItem={(field, index) => {
@@ -840,41 +843,78 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
                           disabled={settingsDisabled}
                           onSelect={() => setSelection(field.id)}
                           actions={
-                            <QuestionOptionsPopover
-                              field={field}
-                              config={config}
-                              disabled={settingsDisabled}
-                              onSelect={() => setSelection(field.id)}
-                              onPlaceholderCommit={(placeholder) =>
-                                saveFieldProperties(field.id, (current) =>
-                                  withOptionalFieldText(
-                                    current,
-                                    "placeholder",
-                                    placeholder
+                            <>
+                              {mobile && (
+                                <span className="inline-flex">
+                                  <button
+                                    disabled={settingsDisabled || index === 0}
+                                    aria-label="上移问题"
+                                    onClick={() => {
+                                      const next = [...fields]
+                                      ;[next[index - 1], next[index]] = [
+                                        next[index]!,
+                                        next[index - 1]!,
+                                      ]
+                                      void reorderFields(next)
+                                    }}
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    disabled={
+                                      settingsDisabled ||
+                                      index === fields.length - 1
+                                    }
+                                    aria-label="下移问题"
+                                    onClick={() => {
+                                      const next = [...fields]
+                                      ;[next[index], next[index + 1]] = [
+                                        next[index + 1]!,
+                                        next[index]!,
+                                      ]
+                                      void reorderFields(next)
+                                    }}
+                                  >
+                                    ↓
+                                  </button>
+                                </span>
+                              )}
+                              <QuestionOptionsPopover
+                                field={field}
+                                config={config}
+                                disabled={settingsDisabled}
+                                onSelect={() => setSelection(field.id)}
+                                onPlaceholderCommit={(placeholder) =>
+                                  saveFieldProperties(field.id, (current) =>
+                                    withOptionalFieldText(
+                                      current,
+                                      "placeholder",
+                                      placeholder
+                                    )
                                   )
-                                )
-                              }
-                              onMultilineChange={(multiline) =>
-                                saveFieldProperties(field.id, (current) => {
-                                  const next = { ...current }
-                                  if (multiline) next.multiline = true
-                                  else delete next.multiline
-                                  return next
-                                })
-                              }
-                              onRequiredChange={(required) =>
-                                saveFieldProperties(field.id, (current) => ({
-                                  ...current,
-                                  required,
-                                }))
-                              }
-                              onFieldOpen={
-                                props.onFieldOpen
-                                  ? () => props.onFieldOpen?.(field)
-                                  : undefined
-                              }
-                              onHide={() => hideField(field)}
-                            />
+                                }
+                                onMultilineChange={(multiline) =>
+                                  saveFieldProperties(field.id, (current) => {
+                                    const next = { ...current }
+                                    if (multiline) next.multiline = true
+                                    else delete next.multiline
+                                    return next
+                                  })
+                                }
+                                onRequiredChange={(required) =>
+                                  saveFieldProperties(field.id, (current) => ({
+                                    ...current,
+                                    required,
+                                  }))
+                                }
+                                onFieldOpen={
+                                  props.onFieldOpen
+                                    ? () => props.onFieldOpen?.(field)
+                                    : undefined
+                                }
+                                onHide={() => hideField(field)}
+                              />
+                            </>
                           }
                         >
                           <div className="mb-3 min-w-0 pr-8">

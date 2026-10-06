@@ -24,6 +24,7 @@ import {
 } from "@dnd-kit/core"
 
 import { cn } from "../lib/cn"
+import { useEidosFileUI } from "../context"
 
 export type { DragEndEvent } from "@dnd-kit/core"
 
@@ -129,10 +130,11 @@ export const KanbanCard = ({
   className,
   disabled = false,
 }: KanbanCardProps) => {
+  const { interactionMode } = useEidosFileUI()
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { index, name, parent },
-    disabled,
+    disabled: disabled || interactionMode === "mobile",
   })
   const feedbackStore = React.useContext(KanbanFeedbackContext)
   const subscribe = useCallback(
@@ -154,7 +156,9 @@ export const KanbanCard = ({
       className={cn(
         "overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xs",
         "transition-[box-shadow,opacity] duration-150 ease-out hover:shadow-sm motion-reduce:transition-none",
-        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing",
+        disabled || interactionMode === "mobile"
+          ? "cursor-default"
+          : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-45",
         isRecentlyMoved && "ring-1 ring-ring/30",
         className
@@ -170,8 +174,8 @@ export const KanbanCard = ({
           event.stopPropagation()
         }
       }}
-      {...listeners}
-      {...attributes}
+      {...(interactionMode === "mobile" ? {} : listeners)}
+      {...(interactionMode === "mobile" ? {} : attributes)}
       ref={setNodeRef}
     >
       {children ?? <p className="m-0 font-medium text-sm p-3">{name}</p>}

@@ -42,6 +42,7 @@ export function EidosFileRecordRelationEditor({
   onSearch,
   onError,
   inline = false,
+  readOnly = false,
 }: {
   row: EidosFileRow
   field: EidosFileFieldInfo
@@ -53,8 +54,10 @@ export function EidosFileRecordRelationEditor({
   ) => Promise<EidosFileRelationValue[]>
   onError?: (error: unknown) => void
   inline?: boolean
+  readOnly?: boolean
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const [open, setOpen] = useState(inline)
   const [query, setQuery] = useState("")
   const [options, setOptions] = useState<EidosFileRelationValue[]>([])
@@ -70,7 +73,7 @@ export function EidosFileRecordRelationEditor({
   )
 
   useEffect(() => {
-    if (!open) {
+    if (!open || readOnly) {
       requestRef.current += 1
       setLoading(false)
       return
@@ -96,16 +99,18 @@ export function EidosFileRecordRelationEditor({
       clearTimeout(timer)
       if (requestRef.current === request) requestRef.current += 1
     }
-  }, [field, onError, onSearch, open, query])
+  }, [field, onError, onSearch, open, query, readOnly])
 
   const update = async (next: EidosFileRelationValue[]) => {
+    if (readOnly) return
     await onChange(encodeEidosFileRelationIds(next.map((value) => value.id)))
-    if (field.property?.multiple === false) setOpen(false)
+    if (!inline && field.property?.multiple === false) setOpen(false)
   }
 
   const available = useMemo(
-    () => options.filter((option) => !selectedIds.has(option.id)),
-    [options, selectedIds]
+    () =>
+      readOnly ? [] : options.filter((option) => !selectedIds.has(option.id)),
+    [options, selectedIds, readOnly]
   )
   const choices = useMemo(() => [...values, ...available], [available, values])
   const {
@@ -133,15 +138,29 @@ export function EidosFileRecordRelationEditor({
 
   const content = (
     <>
-      <div className="flex h-9 items-center gap-2 border-b px-2.5">
+      <div
+        className={
+          mobile
+            ? "flex min-h-12 items-center gap-2 border-b px-2.5"
+            : "flex h-9 items-center gap-2 border-b px-2.5"
+        }
+      >
         <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">{t("Link records")}</span>
-        {values.length > 0 ? (
+        <span
+          className={mobile ? "text-base font-medium" : "text-xs font-medium"}
+        >
+          {t("Link records")}
+        </span>
+        {values.length > 0 && !readOnly ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+            className={
+              mobile
+                ? "ml-auto min-h-11 gap-2 px-3 text-sm text-muted-foreground"
+                : "ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+            }
             disabled={disabled}
             onClick={() => void update([])}
           >
@@ -162,7 +181,7 @@ export function EidosFileRecordRelationEditor({
           aria-controls={listboxId}
           aria-activedescendant={activeDescendantId}
           aria-busy={loading}
-          className="h-8 pl-8 text-xs"
+          className={mobile ? "h-11 pl-8 text-base" : "h-8 pl-8 text-xs"}
           placeholder={t("Search records")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -190,7 +209,7 @@ export function EidosFileRecordRelationEditor({
           }}
         />
       </div>
-      <div className="max-h-72 overflow-y-auto p-1.5">
+      <div className={mobile ? "p-1.5" : "max-h-72 overflow-y-auto p-1.5"}>
         <EidosFileRelationOptionList
           accessibleName={t("{field} relation records", {
             field: field.name,
@@ -202,7 +221,16 @@ export function EidosFileRecordRelationEditor({
           multiple={field.property?.multiple !== false}
           optionId={optionId}
           query={query}
-          selectedValues={values}
+          selectedValues={
+            readOnly
+              ? values.filter((value) =>
+                  value.title
+                    .toLocaleLowerCase()
+                    .includes(query.toLocaleLowerCase())
+                )
+              : values
+          }
+          readOnly={readOnly}
           targetTableId={
             typeof field.property?.targetTableId === "string"
               ? field.property.targetTableId
@@ -220,7 +248,7 @@ export function EidosFileRecordRelationEditor({
             <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
             {t("Loading…")}
           </div>
-        ) : !loading && available.length === 0 ? (
+        ) : !loading && available.length === 0 && values.length === 0 ? (
           <p className="px-2 py-5 text-center text-xs text-muted-foreground">
             {t("No records found")}
           </p>

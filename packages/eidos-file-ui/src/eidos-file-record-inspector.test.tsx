@@ -103,6 +103,239 @@ describe("EidosFileRecordInspector", () => {
     container.remove()
   })
 
+  it("always opens mobile records as a full page without presentation controls", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider interactionMode="mobile">
+          <EidosFileRecordInspector
+            row={{ _id: "mobile", title: "Mobile record" }}
+            fields={fields}
+            variant="panel"
+            onPresentationToggle={vi.fn()}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+    expect(
+      container.querySelector('[data-eidos-file-record-layout="page"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector(
+        '[aria-label="Open in side panel"], [aria-label="Open as full page"]'
+      )
+    ).toBeNull()
+  })
+
+  it("keeps mobile text inline without promoting long properties to full-width summaries", async () => {
+    const extra = Array.from({ length: 5 }, (_, index) => ({
+      ...fields[0],
+      id: `extra-${index}`,
+      tableColumnName: `extra${index}`,
+      name: `Extra ${index}`,
+      isRecordLabel: false,
+    }))
+    const description = {
+      ...fields[0],
+      id: "description",
+      tableColumnName: "description",
+      name: "Description",
+      isRecordLabel: false,
+    }
+    const render = (id: string) =>
+      act(async () =>
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileRecordInspector
+              row={{
+                _id: id,
+                title: "A long record title",
+                description: "Long description. ".repeat(20),
+              }}
+              fields={[fields[0], ...extra, description]}
+              onCellEdit={vi.fn()}
+            />
+          </EidosFileUIProvider>
+        )
+      )
+    await render("one")
+    const scroll = container.querySelector(
+      "[data-eidos-file-record-page-scroll]"
+    )!
+    expect(scroll.querySelector("h1")?.textContent).toBe("A long record title")
+    expect(
+      scroll.querySelectorAll(".eidos-mobile-record-property")
+    ).toHaveLength(3)
+    expect(scroll.querySelector('[data-full-width="true"]')).toBeNull()
+    expect(scroll.querySelector('textarea[aria-label="Title"]')).not.toBeNull()
+    const disclosure = () =>
+      scroll.querySelector<HTMLButtonElement>("[aria-expanded]")!
+    await act(async () => disclosure().click())
+    expect(
+      scroll.querySelectorAll(".eidos-mobile-record-property")
+    ).toHaveLength(6)
+    const descriptionEditor = scroll.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Description"]'
+    )!
+    expect(descriptionEditor.value).toBe("Long description. ".repeat(20))
+    expect(descriptionEditor.getAttribute("wrap")).toBe("soft")
+    expect(descriptionEditor.style.minHeight).toBe("44px")
+    expect(descriptionEditor.style.maxHeight).not.toBe("44px")
+    expect(disclosure().getAttribute("aria-expanded")).toBe("true")
+    await render("two")
+    expect(disclosure().getAttribute("aria-expanded")).toBe("false")
+    await act(async () =>
+      container
+        .querySelector<HTMLTextAreaElement>('textarea[aria-label="Title"]')!
+        .focus()
+    )
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it("saves mobile text in place on blur without opening a sheet", async () => {
+    const onCellEdit = vi.fn().mockResolvedValue({
+      row: { _id: "inline", title: "Title", description: "Updated text" },
+    })
+    const description = {
+      ...fields[0],
+      id: "description",
+      tableColumnName: "description",
+      name: "Description",
+      isRecordLabel: false,
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider interactionMode="mobile">
+          <EidosFileRecordInspector
+            row={{
+              _id: "inline",
+              title: "Title",
+              description: "Original\ntext",
+            }}
+            fields={[fields[0], description]}
+            onCellEdit={onCellEdit}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    const input = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Description"]'
+    )!
+    await act(async () => {
+      input.focus()
+      input.blur()
+    })
+    expect(onCellEdit).not.toHaveBeenCalled()
+    await act(async () => {
+      input.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )!.set!.call(input, "Updated text")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => input.blur())
+    expect(onCellEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "inline" }),
+      description,
+      "Updated text"
+    )
+    expect(container.textContent).not.toContain("Unable to save record")
+    expect(document.body.querySelector(".eidos-mobile-cell-sheet")).toBeNull()
+  })
+
+  it.each([
+    ["number", "12.5", 12.5],
+    ["integer", "9007199254740993", 9007199254740993n],
+    ["url", "https://example.com", "https://example.com"],
+  ] as const)(
+    "edits mobile %s fields in place using canonical value conversion",
+    async (type, draft, value) => {
+      const property = {
+        ...fields[0],
+        id: "property",
+        tableColumnName: "property",
+        name: "Property",
+        isRecordLabel: false,
+        type,
+      }
+      const onCellEdit = vi.fn().mockResolvedValue({
+        row: { _id: "inline", title: "Title", property: value },
+      })
+      await act(async () =>
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileRecordInspector
+              row={{ _id: "inline", title: "Title", property: null }}
+              fields={[fields[0], property]}
+              onCellEdit={onCellEdit}
+            />
+          </EidosFileUIProvider>
+        )
+      )
+      const input = container.querySelector<HTMLInputElement>(
+        'input[aria-label="Property"]'
+      )!
+      expect(input).not.toBeNull()
+      await act(async () => {
+        input.focus()
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )!.set!.call(input, draft)
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      await act(async () => input.blur())
+      expect(onCellEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: "inline" }),
+        property,
+        value
+      )
+      expect(document.body.querySelector(".eidos-mobile-cell-sheet")).toBeNull()
+    }
+  )
+
+  it.each(["checkbox", "rating"] as const)(
+    "changes mobile %s values directly without opening a picker",
+    async (type) => {
+      const property = {
+        ...fields[0],
+        id: "property",
+        tableColumnName: "property",
+        name: "Property",
+        isRecordLabel: false,
+        type,
+      }
+      const value = type === "checkbox" ? 1 : 4
+      const onCellEdit = vi.fn().mockResolvedValue({
+        row: { _id: "inline", title: "Title", property: value },
+      })
+      await act(async () =>
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileRecordInspector
+              row={{ _id: "inline", title: "Title", property: 0 }}
+              fields={[fields[0], property]}
+              onCellEdit={onCellEdit}
+            />
+          </EidosFileUIProvider>
+        )
+      )
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            type === "checkbox" ? '[role="checkbox"]' : '[aria-label="Rate 4"]'
+          )!
+          .click()
+      )
+      expect(onCellEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: "inline" }),
+        property,
+        value
+      )
+      expect(document.body.querySelector(".eidos-mobile-cell-sheet")).toBeNull()
+    }
+  )
+
   it("copies the full readonly value, including multiline text and zero, without editing", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard")
     const writeText = vi.fn().mockResolvedValue(undefined)

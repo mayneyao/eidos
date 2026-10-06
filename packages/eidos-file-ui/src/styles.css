@@ -311,11 +311,893 @@
   }
 }
 /* Explicit touch-host presentation. Desktop grid editors retain their popovers. */
+.eidos-mobile-calendar > div > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  height: auto;
+  gap: 4px;
+  padding: 4px;
+}
+.eidos-mobile-calendar > div > header h2 {
+  font-size: 13px;
+}
+.eidos-mobile-calendar > div > header:has(.eidos-mobile-calendar-field) h2 {
+  grid-column: 1;
+}
+.eidos-mobile-calendar-field {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: 150px;
+  justify-self: end;
+}
+.eidos-mobile-calendar-field span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eidos-mobile-calendar-field svg {
+  flex: none;
+}
+.eidos-mobile-calendar > div > header [role="group"] {
+  margin-left: 0;
+  width: fit-content;
+}
+.eidos-mobile-calendar > div > header button,
+.eidos-mobile-calendar-agenda button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+}
+.eidos-mobile-calendar [data-eidos-file-calendar-weekdays] > div {
+  text-align: center;
+  border-right: 0;
+  font-size: 12px;
+}
+.eidos-mobile-calendar-dates {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding-block: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.eidos-mobile-calendar-dates > button {
+  display: flex;
+  min-height: 48px;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  touch-action: manipulation;
+}
+.eidos-mobile-calendar-dates time {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.eidos-mobile-calendar-dates [data-outside] {
+  color: var(--muted-foreground);
+}
+.eidos-mobile-calendar-dates [aria-current="date"] time {
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.eidos-mobile-calendar-dates [aria-pressed="true"] time {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.eidos-mobile-calendar-marker {
+  height: 10px;
+  line-height: 10px;
+  color: var(--primary);
+}
+.eidos-mobile-calendar-agenda {
+  padding: 8px 12px 20px;
+}
+.eidos-mobile-calendar-agenda > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+}
+.eidos-mobile-calendar-agenda h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.eidos-mobile-calendar-agenda > p {
+  padding-block: 16px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.eidos-mobile-calendar-record {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+}
+.eidos-mobile-calendar-record > button:first-child {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 4px;
+  text-align: left;
+  font-size: 16px;
+}
+.eidos-mobile-calendar-record time {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.eidos-mobile-calendar-record span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.eidos-mobile-calendar-record > button:last-child {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-calendar-menu {
+  min-height: 0;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-calendar-menu > header {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-calendar-menu > header h2 {
+  text-align: left;
+}
+.eidos-mobile-calendar-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding-inline: 12px;
+  font-size: 16px;
+}
+.eidos-mobile-calendar-field-options {
+  min-height: 0;
+  overflow-y: auto;
+}
+.eidos-mobile-calendar-field-options > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px;
+  gap: 12px;
+  text-align: left;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.eidos-mobile-calendar-field-options > button svg {
+  flex: none;
+}
+.mobile-fields-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.eidos-mobile-fields-sheet {
+  height: min(720px, 88dvh);
+  padding-inline: 0 !important;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-fields-sheet > header {
+  display: flex;
+  padding-inline: 16px;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-fields-sheet > header h2 {
+  flex: 1;
+  text-align: left;
+}
+.eidos-mobile-fields-list,
+.eidos-mobile-fields-create {
+  min-height: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.eidos-mobile-fields-list {
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+.eidos-mobile-fields-list[hidden] {
+  display: none;
+}
+.eidos-mobile-fields-list [data-eidos-file-view-fields-list] {
+  max-height: none;
+  overflow: visible;
+}
+.eidos-mobile-fields-list [data-eidos-file-sortable-field] {
+  min-height: 48px;
+}
+.eidos-mobile-fields-list [data-eidos-file-sortable-field] button {
+  min-height: 44px;
+}
+.eidos-mobile-fields-list
+  [data-eidos-file-sortable-field]
+  > button[aria-roledescription="sortable"] {
+  touch-action: none;
+  min-width: 44px;
+  color: var(--muted-foreground);
+}
+.eidos-mobile-fields-list
+  [data-eidos-file-sortable-field]
+  > button[aria-roledescription="sortable"]
+  > svg {
+  width: 20px;
+  height: 20px;
+}
+.eidos-mobile-fields-list [data-eidos-file-sortable-field] > label {
+  min-width: 40px;
+  min-height: 44px;
+  order: 2;
+}
+.eidos-mobile-fields-sheet .eidos-file-detail-panel {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  box-shadow: none;
+}
+.eidos-mobile-fields-sheet .eidos-file-detail-panel > header {
+  display: none;
+}
+.eidos-mobile-fields-sheet input,
+.eidos-mobile-fields-sheet [role="combobox"] {
+  min-height: 44px;
+  font-size: 16px;
+}
+.eidos-mobile-fields-sheet button {
+  min-height: 44px;
+}
+.eidos-mobile-fields-sheet button[aria-roledescription="sortable"] {
+  touch-action: none;
+  min-width: 44px;
+}
+.eidos-mobile-fields-scope {
+  margin: 0;
+  padding: 10px 18px 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+}
 .eidos-mobile-cell-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10010;
   background: color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+.eidos-mobile-settings-body {
+  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  gap: 16px;
+  padding-block: 12px 24px;
+}
+/* Portalled sheets share one scroll treatment, independent of host styles. */
+.eidos-mobile-cell-sheet,
+.eidos-mobile-cell-sheet * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent)
+    transparent;
+  scrollbar-gutter: auto;
+}
+.eidos-mobile-cell-sheet::-webkit-scrollbar,
+.eidos-mobile-cell-sheet *::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+.eidos-mobile-cell-sheet::-webkit-scrollbar-thumb,
+.eidos-mobile-cell-sheet *::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  border: 0;
+  border-radius: 3px;
+}
+.eidos-mobile-cell-sheet::-webkit-scrollbar-track,
+.eidos-mobile-cell-sheet *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.eidos-mobile-settings-body,
+.eidos-mobile-cell-body,
+.eidos-mobile-fields-list,
+.eidos-mobile-fields-create {
+  overscroll-behavior-y: contain;
+  touch-action: pan-y pinch-zoom;
+}
+/* Desktop option lists have their own height limit; the sheet owns scrolling. */
+.eidos-mobile-settings-body :is([data-eidos-mobile-option-list], [cmdk-list]) {
+  max-height: none;
+  overflow: visible;
+}
+.eidos-mobile-settings-body .eidos-filter-rule {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  gap: 8px;
+  padding: 8px 0;
+}
+.eidos-mobile-settings-body .eidos-filter-value {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+.eidos-mobile-settings-body .eidos-filter-value:empty {
+  display: none;
+}
+.eidos-mobile-settings-body .eidos-filter-remove {
+  grid-column: 3;
+  grid-row: 1;
+}
+.eidos-mobile-filter-add {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.eidos-mobile-filter-add > :first-child {
+  color: var(--primary);
+  gap: 6px;
+}
+.eidos-mobile-filter-add > :last-child:not(:first-child) {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.eidos-mobile-settings-body :is(button, input, select, [role="combobox"]) {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+}
+.eidos-mobile-settings-body input {
+  width: 100%;
+}
+.eidos-mobile-settings-body [cmdk-item] {
+  min-height: 44px;
+  font-size: 16px;
+}
+.eidos-mobile-settings-body form {
+  display: grid;
+  gap: 12px;
+}
+.eidos-mobile-settings-sheet {
+  overflow: hidden;
+}
+.eidos-mobile-cell-sheet.eidos-mobile-settings-sheet {
+  height: 76dvh;
+  max-height: calc(100dvh - 16px);
+  border-radius: 20px 20px 0 0;
+}
+.eidos-mobile-settings-page,
+.eidos-mobile-settings-pages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.eidos-mobile-settings-page[hidden],
+.eidos-mobile-settings-pages[hidden] {
+  display: none;
+}
+.eidos-mobile-settings-page > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  flex: none;
+}
+.eidos-mobile-settings-page > header h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 600;
+  outline: none;
+}
+.eidos-mobile-settings-page > header button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  background: transparent;
+  border-radius: 8px;
+}
+.eidos-mobile-settings-page > .eidos-mobile-settings-body {
+  flex: 1;
+  display: block;
+}
+.eidos-mobile-settings-body:is(
+  [data-eidos-file-filter-popover],
+  [data-eidos-file-sort-popover]
+) {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.eidos-mobile-settings-body:is(
+    [data-eidos-file-filter-popover],
+    [data-eidos-file-sort-popover]
+  )
+  > fieldset {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.eidos-mobile-settings-body > fieldset > .eidos-filter-group,
+.eidos-mobile-settings-body[data-eidos-file-sort-popover]
+  > fieldset
+  > .space-y-1\.5 {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.eidos-mobile-settings-body .eidos-query-footer {
+  flex: none;
+  margin-top: auto;
+  padding-block: 12px 0;
+  gap: 8px;
+}
+.eidos-mobile-settings-body[data-eidos-file-filter-popover]
+  .eidos-query-footer
+  > div {
+  width: 100%;
+  justify-content: space-between;
+}
+.eidos-mobile-settings-body .eidos-query-footer button:last-child {
+  margin-left: auto;
+  padding-inline: 20px;
+}
+[data-mobile-gallery-card="true"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 104px;
+}
+[data-mobile-gallery-card="true"]:hover {
+  box-shadow: none;
+}
+[data-mobile-gallery-card="true"] > [data-eidos-file-card-cover] {
+  position: relative;
+  width: 88px;
+  flex: none;
+  height: 112px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--muted);
+}
+/* Cover pixels must not determine the auto-sized row's height: canvas backing
+   store updates would otherwise feed back into flex sizing via ResizeObserver. */
+[data-mobile-gallery-card="true"] > [data-eidos-file-card-cover] > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+[data-mobile-gallery-card="true"] > [data-eidos-file-card-body] {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  gap: 6px;
+  align-content: start;
+}
+[data-mobile-gallery-card="true"] [data-eidos-file-card-actions] {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  top: 2px;
+  right: -6px;
+  color: var(--muted-foreground);
+}
+[data-mobile-gallery-card="true"] h3 {
+  -webkit-line-clamp: 3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 22px;
+}
+[data-mobile-gallery-card="true"] [data-eidos-file-card-field] {
+  display: block;
+}
+[data-mobile-gallery-card="true"]
+  [data-eidos-file-card-field]
+  > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+[data-mobile-gallery-card="true"] [data-eidos-file-card-text] {
+  -webkit-line-clamp: 3;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+[data-mobile-menu="true"] .eidos-mobile-settings-body {
+  display: block;
+}
+[data-mobile-menu="true"] [role^="menuitem"] {
+  min-height: 48px;
+  height: auto;
+  padding: 12px;
+  font-size: 16px;
+}
+[data-mobile-menu="true"] [role^="menuitem"] > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.eidos-mobile-view-config {
+  display: grid;
+  gap: 12px;
+}
+
+.eidos-mobile-plugin-settings {
+  display: flex;
+  flex-direction: column;
+}
+.mobile-plugin-setting + .mobile-plugin-setting {
+  border-top: 1px solid var(--border);
+}
+.mobile-plugin-setting .mobile-setting-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mobile-plugin-setting input {
+  flex: 1;
+  min-width: 0;
+  max-width: 55%;
+  min-height: 44px;
+  text-align: right;
+  font-size: 16px;
+}
+.mobile-plugin-setting .mobile-setting-value {
+  max-width: 50%;
+}
+.mobile-plugin-setting .mobile-setting-note {
+  margin: 0;
+  padding: 0 12px 12px;
+  line-height: 1.5;
+}
+.mobile-view-settings,
+.mobile-layout-settings {
+  display: grid;
+  gap: 12px;
+  padding: 0 4px 12px;
+}
+.mobile-view-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.mobile-view-settings > .mobile-query-settings {
+  order: -2;
+  border-top: 0;
+}
+.mobile-view-settings > section {
+  order: -1;
+  border-top: 0;
+}
+.mobile-view-settings .mobile-setting-list > button {
+  justify-content: flex-start;
+  gap: 12px;
+  font-size: 15px;
+}
+.mobile-view-settings .mobile-setting-list > button > svg:first-child {
+  width: 18px;
+  height: 18px;
+}
+.eidos-mobile-fields-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.mobile-view-settings h3,
+.mobile-layout-settings h3 {
+  margin: 12px 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.mobile-setting-list {
+  border-block: 1px solid var(--border);
+}
+.mobile-setting-row,
+.mobile-setting-list > button,
+.mobile-query-settings > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px;
+  text-align: left;
+  background: transparent;
+  border-radius: 0;
+}
+.mobile-setting-list > :not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.mobile-setting-row > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mobile-setting-row .mobile-setting-value {
+  flex: 0 1 48%;
+  color: var(--muted-foreground);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.mobile-setting-row > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.mobile-setting-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+.eidos-mobile-settings-body .mobile-setting-row [role="switch"] {
+  min-width: 36px;
+  width: 36px;
+  min-height: 20px;
+  height: 20px;
+  padding: 0;
+}
+.eidos-mobile-settings-body .mobile-setting-row input[type="checkbox"] {
+  min-width: 20px;
+  min-height: 20px;
+}
+.mobile-query-settings > button {
+  justify-content: flex-start;
+}
+.mobile-query-settings .eidos-file-workbar-action-label {
+  flex: 1;
+  text-align: left;
+}
+.mobile-setting-note {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 0 12px;
+}
+.mobile-view-danger {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.mobile-view-danger > button {
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+}
+.mobile-table-settings > label {
+  display: grid;
+  gap: 8px;
+}
+.mobile-table-settings input,
+.mobile-table-settings textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--background);
+}
+.mobile-table-save {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 8px;
+  padding: 12px;
+}
+.eidos-mobile-view-config > button,
+.eidos-mobile-view-group > button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.eidos-mobile-view-group + .eidos-mobile-view-group {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 12px;
+}
+
+.eidos-mobile-view-group > h3 {
+  margin: 0;
+  padding: 4px 12px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.eidos-mobile-view-name > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.eidos-mobile-view-name input {
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.eidos-mobile-view-name label {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.eidos-mobile-view-name button {
+  flex: none;
+}
+.eidos-mobile-search input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.eidos-mobile-cell-sheet:has(.eidos-mobile-search) {
+  min-height: 0;
+}
+@media (max-height: 240px) {
+  .eidos-mobile-cell-sheet:has(.eidos-mobile-search) {
+    max-height: 100dvh;
+    padding: 4px 12px;
+    border-radius: 8px 8px 0 0;
+  }
+  .eidos-mobile-cell-sheet:has(.eidos-mobile-search) > header {
+    display: none;
+  }
+  .eidos-mobile-settings-body:has(.eidos-mobile-search) {
+    padding: 0;
+  }
+  .eidos-mobile-settings-body .eidos-mobile-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eidos-mobile-search input {
+    min-width: 0;
+    flex: 1;
+  }
+  .eidos-mobile-search > div {
+    flex: none;
+    white-space: nowrap;
+  }
+}
+[data-mobile-floating="true"] {
+  z-index: 10040 !important;
+}
+[data-mobile-record="true"] header button {
+  min-width: 44px;
+  min-height: 44px;
+}
+[data-mobile-record="true"] [data-eidos-file-record-page-scroll] {
+  scrollbar-gutter: auto;
+}
+[data-mobile-record="true"] [data-eidos-file-record-page-scroll] > article {
+  padding: 24px 24px 64px;
+}
+.eidos-mobile-record-heading {
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+.eidos-mobile-record-heading > button {
+  padding: 0;
+  border-radius: 4px;
+}
+.eidos-mobile-record-heading > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+[data-mobile-record="true"] .eidos-mobile-record-property {
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 12px;
+  padding: 4px 0;
+  min-height: 48px;
+}
+[data-mobile-record="true"] .eidos-file-record-field-label {
+  padding-top: 11px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+.eidos-mobile-record-value {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 0;
+  line-height: 1.65;
+}
+.eidos-mobile-record-heading textarea {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+.eidos-mobile-record-heading textarea::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+.eidos-mobile-inline-text {
+  scrollbar-width: thin;
+}
+.eidos-mobile-inline-text::-webkit-scrollbar {
+  width: 3px;
+}
+.eidos-mobile-record-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--muted-foreground);
+  text-align: left;
+  font-size: 14px;
+}
+[data-mobile-record="true"] [data-eidos-file-record-content] {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.eidos-mobile-form main > div {
+  padding: 20px 12px;
+}
+.eidos-mobile-form [data-eidos-file-form-block] {
+  padding: 64px 16px 16px;
+}
+.eidos-mobile-form [data-eidos-file-form-block] > div:first-child {
+  display: none;
+}
+.eidos-mobile-form [data-eidos-file-form-block] > div:nth-child(2),
+.eidos-mobile-form .group\/insert > span {
+  opacity: 1;
+}
+.eidos-mobile-form [data-eidos-file-form-block] > div:nth-child(2) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.eidos-mobile-form :is(button, input, [role="combobox"]) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.eidos-mobile-form :is(input, textarea, [contenteditable="true"]) {
+  font-size: 16px;
+}
+[data-mobile-select="true"] {
+  z-index: 10060 !important;
+  max-width: calc(100vw - 24px);
+}
+[data-mobile-select="true"] [role="option"] {
+  min-height: 44px;
+  font-size: 16px;
+}
+.eidos-mobile-calendar-menu {
+  overflow-y: auto;
 }
 .eidos-mobile-cell-sheet {
   position: fixed;
@@ -392,6 +1274,10 @@
 .eidos-mobile-cell-body button {
   min-height: 48px;
 }
+.eidos-mobile-date-editor button[aria-selected="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
 .eidos-mobile-selected-options button,
 .eidos-mobile-option-list button {
   display: flex;
@@ -414,4 +1300,89 @@
 .eidos-mobile-cell-sheet input:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
+}
+.view-tools > button.mobile-view-switcher,
+.view-tools > button.mobile-table-switcher {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0 6px;
+  font-weight: 500;
+}
+.view-tools > button.mobile-table-switcher {
+  flex: 0 1 auto;
+  max-width: 35%;
+}
+.mobile-view-switcher > span,
+.mobile-table-switcher > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-view-switcher > svg,
+.mobile-table-switcher > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.mobile-view-path-separator {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.view-tools > button.mobile-new-record {
+  width: 44px;
+  padding: 0 12px;
+}
+.mobile-view-picker button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  text-align: left;
+}
+.mobile-view-picker button > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mobile-view-picker button > svg {
+  flex: none;
+}
+.mobile-sortable-choice[data-selected="true"],
+.mobile-sortable-choice[data-dragging="true"] {
+  background: var(--accent);
+  border-radius: var(--radius);
+}
+.mobile-view-picker > .mobile-create-view {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.mobile-view-picker p {
+  padding: 12px;
+}
+.mobile-sortable-choice {
+  display: flex;
+  align-items: center;
+  background: var(--popover);
+  border-radius: var(--radius);
+}
+.mobile-sortable-choice > .mobile-choice-select {
+  flex: 1;
+  min-width: 0;
+}
+.mobile-view-picker .mobile-choice-handle {
+  flex: none;
+  width: 44px;
+  min-height: 48px;
+  justify-content: center;
+  padding: 0;
+  color: var(--muted-foreground);
+  touch-action: none;
+  cursor: grab;
+}
+.mobile-view-picker .mobile-choice-handle:active {
+  cursor: grabbing;
 }

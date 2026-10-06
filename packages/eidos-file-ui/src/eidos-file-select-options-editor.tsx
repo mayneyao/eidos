@@ -24,15 +24,8 @@ import { Check, ChevronsUpDown, GripVertical, Plus, Trash2 } from "lucide-react"
 import { useEidosFileUI } from "./context"
 import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
 import { cn } from "./lib/cn"
-import {
-  Button,
-  CommandGroup,
-  CommandItem,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/primitives"
+import { Button, CommandGroup, CommandItem, Input } from "./ui/primitives"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import { SelectOptionItem } from "./ui/select-option-item"
 
 import {
@@ -58,7 +51,8 @@ function OptionRow({
   onColor: (color: string) => void
   onDelete: () => void
 }) {
-  const { themeName: theme, translate: t } = useEidosFileUI()
+  const { themeName: theme, translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const [value, setValue] = useState(option.value)
   const skipNameCommitRef = useRef(false)
   const {
@@ -105,25 +99,44 @@ function OptionRow({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="h-4 w-4 shrink-0 rounded-[3px] ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            style={{
-              backgroundColor: eidosFileOptionColor(option.color, theme),
-            }}
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              mobile ? "h-11 w-11" : "h-4 w-4"
+            )}
             aria-label={t("Change {option} color", { option: option.value })}
             disabled={disabled}
-          />
+          >
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 rounded-[3px] ring-1 ring-border"
+              style={{
+                backgroundColor: eidosFileOptionColor(option.color, theme),
+              }}
+            />
+          </button>
         </PopoverTrigger>
-        <PopoverContent align="start" side="right" className="w-44 p-2">
+        <PopoverContent
+          aria-label={t("Change {option} color", { option: option.value })}
+          align="start"
+          side="right"
+          className={cn("p-2", mobile ? "w-[220px]" : "w-44")}
+        >
           <p className="mb-2 text-[11px] font-medium text-muted-foreground">
             {t("Color")}
           </p>
-          <div className="grid grid-cols-6 gap-1.5">
+          <div
+            className={cn(
+              "grid gap-1.5",
+              mobile ? "grid-cols-4" : "grid-cols-6"
+            )}
+          >
             {EIDOS_FILE_OPTION_COLORS.map((color) => (
               <button
                 key={color.name}
                 type="button"
                 className={cn(
-                  "h-5 w-5 rounded-[3px] ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "rounded-[3px] ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  mobile ? "h-11 w-11" : "h-5 w-5",
                   option.color === color.name && "ring-2 ring-foreground"
                 )}
                 style={{ backgroundColor: color[theme] }}
@@ -158,7 +171,12 @@ function OptionRow({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-6 w-6 shrink-0 text-muted-foreground opacity-0 group-hover/option:opacity-100 focus-visible:opacity-100"
+        className={cn(
+          "shrink-0 text-muted-foreground",
+          mobile
+            ? "h-11 w-11"
+            : "h-6 w-6 opacity-0 group-hover/option:opacity-100 focus-visible:opacity-100"
+        )}
         aria-label={t("Delete {option}", { option: option.value })}
         disabled={disabled}
         onClick={onDelete}
@@ -189,7 +207,7 @@ export function EidosFileOptionsEditor({
   ) => Promise<void> | void
   className?: string
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const [options, setOptions] = useState(sourceOptions)
   const [newName, setNewName] = useState("")
   const sensors = useSensors(
@@ -339,7 +357,7 @@ export function EidosFileOptionsEditor({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className={interactionMode === "mobile" ? "h-11 w-11" : "h-7 w-7"}
             aria-label={t("Add option")}
             disabled={disabled || !newName.trim() || newNameUnavailable}
             onClick={addOption}

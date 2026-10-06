@@ -111,11 +111,12 @@ export const PopoverContent = React.forwardRef<
   { className, align = "center", sideOffset = 4, container, ...props },
   ref
 ) {
-  const { themeName } = useEidosFileUI()
+  const { themeName, interactionMode } = useEidosFileUI()
   return (
     <PopoverPrimitive.Portal {...(container ? { container } : {})}>
       <PopoverPrimitive.Content
         {...props}
+        data-mobile-floating={interactionMode === "mobile"}
         ref={ref}
         align={align}
         sideOffset={sideOffset}
@@ -200,7 +201,7 @@ export const SelectContent = React.forwardRef<
   { className, children, position = "popper", ...props },
   ref
 ) {
-  const { themeName } = useEidosFileUI()
+  const { themeName, interactionMode } = useEidosFileUI()
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -213,6 +214,7 @@ export const SelectContent = React.forwardRef<
         )}
         data-eidos-file-root=""
         data-theme={themeName}
+        data-mobile-select={interactionMode === "mobile" ? "true" : undefined}
       >
         <SelectPrimitive.Viewport
           className="max-h-[min(20rem,var(--radix-select-content-available-height))] overflow-y-auto overscroll-contain p-1 [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]"

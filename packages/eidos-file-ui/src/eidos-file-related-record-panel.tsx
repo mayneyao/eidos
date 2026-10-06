@@ -6,6 +6,7 @@ import type {
   EidosFileRowQuery,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
+  EidosFileSnapshot,
   FileEntry,
   RecordNeighbors,
 } from "@eidos.space/eidos-file"
@@ -40,8 +41,9 @@ export interface EidosFileRelatedRecordPanelProps {
   disabled?: boolean
   onClose: () => void
   onMutation?: (result: EidosFileRowMutationResult) => void
+  onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onError?: (error: unknown) => void
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -61,6 +63,7 @@ export function EidosFileRelatedRecordPanel({
   disabled = false,
   onClose,
   onMutation,
+  onSnapshot,
   onError,
   onImportFiles,
   onImportDroppedFiles,
@@ -72,6 +75,8 @@ export function EidosFileRelatedRecordPanel({
         : undefined,
     [source, table.table.id]
   )
+  const [recordFields, setRecordFields] = useState(table.fields)
+  useEffect(() => setRecordFields(table.fields), [table.fields])
   const {
     inspectedRow,
     inspectorLoading,
@@ -184,7 +189,7 @@ export function EidosFileRelatedRecordPanel({
   return (
     <EidosFileRecordInspector
       row={inspectedRow}
-      fields={table.fields}
+      fields={recordFields}
       variant={variant}
       contentField={contentField}
       onPresentationToggle={onPresentationToggle}
@@ -212,6 +217,27 @@ export function EidosFileRelatedRecordPanel({
         setMutationRevision((revision) => revision + 1)
         return result
       }}
+      onFieldUpdate={
+        !disabled &&
+        (
+          table.table.settings?.capabilities as
+            | Record<string, unknown>
+            | undefined
+        )?.alterSchema !== false
+          ? async (field, changes) => {
+              const snapshot = await source.updateField(
+                table.table.id,
+                eidosFileFieldKey(field),
+                changes
+              )
+              const updated = snapshot.tables.find(
+                (value) => value.table.id === table.table.id
+              )
+              if (updated) setRecordFields(updated.fields)
+              onSnapshot?.(snapshot)
+            }
+          : undefined
+      }
       onSearchRelation={(field, query) =>
         searchEidosFileRelationRecords(source, field, query)
       }

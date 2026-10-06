@@ -278,7 +278,8 @@ whole target, recheck fields, honor cancellation, and update only the authorized
 output scope. `task.declareOutputs` validates output samples and establishes writable output fields.
 It returns `Promise<void>` and rejects invalid samples. Each run declares outputs once,
 before writing. Samples use live read tokens, share the same set of output fields,
-and must match subsequent writes to those sampled records. `task.report` reports progress.
+and must match subsequent writes to those sampled records. Their canonical JSON
+representation is bounded to 4 MiB in UTF-8. `task.report` reports progress.
 Writes are incremental; cancel does not roll back completed rows. Undo/redo uses
 host-owned conflict-checked values, not replay of external requests.
 

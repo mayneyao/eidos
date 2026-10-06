@@ -241,10 +241,10 @@ function EidosFileEntryPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl gap-0 overflow-hidden p-0"
+        className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0"
         data-eidos-file-attachment-preview=""
       >
-        <div className="flex items-center gap-2 border-b px-3 py-2">
+        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
           <EidosFileMediaIcon
             mediaType={entry.mediaType}
             className="h-4 w-4 shrink-0 text-muted-foreground"
@@ -269,7 +269,7 @@ function EidosFileEntryPreviewDialog({
             </Button>
           </DialogClose>
         </div>
-        <div className="flex min-h-40 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-h-[70vh] [&_img]:max-w-full [&_img]:object-contain">
+        <div className="flex min-h-0 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-h-[min(70dvh,calc(100dvh-9rem))] [&_img]:max-w-full [&_img]:object-contain">
           {image ??
             (thumbnail.pending && isImage ? (
               <LoaderCircle
@@ -295,7 +295,7 @@ function EidosFileEntryPreviewDialog({
             ))}
         </div>
         {canOpen || canDownload || canCopyImage ? (
-          <div className="flex items-center gap-2 border-t px-3 py-2">
+          <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2">
             {activationError ? (
               <p
                 role="status"

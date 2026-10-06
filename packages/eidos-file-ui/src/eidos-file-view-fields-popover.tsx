@@ -148,6 +148,7 @@ export function EidosFileViewFieldsPopover({
   onUpdate,
   onFieldOpen,
   onFieldAdd,
+  embedded = false,
 }: {
   fields: EidosFileFieldInfo[]
   view: EidosFileViewInfo
@@ -155,6 +156,8 @@ export function EidosFileViewFieldsPopover({
   className?: string
   onUpdate: (changes: UpdateEidosFileViewInput) => Promise<void> | void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
+  /** Render the same field list inside a host-owned mobile sheet. */
+  embedded?: boolean
   onFieldAdd?: (
     allowedTypes?: readonly CreateEidosFileFieldInput["type"][]
   ) => void
@@ -282,6 +285,216 @@ export function EidosFileViewFieldsPopover({
     void run({ orderMap })
   }
 
+  const content = (
+    <>
+      <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5">
+        <div>
+          <p className="text-xs font-medium">{t("Fields in this view")}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {t("{visible} of {total} visible", {
+              visible: visibleCount,
+              total: orderedFields.length,
+            })}
+          </p>
+          {view.type === "gallery" || view.type === "kanban" ? (
+            <p className="mt-0.5 max-w-52 text-[10px] leading-4 text-muted-foreground">
+              {t("Card content uses visible fields from this list.")}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-[11px]"
+            disabled={busy || allHidden}
+            onClick={hideAll}
+          >
+            {t("Hide all")}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-[11px]"
+            disabled={busy || allVisible}
+            onClick={showAll}
+          >
+            {t("Show all")}
+          </Button>
+        </div>
+      </div>
+      <div className="border-b p-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            className="h-7 pl-7 text-xs"
+            placeholder={t("Search fields")}
+            aria-label={t("Search fields")}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+      </div>
+      <div
+        className="max-h-80 overflow-x-hidden overflow-y-auto p-1.5"
+        data-eidos-file-view-fields-list
+      >
+        {filteredFields.length > 0 ? (
+          <SortableContainer
+            items={filteredFields.map((field) => ({
+              id: eidosFileFieldKey(field),
+              field,
+            }))}
+            optimistic={false}
+            disabled={busy || Boolean(normalizedSearch)}
+            onReorder={(next) =>
+              reorderFields(next.map((candidate) => candidate.field))
+            }
+            className="grid gap-0.5"
+            renderItem={({ id: fieldId, field }) => {
+              const visible = fieldIsVisible(
+                field,
+                hiddenFields,
+                visibleSystemFields
+              )
+              const TypeIcon = eidosFileFieldTypeIcon(field.type) ?? Columns3
+              const fieldName = eidosFileFieldDisplayName(field)
+              const fieldSummary = (
+                <>
+                  <TypeIcon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-left">
+                    {fieldName}
+                  </span>
+                  <span className="shrink-0 text-[10px] capitalize text-muted-foreground">
+                    {isOptionalEidosFileSystemField(field)
+                      ? t("System")
+                      : t(field.type)}
+                  </span>
+                </>
+              )
+              return (
+                <SortableFieldRow
+                  id={fieldId}
+                  label={t("Reorder {field}", {
+                    field: eidosFileFieldDisplayName(field),
+                  })}
+                  disabled={busy || Boolean(normalizedSearch)}
+                >
+                  <label className="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center">
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        visible
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-background"
+                      )}
+                    >
+                      {visible ? <Check className="h-3 w-3" /> : null}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={visible}
+                      disabled={busy}
+                      aria-label={t("Show {field}", {
+                        field: fieldName,
+                      })}
+                      onChange={(event) =>
+                        toggleField(field, event.currentTarget.checked)
+                      }
+                    />
+                  </label>
+                  {onFieldOpen && field.valueKind !== "system" ? (
+                    <button
+                      type="button"
+                      className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded px-1 text-xs outline-hidden hover:bg-background/70 focus-visible:ring-1 focus-visible:ring-ring"
+                      aria-label={t("Edit {field} properties", {
+                        field: fieldName,
+                      })}
+                      disabled={busy}
+                      data-eidos-file-field-properties={fieldId}
+                      onClick={() => {
+                        if (!embedded) {
+                          setOpen(false)
+                          setSearch("")
+                        }
+                        setError(null)
+                        onFieldOpen(field)
+                      }}
+                    >
+                      {fieldSummary}
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                    </button>
+                  ) : (
+                    <div
+                      className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-xs"
+                      data-eidos-file-system-field={
+                        field.valueKind === "system" ? fieldId : undefined
+                      }
+                    >
+                      {fieldSummary}
+                      {onFieldOpen ? (
+                        <span
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 shrink-0"
+                        />
+                      ) : null}
+                    </div>
+                  )}
+                </SortableFieldRow>
+              )
+            }}
+          />
+        ) : (
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+            {t("No matching fields")}
+          </p>
+        )}
+      </div>
+      {onFieldAdd ? (
+        <div className="border-t p-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-full justify-start gap-2 px-2 text-xs"
+            disabled={busy}
+            onClick={() => {
+              if (!embedded) {
+                handingOffFocusRef.current = true
+                setOpen(false)
+                setSearch("")
+              }
+              setError(null)
+              onFieldAdd(
+                view.type === "form"
+                  ? EIDOS_FILE_FORM_INPUT_FIELD_TYPES
+                  : undefined
+              )
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("New field")}
+          </Button>
+        </div>
+      ) : null}
+      {error ? (
+        <p
+          className="border-t px-3 py-2 text-[11px] text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
+    </>
+  )
+  if (embedded) return content
+
   return (
     <Popover
       open={open}
@@ -320,206 +533,7 @@ export function EidosFileViewFieldsPopover({
           handingOffFocusRef.current = false
         }}
       >
-        <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5">
-          <div>
-            <p className="text-xs font-medium">{t("Fields in this view")}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {t("{visible} of {total} visible", {
-                visible: visibleCount,
-                total: orderedFields.length,
-              })}
-            </p>
-            {view.type === "gallery" || view.type === "kanban" ? (
-              <p className="mt-0.5 max-w-52 text-[10px] leading-4 text-muted-foreground">
-                {t("Card content uses visible fields from this list.")}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-7 px-2 text-[11px]"
-              disabled={busy || allHidden}
-              onClick={hideAll}
-            >
-              {t("Hide all")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-7 px-2 text-[11px]"
-              disabled={busy || allVisible}
-              onClick={showAll}
-            >
-              {t("Show all")}
-            </Button>
-          </div>
-        </div>
-        <div className="border-b p-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              className="h-7 pl-7 text-xs"
-              placeholder={t("Search fields")}
-              aria-label={t("Search fields")}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
-        <div
-          className="max-h-80 overflow-x-hidden overflow-y-auto p-1.5"
-          data-eidos-file-view-fields-list
-        >
-          {filteredFields.length > 0 ? (
-            <SortableContainer
-              items={filteredFields.map((field) => ({
-                id: eidosFileFieldKey(field),
-                field,
-              }))}
-              optimistic={false}
-              disabled={busy || Boolean(normalizedSearch)}
-              onReorder={(next) =>
-                reorderFields(next.map((candidate) => candidate.field))
-              }
-              className="grid gap-0.5"
-              renderItem={({ id: fieldId, field }) => {
-                const visible = fieldIsVisible(
-                  field,
-                  hiddenFields,
-                  visibleSystemFields
-                )
-                const TypeIcon = eidosFileFieldTypeIcon(field.type) ?? Columns3
-                const fieldName = eidosFileFieldDisplayName(field)
-                const fieldSummary = (
-                  <>
-                    <TypeIcon
-                      aria-hidden="true"
-                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-left">
-                      {fieldName}
-                    </span>
-                    <span className="shrink-0 text-[10px] capitalize text-muted-foreground">
-                      {isOptionalEidosFileSystemField(field)
-                        ? t("System")
-                        : t(field.type)}
-                    </span>
-                  </>
-                )
-                return (
-                  <SortableFieldRow
-                    id={fieldId}
-                    label={t("Reorder {field}", {
-                      field: eidosFileFieldDisplayName(field),
-                    })}
-                    disabled={busy || Boolean(normalizedSearch)}
-                  >
-                    <label className="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center">
-                      <span
-                        className={cn(
-                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                          visible
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input bg-background"
-                        )}
-                      >
-                        {visible ? <Check className="h-3 w-3" /> : null}
-                      </span>
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={visible}
-                        disabled={busy}
-                        aria-label={t("Show {field}", {
-                          field: fieldName,
-                        })}
-                        onChange={(event) =>
-                          toggleField(field, event.currentTarget.checked)
-                        }
-                      />
-                    </label>
-                    {onFieldOpen && field.valueKind !== "system" ? (
-                      <button
-                        type="button"
-                        className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded px-1 text-xs outline-hidden hover:bg-background/70 focus-visible:ring-1 focus-visible:ring-ring"
-                        aria-label={t("Edit {field} properties", {
-                          field: fieldName,
-                        })}
-                        disabled={busy}
-                        data-eidos-file-field-properties={fieldId}
-                        onClick={() => {
-                          setOpen(false)
-                          setSearch("")
-                          setError(null)
-                          onFieldOpen(field)
-                        }}
-                      >
-                        {fieldSummary}
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                      </button>
-                    ) : (
-                      <div
-                        className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-xs"
-                        data-eidos-file-system-field={
-                          field.valueKind === "system" ? fieldId : undefined
-                        }
-                      >
-                        {fieldSummary}
-                        {onFieldOpen ? (
-                          <span
-                            aria-hidden="true"
-                            className="h-3.5 w-3.5 shrink-0"
-                          />
-                        ) : null}
-                      </div>
-                    )}
-                  </SortableFieldRow>
-                )
-              }}
-            />
-          ) : (
-            <p className="px-2 py-6 text-center text-xs text-muted-foreground">
-              {t("No matching fields")}
-            </p>
-          )}
-        </div>
-        {onFieldAdd ? (
-          <div className="border-t p-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-full justify-start gap-2 px-2 text-xs"
-              disabled={busy}
-              onClick={() => {
-                handingOffFocusRef.current = true
-                setOpen(false)
-                setSearch("")
-                setError(null)
-                onFieldAdd(
-                  view.type === "form"
-                    ? EIDOS_FILE_FORM_INPUT_FIELD_TYPES
-                    : undefined
-                )
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("New field")}
-            </Button>
-          </div>
-        ) : null}
-        {error ? (
-          <p
-            className="border-t px-3 py-2 text-[11px] text-destructive"
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
+        {content}
       </PopoverContent>
     </Popover>
   )

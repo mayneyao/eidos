@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileRecordAttachmentEditor } from "./eidos-file-record-attachment-editor"
+import { EidosFileUIProvider } from "./context"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -28,6 +29,30 @@ describe("EidosFileRecordAttachmentEditor", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("separates the mobile photo and document import requests", async () => {
+    const onImportFiles = vi.fn(async () => [])
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider interactionMode="mobile">
+          <EidosFileRecordAttachmentEditor
+            value={null}
+            disabled={false}
+            onChange={async () => {}}
+            onImportFiles={onImportFiles}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    for (const label of ["Add from photos", "Add files"]) {
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent?.includes(label))!
+          .click()
+      })
+    }
+    expect(onImportFiles.mock.calls).toEqual([[{ imagesOnly: true }], []])
   })
 
   it("imports and removes Space files without a modal editor", async () => {

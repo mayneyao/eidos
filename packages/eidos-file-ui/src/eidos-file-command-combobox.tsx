@@ -1,14 +1,12 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react"
 
 import { cn } from "./lib/cn"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import {
   Command,
   CommandEmpty,
   CommandInput,
   CommandList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
 } from "./ui/primitives"
 
 /**
@@ -21,6 +19,7 @@ export function EidosFileCommandCombobox({
   onOpenChange,
   trigger,
   searchPlaceholder,
+  title,
   emptyText,
   filter,
   contentClassName,
@@ -31,6 +30,7 @@ export function EidosFileCommandCombobox({
   onOpenChange: (open: boolean) => void
   trigger: ReactNode
   searchPlaceholder: string
+  title?: string
   emptyText: string
   filter?: ComponentPropsWithoutRef<typeof Command>["filter"]
   contentClassName?: string
@@ -40,7 +40,11 @@ export function EidosFileCommandCombobox({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className={cn("p-0", contentClassName)} align="start">
+      <PopoverContent
+        aria-label={title}
+        className={cn("p-0", contentClassName)}
+        align="start"
+      >
         <Command filter={filter}>
           <CommandInput
             autoFocus

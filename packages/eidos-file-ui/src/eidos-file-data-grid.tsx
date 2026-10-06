@@ -24,6 +24,8 @@ import {
 } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
+import { MobileFields } from "./mobile-fields"
+import { useEidosFileUI } from "./context"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -49,6 +51,8 @@ export interface EidosFileDataGridProps {
   allowFrozenColumns?: boolean
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  /** Host-owned navigation replaces the embedded record inspector. */
+  onOpenRecord?: (rowId: string) => void
   recordPresentation?: "panel" | "page"
   onRecordPresentationToggle?: () => void
   disabled?: boolean
@@ -72,7 +76,7 @@ export interface EidosFileDataGridProps {
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onSearchResultCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -174,6 +178,7 @@ export function EidosFileDataGrid({
   allowFrozenColumns = true,
   inspectedRowId,
   onInspectedRowChange,
+  onOpenRecord,
   recordPresentation,
   onRecordPresentationToggle,
   disabled = false,
@@ -193,6 +198,12 @@ export function EidosFileDataGrid({
   onImportFiles,
   onImportDroppedFiles,
 }: EidosFileDataGridProps) {
+  const { interactionMode } = useEidosFileUI()
+  const [mobileField, setMobileField] = useState<{
+    fieldId?: string
+    create?: boolean
+    position?: number
+  } | null>(null)
   const [deleteFieldTarget, setDeleteFieldTarget] =
     useState<EidosFileFieldInfo | null>(null)
   const query = useMemo<EidosFileRowQuery>(
@@ -411,16 +422,25 @@ export function EidosFileDataGrid({
         loadInspectorRow={loadInspectorRow}
         inspectedRowId={inspectedRowId}
         onInspectedRowChange={onInspectedRowChange}
+        onOpenRecord={onOpenRecord}
         recordPresentation={recordPresentation}
         onRecordPresentationToggle={onRecordPresentationToggle}
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
         onCellEdit={editCell}
         propertyField={propertyField}
-        onPropertyFieldOpen={onFieldOpen}
+        onPropertyFieldOpen={
+          interactionMode === "mobile"
+            ? (field) => setMobileField({ fieldId: eidosFileFieldKey(field) })
+            : onFieldOpen
+        }
         onPropertyFieldClose={onFieldClose}
         onFieldUpdate={updateField}
-        onAddField={onFieldAdd}
+        onAddField={
+          interactionMode === "mobile"
+            ? (position) => setMobileField({ create: true, position })
+            : onFieldAdd
+        }
         onEditFormula={onEditFormula}
         onEditLookup={onEditLookup}
         onRowCountChange={onSearchResultCountChange}
@@ -441,6 +461,17 @@ export function EidosFileDataGrid({
         onDelete={deleteField}
         onError={onError}
       />
+      {mobileField && (
+        <MobileFields
+          source={source}
+          table={table}
+          tables={tables ? [...tables] : [table]}
+          view={view}
+          initial={mobileField}
+          onClosed={() => setMobileField(null)}
+          onSnapshot={(snapshot) => onSnapshot?.(snapshot)}
+        />
+      )}
     </>
   )
 }

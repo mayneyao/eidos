@@ -193,7 +193,7 @@ Settings 按 Space/plugin 存储，读取修改写回保留未知值。私有缓
 
 动态表格 Action 使用 activate/registerTableProvider、getItems、run。
 宿主冻结目标集合并签发 readToken。插件分页遍历、重新检查字段、响应取消，仅更新已授权
-输出范围。task.declareOutputs 校验输出样本并确定可写字段范围，返回 Promise<void>，样本无效时拒绝；
+输出范围。task.declareOutputs 校验输出样本并确定可写字段范围，返回 Promise<void>，样本无效时拒绝；输出样本的规范 JSON 表示以 UTF-8 编码计算，最多 4 MiB。
 每次运行在写入前声明一次。样本使用有效的 readToken、具有相同的输出字段集合，
 对样本记录的后续写入必须与声明的样本值一致。
 task.report 提供进度。逐行写入为增量提交；取消不回滚已完成记录。

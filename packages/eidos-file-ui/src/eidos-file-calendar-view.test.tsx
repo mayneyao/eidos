@@ -26,12 +26,16 @@ import {
 } from "./plugins/calendar"
 
 const contextMocks = vi.hoisted(() => ({
+  interactionMode: "desktop" as "desktop" | "mobile",
   weekStartsOnMonday: true,
   timeZone: undefined as string | undefined,
 }))
 
 vi.mock("./context", () => ({
   useEidosFileUI: () => ({
+    interactionMode: contextMocks.interactionMode,
+    themeName: "light",
+    locale: "en",
     weekStartsOnMonday: contextMocks.weekStartsOnMonday,
     timeZone: contextMocks.timeZone,
     translate: (
@@ -197,6 +201,7 @@ describe("EidosFileCalendarView", () => {
   let root: Root
 
   beforeEach(() => {
+    contextMocks.interactionMode = "desktop"
     contextMocks.weekStartsOnMonday = true
     contextMocks.timeZone = undefined
     vi.useFakeTimers()
@@ -210,6 +215,168 @@ describe("EidosFileCalendarView", () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+  })
+
+  it("selects mobile dates without opening records and opens record actions in a sheet", async () => {
+    contextMocks.interactionMode = "mobile"
+    const rows = [
+      { _id: "one", title: "Today task", due: "2026-08-21" },
+      { _id: "two", title: "Tomorrow task", due: "2026-08-22" },
+    ]
+    const open = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={calendarLoader(rows)}
+          onOpenRecord={open}
+        />
+      )
+      await settleCalendarLoad()
+    })
+    const agenda = container.querySelector(".eidos-mobile-calendar-agenda")!
+    expect(agenda.textContent).toContain("Today task")
+    expect(agenda.textContent).not.toContain("Tomorrow task")
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-eidos-file-calendar-day="2026-08-22"]'
+        )!
+        .click()
+    )
+    expect(open).not.toHaveBeenCalled()
+    expect(agenda.textContent).toContain("Tomorrow task")
+    expect(agenda.textContent).not.toContain("Today task")
+    act(() =>
+      agenda
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Actions for Tomorrow task"]'
+        )!
+        .click()
+    )
+    expect(document.querySelector(".eidos-mobile-calendar-menu")).not.toBeNull()
+    expect(
+      document.querySelector(".eidos-mobile-calendar-menu")!.textContent
+    ).toContain("Copy record ID")
+    act(() =>
+      document
+        .querySelector<HTMLButtonElement>(
+          ".eidos-mobile-calendar-menu > button"
+        )!
+        .click()
+    )
+    expect(open).toHaveBeenCalledWith(rows[1])
+  })
+
+  it("pages the selected mobile day and anchors week layout to that selection", async () => {
+    contextMocks.interactionMode = "mobile"
+    const rows = Array.from({ length: 8 }, (_, index) => ({
+      _id: `row-${index}`,
+      title: `Event ${index}`,
+      due: "2026-08-24",
+    }))
+    const loadRows = calendarLoader(rows)
+    const onLayoutChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={loadRows}
+          onLayoutChange={onLayoutChange}
+        />
+      )
+      await settleCalendarLoad()
+    })
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-eidos-file-calendar-day="2026-08-24"]'
+        )!
+        .click()
+    )
+    const agenda = container.querySelector(".eidos-mobile-calendar-agenda")!
+    expect(
+      agenda.querySelectorAll(".eidos-mobile-calendar-record")
+    ).toHaveLength(4)
+    await act(async () => {
+      Array.from(agenda.querySelectorAll("button"))
+        .find((button) => button.textContent === "Load more")!
+        .click()
+      await settleCalendarLoad()
+    })
+    expect(
+      agenda.querySelectorAll(".eidos-mobile-calendar-record")
+    ).toHaveLength(8)
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("header button"))
+        .find((button) => button.textContent === "Week")!
+        .click()
+      await settleCalendarLoad()
+    })
+    expect(onLayoutChange).toHaveBeenCalledWith("week")
+    expect(
+      container.querySelectorAll("[data-eidos-file-calendar-day]")
+    ).toHaveLength(7)
+    expect(
+      container
+        .querySelector('[data-eidos-file-calendar-day="2026-08-24"]')
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
+    expect(
+      agenda.querySelectorAll(".eidos-mobile-calendar-record")
+    ).toHaveLength(8)
+  })
+
+  it("creates a mobile record on the selected day and keeps system-date creation restricted", async () => {
+    contextMocks.interactionMode = "mobile"
+    const onAddRow = vi.fn(async (_field: EidosFileFieldInfo, day: Date) => ({
+      tableId: table.table.id,
+      rowCount: 1,
+      row: { _id: "new", title: "New task", due: localDayKey(day) },
+    }))
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={calendarLoader([])}
+          onAddRow={onAddRow}
+        />
+      )
+      await settleCalendarLoad()
+    })
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-eidos-file-calendar-day="2026-08-24"]'
+        )!
+        .click()
+    )
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="New record on 2026-08-24"]'
+        )!
+        .click()
+      await settleCalendarLoad()
+    })
+    expect(onAddRow).toHaveBeenCalledWith(fields[1], new Date(2026, 7, 24))
+    await act(async () => {
+      root.render(
+        <EidosFileCalendarView
+          table={{ ...table, fields: [...fields, createdField] }}
+          view={{ ...view, properties: { dateField: createdField.id } }}
+          loadRows={calendarLoader([])}
+          onAddRow={onAddRow}
+        />
+      )
+      await settleCalendarLoad()
+    })
+    expect(
+      container.querySelector('[aria-label="New record on 2026-08-24"]')
+    ).toBeNull()
   })
 
   it("recognizes stored and derived temporal fields", () => {

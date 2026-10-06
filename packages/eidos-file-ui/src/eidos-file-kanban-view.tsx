@@ -937,7 +937,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     title: string
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"

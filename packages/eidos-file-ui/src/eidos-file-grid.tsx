@@ -63,6 +63,7 @@ import {
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
+import { useEidosFileGridTouch } from "./use-eidos-file-grid-touch"
 import {
   activateEidosFileAsset,
   eidosFileAssetResolutionAllowed,
@@ -240,6 +241,8 @@ export interface EidosFileGridProps {
   loadInspectorRow?: (rowId: string) => Promise<EidosFileRow | null>
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
+  /** Host-owned navigation replaces the embedded record inspector. */
+  onOpenRecord?: (rowId: string) => void
   recordPresentation?: "panel" | "page"
   onRecordPresentationToggle?: () => void
   loadColumnStats?: (
@@ -264,7 +267,7 @@ export interface EidosFileGridProps {
   onSelectedRowsChange?: (ranges: EidosFileRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
   searchResultIndex?: number | null
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -356,7 +359,7 @@ function gridMutationErrorMessage(error: unknown): string {
 
 function selectOptionsProperty(
   field: EidosFileFieldInfo,
-  options: readonly EidosFileGridSelectOption[]
+  options: readonly Pick<EidosFileGridSelectOption, "name" | "color">[]
 ): Record<string, unknown> {
   const existing = Array.isArray(field.property?.options)
     ? field.property.options
@@ -504,6 +507,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   loadInspectorRow,
   inspectedRowId,
   onInspectedRowChange,
+  onOpenRecord,
   recordPresentation,
   onRecordPresentationToggle,
   loadColumnStats,
@@ -543,6 +547,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   } = useEidosFileUI()
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
+  const {
+    suppressTouch,
+    consumeTouch,
+    capture: touchCapture,
+  } = useEidosFileGridTouch()
   const [mobileCell, setMobileCell] = useState<{
     field: EidosFileFieldInfo
     row: EidosFileRow
@@ -695,6 +704,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     viewWidths(view)
   )
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false)
+  const [horizontalScrollbarHeight, setHorizontalScrollbarHeight] = useState(0)
   const [columnStatResults, setColumnStatResults] = useState<
     Record<string, EidosFileColumnStatResult>
   >({})
@@ -731,8 +741,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridWriteLocked =
     disabled || failedMutation !== null || rowCommandInFlight
   const canInsertRow =
+    interactionMode !== "mobile" &&
     (table.table.settings?.capabilities as Record<string, unknown> | undefined)
-      ?.insert !== false && Boolean(onAddRow)
+      ?.insert !== false &&
+    Boolean(onAddRow)
   const canDeleteRow =
     (table.table.settings?.capabilities as Record<string, unknown> | undefined)
       ?.delete !== false
@@ -1255,16 +1267,33 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridConfig = useMemo(
     () => ({
       ...defaultConfig,
-      trailingRowOptions: canInsertRow
-        ? {
-            ...defaultConfig.trailingRowOptions,
-            hint: t("New"),
-          }
-        : undefined,
+      trailingRowOptions:
+        interactionMode === "mobile"
+          ? {
+              ...defaultConfig.trailingRowOptions,
+              hint: "",
+              addIcon: EIDOS_FILE_EMPTY_STAT_ICON,
+            }
+          : canInsertRow
+            ? {
+                ...defaultConfig.trailingRowOptions,
+                hint: t("New"),
+              }
+            : undefined,
       rowMarkers: showRowMarkers ? defaultConfig.rowMarkers : "none",
-      ...eidosFileGridScrollbarConfig(hasHorizontalScroll),
+      ...eidosFileGridScrollbarConfig(
+        hasHorizontalScroll,
+        horizontalScrollbarHeight
+      ),
     }),
-    [canInsertRow, hasHorizontalScroll, showRowMarkers, t]
+    [
+      canInsertRow,
+      interactionMode,
+      hasHorizontalScroll,
+      horizontalScrollbarHeight,
+      showRowMarkers,
+      t,
+    ]
   )
 
   useLayoutEffect(() => {
@@ -1272,18 +1301,26 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     if (!container) return
 
     const measure = () => {
-      const scrollInner =
-        container.querySelector<HTMLElement>(".dvn-scroll-inner")
+      const scrollInner = container.querySelector<HTMLElement>(".dvn-scroller")
       const next = Boolean(
         scrollInner && scrollInner.scrollWidth > scrollInner.clientWidth
       )
       setHasHorizontalScroll((current) => (current === next ? current : next))
+      // Measure the styled scroller, not a body-level probe: mobile hosts use
+      // thinner scrollbars, and the surplus height separates the sticky footer.
+      setHorizontalScrollbarHeight(
+        next && scrollInner
+          ? Math.max(0, scrollInner.offsetHeight - scrollInner.clientHeight)
+          : 0
+      )
     }
     measure()
 
     const resizeObserver =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
     resizeObserver?.observe(container)
+    const scrollInner = container.querySelector<HTMLElement>(".dvn-scroller")
+    if (scrollInner) resizeObserver?.observe(scrollInner)
 
     const mutationObserver =
       typeof MutationObserver === "undefined"
@@ -2592,6 +2629,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   const onHeaderClicked = useCallback(
     (columnIndex: number, event: HeaderClickedEventArgs) => {
+      if (interactionMode === "mobile" && suppressTouch(event.isTouch)) {
+        event.preventDefault()
+        return
+      }
       const field = fields[columnIndex]
       if (!field) return
       event.preventDefault()
@@ -2604,7 +2645,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         openedFromTouch: event.isTouch,
       })
     },
-    [fields]
+    [fields, interactionMode, suppressTouch]
   )
 
   const presentCellMenu = useCallback(
@@ -2619,6 +2660,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
       cellMenuOpenedFromKeyboardRef.current = openedFromKeyboard
+      setMobileCell(null)
       setFieldMenu(null)
       setColumnStatMenu(null)
       setCellMenu({
@@ -2644,10 +2686,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     NonNullable<DataEditorProps["onCellContextMenu"]>
   >(
     ([fieldIndex, rowIndex], event) => {
+      if (interactionMode === "mobile" && suppressTouch(event.isTouch)) {
+        event.preventDefault()
+        return
+      }
       const field = fields[fieldIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
       event.preventDefault()
+      if (interactionMode === "mobile") consumeTouch()
       presentCellMenu(fieldIndex, rowIndex, event.bounds, {
         x:
           event.bounds.x +
@@ -2657,7 +2704,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           Math.min(event.bounds.height, Math.max(0, event.localEventY)),
       })
     },
-    [fields, presentCellMenu]
+    [fields, interactionMode, presentCellMenu, suppressTouch, consumeTouch]
   )
 
   const markExplicitDraftLeave = useCallback(() => {
@@ -2831,6 +2878,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     >
       <div
         className={`relative min-w-0 flex-1 overflow-hidden ${showRowMarkers ? "" : "pl-2"}`}
+        {...(interactionMode === "mobile" ? touchCapture : {})}
         onPointerDownCapture={markExplicitDraftLeave}
         onKeyDownCapture={onGridContainerKeyDownCapture}
         onKeyDown={onGridContainerKeyDown}
@@ -2871,23 +2919,29 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCellClicked={
             interactionMode === "mobile"
               ? ([columnIndex, rowIndex], event) => {
+                  if (rowIndex === rowCountRef.current) {
+                    event.preventDefault()
+                    return
+                  }
+                  if (suppressTouch(event.isTouch)) {
+                    event.preventDefault()
+                    return
+                  }
                   const field = fields[columnIndex]
                   const row = rowsRef.current.get(rowIndex)
                   if (
                     !field ||
                     !row ||
-                    gridWriteLocked ||
-                    field.valueKind !== "source"
+                    (field.type !== "relation" &&
+                      (gridWriteLocked || !isEidosFileFieldWritable(field)))
                   )
                     return
-                  if (field.type === "relation" && !onSearchRelation) return
+                  // Every custom cell uses the touch sheet. Standard cells keep
+                  // Glide's in-place editing, including direct checkbox toggles.
                   const cell = getCellContent([columnIndex, rowIndex])
-                  if (
-                    cell.kind !== GridCellKind.Loading &&
-                    "readonly" in cell &&
-                    cell.readonly
-                  )
-                    return
+                  if (cell.kind !== GridCellKind.Custom) return
+                  if (field.type === "relation" && !onSearchRelation) return
+                  if (cell.readonly && field.type !== "relation") return
                   event.preventDefault()
                   setMobileCell({ field, row, rowIndex })
                 }
@@ -2899,7 +2953,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onColumnResize={onColumnResize}
           onColumnMoved={onColumnMoved}
           onRowAppended={
-            gridWriteLocked || !canInsertRow ? undefined : appendRow
+            // Glide only renders the statistics row when this callback exists.
+            // appendRow's canInsertRow guard keeps it inert on mobile.
+            interactionMode === "mobile"
+              ? appendRow
+              : gridWriteLocked || !canInsertRow
+                ? undefined
+                : appendRow
           }
           rightElement={
             !gridWriteLocked && canAlterSchema && onAddField ? (
@@ -2921,7 +2981,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           <EidosFileMobileCellEditor
             key={`${mobileCell.row._id}:${mobileCell.field.id}`}
             field={mobileCell.field}
+            readOnly={
+              gridWriteLocked || !isEidosFileFieldWritable(mobileCell.field)
+            }
             row={mobileCell.row}
+            onCreateOptions={
+              !gridWriteLocked && canAlterSchema && onFieldUpdate
+                ? async (options) => {
+                    await onFieldUpdate(mobileCell.field, {
+                      property: selectOptionsProperty(
+                        mobileCell.field,
+                        options
+                      ),
+                    })
+                  }
+                : undefined
+            }
             onSearchRelation={onSearchRelation}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
@@ -3104,9 +3179,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             }
           }}
           onOpenRecord={(state) => {
+            setMobileCell(null)
             onPropertyFieldClose?.()
-            setInspectedRowIndex(state.rowIndex)
             const row = rowsRef.current.get(state.rowIndex)
+            if (onOpenRecord && row?._id != null) {
+              onOpenRecord(String(row._id))
+              return
+            }
+            setInspectedRowIndex(state.rowIndex)
             if (row?._id != null) onInspectedRowChange?.(String(row._id))
           }}
           onCopyCell={copyText}
@@ -3168,6 +3248,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           onOpenInTab={onOpenRecordInTab}
           onCellEdit={editInspectedRecord}
+          onFieldUpdate={canAlterSchema ? onFieldUpdate : undefined}
           disabled={gridWriteLocked}
           onError={onError}
           onImportFiles={onImportFiles}

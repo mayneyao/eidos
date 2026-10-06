@@ -210,6 +210,19 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
     },
     [props.onSnapshot, source, view]
   )
+  const changeDateField = useCallback(
+    async (field: EidosFileFieldInfo) => {
+      if (!view) return
+      const snapshot = await source.updateView(view.id, {
+        properties: {
+          ...(view.properties ?? {}),
+          dateField: eidosFileFieldKey(field),
+        },
+      })
+      props.onSnapshot?.(snapshot)
+    },
+    [props.onSnapshot, source, view]
+  )
 
   if (!view) return null
   return (
@@ -233,6 +246,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       onImportDroppedFiles={props.onImportDroppedFiles}
       onSearchRelation={searchRelation}
       onLayoutChange={changeLayout}
+      onDateFieldChange={changeDateField}
       onRowCountChange={props.onSearchResultCountChange}
       onError={onError}
       sidePanel={

@@ -35,7 +35,7 @@ import { useEidosFileUI } from "./context"
 import { EidosFileTableActionMenu } from "./table-actions"
 import { eidosFileFieldDisplaysUrl } from "./eidos-file-field-properties"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
-import { Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
+import { Popover, PopoverAnchor, PopoverContent } from "./ui/adaptive-popover"
 
 import {
   eidosFileFieldDisplayName,

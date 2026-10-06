@@ -259,6 +259,7 @@ export function EidosFileFieldTypePicker({
       open={open}
       onOpenChange={setOpen}
       searchPlaceholder={t("Search field types…")}
+      title={t("Field type")}
       emptyText={t("No matching field type.")}
       filter={(value, search, keywords) =>
         [value, ...(keywords ?? [])]

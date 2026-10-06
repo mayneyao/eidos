@@ -8,19 +8,14 @@ import { ChevronsUpDown, LoaderCircle, Search } from "lucide-react"
 
 import type { EidosFileEditorDataSource } from "./data-source"
 import { useEidosFileUI } from "./context"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import { useEidosFileRelationListbox } from "./eidos-file-relation-listbox"
 import { EidosFileRelationOptionList } from "./eidos-file-relation-option-list"
 import {
   resolveEidosFileRelationRecords,
   searchEidosFileRelationRecords,
 } from "./eidos-file-relation-search"
-import {
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/primitives"
+import { Button, Input } from "./ui/primitives"
 
 function relationIds(value: EidosFileFilterRuleValue | undefined): string[] {
   const values = Array.isArray(value) ? value : [value]
@@ -214,7 +209,10 @@ export function EidosFileQueryRelationFilter({
             }}
           />
         </div>
-        <div className="max-h-72 overflow-y-auto p-1.5">
+        <div
+          data-eidos-mobile-option-list=""
+          className="max-h-72 overflow-y-auto p-1.5"
+        >
           <EidosFileRelationOptionList
             accessibleName={t("{field} relation records", {
               field: field.name,

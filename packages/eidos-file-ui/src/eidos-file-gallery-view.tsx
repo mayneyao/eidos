@@ -149,6 +149,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
   onOpen,
   onDelete,
 }: EidosFileGalleryVirtualRowProps) {
+  const { interactionMode } = useEidosFileUI()
   const start = globalRowIndex * columnCount
   return (
     <div
@@ -187,7 +188,12 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               key={`gallery-placeholder-${absoluteIndex}`}
               data-eidos-file-gallery-placeholder
               className="min-h-24 rounded-lg border bg-muted/20"
-              style={{ minHeight: uniformGalleryCardHeight(layout) }}
+              style={{
+                minHeight:
+                  interactionMode === "mobile"
+                    ? 104
+                    : uniformGalleryCardHeight(layout),
+              }}
               aria-hidden="true"
             />
           )
@@ -233,7 +239,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     field: EidosFileFieldInfo,
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -249,7 +255,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
@@ -412,13 +419,17 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 
   const targetCardWidth = galleryCardWidth(view)
   const availableWidth = Math.max(
-    targetCardWidth,
+    mobile ? 0 : targetCardWidth,
     containerWidth - GALLERY_HORIZONTAL_PADDING
   )
-  const columnCount = Math.max(
-    1,
-    Math.floor((availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP))
-  )
+  const columnCount = mobile
+    ? 1
+    : Math.max(
+        1,
+        Math.floor(
+          (availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP)
+        )
+      )
   const renderedCardWidth =
     (availableWidth - GALLERY_GAP * (columnCount - 1)) / columnCount
   const virtualRowCount = Math.ceil(total / columnCount)
@@ -435,7 +446,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   } = useEidosFileBoundedVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
-    estimatedItemSize: uniformGalleryCardHeight(cardLayout),
+    estimatedItemSize: mobile ? 112 : uniformGalleryCardHeight(cardLayout),
     getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
     paddingEnd: GALLERY_END_PADDING,

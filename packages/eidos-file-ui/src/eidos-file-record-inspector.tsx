@@ -6,12 +6,17 @@ import type {
   EidosFileRelationValue,
   EidosFileSqlPrimitive,
   FileEntry,
+  UpdateEidosFileFieldInput,
 } from "@eidos.space/eidos-file"
-import { decodeEidosFileValues } from "@eidos.space/eidos-file"
+import {
+  decodeEidosFileValues,
+  decodeEidosFileMultiSelectValues,
+} from "@eidos.space/eidos-file"
 import {
   Check,
   Copy,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   LoaderCircle,
@@ -23,6 +28,8 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useMobileBack } from "./mobile-back"
+import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button, ScrollArea } from "./ui/primitives"
@@ -43,6 +50,67 @@ import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 import { EidosFileMarkdownPreview } from "./eidos-file-markdown-preview"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { SelectOptionItem } from "./ui/select-option-item"
+
+function MobileRecordValue({
+  field,
+  row,
+}: {
+  field: EidosFileFieldInfo
+  row: EidosFileRow
+}) {
+  const { translate: t, timeZone } = useEidosFileUI()
+  const value = row[field.tableColumnName]
+  if (value === null || value === undefined || value === "")
+    return <span className="text-muted-foreground">{t("Empty")}</span>
+  if (field.type === "select" || field.type === "multi-select") {
+    const options = eidosFileSelectOptions(field)
+    const values =
+      field.type === "select"
+        ? [String(value)]
+        : decodeEidosFileMultiSelectValues(
+            typeof value === "string" ? value : null
+          )
+    return (
+      <span className="flex flex-wrap gap-1.5">
+        {values.map((value) => (
+          <SelectOptionItem
+            key={value}
+            className="text-sm"
+            option={
+              options.find((option) => option.value === value) ?? {
+                name: value,
+                color: "default",
+              }
+            }
+          />
+        ))}
+      </span>
+    )
+  }
+  if (field.type === "checkbox")
+    return (
+      <span
+        role="img"
+        aria-label={t(
+          value === true || value === 1 || value === "1"
+            ? "Checked"
+            : "Unchecked"
+        )}
+        className="inline-flex h-5 w-5 items-center justify-center rounded border border-input"
+      >
+        {value === true || value === 1 || value === "1" ? (
+          <Check className="h-4 w-4" />
+        ) : null}
+      </span>
+    )
+  return (
+    <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
+      {eidosFileRecordFieldText(row, field, timeZone)}
+    </span>
+  )
+}
 
 const LazyEidosFileMarkdownSourceEditor = lazy(async () => {
   const module = await import("./eidos-file-markdown-source-editor")
@@ -348,6 +416,10 @@ export interface EidosFileRecordInspectorProps {
   onOpenInTab?: (row: EidosFileRow) => void
   /** Switch between the side panel and the full content page. */
   onPresentationToggle?: () => void
+  onFieldUpdate?: (
+    field: EidosFileFieldInfo,
+    changes: UpdateEidosFileFieldInput
+  ) => void | Promise<void>
   /** @deprecated Record IDs are no longer shown in record inspectors. */
   onCopyRecordId?: (id: string) => void
   onCellEdit?: (
@@ -362,7 +434,7 @@ export interface EidosFileRecordInspectorProps {
   loadError?: string | null
   onRetryLoad?: () => void
   onError?: (error: unknown) => void
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
@@ -376,13 +448,14 @@ export interface EidosFileRecordInspectorProps {
 export function EidosFileRecordInspector({
   row,
   fields,
-  variant = "panel",
+  variant: requestedVariant = "panel",
   contentField,
   onClose,
   onPreviousRecord,
   onNextRecord,
   onOpenInTab,
   onPresentationToggle,
+  onFieldUpdate,
   onCellEdit,
   disabled = false,
   loading = false,
@@ -394,7 +467,17 @@ export function EidosFileRecordInspector({
   onImportDroppedFiles,
   onSearchRelation,
 }: EidosFileRecordInspectorProps) {
-  const { markdownEditingMode = "source", translate: t } = useEidosFileUI()
+  const {
+    markdownEditingMode = "source",
+    translate: t,
+    interactionMode,
+  } = useEidosFileUI()
+  const variant = interactionMode === "mobile" ? "page" : requestedVariant
+  const isMobile = interactionMode === "mobile"
+  const [expandedProperties, setExpandedProperties] = useState(false)
+  const [mobileField, setMobileField] = useState<EidosFileFieldInfo | null>(
+    null
+  )
   const [currentRow, setCurrentRow] = useState(row)
   const [savingField, setSavingField] = useState<string | null>(null)
   const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
@@ -520,6 +603,15 @@ export function EidosFileRecordInspector({
       field.id !== contentField?.id &&
       (variant !== "page" || field.id !== pageTitleField?.id)
   )
+  const compactProperties = metadataFields
+    .filter((field) => field.valueKind !== "system" && field.systemRole == null)
+    .slice(0, 3)
+  const primaryProperties = new Set(compactProperties.map((field) => field.id))
+  const hiddenPropertyCount = metadataFields.length - primaryProperties.size
+  useEffect(() => {
+    setExpandedProperties(false)
+    setMobileField(null)
+  }, [currentRowId])
   const contentValue = contentField
     ? typeof currentRow[contentField.tableColumnName] === "string"
       ? (currentRow[contentField.tableColumnName] as string)
@@ -588,12 +680,21 @@ export function EidosFileRecordInspector({
 
   const closeRecord = async () => {
     if (!onClose) return
+    if (interactionMode === "mobile") {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur()
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      )
+      if (savingRef.current || failedEditRef.current) return
+    }
     if (contentDisplayMode === "edit" && contentDraft !== contentValue) {
       const saved = await saveContentAndPreview()
       if (!saved) return
     }
     onClose()
   }
+  useMobileBack(onClose ? closeRecord : undefined)
 
   const togglePresentation = async () => {
     if (!onPresentationToggle) return
@@ -659,77 +760,110 @@ export function EidosFileRecordInspector({
     </>
   )
 
-  const metadataRows = metadataFields.map((field) => {
-    const fieldWritable = editable && isEidosFileFieldWritable(field)
-    const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
-    return (
-      <div
-        key={field.tableColumnName}
-        className={cn(
-          "eidos-file-record-field group/readonly grid",
-          variant === "page"
-            ? "gap-x-5 gap-y-1 py-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-start"
-            : "gap-1.5 px-4 py-3"
-        )}
-      >
-        <p
+  const metadataRows = metadataFields
+    .filter(
+      (field) =>
+        !isMobile || expandedProperties || primaryProperties.has(field.id)
+    )
+    .map((field) => {
+      const fieldWritable = editable && isEidosFileFieldWritable(field)
+      const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
+      return (
+        <div
+          key={field.tableColumnName}
           className={cn(
-            "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground",
-            variant === "page" ? "text-xs leading-5" : "text-[11px]",
-            variant === "page" &&
-              fieldWritable &&
-              field.type !== "file" &&
-              "pt-1.5"
+            "eidos-file-record-field group/readonly grid min-w-0",
+            isMobile && "eidos-mobile-record-property",
+            variant === "page"
+              ? "gap-x-5 gap-y-1 py-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-start"
+              : "gap-1.5 px-4 py-3"
           )}
         >
-          {FieldTypeIcon ? (
-            <FieldTypeIcon
-              aria-hidden="true"
-              data-eidos-file-field-type-icon={field.type}
-              className="h-3.5 w-3.5 shrink-0"
+          <p
+            className={cn(
+              "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground",
+              variant === "page" ? "text-xs leading-5" : "text-[11px]",
+              variant === "page" &&
+                fieldWritable &&
+                field.type !== "file" &&
+                "pt-1.5"
+            )}
+          >
+            {FieldTypeIcon ? (
+              <FieldTypeIcon
+                aria-hidden="true"
+                data-eidos-file-field-type-icon={field.type}
+                className="h-3.5 w-3.5 shrink-0"
+              />
+            ) : null}
+            <span className="truncate">{eidosFileFieldDisplayName(field)}</span>
+          </p>
+          {isMobile ? (
+            fieldWritable &&
+            ["text", "number", "integer", "url", "checkbox", "rating"].includes(
+              field.type
+            ) ? (
+              <EidosFileRecordFieldEditor
+                field={field}
+                row={currentRow}
+                appearance="record-property"
+                placeholder={t("Empty")}
+                disabled={editorDisabled}
+                onChange={(value) => editField(field, value)}
+              />
+            ) : fieldWritable ? (
+              <button
+                className="eidos-mobile-record-value min-h-11 min-w-0 w-full rounded text-left text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                disabled={editorDisabled}
+                aria-label={field.name}
+                onClick={() => setMobileField(field)}
+              >
+                <MobileRecordValue field={field} row={currentRow} />
+              </button>
+            ) : (
+              <div className="eidos-mobile-record-value min-w-0 text-base">
+                <MobileRecordValue field={field} row={currentRow} />
+              </div>
+            )
+          ) : fieldWritable && field.type === "file" ? (
+            <EidosFileRecordAttachmentEditor
+              value={currentRow[field.tableColumnName]}
+              disabled={editorDisabled}
+              onChange={(value) => editField(field, value)}
+              onImportFiles={onImportFiles}
+              onImportDroppedFiles={onImportDroppedFiles}
+              onError={onError}
             />
-          ) : null}
-          <span className="truncate">{eidosFileFieldDisplayName(field)}</span>
-        </p>
-        {fieldWritable && field.type === "file" ? (
-          <EidosFileRecordAttachmentEditor
-            value={currentRow[field.tableColumnName]}
-            disabled={editorDisabled}
-            onChange={(value) => editField(field, value)}
-            onImportFiles={onImportFiles}
-            onImportDroppedFiles={onImportDroppedFiles}
-            onError={onError}
-          />
-        ) : fieldWritable && field.type === "relation" && onSearchRelation ? (
-          <EidosFileRecordRelationEditor
-            row={currentRow}
-            field={field}
-            disabled={editorDisabled}
-            onChange={(value) => editField(field, value)}
-            onSearch={onSearchRelation}
-            onError={onError}
-          />
-        ) : fieldWritable &&
-          field.valueKind === "source" &&
-          field.type !== "file" &&
-          field.type !== "relation" ? (
-          <EidosFileRecordFieldEditor
-            field={field}
-            row={currentRow}
-            disabled={editorDisabled}
-            onChange={(value) => editField(field, value)}
-          />
-        ) : (
-          <CopyableFieldValue
-            key={`${currentRow._id}:${field.tableColumnName}`}
-            field={field}
-            row={currentRow}
-            onError={onError}
-          />
-        )}
-      </div>
-    )
-  })
+          ) : fieldWritable && field.type === "relation" && onSearchRelation ? (
+            <EidosFileRecordRelationEditor
+              row={currentRow}
+              field={field}
+              disabled={editorDisabled}
+              onChange={(value) => editField(field, value)}
+              onSearch={onSearchRelation}
+              onError={onError}
+            />
+          ) : fieldWritable &&
+            field.valueKind === "source" &&
+            field.type !== "file" &&
+            field.type !== "relation" ? (
+            <EidosFileRecordFieldEditor
+              field={field}
+              row={currentRow}
+              disabled={editorDisabled}
+              onChange={(value) => editField(field, value)}
+            />
+          ) : (
+            <CopyableFieldValue
+              key={`${currentRow._id}:${field.tableColumnName}`}
+              field={field}
+              row={currentRow}
+              onError={onError}
+            />
+          )}
+        </div>
+      )
+    })
 
   return (
     <Root
@@ -741,10 +875,58 @@ export function EidosFileRecordInspector({
       )}
       data-eidos-file-detail-panel="record"
       data-eidos-file-record-layout={variant}
+      data-mobile-record={interactionMode === "mobile" ? "true" : undefined}
       aria-label={t("Record details for {title}", { title })}
       aria-busy={loading || savingField !== null ? "true" : undefined}
     >
-      {variant === "page" ? (
+      {mobileField && (
+        <EidosFileMobileCellEditor
+          field={mobileField}
+          row={currentRow}
+          onCreateOptions={
+            onFieldUpdate && !editorDisabled
+              ? async (options) => {
+                  const property = {
+                    ...mobileField.property,
+                    options: options.map(
+                      ({ value: _value, ...option }) => option
+                    ),
+                  }
+                  await onFieldUpdate(mobileField, { property })
+                }
+              : undefined
+          }
+          onClose={() => setMobileField(null)}
+          onSave={async (value) => {
+            await editField(mobileField, value)
+            if (failedEditRef.current)
+              throw new Error(failedEditRef.current.message)
+          }}
+          onSearchRelation={onSearchRelation}
+          onImportFiles={onImportFiles}
+          onImportDroppedFiles={onImportDroppedFiles}
+        />
+      )}
+      {isMobile ? (
+        <header className="flex shrink-0 items-center gap-2 border-b px-3 py-1">
+          {onClose ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("Close record details")}
+              disabled={savingField !== null}
+              onClick={() => void closeRecord()}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          ) : null}
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            {t("Record details")}
+          </span>
+          {saveStatus}
+          {recordNavigationButtons}
+        </header>
+      ) : variant === "page" ? (
         <header className="shrink-0 bg-background">
           <div className="mx-auto w-full max-w-[960px] px-5 pt-4 sm:px-8 lg:px-12">
             <div
@@ -956,6 +1138,27 @@ export function EidosFileRecordInspector({
                 : "pb-20"
             )}
           >
+            {isMobile ? (
+              <div
+                className="eidos-mobile-record-heading"
+                data-eidos-file-record-title=""
+              >
+                {pageTitleField && pageTitleWritable ? (
+                  <h1>
+                    <EidosFileRecordFieldEditor
+                      field={pageTitleField}
+                      row={currentRow}
+                      placeholder={t("Untitled")}
+                      appearance="record-title"
+                      disabled={editorDisabled}
+                      onChange={(value) => editField(pageTitleField, value)}
+                    />
+                  </h1>
+                ) : (
+                  <h1>{title}</h1>
+                )}
+              </div>
+            ) : null}
             {metadataRows.length > 0 ? (
               <div
                 className="mx-auto grid w-full max-w-[760px] gap-0 py-2"
@@ -963,6 +1166,26 @@ export function EidosFileRecordInspector({
                 data-markdown-selection-ignore=""
               >
                 {metadataRows}
+                {isMobile && hiddenPropertyCount > 0 ? (
+                  <button
+                    type="button"
+                    className="eidos-mobile-record-disclosure"
+                    aria-expanded={expandedProperties}
+                    onClick={() => setExpandedProperties((value) => !value)}
+                  >
+                    {expandedProperties
+                      ? t("Collapse properties")
+                      : t("Show all properties ({count})", {
+                          count: metadataFields.length,
+                        })}
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4",
+                        expandedProperties && "rotate-180"
+                      )}
+                    />
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {contentField ? (

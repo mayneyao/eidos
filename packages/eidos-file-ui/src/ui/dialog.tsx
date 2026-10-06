@@ -3,6 +3,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
+import { MobilePopoverLayer } from "./mobile-layer"
 
 const Dialog = DialogPrimitive.Root
 
@@ -34,29 +35,34 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(function DialogContent({ className, ...props }, ref) {
-  const { themeName } = useEidosFileUI()
+  const { themeName, interactionMode } = useEidosFileUI()
+  const layer = React.useContext(MobilePopoverLayer) + 20
+  const mobile = interactionMode === "mobile"
   return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        {...props}
-        ref={ref}
-        className={cn(
-          "click-outside-ignore eidos-file-root fixed left-[50%] top-[50%] z-[10010] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg",
-          "duration-300 ease-out",
-          "origin-center",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
-          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
-          "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
-          "data-[state=open]:slide-in-from-bottom-[48%]",
-          "data-[state=closed]:slide-out-to-bottom-[48%]",
-          "sm:rounded-lg",
-          className
-        )}
-        data-eidos-file-root=""
-        data-theme={themeName}
-      />
-    </DialogPortal>
+    <MobilePopoverLayer.Provider value={layer}>
+      <DialogPortal>
+        <DialogOverlay style={mobile ? { zIndex: layer } : undefined} />
+        <DialogPrimitive.Content
+          {...props}
+          style={mobile ? { ...props.style, zIndex: layer + 1 } : props.style}
+          ref={ref}
+          className={cn(
+            "click-outside-ignore eidos-file-root fixed left-[50%] top-[50%] z-[10010] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg",
+            "duration-300 ease-out",
+            "origin-center",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+            "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+            "data-[state=open]:slide-in-from-bottom-[48%]",
+            "data-[state=closed]:slide-out-to-bottom-[48%]",
+            "sm:rounded-lg",
+            className
+          )}
+          data-eidos-file-root=""
+          data-theme={themeName}
+        />
+      </DialogPortal>
+    </MobilePopoverLayer.Provider>
   )
 })
 DialogContent.displayName = DialogPrimitive.Content.displayName

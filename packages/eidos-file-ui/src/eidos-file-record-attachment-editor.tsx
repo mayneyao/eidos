@@ -5,7 +5,7 @@ import {
   type EidosFileRow,
   type FileEntry,
 } from "@eidos.space/eidos-file"
-import { LoaderCircle, Plus, X } from "lucide-react"
+import { ImagePlus, LoaderCircle, Plus, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
@@ -27,14 +27,14 @@ export function EidosFileRecordAttachmentEditor({
   value: EidosFileRow[string]
   disabled: boolean
   onChange: (value: string | null) => Promise<void>
-  onImportFiles?: () => Promise<FileEntry[]>
+  onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
     source?: "drop" | "paste"
   ) => Promise<FileEntry[]>
   onError?: (error: unknown) => void
 }) {
-  const { assetSession, translate: t } = useEidosFileUI()
+  const { assetSession, translate: t, interactionMode } = useEidosFileUI()
   const entries = decodeEidosFileValues(value)
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -54,11 +54,15 @@ export function EidosFileRecordAttachmentEditor({
     ])
   }
 
-  const chooseFiles = async () => {
+  const chooseFiles = async (imagesOnly = false) => {
     if (disabled || importing || !onImportFiles) return
     setImporting(true)
     try {
-      await append(await onImportFiles())
+      await append(
+        await (imagesOnly
+          ? onImportFiles({ imagesOnly: true })
+          : onImportFiles())
+      )
     } catch (error) {
       onError?.(error)
     } finally {
@@ -115,7 +119,12 @@ export function EidosFileRecordAttachmentEditor({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
+                className={cn(
+                  "shrink-0",
+                  interactionMode === "mobile"
+                    ? "h-11 w-11"
+                    : "h-7 w-7 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
+                )}
                 aria-label={t("Remove {file}", { file: entry.name })}
                 disabled={disabled || importing}
                 onClick={() =>
@@ -138,6 +147,19 @@ export function EidosFileRecordAttachmentEditor({
       )}
       {onImportFiles || eidosFileRemoteAssetAcquisitionAllowed(assetSession) ? (
         <div className="flex flex-wrap items-start gap-1">
+          {onImportFiles && interactionMode === "mobile" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 justify-start gap-1.5 px-1.5 text-[11px] text-muted-foreground"
+              disabled={disabled || importing}
+              onClick={() => void chooseFiles(true)}
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              {t("Add from photos")}
+            </Button>
+          ) : null}
           {onImportFiles ? (
             <Button
               type="button"

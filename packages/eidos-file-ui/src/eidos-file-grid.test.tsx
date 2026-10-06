@@ -204,6 +204,193 @@ describe("EidosFileGrid", () => {
     container.remove()
   })
 
+  it.each([
+    "text",
+    "number",
+    "integer",
+    "checkbox",
+    "date",
+    "datetime",
+    "rating",
+    "select",
+    "multi-select",
+    "file",
+    "relation",
+    "inverse-relation",
+  ] as const)(
+    "routes mobile %s cells to their appropriate editor",
+    async (type) => {
+      const field = {
+        ...table.fields[0]!,
+        type: type === "inverse-relation" ? ("relation" as const) : type,
+        writable: type !== "inverse-relation",
+        property:
+          type === "inverse-relation"
+            ? { direction: "inverse" }
+            : table.fields[0]!.property,
+        valueKind:
+          type === "relation" || type === "inverse-relation"
+            ? ("relation" as const)
+            : ("source" as const),
+        storageCodec:
+          type === "relation" || type === "inverse-relation"
+            ? ("relation" as const)
+            : table.fields[0]!.storageCodec,
+      }
+      const snapshot = { ...table, fields: [field], rowCount: 1 }
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileGrid
+              table={snapshot}
+              loadPage={async (offset, limit) => ({
+                tableId: table.table.id,
+                offset,
+                limit,
+                total: 1,
+                rows: [{ _id: "row_0", title: null }],
+              })}
+              onCellEdit={createCellEdit(snapshot)}
+              onAddRow={vi.fn()}
+              onSearchRelation={async () => []}
+            />
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+      })
+      const preventDefault = vi.fn()
+      expect(mocks.props?.trailingRowOptions?.hint).toBe("")
+      expect(mocks.props?.onRowAppended).toBeTypeOf("function")
+      await act(async () => {
+        mocks.props!.onCellClicked!([0, 0], {
+          preventDefault,
+        } as unknown as Parameters<
+          NonNullable<DataEditorProps["onCellClicked"]>
+        >[1])
+      })
+      const needsSheet = [
+        "date",
+        "datetime",
+        "rating",
+        "select",
+        "multi-select",
+        "file",
+        "relation",
+        "inverse-relation",
+      ].includes(type)
+      expect(preventDefault).toHaveBeenCalledTimes(needsSheet ? 1 : 0)
+      expect(document.querySelector(".eidos-mobile-cell-sheet") !== null).toBe(
+        needsSheet
+      )
+      if (type === "date" || type === "datetime") {
+        expect(
+          document.querySelector(
+            '.eidos-mobile-cell-sheet .eidos-mobile-date-editor input[aria-label="Date"]'
+          )
+        ).not.toBeNull()
+      }
+      if (!needsSheet) {
+        const cell = mocks.props!.getCellContent([0, 0])
+        expect(cell.allowOverlay).toBe(type !== "checkbox")
+      }
+    }
+  )
+
+  it.each([
+    ["date", "vertical"],
+    ["datetime", "vertical"],
+    ["select", "vertical"],
+    ["checkbox", "vertical"],
+    ["text", "vertical"],
+    ["date", "horizontal"],
+    ["date", "return-to-start"],
+    ["date", "scroll"],
+    ["date", "cancel"],
+    ["date", "end-displacement"],
+    ["date", "multi-touch"],
+  ] as const)(
+    "does not activate mobile %s cells after a %s gesture",
+    async (type, gesture) => {
+      const field = { ...table.fields[0]!, type, writable: true }
+      const snapshot = { ...table, fields: [field], rowCount: 1 }
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileGrid
+              table={snapshot}
+              loadPage={async (offset, limit) => ({
+                tableId: table.table.id,
+                offset,
+                limit,
+                total: 1,
+                rows: [{ _id: "row_0", title: null }],
+              })}
+              onCellEdit={createCellEdit(snapshot)}
+            />
+          </EidosFileUIProvider>
+        )
+      })
+      const target = container.querySelector('[data-testid="glide-grid"]')!
+      const touch = (name: string, x: number, y: number) => {
+        const point = { identifier: 1, clientX: x, clientY: y }
+        target.dispatchEvent(
+          Object.assign(new Event(name, { bubbles: true }), {
+            touches: name === "touchend" ? [] : [point],
+            changedTouches: [point],
+          })
+        )
+      }
+      const preventDefault = vi.fn()
+      // Glide listens on window; the drag decision must survive touchend capture.
+      const clicked = () =>
+        mocks.props!.onCellClicked!([0, 0], {
+          isTouch: true,
+          preventDefault,
+        } as unknown as Parameters<
+          NonNullable<DataEditorProps["onCellClicked"]>
+        >[1])
+      window.addEventListener("touchend", clicked)
+      try {
+        await act(async () => {
+          touch("touchstart", 30, 30)
+          if (gesture === "vertical") {
+            touch("touchmove", 30, 42)
+            touch("touchend", 30, 42)
+          } else {
+            if (gesture === "horizontal" || gesture === "return-to-start")
+              touch("touchmove", 42, 30)
+            if (gesture === "scroll") target.dispatchEvent(new Event("scroll"))
+            if (gesture === "cancel") touch("touchcancel", 30, 30)
+            if (gesture === "multi-touch")
+              target.dispatchEvent(
+                Object.assign(new Event("touchstart", { bubbles: true }), {
+                  touches: [
+                    { identifier: 1, clientX: 30, clientY: 30 },
+                    { identifier: 2, clientX: 40, clientY: 30 },
+                  ],
+                })
+              )
+            touch("touchend", gesture === "end-displacement" ? 42 : 30, 30)
+          }
+        })
+        expect(preventDefault).toHaveBeenCalledOnce()
+        expect(document.querySelector(".eidos-mobile-cell-sheet")).toBeNull()
+        preventDefault.mockClear()
+        await act(async () => {
+          touch("touchstart", 30, 30)
+          touch("touchend", 32, 31)
+        })
+        const custom = ["date", "datetime", "select"].includes(type)
+        expect(
+          document.querySelector(".eidos-mobile-cell-sheet") !== null
+        ).toBe(custom)
+        expect(preventDefault).toHaveBeenCalledTimes(custom ? 1 : 0)
+      } finally {
+        window.removeEventListener("touchend", clicked)
+      }
+    }
+  )
+
   it("restores the last Grid cell after Escape when the host requests file-content focus", async () => {
     const renderGrid = (focusRequestToken: number) => (
       <EidosFileGrid
@@ -2759,83 +2946,104 @@ describe("EidosFileGrid", () => {
     })
   })
 
-  it("loads configured column stats into the trailing row and refreshes after edits", async () => {
-    const view = {
-      ...table.views[0],
-      properties: {
-        columnStats: {
-          "0198c72d-82b5-7000-8000-000000000001": {
-            type: "count-non-null",
-          },
-          "0198c72d-82b5-7000-8000-000000000002": {
-            type: "count-distinct",
+  it.each(["desktop", "mobile"] as const)(
+    "loads and refreshes column stats in %s mode without enabling mobile insertion",
+    async (interactionMode) => {
+      const view = {
+        ...table.views[0],
+        properties: {
+          columnStats: {
+            "0198c72d-82b5-7000-8000-000000000001": {
+              type: "count-non-null",
+            },
+            "0198c72d-82b5-7000-8000-000000000002": {
+              type: "count-distinct",
+            },
           },
         },
-      },
-    }
-    const loadColumnStats = vi.fn().mockResolvedValue([
-      {
-        fieldId: "0198c72d-82b5-7000-8000-000000000001",
-        type: "count-non-null",
-        value: 250,
-      },
-      {
-        fieldId: "0198c72d-82b5-7000-8000-000000000002",
-        type: "count-distinct",
-        value: 40,
-      },
-    ])
-    const onCellEdit = createCellEdit()
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          view={view}
-          loadPage={createLoadPage()}
-          loadColumnStats={loadColumnStats}
-          onAddRow={vi.fn()}
-          onCellEdit={onCellEdit}
-        />
-      )
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(loadColumnStats).toHaveBeenCalledWith([
-      {
-        fieldId: "0198c72d-82b5-7000-8000-000000000001",
-        type: "count-non-null",
-      },
-      {
-        fieldId: "0198c72d-82b5-7000-8000-000000000002",
-        type: "count-distinct",
-      },
-    ])
-    expect(mocks.props?.columns[0].trailingRowOptions?.hint).toBe(
-      "Count non-null: 250"
-    )
-    expect(mocks.props?.columns[0].trailingRowOptions?.addIcon).toBe(
-      "eidos-file-empty-stat"
-    )
-    expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
-      "Count distinct: 40"
-    )
-    expect(mocks.props?.columns[1].trailingRowOptions?.addIcon).toBe(
-      "eidos-file-empty-stat"
-    )
-
-    await act(async () => {
-      mocks.props?.onCellEdited?.([1, 0], {
-        kind: GridCellKind.Boolean,
-        allowOverlay: false,
-        data: true,
+      }
+      const loadColumnStats = vi.fn().mockResolvedValue([
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000001",
+          type: "count-non-null",
+          value: 250,
+        },
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000002",
+          type: "count-distinct",
+          value: 40,
+        },
+      ])
+      const onCellEdit = createCellEdit()
+      const onAddRow = vi.fn()
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider interactionMode={interactionMode}>
+            <EidosFileGrid
+              table={table}
+              view={view}
+              loadPage={createLoadPage()}
+              loadColumnStats={loadColumnStats}
+              onAddRow={onAddRow}
+              onCellEdit={onCellEdit}
+            />
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+        await Promise.resolve()
       })
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    expect(onCellEdit).toHaveBeenCalledOnce()
-    expect(loadColumnStats).toHaveBeenCalledTimes(2)
-  })
+
+      expect(loadColumnStats).toHaveBeenCalledWith([
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000001",
+          type: "count-non-null",
+        },
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000002",
+          type: "count-distinct",
+        },
+      ])
+      expect(mocks.props?.columns[0].trailingRowOptions?.hint).toBe(
+        "Count non-null: 250"
+      )
+      expect(mocks.props?.columns[0].trailingRowOptions?.addIcon).toBe(
+        "eidos-file-empty-stat"
+      )
+      expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
+        "Count distinct: 40"
+      )
+      expect(mocks.props?.columns[1].trailingRowOptions?.addIcon).toBe(
+        "eidos-file-empty-stat"
+      )
+
+      if (interactionMode === "mobile") {
+        const preventDefault = vi.fn()
+        expect(mocks.props?.onRowAppended).toBeTypeOf("function")
+        await act(async () => {
+          mocks.props!.onCellClicked!([0, mocks.props!.rows], {
+            preventDefault,
+          } as unknown as Parameters<
+            NonNullable<DataEditorProps["onCellClicked"]>
+          >[1])
+          await mocks.props!.onRowAppended!()
+        })
+        expect(preventDefault).toHaveBeenCalledOnce()
+        expect(onAddRow).not.toHaveBeenCalled()
+      }
+
+      await act(async () => {
+        mocks.props?.onCellEdited?.([1, 0], {
+          kind: GridCellKind.Boolean,
+          allowOverlay: false,
+          data: true,
+        })
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(onCellEdit).toHaveBeenCalledOnce()
+      expect(loadColumnStats).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it("routes synchronous column stat loader failures through the Grid error boundary", async () => {
     const runtimeError = new Error(

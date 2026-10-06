@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type MutableRefObject,
+} from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
@@ -8,7 +13,7 @@ import {
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
 } from "@eidos.space/eidos-file"
-import { Check } from "lucide-react"
+import { Check, ExternalLink, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { Button, Input } from "./ui/primitives"
@@ -25,6 +30,7 @@ import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
+import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import {
   eidosFileDateTimeInputValue,
   eidosFileInstantFromInputValue,
@@ -49,16 +55,18 @@ export function EidosFileRecordFieldEditor({
   disabled,
   onChange,
   onEnter,
+  commitRef,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
   placeholder?: string
-  appearance?: "field" | "record-title"
+  appearance?: "field" | "record-title" | "record-property"
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
   onEnter?: () => void
+  commitRef?: MutableRefObject<(() => boolean) | null>
 }) {
-  const { timeZone, translate: t } = useEidosFileUI()
+  const { activateUrl, timeZone, translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   const [draft, setDraft] = useState(
     field.type === "datetime"
@@ -69,6 +77,7 @@ export function EidosFileRecordFieldEditor({
   )
   const [datetimeError, setDatetimeError] = useState<string | null>(null)
   const [numberError, setNumberError] = useState<string | null>(null)
+  const [urlError, setUrlError] = useState(false)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
     text: draft,
     maxLines: appearance === "record-title" ? 1 : field.isRecordLabel ? 3 : 12,
@@ -85,6 +94,7 @@ export function EidosFileRecordFieldEditor({
     )
     setDatetimeError(null)
     setNumberError(null)
+    setUrlError(false)
   }, [field.type, timeZone, value])
 
   const commitDraft = () => {
@@ -93,7 +103,7 @@ export function EidosFileRecordFieldEditor({
       const number = Number(draft)
       if (draft.trim().length > 0 && !Number.isFinite(number)) {
         setNumberError(t("Enter a finite number."))
-        return
+        return false
       }
       next = draft.trim().length > 0 ? number : null
     } else if (field.type === "rating") {
@@ -107,7 +117,7 @@ export function EidosFileRecordFieldEditor({
         setNumberError(
           t("Enter a whole number from 0 to {maximum}.", { maximum })
         )
-        return
+        return false
       }
       next = draft.trim().length > 0 ? number : null
     } else if (field.type === "integer" && draft.trim().length > 0) {
@@ -123,14 +133,32 @@ export function EidosFileRecordFieldEditor({
             { timeZone: eidosFileResolvedTimeZone(timeZone) }
           )
         )
-        return
+        return false
       }
       next = date.toISOString()
     }
     setDatetimeError(null)
     setNumberError(null)
     if (!Object.is(value, next)) void onChange(next)
+    return true
   }
+  useLayoutEffect(() => {
+    if (!commitRef) return
+    commitRef.current = [
+      "text",
+      "url",
+      "number",
+      "integer",
+      "rating",
+      "date",
+      "datetime",
+    ].includes(field.type)
+      ? commitDraft
+      : null
+    return () => {
+      commitRef.current = null
+    }
+  })
 
   if (field.type === "checkbox") {
     const checkboxValue =
@@ -139,6 +167,41 @@ export function EidosFileRecordFieldEditor({
         : value === true || value === 1 || value === "1"
           ? "checked"
           : "unchecked"
+    if (appearance === "record-property")
+      return (
+        <div className="flex min-h-11 items-center gap-2">
+          <button
+            type="button"
+            role="checkbox"
+            aria-label={field.name}
+            aria-checked={
+              checkboxValue === "empty" ? "mixed" : checkboxValue === "checked"
+            }
+            disabled={disabled}
+            className="flex h-11 min-w-11 items-center justify-start"
+            onClick={() => void onChange(checkboxValue === "checked" ? 0 : 1)}
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded border border-input">
+              {checkboxValue === "checked" ? (
+                <Check size={16} />
+              ) : checkboxValue === "empty" ? (
+                "−"
+              ) : null}
+            </span>
+          </button>
+          {field.nullable !== false && checkboxValue !== "empty" && (
+            <button
+              type="button"
+              disabled={disabled}
+              className="flex h-11 w-11 items-center justify-center text-muted-foreground"
+              aria-label={t("Clear")}
+              onClick={() => void onChange(null)}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      )
     return (
       <Select
         value={checkboxValue}
@@ -265,24 +328,29 @@ export function EidosFileRecordFieldEditor({
         ref={measuredText.ref}
         value={draft}
         rows={1}
+        wrap="soft"
         aria-label={field.name}
         placeholder={placeholder}
         disabled={disabled}
         className={
-          appearance === "record-title"
-            ? "min-h-8 resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl"
-            : "min-h-8 resize-none text-xs leading-5"
+          appearance === "record-property"
+            ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
+            : appearance === "record-title"
+              ? "min-h-8 resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl"
+              : "min-h-8 resize-none text-xs leading-5"
         }
         style={
-          appearance === "record-title"
-            ? {
-                ...measuredText.style,
-                height: "1lh",
-                minHeight: "1lh",
-                maxHeight: "1lh",
-                overflowY: "hidden",
-              }
-            : measuredText.style
+          appearance === "record-property"
+            ? { ...measuredText.style, minHeight: 44 }
+            : appearance === "record-title"
+              ? {
+                  ...measuredText.style,
+                  height: "1lh",
+                  minHeight: "1lh",
+                  maxHeight: "1lh",
+                  overflowY: "hidden",
+                }
+              : measuredText.style
         }
         title={appearance === "record-title" ? draft : undefined}
         data-eidos-file-text-overflow={
@@ -298,7 +366,8 @@ export function EidosFileRecordFieldEditor({
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
           if (
             event.key === "Enter" &&
-            appearance === "record-title" &&
+            (appearance === "record-title" ||
+              appearance === "record-property") &&
             !event.shiftKey &&
             !event.metaKey &&
             !event.ctrlKey &&
@@ -314,6 +383,60 @@ export function EidosFileRecordFieldEditor({
           }
         }}
       />
+    )
+  }
+
+  if (field.type === "rating" && appearance === "record-property") {
+    const maximum =
+      typeof field.settings?.max === "number" ? field.settings.max : 5
+    return (
+      <div className="min-w-0">
+        <div
+          role="group"
+          aria-label={field.name}
+          className="flex min-h-11 flex-wrap items-center"
+        >
+          {Array.from({ length: maximum }, (_, index) => index + 1).map(
+            (rating) => (
+              <button
+                type="button"
+                key={rating}
+                className="flex h-11 min-w-8 flex-1 items-center justify-center"
+                disabled={disabled}
+                aria-label={t("Rate {value}", { value: rating })}
+                aria-pressed={Number(value) === rating && value != null}
+                onClick={() => void onChange(rating)}
+              >
+                <Star
+                  size={22}
+                  fill={Number(value) >= rating ? "currentColor" : "none"}
+                />
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            disabled={disabled}
+            className="h-11 min-w-8 text-sm text-muted-foreground"
+            aria-label={t("Rate {value}", { value: 0 })}
+            aria-pressed={value === 0}
+            onClick={() => void onChange(0)}
+          >
+            0
+          </button>
+          {field.nullable !== false && value != null && (
+            <button
+              type="button"
+              disabled={disabled}
+              className="flex h-11 min-w-8 items-center justify-center text-muted-foreground"
+              aria-label={t("Clear")}
+              onClick={() => void onChange(null)}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
     )
   }
 
@@ -355,9 +478,15 @@ export function EidosFileRecordFieldEditor({
               ? "decimal"
               : undefined
         }
-        className="h-8 text-xs"
+        className={[
+          appearance === "record-property"
+            ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
+            : "h-8 text-xs",
+          field.type === "url" ? "pr-9" : "",
+        ].join(" ")}
         onChange={(event) => {
           setDraft(event.target.value)
+          if (field.type === "url") setUrlError(false)
           if (field.type === "datetime") setDatetimeError(null)
           if (field.type === "number" || field.type === "rating") {
             setNumberError(null)
@@ -381,9 +510,42 @@ export function EidosFileRecordFieldEditor({
         }}
       />
     )
+    if (field.type === "url") {
+      return (
+        <div className="min-w-0">
+          <div className="relative">
+            {input}
+            {activateUrl && eidosFileUrlIsActivatable(draft) ? (
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                aria-label={t("Open URL")}
+                title={t("Open URL")}
+                disabled={disabled}
+                onClick={async () => {
+                  setUrlError(false)
+                  try {
+                    await activateUrl(draft)
+                  } catch {
+                    setUrlError(true)
+                  }
+                }}
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          {urlError ? (
+            <p role="alert" className="mt-1 text-xs text-destructive">
+              {t("Could not open URL. Try again.")}
+            </p>
+          ) : null}
+        </div>
+      )
+    }
     if (field.type === "datetime") {
       return (
-        <div>
+        <div className="min-w-0">
           {input}
           <p
             className={
@@ -402,7 +564,7 @@ export function EidosFileRecordFieldEditor({
     }
     if (field.type === "number" || field.type === "rating") {
       return (
-        <div>
+        <div className="min-w-0">
           {input}
           {numberError ? (
             <p className="mt-1 text-[10px] leading-4 text-destructive">

@@ -30,12 +30,18 @@ const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(function AlertDialogContent({ className, ...props }, ref) {
-  const { themeName } = useEidosFileUI()
+  const { themeName, interactionMode } = useEidosFileUI()
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay
+        style={interactionMode === "mobile" ? { zIndex: 10050 } : undefined}
+      />
       <AlertDialogPrimitive.Content
         {...props}
+        style={{
+          ...props.style,
+          ...(interactionMode === "mobile" ? { zIndex: 10051 } : {}),
+        }}
         ref={ref}
         className={cn(
           "eidos-file-root fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg",

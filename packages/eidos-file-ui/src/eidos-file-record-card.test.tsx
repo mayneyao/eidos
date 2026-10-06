@@ -24,6 +24,7 @@ const eidosFileUiMocks = vi.hoisted(() => {
     translate,
     useEidosFileUI: vi.fn(() => ({
       themeName: "light" as const,
+      interactionMode: "desktop" as "desktop" | "mobile",
       translate,
     })),
   }
@@ -118,6 +119,71 @@ describe("EidosFileRecordCard", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("offers mobile card actions and group moves in a bottom sheet", async () => {
+    eidosFileUiMocks.useEidosFileUI.mockReturnValue({
+      themeName: "light",
+      interactionMode: "mobile",
+      translate: eidosFileUiMocks.translate,
+    })
+    const move = vi.fn(),
+      remove = vi.fn()
+    try {
+      await act(async () => {
+        root.render(
+          <EidosFileRecordCard
+            row={{ _id: "r", title: "Task" }}
+            fields={fields}
+            view={view}
+            onOpen={() => {}}
+            onDelete={remove}
+            onMove={move}
+            moveOptions={[{ id: "done", label: "Done" }]}
+          />
+        )
+      })
+      const button = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="More actions for Task"]'
+      )!
+      expect(button).not.toBeNull()
+      await act(async () => {
+        button.click()
+      })
+      expect(document.querySelector(".eidos-mobile-cell-sheet")).not.toBeNull()
+      await act(async () => {
+        ;[
+          ...document.querySelectorAll<HTMLButtonElement>(
+            ".eidos-mobile-cell-sheet button"
+          ),
+        ]
+          .find((node) => node.textContent === "Done")!
+          .click()
+      })
+      expect(move).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: "r" }),
+        "done"
+      )
+      await act(async () => {
+        button.click()
+      })
+      await act(async () => {
+        ;[
+          ...document.querySelectorAll<HTMLButtonElement>(
+            ".eidos-mobile-cell-sheet button"
+          ),
+        ]
+          .find((node) => node.textContent === "Delete record")!
+          .click()
+      })
+      expect(remove).toHaveBeenCalledWith(expect.objectContaining({ _id: "r" }))
+    } finally {
+      eidosFileUiMocks.useEidosFileUI.mockReturnValue({
+        themeName: "light",
+        interactionMode: "desktop",
+        translate: eidosFileUiMocks.translate,
+      })
+    }
   })
 
   it("does not reinterpret a relative File URI without a Host lease", async () => {
