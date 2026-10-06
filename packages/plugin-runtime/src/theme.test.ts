@@ -5,6 +5,12 @@ import { afterEach, expect, it } from "vitest"
 import { compilePlugin } from "./compiler"
 import { parseManifest } from "./manifest"
 import { decodePackage, encodePackage } from "./package"
+import { themeFontData } from "./theme"
+
+it("rejects malformed base64 fonts without throwing in browser validation", () => {
+  expect(themeFontData("data:font/woff2;base64,A")).toBe(false)
+  expect(themeFontData("data:font/woff2;base64,d09GMm1vY2s=")).toBe(true)
+})
 
 const theme = {
   apiVersion: 1,

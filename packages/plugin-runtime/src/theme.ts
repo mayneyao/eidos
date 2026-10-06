@@ -60,14 +60,22 @@ export function themeFontData(source: string): boolean {
   const match =
     /^data:font\/(woff2?|ttf|otf);base64,([A-Za-z0-9+/]+={0,2})$/.exec(source)
   if (!match || source.length > 3 * 1024 * 1024) return false
-  const bytes = Buffer.from(match[2], "base64")
+  let bytes: Uint8Array
+  try {
+    bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0))
+  } catch {
+    return false
+  }
   if (!bytes.length || bytes.length > 2 * 1024 * 1024) return false
-  const magic = bytes.subarray(0, 4).toString("latin1")
+  const magic = String.fromCharCode(...bytes.subarray(0, 4))
   return (
     (match[1] === "woff2" && magic === "wOF2") ||
     (match[1] === "woff" && magic === "wOFF") ||
     (match[1] === "otf" && magic === "OTTO") ||
     (match[1] === "ttf" &&
-      bytes.subarray(0, 4).equals(Buffer.from([0, 1, 0, 0])))
+      bytes[0] === 0 &&
+      bytes[1] === 1 &&
+      bytes[2] === 0 &&
+      bytes[3] === 0)
   )
 }
