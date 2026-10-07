@@ -42,6 +42,11 @@ jobs:
         with:
           run_install: false
       - run: pnpm install --frozen-lockfile
+      - name: Prepare and check editor dependencies
+        run: |
+          pnpm --filter @eidos.space/eidos-file build
+          pnpm --filter @eidos.space/android-editor typecheck
+          node apps/eidos-android/scripts/build-plugins.mjs
       - uses: actions/setup-java@v4
         with:
           distribution: zulu
@@ -57,6 +62,11 @@ jobs:
           sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
           rustup toolchain install 1.99.0 --profile minimal
           rustup target add --toolchain 1.99.0 aarch64-linux-android x86_64-linux-android
+      - name: Cache native compilation
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: android-native-${{ runner.os }}-1.99.0-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**', 'apps/eidos-android/patches/**', 'scripts/prepare-mobile-native.mjs', 'packages/eidos-file/generated/quickjs/**') }}
       - name: Restore signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -71,7 +81,6 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          pnpm --filter @eidos.space/android-editor typecheck
           apps/eidos-android/gradlew -p apps/eidos-android --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
           mkdir -p release
           cp apps/eidos-android/app/build/outputs/apk/release/app-release.apk "release/eidos-android-${ANDROID_RELEASE_VERSION}.apk"

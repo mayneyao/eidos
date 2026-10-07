@@ -1,4 +1,4 @@
-# Eidos Android 0.1.0-beta.1
+# Eidos Android 0.1.0-beta.2
 
 The first Android beta for early testers. Android 9 or newer is required.
 
@@ -9,7 +9,7 @@ The first Android beta for early testers. Android 9 or newer is required.
 
 ## Install
 
-Download `eidos-android-0.1.0-beta.1.apk` below and allow installation from your browser or file manager. The APK supports ARM64 phones and x86-64 devices. `SHA256SUMS` contains its checksum.
+Download `eidos-android-0.1.0-beta.2.apk` below and allow installation from your browser or file manager. The APK supports ARM64 phones and x86-64 devices. `SHA256SUMS` contains its checksum.
 
 This beta uses the application ID `space.eidos.android`. It installs alongside the development app (`space.eidos.android.dev`); development app data is not automatically copied. Future releases signed with the same key can update this beta in place.
 
