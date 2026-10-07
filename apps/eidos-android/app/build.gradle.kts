@@ -14,11 +14,27 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.1.0-beta.1"
         testInstrumentationRunner = "space.eidos.android.EidosTestRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
-    buildTypes { debug { applicationIdSuffix = ".dev" } }
+    val releaseKeystore = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").get()
+            }
+        }
+    }
+    buildTypes {
+        debug { applicationIdSuffix = ".dev" }
+        release {
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("release")
+        }
+    }
     buildFeatures {
         compose = true
         buildConfig = true

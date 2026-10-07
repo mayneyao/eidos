@@ -1,0 +1,115 @@
+name: Build and Release Android
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version and notes
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          root = pathlib.Path('apps/eidos-android')
+          version = re.search(r'versionName = "([^"]+)"', (root/'app/build.gradle.kts').read_text())[1]
+          assert re.fullmatch(r'\d+\.\d+\.\d+-beta\.\d+', version), 'Only beta releases are supported'
+          if os.environ['REF_TYPE'] == 'tag':
+              assert os.environ['REF_NAME'] == 'android-v' + version, 'Tag/version mismatch'
+          notes = (root/'RELEASE_NOTES.md').read_text()
+          assert notes.startswith('# Eidos Android ' + version + '\n') and len(notes.strip()) > 200
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('ANDROID_RELEASE_VERSION=' + version + '\n')
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install native toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup target add --toolchain 1.99.0 aarch64-linux-android x86_64-linux-android
+      - name: Restore signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eidos-release.p12"
+      - name: Build and validate signed release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/eidos-release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          pnpm --filter @eidos.space/android-editor typecheck
+          apps/eidos-android/gradlew -p apps/eidos-android --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+          mkdir -p release
+          cp apps/eidos-android/app/build/outputs/apk/release/app-release.apk "release/eidos-android-${ANDROID_RELEASE_VERSION}.apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs release/*.apk
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 -v 4 release/*.apk
+          cd release
+          sha256sum *.apk > SHA256SUMS
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eidos-release.p12"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-beta
+          path: release/
+          if-no-files-found: error
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-validation
+          path: |
+            apps/eidos-android/app/build/reports/
+            apps/eidos-android/app/build/test-results/
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-beta
+          path: release
+      - name: Publish beta APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" release/* --verify-tag --prerelease \
+            --title "Eidos Android ${TAG#android-v}" \
+            --notes-file apps/eidos-android/RELEASE_NOTES.md

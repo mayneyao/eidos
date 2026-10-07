@@ -414,8 +414,31 @@ ANDROID_SERIAL=emulator-5560 pnpm test:eidos-android:process-death
 The development command requires one running emulator or connected device.
 Set `ANDROID_SERIAL` when more than one is present. Debug builds use the
 `space.eidos.android.dev` application ID; the release identity is
-`space.eidos.android`. Versioning lives in `app/build.gradle.kts`. Release
-signing and store publication are not configured.
+`space.eidos.android`. Versioning lives in `app/build.gradle.kts`.
+
+### Android beta releases
+
+GitHub Actions builds signed APKs and publishes GitHub prereleases for
+`android-v<versionName>` tags. Google Play publication is not configured.
+The workflow is `.github/workflows/build-and-release-android.yml`.
+
+Before tagging, increment `versionCode`, set the matching beta `versionName`,
+and replace `RELEASE_NOTES.md` with curated notes for that version. Commit and
+push the release inputs before creating an immutable tag. A manual workflow
+run builds and validates an APK without publishing it.
+
+Repository secrets are `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Keep a secure independent
+backup of the signing key and its credentials; future APK updates must retain
+the same signing identity. Never commit signing material. Local signed builds
+use `ANDROID_KEYSTORE_PATH` plus the three password/alias environment variables.
+Without a keystore, local release builds remain unsigned.
+
+The workflow verifies unit tests, release lint, the web editor's TypeScript,
+APK signing and 16 KB ZIP alignment, then publishes the APK and `SHA256SUMS`.
+Before announcing a release, install the published APK on a device and verify
+startup, local editing, and the flows included in the release's testing scope.
+Debug-app data is not automatically migrated into the release app.
 
 Direct Gradle commands are also available:
 
