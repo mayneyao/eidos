@@ -15,7 +15,15 @@
         "../../../packages/eidos-file-ui/src/index.ts"
       ],
       "@eidos.space/eidos-file-ui/*": ["../../../packages/eidos-file-ui/src/*"],
-      "@eidos.space/eidos-file": ["../../../packages/eidos-file/src/index.ts"]
+      "@eidos.space/eidos-file": ["../../../packages/eidos-file/src/index.ts"],
+      "@eidos.space/plugin-sdk": ["../../../packages/plugin-sdk/src/index.ts"],
+      "@eidos.space/markdown": ["../../../packages/markdown/src/index.ts"],
+      "@eidos.space/markdown/presets": [
+        "../../../packages/markdown/src/presets.ts"
+      ],
+      "@eidos.space/markdown/static": [
+        "../../../packages/markdown/src/static.ts"
+      ]
     }
   },
   "include": ["*.ts", "*.tsx"]
