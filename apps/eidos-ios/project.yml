@@ -45,6 +45,8 @@ targets:
       path: build/Info.plist
       properties:
         CFBundleDisplayName: Eidos
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleLocalizations: [en, zh]
         CFBundleDevelopmentRegion: en
         UILaunchScreen: {}
@@ -92,6 +94,8 @@ targets:
       path: build/Share-Info.plist
       properties:
         CFBundleDisplayName: Eidos
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleLocalizations: [en, zh]
         CFBundleDevelopmentRegion: en
         NSExtension:

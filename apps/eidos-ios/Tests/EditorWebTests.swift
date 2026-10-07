@@ -113,15 +113,17 @@ final class EditorWebTests: XCTestCase {
             return controller
         }
         let first = mount()
+        let saveLabel = String(decoding: try JSONSerialization.data(withJSONObject: tr("保存记录"), options: .fragmentsAllowed), as: UTF8.self)
+        let saveButton = "[...document.querySelectorAll('button')].find(b=>b.textContent===\(saveLabel))"
         let web = try await ready(first, script: "!!document.querySelector('.record-draft > div > button')")
         _ = try await web.evaluateJavaScript("document.querySelector('.record-draft > div > button').click()")
-        _ = try await ready(first, script: "!![...document.querySelectorAll('button')].find(b=>b.textContent==='保存记录')")
+        _ = try await ready(first, script: "!!(\(saveButton))")
         let saved = try XCTUnwrap(RecordDraftStore.read(file, space: space, share: batch.id))
         XCTAssertTrue(String(decoding: try JSONSerialization.data(withJSONObject: saved), as: UTF8.self).contains(text))
         window.rootViewController = nil
         try await Task.sleep(nanoseconds: 200_000_000)
         let second = mount()
-        let reopened = try await ready(second, script: "!![...document.querySelectorAll('button')].find(b=>b.textContent==='保存记录')")
+        let reopened = try await ready(second, script: "!!(\(saveButton))")
         let contents = try await reopened.evaluateJavaScript("document.body.textContent") as? String ?? ""
         XCTAssertTrue(contents.contains(text))
         let focused = try await reopened.evaluateJavaScript("(() => { const field=document.querySelector('.record-draft input, .record-draft textarea, .record-draft [contenteditable=true]'); if(!field) return false; field.focus(); return parseFloat(getComputedStyle(field).fontSize)>=16 && document.activeElement===field })()")
@@ -129,10 +131,10 @@ final class EditorWebTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         let scale = try await reopened.evaluateJavaScript("visualViewport.scale") as? Double
         XCTAssertEqual(try XCTUnwrap(scale), 1, accuracy: 0.01)
-        let hittable = try await reopened.evaluateJavaScript("(() => { const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存记录'); const r=button.getBoundingClientRect(); const target=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return button===target || button.contains(target) })()")
+        let hittable = try await reopened.evaluateJavaScript("(() => { const button=\(saveButton); const r=button.getBoundingClientRect(); const target=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return button===target || button.contains(target) })()")
         XCTAssertEqual(hittable as? Bool, true, "Save must be reachable by touch, not covered by the inspector")
         capture(window, name: "iOS shared record draft")
-        _ = try await reopened.evaluateJavaScript("[...document.querySelectorAll('button')].find(b=>b.textContent==='保存记录').click()")
+        _ = try await reopened.evaluateJavaScript("(\(saveButton)).click()")
         for _ in 0..<100 {
             if !FileManager.default.fileExists(atPath: inbox.path) { break }
             try await Task.sleep(nanoseconds: 100_000_000)

@@ -29,7 +29,28 @@ xcrun simctl install <simulator-uuid> apps/eidos-ios/build/DerivedData/Build/Pro
 xcrun simctl launch <simulator-uuid> space.eidos.ios
 ```
 
-Simulator builds use ad-hoc signing so Keychain works during testing. Physical-device builds require the explicit `aarch64-apple-ios` Rust target, `bash apps/eidos-ios/scripts/build.sh iphoneos`, and your own signing configuration, including the `group.space.eidos.ios` App Group for both app and share extension. Device signing, distribution, and App Store packaging are not verified. Intel simulator builds are not configured.
+Simulator builds use ad-hoc signing so Keychain works during testing. Physical-device builds require the explicit `aarch64-apple-ios` Rust target, `bash apps/eidos-ios/scripts/build.sh iphoneos`, and your own signing configuration, including the `group.space.eidos.ios` App Group for both app and share extension. Intel simulator builds are not configured.
+
+### TestFlight packaging
+
+Versions are defined by `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
+`project.yml`; both the app and share extension inherit these values. Increment
+the build number for each upload. Keep `RELEASE_NOTES.md` aligned with the
+candidate. The app and extension include privacy manifests for the required
+reason APIs they use.
+
+After preparing the device native library and editor assets, generate the Xcode
+project and archive the `EidosIOS` scheme with the Release configuration and a
+generic iOS destination. Set `DEVELOPMENT_TEAM` to your Apple developer team and
+use automatic signing for both targets. Export with the `app-store-connect`
+method, then upload using Xcode Organizer or `xcodebuild -exportArchive` with
+an upload destination. Signing credentials belong in the local keychain or
+secure CI secrets, never in this repository.
+
+A successful archive or upload does not mean a build is available to testers.
+Confirm Apple processing, export-compliance status, and TestFlight group access
+in App Store Connect before distributing a testing link. External testing may
+also require Beta App Review.
 
 ## Local workflow
 
