@@ -47,6 +47,9 @@ jobs:
           distribution: zulu
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install native toolchains
         run: |
           sudo apt-get update
