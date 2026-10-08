@@ -1371,6 +1371,83 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
+  it("retries an explicit refresh when merge status preempts its shared background scan", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-refresh-preemption-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-refresh-preemption-state-")
+    )
+    const firstStarted = deferred<void>()
+    const finishFirst = deferred<GraftSpaceStatus>()
+    const secondStarted = deferred<void>()
+    const cleanStatus: GraftSpaceStatus = {
+      available: true,
+      backend: "sdk",
+      version: "0.3.29",
+      expectedVersion: "0.3.29",
+      initialized: true,
+      clean: true,
+    }
+    let calls = 0
+    let aborted = false
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.29",
+      close: async () => undefined,
+      inspectSpace: (_root: string, options: { signal?: AbortSignal } = {}) => {
+        calls += 1
+        if (calls === 1) {
+          firstStarted.resolve()
+          return finishFirst.promise
+        }
+        if (calls === 2) {
+          secondStarted.resolve()
+          return new Promise<GraftSpaceStatus>((_resolve, reject) => {
+            options.signal?.addEventListener(
+              "abort",
+              () => {
+                aborted = true
+                reject(new DOMException("Cancelled", "AbortError"))
+              },
+              { once: true }
+            )
+          })
+        }
+        return Promise.resolve(cleanStatus)
+      },
+      getMergeStatus: async () => ({ state: "none" }),
+      inspectIgnores: async () => [],
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+      await session.snapshot()
+      await firstStarted.promise
+      const refresh = session.refresh()
+      const refreshed = expect(refresh).resolves.toMatchObject({
+        graft: { clean: true },
+      })
+      finishFirst.resolve(cleanStatus)
+      await secondStarted.promise
+      await expect(session.getSyncMergeStatus()).resolves.toEqual({
+        state: "none",
+      })
+      await refreshed
+      expect(aborted).toBe(true)
+      expect(calls).toBe(3)
+    } finally {
+      finishFirst.resolve(cleanStatus)
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("broadcasts an authoritative Space refresh to renderer listeners", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-refresh-broadcast-")

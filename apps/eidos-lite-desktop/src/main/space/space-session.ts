@@ -4167,6 +4167,28 @@ export class SpaceSession {
   private async refreshGraftStatus(
     authoritative = false
   ): Promise<GraftSpaceStatus> {
+    for (;;) {
+      try {
+        return await this.readGraftStatus(authoritative)
+      } catch (error) {
+        // An explicit refresh may join a background scan that foreground work
+        // cancels. Retry that read at foreground priority instead of leaking an
+        // internal scheduling cancellation to the renderer.
+        if (
+          !authoritative ||
+          this.closed ||
+          !(error instanceof Error) ||
+          error.name !== "AbortError"
+        ) {
+          throw error
+        }
+      }
+    }
+  }
+
+  private async readGraftStatus(
+    authoritative: boolean
+  ): Promise<GraftSpaceStatus> {
     const epoch = this.graftStatusEpoch
     const activeRefresh = this.graftStatusRefresh
     if (activeRefresh) {
