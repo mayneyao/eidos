@@ -5,7 +5,12 @@ import type {
   PluginEvent,
   TextChange,
 } from "@eidos.space/plugin-runtime/rpc"
-import type { SettingValue, ExplorerState } from "@eidos.space/plugin-sdk"
+import type {
+  SettingValue,
+  ExplorerState,
+  ViewConfiguration,
+} from "@eidos.space/plugin-sdk"
+import type { OpenEidosFileResult, SpacePathMutationResult } from "./contracts"
 export interface PluginBinding {
   hash: string
   enabled: boolean
@@ -63,6 +68,8 @@ export interface PluginOpenResult {
   warning?: string
 }
 export interface PluginRpcResult {
+  /** Trusted workbench payload; never forwarded to a plugin guest. */
+  resource?: PluginResourceChange
   draftPath?: string
   navigation?: { key: string; route: string }
   notification?: string
@@ -70,6 +77,34 @@ export interface PluginRpcResult {
   response: PluginResponse
   draft?: TextChange | null
 }
+export type PluginResourceContent =
+  | { kind: "file-view"; path: string; plugin: PluginOpenResult }
+  | { kind: "text"; text: string; path: string }
+  | { kind: "image"; url: string; path: string }
+  | {
+      kind: "eidos-view"
+      opened: OpenEidosFileResult
+      tableId: string
+      viewId: string
+      plugin: PluginOpenResult | null
+      configuration?: ViewConfiguration
+    }
+export interface PluginResourceRect {
+  occlusions?: Array<{ x: number; y: number; width: number; height: number }>
+  interactive?: boolean
+  x: number
+  y: number
+  width: number
+  height: number
+  clipTop: number
+  clipRight: number
+  clipBottom: number
+  clipLeft: number
+}
+export type PluginResourceChange =
+  | { kind: "mount"; id: string; content: PluginResourceContent }
+  | { kind: "layout"; id: string; rect: PluginResourceRect }
+  | { kind: "dispose"; id: string }
 export interface PluginInstallProgress {
   id: string
   phase: "downloading" | "installing"
@@ -84,6 +119,11 @@ export interface PluginInstallTask {
   percent: number
 }
 export interface PluginApi {
+  createPluginFile(
+    key: string,
+    parent: string | null,
+    name: string
+  ): Promise<SpacePathMutationResult>
   pluginSettings(id: string): Promise<Record<string, SettingValue>>
   setPluginSetting(
     id: string,
@@ -162,6 +202,7 @@ export interface PluginApi {
   closePluginEditor(ticket: string): Promise<void>
 }
 export const PLUGIN_CHANNELS = {
+  createFile: "eidos-lite:plugins-create-file",
   settings: "eidos-lite:plugins-settings",
   setSetting: "eidos-lite:plugins-set-setting",
   connection: "eidos-lite:plugins-connection",

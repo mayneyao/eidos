@@ -9,6 +9,9 @@ import type {
   FileMetadata,
   ExplorerState,
   FileListOptions,
+  FileExportRequest,
+  ResourceSource,
+  ResourceViewInfo,
 } from "./contracts"
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -34,6 +37,9 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
     )
 }
 export type BrowserBinding = {
+  resources?: boolean
+  embedded?: boolean
+  exportFile?: boolean
   capabilities?: ViewCapability[]
   connections?: boolean
   explorer?: ExplorerState
@@ -100,6 +106,22 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
     )
       return
     if (typeof r.observation === "string") {
+      if (r.observation === "host.save" && binding.kind === "document") {
+        const active = window.document.activeElement
+        const target =
+          active && active !== window.document.body
+            ? active
+            : (window.document.getElementById("app") ?? window.document.body)
+        target.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "s",
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+        return
+      }
       if (
         r.observation === "host.theme" &&
         r.value &&
@@ -180,7 +202,11 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
           pending.delete(id)
           reject(error("TIMEOUT", "Host request timed out"))
         },
-        method === "eidos.connection.request" ? 95000 : 30000
+        method === "ui.exportFile"
+          ? 300000
+          : method === "eidos.connection.request"
+            ? 95000
+            : 30000
       )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
@@ -252,6 +278,38 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
       }
     },
   }
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== "s" ||
+        event.defaultPrevented
+      )
+        return
+      event.preventDefault()
+      if (binding.kind === "document") {
+        void document.save().catch((cause) =>
+          closed
+            ? undefined
+            : call("ui.notify", {
+                message:
+                  cause instanceof Error
+                    ? cause.message
+                    : "Could not save file",
+              }).catch(() => {})
+        )
+      } else {
+        parent.postMessage(
+          { protocol: "eidos-plugin", apiVersion: 1, shortcut: "save" },
+          "*"
+        )
+      }
+    },
+    { signal: controller.signal }
+  )
   const file: FileMetadata | undefined =
     binding.kind === "media" || binding.kind === "file"
       ? {
@@ -270,6 +328,7 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
       throw error("PERMISSION_DENIED", "Config is outside the bound table")
   }
   const context: ViewContext = {
+    presentation: { mode: binding.embedded ? "embedded" : "standalone" },
     capabilities: {
       ...(explorerState
         ? {
@@ -472,7 +531,153 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
         get: (key) => call("settings.get", { key }),
       },
       ui: {
+        ...(binding.resources
+          ? {
+              resources: {
+                listViews: (path: string) =>
+                  call<ResourceViewInfo[]>("resources.listViews", { path }),
+                async mount(element: HTMLElement, source: ResourceSource) {
+                  if (!element.isConnected)
+                    throw error(
+                      "INVALID_REQUEST",
+                      "Resource container must be connected"
+                    )
+                  const id = crypto.randomUUID()
+                  let disposed = false
+                  let animation = 0
+                  let last = ""
+                  let pendingLayout = false
+                  await call("resources.mount", { id, source })
+                  const schedule = () => {
+                    cancelAnimationFrame(animation)
+                    animation = requestAnimationFrame(measure)
+                  }
+                  const measure = () => {
+                    if (disposed || closed) return
+                    const box = element.getBoundingClientRect()
+                    let left = Math.max(0, box.left),
+                      top = Math.max(0, box.top)
+                    let right = Math.min(innerWidth, box.right),
+                      bottom = Math.min(innerHeight, box.bottom)
+                    for (
+                      let ancestor = element.parentElement;
+                      ancestor;
+                      ancestor = ancestor.parentElement
+                    ) {
+                      const style = getComputedStyle(ancestor)
+                      const bounds = ancestor.getBoundingClientRect()
+                      if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+                        left = Math.max(left, bounds.left)
+                        right = Math.min(right, bounds.right)
+                      }
+                      if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+                        top = Math.max(top, bounds.top)
+                        bottom = Math.min(bottom, bounds.bottom)
+                      }
+                    }
+                    const rect = {
+                      occlusions: Array.from(
+                        window.document.querySelectorAll<HTMLElement>(
+                          ":popover-open"
+                        )
+                      )
+                        .slice(-1)
+                        .map((popover) => {
+                          const r = popover.getBoundingClientRect()
+                          return {
+                            x: r.left - box.left,
+                            y: r.top - box.top,
+                            width: r.width,
+                            height: r.height,
+                          }
+                        }),
+                      interactive:
+                        getComputedStyle(element).pointerEvents !== "none",
+                      x: box.x,
+                      y: box.y,
+                      width: box.width,
+                      height: box.height,
+                      clipTop: Math.max(0, top - box.top),
+                      clipRight: Math.max(0, box.right - right),
+                      clipBottom: Math.max(0, box.bottom - bottom),
+                      clipLeft: Math.max(0, left - box.left),
+                    }
+                    if (
+                      !element.isConnected ||
+                      getComputedStyle(element).visibility === "hidden"
+                    )
+                      rect.height = 0
+                    const serialized = JSON.stringify(rect)
+                    if (!pendingLayout && serialized !== last) {
+                      pendingLayout = true
+                      last = serialized
+                      void call("resources.layout", { id, rect })
+                        .catch(() => {})
+                        .finally(() => {
+                          pendingLayout = false
+                          schedule()
+                        })
+                    }
+                  }
+                  const resize = new ResizeObserver(schedule)
+                  resize.observe(element)
+                  resize.observe(window.document.body)
+                  const mutations = new MutationObserver(schedule)
+                  mutations.observe(window.document.body, {
+                    attributes: true,
+                    childList: true,
+                    subtree: true,
+                  })
+                  window.addEventListener("resize", schedule)
+                  window.addEventListener("scroll", schedule, true)
+                  window.addEventListener("toggle", schedule, true)
+                  measure()
+                  return own({
+                    refresh: () => call<void>("resources.refresh", { id }),
+                    dispose() {
+                      if (disposed) return
+                      disposed = true
+                      cancelAnimationFrame(animation)
+                      resize.disconnect()
+                      mutations.disconnect()
+                      window.removeEventListener("resize", schedule)
+                      window.removeEventListener("scroll", schedule, true)
+                      window.removeEventListener("toggle", schedule, true)
+                      if (!closed)
+                        void call("resources.dispose", { id }).catch(() => {})
+                    },
+                  })
+                },
+              },
+            }
+          : {}),
         notify: (message) => call("ui.notify", { message }),
+        ...(binding.exportFile
+          ? {
+              exportFile: (input: FileExportRequest) => {
+                if (
+                  !(input.data instanceof Uint8Array) ||
+                  input.data.length > 16 * 1024 * 1024
+                )
+                  return Promise.reject(
+                    error(
+                      "INVALID_REQUEST",
+                      "File export requires at most 16 MiB of bytes"
+                    )
+                  )
+                let binary = ""
+                for (let offset = 0; offset < input.data.length; offset += 8192)
+                  binary += String.fromCharCode(
+                    ...input.data.subarray(offset, offset + 8192)
+                  )
+                return call("ui.exportFile", {
+                  name: input.name,
+                  mimeType: input.mimeType,
+                  data: btoa(binary),
+                })
+              },
+            }
+          : {}),
         openFile: (relativePath) => call("ui.openFile", { relativePath }),
         navigate: (viewId, route) =>
           call("ui.navigate", {

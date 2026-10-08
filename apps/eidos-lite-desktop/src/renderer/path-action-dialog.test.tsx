@@ -85,6 +85,147 @@ it("confirms the count for a batch Trash action", async () => {
 })
 
 describe("create file templates", () => {
+  it.each(["Untitled", ".graftignore", "config.json"])(
+    "keeps Text selected and submits the exact name after renaming to %s",
+    async (filename) => {
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      const onSubmit = vi.fn()
+      try {
+        await act(async () =>
+          root.render(
+            <PathActionDialog
+              state={{ action: "create-file", entry: null }}
+              busy={false}
+              onCancel={() => {}}
+              onSubmit={onSubmit}
+            />
+          )
+        )
+        const choices =
+          container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+        const input = container.querySelector<HTMLInputElement>(
+          "input:not([type=checkbox])"
+        )!
+        const submit = container.querySelector<HTMLButtonElement>(
+          "button[type=submit]"
+        )!
+        await act(async () => choices[1]!.click())
+        expect(input.value).toBe("Untitled.md")
+
+        for (const value of ["Untitled", "", filename]) {
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              "value"
+            )!.set!.call(input, value)
+            input.dispatchEvent(new Event("input", { bubbles: true }))
+          })
+          expect(choices[1]!.getAttribute("aria-checked")).toBe("true")
+          expect(choices[0]!.getAttribute("aria-checked")).toBe("false")
+          expect(submit.disabled).toBe(!value)
+          expect(
+            container
+              .querySelector(".path-dialog-metadata")
+              ?.getAttribute("aria-hidden")
+          ).toBe("true")
+        }
+        // Clicking the active type must not rewrite a custom filename either.
+        await act(async () => choices[1]!.click())
+        expect(input.value).toBe(filename)
+        await act(async () => submit.click())
+        expect(onSubmit).toHaveBeenCalledWith(filename, "text")
+      } finally {
+        await act(async () => root.unmount())
+        container.remove()
+      }
+    }
+  )
+
+  it("selects plugin formats directly and keeps the typed name while switching with arrow keys", async () => {
+    const previous = window.eidosLite
+    Object.assign(window, {
+      eidosLite: {
+        listPlugins: vi.fn().mockResolvedValue({
+          plugins: [
+            {
+              enabled: true,
+              manifest: {
+                id: "eidos.dashboard",
+                fileTemplates: [
+                  { id: "blank", title: "Dashboard", extension: ".dashboard" },
+                ],
+              },
+            },
+          ],
+        }),
+      },
+    })
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    const onSubmit = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <PathActionDialog
+            state={{ action: "create-file", entry: null }}
+            busy={false}
+            onCancel={() => {}}
+            onSubmit={onSubmit}
+          />
+        )
+      )
+      const name = container.querySelector<HTMLInputElement>(
+        "input:not([type=checkbox])"
+      )!
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )!.set!.call(name, "Downloads.eidos")
+        name.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      const choices =
+        container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      expect(choices).toHaveLength(3)
+      await act(async () => choices[2]!.click())
+      expect(name.value).toBe("Downloads.dashboard")
+      expect(choices[2]!.getAttribute("aria-checked")).toBe("true")
+      expect(
+        container
+          .querySelector("input[type=checkbox]")
+          ?.closest('[aria-hidden="true"]')
+      ).not.toBeNull()
+      await act(async () =>
+        choices[2]!.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
+        )
+      )
+      expect(name.value).toBe("Downloads.md")
+      expect(document.activeElement).toBe(choices[1])
+      await act(async () =>
+        choices[1]!.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+        )
+      )
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>("button[type=submit]")!
+          .click()
+      )
+      expect(onSubmit).toHaveBeenCalledWith(
+        "Downloads.dashboard",
+        "plugin:eidos.dashboard/blank"
+      )
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      Object.assign(window, { eidosLite: previous })
+    }
+  })
+
   it("renders 2 file types and toggles file metadata checkbox for Eidos files", async () => {
     const container = document.createElement("div")
     document.body.append(container)
@@ -114,10 +255,11 @@ describe("create file templates", () => {
       expect(input.selectionStart).toBe(0)
       expect(input.selectionEnd).toBe("Untitled".length)
 
+      const selector = container.querySelector('[role="radiogroup"]')!
+      expect(selector.closest("header")).toBeNull()
+      expect(container.querySelector("select")).toBeNull()
       const templateButtons = Array.from(
-        container.querySelectorAll<HTMLButtonElement>(
-          ".path-dialog-template-btn"
-        )
+        selector.querySelectorAll<HTMLButtonElement>("button")
       )
       // Exactly 2 file kinds: Eidos and Note
       expect(templateButtons).toHaveLength(2)

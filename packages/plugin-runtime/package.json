@@ -12,6 +12,7 @@
     "./theme": "./src/theme.ts",
     "./package": "./src/package.ts",
     "./rpc": "./src/rpc.ts",
+    "./file-export": "./src/file-export.ts",
     "./sandbox": "./src/sandbox.ts",
     "./extension-sandbox": "./src/extension-sandbox.ts",
     "./working-copy": "./src/working-copy.ts",

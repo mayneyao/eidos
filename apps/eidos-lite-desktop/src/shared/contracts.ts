@@ -744,6 +744,8 @@ export interface OpenEidosFileResult {
 }
 
 export interface SpacePathMutationResult {
+  /** View selected by the template that created this file. */
+  pluginEditor?: string
   /** Best-effort source-local reference maintenance; skipped paths require user review. */
   markdownLinks?: { updatedPaths: string[]; skippedPaths: string[] }
   snapshot: SpaceSnapshot

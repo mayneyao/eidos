@@ -78,7 +78,6 @@ import type {
   TextFilePreviewResult,
 } from "../shared/contracts"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
-import { eidosLiteNewFileKind } from "../shared/new-file"
 import { fileManagerMessage } from "../shared/platform-copy"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -3169,7 +3168,10 @@ function WorkspaceApp({
   )
 
   const submitPathDialog = useCallback(
-    async (value: string, template?: "eidos" | "files-index" | "text") => {
+    async (
+      value: string,
+      template?: "eidos" | "files-index" | "text" | `plugin:${string}`
+    ) => {
       if (!pathDialog) return
       setPathMutationBusy(true)
       setError(null)
@@ -3207,8 +3209,13 @@ function WorkspaceApp({
             break
           }
           case "create-file":
-            result =
-              eidosLiteNewFileKind(value) === "text"
+            result = template?.startsWith("plugin:")
+              ? await window.eidosLite.createPluginFile(
+                  template.slice(7),
+                  parentPath(pathDialog.entry),
+                  value
+                )
+              : template === "text"
                 ? await window.eidosLite.createTextFile(
                     parentPath(pathDialog.entry),
                     value
@@ -3260,7 +3267,8 @@ function WorkspaceApp({
             result.snapshot.entries,
             result.relativePath
           )
-          if (created) await openEntry(created)
+          if (created)
+            await openEntry(created, { pluginEditor: result.pluginEditor })
         }
       } catch (cause) {
         if (deleted > 0) {
@@ -4328,6 +4336,19 @@ function WorkspaceApp({
                   key={pluginEditor.ticket}
                   instance={pluginEditor}
                   onNavigate={navigatePluginPage}
+                  onOpenFile={(path) => {
+                    const entry = findSpaceEntry(space.entries, path) ?? {
+                      name: path.split("/").at(-1)!,
+                      relativePath: path,
+                      kind: path.toLowerCase().endsWith(".eidos")
+                        ? ("eidos" as const)
+                        : ("file" as const),
+                      size: 0,
+                      modifiedAtMs: 0,
+                    }
+                    setSelectedEntry(entry)
+                    void openEntry(entry)
+                  }}
                   onDraft={(change) =>
                     updateTextFileDraft(
                       pluginEditor.relativePath,
@@ -4419,6 +4440,19 @@ function WorkspaceApp({
                   instance={pluginEditor}
                   onDraft={() => {}}
                   tableRevision={activeFile.snapshot}
+                  onOpenFile={(path) => {
+                    const entry = findSpaceEntry(space.entries, path) ?? {
+                      name: path.split("/").at(-1)!,
+                      relativePath: path,
+                      kind: path.toLowerCase().endsWith(".eidos")
+                        ? ("eidos" as const)
+                        : ("file" as const),
+                      size: 0,
+                      modifiedAtMs: 0,
+                    }
+                    setSelectedEntry(entry)
+                    void openEntry(entry)
+                  }}
                   onTableRequest={(request) =>
                     fileViewRequest(
                       activeFile.source,

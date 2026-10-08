@@ -23,6 +23,7 @@ import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginService } from "./plugin-service"
+import { exportPluginFile } from "./plugin-export"
 import type { ExplorerState } from "@eidos.space/plugin-sdk"
 import { normalizeMutableRelativePath } from "../space/space-paths"
 import { PluginConnections } from "./plugin-connections"
@@ -84,21 +85,25 @@ export function registerPluginIpc(controller: WindowController): {
     }
   )
   const connectionRequests = new Map<string, Set<AbortController>>()
-  const service = new PluginService(store, (owner, ticket) => {
-    const target = BrowserWindow.getAllWindows().find(
-      (window) => window.webContents.id === owner
-    )
-    if (target && !target.webContents.isDestroyed())
-      target.webContents.send(PLUGIN_CHANNELS.event, {
-        ticket,
-        event: {
-          protocol: "eidos-plugin",
-          apiVersion: 1,
-          observation: "host.closed",
-          value: null,
-        },
-      })
-  })
+  const service = new PluginService(
+    store,
+    (owner, ticket) => {
+      const target = BrowserWindow.getAllWindows().find(
+        (window) => window.webContents.id === owner
+      )
+      if (target && !target.webContents.isDestroyed())
+        target.webContents.send(PLUGIN_CHANNELS.event, {
+          ticket,
+          event: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            observation: "host.closed",
+            value: null,
+          },
+        })
+    },
+    exportPluginFile
+  )
   const owners = new Set<number>()
   const watchers = new Map<string, FSWatcher>()
   const pendingReloads = new Map<
@@ -190,6 +195,50 @@ export function registerPluginIpc(controller: WindowController): {
     caller(event)
     return store.list(currentSpace(event))
   })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.createFile,
+    async (event, key: unknown, parent: unknown, name: unknown) => {
+      caller(event)
+      if (
+        typeof key !== "string" ||
+        key.split("/").length !== 2 ||
+        typeof name !== "string" ||
+        (parent !== null && typeof parent !== "string")
+      )
+        throw new PluginError(
+          "INVALID_REQUEST",
+          "Invalid file template request"
+        )
+      const session = controller.requireSession(event.sender)
+      const [id, templateId] = key.split("/")
+      const binding = id
+        ? await store.binding(id, session.canonical.id)
+        : undefined
+      if (!binding?.enabled)
+        throw new PluginError("PERMISSION_DENIED", "Plugin disabled")
+      const pkg = await store.read(binding.hash)
+      const template = pkg.manifest.fileTemplates?.find(
+        (item) => item.id === templateId
+      )
+      if (!template || !name.toLowerCase().endsWith(template.extension))
+        throw new PluginError(
+          "INVALID_REQUEST",
+          "File name must match the selected template extension"
+        )
+      const current = await store.binding(id!, session.canonical.id)
+      if (!current?.enabled || current.hash !== binding.hash)
+        throw new PluginError(
+          "PERMISSION_DENIED",
+          "Plugin changed while creating the file"
+        )
+      const result = await session.createTextFile(
+        parent,
+        name,
+        template.content
+      )
+      return { ...result, pluginEditor: `${id}/${template.view}` }
+    }
+  )
   ipcMain.handle(PLUGIN_CHANNELS.settings, (event, id: unknown) => {
     caller(event)
     const spaceId = currentSpace(event)

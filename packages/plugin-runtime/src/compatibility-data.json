@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "3.1.0",
+      "pluginApi": "3.2.0",
       "features": [
         "data.file",
         "data.eidos/table",
@@ -10,6 +10,7 @@
         "data.eidos/config",
         "view.page",
         "view.file",
+        "fileTemplates",
         "extension",
         "actions",
         "formatters",
@@ -35,6 +36,7 @@
     }
   },
   "rules": [
+    { "key": "fileTemplates", "feature": "fileTemplates" },
     { "key": "extension", "feature": "extension" },
     { "key": "actions", "feature": "actions" },
     { "key": "formatters", "feature": "formatters" },

@@ -10,6 +10,12 @@ import type { PluginOpenResult, PluginRpcResult } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { pluginTheme } from "./plugin-theme"
+import { PluginResource } from "./plugin-resource"
+import { resourceClipPath } from "./plugin-resource-clip"
+import type {
+  PluginResourceContent,
+  PluginResourceRect,
+} from "../shared/plugins"
 
 type Instance = NonNullable<PluginOpenResult["instance"]>
 export function PluginEditor({
@@ -62,6 +68,12 @@ export function PluginEditor({
   const [error, setError] = useState<string | null>(null)
   const [closed, setClosed] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
+  const [resources, setResources] = useState<
+    Record<
+      string,
+      { content: PluginResourceContent; rect?: PluginResourceRect }
+    >
+  >({})
   const errorCallback = useRef(onError)
   errorCallback.current = onError
   const hostEventRef = useRef(hostEvent)
@@ -89,9 +101,42 @@ export function PluginEditor({
   }, [tableRevision])
   useEffect(() => {
     lease.current = instance.ticket
+    const save = () => {
+      // Embedded resources route Save to the enclosing file view.
+      if (
+        frame.current
+          ?.closest(".plugin-editor")
+          ?.parentElement?.closest(".plugin-editor")
+      )
+        return
+      frame.current?.contentWindow?.postMessage(
+        {
+          protocol: PLUGIN_PROTOCOL,
+          apiVersion: 1,
+          observation: "host.save",
+          value: null,
+        },
+        "*"
+      )
+    }
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        !event.defaultPrevented &&
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "s"
+      ) {
+        event.preventDefault()
+        save()
+      }
+    }
+    window.addEventListener("keydown", keydown)
+    window.addEventListener("eidos-plugin:save", save)
     loads.current = 0
     setError(null)
     setClosed(false)
+    setResources({})
     let connected = false
     const sendTheme = () => {
       if (connected)
@@ -123,6 +168,14 @@ export function PluginEditor({
     }, 10_000)
     const receive = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || pending >= 64) return
+      if (
+        event.data?.protocol === PLUGIN_PROTOCOL &&
+        event.data?.apiVersion === 1 &&
+        event.data?.shortcut === "save"
+      ) {
+        window.dispatchEvent(new Event("eidos-plugin:save"))
+        return
+      }
       let request
       try {
         request = parseRequest(event.data)
@@ -239,6 +292,21 @@ export function PluginEditor({
         )
           .then((result) => {
             if (lease.current !== instance.ticket) return
+            if (result.resource) {
+              const change = result.resource
+              setResources((previous) => {
+                const next = { ...previous }
+                if (change.kind === "dispose") delete next[change.id]
+                else if (change.kind === "mount")
+                  next[change.id] = {
+                    ...previous[change.id],
+                    content: change.content,
+                  }
+                else if (next[change.id])
+                  next[change.id] = { ...next[change.id]!, rect: change.rect }
+                return next
+              })
+            }
             if (
               request.method === "view.ready" &&
               "result" in result.response
@@ -335,6 +403,8 @@ export function PluginEditor({
       themeObserver.disconnect()
       appearance?.removeEventListener("change", sendTheme)
       window.removeEventListener("message", receive)
+      window.removeEventListener("keydown", keydown)
+      window.removeEventListener("eidos-plugin:save", save)
       unsubscribe()
       clearTimeout(timeout)
       // React StrictMode replays effects without disposing the actual frame.
@@ -361,24 +431,58 @@ export function PluginEditor({
         </div>
       )}
       {!closed && (
-        <iframe
-          ref={frame}
-          title={instance.editor.label}
-          src={instance.url}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-          onLoad={() => {
-            if (++loads.current > 1)
-              setError(
-                t(
-                  "Plugin navigation was blocked. Retry or use the built-in editor."
-                )
-              )
+        <div
+          style={{
+            position: "relative",
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
           }}
-          allow="fullscreen; camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; usb 'none'; serial 'none'; bluetooth 'none'"
-          allowFullScreen
-          onError={() => setError(t("Plugin failed to load."))}
-        />
+        >
+          <iframe
+            style={{ height: "100%", display: "block" }}
+            ref={frame}
+            title={instance.editor.label}
+            src={instance.url}
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
+            onLoad={() => {
+              if (++loads.current > 1)
+                setError(
+                  t(
+                    "Plugin navigation was blocked. Retry or use the built-in editor."
+                  )
+                )
+            }}
+            allow="fullscreen; camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; usb 'none'; serial 'none'; bluetooth 'none'"
+            allowFullScreen
+            onError={() => setError(t("Plugin failed to load."))}
+          />
+          {!error &&
+            Object.entries(resources).map(([id, resource]) => {
+              const r = resource.rect
+              return (
+                <div
+                  key={id}
+                  style={{
+                    position: "absolute",
+                    left: r?.x ?? 0,
+                    top: r?.y ?? 0,
+                    width: r?.width ?? 0,
+                    height: r?.height ?? 0,
+                    overflow: "hidden",
+                    pointerEvents:
+                      r?.interactive === false ? "none" : undefined,
+                    visibility:
+                      r && r.width > 0 && r.height > 0 ? "visible" : "hidden",
+                    clipPath: r ? resourceClipPath(r) : undefined,
+                  }}
+                >
+                  <PluginResource content={resource.content} />
+                </div>
+              )
+            })}
+        </div>
       )}
     </section>
   )

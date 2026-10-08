@@ -10,7 +10,11 @@ type PathDialogAction =
   | "delete"
 
 type FileKind = "eidos" | "text"
-type FileTemplateId = "eidos" | "files-index" | "text"
+export type FileTemplateId =
+  | "eidos"
+  | "files-index"
+  | "text"
+  | `plugin:${string}`
 
 interface FileKindOption {
   id: FileKind
@@ -72,6 +76,40 @@ export function PathActionDialog({
   const [value, setValue] = useState(config.initial)
   const [selectedKind, setSelectedKind] = useState<FileKind>("eidos")
   const [isFileTable, setIsFileTable] = useState(false)
+  const [templates, setTemplates] = useState<
+    Array<{ key: string; title: string; extension: string }>
+  >([])
+  const [pluginTemplate, setPluginTemplate] = useState<string | null>(null)
+  useEffect(() => {
+    if (state.action !== "create-file" || !window.eidosLite?.listPlugins) return
+    let active = true
+    const refresh = () =>
+      void window.eidosLite
+        .listPlugins()
+        .then((listing) => {
+          if (active)
+            setTemplates(
+              listing.plugins
+                .filter((p) => p.enabled && !p.unavailable)
+                .flatMap((p) =>
+                  (p.manifest.fileTemplates ?? []).map((item) => ({
+                    key: `${p.manifest.id}/${item.id}`,
+                    title: item.title,
+                    extension: item.extension,
+                  }))
+                )
+            )
+        })
+        .catch(() => {})
+    refresh()
+    const unsubscribe = window.eidosLite.onPluginEvent?.(({ event }) => {
+      if (event.observation === "host.catalog") refresh()
+    })
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [state.action])
   const nameInput = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (state.action !== "create-file") return
@@ -101,30 +139,22 @@ export function PathActionDialog({
     trimmed.endsWith("._files.eidos") ||
     trimmed.endsWith(".files.eidos")
 
-  const effectiveKind: FileKind = (() => {
-    if (
-      trimmed.endsWith(".eidos") ||
-      (!trimmed.includes(".") && trimmed.length > 0)
-    ) {
-      return "eidos"
-    }
-    if (trimmed.endsWith(".md") || trimmed.endsWith(".txt")) {
-      return "text"
-    }
-    return selectedKind
-  })()
-
   const effectiveIsFileTable =
-    effectiveKind === "eidos" && (isFileTable || isFilesEidosName)
+    !pluginTemplate &&
+    selectedKind === "eidos" &&
+    (isFileTable || isFilesEidosName)
 
   const currentTemplateId: FileTemplateId = (() => {
-    if (effectiveKind === "eidos") {
+    if (pluginTemplate) return `plugin:${pluginTemplate}`
+    if (selectedKind === "eidos") {
       return effectiveIsFileTable ? "files-index" : "eidos"
     }
     return "text"
   })()
 
   const handleSelectKind = (kind: FileKindOption) => {
+    if (!pluginTemplate && kind.id === selectedKind) return
+    setPluginTemplate(null)
     setSelectedKind(kind.id)
     setValue((current) => {
       const extension = current.lastIndexOf(".")
@@ -132,6 +162,33 @@ export function PathActionDialog({
       return `${name || "Untitled"}.${kind.id === "eidos" ? "eidos" : "md"}`
     })
   }
+
+  const typeOptions = [
+    ...fileKinds.map((kind) => ({
+      id: kind.id,
+      title: kind.label,
+      extension: kind.id === "eidos" ? ".eidos" : ".md",
+      select: () => handleSelectKind(kind),
+    })),
+    ...templates.map((template) => ({
+      id: `plugin:${template.key}`,
+      title: template.title,
+      extension: template.extension,
+      select: () => {
+        if (pluginTemplate === template.key) return
+        setPluginTemplate(template.key)
+        setSelectedKind("text")
+        setValue((current) => {
+          const extension = current.lastIndexOf(".")
+          const name = extension > 0 ? current.slice(0, extension) : current
+          return `${name || "Untitled"}${template.extension}`
+        })
+      },
+    })),
+  ]
+  const selectedType = pluginTemplate
+    ? `plugin:${pluginTemplate}`
+    : selectedKind
 
   const handleToggleFileTable = () => {
     if (effectiveIsFileTable) {
@@ -168,27 +225,6 @@ export function PathActionDialog({
       >
         <header>
           <strong>{config.title}</strong>
-          {state.action === "create-file" ? (
-            <div
-              className="path-dialog-templates"
-              role="radiogroup"
-              aria-label={t("File type")}
-            >
-              {fileKinds.map((tpl) => (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  className={`path-dialog-template-btn ${effectiveKind === tpl.id ? "active" : ""}`}
-                  onClick={() => handleSelectKind(tpl)}
-                  disabled={busy}
-                  role="radio"
-                  aria-checked={effectiveKind === tpl.id}
-                >
-                  <span>{tpl.label}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
           <button
             type="button"
             className="icon-button"
@@ -210,6 +246,67 @@ export function PathActionDialog({
           </p>
         ) : (
           <div className="path-dialog-fields">
+            {state.action === "create-file" ? (
+              <div className="path-dialog-types">
+                <div
+                  className="path-dialog-templates"
+                  role="radiogroup"
+                  aria-label={t("File type")}
+                  onKeyDown={(event) => {
+                    if (
+                      busy ||
+                      ![
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "ArrowUp",
+                        "ArrowDown",
+                        "Home",
+                        "End",
+                      ].includes(event.key)
+                    )
+                      return
+                    event.preventDefault()
+                    const index = typeOptions.findIndex(
+                      (item) => item.id === selectedType
+                    )
+                    const next =
+                      event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? typeOptions.length - 1
+                          : (index +
+                              (event.key === "ArrowLeft" ||
+                              event.key === "ArrowUp"
+                                ? -1
+                                : 1) +
+                              typeOptions.length) %
+                            typeOptions.length
+                    typeOptions[next]!.select()
+                    event.currentTarget
+                      .querySelectorAll<HTMLButtonElement>('[role="radio"]')
+                      [next]?.focus()
+                  }}
+                >
+                  {typeOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedType === option.id}
+                      aria-label={`${option.title} (${option.extension})`}
+                      title={`${option.title} (${option.extension})`}
+                      tabIndex={selectedType === option.id ? 0 : -1}
+                      disabled={busy}
+                      className="path-dialog-template-btn"
+                      onClick={option.select}
+                    >
+                      <span>{option.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <label>
               <span>{config.label}</span>
               <input
@@ -231,22 +328,22 @@ export function PathActionDialog({
             {state.action === "create-file" ? (
               <div
                 className="path-dialog-metadata"
-                data-visible={effectiveKind === "eidos"}
-                aria-hidden={effectiveKind !== "eidos"}
+                data-visible={!pluginTemplate && selectedKind === "eidos"}
+                aria-hidden={!!pluginTemplate || selectedKind !== "eidos"}
               >
                 <label className="path-dialog-metadata-label">
                   <input
                     type="checkbox"
                     checked={effectiveIsFileTable}
                     onChange={handleToggleFileTable}
-                    disabled={busy || effectiveKind !== "eidos"}
+                    disabled={busy || selectedKind !== "eidos"}
                   />
                   <span>{t("Manage folder file metadata")}</span>
                 </label>
                 <button
                   type="button"
                   className="path-dialog-hint-help-btn"
-                  disabled={busy || effectiveKind !== "eidos"}
+                  disabled={busy || selectedKind !== "eidos"}
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()

@@ -5,6 +5,25 @@ sidebar:
   order: 4
 ---
 
+## 文件模板与 Dashboard
+
+Lite 插件 API 3.2 的 `fileTemplates` 可向“新建文件”添加格式选项。每项声明
+`id、title、extension、view、content`，content 为最多 256 KiB 的静态 UTF-8 文本。
+view 必须具有 document 能力及匹配扩展名的 file/open 放置。宿主以不覆盖方式创建文件，并打开对应 View。
+
+具有 `workspace.files.read` 权限的 file View 可以检测可选的
+`ctx.capabilities.ui.resources`。`listViews(relativePath)` 列出另一份 `.eidos`
+文件的表和已保存视图；`mount(element, { kind: "eidos-view", path, tableId, viewId })`
+将其挂载到矩形容器。普通文本、Markdown、图片使用 `{ kind: "file", path }`。
+GPX 等普通文件的 listViews 返回已启用且匹配的插件 View 与内置预览，结构为
+`{ kind: "file", editor, name, type }`；将选中的 editor 加入 file source 即可保存展示方式。
+返回句柄应加入 subscriptions，支持 `refresh()` 和 `dispose()`。
+
+路径相对于当前配置文件解析，必须位于同一 Space。最多 12 个只读资源，
+不支持嵌套 dashboard、变换或重叠交互控件。宿主管理渲染和独立授权，
+子插件通过 `ctx.presentation?.mode === "embedded"` 精简界面。
+该能力目前由 Lite 提供。
+
 在代码中使用 `import type` 从 `@eidos.space/plugin-sdk` 导入类型。Eidos 在调用 `mount` 或 `activate` 时提供上下文。
 
 ## 声明视图
@@ -182,6 +201,13 @@ Lite 支持以上三个接口。CLI Serve 提供 `eidos/table`；需要同时支
 Lite 视图通过 capabilities.settings.get(key) 读取插件设置；普通动作还可调用 set/reset。capabilities.storage 提供按 key 存取私有二进制数据的 list/read/write/delete，配额通过 manifest.storage.maxBytes 声明。这些私有数据保存在设备本地。
 
 capabilities.ui.notify(message) 显示通知。在支持导航的环境中，ui.openFile(relativePath) 打开文件，ui.navigate(viewId, route?) 打开页面。可选方法在调用前检查其是否存在。
+
+View 可以通过可选的 `capabilities.ui.exportFile({ name, mimeType, data })` 导出生成文件，
+无需文件系统写入权限。name 是不含目录的文件名，mimeType 如 `image/png`，data 是不超过
+16 MiB 的 `Uint8Array`。Lite 打开保存对话框，返回 `{ status: "saved" }` 或
+`{ status: "cancelled" }`；CLI Serve 发起浏览器下载后返回
+`{ status: "download-started" }`。调用前检查方法是否存在，并向用户显示导出失败原因。
+目前移动端与 Action 上下文不提供此操作。
 
 capabilities.network.read({ url }) 向 browser.networkOrigins 声明的 HTTPS 来源发起有界请求。需要凭据的请求通过 `ctx.capabilities.connections` 的 `isConfigured(connectionId)` 和 `request({ connection, body })` 调用已声明连接。连接可用于页面、文件视图和普通动作，由用户在 Eidos 中配置连接信息和密钥；动作结束时请求会被取消。
 

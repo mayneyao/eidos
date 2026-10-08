@@ -9,6 +9,47 @@ Import types from `@eidos.space/plugin-sdk` using `import type`. Eidos supplies 
 
 ## Declare a view
 
+### File templates and dashboards
+
+In Lite plugin API 3.2, `fileTemplates` adds entries to **New File**. Each entry
+declares `id`, `title`, `extension`, `view`, and static UTF-8 `content` (up to
+256 KiB). The referenced document View must have a matching `file/open`
+placement. The host creates the file without overwriting and opens that View.
+
+To compose existing content, a file View with `workspace.files.read` can use
+the optional `ctx.capabilities.ui.resources` interface:
+
+```ts
+const resources = ctx.capabilities.ui.resources
+if (!resources) throw new Error("Resource composition is unavailable")
+const views = await resources.listViews("./downloads.eidos")
+const view = views.find((item) => item.kind !== "file")
+if (!view) throw new Error("No saved views")
+const panel = await resources.mount(container, {
+  kind: "eidos-view",
+  path: "./downloads.eidos",
+  tableId: view.tableId,
+  viewId: view.viewId,
+})
+ctx.subscriptions.add(panel)
+```
+
+Use `{ kind: "file", path: "./notes.md" }` for text, Markdown or image previews.
+For ordinary files such as GPX, `listViews(path)` returns matching enabled plugin
+Views and the built-in preview as `{ kind: "file", editor, name, type }`.
+Pass the chosen `editor` with the file source to retain the selected View.
+Paths resolve from the dashboard file and remain inside its Space. Panels are
+read-only, limited to 12, and cannot contain nested dashboards. `panel.refresh()`
+reloads the reference. Embedded plugin Views receive
+`ctx.presentation?.mode === "embedded"` and can simplify their toolbar.
+The host manages rendering and grants; the dashboard never receives child
+plugin handles. Use ordinary rectangular containers without transforms or
+overlapping controls. For a floating menu, use a native HTML `popover`; Lite
+clips resource surfaces beneath the most recently opened popover without resizing
+their content. This capability is currently available in Lite.
+Set `pointer-events: none` on resource containers during layout editing to let
+drag and resize gestures cross the previews. Restore it to interact with charts.
+
 Each entry in views requires id, title, entry and kind. kind is page or file; access is read or write and defaults to read.
 
 File views declare their data interfaces in capabilities: `document` for text editing, or a combination of `eidos/schema`, `eidos/table` and `eidos/config` for file structure, the current table and plugin configuration. For direct file reads or media playback, use fs and omit capabilities. Text and Eidos interfaces apply to different file formats and cannot be combined.
@@ -182,6 +223,14 @@ Lite supports all three interfaces. CLI Serve provides `eidos/table`; declare on
 Lite views read settings with capabilities.settings.get(key); ordinary actions can also set/reset them. capabilities.storage supplies list/read/write/delete for private binary objects addressed by key. Declare the quota in manifest.storage.maxBytes. Private storage remains on the device.
 
 capabilities.ui.notify(message) shows a notification. In environments supporting navigation, ui.openFile(relativePath) opens a file and ui.navigate(viewId, route?) opens a page. Check optional methods before calling them.
+
+Views can use the optional `capabilities.ui.exportFile({ name, mimeType, data })`
+to export generated files without filesystem write permission. Supply a filename
+without a directory, a media type such as `image/png`, and a `Uint8Array` of at most
+16 MiB. Lite opens a save dialog and returns `{ status: "saved" }` or
+`{ status: "cancelled" }`. CLI Serve returns `{ status: "download-started" }` after
+initiating the browser download. Check whether the method exists and show export
+failures to the user. Mobile and action contexts do not currently provide it.
 
 capabilities.network.read({ url }) makes bounded HTTPS requests to origins declared in browser.networkOrigins. For credentialed requests, use `isConfigured(connectionId)` and `request({ connection, body })` on `ctx.capabilities.connections` with a declared connection. Connections are available to pages, file views and ordinary actions. Users configure details and secrets in Eidos; action requests are cancelled when the invocation ends.
 

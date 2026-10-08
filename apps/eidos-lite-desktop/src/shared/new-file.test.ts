@@ -3,17 +3,22 @@ import { describe, expect, it } from "vitest"
 import { eidosLiteNewFileKind } from "./new-file"
 
 describe("eidosLiteNewFileKind", () => {
-  it.each(["Untitled.eidos", "DATA.EIDOS", "Untitled"])(
+  it.each(["Untitled.eidos", "DATA.EIDOS"])(
     "uses the Eidos File flow for %s",
     (name) => {
       expect(eidosLiteNewFileKind(name)).toBe("eidos")
     }
   )
 
-  it.each(["notes.md", "config.json", "script.ts", ".gitignore"])(
-    "uses the text-file flow for %s",
-    (name) => {
-      expect(eidosLiteNewFileKind(name)).toBe("text")
-    }
-  )
+  it.each([
+    "Untitled",
+    "README",
+    "notes.md",
+    "config.json",
+    "script.ts",
+    ".gitignore",
+    ".graftignore",
+  ])("uses the text-file flow for %s", (name) => {
+    expect(eidosLiteNewFileKind(name)).toBe("text")
+  })
 })

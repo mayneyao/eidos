@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.0.
+// Public type-only SDK for Eidos Plugin API 3.2.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -25,6 +25,8 @@ export interface PluginManifest {
   icon?: PluginIconDefinition
   extension?: string
   views?: ViewDeclaration[]
+  /** Static UTF-8 templates offered by the host's New File dialog. */
+  fileTemplates?: FileTemplateDeclaration[]
   actions?: ActionDeclaration[]
   formatters?: FormatterDeclaration[]
   placements?: Placement[]
@@ -47,6 +49,40 @@ export interface PluginManifest {
 export interface ThemeDeclaration {
   /** Source path, replaced with validated CSS and embedded fonts when packaged. */
   stylesheet: string
+}
+export interface FileTemplateDeclaration {
+  id: string
+  title: string
+  extension: string
+  view: string
+  content: string
+}
+export type ResourceSource =
+  | { kind: "file"; path: string; editor?: string }
+  | { kind: "eidos-view"; path: string; tableId: string; viewId: string }
+export type ResourceViewInfo =
+  | {
+      kind: "file"
+      editor: string
+      name: string
+      type: string
+    }
+  | {
+      kind?: "eidos-view"
+      tableId: string
+      tableName: string
+      viewId: string
+      name: string
+      type: string
+    }
+export interface ResourceMount extends Disposable {
+  refresh(): Promise<void>
+}
+export interface HostResources {
+  /** Paths are relative to the bound file and must remain inside the current Space. */
+  listViews(path: string): Promise<ResourceViewInfo[]>
+  /** The host renders a read-only surface over this rectangular element. */
+  mount(element: HTMLElement, source: ResourceSource): Promise<ResourceMount>
 }
 export type ViewCapability =
   | "document"
@@ -258,6 +294,7 @@ export interface ViewCapabilities extends CommonCapabilities {
 }
 
 export interface ViewContext extends CommonContext {
+  readonly presentation?: { mode: "standalone" | "embedded" }
   readonly binding: ViewBinding
   readonly capabilities: ViewCapabilities
 }
@@ -488,8 +525,23 @@ export interface PluginSettings {
   set(key: string, value: SettingValue): Promise<void>
   reset(key: string): Promise<void>
 }
+export interface FileExportRequest {
+  /** Suggested base filename, without a directory or path. */
+  name: string
+  mimeType: string
+  /** Generated file content, up to 16 MiB. Does not grant filesystem access. */
+  data: Uint8Array
+}
+export type FileExportResult = {
+  /** Browsers can confirm dispatch only, not whether the user saved the file. */
+  status: "saved" | "download-started" | "cancelled"
+}
 export interface HostUI {
+  /** Optional Lite composition capability; requires workspace.files read access. */
+  resources?: HostResources
   notify(message: string): Promise<void>
+  /** Optional host-mediated export: Lite save dialog or Serve browser download. */
+  exportFile?(request: FileExportRequest): Promise<FileExportResult>
   /** Opens an existing file in the host editor or viewer. */
   openFile?(relativePath: string): Promise<void>
   navigate?(viewId: string, route?: string): Promise<void>

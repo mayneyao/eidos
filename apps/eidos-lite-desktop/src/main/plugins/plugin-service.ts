@@ -1,4 +1,8 @@
 import { viewResource } from "@eidos.space/plugin-runtime/view"
+import { parseFileExport } from "@eidos.space/plugin-runtime/file-export"
+import { resourcePath, resourceSource, resourceRect } from "./plugin-resources"
+import type { ResourceSource } from "@eidos.space/plugin-sdk"
+import type { PluginResourceContent } from "../../shared/plugins"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
@@ -27,6 +31,8 @@ import type {
   FormatterDeclaration,
   ViewCapability,
   ExplorerState,
+  FileExportRequest,
+  FileExportResult,
 } from "@eidos.space/plugin-sdk"
 import type { PluginOpenResult, PluginRpcResult } from "../../shared/plugins"
 import { normalizeMutableRelativePath } from "../space/space-paths"
@@ -34,6 +40,16 @@ import type { PluginStore } from "./plugin-store"
 import { diskSnapshot, type PluginDocumentSession } from "./document-host"
 export type { PluginDocumentSession } from "./document-host"
 interface Instance {
+  embedded?: boolean
+  resources?: Map<
+    string,
+    {
+      source: ResourceSource
+      content?: PluginResourceContent
+      loading?: boolean
+    }
+  >
+  exporting?: boolean
   capabilities?: ViewCapability[]
   workspaceFiles?: boolean | { read?: boolean; write?: boolean }
   workspaceFileMeta?: { namespaces: string[]; write?: boolean }
@@ -122,7 +138,15 @@ export class PluginService {
   private readonly sessions = new WeakMap<PluginDocumentSession, string>()
   constructor(
     readonly store: PluginStore,
-    private readonly onClose: (owner: number, ticket: string) => void = () => {}
+    private readonly onClose: (
+      owner: number,
+      ticket: string
+    ) => void = () => {},
+    private readonly exportFile?: (
+      owner: number,
+      input: FileExportRequest,
+      authorize: () => Promise<void>
+    ) => Promise<FileExportResult>
   ) {}
   private armMount(owner: number, ticket: string) {
     const instance = this.instances.get(ticket)!
@@ -505,7 +529,8 @@ export class PluginService {
     key: string,
     route?: string,
     table?: { tableId: string; viewId: string },
-    explorer?: ExplorerState
+    explorer?: ExplorerState,
+    embedded = false
   ): Promise<PluginOpenResult> {
     route ??= await this.store.pageRoute(session.canonical.id, key)
     if (
@@ -550,6 +575,8 @@ export class PluginService {
       workspaceFiles: pkg.manifest.workspace?.files,
       workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       html: viewHtml(pkg.modules[view.entry]!, {
+        embedded,
+        exportFile: !!this.exportFile,
         ...(table
           ? { kind: "table" as const, ...table }
           : { kind: "page" as const, route }),
@@ -558,6 +585,7 @@ export class PluginService {
         explorer,
       }),
       table,
+      embedded,
       capabilities: view.capabilities,
       tableWritable: view.access === "write",
       csp: sandboxCsp(pkg.manifest.browser),
@@ -583,7 +611,8 @@ export class PluginService {
     session: PluginDocumentSession,
     relativePath: string,
     explicit?: string,
-    draft?: TextChange
+    draft?: TextChange,
+    embedded = false
   ): Promise<PluginOpenResult> {
     const safe = normalizeMutableRelativePath(relativePath)
     const selected = await this.store.resolve(
@@ -653,12 +682,16 @@ export class PluginService {
       resource,
       scope,
       copy,
+      embedded,
       eidos,
       media: !!mediaInfo,
       mediaPreviewUrl: mediaInfo?.previewUrl,
       capabilities: view.capabilities,
-      tableWritable: view.access === "write",
+      tableWritable: !embedded && view.access === "write",
       html: viewHtml(pkg.modules[view.entry]!, {
+        embedded,
+        resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
+        exportFile: !!this.exportFile,
         ...(eidos
           ? { kind: "eidos" as const, file: fileInfo }
           : isFileContext
@@ -668,7 +701,7 @@ export class PluginService {
         connections: !!Object.keys(pkg.manifest.connections ?? {}).length,
       }),
       csp: sandboxCsp(pkg.manifest.browser),
-      document: copy?.bind(scope, view.access ?? "read"),
+      document: copy?.bind(scope, embedded ? "read" : (view.access ?? "read")),
       pluginId: id,
       hash: binding.hash,
       observations: new Map(),
@@ -767,6 +800,14 @@ export class PluginService {
   close(owner: number, ticket: string) {
     const instance = this.instances.get(ticket)
     if (instance?.owner === owner) {
+      for (const resource of instance.resources?.values() ?? []) {
+        if (
+          (resource.content?.kind === "eidos-view" ||
+            resource.content?.kind === "file-view") &&
+          resource.content.plugin?.instance
+        )
+          this.close(owner, resource.content.plugin.instance.ticket)
+      }
       instance.invocation?.finish(
         new PluginError("INSTANCE_CLOSED", "Extension closed")
       )
@@ -787,6 +828,97 @@ export class PluginService {
         (!spaceId || instance.session.canonical.id === spaceId)
       )
         this.close(instance.owner, ticket)
+  }
+  private async loadResource(
+    instance: Instance,
+    source: ResourceSource
+  ): Promise<PluginResourceContent> {
+    const target = resourcePath(instance.path!, source.path)
+    const { session, owner } = instance
+    if (source.kind === "eidos-view") {
+      if (!target.toLowerCase().endsWith(".eidos") || !session.openEidosFile)
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Eidos resource is unavailable"
+        )
+      const opened = await session.openEidosFile(target)
+      instance.scope.assertActive()
+      const table = opened.snapshot.tables.find(
+        (item) => item.table.id === source.tableId
+      )
+      const view = table?.views.find((item) => item.id === source.viewId)
+      if (!view)
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Saved view no longer exists"
+        )
+      let plugin: PluginOpenResult | null = null
+      let configuration
+      if (view.type.startsWith("plugin:")) {
+        const key = view.type.slice(7)
+        const [pluginId, viewId] = key.split("/")
+        const binding = pluginId
+          ? await this.store.binding(pluginId, session.canonical.id)
+          : undefined
+        if (!binding?.enabled)
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "The referenced view's plugin is not enabled"
+          )
+        const pkg = await this.store.read(binding.hash)
+        configuration = pkg.manifest.views?.find(
+          (item) => item.id === viewId
+        )?.configuration
+        plugin = await this.openPage(
+          owner,
+          session,
+          key,
+          "",
+          { tableId: source.tableId, viewId: source.viewId },
+          undefined,
+          true
+        )
+      }
+      return {
+        kind: "eidos-view",
+        opened,
+        tableId: source.tableId,
+        viewId: source.viewId,
+        plugin,
+        configuration,
+      }
+    }
+    // Composition is one level deep.
+    if (/\.(?:dashboard|eidos)$/i.test(target))
+      throw new PluginError(
+        "UNSUPPORTED_API",
+        "Choose a saved Eidos view; nested dashboards are not supported"
+      )
+    if (source.editor && source.editor !== "builtin") {
+      const plugin = await this.open(
+        owner,
+        session,
+        target,
+        source.editor,
+        undefined,
+        true
+      )
+      if (!plugin.instance)
+        throw new PluginError(
+          "DOCUMENT_UNAVAILABLE",
+          "Selected view is unavailable"
+        )
+      return { kind: "file-view", path: target, plugin }
+    }
+    const media = await session
+      .previewMediaFile?.(target)
+      .catch(() => undefined)
+    instance.scope.assertActive()
+    if (media?.mimeType.startsWith("image/"))
+      return { kind: "image", path: target, url: media.previewUrl }
+    const preview = await session.previewTextFile(target)
+    instance.scope.assertActive()
+    return { kind: "text", path: target, text: diskSnapshot(preview).text }
   }
   async request(
     owner: number,
@@ -814,6 +946,152 @@ export class PluginService {
         throw new PluginError("PERMISSION_DENIED", "Plugin grant revoked")
       }
       instance.scope.assertActive()
+      if (
+        instance.embedded &&
+        (request.method.startsWith("resources.") ||
+          [
+            "table.setViewConfig",
+            "table.pluginConfig.write",
+            "eidos.pluginConfig.write",
+            "table.target.update",
+            "fs.writeText",
+            "fs.writeBinary",
+            "fs.delete",
+            "fs.rename",
+            "filemeta.patch",
+          ].includes(request.method))
+      )
+        throw new PluginError(
+          "PERMISSION_DENIED",
+          "Embedded resources are read-only"
+        )
+      if (request.method.startsWith("resources.")) {
+        if (
+          instance.extension ||
+          !instance.path ||
+          instance.embedded ||
+          !(
+            instance.workspaceFiles === true ||
+            (typeof instance.workspaceFiles === "object" &&
+              instance.workspaceFiles.read !== false)
+          ) ||
+          binding.hash !== instance.hash
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Resource composition requires a bound file and Space read access"
+          )
+        const params = object(request.params)
+        if (request.method === "resources.listViews") {
+          const target = resourcePath(instance.path, params.path)
+          if (!target.toLowerCase().endsWith(".eidos")) {
+            const editors = await this.store.editors(
+              target,
+              session.canonical.id
+            )
+            instance.scope.assertActive()
+            return {
+              response: {
+                ...base,
+                result: [
+                  ...editors.map((editor) => ({
+                    kind: "file",
+                    editor: editor.key,
+                    name: editor.label,
+                    type: "plugin",
+                  })),
+                  {
+                    kind: "file",
+                    editor: "builtin",
+                    name: "Built-in preview",
+                    type: "builtin",
+                  },
+                ],
+              },
+            }
+          }
+          if (!target.endsWith(".eidos") || !session.openEidosFile)
+            throw new PluginError("INVALID_REQUEST", "Choose an Eidos file")
+          const opened = await session.openEidosFile(target)
+          instance.scope.assertActive()
+          const result = opened.snapshot.tables.flatMap((table) =>
+            table.views.map((view) => ({
+              tableId: table.table.id,
+              tableName: table.table.name,
+              viewId: view.id,
+              name: view.name,
+              type: view.type,
+            }))
+          )
+          return { response: { ...base, result } }
+        }
+        if (
+          typeof params.id !== "string" ||
+          !/^[a-zA-Z0-9_-]{1,80}$/.test(params.id)
+        )
+          throw new PluginError("INVALID_REQUEST", "Invalid resource ID")
+        const id = params.id
+        const resources = (instance.resources ??= new Map())
+        const existing = resources.get(id)
+        if (request.method === "resources.dispose") {
+          resources.delete(id)
+          if (
+            (existing?.content?.kind === "eidos-view" ||
+              existing?.content?.kind === "file-view") &&
+            existing.content.plugin?.instance
+          )
+            this.close(owner, existing.content.plugin.instance.ticket)
+          return {
+            response: { ...base, result: null },
+            resource: { kind: "dispose", id },
+          }
+        }
+        if (request.method === "resources.layout") {
+          if (!existing)
+            throw new PluginError("INSTANCE_CLOSED", "Resource is closed")
+          return {
+            response: { ...base, result: null },
+            resource: { kind: "layout", id, rect: resourceRect(params.rect) },
+          }
+        }
+        if (request.method === "resources.mount") {
+          if (existing || resources.size >= 12)
+            throw new PluginError("BUSY", "At most 12 resources can be mounted")
+          resources.set(id, { source: resourceSource(params.source) })
+        } else if (!existing?.content)
+          throw new PluginError("INSTANCE_CLOSED", "Resource is unavailable")
+        const entry = resources.get(id)!
+        if (entry.loading)
+          throw new PluginError("BUSY", "Resource refresh is already running")
+        entry.loading = true
+        try {
+          const content = await this.loadResource(instance, entry.source)
+          if (!this.instances.has(ticket) || resources.get(id) !== entry) {
+            if (
+              (content.kind === "eidos-view" || content.kind === "file-view") &&
+              content.plugin?.instance
+            )
+              this.close(owner, content.plugin.instance.ticket)
+            throw new PluginError("INSTANCE_CLOSED", "Resource is closed")
+          }
+          if (
+            (entry.content?.kind === "eidos-view" ||
+              entry.content?.kind === "file-view") &&
+            entry.content.plugin?.instance
+          )
+            this.close(owner, entry.content.plugin.instance.ticket)
+          entry.content = content
+          return {
+            response: { ...base, result: null },
+            resource: { kind: "mount", id, content },
+          }
+        } catch (error) {
+          if (!entry.content) resources.delete(id)
+          throw error
+        } finally {
+          entry.loading = false
+        }
+      }
       let capabilityParams = request.params
       let capabilityScope = instance.scope
       if (
@@ -1842,6 +2120,40 @@ export class PluginService {
             )
               throw new PluginError("INVALID_REQUEST", "Invalid notification")
             result = null
+            break
+          }
+          case "ui.exportFile": {
+            if (!this.exportFile || instance.extension)
+              throw new PluginError(
+                "PERMISSION_DENIED",
+                "File export is unavailable for this contribution"
+              )
+            if (instance.exporting)
+              throw new PluginError("BUSY", "A file export is already pending")
+            const input = parseFileExport(params)
+            const deadline = Date.now() + 300000
+            const authorize = async () => {
+              instance.scope.assertActive()
+              const current = await this.store.binding(
+                instance.pluginId,
+                session.canonical.id
+              )
+              if (!current?.enabled || current.hash !== instance.hash)
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Plugin grant or revision changed"
+                )
+              instance.scope.assertActive()
+              if (Date.now() >= deadline)
+                throw new PluginError("TIMEOUT", "File export expired")
+            }
+            instance.exporting = true
+            try {
+              await authorize()
+              result = await this.exportFile(owner, input, authorize)
+            } finally {
+              instance.exporting = false
+            }
             break
           }
           case "settings.get":

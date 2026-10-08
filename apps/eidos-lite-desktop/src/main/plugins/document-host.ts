@@ -2,6 +2,7 @@ import type {
   TextFilePreviewResult,
   TextFileSaveRequest,
   TextFileSaveResult,
+  OpenEidosFileResult,
 } from "../../shared/contracts"
 import type { DiskSnapshot } from "@eidos.space/plugin-runtime/working-copy"
 import { PluginError } from "@eidos.space/plugin-runtime/rpc"
@@ -23,6 +24,7 @@ export interface MediaFilePreviewResult {
 }
 
 export interface PluginDocumentSession {
+  openEidosFile?(path: string): Promise<OpenEidosFileResult>
   canonical: { id: string }
   previewTextFile(path: string): Promise<TextFilePreviewResult>
   previewMediaFile?(

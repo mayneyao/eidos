@@ -115,7 +115,7 @@ function bootstrap(mount, binding) {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(error("TIMEOUT", "Host request timed out"));
-      }, 30000);
+      }, method === "ui.exportFile" ? 300000 : 30000);
       pending.set(id, { resolve, reject, timer });
       parent.postMessage({ protocol: "eidos-plugin", apiVersion: 1, id, method, params }, "*");
     });
@@ -145,7 +145,19 @@ function bootstrap(mount, binding) {
         }
       },
       },
-      ui: { notify: (message) => call("ui.notify", { message }) }
+      ui: {
+        notify: (message) => call("ui.notify", { message }),
+        exportFile: (input) => {
+          if (!(input.data instanceof Uint8Array) || input.data.length > 16 * 1024 * 1024) {
+            return Promise.reject(error("INVALID_REQUEST", "File export requires at most 16 MiB of bytes"));
+          }
+          let binary = "";
+          for (let offset = 0; offset < input.data.length; offset += 8192) {
+            binary += String.fromCharCode(...input.data.subarray(offset, offset + 8192));
+          }
+          return call("ui.exportFile", { name: input.name, mimeType: input.mimeType, data: btoa(binary) });
+        }
+      }
     },
     signal: controller.signal,
     subscriptions: { add: own }

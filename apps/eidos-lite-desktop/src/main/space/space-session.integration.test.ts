@@ -29,6 +29,45 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("creates text files with exact extensionless, dotfile, and custom names", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-new-text-"))
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-new-text-state-")
+    )
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      for (const name of [
+        "Untitled",
+        "README",
+        ".graftignore",
+        "config.json",
+      ]) {
+        const created = await session.createTextFile(null, name)
+        expect(created.relativePath).toBe(name)
+        expect(await fs.readFile(path.join(root, name), "utf8")).toBe("")
+        expect(await fs.readdir(root)).not.toContain(`${name}.eidos`)
+      }
+      await fs.writeFile(path.join(root, "Untitled"), "Keep this text")
+      await expect(session.createTextFile(null, "Untitled")).rejects.toThrow()
+      expect(await fs.readFile(path.join(root, "Untitled"), "utf8")).toBe(
+        "Keep this text"
+      )
+      await expect(session.createTextFile(null, "data.EIDOS")).rejects.toThrow(
+        "Text files cannot use the .eidos extension"
+      )
+      expect(await fs.readdir(root)).not.toContain("data.EIDOS")
+    } finally {
+      await session?.close().catch(() => undefined)
+      await graft.close().catch(() => undefined)
+      await fs.rm(root, { recursive: true, force: true })
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
+
   it.each([true, false])(
     "preserves hydrated ancestors across SQLite watcher events (open runtime: %s)",
     async (runtimeOpen) => {

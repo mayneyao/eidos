@@ -6,6 +6,7 @@ import * as pluginNetwork from "./plugin-network"
 import { encodePackage } from "@eidos.space/plugin-runtime/package"
 import type {
   FileStat,
+  FileExportRequest,
   PluginManifest,
   TextSnapshot,
 } from "@eidos.space/plugin-sdk"
@@ -232,6 +233,289 @@ const rpc = (
 const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
+
+it("keeps embedded file content in the workbench and enforces Space read access", async () => {
+  await fs.writeFile(path.join(root, "notes.md"), "# Notes")
+  const denied = await rpc(await open(), "resources.mount", {
+    id: "note",
+    source: { kind: "file", path: "notes.md" },
+  })
+  expect(denied.response).toMatchObject({
+    error: { code: "PERMISSION_DENIED" },
+  })
+  await store.install(
+    encodePackage(
+      { ...manifest, workspace: { files: { read: true } } },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  const mounted = await rpc(ticket, "resources.mount", {
+    id: "note",
+    source: { kind: "file", path: "notes.md" },
+  })
+  expect(mounted.response).toMatchObject({ result: null })
+  expect(mounted.resource).toEqual({
+    kind: "mount",
+    id: "note",
+    content: { kind: "text", path: "notes.md", text: "# Notes" },
+  })
+  expect(
+    (
+      await rpc(ticket, "resources.mount", {
+        id: "note",
+        source: { kind: "file", path: "notes.md" },
+      })
+    ).response
+  ).toMatchObject({ error: { code: "BUSY" } })
+  expect(
+    (
+      await rpc(ticket, "resources.mount", {
+        id: "escape",
+        source: { kind: "file", path: "../outside.md" },
+      })
+    ).response
+  ).toHaveProperty("error")
+  expect(
+    (await rpc(ticket, "resources.dispose", { id: "note" })).resource
+  ).toEqual({ kind: "dispose", id: "note" })
+  expect(service.instances.get(ticket)?.resources?.size).toBe(0)
+})
+
+it("lists and embeds matching file views read-only and disposes their instances", async () => {
+  await store.install(
+    encodePackage(
+      { ...manifest, workspace: { files: { read: true } } },
+      modules
+    ),
+    "space-a"
+  )
+  await fs.writeFile(path.join(root, "other.csv"), "a,b")
+  const ticket = await open()
+  expect(
+    (await rpc(ticket, "resources.listViews", { path: "other.csv" })).response
+  ).toMatchObject({
+    result: expect.arrayContaining([
+      {
+        kind: "file",
+        editor: "example.csv/table",
+        name: manifest.views![0]!.title,
+        type: "plugin",
+      },
+    ]),
+  })
+  const mounted = await rpc(ticket, "resources.mount", {
+    id: "file",
+    source: { kind: "file", path: "other.csv", editor: "example.csv/table" },
+  })
+  expect(mounted.resource?.kind).toBe("mount")
+  const content =
+    mounted.resource?.kind === "mount" ? mounted.resource.content : null
+  expect(content?.kind).toBe("file-view")
+  if (content?.kind !== "file-view") throw Error("Expected file view")
+  const child = content.plugin.instance!.ticket
+  expect(service.instances.get(child)?.embedded).toBe(true)
+  expect(service.instances.get(child)?.html).toContain('"embedded":true')
+  expect(service.instances.get(ticket)?.html).toContain('"embedded":false')
+  expect(
+    (
+      await rpc(child, "fs.writeText", {
+        path: "other.csv",
+        content: "changed",
+      })
+    ).response
+  ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+  expect(
+    (await rpc(child, "resources.listViews", { path: "data.csv" })).response
+  ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+  await rpc(ticket, "resources.dispose", { id: "file" })
+  expect(service.instances.has(child)).toBe(false)
+  expect(await fs.readFile(path.join(root, "other.csv"), "utf8")).toBe("a,b")
+})
+
+it("rejects concurrent refreshes of the same resource", async () => {
+  await fs.writeFile(path.join(root, "notes.md"), "# Notes")
+  await store.install(
+    encodePackage(
+      { ...manifest, workspace: { files: { read: true } } },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  await rpc(ticket, "resources.mount", {
+    id: "note",
+    source: { kind: "file", path: "notes.md" },
+  })
+  const original = session.previewTextFile
+  let finish!: () => void
+  let entered!: () => void
+  const started = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  session.previewTextFile = async (file) => {
+    entered()
+    await gate
+    return original(file)
+  }
+  const first = rpc(ticket, "resources.refresh", { id: "note" })
+  await started
+  expect(
+    (await rpc(ticket, "resources.refresh", { id: "note" })).response
+  ).toMatchObject({ error: { code: "BUSY" } })
+  finish()
+  expect((await first).response).toMatchObject({ result: null })
+})
+
+it("does not publish an embedded resource after its parent closes", async () => {
+  await fs.writeFile(path.join(root, "notes.md"), "# Notes")
+  await store.install(
+    encodePackage(
+      { ...manifest, workspace: { files: { read: true } } },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  const original = session.previewTextFile
+  let finish!: () => void
+  let entered!: () => void
+  const started = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  session.previewTextFile = async (file) => {
+    entered()
+    await gate
+    return original(file)
+  }
+  const operation = rpc(ticket, "resources.mount", {
+    id: "slow",
+    source: { kind: "file", path: "notes.md" },
+  })
+  await started
+  service.close(1, ticket)
+  finish()
+  expect((await operation).response).toHaveProperty("error")
+  expect(service.instances.size).toBe(0)
+})
+
+it("embedded table plugins cannot change view settings or write Space files", async () => {
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        workspace: { files: true },
+        views: [
+          {
+            id: "table",
+            title: "Chart",
+            kind: "file",
+            entry: "./main.ts",
+            access: "write",
+            capabilities: ["eidos/table"],
+          },
+        ],
+        placements: [{ location: "table/view", view: "table" }],
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const child = (
+    await service.openPage(
+      1,
+      session,
+      "example.csv/table",
+      "",
+      { tableId: "table", viewId: "view" },
+      undefined,
+      true
+    )
+  ).instance!
+  for (const method of [
+    "table.setViewConfig",
+    "fs.writeText",
+    "resources.mount",
+  ])
+    expect((await rpc(child.ticket, method, {})).response).toMatchObject({
+      error: { code: "PERMISSION_DENIED" },
+    })
+})
+
+it("exports generated bytes from read-only views without filesystem write authority", async () => {
+  const exportFile = vi.fn(
+    async (
+      _owner: number,
+      input: FileExportRequest,
+      authorize: () => Promise<void>
+    ) => {
+      await authorize()
+      expect(input.data).toEqual(new Uint8Array([0, 1, 255]))
+      return { status: "saved" as const }
+    }
+  )
+  service = new PluginService(store, undefined, exportFile)
+  await store.install(
+    encodePackage(
+      {
+        ...manifest,
+        views: manifest.views!.map((view) => ({ ...view, access: "read" })),
+      },
+      modules
+    ),
+    "space-a"
+  )
+  const ticket = await open()
+  expect(service.instances.get(ticket)!.html).toContain('"exportFile":true')
+  const params = { name: "chart.png", mimeType: "image/png", data: "AAH/" }
+  expect((await rpc(ticket, "ui.exportFile", params)).response).toHaveProperty(
+    "result",
+    { status: "saved" }
+  )
+  expect(
+    (await rpc(ticket, "ui.exportFile", { ...params, name: "../x.png" }))
+      .response
+  ).toHaveProperty("error.code", "INVALID_REQUEST")
+  expect(exportFile).toHaveBeenCalledOnce()
+})
+
+it("allows only one export at a time and rechecks the grant after user interaction", async () => {
+  let finish!: () => void
+  const waiting = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  const exportFile = vi.fn(
+    async (
+      _owner: number,
+      _input: FileExportRequest,
+      authorize: () => Promise<void>
+    ) => {
+      await waiting
+      await authorize()
+      return { status: "saved" as const }
+    }
+  )
+  service = new PluginService(store, undefined, exportFile)
+  await store.install(encodePackage(manifest, modules), "space-a")
+  const ticket = await open()
+  const params = { name: "chart.png", mimeType: "image/png", data: "AAH/" }
+  const first = rpc(ticket, "ui.exportFile", params)
+  await vi.waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
+  expect((await rpc(ticket, "ui.exportFile", params)).response).toHaveProperty(
+    "error.code",
+    "BUSY"
+  )
+  service.close(1, ticket)
+  finish()
+  expect((await first).response).toHaveProperty("error.code", "INSTANCE_CLOSED")
+})
 
 it("isolates whole-namespace properties by namespace, file scope and contribution access", async () => {
   const read = vi.fn(async () => ({

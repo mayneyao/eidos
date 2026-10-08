@@ -201,6 +201,7 @@ export function parseManifest(input: unknown): PluginManifest {
     [
       "extension",
       "views",
+      "fileTemplates",
       "actions",
       "formatters",
       "placements",
@@ -343,6 +344,51 @@ export function parseManifest(input: unknown): PluginManifest {
     invalid("Invalid plugin version")
   if (m.extension !== undefined) entryPath(m.extension)
   const views = collection(m.views)
+  for (const template of collection(m.fileTemplates)) {
+    const required = (
+      m.requires as { pluginApi?: string } | undefined
+    )?.pluginApi
+      ?.split(".")
+      .map(Number)
+    if (
+      !required ||
+      required[0]! < 3 ||
+      (required[0] === 3 && required[1]! < 2)
+    )
+      invalid("File templates require plugin API 3.2.0 or newer")
+    if (m.theme) invalid("Themes cannot declare file templates")
+    fields(template, ["id", "title", "extension", "view", "content"])
+    text(template.title)
+    extensions([template.extension])
+    if (
+      typeof template.content !== "string" ||
+      new TextEncoder().encode(template.content).length > 262144
+    )
+      invalid("File template content must be UTF-8 text up to 256 KiB")
+    if (
+      !views.some(
+        (view) =>
+          view.id === template.view &&
+          view.kind === "file" &&
+          Array.isArray(view.capabilities) &&
+          view.capabilities.includes("document")
+      )
+    )
+      invalid("File template requires a document View")
+    if (
+      !Array.isArray(m.placements) ||
+      !m.placements.some((raw) => {
+        const placement = record(raw)
+        return (
+          placement.location === "file/open" &&
+          placement.view === template.view &&
+          Array.isArray(placement.extensions) &&
+          placement.extensions.includes(template.extension)
+        )
+      })
+    )
+      invalid("File template extension must match its View placement")
+  }
   const actions = collection(m.actions)
   const formatters = collection(m.formatters)
   if (m.theme !== undefined) {

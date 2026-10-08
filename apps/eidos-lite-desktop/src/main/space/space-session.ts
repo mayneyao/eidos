@@ -1323,18 +1323,19 @@ export class SpaceSession {
 
   async createTextFile(
     parentRelativePath: string | null,
-    requestedName: string
+    requestedName: string,
+    content = ""
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
     const name = normalizeSpaceEntryName(requestedName)
     if (eidosLiteNewFileKind(name) !== "text") {
-      throw new Error("New text files require a non-.eidos file extension")
+      throw new Error("Text files cannot use the .eidos extension")
     }
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
     await this.gate.withMutation(() =>
-      fs.writeFile(this.resolveUserPath(relativePath), "", {
+      fs.writeFile(this.resolveUserPath(relativePath), content, {
         encoding: "utf8",
         flag: "wx",
       })

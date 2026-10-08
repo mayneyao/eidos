@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.1
+# Eidos Plugins — API 3.2
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.1.0
+Plugin API：3.2.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
 
@@ -10,6 +10,33 @@ Plugin API：3.1.0
 英文文档是唯一规范性版本；本文为中文参考。
 
 ## 1. 目标与公共模型
+
+### 文件模板与资源组合
+
+Lite API 3.2 支持可选的 `fileTemplates`，每项包含 `id、title、extension、view、content`。
+模板必须引用具有 document 能力、且 file/open 扩展名匹配的 file View。
+内容为最多 256 KiB 的静态 UTF-8 文本，`.eidos` 为保留扩展名。
+宿主只展示已启用插件的模板，由用户选择名称和目录，以不覆盖方式创建并打开声明的 View；创建时不执行插件代码。
+
+具有 Space 文件读取权限的 file View 可获得 `ui.resources.listViews(path)` 和
+`ui.resources.mount(element, source)`。source 为 `{ kind: "file", path }` 或
+`{ kind: "eidos-view", path, tableId, viewId }`，路径相对于绑定文件解析，必须留在当前 Space 内并通过宿主文件系统边界检查。
+file source 可指定 editor，值为匹配且已启用的插件的 pluginId/viewId 或 "builtin"；省略时使用内置预览。
+普通文件的 listViews 返回 { kind: "file", editor, name, type }，来自已启用且匹配的 file/open 声明及内置预览。
+Eidos 文件仍返回表和已保存视图的 ID、名称及类型。宿主必须在挂载时重新验证指定插件，以只读方式渲染，并随父资源释放。
+挂载返回具有 refresh 方法的可释放句柄。
+这些能力可选，目前由 Lite 提供。
+
+宿主在受信任表面渲染资源，并按容器和插件视口裁剪。支持普通矩形布局和滚动裁剪，不支持旋转、变换或任意重叠的交互浮层。宿主必须在最近打开的原生 HTML popover 下裁剪资源，使一个矩形菜单可浮在资源上方而不改变布局；常驻控件应放在资源容器外。
+当挂载容器的计算样式为 `pointer-events: none` 时，宿主必须让资源表面忽略指针输入，使布局编辑中的拖拽可以经过资源区域；恢复样式后恢复交互。
+文件文档视图必须通过宿主文档保存操作支持 Cmd+S / Ctrl+S。视图未接管快捷键时由沙箱提供默认处理。Lite 将工作台和嵌入资源中的保存快捷键转发到外层文件视图；接管快捷键的视图必须先提交待处理编辑再保存。
+插件不会收到子视图 URL、票据、Runtime 会话或其他插件的能力，沙箱继续使用 `frame-src 'none'`。
+组合默认只读，每个父视图最多 12 个资源且只支持一层。普通文件使用文本、Markdown、图片预览；不支持嵌套 dashboard。
+Eidos 资源复用已保存视图及 Runtime 查询语义。目标插件必须独立启用，收到 `presentation.mode: "embedded"`，不能通过组合获取写权限。
+关闭父视图或释放资源时关闭子插件实例，撤权使界面不可用。缺失引用和错误只影响对应卡片；刷新失败保留旧内容。
+Eidos 视图响应 Space 更新通知，普通文件可显式刷新。
+
+dashboard 是插件定义的普通 JSON 文件，通过 document 工作副本接口编辑、保存、撤销和处理外部冲突，不增加 Eidos File 格式语义。
 
 插件提供 View、用户触发的 Action 或文档 Formatter。View 严格只有 page 和 file。
 文本、媒体、Eidos 文件与表格通过能力访问。主题是独立的数据包。
@@ -89,13 +116,23 @@ Binding 为 page 加 route，或 file 加 FileRef，以及可选的 Eidos table/
 声明的数据能力位于 capabilities.document 或 capabilities.eidos 的对应成员。
 
 Lite 额外提供受限 fs、network、storage、settings 和 ui；声明的连接通过 capabilities.connections 使用。
-Serve 仅提供 eidos.table 与通知操作。
+Serve 提供 eidos.table、通知与生成文件导出操作。
 跨宿主 SDK 中可能缺失的服务必须是可选类型，调用前检查。
 TextFileViewContext 和 TableFileViewContext 是类型组合，不增加 View 类型，也不创建权限。
 
 View 仅暴露 settings.get；Lite Action 还支持 settings.set/reset。
 HostUI 提供 notify，
 openFile/navigate 为宿主可选操作；openFile 的相对路径仍由宿主校验和授权。
+
+View 宿主可以提供 `capabilities.ui.exportFile({ name, mimeType, data })`，用于导出生成文件。
+name 必须是不含路径的可移植文件名，mimeType 必须是不含参数的媒体类型，data 必须是
+不超过 16 MiB 的 Uint8Array。此操作不授予文件系统或绑定数据写入权限，只读 View 也可使用。
+Lite 由原生保存对话框让用户选择目标，写入成功后返回 `{ status: "saved" }`，取消时返回
+`{ status: "cancelled" }`。Serve 在可信父页面发起浏览器下载，返回
+`{ status: "download-started" }`，不代表文件已保存。宿主必须在打开对话框或发起下载前校验请求。
+Lite 必须拒绝同一实例的重叠导出，并在用户选择目标后、写入前重新检查实例生命周期与插件授权及版本。
+失败通过 Promise 拒绝返回。不支持的宿主省略此方法，插件必须检查其存在性并提供可操作的反馈。
+插件 iframe 的直接下载权限保持关闭。目前移动端与 Action 调用不提供此可选操作。
 
 ExtensionContext 通过 capabilities.actions/formatters 注册，不暴露不可用的 settings。
 文档 Action 的 binding 是文件身份，编辑能力位于 capabilities.document。

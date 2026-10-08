@@ -6,6 +6,7 @@ import {
   type EidosFileViewRendererProps,
 } from "@eidos.space/eidos-file-ui"
 import { fetchPlugins, type PluginListing, type PluginManifest } from "./client"
+import { downloadPluginFile } from "./plugin-export"
 
 const PLUGIN_PROTOCOL = "eidos-plugin"
 
@@ -292,6 +293,15 @@ function PluginFrame({
             params as any,
             currentProps.query
           )
+          event.source.postMessage(
+            { protocol: PLUGIN_PROTOCOL, apiVersion: 1, id, result },
+            "*"
+          )
+          return
+        }
+
+        if (method === "ui.exportFile") {
+          const result = downloadPluginFile(params)
           event.source.postMessage(
             { protocol: PLUGIN_PROTOCOL, apiVersion: 1, id, result },
             "*"

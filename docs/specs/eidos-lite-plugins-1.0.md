@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.1
+# Eidos Plugins — API 3.2
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.1.0
+Plugin API: 3.2.0
 
 Canonical language: English
 
@@ -14,6 +14,63 @@ The Chinese document is informative. MUST, MUST NOT, SHOULD, and MAY express
 requirements of this contract.
 
 ## 1. Purpose and conformance
+
+### File templates and resource composition
+
+Lite API 3.2 supports optional `fileTemplates`: an array of `{ id, title,
+extension, view, content }` declarations. Each template MUST reference a
+document-capable file View with a matching `file/open` extension. Content is
+static UTF-8 text limited to 256 KiB; `.eidos` is reserved. The host MUST list
+only enabled plugins' templates, create files exclusively without overwriting,
+and open the declared View after creation. Creating a file MUST NOT execute
+plugin code. The filename and destination remain user choices.
+
+File Views with Space file read access MAY receive `ui.resources` with
+`listViews(path)` and `mount(element, source)`. A source is `{ kind: "file", path }`
+or `{ kind: "eidos-view", path, tableId, viewId }`. Paths resolve relative to the
+bound file, MUST remain within the current Space, and MUST pass the host's
+filesystem containment checks. File sources MAY specify `editor`, either a
+matching enabled plugin's `pluginId/viewId` or `"builtin"`; omission preserves
+the built-in preview. For ordinary files, `listViews` returns
+`{ kind: "file", editor, name, type }` choices from enabled matching file/open
+placements and the built-in preview. For Eidos files it returns table and saved-view IDs,
+names and view types. Explicit plugin choices MUST be revalidated at mount time,
+rendered read-only, and disposed with their parent resource.
+It does not grant a Runtime session or another plugin's
+capabilities. These APIs are optional and currently provided by Lite only.
+
+`mount` returns a disposable handle with `refresh(): Promise<void>`. The host
+MUST render the resource in a trusted surface clipped to the guest viewport
+and requested rectangular container. Containers support ordinary layout and
+scroll clipping; rotation, transforms and overlapping interactive overlays are
+not supported. The host MUST clip resources beneath the most recently opened
+native HTML popover, allowing one rectangular menu without changing resource layout.
+Dashboard authors SHOULD keep persistent controls outside resource containers.
+When the mounted container's computed `pointer-events` is `none`, the host MUST
+make its resource surface ignore pointer input so layout gestures can cross it.
+Restoring the style restores pointer interaction.
+
+File document Views MUST support Cmd+S / Ctrl+S through the host document save
+operation. The sandbox supplies a default handler when the View has not consumed
+the shortcut. Lite forwards Save from the workbench and embedded resources to
+the enclosing file View. Views that consume it MUST flush pending edits before saving.
+Guest code MUST NOT receive child frame URLs, tickets or Runtime session IDs.
+The host MUST keep the sandbox's `frame-src 'none'` restriction.
+
+Composition is read-only, limited to 12 resources per parent and one level deep.
+Ordinary file resources use trusted text, Markdown and image previews; nested
+dashboard files are unsupported. Eidos resources reuse saved-view query semantics
+and existing renderers. Plugin views require their own enabled grant, receive
+`presentation.mode: "embedded"`, and MUST NOT gain write authority through
+composition. Parent closure/disposal MUST close child plugin instances, and
+revocation MUST make their interfaces unavailable. Missing resources and disabled
+plugins MUST fail locally without replacing other panels. Refresh retries an
+existing reference; failed refreshes retain the previous content. Eidos views
+receive Space invalidations; ordinary previews can be refreshed explicitly.
+
+The dashboard configuration is a plugin-owned ordinary JSON document. Its layout
+is edited through the document working-copy API, including version checks,
+save, undo/redo and external-change conflicts; it adds no Eidos File semantics.
 
 A plugin contributes views, user-invoked actions, or document formatters. A View
 has exactly two kinds: `page` and `file`. Text documents, media, Eidos files and
@@ -131,7 +188,7 @@ identity/metadata only. The declared bound-data object is exposed as
 
 Lite additionally supplies scoped `fs`, `network`, `storage`, `settings`, and
 `ui` services. Declared connections are available through `capabilities.connections`. Grants are still validated for each call. Serve exposes `eidos.table` and
-notification operations only. Accordingly shared SDK service members are optional
+notification and generated-file export operations. Accordingly shared SDK service members are optional
 where a host may omit them. Consumers narrow before calling an optional member.
 `TextFileViewContext` and `TableFileViewContext` are convenience type combinations,
 not new View kinds or a source of authority.
@@ -140,6 +197,22 @@ Views expose settings.get only. Lite action invocations additionally support
 settings.set/reset.
 HostUI provides notify; openFile/navigate are optional host operations. Paths to
 openFile are interpreted and authorized by the host, not native handles.
+
+View hosts MAY expose `capabilities.ui.exportFile({ name, mimeType, data })` for
+generated files. `name` MUST be a portable base filename without a path;
+`mimeType` MUST be a media type without parameters; `data` MUST be a Uint8Array
+of at most 16 MiB. This operation grants no filesystem or bound-data write
+authority and is available to read-only Views. Lite asks the user for a native
+save destination and returns `{ status: "saved" }` after a successful write or
+`{ status: "cancelled" }` when dismissed. Serve initiates a download in the
+trusted parent page and returns `{ status: "download-started" }`; this does not
+confirm persistence. Hosts MUST validate the request before opening a dialog or
+starting a download. Lite MUST reject overlapping exports for an instance and
+recheck instance lifetime and the plugin grant/revision after destination
+selection, before writing. Failures reject the promise. Unsupported hosts omit
+the method; plugins MUST check its presence and display actionable feedback.
+Guest iframe download permissions remain disabled. Mobile hosts and action
+invocations do not currently expose this optional operation.
 
 ExtensionContext exposes actions and formatters under `capabilities`; it does
 not expose an unavailable settings service. ActionContext binds file identity

@@ -53,6 +53,12 @@ export interface PluginRequest {
     | "document.observe"
     | "document.unobserve"
     | "ui.notify"
+    | "ui.exportFile"
+    | "resources.listViews"
+    | "resources.mount"
+    | "resources.layout"
+    | "resources.refresh"
+    | "resources.dispose"
     | "ui.openFile"
     | "ui.navigate"
     | "settings.get"
@@ -138,6 +144,12 @@ export function parseRequest(value: unknown): PluginRequest {
       "document.observe",
       "document.unobserve",
       "ui.notify",
+      "ui.exportFile",
+      "resources.listViews",
+      "resources.mount",
+      "resources.layout",
+      "resources.refresh",
+      "resources.dispose",
       "ui.openFile",
       "ui.navigate",
       "settings.get",
