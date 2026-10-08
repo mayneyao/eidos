@@ -35,6 +35,32 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it.each(["", "/tmp/eidos-local-graft-sdk"])(
+    "accepts SDK 0.3.29 and rejects older builds (override=%s)",
+    async (sdkPath) => {
+      vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
+      const command = vi
+        .fn()
+        .mockResolvedValueOnce("0.3.28")
+        .mockResolvedValue("0.3.29")
+      const client = new GraftClient({
+        sdkTransport: { ...createUnusedTransport(), command },
+      })
+      try {
+        await expect(client.version()).rejects.toThrow(
+          "Graft 0.3.29 is required; found 0.3.28"
+        )
+        await expect(client.version()).resolves.toBe("0.3.29")
+        await expect(client.version()).resolves.toBe("0.3.29")
+        expect(command).toHaveBeenCalledTimes(2)
+        expect(command).toHaveBeenCalledWith("sdkVersion")
+      } finally {
+        await client.close()
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
   it.each(["open", "status"] as const)(
     "does not turn a cancelled %s into a cacheable Space status",
     async (stage) => {

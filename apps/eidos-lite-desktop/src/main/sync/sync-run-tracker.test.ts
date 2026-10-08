@@ -132,12 +132,14 @@ describe("SyncRunTracker", () => {
       direction: "upload",
       transferredBytes: 0,
       totalBytes: 1_000,
+      totalIsFinal: true,
     })
     now += 500
     tracker.transfer({
       direction: "upload",
       transferredBytes: 250,
       totalBytes: 1_000,
+      totalIsFinal: true,
     })
 
     expect(events.at(-1)?.transfer).toEqual({
@@ -153,12 +155,14 @@ describe("SyncRunTracker", () => {
       direction: "download",
       transferredBytes: 50,
       totalBytes: 200,
+      totalIsFinal: true,
     })
     now += 250
     tracker.transfer({
       direction: "download",
       transferredBytes: 100,
       totalBytes: 200,
+      totalIsFinal: true,
     })
 
     expect(events.at(-1)?.transfer).toEqual({
@@ -185,6 +189,7 @@ describe("SyncRunTracker", () => {
       direction: "upload",
       transferredBytes: 0,
       totalBytes: 100,
+      totalIsFinal: true,
     })
     const emitted = events.length
 
@@ -193,12 +198,14 @@ describe("SyncRunTracker", () => {
       direction: "upload",
       transferredBytes: 25,
       totalBytes: 100,
+      totalIsFinal: true,
     })
     now += 10
     tracker.transfer({
       direction: "upload",
       transferredBytes: 50,
       totalBytes: 100,
+      totalIsFinal: true,
     })
     expect(events.length).toBe(emitted)
 
@@ -207,6 +214,7 @@ describe("SyncRunTracker", () => {
       direction: "upload",
       transferredBytes: 100,
       totalBytes: 100,
+      totalIsFinal: true,
     })
     expect(events.at(-1)?.transfer?.transferredBytes).toBe(100)
   })

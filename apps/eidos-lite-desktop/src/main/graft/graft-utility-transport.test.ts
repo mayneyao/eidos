@@ -28,6 +28,7 @@ class FakeUtilityProcess extends EventEmitter {
             direction: "upload",
             transferredBytes: 32,
             totalBytes: 64,
+            totalIsFinal: true,
           },
         })
       }
@@ -67,6 +68,7 @@ describe("GraftUtilityTransport", () => {
         direction: "upload",
         transferredBytes: 32,
         totalBytes: 64,
+        totalIsFinal: true,
       },
     ])
     await transport.close()

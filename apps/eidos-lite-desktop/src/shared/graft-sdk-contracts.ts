@@ -4,6 +4,8 @@ export interface GraftTransferProgress {
   direction: "upload" | "download"
   transferredBytes: number
   totalBytes?: number
+  /** True for a planned total; false for a running sum of response sizes. */
+  totalIsFinal: boolean
 }
 
 export interface GraftSqliteSnapshotCaptureResult {

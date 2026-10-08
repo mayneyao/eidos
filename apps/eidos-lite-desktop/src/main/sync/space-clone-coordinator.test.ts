@@ -44,6 +44,7 @@ describe("SpaceCloneCoordinator", () => {
             direction: "download",
             transferredBytes: 32,
             totalBytes: 64,
+            totalIsFinal: true,
           })
           const journalFiles = await fs.readdir(
             path.join(state, "clone-operations")
