@@ -13,15 +13,16 @@ export function getCliSource(pathname) {
 
 const LITE_TAG_PATTERN =
   /^lite-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
+const ANDROID_TAG_PATTERN =
+  /^android-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 
 // This historical preview predates the continued 0.x release line. Keep its
 // GitHub assets available, but do not let its higher version pin beta updates.
 const RETIRED_LITE_UPDATE_TAGS = new Set(["lite-v1.0.0-rc.1"])
 
-function liteVersion(release) {
+function releaseVersion(release, tagPattern) {
   if (release?.draft !== false) return null
-  if (RETIRED_LITE_UPDATE_TAGS.has(release.tag_name)) return null
-  const match = LITE_TAG_PATTERN.exec(release?.tag_name ?? "")
+  const match = tagPattern.exec(release?.tag_name ?? "")
   if (!match) return null
   const prerelease = match[4] ?? null
   if (release.prerelease !== (prerelease !== null)) return null
@@ -32,7 +33,12 @@ function liteVersion(release) {
   }
 }
 
-function compareLiteVersions(left, right) {
+function liteVersion(release) {
+  if (RETIRED_LITE_UPDATE_TAGS.has(release?.tag_name)) return null
+  return releaseVersion(release, LITE_TAG_PATTERN)
+}
+
+function compareReleaseVersions(left, right) {
   for (let index = 0; index < left.core.length; index += 1) {
     if (left.core[index] !== right.core[index]) {
       return left.core[index] - right.core[index]
@@ -65,9 +71,38 @@ export function selectEidosLiteRelease(releases, channel) {
         (channel === "beta" || candidate.version.prerelease === null)
     )
   candidates.sort((left, right) =>
-    compareLiteVersions(right.version, left.version)
+    compareReleaseVersions(right.version, left.version)
   )
   return candidates[0]?.release ?? null
+}
+
+/**
+ * @template {{draft: boolean, prerelease: boolean, tag_name: string, assets: Array<{name: string, browser_download_url: string}>}} T
+ * @param {T[]} releases
+ * @param {"stable" | "beta"} channel
+ * @returns {{release: T, asset: T["assets"][number]} | null}
+ */
+export function selectEidosAndroidDownload(releases, channel) {
+  const candidates = releases
+    .map((release) => {
+      const version = releaseVersion(release, ANDROID_TAG_PATTERN)
+      const assetName = `eidos-android-${release.tag_name.slice("android-v".length)}.apk`
+      const asset = release.assets.find(
+        (candidate) => candidate.name === assetName
+      )
+      return { release, version, asset }
+    })
+    .filter(
+      (candidate) =>
+        candidate.version !== null &&
+        candidate.asset !== undefined &&
+        (channel === "beta" || candidate.version.prerelease === null)
+    )
+  candidates.sort((left, right) =>
+    compareReleaseVersions(right.version, left.version)
+  )
+  const selected = candidates[0]
+  return selected ? { release: selected.release, asset: selected.asset } : null
 }
 
 export function getEidosLiteUpdateRoute(pathname) {

@@ -7,6 +7,7 @@ import {
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
+import { serveAndroidDownload } from "./android-download"
 
 /**
  * Welcome to Cloudflare Workers! This is your first worker.
@@ -88,6 +89,20 @@ export default {
       return serveCliFile(cliSource, url.pathname)
     }
 
+    if (url.pathname === "/android") {
+      try {
+        return await serveAndroidDownload(
+          request,
+          await env.GITHUB_TOKEN?.get()
+        )
+      } catch {
+        return new Response("Android downloads are temporarily unavailable", {
+          status: 502,
+          headers: { "Cache-Control": "no-store" },
+        })
+      }
+    }
+
     const liteUpdateRoute = getEidosLiteUpdateRoute(url.pathname)
 
     const platform = url.pathname.split("/").pop()?.toLowerCase()
@@ -100,9 +115,12 @@ export default {
       platform !== "win" &&
       platform !== "linux"
     ) {
-      return new Response("Invalid platform. Use /mac or /win or /linux", {
-        status: 400,
-      })
+      return new Response(
+        "Invalid platform. Use /mac, /win, /linux, or /android",
+        {
+          status: 400,
+        }
+      )
     }
 
     const directDownloadExtension = liteUpdateRoute

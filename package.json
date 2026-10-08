@@ -47,7 +47,7 @@
     "test:eidos-lite:performance:large": "pnpm run --filter @eidos.space/eidos-lite-desktop test:performance:large",
     "test:eidos-file": "pnpm run --filter @eidos.space/eidos-file test && pnpm run --filter @eidos.space/eidos-file-ui test && pnpm run --filter @eidos.space/eidos-file-serve test && pnpm run --filter @eidos.space/eidos-file-web test",
     "test:sqlite-web-viewer": "pnpm run --filter @eidos.space/sqlite-web-viewer test",
-    "test:cli-release": "node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs",
+    "test:cli-release": "node --experimental-strip-types --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/*.test.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "typecheck:ts": "pnpm run --recursive typecheck",
