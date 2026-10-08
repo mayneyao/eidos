@@ -65,6 +65,11 @@ Exercise the changed APIs and the plugin's primary flow: mount/dispose, editing
 and saving, queries/config, action writes/cancellation or credentialed requests
 as applicable. Verify upgrades retain existing plugin state. Run CLI doctor and
 Serve smoke for plugins claiming CLI support; do not assume Lite proves Serve.
+For plugins supported on Android or iOS, validate the affected API on each
+candidate mobile host as well. Shared `packages/mobile-plugin-host` or
+`packages/plugin-runtime` changes can require new mobile app builds even when
+plugin archives are unchanged. Follow the [Android](android-release.md) and
+[iOS](ios-release.md) runbooks; WebView assets alone do not prove delivery.
 Check clear rejection on unsupported hosts for breaking changes.
 
 Repeat the create/check/pack/install path from published candidate npm packages

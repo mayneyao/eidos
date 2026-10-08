@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Assess release impact and release Eidos File packages, plugin SDK/tools, Eidos Lite, the CLI, Web or Publish. Use for release preparation, publication, release notes, bundled dependency updates, and artifact verification. Plugin API changes include adapting registry plugins and development templates before completing the release.
+description: Assess release impact and release Eidos packages, plugins, Lite, Android, iOS, CLI, Web or Publish. Use for release preparation, publication, release notes, bundled dependency updates, and artifact verification. Trace shared Markdown/UI/Runtime changes into mobile app releases; plugin API changes also require registry and template compatibility checks.
 ---
 
 # Eidos Release
@@ -13,13 +13,19 @@ the public result.
 ## Assess release impact
 
 When the user asks what needs to ship, or the change set crosses shared Runtime,
-UI, CLI, or hosted-service boundaries, read
+Markdown, UI, mobile, CLI, or hosted-service boundaries, read
 [references/release-impact.md](references/release-impact.md). Produce an
 evidence-backed plan before choosing versions, tags, or deployment commands.
 
 Impact assessment may identify multiple required surfaces. That does not make
 their versions, publishers, release notes, or proof interchangeable. Prepare and
 prove each selected surface independently.
+
+Shared editor fixes require checking Android and iOS even when no mobile files
+changed. Both apps bundle `packages/markdown` and shared Eidos File UI from
+source. If a shipped mobile build contains the affected behavior, delivering
+the fix requires a new app build on that platform. npm publication, Web
+deployment, and `build:web` alone do not update an installed mobile app.
 
 Every plugin API change requires a compatibility pass over all published entries
 in `eidos-space/registry` and all plugin-tools templates. Read
@@ -41,6 +47,10 @@ not complete this release gate. Record evidence for unaffected entries too.
 - **Standalone CLI:** read
   [references/release-notes-policy.md](references/release-notes-policy.md), then
   [references/cli-release.md](references/cli-release.md).
+- **Android:** read
+  [references/android-release.md](references/android-release.md).
+- **iOS / TestFlight:** read
+  [references/ios-release.md](references/ios-release.md).
 - **Eidos File Web:** read
   [references/web-editor-release.md](references/web-editor-release.md).
 - **Eidos Publish:** read
@@ -60,10 +70,17 @@ Do not conflate version namespaces or publishers:
   and Release assets; publishing the SDK does not update them.
 - CLI uses `cli-v<semver>` and
   `.github/workflows/build-and-release-cli.yml`.
+- Android uses `android-v<versionName>` and
+  `.github/workflows/build-and-release-android.yml` for signed beta APKs.
+  `versionName` and increasing `versionCode` live in
+  `apps/eidos-android/app/build.gradle.kts`.
+- iOS uses `MARKETING_VERSION` and increasing `CURRENT_PROJECT_VERSION` in
+  `apps/eidos-ios/project.yml`, with signed archives uploaded to App Store
+  Connect / TestFlight. No iOS tag-triggered publisher is configured.
 - Web deploys independently through Wrangler to `editor.eidos.space`.
 - Publish deploys independently through Wrangler to `publish.eidos.space`, its
   Container Runtime, and the public `*.eidos.ink` viewer path owned by Relay.
-- Package, Lite, CLI, Web, and Publish delivery remain independent even when
+- Package, Lite, Android, iOS, CLI, Web, and Publish delivery remain independent even when
   the same source changes affect more than one surface.
 
 ## Preserve release invariants
@@ -95,6 +112,9 @@ Do not conflate version namespaces or publishers:
 ## Run preflight
 
 Inspect the repository and exact target:
+
+Tag checks apply to tagged surfaces. For iOS, establish the candidate source
+commit and App Store Connect version/build baseline instead of inventing a tag.
 
 ```bash
 git status --short --branch
@@ -138,6 +158,12 @@ installed or packaged smoke. For Web and Publish deployments, verify the active
 Cloudflare version plus commit provenance, fresh public assets, and relevant
 production user-flow evidence. Publish proof must also cover its Container
 Runtime and public viewer path.
+
+For mobile, include the source commit, app version/build, distribution channel,
+signed artifact identity and installed-app verification. Android proof uses
+the published APK; iOS proof includes Apple processing and tester availability.
+Report built, uploaded, processing, and available separately. If a required
+platform is deferred or blocked, keep it visible in the release report.
 
 Always report the released/deployed commit, tag or deployment ID, public URLs,
 validation performed, artifact/platform coverage, and branch/worktree state.

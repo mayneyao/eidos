@@ -1,4 +1,4 @@
 interface:
   display_name: "Eidos Release"
-  short_description: "Plan and release Eidos product surfaces"
-  default_prompt: "Use $eidos-release to determine which Eidos surfaces need shipping, then validate and publish each selected release or deployment with remote proof."
+  short_description: "Plan and release Eidos desktop, mobile and services"
+  default_prompt: "Use $eidos-release to trace changes into all affected Eidos surfaces, including bundled Android and iOS editors, then validate and publish each selected release or deployment with delivery proof."
