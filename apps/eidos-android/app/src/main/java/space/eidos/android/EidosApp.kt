@@ -616,48 +616,43 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
             ModalBottomSheet(
                 onDismissRequest = { searchSheet = false },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp,
             ) {
                 val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
                 LaunchedEffect(Unit) { searchFocus.requestFocus() }
                 Column(Modifier.fillMaxHeight(0.9f).imePadding().testTag("global-search-sheet")) {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(tr("搜索"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                        Text(tr("搜索"), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                         IconButton(onClick = { searchSheet = false }) {
                             Icon(Icons.Outlined.Close, tr("关闭搜索"))
                         }
                     }
-                    OutlinedTextField(
+                    EidosSearchField(
                         state.search,
                         model::search,
+                        tr("搜索文件、Markdown 和数据记录"),
                         Modifier.fillMaxWidth()
-                            .padding(horizontal = 24.dp)
+                            .padding(horizontal = 16.dp)
                             .focusRequester(searchFocus),
-                        placeholder = { Text(tr("搜索文件、Markdown 和数据记录")) },
-                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                        trailingIcon = {
-                            if (state.search.isNotEmpty())
-                                IconButton(onClick = { model.search("") }) {
-                                    Icon(Icons.Outlined.Close, tr("清空搜索"))
-                                }
-                        },
-                        singleLine = true,
                     )
                     Text(
                         if (state.searching) tr("正在搜索本地资料…") else tr("最多显示 100 项；数据记录按表显示"),
-                        Modifier.padding(24.dp, 12.dp),
+                        Modifier.padding(16.dp, 12.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (state.searchSkipped.isNotEmpty())
                         Text(
                             tr("部分文件未能搜索：{0}", state.searchSkipped.joinToString("、")),
-                            Modifier.padding(horizontal = 24.dp),
+                            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     LazyColumn(Modifier.weight(1f)) {
                         if (state.search.isBlank())
                             item { EmptyState(tr("搜索当前 Space"), tr("输入关键词，查找文件、笔记内容和数据记录。")) }
@@ -670,18 +665,20 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                     headlineContent = {
                                         Text(
                                             match.preview?.takeIf { it.isNotEmpty() } ?: tr("匹配的记录"),
-                                            maxLines = 2,
+                                            maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                     },
                                     supportingContent = {
                                         Text(
                                             "${match.file.path} · ${match.tableName}",
-                                            maxLines = 2,
+                                            maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                     },
                                     leadingContent = { Icon(Icons.Outlined.TableChart, null) },
+                                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                                    trailingContent = { Spacer(Modifier.size(48.dp)) },
                                     modifier =
                                         Modifier.clickable(enabled = !state.busy) {
                                             searchSheet = false
@@ -792,7 +789,7 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun EmptyState(title: String, message: String) {
     Column(
-        Modifier.fillMaxWidth().padding(24.dp, 32.dp),
+        Modifier.fillMaxWidth().padding(16.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
@@ -828,6 +825,7 @@ internal fun FileRow(
             Icon(Icons.Outlined.MoreVert, tr("文件操作"))
         }
     } else ListItem(
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
         headlineContent = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Text(

@@ -67,6 +67,19 @@ class GlobalSearchTest {
             compose.onNodeWithText("搜索文件、Markdown 和数据记录").assertDoesNotExist()
             compose.onNodeWithContentDescription("搜索").performClick()
             compose.onNodeWithText("needle").assertExists()
+            compose.onNodeWithContentDescription("清空搜索").performClick()
+            compose.waitUntil(15_000) { model?.state?.value?.searching == false }
+            compose.onNodeWithText("搜索当前 Space").assertIsDisplayed()
+            compose.onNodeWithContentDescription("清空搜索").assertDoesNotExist()
+            compose.onNodeWithText("搜索文件、Markdown 和数据记录").performTextInput("no-matching-result")
+            compose.waitUntil(15_000) { model?.state?.value?.searching == false }
+            compose.onNodeWithText("没有找到资料").assertIsDisplayed()
+            compose.onNodeWithText("no-matching-result").performImeAction()
+            compose.onNodeWithText("no-matching-result").assertExists()
+            compose.onNodeWithTag("global-search-sheet").assertIsDisplayed()
+            compose.onNodeWithContentDescription("清空搜索").performClick()
+            compose.onNodeWithText("搜索文件、Markdown 和数据记录").performTextInput("needle")
+            compose.waitUntil(15_000) { model?.state?.value?.searching == false }
             compose
                 .onNode(hasText("手记.md") and hasAnyAncestor(hasTestTag("global-search-sheet")))
                 .performTouchInput { longClick() }

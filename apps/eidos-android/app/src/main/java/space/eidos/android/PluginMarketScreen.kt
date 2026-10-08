@@ -296,14 +296,11 @@ fun PluginMarketScreen(
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             if (discover) {
-                OutlinedTextField(
+                EidosSearchField(
                     query,
                     { query = it },
-                    placeholder = { Text(tr("搜索插件")) },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(20.dp, 14.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    tr("搜索插件"),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp),
                 )
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
