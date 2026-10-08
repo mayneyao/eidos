@@ -1,4 +1,5 @@
 import {
+  $createTextNode,
   $getRoot,
   $isElementNode,
   $isTextNode,
@@ -6,7 +7,12 @@ import {
   type LexicalNode,
 } from "lexical"
 import { $isCodeNode } from "@lexical/code-core"
-import { $isListItemNode, $isListNode } from "@lexical/list"
+import {
+  $createListItemNode,
+  $createListNode,
+  $isListItemNode,
+  $isListNode,
+} from "@lexical/list"
 import { $isQuoteNode } from "@lexical/rich-text"
 
 import {
@@ -43,6 +49,95 @@ function descendants(node: LexicalNode): LexicalNode[] {
 }
 
 describe("Lexical Markdown round-trip", () => {
+  it.each([false, true])(
+    "keeps an empty task editable after saving and reopening (checked: %s)",
+    (checked) => {
+      const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+      editor.update(
+        () => {
+          $getRoot().append(
+            $createListNode("check").append(
+              $createListItemNode(true).append($createTextNode("完成任务")),
+              $createListItemNode(checked)
+            )
+          )
+        },
+        { discrete: true }
+      )
+      for (let cycle = 0; cycle < 3; cycle++) {
+        const saved = editor
+          .getEditorState()
+          .read(() => $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS))
+        editor.update(
+          () =>
+            $convertFromEfmMarkdownString(saved, EIDOS_MARKDOWN_TRANSFORMERS),
+          { discrete: true }
+        )
+        editor.getEditorState().read(() => {
+          const lists = $getRoot().getChildren().filter($isListNode)
+          expect(lists).toHaveLength(1)
+          expect(lists[0].getListType()).toBe("check")
+          const items = lists[0].getChildren().filter($isListItemNode)
+          expect(
+            items.map((item) => [item.getChecked(), item.getTextContent()])
+          ).toEqual([
+            [true, "完成任务"],
+            [checked, ""],
+          ])
+        })
+      }
+    }
+  )
+
+  it.each([
+    ["- [ ]", [false]],
+    ["- [x]", [true]],
+    ["* [X]\t", [true]],
+    ["+ [ ]\r\n+ [x] Done", [false, true]],
+    ["- [x] Done\n- [ ]\n- [x] Next", [true, false, true]],
+    ["- [x] Parent\n    - [ ]", [true, false]],
+    ["- [x] Done\n\n- [ ]", [true, false]],
+    ["- [x] Done\n\n  > Details\n\n- [ ]", [true, false]],
+    ["- [ ]\n\n- [X]", [false, true]],
+  ] as const)("preserves task states in %j", (source, expected) => {
+    const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+    let saved: string = source
+    for (let cycle = 0; cycle < 3; cycle++) {
+      editor.update(
+        () => $convertFromEfmMarkdownString(saved, EIDOS_MARKDOWN_TRANSFORMERS),
+        { discrete: true }
+      )
+      saved = editor.getEditorState().read(() => {
+        const items = descendants($getRoot())
+          .filter($isListItemNode)
+          .filter((item) => !$isListNode(item.getFirstChild()))
+        expect(items.map((item) => item.getChecked())).toEqual(expected)
+        expect(items.at(-1)?.getTextContent()).not.toBe("[ ]")
+        return $convertToEfmMarkdownString(EIDOS_MARKDOWN_TRANSFORMERS)
+      })
+    }
+  })
+
+  it.each(["- \\[ ]", "- [ ]literal", "- `[ ]`"])(
+    "keeps literal checkbox text as an ordinary list: %s",
+    (source) => {
+      const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
+      editor.update(
+        () =>
+          $convertFromEfmMarkdownString(source, EIDOS_MARKDOWN_TRANSFORMERS),
+        { discrete: true }
+      )
+      editor.getEditorState().read(() => {
+        const list = $getRoot().getFirstChild()
+        expect($isListNode(list) && list.getListType()).toBe("bullet")
+      })
+    }
+  )
+
+  it("preserves a task list inside an opaque quote", () => {
+    expect(roundTrip("> - [x] Done\n> - [ ]")).toBe("> - [x] Done\n> - [ ]")
+  })
+
   it("preserves unsupported wiki embeds as literal source", () => {
     const source = "Before ![[Note#Heading|Label]] after.\n\n![[image.png|200]]"
     expect(roundTrip(source)).toBe(source)

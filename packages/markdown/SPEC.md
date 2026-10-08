@@ -266,6 +266,12 @@ continuous range selection:
 Markdown-native shortcuts MAY transform newly typed prefixes, but undo MUST be
 able to restore the literal text.
 
+When task lists are enabled, marker-only items (`- [ ]`, `- [x]`, and `- [X]`)
+MUST remain editable task items after saving and reopening, including nested
+and loose lists. Recognition MUST NOT depend on whitespace after the closing
+bracket. Empty items MUST retain their checked state and position without
+adding visible placeholder text. Escaped markers and inline code remain literal.
+
 ### 5.3 Semantic inline atoms
 
 Inline mathematics, images, footnote references, and other source-bearing

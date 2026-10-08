@@ -1159,10 +1159,31 @@ function importMarkdownWithSemantics(
   return nodes
 }
 
-function richListType(node: MdastNode): ListType {
+function emptyTaskChecked(
+  item: MdastNode,
+  source: string
+): boolean | undefined {
+  const children = item.children ?? []
+  if (children.length !== 1 || children[0].type !== "paragraph") return
+  // GFM leaves marker-only tasks as paragraph text. Recognize their source,
+  // not decoded text, so escaped markers and inline code remain literal.
+  const match = /^\[([ xX])\]$/u.exec(sourceForNode(children[0], source))
+  return match ? match[1].toLowerCase() === "x" : undefined
+}
+
+function richListType(
+  node: MdastNode,
+  source: string,
+  taskListsEnabled: boolean
+): ListType {
   if (node.ordered) return "number"
+  if (!taskListsEnabled) return "bullet"
   const items = node.children ?? []
-  return items.length > 0 && items.every((item) => item.checked != null)
+  return items.length > 0 &&
+    items.every(
+      (item) =>
+        item.checked != null || emptyTaskChecked(item, source) !== undefined
+    )
     ? "check"
     : "bullet"
 }
@@ -1176,16 +1197,25 @@ function importRichList(
   syntaxFeatures?: ReadonlySet<string>,
   dialect: EfmAnalysisOptions["dialect"] = "eidos"
 ): ListNode {
-  const listType = richListType(node)
+  const listType = richListType(
+    node,
+    source,
+    syntaxFeatures?.has(MARKDOWN_FEATURES.gfmTaskList) ?? true
+  )
   const list = $createListNode(
     listType,
     listType === "number" ? (node.start ?? 1) : undefined
   )
   for (const item of node.children ?? []) {
+    const emptyChecked =
+      listType === "check" ? emptyTaskChecked(item, source) : undefined
     const listItem = $createListItemNode(
-      listType === "check" ? item.checked === true : undefined
+      listType === "check" ? (item.checked ?? emptyChecked) === true : undefined
     )
-    for (const [index, child] of (item.children ?? []).entries()) {
+    for (const [index, child] of (emptyChecked === undefined
+      ? (item.children ?? [])
+      : []
+    ).entries()) {
       const markdown = sourceForNestedBlock(child, source)
       if (child.type === "list") {
         const parsedChild = firstNode(markdown)

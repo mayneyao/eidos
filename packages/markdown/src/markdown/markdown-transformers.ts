@@ -200,7 +200,12 @@ function withRichListExport(
   }
 }
 
-export const RICH_CHECK_LIST = withRichListExport(CHECK_LIST)
+export const RICH_CHECK_LIST = withRichListExport({
+  ...CHECK_LIST,
+  // Parsed block ranges omit trailing whitespace. An empty task therefore ends
+  // at `]` even when the serializer wrote a space after its marker.
+  regExp: /^(\s*)(?:[-*+]\s)?\s?(\[(\s|x)?\])(?:\s|$)/i,
+})
 export const RICH_UNORDERED_LIST = withRichListExport(UNORDERED_LIST)
 export const RICH_ORDERED_LIST = withRichListExport(ORDERED_LIST)
 

@@ -85,6 +85,22 @@ const custom = (plugins: MarkdownProfile["plugins"]) =>
   })
 
 describe("composable presets", () => {
+  it.each(["- [x] Done\n- [ ]", "- [x] Done\n\n- [ ]", "- [ ]\n\n- [X]"])(
+    "keeps empty tasks across mobile preset save/reopen: %j",
+    (source) => {
+      let saved = source
+      const expected = source.startsWith("- [x]")
+        ? [true, false]
+        : [false, true]
+      for (let cycle = 0; cycle < 3; cycle++) {
+        const snapshot = inspect(eidosPreset, saved)
+        expect(snapshot.checked).toEqual(expected)
+        saved = snapshot.source
+      }
+      expect(inspect(commonmarkPreset, source).checked).toEqual([])
+    }
+  )
+
   it("imports root HTML through its plugin without a central feature flag", () => {
     const preset = createMarkdownPreset({
       id: "test.html-owner",
