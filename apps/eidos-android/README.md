@@ -416,13 +416,18 @@ Set `ANDROID_SERIAL` when more than one is present. Debug builds use the
 `space.eidos.android.dev` application ID; the release identity is
 `space.eidos.android`. Versioning lives in `app/build.gradle.kts`.
 
-### Android beta releases
+### Android releases
 
-GitHub Actions builds signed APKs and publishes GitHub prereleases for
+GitHub Actions builds signed APKs and publishes GitHub Releases for
 `android-v<versionName>` tags. Google Play publication is not configured.
 The workflow is `.github/workflows/build-and-release-android.yml`.
 
-Before tagging, increment `versionCode`, set the matching beta `versionName`,
+Use `X.Y.Z` for stable versions or `X.Y.Z-<alpha|beta|rc>.N` for prereleases.
+The workflow derives GitHub's prerelease flag from the version. Stable APKs are
+available at `https://download.eidos.space/android`; the beta channel at
+`https://download.eidos.space/android?channel=beta` also accepts prereleases.
+
+Before tagging, increment `versionCode` across both channels, set `versionName`,
 and replace `RELEASE_NOTES.md` with curated notes for that version. Commit and
 push the release inputs before creating an immutable tag. A manual workflow
 run builds and validates an APK without publishing it.

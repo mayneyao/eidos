@@ -71,7 +71,7 @@ Do not conflate version namespaces or publishers:
 - CLI uses `cli-v<semver>` and
   `.github/workflows/build-and-release-cli.yml`.
 - Android uses `android-v<versionName>` and
-  `.github/workflows/build-and-release-android.yml` for signed beta APKs.
+  `.github/workflows/build-and-release-android.yml` for signed stable or prerelease APKs.
   `versionName` and increasing `versionCode` live in
   `apps/eidos-android/app/build.gradle.kts`.
 - iOS uses `MARKETING_VERSION` and increasing `CURRENT_PROJECT_VERSION` in

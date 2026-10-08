@@ -182,8 +182,8 @@ an unresolved release dependency, not a follow-up after the host ships.
 - For Lite and CLI, use patch for fixes, minor for user-visible compatible
   features, and major for incompatible workflows, formats, or required
   migrations. Use a prerelease when rollout risk warrants it.
-- Android currently ships beta versions; advance its beta `versionName` and
-  monotonically increase `versionCode`. For iOS, choose the appropriate
+- Android stable versions use `X.Y.Z`; prereleases use `X.Y.Z-<alpha|beta|rc>.N`.
+  Monotonically increase `versionCode` across both channels. For iOS, choose the appropriate
   `MARKETING_VERSION` and a new `CURRENT_PROJECT_VERSION` for every upload.
   A shared fix need not give Android, iOS and Lite the same version number.
 - Web and Publish use deployment/version IDs rather than synchronized SemVer.

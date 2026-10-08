@@ -1,25 +1,21 @@
-# Eidos Android 0.1.0-beta.2
+# Eidos Android 0.1.0
 
-The first Android beta for early testers. Android 9 or newer is required.
+The first stable APK channel for Eidos on Android. This release updates the shared editor and streamlines plugin installation and search. Android 9 or newer is required.
 
-- Browse local Spaces and edit Markdown and Eidos File tables offline.
-- Open records as full pages, edit fields with mobile controls, and switch between table and gallery views.
-- Install compatible plugins, including table views and file viewers.
-- Pair with Eidos Lite over a local network to download and synchronize Spaces.
+## Improvements
+
+- Newly installed plugins become available in the Space where you approved installation, without a second enable step. Other Spaces retain their existing permissions.
+- File search and plugin search use consistent native controls.
+- Device transfers display localized progress descriptions.
+
+## Bug fixes
+
+- Empty checked and unchecked Markdown tasks remain tasks after saving and reopening. Nested lists and lists with blank lines preserve their checked states.
 
 ## Install
 
-Download `eidos-android-0.1.0-beta.2.apk` below and allow installation from your browser or file manager. The APK supports ARM64 phones and x86-64 devices. `SHA256SUMS` contains its checksum.
+Download `eidos-android-0.1.0.apk` and verify it against `SHA256SUMS`. The APK supports ARM64 and x86-64. It uses the same application ID and signing identity as the beta, so install it over the beta to retain local data. The separate development app is not migrated.
 
-This beta uses the application ID `space.eidos.android`. It installs alongside the development app (`space.eidos.android.dev`); development app data is not automatically copied. Future releases signed with the same key can update this beta in place.
+## Compatibility and scope
 
-## Testing scope and limitations
-
-Start with a copy of a Space. This is an early beta, not a stable release.
-
-- Local-network sync needs a compatible Eidos Lite build. Older desktop builds can fail while receiving an upload; the desktop connection-handling fix is separate from this Android release. Updating Android alone does not fix that desktop issue.
-- Concurrent edits to the same Eidos file can require choosing a version on Desktop before synchronization can finish.
-- Background synchronization can be interrupted by Android battery management. Keep the app open during initial downloads.
-- Production account sign-in and hosted synchronization have not yet completed end-to-end release acceptance testing.
-
-When reporting a problem, include the app version, Android version, reproduction steps, and whether it occurred offline or during synchronization. Do not attach private Space contents to a public issue.
+Use Eidos Lite 0.22.0 or later for the current phone-pairing and local-network sharing flow. Each device keeps a local copy for offline editing. Review conflicting changes on Desktop, and keep the app open during initial transfers. Mobile cloud account and hosted-sync entry points are not included in this release. Google Play distribution is not available.

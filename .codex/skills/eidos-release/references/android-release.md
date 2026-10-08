@@ -1,4 +1,4 @@
-# Android beta release
+# Android release
 
 Read `apps/eidos-android/README.md`, `app/build.gradle.kts`, and
 `.github/workflows/build-and-release-android.yml` before preparation; they own
@@ -10,8 +10,10 @@ the current build and delivery contract. Commands below run from the repo root.
   and signing certificate. Compare shared dependencies as well as Android files
   using [release-impact.md](release-impact.md).
 - Increment `versionCode` beyond distributed builds and set `versionName` in
-  `apps/eidos-android/app/build.gradle.kts`. The publisher currently accepts
-  only `X.Y.Z-beta.N`, with a matching `android-v<versionName>` tag.
+  `apps/eidos-android/app/build.gradle.kts`. Use `X.Y.Z` for stable or
+  `X.Y.Z-<alpha|beta|rc>.N` for prereleases, with a matching
+  `android-v<versionName>` tag. Stable tags must publish with GitHub's
+  prerelease flag false; prerelease tags must set it true.
 - Replace `apps/eidos-android/RELEASE_NOTES.md` with this Android delta. Its first
   line must be `# Eidos Android <versionName>`; the workflow requires more than
   200 trimmed characters. Describe actual fixes, installation, testing scope
@@ -57,9 +59,14 @@ After authorized preparation, commit and push the reviewed release inputs,
 then create and push the immutable lightweight `android-v<versionName>` tag
 at that exact remote commit. Monitor `build-and-release-android.yml` for the
 tag SHA. It runs unit tests, release lint, editor typechecking, APK signature
-verification and 16 KB ZIP alignment, then publishes a GitHub prerelease with
+verification and 16 KB ZIP alignment, then publishes a GitHub Release with
 `eidos-android-<versionName>.apk` and `SHA256SUMS`. Google Play publication is
 not configured; do not claim Play availability.
+
+Verify `/android` selects the new stable APK and `/android?channel=beta`
+selects the newest eligible APK. A prerelease must never enter the stable route.
+Android Releases use `--latest=false` to preserve the monorepo's existing
+GitHub Latest selection; download routing uses the Android tag namespace.
 
 Download the published APK and checksum file, verify the checksum, certificate,
 package ID `space.eidos.android`, versionName and versionCode. Byte-compare the

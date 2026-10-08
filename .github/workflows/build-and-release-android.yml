@@ -27,7 +27,7 @@ jobs:
           import os, pathlib, re
           root = pathlib.Path('apps/eidos-android')
           version = re.search(r'versionName = "([^"]+)"', (root/'app/build.gradle.kts').read_text())[1]
-          assert re.fullmatch(r'\d+\.\d+\.\d+-beta\.\d+', version), 'Only beta releases are supported'
+          assert re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta|rc)\.(0|[1-9]\d*))?', version), 'Expected stable or alpha/beta/rc version'
           if os.environ['REF_TYPE'] == 'tag':
               assert os.environ['REF_NAME'] == 'android-v' + version, 'Tag/version mismatch'
           notes = (root/'RELEASE_NOTES.md').read_text()
@@ -93,7 +93,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/eidos-release.p12"
       - uses: actions/upload-artifact@v4
         with:
-          name: android-beta
+          name: android-release
           path: release/
           if-no-files-found: error
       - name: Upload validation reports
@@ -115,13 +115,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: android-beta
+          name: android-release
           path: release
-      - name: Publish beta APK
+      - name: Publish APK to its release channel
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" release/* --verify-tag --prerelease \
+          release_flags=(--latest=false)
+          if [[ "${TAG#android-v}" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$TAG" release/* --verify-tag "${release_flags[@]}" \
             --title "Eidos Android ${TAG#android-v}" \
             --notes-file apps/eidos-android/RELEASE_NOTES.md
