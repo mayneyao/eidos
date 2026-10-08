@@ -253,6 +253,8 @@ export interface MarkdownEditorProps {
   baseUri?: string
   readOnly?: boolean
   autoFocus?: boolean
+  /** Increment to restore the editor selection and focus without remounting. */
+  focusRequestToken?: number
   /** Legacy default for toolbar, insertion menu and drag controls. */
   showToolbar?: boolean
   /** Touch toolbar docked to the host viewport; desktop remains floating. */

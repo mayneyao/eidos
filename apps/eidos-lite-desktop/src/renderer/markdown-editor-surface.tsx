@@ -120,8 +120,6 @@ export function MarkdownEditorSurface({
     useState<EidosLiteMarkdownEditingMode>(editingMode)
   const [focusAfterModeSwitch, setFocusAfterModeSwitch] = useState(false)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const acceptedFocusTokenRef = useRef(focusRequestToken)
   const previousDocumentKeyRef = useRef(documentKey)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
   const { t } = useEidosLiteI18n()
@@ -272,18 +270,8 @@ export function MarkdownEditorSurface({
   }, [navigationTarget?.textSearch?.requestId, onEditingModeChange])
   useEffect(() => setAttachmentError(null), [documentKey])
 
-  useEffect(() => {
-    if (acceptedFocusTokenRef.current === focusRequestToken) return
-    acceptedFocusTokenRef.current = focusRequestToken
-    if (sessionMode !== "wysiwyg") return
-    containerRef.current
-      ?.querySelector<HTMLElement>('[contenteditable="true"]')
-      ?.focus({ preventScroll: true })
-  }, [focusRequestToken, sessionMode])
-
   return (
     <div
-      ref={containerRef}
       className="markdown-editor-surface"
       data-markdown-editing-mode={sessionMode}
     >
@@ -367,6 +355,7 @@ export function MarkdownEditorSurface({
             readOnly={disabled}
             autoFocus={autoFocus || focusAfterModeSwitch}
             ariaLabel={`Markdown content for ${relativePath}`}
+            focusRequestToken={focusRequestToken}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
             onPasteImage={imageAttachments?.onPasteImage}

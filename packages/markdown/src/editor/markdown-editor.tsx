@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { revealDocumentTarget } from "../ui/reveal-document-target"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
+import { FocusRequestPlugin } from "../plugins/focus-request-plugin"
 import {
   LexicalComposer,
   type InitialConfigType,
@@ -261,6 +262,7 @@ function MarkdownEditorImplementation({
   ariaLabel = "Markdown editor",
   readOnly = false,
   autoFocus = false,
+  focusRequestToken = 0,
   showToolbar = true,
   toolbarMode = "floating",
   onDismissKeyboard,
@@ -538,6 +540,7 @@ function MarkdownEditorImplementation({
             {autoFocus && !readOnly ? (
               <AutoFocusPlugin defaultSelection="rootStart" />
             ) : null}
+            <FocusRequestPlugin token={focusRequestToken} readOnly={readOnly} />
           </div>
         </div>
       </LexicalComposer>
