@@ -392,6 +392,7 @@ void app.whenReady().then(async () => {
   const registeredIpc = registerIpc(controller, services, syncControl, updater)
   closeIpc = registeredIpc.close
   openPluginPackage = registeredIpc.openPluginPackage
+  await registeredIpc.restoreDeviceSync()
   await installApplicationMenu()
   controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true

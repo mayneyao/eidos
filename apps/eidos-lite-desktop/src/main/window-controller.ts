@@ -110,6 +110,42 @@ export class WindowController {
   retainDeviceSync(session: SpaceSession): void {
     this.sharedSessions.set(session.canonical.id, session)
   }
+  async restoreDeviceSyncSpace(
+    root: string,
+    id: string
+  ): Promise<SpaceSession> {
+    if (this.closing) throw new Error("Eidos Lite is closing")
+    const canonical = await canonicalizeSpaceRoot(root)
+    // A replacement folder at the same path has not been authorized for sharing.
+    if (canonical.id !== id)
+      throw new Error("Shared Space identity has changed")
+    const existing =
+      this.sharedSessions.get(id) ??
+      [...this.sessionByWebContents.values()].find(
+        (session) => session.canonical.id === id
+      )
+    if (existing) return existing
+    const opening = SpaceSession.createCanonical(
+      canonical,
+      app.getPath("userData"),
+      {
+        graft: this.createGraftClient(),
+        workerPath: this.runtimeWorkerPath(),
+      }
+    )
+    this.openingSessions.add(opening)
+    try {
+      const session = await opening
+      if (this.closing) {
+        await this.sessionCloses.close(session)
+        throw new Error("Eidos Lite is closing")
+      }
+      this.retainDeviceSync(session)
+      return session
+    } finally {
+      this.openingSessions.delete(opening)
+    }
+  }
   async openDeviceSyncSpace(id: string): Promise<void> {
     const session = this.sharedSessions.get(id)
     if (!session)

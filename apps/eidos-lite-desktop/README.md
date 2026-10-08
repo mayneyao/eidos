@@ -7,7 +7,11 @@ Sync** panel controls whether that Space is available and displays transfer or
 conflict status. Shared Spaces remain available when switching Spaces or closing
 their editor window while Eidos Lite is running. Stop sharing in the Space panel,
 or stop the LAN service to stop all sharing. Paired-device authorization is retained
-when the service stops; sharing must be enabled again after restarting the app.
+when the service stops. Eidos Lite remembers enabled services and shared Spaces
+and restores them in the background after restarting, without opening pairing
+codes or editor windows. Explicitly stopping the LAN service disables restart
+restoration and stops sharing all Spaces. Unavailable or replaced folders are
+not shared; an unavailable folder is retried on the next app launch.
 
 After a phone submits the pairing code, it shows **等待电脑授权** and the computer
 name. Eidos Lite presents a native dialog identifying the phone, with Accept and

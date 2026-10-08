@@ -198,3 +198,24 @@ it("releases a background shared Space when device sync is disabled", async () =
   expect(first.close).toHaveBeenCalledOnce()
   expect(next.close).not.toHaveBeenCalled()
 })
+
+it("restores a shared Space without an editor and reuses it when the editor opens", async () => {
+  const { controller, owner } = fixture()
+  const restored = session("shared")
+  mocks.create.mockResolvedValueOnce(restored)
+  await controller.restoreDeviceSyncSpace("shared", "shared")
+  expect(controller.sessionFor(owner)).toBeNull()
+  await controller.openRecentSpace(owner, "shared")
+  expect(controller.sessionFor(owner)).toBe(restored)
+  expect(mocks.create).toHaveBeenCalledOnce()
+  await controller.closeAll()
+  expect(restored.close).toHaveBeenCalledOnce()
+})
+
+it("does not restore a replacement folder at a previously shared path", async () => {
+  const { controller } = fixture()
+  await expect(
+    controller.restoreDeviceSyncSpace("replacement", "original")
+  ).rejects.toThrow("identity has changed")
+  expect(mocks.create).not.toHaveBeenCalled()
+})

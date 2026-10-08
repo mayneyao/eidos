@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { registerPluginIpc } from "./plugins/plugin-ipc"
 import { PeerService } from "./peer/peer-service"
+import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import {
@@ -624,6 +625,7 @@ export function registerIpc(
     syncFailuresForTesting?: readonly PackagedSyncFault[]
   } = {}
 ): {
+  restoreDeviceSync(): Promise<void>
   close(): Promise<void>
   verifyPluginPackageForSmoke(): Promise<void>
   openPluginPackage(filePath: string): Promise<boolean>
@@ -631,6 +633,7 @@ export function registerIpc(
   const plugins = registerPluginIpc(controller)
   const peers = new Map<string, PeerService>()
   const peerNames = new Map<string, string>()
+  const peerPreferences = new PeerPreferencesStore(app.getPath("userData"))
   // Native dialogs and background services resolve copy synchronously, so cache
   // the Settings language and refresh it when the preference changes. English
   // source strings are the translation keys.
@@ -655,6 +658,18 @@ export function registerIpc(
     mainText
   )
   let peerActions: Promise<unknown> = Promise.resolve()
+  const startDevices = async (pair: boolean) => {
+    const wasRunning = devices.status().running
+    try {
+      const saved = await peerPreferences.read()
+      const status = await devices.start(pair)
+      await peerPreferences.write({ ...saved, enabled: true })
+      return status
+    } catch (error) {
+      if (!wasRunning) await devices.close()
+      throw error
+    }
+  }
   ipcMain.handle(
     IPC_CHANNELS.peerSync,
     (event, action: unknown, deviceId: unknown) => {
@@ -676,12 +691,13 @@ export function registerIpc(
                 status = await devices.knownStatus()
                 break
               case "devices-start":
-                status = await devices.start(false)
+                status = await startDevices(false)
                 break
               case "devices-invite":
-                status = await devices.start()
+                status = await startDevices(true)
                 break
               case "devices-stop":
+                await peerPreferences.write({ enabled: false, spaces: [] })
                 for (const [id, peer] of peers) {
                   await peer.close()
                   await controller.releaseDeviceSync(id)
@@ -731,16 +747,30 @@ export function registerIpc(
             controller.retainDeviceSync(session)
             try {
               const status = await peer.start(false)
+              const saved = await peerPreferences.read()
+              await peerPreferences.write({
+                ...saved,
+                spaces: [
+                  ...saved.spaces.filter((space) => space.id !== id),
+                  { id, root: session.canonical.root },
+                ],
+              })
               peerNames.set(id, session.canonical.name)
               return { ...status, serviceRunning: true }
             } catch (error) {
               await peer.close()
               peers.delete(id)
+              peerNames.delete(id)
               await controller.releaseDeviceSync(id)
               throw error
             }
           }
           if (action === "stop") {
+            const saved = await peerPreferences.read()
+            await peerPreferences.write({
+              ...saved,
+              spaces: saved.spaces.filter((space) => space.id !== id),
+            })
             await peer?.close()
             peers.delete(id)
             peerNames.delete(id)
@@ -2591,6 +2621,40 @@ export function registerIpc(
     }
   )
   return {
+    restoreDeviceSync() {
+      const task = peerActions
+        .catch(() => {})
+        .then(() =>
+          peerPreferences.restore(
+            () => devices.start(false),
+            async ({ id, root }) => {
+              if (peers.has(id)) return
+              const session = await controller.restoreDeviceSyncSpace(root, id)
+              const peer = new PeerService(
+                session,
+                app.getPath("userData"),
+                undefined,
+                mainText
+              )
+              try {
+                await peer.start(false)
+                peers.set(id, peer)
+                peerNames.set(id, session.canonical.name)
+              } catch (error) {
+                await peer.close()
+                await controller.releaseDeviceSync(id)
+                throw error
+              }
+            },
+            (error) => console.error("Failed to restore shared Space", error)
+          )
+        )
+        .catch((error: unknown) => {
+          console.error("Failed to restore LAN sync", error)
+        })
+      peerActions = task
+      return task
+    },
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
