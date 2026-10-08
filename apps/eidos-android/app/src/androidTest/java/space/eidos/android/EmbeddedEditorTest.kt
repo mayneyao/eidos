@@ -257,7 +257,7 @@ class EmbeddedEditorTest {
                     error,
                 )
             }
-            waitJs("document.querySelector('button[aria-label=新记录]') !== null")
+            waitJs("document.querySelector('button.mobile-new-record') !== null")
             js("window.eidosLeave('back')")
             compose.waitUntil(15000) { model.state.value.webFile == null }
             assertEquals(
@@ -279,7 +279,7 @@ class EmbeddedEditorTest {
             js(
                 "document.querySelector('a[href]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}))"
             )
-            waitJs("document.querySelector('button[aria-label=新记录]') !== null")
+            waitJs("document.querySelector('button.mobile-new-record') !== null")
             js("window.eidosLeave('back')")
             compose.waitUntil(15000) {
                 !model.state.value.busy && model.state.value.webFile?.path == note
@@ -2283,7 +2283,8 @@ class EmbeddedEditorTest {
                 "document.querySelector('.mobile-view-switcher')?.textContent.includes('画廊') === true"
             )
             assertEquals("null", js("document.querySelector('[role=alert]')?.textContent ?? null"))
-            js("document.querySelector('button[aria-label=新记录]').click()")
+            waitJs("document.querySelector('button.mobile-new-record')?.disabled === false")
+            js("document.querySelector('button.mobile-new-record').click()")
             waitJs("document.querySelector('textarea[aria-label=标题]')?.disabled === false")
             assertEquals(
                 "true",
