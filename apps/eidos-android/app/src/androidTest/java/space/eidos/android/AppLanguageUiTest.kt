@@ -1,5 +1,9 @@
 package space.eidos.android
 
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -11,6 +15,29 @@ import org.junit.Test
 
 class AppLanguageUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun deviceSyncProgressUsesEnglishWithoutChangingStageIdentity() {
+        val context = compose.activity.application
+        val original = AppLanguage.selected()
+        lateinit var model: EidosModel
+        val progress = PeerSyncProgress(stage = "获取清单", fingerprint = "test", remoteId = "space")
+        try {
+            compose.runOnUiThread {
+                AppLanguage.set(context, "en")
+                model = EidosModel(context)
+                compose.activity.setContent {
+                    MaterialTheme {
+                        PeerInlineStatus(AppState(peerProgress = progress), model, "test", "space")
+                    }
+                }
+            }
+            compose.onNodeWithText("Fetching manifest").assertIsDisplayed()
+            compose.onNodeWithText("Calculating download size").assertIsDisplayed()
+            assertEquals("获取清单", progress.stage)
+        } finally {
+            compose.runOnUiThread { model.viewModelScope.cancel(); AppLanguage.set(context, original) }
+        }
+    }
 
     @Test fun switchesNativeLanguageAndPersistsPreference() {
         val context = compose.activity.applicationContext

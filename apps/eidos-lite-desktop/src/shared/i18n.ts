@@ -4,6 +4,24 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Device transfers": "设备传输",
+  "Receiving device changes": "正在接收设备修改",
+  "Reviewing and merging versions": "正在检查并合并版本",
+  "Sending data to device": "正在向设备发送数据",
+  "Payload transferred for this Space since sharing was enabled. Amounts are measured on this computer.":
+    "统计本次开启共享以来此 Space 的数据传输量，以本机视角显示。",
+  "Connect a device to start transferring this Space.":
+    "连接设备后即可传输此 Space。",
+  "Transfer interrupted": "传输中断",
+  "No transfer in progress": "当前没有传输",
+  "No transfers for this Space yet": "尚未传输此 Space",
+  "Received on this computer": "本机已接收",
+  "Sent to device": "已发送到设备",
+  "Last activity · {time}": "最近活动 · {time}",
+  "Error details": "错误详情",
+  "Connection closed before transfer finished": "传输完成前连接已断开",
+  "Start or retry sync from your device. File application finishes on that device.":
+    "请从设备发起或重试同步，文件将在设备上完成写入。",
   "Local changes": "本机修改",
   "Incoming changes": "对方修改",
   "Use Local": "使用本机版本",
@@ -941,6 +959,72 @@ const zh: Record<string, string> = {
   Import: "导入",
   "Export Eidos File CSV": "导出 Eidos File CSV",
   "Export CSV": "导出 CSV",
+  "Cloud sync": "云同步",
+  "LAN sync": "局域网同步",
+  "Sync method": "同步方式",
+  "LAN sync for this Space": "当前 Space 的局域网同步",
+  "Share this Space with paired devices": "向已配对设备开放此 Space",
+  "Turn on LAN sync for this Space": "开启此 Space 的局域网同步",
+  "Turn on the LAN service in Settings → Devices first.":
+    "请先在设置 → 设备中开启局域网服务",
+  "Shared. Paired devices can still sync after you switch Spaces or close this window.":
+    "已开放。切换 Space 或关闭编辑窗口后，仍可同步。",
+  "Stored on this computer only. No devices can reach it.":
+    "仅保存在本机，尚未向设备开放。",
+  "Waiting for a device to sync": "等待局域网同步",
+  "A paired device": "已配对的设备",
+  Transferring: "正在传输",
+  "Last transfer finished": "最近传输已结束",
+  "The last sync had conflicts. Resolve them here, then sync again from the phone.":
+    "上次同步存在冲突。请在这里处理，然后在手机上重新同步。",
+  "The last transfer did not finish. Retry from the phone.":
+    "上次传输未完成，请在手机上重试。",
+  "Manage devices": "管理设备",
+  "Connect a device": "连接设备",
+  "This computer · {name}": "本机 · {name}",
+  "Connect your devices on the same local network. Pair once to reach the Spaces this computer shares. No cloud account needed.":
+    "在同一局域网连接你的设备。配对一次，即可访问本机已开放的 Spaces，无需云端账号。",
+  "LAN service": "局域网服务",
+  "On · Available while Eidos Lite is running":
+    "已开启 · Eidos Lite 运行期间可连接",
+  "Off · Paired devices are kept": "已关闭 · 已配对设备仍会保留",
+  "Connect a new device": "连接新设备",
+  "Scan the code on your phone, then approve it here.":
+    "手机扫码后，在这里确认配对。",
+  "Show pairing code": "显示配对码",
+  "Pairing QR code": "设备配对二维码",
+  "Open Sync on your phone and scan the code.":
+    "手机打开「同步」，扫描二维码。",
+  "Valid for five minutes. Approve only devices you recognize.":
+    "五分钟内有效。只允许你认识的设备。",
+  "Copy pairing code": "复制配对码",
+  "Allow “{name}” to connect? It can read and write the Spaces you share.":
+    "允许「{name}」连接？它将能读写已开放的 Spaces。",
+  "Allow pairing": "允许配对",
+  Reject: "拒绝",
+  Accept: "接受",
+  "Remove access": "移除授权",
+  "Confirm remove": "确认移除",
+  "Paired devices": "已配对设备",
+  "No devices connected yet.": "尚未连接设备。",
+  "Last contact · {time}": "最近通信 · {time}",
+  "Paired · No transfers yet": "已配对 · 尚无通信记录",
+  "Spaces shared over LAN": "已开放的 Spaces",
+  "Turn sharing on or off in each Space's Sync panel. Turning off the LAN service stops LAN sync for every Space.":
+    "在各 Space 的同步侧边栏开启或关闭。停止局域网服务会关闭所有 Space 的局域网同步。",
+  "No Spaces are shared yet.": "尚未开放 Space。",
+  "Pairing and device management are in Settings → Devices.":
+    "配对和设备管理请前往设置 → 设备",
+  "This Space is not shared for LAN sync.": "此 Space 尚未开放局域网同步",
+  "Reopen this Space, then turn on LAN sync.":
+    "请重新打开此 Space 后开启局域网同步",
+  "Eidos Lite · Device pairing": "Eidos Lite · 设备配对",
+  "Allow “{name}” to connect to this computer?": "允许“{name}”连接这台电脑？",
+  "Accept only if this is the device you just scanned. It can then sync the Spaces you share in Settings → Devices. Your phone is waiting; pairing codes expire five minutes after they are generated.":
+    "仅在这是你刚刚扫码的设备时接受。接受后，此设备可以同步你在「设置 → 设备」中开放的 Space。手机正在等待你的决定；配对码在生成后 5 分钟过期。",
+  "Eidos Lite · Device pairing request": "Eidos Lite · 设备配对请求",
+  "“{name}” is waiting for this computer to approve. Accept or reject it in Eidos Lite.":
+    "“{name}” 正在等待电脑授权。请在 Eidos Lite 中接受或拒绝。",
 }
 
 export function resolveEidosLiteLocale(

@@ -23,8 +23,8 @@ it("separates transports while preserving setup input and keyboard navigation", 
     const input = host.querySelector<HTMLInputElement>(
       '[aria-label="Cloud setup"]'
     )!
-    expect(tabs[0].textContent).toBe("云同步")
-    expect(tabs[1].textContent).toBe("局域网同步")
+    expect(tabs[0].textContent).toBe("Cloud sync")
+    expect(tabs[1].textContent).toBe("LAN sync")
     expect(device.hidden).toBe(true)
     expect(cloud.hidden).toBe(false)
     input.value = "unfinished setup"

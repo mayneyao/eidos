@@ -1,8 +1,33 @@
 import { useEffect, useRef, useState } from "react"
 import type { EidosLiteApi } from "../shared/contracts"
+import { useEidosLiteI18n } from "./i18n"
 
 type Status = Awaited<ReturnType<EidosLiteApi["peerSync"]>>
 type Action = Parameters<EidosLiteApi["peerSync"]>[0]
+
+const ACTIVITY_LABELS: Record<
+  "syncing" | "completed" | "review" | "failed",
+  string
+> = {
+  syncing: "Transferring",
+  completed: "Last transfer finished",
+  review:
+    "The last sync had conflicts. Resolve them here, then sync again from the phone.",
+  failed: "The last transfer did not finish. Retry from the phone.",
+}
+
+const TRANSFER_STAGES = {
+  receiving: "Receiving device changes",
+  merging: "Reviewing and merging versions",
+  sending: "Sending data to device",
+}
+
+function transferSize(bytes: number, locale: string) {
+  const unit =
+    bytes >= 1024 ** 3 ? 3 : bytes >= 1024 ** 2 ? 2 : bytes >= 1024 ? 1 : 0
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: unit ? 1 : 0 }).format(bytes / 1024 ** unit)} ${["B", "KiB", "MiB", "GiB"][unit]}`
+}
+
 function usePeerStatus(global: boolean) {
   const revision = useRef(0)
   const acting = useRef(false)
@@ -67,23 +92,27 @@ export function PeerSyncPanel({
 }: {
   standalone?: boolean
 }) {
+  const { t, locale } = useEidosLiteI18n()
   const { status, busy, error, run } = usePeerStatus(false)
+  const activity = status.activity
   return (
     <section
       className="peer-sync-panel p-4 text-sm"
       data-standalone={standalone || undefined}
-      aria-label="当前 Space 的局域网同步"
+      aria-label={t("LAN sync for this Space")}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <strong>局域网同步</strong>
-          <p className="mt-1 text-muted-foreground">向已配对设备开放此 Space</p>
+          <strong>{t("LAN sync")}</strong>
+          <p className="mt-1 text-muted-foreground">
+            {t("Share this Space with paired devices")}
+          </p>
         </div>
         <button
           type="button"
           className="settings-switch"
           role="switch"
-          aria-label="开启此 Space 的局域网同步"
+          aria-label={t("Turn on LAN sync for this Space")}
           aria-checked={status.running}
           disabled={busy || !status.serviceRunning}
           onClick={() => void run(status.running ? "stop" : "start")}
@@ -93,40 +122,132 @@ export function PeerSyncPanel({
       </div>
       <p className="my-4 text-muted-foreground">
         {!status.serviceRunning
-          ? "先在设置 → 设备中开启局域网服务。"
+          ? t("Turn on the LAN service in Settings → Devices first.")
           : status.running
-            ? "已开放。切换 Space 或关闭编辑窗口后，仍可同步。"
-            : "仅保存在本机，尚未向设备开放。"}
+            ? t(
+                "Shared. Paired devices can still sync after you switch Spaces or close this window."
+              )
+            : t("Stored on this computer only. No devices can reach it.")}
       </p>
       {status.running && (
         <div className="border-t border-border py-3" role="status">
-          {status.activity ? (
+          {activity ? (
             <>
               <p>
-                {status.activity.device} ·{" "}
-                {
-                  {
-                    syncing: "正在传输",
-                    completed: "最近传输已结束",
-                    review: "上次同步遇到冲突",
-                    failed: "传输未完成，请重试",
-                  }[status.activity.state]
-                }
+                {activity.device ?? t("A paired device")} ·{" "}
+                {t(ACTIVITY_LABELS[activity.state])}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(status.activity.updatedAt).toLocaleString()}
+                {new Date(activity.updatedAt).toLocaleString(locale)}
               </p>
             </>
           ) : (
-            <p className="text-muted-foreground">等待局域网同步</p>
+            <p className="text-muted-foreground">
+              {t("Waiting for a device to sync")}
+            </p>
           )}
         </div>
+      )}
+      {status.running && (
+        <section
+          className="border-t border-border py-3"
+          aria-label={t("Device transfers")}
+        >
+          <h3 className="font-medium">{t("Device transfers")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t(
+              "Payload transferred for this Space since sharing was enabled. Amounts are measured on this computer."
+            )}
+          </p>
+          {status.devices.length === 0 && (
+            <p className="py-4 text-muted-foreground">
+              {t("Connect a device to start transferring this Space.")}
+            </p>
+          )}
+          <ul className="mt-2 list-none divide-y divide-border p-0">
+            {status.devices.map((device) => {
+              const detail = status.transfers?.find(
+                (item) => item.id === device.id
+              )
+              return (
+                <li key={device.id} className="py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <strong className="min-w-0 break-words font-medium">
+                      {device.name}
+                    </strong>
+                    <span
+                      className={
+                        detail?.error
+                          ? "text-xs text-destructive"
+                          : "text-xs text-muted-foreground"
+                      }
+                    >
+                      {detail?.error
+                        ? t("Transfer interrupted")
+                        : detail?.activeRequests
+                          ? t(TRANSFER_STAGES[detail.stage])
+                          : detail
+                            ? t("No transfer in progress")
+                            : t("No transfers for this Space yet")}
+                    </span>
+                  </div>
+                  {detail && (
+                    <>
+                      <dl className="my-3 grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <dt className="text-muted-foreground">
+                            {t("Received on this computer")}
+                          </dt>
+                          <dd className="m-0 mt-1 text-sm tabular-nums">
+                            ↓ {transferSize(detail.receivedBytes, locale)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">
+                            {t("Sent to device")}
+                          </dt>
+                          <dd className="m-0 mt-1 text-sm tabular-nums">
+                            ↑ {transferSize(detail.sentBytes, locale)}
+                          </dd>
+                        </div>
+                      </dl>
+                      {!detail.activeRequests && (
+                        <p className="text-xs text-muted-foreground">
+                          {t("Last activity · {time}", {
+                            time: new Date(detail.updatedAt).toLocaleString(
+                              locale
+                            ),
+                          })}
+                        </p>
+                      )}
+                      {detail.error && (
+                        <details className="mt-2 text-xs text-destructive">
+                          <summary className="cursor-pointer">
+                            {t("Error details")}
+                          </summary>
+                          <p className="mt-2 whitespace-pre-wrap break-words">
+                            {t(detail.error)}
+                          </p>
+                        </details>
+                      )}
+                    </>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t(
+              "Start or retry sync from your device. File application finishes on that device."
+            )}
+          </p>
+        </section>
       )}
       <button
         className="mt-2"
         onClick={() => void window.eidosLite.openSettingsDestination("devices")}
       >
-        {status.devices.length ? "管理设备 ↗" : "连接设备 ↗"}
+        {status.devices.length ? t("Manage devices") : t("Connect a device")} ↗
       </button>
       {error && (
         <p role="alert" className="mt-3 text-destructive">
@@ -138,33 +259,37 @@ export function PeerSyncPanel({
 }
 
 export function DevicesSettings() {
+  const { t, locale } = useEidosLiteI18n()
   const { status, code, busy, error, run } = usePeerStatus(true)
   const [removing, setRemoving] = useState<string | null>(null)
   return (
     <section aria-labelledby="settings-devices">
-      <h2 id="settings-devices">设备</h2>
+      <h2 id="settings-devices">{t("Devices")}</h2>
       {status.deviceName && (
-        <p className="mb-2 text-sm">本机 · {status.deviceName}</p>
+        <p className="mb-2 text-sm">
+          {t("This computer · {name}", { name: status.deviceName })}
+        </p>
       )}
       <p className="mb-6 text-muted-foreground">
-        在同一局域网连接你的设备。配对一次，即可访问本机已开放的
-        Spaces，无需云端账号。
+        {t(
+          "Connect your devices on the same local network. Pair once to reach the Spaces this computer shares. No cloud account needed."
+        )}
       </p>
       <div className="settings-group">
         <div className="settings-row">
           <div className="settings-row-copy">
-            <strong>局域网服务</strong>
+            <strong>{t("LAN service")}</strong>
             <p>
               {status.running
-                ? "已开启 · Eidos Lite 运行期间可连接"
-                : "已关闭 · 已配对设备仍会保留"}
+                ? t("On · Available while Eidos Lite is running")
+                : t("Off · Paired devices are kept")}
             </p>
           </div>
           <button
             type="button"
             className="settings-switch"
             role="switch"
-            aria-label="局域网服务"
+            aria-label={t("LAN service")}
             aria-checked={status.running}
             disabled={busy}
             onClick={() =>
@@ -176,14 +301,14 @@ export function DevicesSettings() {
         </div>
         <div className="settings-row flex-wrap" data-device-pairing>
           <div className="settings-row-copy">
-            <strong>连接新设备</strong>
-            <p>手机扫码后，在这里确认配对。</p>
+            <strong>{t("Connect a new device")}</strong>
+            <p>{t("Scan the code on your phone, then approve it here.")}</p>
           </div>
           <button
             disabled={busy || !status.running}
             onClick={() => void run("devices-invite")}
           >
-            显示配对码
+            {t("Show pairing code")}
           </button>
           {code && (
             <div className="flex basis-full flex-wrap items-start gap-4">
@@ -191,45 +316,54 @@ export function DevicesSettings() {
                 width={200}
                 height={200}
                 src={code.qr}
-                alt="设备配对二维码"
+                alt={t("Pairing QR code")}
               />
               <div>
-                <p>手机打开「同步」，扫描二维码。</p>
+                <p>{t("Open Sync on your phone and scan the code.")}</p>
                 <p className="my-2 text-muted-foreground">
-                  五分钟内有效。只允许你认识的设备。
+                  {t(
+                    "Valid for five minutes. Approve only devices you recognize."
+                  )}
                 </p>
                 <button
                   onClick={() => void navigator.clipboard.writeText(code.value)}
                 >
-                  复制配对码
+                  {t("Copy pairing code")}
                 </button>
               </div>
             </div>
           )}
           {status.pending && (
             <div className="basis-full" role="status">
-              <p>允许「{status.pending}」连接？它将能读写已开放的 Spaces。</p>
+              <p>
+                {t(
+                  "Allow “{name}” to connect? It can read and write the Spaces you share.",
+                  { name: status.pending }
+                )}
+              </p>
               <div className="mt-3 flex gap-3">
                 <button
                   disabled={busy}
                   onClick={() => void run("devices-approve")}
                 >
-                  允许配对
+                  {t("Allow pairing")}
                 </button>
                 <button
                   disabled={busy}
                   onClick={() => void run("devices-reject")}
                 >
-                  拒绝
+                  {t("Reject")}
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-      <h3 className="mb-3 mt-8">已配对设备</h3>
+      <h3 className="mb-3 mt-8">{t("Paired devices")}</h3>
       {status.devices.length === 0 ? (
-        <p className="text-muted-foreground">尚未连接设备。</p>
+        <p className="text-muted-foreground">
+          {t("No devices connected yet.")}
+        </p>
       ) : (
         <div className="settings-group">
           {status.devices.map((device) => (
@@ -238,9 +372,12 @@ export function DevicesSettings() {
                 <strong>{device.name}</strong>
                 <p>
                   {device.lastSeenAt
-                    ? "最近通信 · " +
-                      new Date(device.lastSeenAt).toLocaleString()
-                    : "已配对 · 尚无通信记录"}
+                    ? t("Last contact · {time}", {
+                        time: new Date(device.lastSeenAt).toLocaleString(
+                          locale
+                        ),
+                      })
+                    : t("Paired · No transfers yet")}
                 </p>
               </div>
               {removing === device.id ? (
@@ -252,23 +389,26 @@ export function DevicesSettings() {
                       setRemoving(null)
                     }}
                   >
-                    确认移除
+                    {t("Confirm remove")}
                   </button>
-                  <button onClick={() => setRemoving(null)}>取消</button>
+                  <button onClick={() => setRemoving(null)}>
+                    {t("Cancel")}
+                  </button>
                 </div>
               ) : (
                 <button disabled={busy} onClick={() => setRemoving(device.id)}>
-                  移除授权
+                  {t("Remove access")}
                 </button>
               )}
             </div>
           ))}
         </div>
       )}
-      <h3 className="mb-3 mt-8">已开放的 Spaces</h3>
+      <h3 className="mb-3 mt-8">{t("Spaces shared over LAN")}</h3>
       <p className="mb-3 text-muted-foreground">
-        在各 Space 的同步侧边栏开启或关闭。停止局域网服务会关闭所有 Space
-        的局域网同步。
+        {t(
+          "Turn sharing on or off in each Space's Sync panel. Turning off the LAN service stops LAN sync for every Space."
+        )}
       </p>
       {status.spaces?.length ? (
         <ul className="settings-group list-none p-0">
@@ -281,13 +421,15 @@ export function DevicesSettings() {
                 disabled={busy}
                 onClick={() => void run("devices-open-space", space.id)}
               >
-                打开 Space
+                {t("Open")}
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-muted-foreground">尚未开放 Space。</p>
+        <p className="text-muted-foreground">
+          {t("No Spaces are shared yet.")}
+        </p>
       )}
       {error && (
         <p role="alert" className="mt-4 text-destructive">

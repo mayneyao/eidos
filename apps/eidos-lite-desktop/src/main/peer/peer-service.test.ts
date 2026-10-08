@@ -9,6 +9,7 @@ import { GraftClient } from "../graft/graft-client"
 import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { SpaceSession } from "../space/space-session"
 import { PeerService } from "./peer-service"
+import { translateEidosLite } from "../../shared/i18n"
 
 describe("LAN device sync", () => {
   it("pairs at device level without opening a Space and retains authorization while stopped", async () => {
@@ -201,6 +202,47 @@ describe("LAN device sync", () => {
       const paired = await call("/pair", data.ticket)
       expect((await call("/pair", data.ticket)).status).toBe(403)
       const token = paired.value.token
+      // Rejected uploads must not leave a reusable connection for the client's
+      // verification GET (bundled uploads can still have unread request bytes).
+      const upload = () =>
+        new Promise<{ status: number; connection?: string }>(
+          (resolve, reject) => {
+            const request = https.request(
+              new URL(
+                "/peer/incoming/raw-if-not-exists/segments/early-response",
+                url
+              ),
+              {
+                method: "PUT",
+                ca: identity.cert,
+                checkServerIdentity: () => undefined,
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Graft-Protocol": "1",
+                  "Content-Length": "6",
+                  Connection: "keep-alive",
+                },
+              },
+              (response) => {
+                response.resume()
+                response.on("end", () => {
+                  resolve({
+                    status: response.statusCode!,
+                    connection: response.headers.connection,
+                  })
+                  request.destroy()
+                })
+              }
+            )
+            request.on("error", reject)
+            request.setTimeout(3000, () =>
+              request.destroy(new Error("Upload response timed out"))
+            )
+            request.end("object")
+          }
+        )
+      expect((await upload()).status).toBe(204)
+      expect(await upload()).toEqual({ status: 412, connection: "close" })
       const secondRoot = path.join(directory, "second-space")
       await fs.mkdir(secondRoot)
       secondSession = await SpaceSession.create(
@@ -295,6 +337,11 @@ describe("LAN device sync", () => {
       await mobile.push({ remote: "eidos-incoming", branch: "main" })
       const completed = await call("/sync", token, { incoming: true })
       expect(completed.value).toEqual({ state: "ready", protocol: 2 })
+      const transfers = peer.status().transfers!
+      expect(transfers).toHaveLength(1)
+      expect(transfers[0]!.receivedBytes).toBeGreaterThan(0)
+      expect(transfers[0]!.sentBytes).toBeGreaterThan(0)
+      expect(transfers[0]!.activeRequests).toBe(0)
       expect(await fs.readFile(path.join(root, "note.md"), "utf8")).toBe(
         "phone version"
       )
@@ -407,7 +454,17 @@ describe("LAN device sync", () => {
       expect(
         (await call("/sync", token, {}, new URL(secondData.url))).status
       ).toBe(409)
-      await expect(secondPeer.start()).rejects.toThrow("重新打开")
+      await expect(secondPeer.start()).rejects.toThrow(
+        "Reopen this Space, then turn on LAN sync."
+      )
+      const localized = new PeerService(
+        secondSession,
+        path.join(directory, "state"),
+        undefined,
+        (message) => translateEidosLite("zh", message)
+      )
+      await expect(localized.start()).rejects.toThrow("请重新打开此 Space")
+      await localized.close()
       await peer.revoke(paired.value.deviceId)
       expect((await call("/sync", token)).status).toBe(401)
       expect(

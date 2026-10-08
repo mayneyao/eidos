@@ -46,4 +46,35 @@ describe("Eidos Lite internationalization", () => {
       )
     ).toContain("内置插件")
   })
+
+  it("translates LAN sync and device pairing copy", () => {
+    expect(translateEidosLite("en", "LAN sync")).toBe("LAN sync")
+    expect(translateEidosLite("zh", "LAN sync")).toBe("局域网同步")
+    expect(translateEidosLite("zh", "Cloud sync")).toBe("云同步")
+    expect(translateEidosLite("zh", "Devices")).toBe("设备")
+    expect(
+      translateEidosLite("zh", "Share this Space with paired devices")
+    ).toBe("向已配对设备开放此 Space")
+    expect(
+      translateEidosLite(
+        "zh",
+        "Turn on the LAN service in Settings → Devices first."
+      )
+    ).toBe("请先在设置 → 设备中开启局域网服务")
+    expect(
+      translateEidosLite(
+        "zh",
+        "Allow “{name}” to connect? It can read and write the Spaces you share.",
+        { name: "Pixel 6a" }
+      )
+    ).toBe("允许「Pixel 6a」连接？它将能读写已开放的 Spaces。")
+    expect(
+      translateEidosLite("zh", "Last contact · {time}", { time: "10:00" })
+    ).toBe("最近通信 · 10:00")
+    expect(
+      translateEidosLite("zh", "Allow “{name}” to connect to this computer?", {
+        name: "Pixel 6a",
+      })
+    ).toBe("允许“Pixel 6a”连接这台电脑？")
+  })
 })

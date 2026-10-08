@@ -33,7 +33,7 @@ internal fun peerErrorMessage(error: String): String = when {
 internal fun PeerInlineStatus(state: AppState, model: EidosModel, fingerprint: String, remoteId: String) {
     val progress = state.peerProgress?.takeIf { it.fingerprint == fingerprint && it.remoteId == remoteId } ?: return
     Column(Modifier.fillMaxWidth().padding(start = 36.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(progress.error?.let(::peerErrorMessage) ?: progress.stage, style = MaterialTheme.typography.bodySmall,
+        Text(progress.error?.let(::peerErrorMessage) ?: tr(progress.stage), style = MaterialTheme.typography.bodySmall,
             color = if (progress.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
         if (progress.finishedAt == null) {
             PeerTransferStatus(progress)

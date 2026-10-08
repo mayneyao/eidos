@@ -9,7 +9,9 @@ import {
 } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { Readable } from "node:stream"
+import { Readable, Transform } from "node:stream"
+import { PeerTransferTracker } from "./peer-transfer"
+import type { PeerTransferDetail } from "../../shared/contracts"
 import { pipeline } from "node:stream/promises"
 import { createRequire } from "node:module"
 import QRCode from "qrcode"
@@ -22,7 +24,7 @@ import { PeerAdvertisement } from "./peer-discovery"
 import type { SpaceSession } from "../space/space-session"
 import type * as Selfsigned from "selfsigned"
 import type { AddressInfo } from "node:net"
-import type { ReadableStream } from "node:stream/web"
+import { TransformStream, type ReadableStream } from "node:stream/web"
 
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex")
@@ -47,6 +49,7 @@ type Invitation = {
 }
 export type PeerPairingRequest = { id: string; name: string; expires: number }
 export type PeerStatus = {
+  transfers?: PeerTransferDetail[]
   running: boolean
   invitation?: string
   qr?: string
@@ -55,7 +58,7 @@ export type PeerStatus = {
   deviceName?: string
   error?: string
   activity?: {
-    device: string
+    device?: string
     state: "syncing" | "completed" | "review" | "failed"
     updatedAt: number
   }
@@ -89,6 +92,7 @@ export class PeerService {
   private readonly localToken = secret()
   private activity: PeerStatus["activity"]
   private readonly transfers = new Map<string, number>()
+  private readonly transferDetails = new PeerTransferTracker()
   private seeded = false
   private remote = ""
   // Versioned export cache repairs older caches seeded with unrelated tracking refs.
@@ -105,7 +109,10 @@ export class PeerService {
     userData: string,
     private readonly pairingChanged: (
       request: PeerPairingRequest | null
-    ) => void = () => {}
+    ) => void = () => {},
+    // Main-process copy follows the Settings language; keys are the English source strings.
+    private readonly translate: (message: string) => string = (message) =>
+      message
   ) {
     this.directory = path.join(
       userData,
@@ -119,7 +126,9 @@ export class PeerService {
   }
   async start(pair = true): Promise<PeerStatus> {
     if (this.session?.isClosed)
-      throw new Error("请重新打开此 Space 后开启局域网同步")
+      throw new Error(
+        this.translate("Reopen this Space, then turn on LAN sync.")
+      )
     if (this.tls) return pair ? this.invite() : this.status()
     this.stopping = false
     await fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
@@ -286,6 +295,7 @@ export class PeerService {
   }
   status(): PeerStatus {
     return {
+      transfers: this.transferDetails.snapshot(),
       running: Boolean(this.tls),
       deviceName: hostname(),
       activity: this.transfers.size
@@ -500,6 +510,30 @@ export class PeerService {
       return json(202, { state: "pending" })
     }
     if (!authorized) return json(401, { error: "Device is not authorized" })
+    const transfer =
+      device && this.session && !local && url.pathname !== "/spaces"
+        ? this.transferDetails.begin(
+            device.id,
+            device.name,
+            url.pathname === "/sync"
+              ? "merging"
+              : url.pathname.startsWith("/peer/incoming")
+                ? "receiving"
+                : "sending"
+          )
+        : undefined
+    if (transfer) {
+      const finish = () =>
+        transfer.finish(
+          !response.writableFinished
+            ? "Connection closed before transfer finished"
+            : response.statusCode >= 400
+              ? `HTTP ${response.statusCode}`
+              : undefined
+        )
+      response.once("finish", finish)
+      response.once("close", finish)
+    }
     if (device) device.lastSeenAt = Date.now()
     if (device && this.session && url.pathname !== "/spaces") {
       const name = device.name
@@ -544,11 +578,13 @@ export class PeerService {
     if (url.pathname === "/sync" && incoming.method === "POST") {
       if (!this.session || this.session.isClosed)
         return json(409, {
-          error: "电脑已关闭此 Space，请重新打开并开启局域网同步",
+          // Phone hosts match this substring to show their own localized copy.
+          error: "Space is closed. Open it and turn on device sync.",
         })
       try {
         let body = ""
         for await (const chunk of incoming) {
+          transfer?.received(Buffer.byteLength(chunk))
           body += chunk
           if (body.length > 4096)
             return json(413, { error: "Request too large" })
@@ -563,14 +599,14 @@ export class PeerService {
           (await this.session.getSyncMergeStatus()).state === "merging"
         ) {
           this.activity = {
-            device: device?.name ?? "设备",
+            device: device?.name,
             state: "review",
             updatedAt: Date.now(),
           }
           return json(200, { state: "needs_review", protocol: 2 })
         }
         this.activity = {
-          device: device?.name ?? "设备",
+          device: device?.name,
           state: "syncing",
           updatedAt: Date.now(),
         }
@@ -582,8 +618,13 @@ export class PeerService {
         }
         return json(200, { state: "ready", protocol: 2 })
       } catch (error) {
+        transfer?.fail(
+          error instanceof Error
+            ? error.message
+            : "Device histories require review"
+        )
         this.activity = {
-          device: device?.name ?? "设备",
+          device: device?.name,
           state: "failed",
           updatedAt: Date.now(),
         }
@@ -592,7 +633,7 @@ export class PeerService {
             ?.state === "merging"
         ) {
           this.activity = {
-            device: device?.name ?? "设备",
+            device: device?.name,
             state: "review",
             updatedAt: Date.now(),
           }
@@ -636,7 +677,17 @@ export class PeerService {
       method: incoming.method,
       headers: incoming.headers as Record<string, string>,
       ...(!["GET", "HEAD"].includes(incoming.method ?? "GET")
-        ? { body: Readable.toWeb(incoming), duplex: "half" }
+        ? {
+            body: Readable.toWeb(incoming).pipeThrough(
+              new TransformStream({
+                transform(chunk: Uint8Array, controller) {
+                  transfer?.received(chunk.byteLength)
+                  controller.enqueue(chunk)
+                },
+              })
+            ),
+            duplex: "half",
+          }
         : {}),
     } as RequestInit)
     const result = await handler({
@@ -649,10 +700,24 @@ export class PeerService {
       },
       adapterContext: undefined,
     })
+    // A rejected streaming upload can leave unread bytes in the request. Do
+    // not let its client reuse that connection for the verification GET.
+    // Preserve pooling for successful uploads and ordinary file reads.
+    if (
+      result.status >= 400 &&
+      !["GET", "HEAD"].includes(incoming.method ?? "GET")
+    )
+      response.setHeader("Connection", "close")
     response.writeHead(result.status, Object.fromEntries(result.headers))
     if (result.body)
       await pipeline(
         Readable.fromWeb(result.body as unknown as ReadableStream<Uint8Array>),
+        new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            transfer?.sent(chunk.byteLength)
+            callback(null, chunk)
+          },
+        }),
         response
       )
     else response.end()

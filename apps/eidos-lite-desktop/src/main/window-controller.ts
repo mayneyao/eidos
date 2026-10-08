@@ -40,7 +40,11 @@ import {
   availablePluginShortcuts,
   pluginShortcutForEvent,
 } from "../shared/plugin-shortcuts"
-import { resolveEidosLiteLocale, translateEidosLite } from "../shared/i18n"
+import {
+  resolveEidosLiteLocale,
+  translateEidosLite,
+  type EidosLiteLocale,
+} from "../shared/i18n"
 import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
@@ -108,7 +112,13 @@ export class WindowController {
   }
   async openDeviceSyncSpace(id: string): Promise<void> {
     const session = this.sharedSessions.get(id)
-    if (!session) throw new Error("此 Space 尚未开放局域网同步")
+    if (!session)
+      throw new Error(
+        translateEidosLite(
+          await this.locale(),
+          "This Space is not shared for LAN sync."
+        )
+      )
     await this.createSpaceWindow(session.canonical.root)
   }
 
@@ -999,7 +1009,8 @@ export class WindowController {
     return this.preferencesStore
   }
 
-  private async locale() {
+  /** Resolved Settings language, shared with main-process copy and native dialogs. */
+  async locale(): Promise<EidosLiteLocale> {
     const preferences = await this.preferences().get()
     return resolveEidosLiteLocale(preferences.language, app.getLocale())
   }

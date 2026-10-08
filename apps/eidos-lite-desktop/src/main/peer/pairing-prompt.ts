@@ -1,4 +1,5 @@
 import { BrowserWindow, Notification, dialog } from "electron"
+import type { EidosLiteMessageValues } from "../../shared/i18n"
 import type { PeerPairingRequest } from "./peer-service"
 
 // One owner in the main process; renderer polling never creates alerts.
@@ -12,7 +13,12 @@ export class PairingPrompt {
   private lastId?: string
   constructor(
     private readonly decide: (allow: boolean, id: string) => Promise<unknown>,
-    private readonly openWindow?: () => BrowserWindow
+    private readonly openWindow?: () => BrowserWindow,
+    // Main-process copy follows the Settings language; keys are the English source strings.
+    private readonly t: (
+      message: string,
+      values?: EidosLiteMessageValues
+    ) => string = (message) => message
   ) {}
 
   update(request: PeerPairingRequest | null) {
@@ -42,11 +48,14 @@ export class PairingPrompt {
       void dialog
         .showMessageBox(parent, {
           type: "question",
-          title: "Eidos Lite · 设备配对",
-          message: `允许“${name}”连接这台电脑？`,
-          detail:
-            "仅在这是你刚刚扫码的设备时接受。接受后，此设备可以同步你在「设置 → 设备」中开放的 Space。手机正在等待你的决定；配对码在生成后 5 分钟过期。",
-          buttons: ["拒绝", "接受"],
+          title: this.t("Eidos Lite · Device pairing"),
+          message: this.t("Allow “{name}” to connect to this computer?", {
+            name,
+          }),
+          detail: this.t(
+            "Accept only if this is the device you just scanned. It can then sync the Spaces you share in Settings → Devices. Your phone is waiting; pairing codes expire five minutes after they are generated."
+          ),
+          buttons: [this.t("Reject"), this.t("Accept")],
           defaultId: 0,
           cancelId: 0,
           noLink: true,
@@ -70,8 +79,11 @@ export class PairingPrompt {
     if (Notification.isSupported()) {
       // Let the OS own the single light sound and respect notification/Focus settings.
       const notification = new Notification({
-        title: "Eidos Lite · 设备配对请求",
-        body: `“${name}” 正在等待电脑授权。请在 Eidos Lite 中接受或拒绝。`,
+        title: this.t("Eidos Lite · Device pairing request"),
+        body: this.t(
+          "“{name}” is waiting for this computer to approve. Accept or reject it in Eidos Lite.",
+          { name }
+        ),
         silent: false,
       })
       active.notification = notification

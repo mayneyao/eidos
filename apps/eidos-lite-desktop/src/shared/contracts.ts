@@ -1741,6 +1741,17 @@ export interface RuntimeSystemMetadataMergeOptions {
 
 export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
 
+export interface PeerTransferDetail {
+  id: string
+  name: string
+  stage: "receiving" | "merging" | "sending"
+  receivedBytes: number
+  sentBytes: number
+  activeRequests: number
+  updatedAt: number
+  error?: string
+}
+
 export interface EidosLiteApi extends PluginApi {
   onTextDraftPrepareClose(listener: (token: string) => void): () => void
   onTextDraftReleaseClose(listener: () => void): () => void
@@ -1993,8 +2004,9 @@ export interface EidosLiteApi extends PluginApi {
     deviceName?: string
     serviceRunning?: boolean
     spaces?: { id: string; name: string }[]
+    transfers?: PeerTransferDetail[]
     activity?: {
-      device: string
+      device?: string
       state: "syncing" | "completed" | "review" | "failed"
       updatedAt: number
     }

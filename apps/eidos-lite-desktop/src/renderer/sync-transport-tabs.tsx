@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from "react"
+import { useEidosLiteI18n } from "./i18n"
 import { PeerSyncPanel } from "./peer-sync-panel"
 
 /** Keep both transports mounted so switching does not discard pairing or setup. */
@@ -13,6 +14,7 @@ export function SyncTransportTabs({
   reviewRequired?: boolean
   reviewLabel?: string
 }) {
+  const { t } = useEidosLiteI18n()
   const id = useId()
   const [selected, setSelected] = useState<"device" | "cloud">("cloud")
   const current = selected
@@ -22,7 +24,11 @@ export function SyncTransportTabs({
   if (!enabled) return <>{children}</>
   return (
     <>
-      <div className="sync-transport-tabs" role="tablist" aria-label="同步方式">
+      <div
+        className="sync-transport-tabs"
+        role="tablist"
+        aria-label={t("Sync method")}
+      >
         {(["cloud", "device"] as const).map((transport) => (
           <button
             key={transport}
@@ -51,7 +57,9 @@ export function SyncTransportTabs({
               document.getElementById(`${id}-${next}-tab`)?.focus()
             }}
           >
-            {transport === "device" ? "局域网同步" : (reviewLabel ?? "云同步")}
+            {transport === "device"
+              ? t("LAN sync")
+              : (reviewLabel ?? t("Cloud sync"))}
           </button>
         ))}
       </div>

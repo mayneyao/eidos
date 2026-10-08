@@ -3,6 +3,11 @@ import { registerPluginIpc } from "./plugins/plugin-ipc"
 import { PeerService } from "./peer/peer-service"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
+import {
+  resolveEidosLiteLocale,
+  translateEidosLite,
+  type EidosLiteMessageValues,
+} from "../shared/i18n"
 import fs from "node:fs/promises"
 import path from "node:path"
 import {
@@ -626,12 +631,28 @@ export function registerIpc(
   const plugins = registerPluginIpc(controller)
   const peers = new Map<string, PeerService>()
   const peerNames = new Map<string, string>()
+  // Native dialogs and background services resolve copy synchronously, so cache
+  // the Settings language and refresh it when the preference changes. English
+  // source strings are the translation keys.
+  let mainLocale = resolveEidosLiteLocale("system", app.getLocale())
+  const mainText = (message: string, values?: EidosLiteMessageValues) =>
+    translateEidosLite(mainLocale, message, values)
+  void controller.locale().then((locale) => {
+    mainLocale = locale
+  })
+  controller.onPreferencesChanged((preferences) => {
+    mainLocale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+  })
   const pairingPrompt = new PairingPrompt(
     (allow, id) => devices.approve(allow, id),
-    () => controller.showSettingsWindow("/settings/devices")
+    () => controller.showSettingsWindow("/settings/devices"),
+    mainText
   )
-  const devices = new PeerService(null, app.getPath("userData"), (request) =>
-    pairingPrompt.update(request)
+  const devices = new PeerService(
+    null,
+    app.getPath("userData"),
+    (request) => pairingPrompt.update(request),
+    mainText
   )
   let peerActions: Promise<unknown> = Promise.resolve()
   ipcMain.handle(
@@ -695,9 +716,16 @@ export function registerIpc(
           let peer = peers.get(id)
           if (action === "start") {
             if (!devices.status().running)
-              throw new Error("请先在设置 → 设备中开启局域网服务")
+              throw new Error(
+                mainText("Turn on the LAN service in Settings → Devices first.")
+              )
             if (!peer) {
-              peer = new PeerService(session, app.getPath("userData"))
+              peer = new PeerService(
+                session,
+                app.getPath("userData"),
+                undefined,
+                mainText
+              )
               peers.set(id, peer)
             }
             controller.retainDeviceSync(session)
@@ -718,7 +746,11 @@ export function registerIpc(
             peerNames.delete(id)
             await controller.releaseDeviceSync(id)
           } else if (action !== "status")
-            throw new Error("配对和设备管理请前往设置 → 设备")
+            throw new Error(
+              mainText(
+                "Pairing and device management are in Settings → Devices."
+              )
+            )
           const globalStatus = await devices.knownStatus()
           return {
             ...(action === "stop"
