@@ -2154,6 +2154,45 @@ class EmbeddedEditorTest {
     }
 
     @Test
+    fun emptyMarkdownTasksSurviveSaveAndReopen() {
+        val app = compose.activity.application
+        val id = "task-roundtrip-${UUID.randomUUID()}"
+        val repository = SpaceRepository(app, id)
+        val root = File(app.filesDir, "spaces/$id")
+        val note = runBlocking { repository.create("", "Tasks", "markdown") }
+        File(root, note).writeText("# Tasks\n\n- [x] Done\n- [ ] Pending\n  - [x] Nested\n- [x]\n- [ ]\n")
+        lateinit var model: EidosModel
+        try {
+            compose.runOnUiThread {
+                model = EidosModel(app, repository)
+                compose.activity.setContent { EidosApp(model) }
+            }
+            compose.waitUntil(15_000) { model.state.value.files.isNotEmpty() && !model.state.value.busy }
+            repeat(3) { round ->
+                compose.runOnUiThread { model.open(runBlocking { repository.file(note) }) }
+                compose.waitUntil(15_000) { model.state.value.webFile != null }
+                waitJs("document.querySelectorAll('[contenteditable=true] [role=checkbox]').length === 5")
+                assertEquals("3", js("document.querySelectorAll('[contenteditable=true] [role=checkbox][aria-checked=true]').length"))
+                assertEquals("2", js("Array.from(document.querySelectorAll('[contenteditable=true] [role=checkbox]')).filter(item=>item.textContent.trim()==='').length"))
+                if (round == 0) {
+                    js("(()=>{const editor=document.querySelector('[contenteditable=true]');editor.focus();const r=document.createRange();r.selectNodeContents(editor.querySelector('h1'));r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand('insertText',false,' saved');})()")
+                    compose.waitUntil(15_000) { File(root, note).readText().contains("Tasks saved") }
+                }
+                js("window.eidosLeave('back')")
+                compose.waitUntil(15_000) { model.state.value.webFile == null }
+                val saved = File(root, note).readText()
+                assertTrue(Regex("(?m)^- \\[ \\][ \\t]*$").containsMatchIn(saved))
+                assertTrue(Regex("(?m)^- \\[x\\][ \\t]*$").containsMatchIn(saved))
+                assertTrue(saved.contains("Nested"))
+            }
+        } finally {
+            compose.runOnUiThread { model.viewModelScope.cancel() }
+            runBlocking { repository.close() }
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun sharedEditorsPersistToLocalFilesAndIgnoreRetiredNativePreference() {
         val app = compose.activity.application
         app.getSharedPreferences("editor", 0).edit().putBoolean("web", false).commit()
