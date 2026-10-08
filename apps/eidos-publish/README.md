@@ -7,7 +7,7 @@ Object SQLite and it does not implement a second Eidos query engine.
 The hosted service deliberately publishes no EP conformance labels until the
 complete test families have shipped.
 
-## Ordinary file publications (staging)
+## Ordinary file publications
 
 The File Driver serves an ordinary file as a download, or renders it through a
 snapshot of a read-only plugin file View. Plugin packages are tenant-owned

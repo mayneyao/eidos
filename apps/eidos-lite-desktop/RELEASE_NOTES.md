@@ -10,6 +10,8 @@ Plugin API 3.2 lets plugins combine saved table views and ordinary files in a si
 
 ## Improvements
 
+- **Publish file views**: Share ordinary files as web pages rendered by a plugin file View, such as a GPX route displayed on a map. Publishing captures the file and plugin together so visitors see the published version. Requires Pro.
+
 - **New File**: Choose the file type directly and keep control of the filename. Text files can have no extension, including dotfiles such as `.graftignore`.
 - **Device transfers**: Sync displays device-specific activity with localized progress labels.
 

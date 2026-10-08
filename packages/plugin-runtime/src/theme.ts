@@ -59,7 +59,7 @@ export function validThemeToken(key: string, value: unknown): value is string {
 export function themeFontData(source: string): boolean {
   const match =
     /^data:font\/(woff2?|ttf|otf);base64,([A-Za-z0-9+/]+={0,2})$/.exec(source)
-  if (!match || source.length > 3 * 1024 * 1024) return false
+  if (!match?.[2] || source.length > 3 * 1024 * 1024) return false
   let bytes: Uint8Array
   try {
     bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0))

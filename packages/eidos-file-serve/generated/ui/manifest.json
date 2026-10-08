@@ -595,7 +595,7 @@
       "packages/plugin-runtime/src/table-config-sandbox.test.ts": "f4528299d6984d1cc575ab23546c383fd89c1f27143cd7609e4148798e300aaa",
       "packages/plugin-runtime/src/theme-stylesheet.ts": "aed9b84015e30fd5890e732c406a895480eb63486ff5a1c9288b3e391720644c",
       "packages/plugin-runtime/src/theme.test.ts": "3498961b8c329fa315eac133216bb39b1bb6c4d4a42cc43e90cdca7722d4e91c",
-      "packages/plugin-runtime/src/theme.ts": "bca6cb45667467a27795caccce19e9aebc1b53beb5642333abdd90abde35ad23",
+      "packages/plugin-runtime/src/theme.ts": "6b161359c15a12c504079acb56d9d1e809b0fb16512544cba4a61a8aab6735cf",
       "packages/plugin-runtime/src/toolchain.ts": "51855d0c5631436bc3fd740974f19e0611f2188581f46f65b5ec5d276659b5a2",
       "packages/plugin-runtime/src/view-configuration.test.ts": "7bcb27d4c04893e26571093dc5422b6ca7405e08d2e5d911571a35d6181101a0",
       "packages/plugin-runtime/src/view.ts": "68c65bf66c5439a0a05a5d6d2a5f760128004009beca50d53037a2dda6ddca32",

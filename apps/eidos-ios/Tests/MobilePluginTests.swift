@@ -235,10 +235,10 @@ final class MobilePluginTests: XCTestCase {
             let body = try? await web.evaluateJavaScript("JSON.stringify({text:document.body.innerText,calls:window.guestCalls,frames:document.querySelectorAll('iframe').length})")
             XCTFail("Timed out: \(expression). Page: \(String(describing:body))")
         }
-        try await waitFor("!!document.querySelector('select[aria-label=选择文件]')")
+        try await waitFor("!!document.querySelector('select[aria-label=\"选择文件\"], select[aria-label=\"Choose file\"]')")
         let uuid = try await web.evaluateJavaScript("typeof crypto.randomUUID === 'function'")
         XCTAssertEqual(uuid as? Bool,true)
-        _ = try await web.evaluateJavaScript("window.guestCalls=[]; addEventListener('message',e=>{if(e.data?.protocol==='eidos-plugin') guestCalls.push(e.data.method)}); const file=document.querySelector('select[aria-label=选择文件]'); file.value='note.md'; file.dispatchEvent(new Event('change')); [...document.querySelectorAll('button')].find(e=>e.textContent==='Markmap').click(); true")
+        _ = try await web.evaluateJavaScript("window.guestCalls=[]; addEventListener('message',e=>{if(e.data?.protocol==='eidos-plugin') guestCalls.push(e.data.method)}); const file=document.querySelector('select[aria-label=\"选择文件\"], select[aria-label=\"Choose file\"]'); file.value='note.md'; file.dispatchEvent(new Event('change')); [...document.querySelectorAll('button')].find(e=>e.textContent==='Markmap').click(); true")
         try await waitFor("guestCalls.includes('document.observe') && guestCalls.includes('view.ready')")
         // view.ready precedes the plugin's first animated layout.
         try await Task.sleep(nanoseconds: 700_000_000)
