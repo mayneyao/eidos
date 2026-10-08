@@ -412,7 +412,13 @@ export class PluginManager {
       if (prepared.raw) validatePackage(prepared.raw)
       if (
         !(await this.options.confirm(
-          this.options.permissions(prepared.manifest) + "\n" + prepared.origin
+          this.options.permissions(prepared.manifest) +
+            "\n" +
+            prepared.origin +
+            "\n" +
+            mobileText(
+              "安装后将在发起安装的 Space 启用。更新后需重新在其他 Space 启用。"
+            )
         ))
       ) {
         this.status.textContent = ""
@@ -423,7 +429,9 @@ export class PluginManager {
       this.busy.delete(key)
       await this.reload()
       if (!this.disposed)
-        this.status.textContent = mobileText("已安装，可在「已安装」中启用。")
+        this.status.textContent = mobileText(
+          "安装完成，已在发起安装的 Space 启用。"
+        )
       this.detail?.close()
     } finally {
       this.busy.delete(key)

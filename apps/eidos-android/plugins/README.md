@@ -23,12 +23,13 @@ Both flows use bounded gzip/UTF-8 decoding and the shared manifest, duplicate
 JSON key and source validators in a separate trusted validation WebView. Code
 is parsed as data, not executed during review. A package requiring unsupported
 capabilities cannot install. Review lists file read access, network origins
-and Worker permission. Installing does not enable a plugin in any Space.
+and Worker permission. Confirming installation enables the plugin in the Space
+where installation started. Updated packages need fresh enablement in other Spaces.
 
-After installation, turn on the current Space's switch. Packages are stored
+After installation, use the current Space's switch to change enablement. Packages are stored
 privately on the device, outside Space/Graft/Sync. Enablement binds the Space
 to the exact installed content hash. Updates with different contents require
-fresh enablement; invalid downloads or cancelled reviews preserve the current
+fresh enablement in other Spaces; invalid downloads or cancelled reviews preserve the current
 installation. Disable or uninstall removes its opening candidates and closes
 its active renderer. Uninstall clears all Space grants and deletes unreferenced
 package copies without deleting user documents. Installed plugins work offline

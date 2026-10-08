@@ -12,8 +12,8 @@ the desktop host's captured-target, revision and read-token checks.
 
 Android: **当前文件夹操作 → 插件**. iOS: **Space 操作 → 插件**.
 Use **插件市场 → 浏览** (iOS: **浏览插件市场**) to load the registry, or the toolbar's
-import button to select a `.eidos-plugin`. Review its permissions, install it,
-then use the switch in **已安装** to enable it for the current Space. The installed
+import button to select a `.eidos-plugin`. Review its permissions and install it;
+installation enables it in the Space where you started. The installed
 list works offline. Tap a plugin in either list to read its repository README in
 a WebView. Markdown images and links resolve relative to the repository; links
 open in the system browser. Previously loaded READMEs remain available offline.
@@ -45,8 +45,9 @@ provider credentials; installing it does not configure a provider.
 ## Boundaries
 
 Packages, enablement, settings and credentials are device-local, outside the
-Space and Graft history. Installation does not grant Space access. Changed
-packages require fresh enablement. Registry archives are SHA-256 checked;
+Space and Graft history. Confirming installation grants access only to the
+originating Space, even if the selected Space changes during installation.
+Changed packages require fresh enablement in other Spaces. Registry archives are SHA-256 checked;
 local imports are identified separately. Android uses AndroidKeyStore and iOS
 uses Keychain for connection secrets. Guest code receives proxy responses,
 never credentials. Native bridges are restricted to the trusted workbench;

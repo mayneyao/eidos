@@ -154,7 +154,9 @@ Markdown and record File fields can import images and files through the system p
 
 This is an experimental host, not a verified App Store release. No service deployment is part of this application build. The recycle bin is app-private and is not a synchronized deletion history.
 
-Open **Space 操作 → 插件** to install and enable plugins. See the
+Open **Space 操作 → 插件** to review permissions and install plugins. Successful
+installation enables the plugin in the originating Space. Updated packages need
+fresh enablement in other Spaces. See the
 [shared mobile plugin host](../../packages/mobile-plugin-host/README.md).
 Connection keys use Keychain and are never sent to guest JavaScript or stored
 in the Space. Map and Chart views are available in the shared `.eidos` editor.

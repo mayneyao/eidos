@@ -1,9 +1,83 @@
 import XCTest
 import SwiftUI
 import WebKit
+import zlib
 @testable import EidosIOS
 
 final class MobilePluginTests: XCTestCase {
+    func testInstallationGrantsOnlyOriginatingSpaceAndReviewedRevision() throws {
+        let first = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let second = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let origin = MobilePluginService(space:first)
+        let other = MobilePluginService(space:second)
+        let preferences = UserDefaults.standard
+        let saved = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
+        let input = first.root.appendingPathComponent("test.eidos-plugin")
+        var packages: [URL] = []
+        defer {
+            for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey:key) }
+            for (key,value) in saved { preferences.set(value,forKey:key) }
+            for url in packages { try? FileManager.default.removeItem(at:url) }
+            for space in [first,second] {
+                try? FileManager.default.removeItem(at:space.root)
+                try? FileManager.default.removeItem(at:space.privateRoot)
+            }
+        }
+        func prepare(_ version: String, theme: Bool = false) throws -> [String:Any] {
+            let manifest: [String:Any] = ["id":"test.auto-enable","name":"Auto enable","version":version,"kind":theme ? "theme" : "plugin"]
+            let data = try JSONSerialization.data(withJSONObject:["format":2,"manifest":manifest,"modules":[:]],options:.sortedKeys)
+            var stream = z_stream()
+            XCTAssertEqual(deflateInit2_(&stream,Z_DEFAULT_COMPRESSION,Z_DEFLATED,31,8,Z_DEFAULT_STRATEGY,ZLIB_VERSION,Int32(MemoryLayout<z_stream>.size)),Z_OK)
+            defer { deflateEnd(&stream) }
+            var archive = Data(count:data.count + 256)
+            let capacity = archive.count
+            let status = data.withUnsafeBytes { source in
+                archive.withUnsafeMutableBytes { destination in
+                    stream.next_in = UnsafeMutablePointer(mutating:source.bindMemory(to:Bytef.self).baseAddress)
+                    stream.avail_in = uInt(data.count)
+                    stream.next_out = destination.bindMemory(to:Bytef.self).baseAddress
+                    stream.avail_out = uInt(capacity)
+                    return deflate(&stream,Z_FINISH)
+                }
+            }
+            XCTAssertEqual(status,Z_STREAM_END)
+            archive.count = Int(stream.total_out)
+            try archive.write(to:input)
+            let prepared = try origin.prepareImport(input)
+            packages.append(origin.directory.appendingPathComponent((try XCTUnwrap(prepared["revision"] as? String)) + ".json"))
+            return prepared
+        }
+        func enabled(_ service: MobilePluginService) throws -> Bool {
+            let records = try XCTUnwrap(service.handle("list",[:]) as? [[String:Any]])
+            return records.first { ($0["manifest"] as? [String:Any])?["id"] as? String == "test.auto-enable" }?["enabled"] as? Bool == true
+        }
+        let initial = try prepare("1.0.0")
+        XCTAssertFalse(try enabled(origin))
+        XCTAssertThrowsError(try origin.handle("install",["revision":"stale"]))
+        XCTAssertFalse(try enabled(origin))
+        // A newly selected Space has its own service while the originating install completes.
+        _ = try other.handle("list",[:])
+        _ = try origin.handle("install",["revision":initial["revision"]!])
+        XCTAssertTrue(try enabled(origin))
+        XCTAssertFalse(try enabled(other))
+        _ = try other.handle("enable",["id":"test.auto-enable","enabled":true])
+        let same = try origin.prepareImport(input)
+        _ = try origin.handle("install",["revision":same["revision"]!])
+        XCTAssertTrue(try enabled(other))
+        let update = try prepare("2.0.0")
+        _ = try origin.handle("install",["revision":update["revision"]!])
+        XCTAssertTrue(try enabled(origin))
+        XCTAssertFalse(try enabled(other))
+        _ = try prepare("3.0.0")
+        try Data("invalid".utf8).write(to:input)
+        XCTAssertThrowsError(try origin.prepareImport(input))
+        XCTAssertThrowsError(try origin.handle("install",["revision":update["revision"]!]))
+        XCTAssertTrue(try enabled(origin))
+        let theme = try prepare("4.0.0",theme:true)
+        _ = try origin.handle("install",["revision":theme["revision"]!])
+        XCTAssertFalse(try enabled(origin))
+    }
+
     @MainActor
     func testJournalsMigratesAcrossSpacesAndOpensNavigation() async throws {
         let fixture = URL(fileURLWithPath: "/tmp/eidos-journals-qa.json")

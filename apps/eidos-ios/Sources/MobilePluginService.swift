@@ -189,6 +189,7 @@ final class MobilePluginService {
         }
     }
     func prepareImport(_ url: URL) throws -> [String:Any] {
+        prepared = nil
         guard (try url.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? Int.max) <= 16*1024*1024 else { throw LocalError.message(tr("插件超过 16 MiB")) }
         let data = try unpack(Data(contentsOf:url))
         let value = try json(data)
@@ -236,6 +237,7 @@ final class MobilePluginService {
             }
         case "market": return try registry()
         case "prepare":
+            prepared = nil
             let pluginId = try id(p["id"])
             guard let entry = try registry().first(where: { $0["id"] as? String == pluginId }),
                   let repo = entry["repo"] as? String, let tag = entry["tag"] as? String,
@@ -260,6 +262,11 @@ final class MobilePluginService {
             var records = records().filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId }
             records.append(["manifest":manifest,"revision":revision])
             preferences.set(records,forKey:"plugins.installed"); self.prepared = nil
+            // This service retains the originating LocalSpace; selection changes cannot
+            // redirect the permission grant. Grants remain bound to reviewed bytes.
+            if manifest["kind"] as? String != "theme" {
+                preferences.set(revision,forKey:key(pluginId,"enabled"))
+            }
             return NSNull()
         case "enable":
             let pluginId = try id(p["id"])

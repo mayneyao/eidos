@@ -100,6 +100,7 @@ internal class MobilePluginService(
                     }
                 )
             "prepare" -> {
+                synchronized(this) { prepared = null }
                 val value = store.prepare(store.market().single { it.id == p.getString("id") })
                 synchronized(this) { prepared = value }
                 JSONObject()
@@ -108,6 +109,7 @@ internal class MobilePluginService(
                     .put("revision", value.revision)
             }
             "import" -> {
+                synchronized(this) { prepared = null }
                 val value = store.prepare(importFile())
                 synchronized(this) { prepared = value }
                 JSONObject()
@@ -123,7 +125,8 @@ internal class MobilePluginService(
                         prepared = null
                         value
                     }
-                store.install(value)
+                // The repository (and its Space ID) is immutable for this service.
+                store.install(value, space)
                 null
             }
             "enable" -> {

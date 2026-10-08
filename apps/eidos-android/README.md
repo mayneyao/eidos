@@ -113,7 +113,7 @@ direction, with folders always first and natural numeric name ordering.
 The selected order is remembered across launches and Spaces.
 
 Open **当前文件夹操作 → 插件** to install published packages or import a
-`.eidos-plugin`, then enable it for the current Space. Installation, permission
+`.eidos-plugin`. After permission review, installation enables it in the originating Space. Installation, permission
 review, activation and removal use native Compose controls. The shared mobile
 workbench runs document views, table views, pages, workspace and table
 actions, settings, and native connection credentials. Plugin themes are disabled

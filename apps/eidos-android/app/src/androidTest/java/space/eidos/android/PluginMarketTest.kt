@@ -66,19 +66,26 @@ class PluginMarketTest {
             input.writeBytes(archive("1.0.0", "export default function mount() {}"))
             val prepared = store.prepare(Uri.fromFile(input))
             assertTrue(store.installed("a").isEmpty()) // Review is not installation.
-            store.install(prepared)
-            assertFalse(store.installed("a").single().enabled)
-            store.setEnabled("a", store.installed("a").single(), true)
+            val blockedDirectory = File(context.filesDir, "$name-packages")
+            blockedDirectory.writeText("block package persistence")
+            assertTrue(runCatching { store.install(prepared, "a") }.isFailure)
+            assertTrue(store.installed("a").isEmpty())
+            blockedDirectory.delete()
+            store.install(prepared, "a")
             assertTrue(store.installed("a").single().enabled)
             assertFalse(store.installed("b").single().enabled)
+            store.setEnabled("b", store.installed("b").single(), true)
+            store.install(prepared, "a") // Reinstalling identical bytes preserves other grants.
+            assertTrue(store.installed("b").single().enabled)
             val file = SpaceFile("ride.gpx", "ride.gpx", false, 0, 0)
             val view = store.registry("a").resolve(file, "test.android-market/main")
             assertEquals("export default function mount() {}", store.source("a", view))
             input.writeBytes(
                 archive("1.1.0", "export default function mount() { return undefined; }")
             )
-            store.install(store.prepare(Uri.fromFile(input)))
-            assertFalse(store.installed("a").single().enabled)
+            store.install(store.prepare(Uri.fromFile(input)), "a")
+            assertTrue(store.installed("a").single().enabled)
+            assertFalse(store.installed("b").single().enabled)
             assertFalse(store.authorized("a", view))
             input.writeBytes(
                 archive("1.2.0", "export default () => import('https://example.com/a.js')")
@@ -88,6 +95,7 @@ class PluginMarketTest {
                 fail("Dynamic import should be rejected")
             } catch (_: IllegalStateException) {}
             assertEquals("1.1.0", store.installed("a").single().manifest.getString("version"))
+            assertTrue(store.installed("a").single().enabled)
             store.uninstall("test.android-market")
             assertTrue(store.installed("a").isEmpty())
         } finally {

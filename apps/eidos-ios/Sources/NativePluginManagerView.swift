@@ -282,7 +282,7 @@ struct NativePluginManagerView: View {
             Form {
                 Section { Text(manifest["name"] as? String ?? tr("插件")); Text(manifest["version"] as? String ?? ""); Text(model.review?["origin"] as? String ?? "") }
                 Section(tr("权限")) { Text(pluginPermissions(manifest)) }
-                Section { Text(tr("安装不会自动启用。更新后需要重新启用。")) }
+                Section { Text(tr("安装后将在发起安装的 Space 启用。更新后需重新在其他 Space 启用。")) }
                 if let error = model.error { Text(error).foregroundStyle(.red) }
                 Button(tr("安装")) { model.install() }.disabled(model.busy)
             }.navigationTitle(tr("确认安装")).navigationBarTitleDisplayMode(.inline)

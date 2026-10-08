@@ -228,7 +228,8 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             .distinctBy { it.key }
             .sortedBy { it.key }
 
-    suspend fun install(prepared: PreparedPlugin) =
+    // Callers pass the Space captured before preparation, after permission review.
+    suspend fun install(prepared: PreparedPlugin, enableInSpace: String? = null) =
         withContext(Dispatchers.IO) {
             synchronized(mutationLock) {
                 check(directory.isDirectory || directory.mkdirs())
@@ -249,7 +250,14 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                                 .put("revision", prepared.revision)
                                 .put("manifest", prepared.manifest),
                         )
-                check(preferences.edit().putString("installed", records.toString()).commit()) {
+                val edit = preferences.edit().putString("installed", records.toString())
+                if (enableInSpace != null && prepared.manifest.optString("kind") != "theme") {
+                    edit.putString(
+                        "enabled:$enableInSpace:${prepared.manifest.getString("id")}",
+                        prepared.revision,
+                    )
+                }
+                check(edit.commit()) {
                     tr("无法保存插件安装信息")
                 }
                 prunePackages()

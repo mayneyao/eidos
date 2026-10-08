@@ -163,7 +163,8 @@ fun PluginMarketScreen(
     var loadingCatalog by remember { mutableStateOf(false) }
     var marketError by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
-    var review by remember { mutableStateOf<PreparedPlugin?>(null) }
+    var review by remember { mutableStateOf<Pair<PreparedPlugin, String>?>(null) }
+    var importSpace by remember { mutableStateOf(spaceId) }
     var removing by remember { mutableStateOf<InstalledPlugin?>(null) }
     var enabling by remember { mutableStateOf<InstalledPlugin?>(null) }
     var details by remember { mutableStateOf<InstalledPlugin?>(null) }
@@ -193,7 +194,11 @@ fun PluginMarketScreen(
     }
     val import =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) action { review = store.prepare(uri) }
+            val target = importSpace
+            if (uri != null) action {
+                review = null
+                review = store.prepare(uri) to target
+            }
         }
     fun refreshMarket() {
         if (loadingCatalog) return
@@ -233,6 +238,7 @@ fun PluginMarketScreen(
                                 leadingIcon = { Icon(Icons.Outlined.FileUpload, null) },
                                 onClick = {
                                     more = false
+                                    importSpace = spaceId
                                     import.launch(arrayOf("*/*"))
                                 },
                             )
@@ -492,7 +498,13 @@ fun PluginMarketScreen(
                                 )
                             }
                             OutlinedButton(
-                                onClick = { action { review = store.prepare(entry) } },
+                                onClick = {
+                                    val target = spaceId
+                                    action {
+                                        review = null
+                                        review = store.prepare(entry) to target
+                                    }
+                                },
                                 enabled = !busy && !upToDate,
                                 contentPadding = PaddingValues(horizontal = 14.dp),
                             ) {
@@ -505,7 +517,7 @@ fun PluginMarketScreen(
             }
         }
     }
-    review?.let { prepared ->
+    review?.let { (prepared, targetSpace) ->
         val manifest = prepared.manifest
         val browser = manifest.optJSONObject("browser")
         AlertDialog(
@@ -521,21 +533,21 @@ fun PluginMarketScreen(
                     installed
                         .find { it.id == manifest.getString("id") }
                         ?.let {
-                            Text(tr("将替换 {0}。版本内容变化后需重新在各 Space 启用。", it.manifest.getString("version")))
+                            Text(tr("将替换 {0}。版本内容变化后需重新在其他 Space 启用。", it.manifest.getString("version")))
                         }
                     Text(pluginPermissions(manifest))
                     message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (browser?.optBoolean("workers") == true) Text(tr("允许本地 Worker"))
-                    Text(tr("安装不会自动在 Space 启用。"))
+                    Text(tr("安装后将在发起安装的 Space 启用。"))
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         action {
-                            store.install(prepared)
+                            store.install(prepared, targetSpace)
                             review = null
-                            message = tr("安装完成，请在当前 Space 启用。")
+                            message = tr("安装完成，已在发起安装的 Space 启用。")
                         }
                     },
                     enabled = !busy,
