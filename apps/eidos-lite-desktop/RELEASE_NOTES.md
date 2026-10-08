@@ -19,4 +19,5 @@ Plugin API 3.2 lets plugins combine saved table views and ordinary files in a si
 
 - **Markdown task lists**: Empty checked and unchecked tasks retain their state after saving and reopening, including nested and loose lists.
 - **Local history**: An unavailable history service displays an actionable error instead of an empty panel. The bundled Graft dependency and version checks are aligned.
+- **Space refresh**: Creating a checkpoint or reading merge status no longer interrupts an explicit refresh with a cancellation error.
 - **Editor focus**: Returning focus to Markdown content restores its caret so keyboard editing can continue.
