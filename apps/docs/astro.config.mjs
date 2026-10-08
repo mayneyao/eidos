@@ -15,7 +15,7 @@ export default defineConfig({
     starlight({
       title: "Eidos Docs",
       description:
-        "Documentation for Eidos Lite, Eidos CLI, Eidos Plugins, and the Eidos File specifications.",
+        "Guides to the Eidos File format and tools, and Eidos Lite for local folders, history, and optional Sync.",
       expressiveCode: {
         // Inline styles become inert set:html attributes in the current MDX
         // pipeline. Keep Expressive Code's standard fingerprinted stylesheet.

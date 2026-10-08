@@ -1,10 +1,10 @@
 ---
 title: Eidos Docs
-description: Understand your files and choose how to work with Eidos.
+description: Work with portable Eidos Files and local folders in Eidos Lite.
 template: splash
 hero:
-  title: Your files. A clearer view.
-  tagline: Keep notes, tables, and attachments in a local folder. Learn how they fit together, then build something useful.
+  title: Your work lives in files.
+  tagline: Keep structured data in .eidos files, with notes and attachments beside them. Open a folder in Eidos Lite, edit a file in your browser, or automate work with the CLI.
   actions:
     - text: Start with one file
       link: /getting-started/
@@ -20,19 +20,53 @@ import FileMap from "../../components/FileMap.astro"
 
 ## Start with the file
 
-**Eidos File** is a SQLite-backed format for tables, records, and saved views.
-**Eidos Lite** opens a folder of these files alongside your notes and other documents.
-That folder is your **Space**.
+**Eidos File** is an open, SQLite-backed format for structured data, with a
+portable Runtime and shared editor UI. A `.eidos` file stores tables, typed
+fields, records, relations, and saved views. Use the browser editor, the
+agent-first CLI, or `eidos serve` to work directly with the file.
+
+**Eidos Lite** is the desktop app for a local folder of `.eidos` files,
+Markdown notes, and other ordinary files. That folder is your **Space**.
+Lite adds local Graft history and optional Sync. Your local files remain
+usable offline and without signing in.
 
 <FileMap />
 
 ## Choose your next step
 
 <nav class="docs-home-index__list" aria-label="Documentation paths">
-  <a href="/getting-started/eidos-lite/" class="docs-home-index__item"><span class="docs-home-index__number">01</span><span class="docs-home-index__copy"><strong>Work in a local folder</strong><span>Install Eidos Lite. Open a Space. Create your first file.</span></span><span aria-hidden="true">→</span></a>
-  <a href="/getting-started/browser/" class="docs-home-index__item"><span class="docs-home-index__number">02</span><span class="docs-home-index__copy"><strong>Open a file in your browser</strong><span>Try the Web Editor without installing an app.</span></span><span aria-hidden="true">→</span></a>
-  <a href="/cli/" class="docs-home-index__item"><span class="docs-home-index__number">03</span><span class="docs-home-index__copy"><strong>Automate a task</strong><span>Create, query, and validate files with the CLI.</span></span><span aria-hidden="true">→</span></a>
-  <a href="/plugins/" class="docs-home-index__item"><span class="docs-home-index__number">04</span><span class="docs-home-index__copy"><strong>Build a tool inside Eidos</strong><span>Add a file editor, a page, or a command with a plugin.</span></span><span aria-hidden="true">→</span></a>
+  <a href="/getting-started/eidos-lite/" class="docs-home-index__item">
+    <span class="docs-home-index__number">01</span>
+    <span class="docs-home-index__copy">
+      <strong>Work in a local folder</strong>
+      <span>Install Eidos Lite. Open a Space. Create your first file.</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/getting-started/browser/" class="docs-home-index__item">
+    <span class="docs-home-index__number">02</span>
+    <span class="docs-home-index__copy">
+      <strong>Open a file in your browser</strong>
+      <span>Try the Web Editor without installing an app.</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/cli/" class="docs-home-index__item">
+    <span class="docs-home-index__number">03</span>
+    <span class="docs-home-index__copy">
+      <strong>Automate a task</strong>
+      <span>Create, query, and validate files with the CLI.</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/plugins/" class="docs-home-index__item">
+    <span class="docs-home-index__number">04</span>
+    <span class="docs-home-index__copy">
+      <strong>Build a tool inside Eidos</strong>
+      <span>Add a file editor, a page, or a command with a plugin.</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
 </nav>
 
 Already using Eidos? Open the [user guide](/user-guide/) or learn about

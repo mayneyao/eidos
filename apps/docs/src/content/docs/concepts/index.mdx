@@ -1,6 +1,6 @@
 ---
 title: How the pieces fit
-description: A Space contains files. An Eidos File contains tables. Views show their records.
+description: Eidos File stores structured data. Eidos Lite opens local folders as Spaces.
 sidebar:
   order: 40
 ---
@@ -8,8 +8,14 @@ sidebar:
 import FileMap from "../../../components/FileMap.astro"
 import ViewLab from "../../../components/ViewLab.astro"
 
-A **Space** is a local folder. An **Eidos File** is a structured document in that folder.
-A **table** groups records. A **view** selects and displays those records.
+**Eidos File** is an open, SQLite-backed format for structured data. Each
+`.eidos` file stores its own data and structure, and can be opened directly
+with compatible tools.
+
+**Eidos Lite** is the desktop app that opens a local folder as a **Space**.
+The folder contains `.eidos` files alongside Markdown notes, images, and
+other ordinary files. Lite adds local Graft history and optional Sync;
+local editing works offline and without signing in.
 
 ## Follow one example
 
@@ -23,13 +29,16 @@ does not convert your other documents into database records.
 
 ## Inside an Eidos File
 
-| Part | What it does | Books example |
-| --- | --- | --- |
-| Table | Groups one kind of item | Books |
-| Field | Describes a property | Title, Status |
-| Record | Stores one item | One book |
-| Record Label Field | Supplies the record's displayed title | Title |
-| Saved view | Stores query and display settings | Books with Status = Reading |
+A **table** groups records. Fields describe their values, and a saved
+**view** selects and displays records from the table.
+
+| Part               | What it does                          | Books example               |
+| ------------------ | ------------------------------------- | --------------------------- |
+| Table              | Groups one kind of item               | Books                       |
+| Field              | Describes a property                  | Title, Status               |
+| Record             | Stores one item                       | One book                    |
+| Record Label Field | Supplies the record's displayed title | Title                       |
+| Saved view         | Stores query and display settings     | Books with Status = Reading |
 
 The file stores the table structure, records, and saved views. A File field
 can reference an external attachment. Include that attachment when moving
@@ -49,9 +58,13 @@ view but remains in the table.
 
 ## Choose a way to open the file
 
-- **Eidos Lite:** work with a folder, notes, files, local history, and optional Sync.
+- **Eidos Lite:** work with a local folder of `.eidos` and ordinary files, local Graft history, and optional Sync.
 - **Web Editor:** open one Eidos File in a browser. Check its save state before closing.
-- **CLI:** inspect, query, and change files from scripts. Use `eidos serve` for a local editor.
+- **CLI:** create, inspect, query, and change files from scripts or agents. Use `eidos serve` for a local editor.
+
+Eidos File provides the portable Runtime behind these tools. Lite, the Web
+Editor, and CLI Serve share the editor UI, so the file's data and editing
+rules stay consistent across them.
 
 Local work and LAN sync do not require an account. Cloud sync and Publish are
 separate, optional services. [Compare saving, history, Sync, and backups](/user-guide/data-safety/).

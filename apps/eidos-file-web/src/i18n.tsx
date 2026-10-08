@@ -53,11 +53,11 @@ const en = {
   recoveryPrivate: "Recovered from this browser’s private storage.",
   recoverEdits: "Recover edits",
   discardCopy: "Discard copy",
-  formatEyebrow: "Open relational spreadsheet format",
+  formatEyebrow: "Open SQLite-backed file format",
   formatTitleOne: "One file.",
-  formatTitleTwo: "Many useful views.",
+  formatTitleTwo: "Your data, wherever you work.",
   formatIntro:
-    "A .eidos file is a portable SQLite database, not an opaque export. Its versioned schema describes records, typed properties, relations, and saved views; Desktop and Web share the same runtime contract.",
+    "A .eidos file is a portable SQLite database that stores structured data: tables, typed fields, records, relations, and saved views. Open and edit it directly with Eidos Lite, the browser editor, or the CLI.",
   formatFile: "01 / file",
   formatFileTitle: "SQLite container",
   formatFileBody:
@@ -71,9 +71,9 @@ const en = {
   formatBehaviorBody:
     "Schema rules, queries, and edits live in @eidos.space/eidos-file; storage drivers supply only the SQLite connection.",
   formatExperience: "04 / experience",
-  formatExperienceTitle: "Pluggable views",
+  formatExperienceTitle: "Shared editor UI",
   formatExperienceBody:
-    "Grid, Gallery, and Kanban are presentations over the same records and declarative view state—not separate copies.",
+    "Eidos Lite, the browser editor, and CLI Serve share the editor UI. Saved views let you choose how to display the records in your file.",
   principleOwned: "User-owned file",
   principleAccount: "No account required",
   principleDrivers: "Browser + Desktop drivers",
@@ -83,19 +83,19 @@ const en = {
   graftTitleOne: "Your Eidos File is a file.",
   graftTitleTwo: "Graft gives it history.",
   graftIntro:
-    "Eidos File defines the open data format. Graft is the optional version layer: commit meaningful snapshots, inspect row-level diffs, move through history, work on branches, and synchronize remotes.",
+    "Eidos Lite uses Graft for local version history and optional Sync. Save snapshots, review changes, and restore earlier versions while keeping your files usable offline.",
   stackEyebrow: "The Eidos data stack",
   stackTitle: "Format, history, application.",
   stackGraft: "SQLite version engine",
   stackGraftBody:
     "Graft gives SQLite commit history, logical diffs, branches, checkout, reset, and repository synchronization.",
   openGraft: "Open version control",
-  stackEidosFile: "Open format + relational spreadsheet UI",
+  stackEidosFile: "Open format and file tools",
   stackEidosFileBody:
-    "Eidos File defines the portable file, shared runtime, typed fields, relations, saved views, and table experiences.",
-  stackEidos: "Local-first application",
+    "Eidos File provides the open SQLite-backed format, portable Runtime, shared editor UI, browser editor, local serve UI, and agent-first CLI.",
+  stackEidos: "Desktop app for local folders",
   stackEidosBody:
-    "Eidos Lite combines Eidos Files, ordinary files, local version history, and optional Sync in one focused workspace.",
+    "Eidos Lite opens a local folder of .eidos and ordinary files as a Space, with local Graft history and optional Sync. Local files work offline without an account.",
   graftCommit: "Commit",
   graftCommitBody: "Name a coherent set of local table and schema changes.",
   graftDiff: "Diff",
@@ -108,7 +108,7 @@ const en = {
   graftSyncBody:
     "Synchronize repositories and resolve conflicts with an explicit workflow.",
   graftBoundary:
-    "Version control stays a separate, explicit workflow. Open Version to experience commits, row-level SQLite diffs, branches, restore, and sync in the browser.",
+    "In Eidos Lite, use Versions to review and restore local history. Enable Sync when you want to work with a Space across devices.",
   demoEyebrow: "Live runtime · no mock data layer",
   demoTitle: "A real Eidos File, ready to edit",
   demoIntro:
@@ -257,11 +257,11 @@ const zh: Record<MessageKey, string> = {
   recoveryPrivate: "已从此浏览器的私有存储中找回。",
   recoverEdits: "恢复修改",
   discardCopy: "丢弃副本",
-  formatEyebrow: "开放的多维表格格式",
+  formatEyebrow: "基于 SQLite 的开放文件格式",
   formatTitleOne: "一个文件。",
-  formatTitleTwo: "多种工作视图。",
+  formatTitleTwo: "随处使用你的数据。",
   formatIntro:
-    ".eidos 是可携带的 SQLite 数据库，不是不透明的导出文件。版本化 schema 描述记录、字段类型、关系和视图；桌面端与 Web 端共享同一 runtime 契约。",
+    ".eidos 是可携带的 SQLite 数据库，保存表、类型化字段、记录、关系和视图等结构化数据。通过 Eidos Lite、网页编辑器或 CLI，可以直接打开和编辑这个文件。",
   formatFile: "01 / 文件",
   formatFileTitle: "SQLite 容器",
   formatFileBody:
@@ -275,9 +275,9 @@ const zh: Record<MessageKey, string> = {
   formatBehaviorBody:
     "Schema 规则、查询和编辑统一由 @eidos.space/eidos-file 提供；存储 driver 只实现 SQLite 连接。",
   formatExperience: "04 / 体验",
-  formatExperienceTitle: "可插拔视图",
+  formatExperienceTitle: "共享编辑器 UI",
   formatExperienceBody:
-    "Grid、Gallery 与 Kanban 是同一份记录和声明式视图状态的不同呈现，不是多份数据副本。",
+    "Eidos Lite、网页编辑器和 CLI Serve 共享编辑器 UI。保存的视图让你选择文件中记录的显示方式。",
   principleOwned: "用户拥有文件",
   principleAccount: "无需账号",
   principleDrivers: "浏览器 + 桌面驱动",
@@ -287,19 +287,19 @@ const zh: Record<MessageKey, string> = {
   graftTitleOne: "Eidos File 是你的文件。",
   graftTitleTwo: "Graft 赋予它历史。",
   graftIntro:
-    "Eidos File 定义开放数据格式，Graft 则是可选的版本层：提交有意义的快照、检查行级 diff、回到历史版本、使用分支，并与远端同步。",
+    "Eidos Lite 使用 Graft 提供本地版本历史和可选的 Sync。保存快照、查看改动、恢复早期版本，文件在离线时仍然可用。",
   stackEyebrow: "Eidos 数据栈",
   stackTitle: "格式、历史与应用。",
   stackGraft: "SQLite 版本引擎",
   stackGraftBody:
     "Graft 为 SQLite 提供提交历史、逻辑 diff、分支、checkout、reset 与仓库同步。",
   openGraft: "打开版本控制",
-  stackEidosFile: "开放格式 + 多维表格 UI",
+  stackEidosFile: "开放格式与文件工具",
   stackEidosFileBody:
-    "Eidos File 定义可携带文件、共享 runtime、字段类型、关系、视图状态与多维表格体验。",
-  stackEidos: "本地优先应用",
+    "Eidos File 提供基于 SQLite 的开放格式、可跨平台的 Runtime、共享编辑器 UI、网页编辑器、本地 serve UI 和面向智能体的 CLI。",
+  stackEidos: "管理本地文件夹的桌面应用",
   stackEidosBody:
-    "Eidos Lite 将 Eidos File、普通文件、本地版本历史与可选同步组合在一个聚焦的工作区中。",
+    "Eidos Lite 把包含 .eidos 和普通文件的本地文件夹作为 Space 打开，提供本地 Graft 历史和可选的 Sync。本地文件无需账户，离线也能使用。",
   graftCommit: "提交",
   graftCommitBody: "为一组相关的数据表和 schema 修改写下清晰的提交说明。",
   graftDiff: "差异",
@@ -309,7 +309,7 @@ const zh: Record<MessageKey, string> = {
   graftSync: "推送、拉取与合并",
   graftSyncBody: "同步仓库，并通过明确流程解决冲突。",
   graftBoundary:
-    "版本管理保持独立、明确的工作流。打开“版本”，即可在浏览器中体验提交、SQLite 行级 diff、分支、恢复与同步。",
+    "在 Eidos Lite 的 Versions 中查看和恢复本地历史。需要在不同设备上使用 Space 时，可以开启 Sync。",
   demoEyebrow: "实时 runtime · 没有伪造数据层",
   demoTitle: "真实 Eidos File，可直接编辑",
   demoIntro:

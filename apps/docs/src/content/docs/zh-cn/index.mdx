@@ -1,10 +1,10 @@
 ---
 title: Eidos 文档
-description: 看懂文件结构，选择适合你的使用方式。
+description: 使用可携带的 Eidos File，通过 Eidos Lite 管理本地文件夹。
 template: splash
 hero:
-  title: 文件在本地，内容更清楚。
-  tagline: 把笔记、表格和附件放在同一个文件夹里。从一个具体例子开始，理解 Eidos，再动手使用。
+  title: 你的工作，保存在文件里。
+  tagline: 用 .eidos 文件保存结构化数据，把笔记和附件放在旁边。在 Eidos Lite 中打开文件夹，在浏览器中编辑文件，或用 CLI 自动处理工作。
   actions:
     - text: 从一个文件开始
       link: /zh-cn/getting-started/
@@ -20,19 +20,51 @@ import FileMap from "../../../components/FileMap.astro"
 
 ## 先看文件里有什么
 
-**Eidos File** 是基于 SQLite 的文件格式，保存表、记录和视图。
-**Eidos Lite** 是桌面应用，用来打开包含这些文件、笔记和其他文档的文件夹。
-这个文件夹叫作 **Space**。
+**Eidos File** 是基于 SQLite 的开放结构化数据格式，提供可跨平台使用的
+Runtime 和共享编辑器 UI。一个 `.eidos` 文件保存表、类型化字段、记录、关系和视图。
+通过网页编辑器、面向智能体的 CLI 或 `eidos serve`，可以直接操作这个文件。
+
+**Eidos Lite** 是桌面应用，用来打开包含 `.eidos` 文件、Markdown 笔记和
+其他普通文件的本地文件夹。这个文件夹叫作 **Space**。
+Lite 提供本地 Graft 历史和可选的 Sync。本地文件在离线或未登录时仍然可用。
 
 <FileMap lang="zh-cn" />
 
 ## 接下来做什么
 
 <nav class="docs-home-index__list" aria-label="文档阅读路径">
-  <a href="/zh-cn/getting-started/eidos-lite/" class="docs-home-index__item"><span class="docs-home-index__number">01</span><span class="docs-home-index__copy"><strong>管理本地文件夹</strong><span>安装 Eidos Lite，打开 Space，创建第一个文件。</span></span><span aria-hidden="true">→</span></a>
-  <a href="/zh-cn/getting-started/browser/" class="docs-home-index__item"><span class="docs-home-index__number">02</span><span class="docs-home-index__copy"><strong>在浏览器里打开文件</strong><span>无需安装应用，直接试用网页编辑器。</span></span><span aria-hidden="true">→</span></a>
-  <a href="/zh-cn/cli/" class="docs-home-index__item"><span class="docs-home-index__number">03</span><span class="docs-home-index__copy"><strong>让命令行完成重复工作</strong><span>使用 CLI 创建、查询和验证文件。</span></span><span aria-hidden="true">→</span></a>
-  <a href="/zh-cn/plugins/" class="docs-home-index__item"><span class="docs-home-index__number">04</span><span class="docs-home-index__copy"><strong>在 Eidos 中开发工具</strong><span>通过插件添加文件编辑器、独立页面或命令。</span></span><span aria-hidden="true">→</span></a>
+  <a href="/zh-cn/getting-started/eidos-lite/" class="docs-home-index__item">
+    <span class="docs-home-index__number">01</span>
+    <span class="docs-home-index__copy">
+      <strong>管理本地文件夹</strong>
+      <span>安装 Eidos Lite，打开 Space，创建第一个文件。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/zh-cn/getting-started/browser/" class="docs-home-index__item">
+    <span class="docs-home-index__number">02</span>
+    <span class="docs-home-index__copy">
+      <strong>在浏览器里打开文件</strong>
+      <span>无需安装应用，直接试用网页编辑器。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/zh-cn/cli/" class="docs-home-index__item">
+    <span class="docs-home-index__number">03</span>
+    <span class="docs-home-index__copy">
+      <strong>让命令行完成重复工作</strong>
+      <span>使用 CLI 创建、查询和验证文件。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/zh-cn/plugins/" class="docs-home-index__item">
+    <span class="docs-home-index__number">04</span>
+    <span class="docs-home-index__copy">
+      <strong>在 Eidos 中开发工具</strong>
+      <span>通过插件添加文件编辑器、独立页面或命令。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
 </nav>
 
 已经在使用 Eidos？查看[使用指南](/zh-cn/user-guide/)，或了解[数据存储与备份](/zh-cn/user-guide/data-safety/)。

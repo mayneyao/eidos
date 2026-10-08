@@ -1,23 +1,29 @@
 ---
 title: Start with one file
-description: Choose a tool, make a book list, and check where your work is saved.
+description: Choose how to work with local files, then create and save a portable Eidos File.
 ---
 
-Choose the tool that fits your task. All three work with the Eidos File format.
+Start with the files you want to work on. Eidos Lite opens a local folder
+of `.eidos` and ordinary files as a **Space**. The browser editor and CLI
+work directly with individual Eidos Files, using the same open SQLite-backed
+format and Runtime.
 
-| I want to… | Start here | Where work is saved |
-| --- | --- | --- |
-| Manage a folder of files and notes | [Eidos Lite](/getting-started/eidos-lite/) | Local files in a Space |
-| Try one file without installing an app | [Web Editor](/getting-started/browser/) | Save to disk or download the working copy |
-| Use commands or an agent | [CLI](/getting-started/cli/) | The file path supplied to the command |
+| I want to…                             | Start here                                 | Where work is saved                       |
+| -------------------------------------- | ------------------------------------------ | ----------------------------------------- |
+| Manage a folder of files and notes     | [Eidos Lite](/getting-started/eidos-lite/) | Local files in a Space                    |
+| Try one file without installing an app | [Web Editor](/getting-started/browser/)    | Save to disk or download the working copy |
+| Use commands or an agent               | [CLI](/getting-started/cli/)               | The file path supplied to the command     |
+
+Local work does not require an account. Lite provides local Graft history;
+[Sync](/user-guide/sync/) is optional.
 
 ## Make something small
 
-1. Open or create an Eidos File.
+1. Create an Eidos File named `books.eidos`.
 2. Add a **Books** table with a **Title** field.
 3. Add a book, then create a **Status** Select field.
-4. Create a view that shows only books you are reading.
-5. Check that your changes are saved.
+4. Check that your changes are saved to `books.eidos`.
+5. Keep any referenced attachments with the file when you move or back it up.
 
 Follow [the book-list walkthrough](/user-guide/eidos-file-basics/).
 If the names are unfamiliar, first read [how the pieces fit](/concepts/).

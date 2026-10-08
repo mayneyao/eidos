@@ -1,6 +1,6 @@
 ---
-title: 理解文件、表和视图
-description: Space 包含文件，Eidos File 包含表，视图显示表中的记录。
+title: 理解 Eidos 的文件模型
+description: Eidos File 保存结构化数据，Eidos Lite 把本地文件夹作为 Space 打开。
 sidebar:
   order: 40
 ---
@@ -8,8 +8,12 @@ sidebar:
 import FileMap from "../../../../components/FileMap.astro"
 import ViewLab from "../../../../components/ViewLab.astro"
 
-**Space** 是本地文件夹。**Eidos File** 是文件夹里的结构化文档。
-**表**组织记录，**视图**选择并显示这些记录。
+**Eidos File** 是基于 SQLite 的开放结构化数据格式。
+每个 `.eidos` 文件保存自己的数据和结构，可以直接用兼容工具打开。
+
+**Eidos Lite** 是桌面应用，把本地文件夹作为 **Space** 打开。
+文件夹里可以同时存放 `.eidos` 文件、Markdown 笔记、图片和其他普通文件。
+Lite 提供本地 Graft 历史和可选的 Sync；本地编辑在离线或未登录时也可使用。
 
 ## 从一份书单开始
 
@@ -23,13 +27,15 @@ import ViewLab from "../../../../components/ViewLab.astro"
 
 ## Eidos File 里面有什么
 
-| 组成 | 作用 | 书单示例 |
-| --- | --- | --- |
-| 表 | 组织同一种内容 | Books |
-| 字段 | 描述一种属性 | Title、Status |
-| 记录 | 保存一个具体项目 | 一本书 |
-| 记录标题字段 | 提供记录的显示名称 | Title |
-| 保存的视图 | 保存查询和显示设置 | Status = Reading 的书 |
+**表**组织记录，字段描述记录的值，保存的**视图**选择并显示表中的记录。
+
+| 组成         | 作用               | 书单示例              |
+| ------------ | ------------------ | --------------------- |
+| 表           | 组织同一种内容     | Books                 |
+| 字段         | 描述一种属性       | Title、Status         |
+| 记录         | 保存一个具体项目   | 一本书                |
+| 记录标题字段 | 提供记录的显示名称 | Title                 |
+| 保存的视图   | 保存查询和显示设置 | Status = Reading 的书 |
 
 文件保存表结构、记录和视图。File 字段可以引用外部附件。
 移动文件时，也要带上这些附件。详见[数据存储](/zh-cn/user-guide/data-safety/)。
@@ -46,9 +52,12 @@ Grid 按行显示，Gallery 按卡片显示，Kanban 对记录分组。
 
 ## 选择打开文件的工具
 
-- **Eidos Lite：**管理文件夹、笔记、文件、本地历史和可选的 Sync。
+- **Eidos Lite：**管理包含 `.eidos` 和普通文件的本地文件夹，使用本地 Graft 历史和可选的 Sync。
 - **网页编辑器：**在浏览器中打开一个 Eidos File。关闭前检查保存状态。
-- **CLI：**通过脚本检查、查询和修改文件。用 `eidos serve` 打开本地编辑器。
+- **CLI：**通过脚本或智能体创建、检查、查询和修改文件。用 `eidos serve` 打开本地编辑器。
+
+这些工具都使用 Eidos File 提供的可跨平台 Runtime。
+Lite、网页编辑器和 CLI Serve 共享编辑器 UI，文件的数据和编辑规则保持一致。
 
 本地使用和局域网同步无需账户。云同步和发布是独立的可选服务。
 [比较保存、历史、Sync 与备份](/zh-cn/user-guide/data-safety/)。
