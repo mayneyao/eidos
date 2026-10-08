@@ -2836,10 +2836,10 @@ function WorkspaceApp({
   }, [theme])
 
   const toggleVersionPanel = useCallback(() => {
-    if (!space?.graft.available) return
+    if (!space) return
     setSyncPanelMode(null)
     setVersionPanelOpen((current) => !current)
-  }, [space?.graft.available])
+  }, [space])
 
   const toggleSyncPanel = useCallback(() => {
     if (!space) return
@@ -4028,7 +4028,6 @@ function WorkspaceApp({
               className="icon-button titlebar-tool-button"
               data-titlebar-action="version"
               data-version-change-count={versionChangeCount}
-              disabled={!space.graft.available}
               aria-pressed={versionPanelOpen}
               aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
                 "toggle-version",
@@ -4759,7 +4758,24 @@ function WorkspaceApp({
             onFilesMaterialized={refreshMaterializedFiles}
           />
         </Suspense>
-      ) : workbenchSurfaces.right === "history" && space.graft.available ? (
+      ) : workbenchSurfaces.right === "history" && !space.graft.available ? (
+        <aside className="version-panel" aria-label="Space version management">
+          <header>
+            <strong>{t("Version history")}</strong>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setVersionPanelOpen(false)}
+              aria-label={t("Close")}
+            >
+              <X />
+            </button>
+          </header>
+          <div className="version-error" role="alert">
+            {space.graft.error ?? t("Version history unavailable")}
+          </div>
+        </aside>
+      ) : workbenchSurfaces.right === "history" ? (
         <Suspense fallback={null}>
           <VersionPanel
             space={space}
