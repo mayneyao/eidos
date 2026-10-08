@@ -2,6 +2,8 @@
 
 An early TestFlight build for iPhone and iPad running iOS 17 or later.
 
+Build 3 fixes restoring files from the recycle bin on physical iOS devices.
+
 - Browse local Spaces and edit Markdown and Eidos File tables offline.
 - Open records on dedicated pages, edit fields, and switch table views.
 - Use compatible file-view and table-view plugins.

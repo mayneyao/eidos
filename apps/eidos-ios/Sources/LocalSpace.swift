@@ -41,14 +41,14 @@ final class LocalSpace {
     // iOS may move the app's data container during an update. Private indexes
     // use a Documents-relative identity, never the transient container prefix.
     static func storageIdentity(_ url: URL) -> String {
-        let path = url.standardizedFileURL.path
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.path
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.resolvingSymlinksInPath().path
         if path.hasPrefix(documents + "/") { return "documents:" + String(path.dropFirst(documents.count + 1)) }
         return path
     }
     init(root: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Space", isDirectory: true)) throws {
-        self.root = root
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        self.root = root.standardizedFileURL.resolvingSymlinksInPath()
     }
     func files(in directory: URL? = nil) throws -> [URL] {
         let directory = try checked(directory ?? root, allowRoot: true)
@@ -63,6 +63,7 @@ final class LocalSpace {
                 let ad = Self.isDirectory(a), bd = Self.isDirectory(b)
                 return ad != bd ? ad : a.lastPathComponent.localizedStandardCompare(b.lastPathComponent) == .orderedAscending
             }
+            .map { try checked($0) }
     }
     static func isDirectory(_ url: URL) -> Bool { (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
     func checked(_ url: URL, allowRoot: Bool = false) throws -> URL {
@@ -71,11 +72,15 @@ final class LocalSpace {
         let resolved = candidate.resolvingSymlinksInPath()
         guard (allowRoot && resolved == base) || resolved.path.hasPrefix(base.path + "/") else { throw LocalError.message(tr("文件必须位于当前 Space 内")) }
         var current = candidate
-        while current.path != root.standardizedFileURL.path && current.path != "/" {
+        while current.resolvingSymlinksInPath().path != base.path && current.path != "/" {
             guard !current.lastPathComponent.hasPrefix("."), (try? current.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw LocalError.message(tr("不支持隐藏路径或符号链接")) }
             current.deleteLastPathComponent()
         }
-        return candidate
+        // Device file enumeration can return /private/var while the container
+        // root uses /var. Keep returned paths relative to the same root spelling
+        // so persisted trash paths do not slice an unrelated prefix.
+        if resolved.path == base.path { return root.standardizedFileURL }
+        return root.standardizedFileURL.appendingPathComponent(String(resolved.path.dropFirst(base.path.count + 1)))
     }
     static func validateName(_ name: String) throws {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !name.hasPrefix("."),
