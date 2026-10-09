@@ -4392,7 +4392,7 @@ function WorkspaceApp({
                   />
                 ) : (
                   <TextFilePreview
-                    key={`${textPreview.relativePath}:${textPreviewReloadToken}`}
+                    key={`${textPreview.type === "text" ? (textPreview.editorIdentity ?? textPreview.relativePath) : textPreview.relativePath}:${textPreviewReloadToken}`}
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
                     theme={theme}
@@ -4410,13 +4410,58 @@ function WorkspaceApp({
                     focusRequestToken={fileSurfaceFocusRequestToken}
                     keyboardShortcuts={keyboardShortcuts}
                     onEditingModeChange={setTextPreviewEditingMode}
-                    onSaved={(file) =>
+                    onSaved={(file) => {
+                      const previousPath = textPreview.relativePath
+                      if (file.relativePath !== previousPath) {
+                        updateRecentFilePaths(previousPath, file.relativePath)
+                        const navigation = navigationSnapshotRef.current
+                        const location = navigation?.location
+                        if (
+                          navigation &&
+                          (location === previousPath ||
+                            (typeof location === "object" &&
+                              location?.type === "file" &&
+                              location.path === previousPath))
+                        ) {
+                          const next = replaceNavigationLocation(
+                            navigation,
+                            space.id,
+                            typeof location === "object" &&
+                              location?.type === "file"
+                              ? { ...location, path: file.relativePath }
+                              : file.relativePath
+                          )
+                          navigationSnapshotRef.current = next
+                          setNavigationSnapshot(next)
+                          // The save already owns this editor. Reopening here races
+                          // the Space snapshot and discards concurrent typing.
+                          window.dispatchEvent(
+                            new CustomEvent(NAVIGATION_EVENT, {
+                              detail: { restore: false },
+                            })
+                          )
+                        }
+                        setSelectedEntry((current) =>
+                          current?.relativePath === previousPath
+                            ? {
+                                ...current,
+                                relativePath: file.relativePath,
+                                name: file.relativePath.split("/").at(-1)!,
+                              }
+                            : current
+                        )
+                      }
                       setTextPreview((current) =>
-                        current?.relativePath === file.relativePath
-                          ? file
+                        current?.type === "text" &&
+                        current.relativePath === previousPath
+                          ? {
+                              ...file,
+                              editorIdentity:
+                                current.editorIdentity ?? previousPath,
+                            }
                           : current
                       )
-                    }
+                    }}
                     onReload={(preview) =>
                       setTextPreview((current) =>
                         current?.relativePath === preview.relativePath

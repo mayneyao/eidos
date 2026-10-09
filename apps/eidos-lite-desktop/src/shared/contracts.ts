@@ -425,6 +425,8 @@ export type TextFilePreviewResult =
   | {
       type: "text"
       relativePath: string
+      /** Renderer identity retained across a hook rename. */
+      editorIdentity?: string
       content: string
       encoding: TextFileEncoding
       bom: boolean

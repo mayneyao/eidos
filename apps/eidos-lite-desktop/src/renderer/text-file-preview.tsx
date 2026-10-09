@@ -141,6 +141,9 @@ function EditableTextFile({
   const draftRef = useRef(initialContent)
   const savedRef = useRef(preview.content)
   const revisionRef = useRef(draft?.revision ?? preview.revision)
+  const pathRef = useRef(preview.relativePath)
+  const identityRef = useRef(preview.editorIdentity ?? preview.relativePath)
+  pathRef.current = preview.relativePath
   const conflictRef = useRef<TextFilePreviewResult | null>(
     initialConflict ? preview : null
   )
@@ -188,7 +191,7 @@ function EditableTextFile({
         }
         try {
           const result = await window.eidosLite.saveTextFile({
-            relativePath: preview.relativePath,
+            relativePath: pathRef.current,
             content,
             expectedRevision: revisionRef.current,
           })
@@ -198,19 +201,25 @@ function EditableTextFile({
             return
           }
 
-          savedRef.current = content
+          const previousPath = pathRef.current
+          pathRef.current = result.file.relativePath
+          savedRef.current = result.file.content
           revisionRef.current = result.file.revision
-          onSaved(result.file)
+          if (previousPath !== result.file.relativePath)
+            onDraftChange(previousPath, null)
           if (draftRef.current === content) {
-            onDraftChange(preview.relativePath, null)
+            draftRef.current = result.file.content
+            setEditorContent(result.file.content)
+            onDraftChange(result.file.relativePath, null)
           } else {
-            onDraftChange(preview.relativePath, {
+            onDraftChange(result.file.relativePath, {
               content: draftRef.current,
               revision: result.file.revision,
             })
           }
+          onSaved(result.file)
           if (mountedRef.current) {
-            if (draftRef.current === content) {
+            if (draftRef.current === savedRef.current) {
               setState("saved")
             } else {
               setState("dirty")
@@ -250,7 +259,7 @@ function EditableTextFile({
       setError(null)
       const changed = content !== savedRef.current
       onDraftChange(
-        preview.relativePath,
+        pathRef.current,
         changed ? { content, revision: revisionRef.current } : null
       )
       if (conflictRef.current) {
@@ -344,8 +353,8 @@ function EditableTextFile({
         </div>
       ) : null}
       <MarkdownEditorSurface
-        key={`${preview.relativePath}:${editorGeneration}`}
-        documentKey={`${preview.relativePath}:${editorGeneration}`}
+        key={`${identityRef.current}:${editorGeneration}`}
+        documentKey={`${identityRef.current}:${editorGeneration}`}
         relativePath={preview.relativePath}
         assetDocumentPath={preview.relativePath}
         content={editorContent}
@@ -549,7 +558,7 @@ function DocumentFilePreview({
   ) {
     return (
       <EditableTextFile
-        key={preview.relativePath}
+        key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
         draft={draft}
         theme={theme}
@@ -592,7 +601,7 @@ function DocumentFilePreview({
           )
         ) : (
           <EditableTextFile
-            key={preview.relativePath}
+            key={preview.editorIdentity ?? preview.relativePath}
             preview={preview}
             draft={draft}
             theme={theme}
@@ -690,7 +699,7 @@ export function TextFilePreview({
     if (preview.browserPreview) {
       return (
         <DocumentFilePreview
-          key={preview.relativePath}
+          key={preview.editorIdentity ?? preview.relativePath}
           preview={preview as BrowserTextPreview}
           draft={draft}
           theme={theme}
@@ -713,7 +722,7 @@ export function TextFilePreview({
     }
     return (
       <EditableTextFile
-        key={preview.relativePath}
+        key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
         draft={draft}
         theme={theme}
