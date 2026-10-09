@@ -7,6 +7,12 @@ It builds independently of the Web and Electron applications.
 
 The interface supports English and Chinese. Open the file browser's **Folder actions → Language** menu to choose **Follow system**, **中文**, or **English**. The default follows the system language, using Chinese for `zh` and English for other languages. The choice is saved for the app and applies to the native interface and bundled editor without reopening the Space.
 
+Open a file's action menu and choose **Delete** to remove it from the Space.
+The editor saves pending changes before asking the host to remove an open file;
+unresolved drafts block removal. Deletions are included in subsequent version
+checkpoints and sync. A private recovery copy remains on this device, outside the
+synchronized Space; Android does not yet provide a recovery browser.
+
 To remove a local Space, open its name menu and choose **删除此 Space 的本地数据**.
 Confirm the scope, then complete Android's system screen-lock verification.
 Cancellation or missing screen-lock credentials leaves the Space intact. Deletion
