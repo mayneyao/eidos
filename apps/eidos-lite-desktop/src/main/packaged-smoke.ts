@@ -1671,6 +1671,7 @@ const rendererProbe = `
     )
   }
   window.__eidosLiteSmokeStep = "text file editor"
+  await window.eidosLite.updatePreferences({ markdownFileEditingMode: "source" })
   const readmePreview = await window.eidosLite.previewTextFile("README.md")
   if (readmePreview.type !== "text" || readmePreview.truncated) {
     throw new Error("README text preview is not editable")
