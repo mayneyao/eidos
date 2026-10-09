@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import {
   resolvePluginFile,
   writePluginFile,
@@ -1176,20 +1177,105 @@ export class SpaceSession {
   }
 
   async saveTextFile(
-    request: TextFileSaveRequest
+    request: TextFileSaveRequest,
+    source: "local" | "plugin" = "local"
   ): Promise<TextFileSaveResult> {
     this.prioritizeLocalWork()
-    const result = await this.gate.withMutation(() =>
-      saveTextFile(this.canonical.root, request)
-    )
+    let previousText: string | undefined
+    const result = await this.gate.withMutation(async () => {
+      if (this.fileHookRunner && source === "local") {
+        const previous = await readTextFilePreview(
+          this.canonical.root,
+          request.relativePath
+        )
+        if (previous.type === "text" && !previous.truncated)
+          previousText = previous.content
+      }
+      return saveTextFile(this.canonical.root, request)
+    })
     if (result.status === "saved") {
       this.noteLocalChange()
       this.notifyMarkdownWatchers([request.relativePath])
       await this.freshSnapshotAndEmit()
+      const file =
+        source === "local"
+          ? await this.runFileHook("document.saved", result.file, {
+              previousText,
+            })
+          : null
+      if (file) return { status: "saved", file }
     } else {
       this.scheduleGraftStatusRefresh()
     }
     return result
+  }
+
+  fileHookRunner?: (event: FileHookEvent) => Promise<FileHookPlan | null>
+
+  private async runFileHook(
+    type: FileHookEvent["type"],
+    file: Extract<TextFilePreviewResult, { type: "text" }>,
+    extra: Pick<FileHookEvent, "previousPath" | "previousText"> = {}
+  ) {
+    if (!this.fileHookRunner || file.truncated) return null
+    try {
+      const plan = await this.fileHookRunner({
+        type,
+        source: "local",
+        operationId: randomUUID(),
+        path: file.relativePath,
+        document: { text: file.content, version: file.revision },
+        ...extra,
+      })
+      if (!plan || this.closed) return null
+      const source = file.relativePath
+      const parent = path.posix.dirname(source)
+      const target = plan.name
+        ? joinSpaceRelativePath(
+            parent === "." ? null : parent,
+            normalizeSpaceEntryName(plan.name)
+          )
+        : source
+      const applied = await this.gate.withMutation(async () => {
+        const current = await readTextFilePreview(this.canonical.root, source)
+        if (current.type !== "text" || current.revision !== file.revision)
+          return null
+        if (target !== source) await this.requireMissingPath(target)
+        const linkPlan =
+          target === source
+            ? null
+            : await this.prepareMarkdownLinkMove(source, target)
+        if (plan.text !== undefined) {
+          const saved = await saveTextFile(this.canonical.root, {
+            relativePath: source,
+            content: plan.text,
+            expectedRevision: file.revision,
+          })
+          if (saved.status !== "saved") return null
+        }
+        if (target !== source) {
+          await renameWithRetry(
+            this.resolveUserPath(source),
+            this.resolveUserPath(target)
+          )
+          if (linkPlan)
+            await applyMarkdownLinkMove(this.canonical.root, linkPlan)
+        }
+        const next = await readTextFilePreview(this.canonical.root, target)
+        return next.type === "text" ? next : null
+      })
+      if (applied) {
+        this.noteLocalChange()
+        if (target !== source) this.recordPathMoveInBackground(source, target)
+        this.notifyMarkdownWatchers([source, target])
+        await this.freshSnapshotAndEmit()
+      }
+      return applied
+    } catch (error) {
+      // A plugin failure must never turn a successful ordinary save into a failed save.
+      console.warn("eidos file hook skipped", error)
+      return null
+    }
   }
 
   async importMarkdownImage(
@@ -1592,9 +1678,19 @@ export class SpaceSession {
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
     this.notifyMarkdownWatchers([source, target])
+    let finalPath = target
+    if (this.fileHookRunner && !/\.eidos$/i.test(target)) {
+      const file = await this.previewTextFile(target)
+      if (file.type === "text") {
+        const hooked = await this.runFileHook("file.renamed", file, {
+          previousPath: source,
+        })
+        if (hooked) finalPath = hooked.relativePath
+      }
+    }
     return {
       snapshot: await this.freshSnapshotAndEmit(),
-      relativePath: target,
+      relativePath: finalPath,
       invalidatedSessionIds,
       markdownLinks,
     }

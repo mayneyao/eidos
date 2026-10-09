@@ -192,6 +192,10 @@ export class WindowController {
   private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
   private readonly detachSpaceListeners = new Map<number, () => void>()
   onSpaceReleased: (ownerId: number) => void = () => {}
+  fileHookRunner?: (
+    session: SpaceSession,
+    event: import("@eidos.space/plugin-sdk").FileHookEvent
+  ) => Promise<import("@eidos.space/plugin-sdk").FileHookPlan | null>
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {
     nativeTheme.on("updated", () => {
@@ -972,6 +976,8 @@ export class WindowController {
       this.onSpaceReleased(webContents.id)
     }
     this.sessionByWebContents.set(webContents.id, session)
+    session.fileHookRunner = (event) =>
+      this.fileHookRunner?.(session, event) ?? Promise.resolve(null)
     if (!this.spaceCloseInstalled.has(window)) {
       this.spaceCloseInstalled.add(window)
       let closeApproved = false

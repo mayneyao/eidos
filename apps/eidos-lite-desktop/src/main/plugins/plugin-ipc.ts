@@ -22,6 +22,7 @@ import { PluginError, parseChange } from "@eidos.space/plugin-runtime/rpc"
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
+import { PluginFileHooks } from "./plugin-file-hooks"
 import { PluginService } from "./plugin-service"
 import { exportPluginFile } from "./plugin-export"
 import type { ExplorerState } from "@eidos.space/plugin-sdk"
@@ -73,6 +74,9 @@ export function registerPluginIpc(controller: WindowController): {
   // real Eidos home needs an owner-only permission guarantee.
   if (home.source !== "profile") ensureOwnerOnlyDirectory(fsSync, home.home)
   const store = new PluginStore(home.plugins)
+  const fileHooks = new PluginFileHooks(store)
+  controller.fileHookRunner = (session, event) =>
+    fileHooks.run(session.canonical.id, event)
   const registry = new PluginRegistry(store.directory)
   const connections = new PluginConnections(
     path.join(store.directory, "credentials"),
@@ -115,6 +119,15 @@ export function registerPluginIpc(controller: WindowController): {
     }
   >()
   protocol.handle("eidos-plugin", (request) => {
+    if (request.url === "eidos-plugin://file-hooks/index.html")
+      return new Response("<!doctype html><html><body></body></html>", {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "content-security-policy":
+            "default-src 'none'; script-src 'unsafe-inline'; frame-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'",
+          "cache-control": "no-store",
+        },
+      })
     const html = service.html(request.url)
     return new Response(html ?? "Plugin instance is closed", {
       status: html === null ? 404 : 200,
@@ -1045,6 +1058,8 @@ export function registerPluginIpc(controller: WindowController): {
       return encodePackage(pkg.manifest, pkg.modules)
     },
     close() {
+      fileHooks.close()
+      controller.fileHookRunner = undefined
       for (const channel of Object.values(PLUGIN_CHANNELS))
         ipcMain.removeHandler(channel)
       protocol.unhandle("eidos-plugin")

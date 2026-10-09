@@ -29,6 +29,7 @@ import type {
   Disposable,
   ActionDeclaration,
   FormatterDeclaration,
+  FileHookDeclaration,
   ViewCapability,
   ExplorerState,
   FileExportRequest,
@@ -71,6 +72,7 @@ interface Instance {
   extension?: {
     declarations: ActionDeclaration[]
     formatters: FormatterDeclaration[]
+    hooks: FileHookDeclaration[]
     registeredFormatters: Set<string>
     registered: Set<string> | null
     ready: Promise<void>
@@ -222,7 +224,8 @@ export class PluginService {
       html: extensionHtml(
         pkg.modules[pkg.manifest.extension]!,
         (pkg.manifest.actions ?? []).map((a) => a.id),
-        (pkg.manifest.formatters ?? []).map((f) => f.id)
+        (pkg.manifest.formatters ?? []).map((f) => f.id),
+        (pkg.manifest.hooks ?? []).map((h) => h.id)
       ),
       table,
       tableWritable:
@@ -241,6 +244,7 @@ export class PluginService {
       extension: {
         declarations: pkg.manifest.actions ?? [],
         formatters: pkg.manifest.formatters ?? [],
+        hooks: pkg.manifest.hooks ?? [],
         registeredFormatters: new Set(),
         registered: null,
         ready,
@@ -737,11 +741,14 @@ export class PluginService {
     const copy = await this.copies.open(identity, safe, {
       read: async () => diskSnapshot(await session.previewTextFile(safe)),
       write: async (text, revision) => {
-        const result = await session.saveTextFile({
-          relativePath: safe,
-          content: text,
-          expectedRevision: revision,
-        })
+        const result = await session.saveTextFile(
+          {
+            relativePath: safe,
+            content: text,
+            expectedRevision: revision,
+          },
+          "plugin"
+        )
         return result.status === "conflict"
           ? result
           : { status: "saved", snapshot: diskSnapshot(result.file) }
@@ -1229,7 +1236,15 @@ export class PluginService {
           if (
             extension.registered ||
             Object.keys(p).some(
-              (k) => !["actions", "formatters"].includes(k)
+              (k) => !["actions", "formatters", "hooks"].includes(k)
+            ) ||
+            !Array.isArray(p.hooks ?? []) ||
+            ((p.hooks as unknown[] | undefined) ?? []).length !==
+              extension.hooks.length ||
+            new Set((p.hooks as unknown[] | undefined) ?? []).size !==
+              extension.hooks.length ||
+            ((p.hooks as unknown[] | undefined) ?? []).some(
+              (id) => !extension.hooks.some((h) => h.id === id)
             ) ||
             !Array.isArray(p.formatters ?? []) ||
             ((p.formatters as unknown[] | undefined) ?? []).length !==
@@ -1271,12 +1286,14 @@ export class PluginService {
           if (
             typeof p.id !== "string" ||
             Object.keys(p).some((k) => !["id", "kind"].includes(k)) ||
-            (p.kind !== undefined && p.kind !== "formatter")
+            (p.kind !== undefined &&
+              p.kind !== "formatter" &&
+              p.kind !== "hook")
           )
             throw new PluginError("INVALID_REQUEST", "Invalid registration")
           if (p.kind === "formatter")
             extension.registeredFormatters.delete(p.id)
-          else extension.registered?.delete(p.id)
+          else if (p.kind !== "hook") extension.registered?.delete(p.id)
         } else if (request.method === "formatter.complete") {
           const invocation = instance.invocation
           if (
