@@ -128,7 +128,8 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
       const m = record(raw)
       if (
         ((Array.isArray(m.actions) && m.actions.length) ||
-          (Array.isArray(m.formatters) && m.formatters.length)) &&
+          (Array.isArray(m.formatters) && m.formatters.length) ||
+          (Array.isArray(m.hooks) && m.hooks.length)) &&
         m.extension === undefined
       )
         m.extension = `./${path.basename(absolute)}`

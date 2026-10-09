@@ -17,6 +17,7 @@
     "./extension-sandbox": "./src/extension-sandbox.ts",
     "./working-copy": "./src/working-copy.ts",
     "./lifecycle": "./src/lifecycle.ts",
+    "./file-hooks": "./src/file-hooks.ts",
     "./compiler": {
       "types": "./src/compiler.ts",
       "default": "./dist/compiler.js"

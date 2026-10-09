@@ -11,6 +11,7 @@ import type {
   FileMetaValues,
   FileMetaPatch,
   FileListOptions,
+  FileHookHandler,
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
@@ -19,7 +20,8 @@ import { loadTypeScript } from "./toolchain"
 function activateGuest(
   activate: Activate,
   declared: string[],
-  declaredFormatters: string[]
+  declaredFormatters: string[],
+  declaredHooks: string[]
 ) {
   const parent = window.parent
   const lifetime = new AbortController()
@@ -28,6 +30,7 @@ function activateGuest(
     string,
     (ctx: ActionContext) => void | Promise<void>
   >()
+  const hooks = new Map<string, FileHookHandler>()
   const pending = new Map<
     string,
     {
@@ -356,6 +359,41 @@ function activateGuest(
       message.apiVersion !== 1
     )
       return
+    if (message.observation === "hook.run") {
+      const value = message.value
+      const controller = new AbortController()
+      runs.set(value.invocation, () => controller.abort())
+      void (async () => {
+        try {
+          const handler = hooks.get(value.hook)
+          if (!activated || !handler)
+            throw failure("INVALID_REQUEST", "Hook unavailable")
+          const result = await handler({
+            event: Object.freeze({
+              ...value.event,
+              document: Object.freeze(value.event.document),
+            }),
+            settings: Object.freeze(value.settings),
+            signal: controller.signal,
+          })
+          if (!controller.signal.aborted)
+            await call("hook.complete", {
+              invocation: value.invocation,
+              result: result ?? null,
+            })
+        } catch (error) {
+          if (!controller.signal.aborted)
+            await call("hook.complete", {
+              invocation: value.invocation,
+              error: String(error).slice(0, 4096),
+            }).catch(() => {})
+        } finally {
+          controller.abort()
+          runs.delete(value.invocation)
+        }
+      })()
+      return
+    }
     if (message.observation === "formatter.run") {
       const value = message.value
       const controller = new AbortController()
@@ -513,6 +551,28 @@ function activateGuest(
         signal: lifetime.signal,
         subscriptions: { add: own },
         capabilities: {
+          hooks: {
+            register(id, handler) {
+              if (
+                activated ||
+                !declaredHooks.includes(id) ||
+                hooks.has(id) ||
+                typeof handler !== "function"
+              )
+                throw failure("INVALID_REQUEST", "Invalid hook registration")
+              hooks.set(id, handler)
+              return own({
+                dispose() {
+                  if (!hooks.delete(id)) return
+                  if (activated)
+                    void call("extension.unregister", {
+                      id,
+                      kind: "hook",
+                    }).catch(() => {})
+                },
+              })
+            },
+          },
           formatters: {
             register(id, provider) {
               if (
@@ -583,7 +643,8 @@ function activateGuest(
       if (cleanup) own(cleanup)
       if (
         handlers.size !== declared.length ||
-        formatters.size !== declaredFormatters.length
+        formatters.size !== declaredFormatters.length ||
+        hooks.size !== declaredHooks.length
       )
         throw failure(
           "INVALID_REQUEST",
@@ -593,6 +654,7 @@ function activateGuest(
       await call("extension.ready", {
         actions: [...handlers.keys()],
         formatters: [...formatters.keys()],
+        ...(declaredHooks.length ? { hooks: [...hooks.keys()] } : {}),
       })
       if (tableProviders.size)
         await call("table.actions.ready", {
@@ -603,6 +665,7 @@ function activateGuest(
       dispose(owned)
       handlers.clear()
       formatters.clear()
+      hooks.clear()
       await call("extension.failed", {
         message: String(cause).slice(0, 4096),
       }).catch(() => {})
@@ -612,7 +675,8 @@ function activateGuest(
 export function extensionHtml(
   code: string,
   actions: string[],
-  formatters: string[] = []
+  formatters: string[] = [],
+  hooks: string[] = []
 ): string {
   // The view bootstrap supplies transport for its own mount only. The extension
   // bootstrap uses a separate channel state and never exposes a DOM root to Activate.
@@ -625,6 +689,6 @@ export function extensionHtml(
       allowJs: true,
     },
   }).outputText
-  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}); }`
+  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}); }`
   return viewHtml(adapter, { kind: "page", route: "" })
 }

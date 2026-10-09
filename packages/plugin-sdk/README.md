@@ -53,6 +53,15 @@ Declare namespaces and optional write permission in `workspace.filemeta`.
 Writes also require contribution write access. The host uses sqlite-fs-meta.
 
 Extensions retain activate and register through capabilities.actions/formatters.
+
+Plugin API 3.3 adds `capabilities.hooks.register(id, handler)` for declared
+`document.saved` and `file.renamed` hooks. Handlers receive a versioned local
+document snapshot, settings and signal, and return `{ text?, name? }` for that
+file. Declare `access: "write"` to return mutations. The host checks versions,
+name collisions and plugin enablement, maintains Markdown links, and prevents
+hook mutations from triggering hooks again. Hooks run in isolation without
+filesystem, database or network capabilities; use portable JavaScript without
+DOM or Node globals. Android and iOS support Markdown hooks; CLI Serve does not.
 Table providers retain getItems/run with eidos.table/eidos.config/target/task/connections under
 capabilities; task.declareOutputs validates output samples and establishes writable fields.
 Eidos config read/write/watch use an explicit tableId and remain scoped to the

@@ -27,6 +27,8 @@ base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
 chrono = "0.4"
+pulldown-cmark = "0.13"
+percent-encoding = "2"
 anyhow = "1"
 flate2 = { version = "1.0", optional = true }
 tiny_http = { version = "0.12", optional = true }

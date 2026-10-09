@@ -4,6 +4,8 @@ use std::rc::Rc;
 use anyhow::{anyhow, Context as _};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use rquickjs::{Context, Ctx, Function, Object, Promise, Runtime};
+pub mod file_hooks;
+pub mod markdown_links;
 use rusqlite::{
     ffi,
     functions::FunctionFlags,

@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "3.2.0",
+      "pluginApi": "3.3.0",
       "features": [
         "data.file",
         "data.eidos/table",
@@ -14,6 +14,7 @@
         "extension",
         "actions",
         "formatters",
+        "hooks",
         "connections",
         "settings",
         "storage",
@@ -40,6 +41,7 @@
     { "key": "extension", "feature": "extension" },
     { "key": "actions", "feature": "actions" },
     { "key": "formatters", "feature": "formatters" },
+    { "key": "hooks", "feature": "hooks" },
     { "key": "connections", "feature": "connections" },
     { "key": "resources", "feature": "resources" },
     { "key": "settings", "feature": "settings" },

@@ -236,6 +236,57 @@ capabilities.network.read({ url }) makes bounded HTTPS requests to origins decla
 
 ## Register commands and formatters
 
+### Run after local file changes
+
+Declare `hooks` and require plugin API `3.3.0`:
+
+```json
+{
+  "requires": { "pluginApi": "3.3.0" },
+  "extension": "./extension.ts",
+  "hooks": [
+    {
+      "id": "saved",
+      "title": "After saving Markdown",
+      "event": "document.saved",
+      "extensions": [".md", ".markdown"],
+      "access": "write"
+    }
+  ]
+}
+```
+
+```ts
+import type { Activate } from "@eidos.space/plugin-sdk"
+const activate: Activate = (ctx) => {
+  ctx.subscriptions.add(
+    ctx.capabilities.hooks.register(
+      "saved",
+      async ({ event, settings, signal }) => {
+        signal.throwIfAborted()
+        // Return { text } or { name } for this document, or nothing.
+      }
+    )
+  )
+}
+export default activate
+```
+
+Events provide the Space-relative `path`, `operationId`, `source`, and
+`document: { text, version }`. `document.saved` includes `previousText`;
+`file.renamed` includes `previousPath`. Hooks run only after successful local
+changes. Opening, enabling, cloud/LAN updates and hook-generated changes do not
+trigger them. A filename plan retains the extension and folder; existing files
+and newer document versions are protected. A failed hook leaves the save or
+rename in place. Multiple plugins run by ID, then declaration order, stopping
+at the first effective write plan.
+
+Use portable JavaScript: hook handlers have no filesystem, database, network,
+DOM or Node APIs. They receive the plugin's resolved settings and return plans
+for the current document only. Add registration disposables to subscriptions.
+Lite supports editable text files; Android and iOS support Markdown. CLI Serve
+does not support hooks.
+
 In activate, call capabilities.actions.register(id, handler) for a declared action. Its handler receives a context and performs operations through capabilities.
 
 Register formatters with capabilities.formatters.register(id, provider). provider.format receives `{ text, path, signal }` and returns `{ text }`; Eidos applies an undoable edit.

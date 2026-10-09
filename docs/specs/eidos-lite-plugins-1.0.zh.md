@@ -1,10 +1,32 @@
-# Eidos Plugins — API 3.2
+# Eidos Plugins — API 3.3
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.2.0
+Plugin API：3.3.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## 文件 hook
+
+API 3.3 支持声明 `hooks: [{ id, title, event, extensions, access? }]`，事件为
+`document.saved` 或 `file.renamed`。需要 extension 入口和
+`requires.pluginApi: "3.3.0"` 或更高版本。插件在 activate 中调用
+`capabilities.hooks.register`，并把返回的 disposable 加入 subscriptions。
+
+处理器收到 `{ event, settings, signal }`。event 包含 type、operationId、source、
+Space 相对 path 和 `document: { text, version }`；保存事件另有 previousText，
+重命名事件另有 previousPath。宿主只在本地操作成功后触发，不在打开、安装、启用、
+接收同步或应用 hook 修改时触发。写 hook 返回当前文档的 `{ text?, name? }`；
+name 必须是保留扩展名及目录的可跨平台叶文件名。hook 不提供文件系统、数据库或网络 API。
+
+宿主校验字段、2 MiB 文本限制、文件名、当前版本、同名冲突和插件启用版本，隔离执行、
+限制时间并释放资源；原生 QuickJS 限制为 32 MiB 内存。失败或过期计划保留原本已成功的保存或重命名。
+插件按 ID 排序、内部按声明顺序执行，第一个有效写计划生效。
+重命名维护 Markdown 引用，引用文件按版本校验并保留未保存草稿；编辑器跟随新路径，
+不得重建或丢弃期间输入。桌面使用独立沙盒 renderer，移动端使用独立 QuickJS；
+hook 代码不应依赖 DOM、浏览器或 Node 全局对象。
+Lite 支持可编辑文本文件，Android 和 iOS 支持 `.md`、`.markdown`；CLI Serve 不支持。
+禁用停止后续触发，启用不批量修改已有文件。Lite API 为 3.3.0，CLI Serve 为 3.0.0。
 
 本文定义 Adapter / UI 边界的插件接口。Eidos File 格式与数据语义由对应规范定义。
 英文文档是唯一规范性版本；本文为中文参考。
@@ -288,7 +310,7 @@ activate、task.declareOutputs、配置 key、数据 schema 无需一起修改�
 
 ## 插件兼容契约
 
-两个源码树宿主均声明可执行 API 3.0.0。TypeScript 与 Rust 共用
+Lite 声明可执行 API 3.3.0，CLI Serve 声明 API 3.0.0。TypeScript 与 Rust 共用
 packages/plugin-runtime/src/compatibility-data.json 的能力清单。
 View kind 产生 view.page/view.file，绑定数据能力产生 data.document、data.eidos/schema、data.eidos/table、data.eidos/config；普通文件视图需要 data.file 支持。
 主题保留独立未变更契约。旧 format 1 的诊断可能返回未声明版本，不能将其视为 API 3 一致性承诺。

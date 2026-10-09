@@ -213,6 +213,25 @@ capabilities.network.read({ url }) 向 browser.networkOrigins 声明的 HTTPS �
 
 ## 注册命令与格式化器
 
+### 本地文件修改后自动执行
+
+插件 API `3.3.0` 支持 `hooks` 声明，字段为
+`{ id, title, event, extensions, access? }`。event 是 `document.saved` 或
+`file.renamed`；需要 extension 入口和对应的 `requires.pluginApi`。
+在 activate 中调用 `ctx.capabilities.hooks.register(id, handler)`，并将返回的
+disposable 加入 `ctx.subscriptions`。
+
+处理器接收 `{ event, settings, signal }`。event 提供 Space 相对 path、operationId、
+source 和 `document: { text, version }`；保存另有 previousText，重命名另有 previousPath。
+写 hook 声明 `access: "write"`，返回当前文档的 `{ text?, name? }` 或不返回计划。
+name 保留目录与扩展名。宿主校验版本和同名冲突，并维护 Markdown 引用。
+失败保留已经成功的保存或重命名。多个插件按 ID、声明顺序执行，第一个有效写计划生效。
+
+只在本地操作成功后触发；打开、启用、云同步、局域网更新以及 hook 自身的修改不触发。
+hook 使用可跨平台 JavaScript，不提供文件系统、数据库、网络、DOM 或 Node API。
+settings 是插件配置的当前快照。Lite 支持可编辑文本文件，Android、iOS 支持 Markdown；
+CLI Serve 不支持 hook。
+
 在扩展的 activate 中使用 capabilities.actions.register(id, handler) 注册声明过的动作。handler 接收自己的上下文，通过 capabilities 执行操作。
 
 格式化器通过 capabilities.formatters.register(id, provider) 注册。provider.format 接收 `{ text, path, signal }` 并返回 `{ text }`，由 Eidos 应用可撤销的文本编辑。

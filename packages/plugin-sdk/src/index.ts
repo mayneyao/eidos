@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.2.
+// Public type-only SDK for Eidos Plugin API 3.3.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -29,6 +29,8 @@ export interface PluginManifest {
   fileTemplates?: FileTemplateDeclaration[]
   actions?: ActionDeclaration[]
   formatters?: FormatterDeclaration[]
+  /** Post-operation plans over the event's document; no ambient filesystem access. */
+  hooks?: FileHookDeclaration[]
   placements?: Placement[]
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; networkOrigins?: string[] }
@@ -121,6 +123,38 @@ export interface FormatterDeclaration {
   title: string
   extensions: string[]
 }
+
+export type FileHookEventType = "document.saved" | "file.renamed"
+export interface FileHookDeclaration {
+  id: string
+  title: string
+  event: FileHookEventType
+  extensions: string[]
+  access?: "read" | "write"
+}
+export interface FileHookEvent {
+  type: FileHookEventType
+  operationId: string
+  source: "local" | "plugin" | "sync"
+  path: string
+  previousPath?: string
+  previousText?: string
+  document: { text: string; version: string }
+}
+export interface FileHookPlan {
+  /** Replacement text for this document, checked against the event version. */
+  text?: string
+  /** New leaf filename in the same directory, retaining the extension. */
+  name?: string
+}
+export interface FileHookContext {
+  readonly event: FileHookEvent
+  readonly signal: AbortSignal
+  readonly settings: Readonly<Record<string, SettingValue>>
+}
+export type FileHookHandler = (
+  context: FileHookContext
+) => FileHookPlan | void | Promise<FileHookPlan | void>
 export interface FormatterInput {
   text: string
   path: string
@@ -320,6 +354,9 @@ export interface ActionContext extends CommonContext {
 }
 export interface ExtensionContext extends Lifetime {
   readonly capabilities: {
+    readonly hooks: {
+      register(id: string, handler: FileHookHandler): Disposable
+    }
     readonly formatters: {
       register(id: string, provider: FormatterProvider): Disposable
     }

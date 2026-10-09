@@ -5,6 +5,7 @@ await build({
     "src/compiler.ts",
     "src/sandbox.ts",
     "src/extension-sandbox.ts",
+    "src/file-hooks.ts",
     "src/working-copy.ts",
     "src/lifecycle.ts",
   ],

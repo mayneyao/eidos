@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.2
+# Eidos Plugins — API 3.3
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.2.0
+Plugin API: 3.3.0
 
 Canonical language: English
 
@@ -14,6 +14,39 @@ The Chinese document is informative. MUST, MUST NOT, SHOULD, and MAY express
 requirements of this contract.
 
 ## 1. Purpose and conformance
+
+### File hooks
+
+API 3.3 adds optional `hooks` declarations: `{ id, title, event, extensions,
+access? }`. `event` is `document.saved` or `file.renamed`; `access` defaults to
+read-only. Hooks require an extension entry and `requires.pluginApi: "3.3.0"`
+or newer. Extensions register handlers with `capabilities.hooks.register` during
+activation and add the returned disposable to `subscriptions`.
+
+The handler receives `{ event, settings, signal }`. Events contain `type`,
+`operationId`, `source`, Space-relative `path`, and `document: { text, version }`.
+Saved events include `previousText`; renamed events include `previousPath`.
+Hosts MUST dispatch only after successful local saves or local renames, and
+MUST NOT dispatch for opens, installation, enabling, incoming synchronization,
+or hook-generated mutations. A write hook MAY return `{ text?, name? }` for the
+event document only; `name` is a portable leaf filename retaining the extension
+and existing folder. Hooks receive no filesystem, database or network APIs.
+
+Hosts MUST reject unknown plan fields, non-text or text above 2 MiB, invalid
+filenames, extension changes, stale document versions, and existing rename
+destinations. A skipped or failed hook MUST preserve the successful initiating
+operation. Hosts MUST isolate plugin execution, bound time, verify
+that the same plugin revision is still enabled, and dispose its resources.
+Desktop hooks run in a separate sandboxed renderer; native hooks run in an
+isolated QuickJS VM with a 32 MiB memory limit. Hook code MUST NOT depend on DOM, browser or Node globals.
+
+The first effective write plan wins, ordered by plugin ID and then declaration
+order. Hosts maintain Markdown references during a rename, using version checks
+for linked documents and preserving outstanding drafts. Editors MUST follow
+the resulting path without remounting or discarding concurrent typing. Lite
+supports editable text files; Android and iOS support `.md` and `.markdown`.
+CLI Serve does not implement hooks. Disabling a plugin stops future events;
+enabling one MUST NOT bulk-reconcile existing files.
 
 ### File templates and resource composition
 
@@ -420,7 +453,7 @@ Conformance requires testing the advertised profile, including:
 
 ## Plugin compatibility contract
 
-Both source-tree hosts advertise executable API 3.0.0. The feature inventory in
+Lite advertises executable API 3.3.0; CLI Serve advertises API 3.0.0. The feature inventory in
 `packages/plugin-runtime/src/compatibility-data.json` is shared by TypeScript and
 Rust checks. View kinds produce view.page/view.file; declared bound-data
 capabilities produce data.document, data.eidos/schema, data.eidos/table and

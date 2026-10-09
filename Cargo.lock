@@ -908,6 +908,8 @@ dependencies = [
  "flate2",
  "futures-util",
  "open",
+ "percent-encoding",
+ "pulldown-cmark",
  "rand 0.8.7",
  "reqwest",
  "rquickjs",

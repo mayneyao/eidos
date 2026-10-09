@@ -204,6 +204,7 @@ export function parseManifest(input: unknown): PluginManifest {
       "fileTemplates",
       "actions",
       "formatters",
+      "hooks",
       "placements",
       "settings",
       "browser",
@@ -391,6 +392,27 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   const actions = collection(m.actions)
   const formatters = collection(m.formatters)
+  const hooks = collection(m.hooks)
+  for (const hook of hooks) {
+    fields(hook, ["id", "title", "event", "extensions"], ["access"])
+    text(hook.title)
+    extensions(hook.extensions)
+    if (!["document.saved", "file.renamed"].includes(String(hook.event)))
+      invalid("Invalid file hook event")
+    if (
+      hook.access !== undefined &&
+      !["read", "write"].includes(String(hook.access))
+    )
+      invalid("Invalid file hook access")
+    const requirement = (m.requires as { pluginApi?: string } | undefined)
+      ?.pluginApi
+    if (
+      !requirement ||
+      Number(requirement.split(".")[0]) !== 3 ||
+      Number(requirement.split(".")[1]) < 3
+    )
+      invalid("File hooks require plugin API 3.3.0 or newer")
+  }
   if (m.theme !== undefined) {
     if (m.kind !== "theme") invalid("Theme packages require kind: theme")
     const required = (m.requires as { pluginApi?: string } | undefined)
@@ -418,13 +440,20 @@ export function parseManifest(input: unknown): PluginManifest {
     text(formatter.title)
     extensions(formatter.extensions)
   }
-  if (!views.length && !actions.length && !formatters.length && !m.theme)
+  if (
+    !views.length &&
+    !actions.length &&
+    !formatters.length &&
+    !hooks.length &&
+    !m.theme
+  )
     invalid("At least one contribution is required")
   if (
     m.theme &&
     (views.length ||
       actions.length ||
       formatters.length ||
+      hooks.length ||
       m.extension ||
       m.placements ||
       m.settings ||
@@ -434,7 +463,7 @@ export function parseManifest(input: unknown): PluginManifest {
       m.browser)
   )
     invalid("Theme packages cannot contain executable contributions or grants")
-  if ((actions.length || formatters.length) && !m.extension)
+  if ((actions.length || formatters.length || hooks.length) && !m.extension)
     invalid("Actions require an extension entry")
   for (const [items, isView] of [
     [views, true],
