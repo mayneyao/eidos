@@ -88,6 +88,30 @@ function enterInputValue(element: HTMLInputElement, value: string): void {
 }
 
 describe("EidosFileRecordFieldEditor option presentation", () => {
+  it("allows a mobile record title to wrap instead of clipping to one line", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    try {
+      await act(async () =>
+        root.render(
+          <EidosFileUIProvider interactionMode="mobile">
+            <EidosFileRecordFieldEditor
+              field={{ ...numberField(), type: "text" }}
+              row={{ score: "很长的移动端记录标题" }}
+              appearance="record-title"
+              disabled={false}
+              onChange={vi.fn()}
+            />
+          </EidosFileUIProvider>
+        )
+      )
+      const title = host.querySelector("textarea")!
+      expect(title.style.maxHeight).not.toBe("1lh")
+      expect(title.className).toContain("[overflow-wrap:anywhere]")
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
   it("moves from the title on Enter while preserving Shift+Enter and IME confirmation", async () => {
     const host = document.createElement("div")
     document.body.append(host)
