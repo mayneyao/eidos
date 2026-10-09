@@ -90,14 +90,19 @@ export function SyncMergeWorkspace({
     paths: readonly string[] | null
   ): void | Promise<void>
 }) {
-  const [status, setStatus] = useState<EidosSyncMergeStatus>({ state: "none" })
+  const [status, setStatus] = useState<EidosSyncMergeStatus>(
+    externalStatus ?? { state: "none" }
+  )
   const { t } = useEidosLiteI18n()
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
-  const [busy, setBusy] = useState<MergeBusy>("status")
+  const [busy, setBusy] = useState<MergeBusy>(externalStatus ? null : "status")
   const [message, setMessage] = useState("")
   const [operationError, setOperationError] = useState<string | null>(null)
   const [pathsCursor, setPathsCursor] = useState<string | null>(null)
   const [summaryPaths, setSummaryPaths] = useState<EidosSyncMergePath[]>([])
+  const [summaryLoading, setSummaryLoading] = useState(
+    externalStatus?.state === "merging"
+  )
   const [summarySelection, setSummarySelection] =
     useState<MergeChangeTreeTarget | null>(null)
   const [summaryConflicts, setSummaryConflicts] = useState(
@@ -106,7 +111,11 @@ export function SyncMergeWorkspace({
   const summaryToken = status.state === "merging" ? status.stateToken : null
   useEffect(() => {
     let active = true
-    setSummaryPaths([])
+    if (!summaryToken) {
+      setSummaryPaths([])
+      setPathsCursor(null)
+    }
+    setSummaryLoading(Boolean(summaryToken))
     if (summaryToken && window.eidosLite.listSyncMergePaths) {
       void window.eidosLite
         .listSyncMergePaths({
@@ -123,6 +132,9 @@ export function SyncMergeWorkspace({
         })
         .catch((cause) => {
           if (active) setOperationError(String(cause))
+        })
+        .finally(() => {
+          if (active) setSummaryLoading(false)
         })
     }
     return () => {
@@ -200,7 +212,7 @@ export function SyncMergeWorkspace({
   }, [externalStatus])
 
   useEffect(() => {
-    void refreshStatus()
+    if (!externalStatus) void refreshStatus()
     // Durable state is reconstructed whenever the Sync inspector opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -327,17 +339,21 @@ export function SyncMergeWorkspace({
         <div className="sync-merge-active-summary">
           {!compact ? <MergeIdentitySummary status={status} /> : null}
           <div className="sync-conflict-summary">
-            <MergeChangeTree
-              paths={summaryPaths}
-              conflictsByPath={summaryConflicts}
-              selectedPath={summarySelection?.path.path ?? null}
-              selectedTable={summarySelection?.table ?? null}
-              selectedScope={summarySelection?.scope ?? "file"}
-              onSelect={(target) => {
-                setSummarySelection(target)
-                onReviewMerge?.(target.path.path, target.table ?? undefined)
-              }}
-            />
+            {summaryLoading && summaryPaths.length === 0 ? (
+              <p role="status">{t("Loading files…")}</p>
+            ) : (
+              <MergeChangeTree
+                paths={summaryPaths}
+                conflictsByPath={summaryConflicts}
+                selectedPath={summarySelection?.path.path ?? null}
+                selectedTable={summarySelection?.table ?? null}
+                selectedScope={summarySelection?.scope ?? "file"}
+                onSelect={(target) => {
+                  setSummarySelection(target)
+                  onReviewMerge?.(target.path.path, target.table ?? undefined)
+                }}
+              />
+            )}
             {pathsCursor ? (
               <button
                 className="sync-inspector-link"

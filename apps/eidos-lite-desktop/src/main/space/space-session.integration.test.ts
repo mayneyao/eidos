@@ -1384,8 +1384,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const cleanStatus: GraftSpaceStatus = {
       available: true,
       backend: "sdk",
-      version: "0.3.29",
-      expectedVersion: "0.3.29",
+      version: "0.3.30",
+      expectedVersion: "0.3.30",
       initialized: true,
       clean: true,
     }
@@ -1394,7 +1394,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.29",
+      expectedVersion: () => "0.3.30",
       close: async () => undefined,
       inspectSpace: (_root: string, options: { signal?: AbortSignal } = {}) => {
         calls += 1
@@ -3203,7 +3203,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
                 kind: "row",
                 reason: "cell_conflict",
                 status: "unresolved" as const,
-                table: "Docs",
+                table: domainConflictEnabled ? "eidos__features" : "Docs",
                 columns: ["Title"],
                 key: { _id: "doc-1" },
                 baseRow: ["doc-1", "Base"],
@@ -3306,6 +3306,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
         columns: ["Title"],
         rowColumns: ["_id", "Title"],
       })
+      expect(graft.prepareSemanticMerge).not.toHaveBeenCalled()
 
       domainConflictEnabled = true
       const domainConflicts = await session.listSyncMergeConflicts(

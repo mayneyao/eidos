@@ -263,6 +263,81 @@ describe("SyncMergeWorkbench", () => {
     host.remove()
   })
 
+  it("uses supplied status and keeps loaded files visible during refresh", async () => {
+    let complete: (
+      value: EidosSyncMergeResponse<{
+        items: EidosSyncMergePath[]
+        nextCursor: null
+      }>
+    ) => void = () => undefined
+    const pending = () =>
+      new Promise<
+        EidosSyncMergeResponse<{
+          items: EidosSyncMergePath[]
+          nextCursor: null
+        }>
+      >((resolve) => {
+        complete = resolve
+      })
+    const getSyncMergeStatus = vi.fn()
+    const listSyncMergePaths = vi.fn().mockImplementation(pending)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { getSyncMergeStatus, listSyncMergePaths },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkspace, {
+          compact: true,
+          externalStatus: merging(),
+        })
+      )
+    )
+    expect(getSyncMergeStatus).not.toHaveBeenCalled()
+    expect(host.textContent).toContain("Loading files…")
+    expect(host.querySelector("[data-merge-change-tree]")).toBeNull()
+    await act(async () =>
+      complete({
+        ok: true,
+        value: {
+          items: [mergePath("records.eidos", "unmerged")],
+          nextCursor: null,
+        },
+      })
+    )
+    await flush()
+    expect(mergeTreeButton(host, "Merge Conflicts/records.eidos/")).toBeTruthy()
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkspace, {
+          compact: true,
+          externalStatus: merging(secondToken),
+        })
+      )
+    )
+    expect(listSyncMergePaths).toHaveBeenCalledTimes(2)
+    expect(mergeTreeButton(host, "Merge Conflicts/records.eidos/")).toBeTruthy()
+    expect(host.textContent).not.toContain("Loading files…")
+    await act(async () =>
+      complete({
+        ok: true,
+        value: {
+          items: [mergePath("new.eidos", "unmerged")],
+          nextCursor: null,
+        },
+      })
+    )
+    await flush()
+    expect(mergeTreeButton(host, "Merge Conflicts/new.eidos/")).toBeTruthy()
+    expect(
+      host
+        .querySelector("[data-merge-change-tree]")
+        ?.shadowRoot?.querySelector(
+          "button[data-item-path='Merge Conflicts/records.eidos/']"
+        )
+    ).toBeNull()
+  })
+
   it("loads paginated table conflicts from the Sync tree and navigates to a table", async () => {
     const onReviewMerge = vi.fn()
     const listSyncMergeConflicts = vi

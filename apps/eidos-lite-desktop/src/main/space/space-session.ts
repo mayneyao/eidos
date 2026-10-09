@@ -2781,15 +2781,28 @@ export class SpaceSession {
         )
         if (!normalized.toLowerCase().endsWith(".eidos")) return page
         try {
-          const workspace = await this.graft.prepareSemanticMerge(
-            this.canonical.root,
-            normalized,
-            EIDOS_SYSTEM_MERGE_PROVIDER,
-            EIDOS_FILE_METADATA_TABLES,
-            stateToken,
-            { signal }
+          // A known unresolved data-table conflict prevents the system provider
+          // from constructing its seed. Keep the ordinary conflict page instead
+          // of repeating the complete three-way analysis just to reject it.
+          const hasUnmanagedConflict = page.items.some(
+            (conflict) =>
+              conflict.status === "unresolved" &&
+              conflict.table !== undefined &&
+              !EIDOS_FILE_METADATA_TABLES.some(
+                (table) => table === conflict.table
+              )
           )
-          if (workspace.record.state === "conflict") {
+          const workspace = hasUnmanagedConflict
+            ? null
+            : await this.graft.prepareSemanticMerge(
+                this.canonical.root,
+                normalized,
+                EIDOS_SYSTEM_MERGE_PROVIDER,
+                EIDOS_FILE_METADATA_TABLES,
+                stateToken,
+                { signal }
+              )
+          if (workspace?.record.state === "conflict") {
             const domainConflicts = workspace.record.conflicts
               .map(semanticDomainConflict)
               .filter(

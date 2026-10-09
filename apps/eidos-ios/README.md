@@ -105,7 +105,7 @@ Account login, cloud Sync and Publish entry points are hidden from the mobile UI
 
 `crates/eidos-mobile-host` produces the C static library with its `ffi` feature in the repository-root Rust workspace. It shares Runtime sessions and Graft orchestration with Android; JNI remains Android-only. A dedicated Rust thread keeps SQLite and QuickJS sessions alive across calls, including authenticated cursors and schema plans. The committed canonical QuickJS bundle provides Eidos File semantics; Swift does not implement field conversion, querying, validation, or revision rules.
 
-The build explicitly enables `ffi,planned-transfer-progress` against the patched
+The build explicitly enables `ffi,planned-transfer-progress` against the pinned upstream
 Graft mirror. Rust output lives in the root `target/<target>/release/`; the script
 copies `libeidos_mobile_host.a` into `build/native/<platform>/` for Xcode. The
 canonical QuickJS bundle lives in `packages/eidos-file/generated/quickjs/`.

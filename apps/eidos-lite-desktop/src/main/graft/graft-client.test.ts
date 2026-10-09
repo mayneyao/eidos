@@ -36,22 +36,22 @@ function createUnusedTransport(): GraftSdkTransport {
 
 describe("GraftClient", () => {
   it.each(["", "/tmp/eidos-local-graft-sdk"])(
-    "accepts SDK 0.3.29 and rejects older builds (override=%s)",
+    "accepts SDK 0.3.30 and rejects older builds (override=%s)",
     async (sdkPath) => {
       vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
       const command = vi
         .fn()
-        .mockResolvedValueOnce("0.3.28")
-        .mockResolvedValue("0.3.29")
+        .mockResolvedValueOnce("0.3.29")
+        .mockResolvedValue("0.3.30")
       const client = new GraftClient({
         sdkTransport: { ...createUnusedTransport(), command },
       })
       try {
         await expect(client.version()).rejects.toThrow(
-          "Graft 0.3.29 is required; found 0.3.28"
+          "Graft 0.3.30 is required; found 0.3.29"
         )
-        await expect(client.version()).resolves.toBe("0.3.29")
-        await expect(client.version()).resolves.toBe("0.3.29")
+        await expect(client.version()).resolves.toBe("0.3.30")
+        await expect(client.version()).resolves.toBe("0.3.30")
         expect(command).toHaveBeenCalledTimes(2)
         expect(command).toHaveBeenCalledWith("sdkVersion")
       } finally {

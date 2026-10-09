@@ -1,5 +1,7 @@
 import { benchmarkDirectory, prepareBenchmarkWorker } from "./sync-benchmark"
 import fs from "node:fs/promises"
+import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it, vi } from "vitest"
 import { randomUUID } from "node:crypto"
 import { GraftClient } from "./graft-client"
@@ -72,9 +74,20 @@ describe.skipIf(process.env.EIDOS_SYNC_POLICY_PERF !== "1")(
         )
         const expected = new Set<string>()
         for (const relativePath of paths) {
-          const opened = await space.runtimePool.open(relativePath)
-          for (const { table } of opened.snapshot.tables)
-            expected.add(table.physicalName ?? table.rawTableName ?? table.name)
+          const db = new DatabaseSync(path.join(base, "local", relativePath), {
+            readOnly: true,
+          })
+          try {
+            for (const row of db
+              .prepare("SELECT physical_name FROM eidos__tables")
+              .all()) {
+              if (typeof row.physical_name !== "string")
+                throw new Error("Invalid physical table name")
+              expected.add(row.physical_name)
+            }
+          } finally {
+            db.close()
+          }
         }
         expect(actual.sort()).toEqual([...expected].sort())
         const invalid = `policy-invalid-${randomUUID()}.eidos`

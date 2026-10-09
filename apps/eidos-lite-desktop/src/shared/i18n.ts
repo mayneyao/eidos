@@ -291,6 +291,7 @@ const zh: Record<string, string> = {
   "Include file": "选择文件",
   "Sync operation in progress": "正在传输版本",
   "Checking remote updates…": "正在检查远端更新…",
+  "Loading files…": "正在加载冲突文件…",
   "Local and remote both have updates": "本地与远端都有新版本",
   "Local to upload": "本地待上传",
   "Receive and merge": "接收并合并",

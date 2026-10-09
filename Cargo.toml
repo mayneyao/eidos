@@ -8,7 +8,7 @@ eidos-file-core = { path = "crates/eidos-file-core" }
 eidos-runtime-host = { path = "crates/eidos-runtime-host", default-features = false }
 eidos-publish = { path = "crates/eidos-publish" }
 rusqlite = { version = "0.38", features = ["bundled"] }
-graft-sdk = { git = "https://github.com/eidos-space/graft", rev = "5c99ad07ee1af7b66432c94c6e919c7faa5cacd5", features = [
+graft-sdk = { git = "https://github.com/eidos-space/graft", rev = "cb8f2ef07c470b0c28d6bbc70d3397861e75c56d", features = [
   "bundled-sqlite",
 ] }
 

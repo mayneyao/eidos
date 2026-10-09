@@ -56,8 +56,8 @@ skills/eidos/            # Public CLI workflow skill
 - Rust libraries live in `crates/`; `apps/` contains deliverables. The root
   `Cargo.toml` and `Cargo.lock` own dependency resolution, including the pinned
   Graft SDK and SQLite version. The CLI explicitly enables Runtime `serve`;
-  mobile builds enable `planned-transfer-progress` only with the verified Graft
-  patch in the isolated workspace created by `scripts/prepare-mobile-native.mjs`.
+  mobile builds enable `planned-transfer-progress` with the pinned upstream Graft
+  SDK in the isolated workspace created by `scripts/prepare-mobile-native.mjs`.
 - Browser SQLite uses `@sqlite.org/sqlite-wasm`. Lite uses Node's built-in
   `node:sqlite` through its Electron utility boundary.
 - Lite owns filesystem access, locking, publication, Graft, account, and Sync

@@ -2,9 +2,8 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { execFileSync } from "node:child_process"
-import { createHash } from "node:crypto"
 
-// Build a pinned, patched dependency in a private workspace. Never edit Cargo's
+// Build the pinned upstream dependency in a private workspace. Never edit Cargo's
 // Git cache or the developer's Graft checkout. The root lockfile stays intact.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const platform = process.argv[2]
@@ -16,17 +15,7 @@ const source = path.join(build, "graft-source")
 const rootManifest = await fs.readFile(path.join(root, "Cargo.toml"), "utf8")
 const revision = rootManifest.match(/^graft-sdk = .*rev = "([a-f0-9]+)"/m)?.[1]
 if (!revision) throw new Error("Root workspace must pin the Graft SDK revision")
-const patch = path.join(
-  root,
-  "apps/eidos-android/patches/graft-android-runtime.patch"
-)
-const stamp =
-  "isolated-patch-v2:" +
-  revision +
-  ":" +
-  createHash("sha256")
-    .update(await fs.readFile(patch))
-    .digest("hex")
+const stamp = "isolated-upstream-v1:" + revision
 const run = (command, args, cwd, options = {}) =>
   execFileSync(command, args, {
     cwd,
@@ -57,16 +46,21 @@ if (
   await fs.mkdir(source, { recursive: true })
   const archive = run("git", ["archive", revision], mirror)
   run("tar", ["-x", "-C", source], build, { input: archive })
-  // An archive under this checkout has no .git of its own. Without a ceiling,
-  // `git apply` discovers the parent Eidos repository and silently skips paths
-  // outside the current subdirectory. Apply as a standalone source tree and
-  // verify the reverse patch before recording a successful stamp.
-  const patchOptions = {
-    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(source) },
-  }
-  run("git", ["apply", "--check", patch], source, patchOptions)
-  run("git", ["apply", patch], source, patchOptions)
-  run("git", ["apply", "--reverse", "--check", patch], source, patchOptions)
+  // SDK 0.3.30 contains the former mobile runtime patch upstream. Applying it
+  // again would conflict with the published sources. Require its planned
+  // transfer API before enabling the host's corresponding build feature.
+  const sdkManifest = await fs.readFile(
+    path.join(source, "crates/graft-sdk/Cargo.toml"),
+    "utf8"
+  )
+  const sdkVersion = sdkManifest.match(/^version = "(\d+)\.(\d+)\.(\d+)"/m)
+  if (
+    !sdkVersion ||
+    (Number(sdkVersion[1]) === 0 &&
+      (Number(sdkVersion[2]) < 3 ||
+        (Number(sdkVersion[2]) === 3 && Number(sdkVersion[3]) < 30)))
+  )
+    throw new Error("Mobile native builds require upstream Graft SDK 0.3.30+")
   await fs.writeFile(path.join(source, ".eidos-patch"), stamp)
 }
 // Mirror exactly so deleted/moved sources and their fingerprints cannot linger.
@@ -116,6 +110,6 @@ const packages = (text) =>
     .sort()
 if (JSON.stringify(packages(original)) !== JSON.stringify(packages(updated)))
   throw new Error(
-    "Patching Graft unexpectedly changed other locked dependency versions"
+    "Mirroring Graft unexpectedly changed other locked dependency versions"
   )
 process.stdout.write(manifestDirectory + "\n")

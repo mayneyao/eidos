@@ -1006,7 +1006,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 [[package]]
 name = "fjall"
 version = "3.1.6"
-source = "git+https://github.com/eidos-space/graft?rev=5c99ad07ee1af7b66432c94c6e919c7faa5cacd5#5c99ad07ee1af7b66432c94c6e919c7faa5cacd5"
+source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
 dependencies = [
  "byteorder-lite",
  "byteview",
@@ -1271,7 +1271,7 @@ dependencies = [
 [[package]]
 name = "graft"
 version = "0.15.5"
-source = "git+https://github.com/eidos-space/graft?rev=5c99ad07ee1af7b66432c94c6e919c7faa5cacd5#5c99ad07ee1af7b66432c94c6e919c7faa5cacd5"
+source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
 dependencies = [
  "assert_matches",
  "base64",
@@ -1314,8 +1314,8 @@ dependencies = [
 
 [[package]]
 name = "graft-sdk"
-version = "0.3.28"
-source = "git+https://github.com/eidos-space/graft?rev=5c99ad07ee1af7b66432c94c6e919c7faa5cacd5#5c99ad07ee1af7b66432c94c6e919c7faa5cacd5"
+version = "0.3.30"
+source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
 dependencies = [
  "blake3",
  "graft",
@@ -1329,7 +1329,7 @@ dependencies = [
 [[package]]
 name = "graft-sqlite"
 version = "0.15.5"
-source = "git+https://github.com/eidos-space/graft?rev=5c99ad07ee1af7b66432c94c6e919c7faa5cacd5#5c99ad07ee1af7b66432c94c6e919c7faa5cacd5"
+source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
 dependencies = [
  "blake3",
  "bytes",

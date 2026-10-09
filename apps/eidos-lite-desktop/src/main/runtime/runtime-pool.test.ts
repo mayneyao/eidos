@@ -35,7 +35,12 @@ class FakeRuntimeUtilityProcess extends EventEmitter {
       this.emit("message", {
         requestId: request.requestId,
         ok: true,
-        result: request.type === "open" ? { tables: [] } : undefined,
+        result:
+          request.type === "open"
+            ? { tables: [] }
+            : request.type === "inspectMergeTables"
+              ? []
+              : undefined,
       })
     })
   }
@@ -211,10 +216,13 @@ describe("RuntimePool LRU policy", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
-  it("opens clone validation probes in read-only mode", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-validate-"))
+  it("validates a batch privately without initializing editor runtimes", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-validate-"))
+    )
     const filePath = path.join(root, "records.eidos")
     await writeFile(filePath, "fixture")
+    await writeFile(path.join(root, "other.eidos"), "fixture")
     const child = new FakeRuntimeUtilityProcess()
     vi.mocked(utilityProcess.fork).mockReturnValue(
       child as unknown as UtilityProcess
@@ -222,13 +230,16 @@ describe("RuntimePool LRU policy", () => {
 
     try {
       const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
-      await pool.validatePaths(["records.eidos"])
+      await pool.validatePaths(["records.eidos", "other.eidos"])
 
       expect(child.requests[0]).toMatchObject({
-        type: "open",
-        filePath,
-        readOnly: true,
+        type: "inspectMergeTables",
+        filePaths: [filePath, path.join(root, "other.eidos")],
       })
+      expect(child.requests).toHaveLength(1)
+      expect(pool.openRelativePaths()).toEqual([])
+      await pool.validatePaths([])
+      expect(child.requests).toHaveLength(1)
       await pool.destroy()
     } finally {
       await rm(root, { recursive: true, force: true })

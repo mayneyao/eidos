@@ -19,6 +19,51 @@ const base: SyncInspectorState = {
   checking: false,
 }
 describe("Sync inspector B", () => {
+  it("shows known conflicts during background checks without querying status again", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const getSyncMergeStatus = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncMergeStatus,
+        listSyncMergePaths: vi.fn().mockResolvedValue({
+          ok: true,
+          value: { items: [], nextCursor: null },
+        }),
+      },
+    })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{ ...base, checking: true }}
+          spaceKey="known-conflict"
+          mergeStatus={{
+            state: "merging",
+            localHead: "ours",
+            hostedHead: "theirs",
+            commonAncestor: "base",
+            stagedCount: 0,
+            unmergedCount: 1,
+            stateToken: "state",
+            policyToken: "policy",
+            policyVersion: 1,
+          }}
+          onClose={() => undefined}
+          onAction={() => undefined}
+          onRetry={() => undefined}
+          onAccount={() => undefined}
+        />
+      )
+    )
+    expect(host.textContent).toContain("Resolve merge conflicts")
+    expect(host.textContent).not.toContain("Checking remote updates…")
+    expect(getSyncMergeStatus).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+    host.remove()
+  })
   it("opens the account menu from the identity and dismisses it with Escape", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     Object.defineProperty(window, "eidosLite", {

@@ -913,7 +913,7 @@ export async function createEidosLiteFileRuntime(
   }
 }
 
-function loadDeclaredVTabExtensions(database: DatabaseSync): void {
+export function loadDeclaredVTabExtensions(database: DatabaseSync): void {
   const hasFeatures = database
     .prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eidos__features'"

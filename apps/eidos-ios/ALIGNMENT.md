@@ -129,8 +129,8 @@ ordinary service restart. The mobile test reopens its native Runtime, retains
 the paired identity and token, and verifies edits made while disconnected.
 Changed-port discovery remains required on a physical Android device.
 
-Both platforms build Rust 1.99.0 against the same pinned Graft revision and
-committed runtime patch. `scripts/prepare-mobile-native.mjs` prepares isolated,
+Both platforms build Rust 1.99.0 against the same pinned upstream Graft SDK
+0.3.30 release commit. `scripts/prepare-mobile-native.mjs` prepares isolated,
 ignored workspaces, checks dependency versions and checksums, and does not edit
 Cargo's shared Git cache. Standard builds require the official upstream Git
 source on the first run.

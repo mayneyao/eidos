@@ -154,14 +154,16 @@ export function SyncInspector({
       document.removeEventListener("keydown", escape, true)
     }
   }, [settings])
-  const [merge, setMerge] = useState<EidosSyncMergeStatus>({ state: "none" })
+  const [merge, setMerge] = useState<EidosSyncMergeStatus>(
+    mergeStatus ?? { state: "none" }
+  )
   useEffect(() => {
     if (mergeStatus) setMerge(mergeStatus)
   }, [mergeStatus])
   const history = state.history
   useEffect(() => {
     let alive = true
-    if (window.eidosLite.getSyncMergeStatus) {
+    if (!mergeStatus && window.eidosLite.getSyncMergeStatus) {
       void window.eidosLite
         .getSyncMergeStatus()
         .then((response) => {
@@ -172,7 +174,7 @@ export function SyncInspector({
     return () => {
       alive = false
     }
-  }, [spaceKey])
+  }, [spaceKey, mergeStatus])
   const active = state.progress?.state === "active" || state.busy
   const action = syncInspectorAction(state)
   const merging = merge.state === "merging" || action === "merge"
@@ -220,14 +222,14 @@ export function SyncInspector({
     state.failure?.title ??
     (active
       ? t("Sync operation in progress")
-      : state.checking
-        ? t("Checking remote updates…")
-        : merging
-          ? merge.state === "merging"
-            ? merge.unmergedCount > 0
-              ? t("Resolve merge conflicts")
-              : t("All conflicts resolved")
-            : t("Local and remote both have updates")
+      : merging
+        ? merge.state === "merging"
+          ? merge.unmergedCount > 0
+            ? t("Resolve merge conflicts")
+            : t("All conflicts resolved")
+          : t("Local and remote both have updates")
+        : state.checking
+          ? t("Checking remote updates…")
           : action === "review"
             ? t("Save local changes before receiving")
             : history?.behind
@@ -472,7 +474,7 @@ export function SyncInspector({
             ) : null}
             {merging ? (
               <SyncMergeWorkspace
-                externalStatus={mergeStatus}
+                externalStatus={merge}
                 compact
                 onStatusChange={(next) => {
                   setMerge(next)

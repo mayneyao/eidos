@@ -462,25 +462,10 @@ export class RuntimePool {
   }
 
   async validatePaths(relativePaths: readonly string[]): Promise<void> {
-    for (const relativePath of relativePaths) {
-      const filePath = resolveSpacePath(this.spaceRoot, relativePath)
-      const canonicalPath = await fs.realpath(filePath)
-      const fileStats = await fs.stat(canonicalPath)
-      const probe: RuntimeEntry = {
-        sessionId: randomUUID(),
-        relativePath,
-        filePath,
-        canonicalPath,
-        fileIdentity: { device: fileStats.dev, inode: fileStats.ino },
-        child: null,
-        pending: new Map(),
-        nextRequestId: 1,
-        crashed: false,
-        lastAccess: 0,
-      }
-      await this.spawnAndOpen(probe, undefined, true)
-      await this.closeEntry(probe)
-    }
+    // Table inspection already performs the canonical structural validation in
+    // a private read-only worker. Reuse it for the whole batch; validation does
+    // not need an editor snapshot, row pages, or a process for every file.
+    await this.inspectMergeTables(relativePaths, new AbortController().signal)
   }
 
   async mergeSystemMetadata(

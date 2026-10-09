@@ -15,11 +15,10 @@ copies on other devices remain. Deleting the last Space creates a new empty one.
 
 ## Native dependency status
 
-The Git dependency pins Graft revision
-`5c99ad07ee1af7b66432c94c6e919c7faa5cacd5`. The standard native build applies
-[the mobile runtime patch](patches/graft-android-runtime.patch) to an isolated
-copy: Android-compatible DNS resolution and cached checks of unchanged SQLite
-files. `scripts/prepare-mobile-native.mjs` verifies the revision and patch,
+The root Git dependency pins the Graft SDK 0.3.30 release commit. It includes
+Android-compatible DNS resolution, cached checks of unchanged SQLite files and
+planned checkout transfers upstream. `scripts/prepare-mobile-native.mjs`
+mirrors that exact revision without applying the former mobile runtime patch,
 copies the Rust workspace, and checks that dependency versions and checksums
 remain locked. Android and iOS use Rust 1.99.0 for this build. Generated sources
 live under each app's ignored `build/native-workspace`; Cargo's shared Git cache
@@ -524,7 +523,7 @@ pnpm --filter @eidos.space/eidos-file build:quickjs
 ```
 
 The native script explicitly enables `planned-transfer-progress` against the
-patched Graft mirror. Rust output lives in the root `target/<target>/release/`;
+pinned upstream Graft mirror. Rust output lives in the root `target/<target>/release/`;
 the script copies `libeidos_mobile_host.so` into
 `app/build/native/jniLibs/<abi>/` for Gradle packaging.
 
