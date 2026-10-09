@@ -1298,6 +1298,24 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         documentHistory.clear()
     }
 
+    internal fun editorFileRelocated(owner: SpaceRepository, previousPath: String, file: SpaceFile) {
+        if (repository !== owner || mutable.value.webFile?.path != previousPath) return
+        documentHistory.replaceAll { if (it == previousPath) file.path else it }
+        mutable.update { state ->
+            state.copy(
+                webFile = file,
+                files = state.files.map { if (it.path == previousPath) file else it },
+                recent = state.recent.map { if (it.path == previousPath) file else it },
+                favorites = state.favorites.map {
+                    if (it.path == previousPath) it.copy(path = file.path, name = file.name) else it
+                },
+                favoriteFiles = state.favoriteFiles.mapKeys {
+                    if (it.key == previousPath) file.path else it.key
+                }.mapValues { if (it.value.path == previousPath) file else it.value },
+            )
+        }
+    }
+
     fun leaveWebEditor() {
         if (mutable.value.shareRecord != null) {
             closeShareTable()

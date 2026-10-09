@@ -25,6 +25,9 @@ impl Default for Host {
 }
 impl Host {
     fn execute(&mut self, path: PathBuf, method: &str, request: Value) -> Result<Value> {
+        if matches!(method, "runFileHook" | "prepareMarkdownRenameLinks") {
+            return crate::execute(&path, method, request);
+        }
         if let Some(operation) = method.strip_prefix("publish:") {
             if operation == "progress" {
                 return Ok(crate::publish::progress());

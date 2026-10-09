@@ -136,7 +136,9 @@ export class MobilePluginInstance {
     const html = options.extension
       ? extensionHtml(
           program.modules[this.manifest.extension!],
-          (this.manifest.actions ?? []).map((a) => a.id)
+          (this.manifest.actions ?? []).map((a) => a.id),
+          [],
+          (this.manifest.hooks ?? []).map((h) => h.id)
         )
       : viewHtml(program.modules[view!.entry], binding)
     // The nested document cannot access native bridges, cookies or its host DOM.

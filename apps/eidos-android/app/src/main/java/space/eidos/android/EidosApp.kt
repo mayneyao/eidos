@@ -173,7 +173,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                         )
                     }
                 state.webFile != null ->
-                    key(state.spaceId, state.webFile!!.path, state.editorGeneration) {
+                    key(state.spaceId, state.editorGeneration) {
                         EmbeddedEditorScreen(state.webFile!!, model, editorPool,
                             export = exportEntry, rename = { renameTarget = it }, trash = model::trash)
                     }

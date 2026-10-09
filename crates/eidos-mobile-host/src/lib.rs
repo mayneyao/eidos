@@ -164,6 +164,12 @@ fn call(host: &QjsHost, method: &str, request: Value) -> Result<Value> {
 /// Each invocation owns its connection and VM on the calling worker thread.
 /// Android serializes calls with file writes and future Graft materialization.
 pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
+    if method == "runFileHook" {
+        return eidos_runtime_host::file_hooks::run(&request);
+    }
+    if method == "prepareMarkdownRenameLinks" {
+        return eidos_runtime_host::markdown_links::prepare(path, &request);
+    }
     if method == "checkIntegrity" {
         let connection = rusqlite::Connection::open_with_flags(
             path,

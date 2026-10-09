@@ -14,7 +14,7 @@ extension LocalSpace {
         try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
         return target
     }
-    func rename(_ source: URL, to name: String) throws -> URL {
+    func rename(_ source: URL, to name: String, emitHooks: Bool = true) throws -> URL {
         let source = try checked(source)
         try Self.validateName(name)
         guard !DraftStore.shared.hasDraft(under: source), !RecordDraftStore.hasDraft(self, under: source) else { throw LocalError.message(tr("此文件有未保存草稿，请先打开并保存草稿再重命名")) }
@@ -27,6 +27,25 @@ extension LocalSpace {
         guard !FileManager.default.fileExists(atPath: destination.path) else { throw LocalError.message(tr("同名文件已存在")) }
         _ = try Runtime.call(root, "close")
         try FileManager.default.moveItem(at: source, to: destination)
+        if var activity = try? FileActivity.load(self) {
+            let old = FileActivity.path(source, space: self), next = FileActivity.path(destination, space: self)
+            func relocated(_ value: String) -> String { value == old || value.hasPrefix(old + "/") ? next + value.dropFirst(old.count) : value }
+            activity.favorites = activity.favorites.map(relocated)
+            activity.recent = activity.recent.map(relocated)
+            try? activity.save(self)
+        }
+        if ["md", "markdown"].contains(destination.pathExtension.lowercased()) {
+            do {
+                let prepared = try Runtime.call(root, "prepareMarkdownRenameLinks", ["source": FileActivity.path(source, space: self), "target": FileActivity.path(destination, space: self)]) as? [String: Any]
+                for change in prepared?["changes"] as? [[String: Any]] ?? [] {
+                    guard let path = change["path"] as? String, let text = change["text"] as? String, let version = change["version"] as? String else { continue }
+                    let file = try checked(root.appendingPathComponent(path))
+                    if DraftStore.shared.hasDraft(under: file) { continue }
+                    _ = try? Self.saveMarkdown(file, text: text, expectedDigest: version)
+                }
+            } catch { NSLog("Eidos Markdown links skipped: %@", error.localizedDescription) }
+        }
+        if emitHooks, let result = runFileHooks(destination, type: "file.renamed", previousPath: FileActivity.path(source, space: self)), let updated = result["url"] as? URL { return updated }
         return destination
     }
     func trash(_ source: URL) throws {

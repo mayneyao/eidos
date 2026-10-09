@@ -72,18 +72,18 @@ struct SpaceView: View {
                         EditorView(file: file, space: space!, dark: colorScheme == .dark, controller: controller, onLeave: { selection = nil }, initialTable: searchTarget?.tableId ?? "", initialQuery: searchTarget?.query ?? "")
                             .id("\(file.path):\(editorGeneration)")
                             .toolbar(controller.recordPage ? .hidden : .visible, for: .navigationBar)
-                            .navigationTitle(file.lastPathComponent)
+                            .navigationTitle((controller.currentFile ?? file).lastPathComponent)
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) { Button(tr("返回")) { controller.leave() } }
                                 ToolbarItem(placement: .topBarTrailing) {
-                                    FileRouteMenu(file: file, space: space!, controller: controller,
+                                    FileRouteMenu(file: controller.currentFile ?? file, space: space!, controller: controller,
                                         renamed: { selection = $0 }, removed: { selection = nil },
                                         refresh: { editorGeneration += 1 })
                                 }
                                 ToolbarItem(placement: .principal) {
                                     HStack(spacing:8) {
-                                        Text(file.lastPathComponent).font(.headline).lineLimit(1).truncationMode(.middle)
+                                        Text((controller.currentFile ?? file).lastPathComponent).font(.headline).lineLimit(1).truncationMode(.middle)
                                     }
                                 }
                             }

@@ -34,16 +34,16 @@ struct FileRouteMenu: View {
                 Button(tr("默认打开方式"), systemImage: "doc") {}
                 ForEach(views) { view in
                     Button(view.title, systemImage: "puzzlepiece.extension") {
-                        saved { plugin = view }
+                        saved { _ in plugin = view }
                     }
                 }
             } label: { Label(tr("打开方式"), systemImage: "arrow.up.forward.app") }
             Button(tr("重命名"), systemImage: "pencil") { name = file.lastPathComponent; naming = true }
             Button(tr("导出文件"), systemImage: "square.and.arrow.up") {
-                saved { export = try space.exportSnapshot(file) }
+                saved { current in export = try space.exportSnapshot(current) }
             }
             Button(tr("移到回收站"), systemImage: "trash", role: .destructive) {
-                saved { try space.trash(file); removed() }
+                saved { current in try space.trash(current); removed() }
             }
         } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
         .accessibilityLabel(tr("文件操作"))
@@ -57,7 +57,7 @@ struct FileRouteMenu: View {
         .alert(tr("重命名"), isPresented: $naming) {
             TextField(tr("名称"), text: $name)
             Button(tr("取消"), role: .cancel) {}
-            Button(tr("保存")) { saved { renamed(try space.rename(file, to: name)) } }
+            Button(tr("保存")) { saved { current in renamed(try space.rename(current, to: name)) } }
         }
         .alert(tr("操作失败"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(tr("好")) { error = nil }
@@ -75,15 +75,14 @@ struct FileRouteMenu: View {
         }
     }
 
-    private func saved(_ action: @escaping () throws -> Void) {
+    private func saved(_ action: @escaping (URL) throws -> Void) {
         guard !busy else { return }
         busy = true
         Task { @MainActor in
             defer { busy = false }
             do {
-                guard let web = controller.web else { throw LocalError.message(tr("编辑器尚未就绪")) }
-                _ = try await web.callAsyncJavaScript("if (!window.eidosFlush) throw new Error('编辑器尚未就绪'); await window.eidosFlush()", arguments: [:], in: nil, contentWorld: .page)
-                try action()
+                let current = try await controller.savedFile()
+                try action(current)
             } catch { self.error = error.localizedDescription }
         }
     }

@@ -31,6 +31,7 @@ struct EditorView: UIViewRepresentable {
         web.scrollView.contentInsetAdjustmentBehavior = .never
         context.coordinator.web = web
         controller.web = web
+        controller.currentFile = file
         controller.tables = []
         controller.selectedTable = ""
         controller.recordPage = false
@@ -47,7 +48,7 @@ struct EditorView: UIViewRepresentable {
         coordinator.queue.async { _ = try? Runtime.call(coordinator.file, "close") }
     }
     final class Coordinator: NSObject, WKScriptMessageHandlerWithReply, WKURLSchemeHandler, WKNavigationDelegate, UIDocumentPickerDelegate, PHPickerViewControllerDelegate {
-        let file: URL
+        var file: URL
         let space: LocalSpace
         let dark: Bool
         let onLeave: () -> Void
@@ -156,7 +157,12 @@ struct EditorView: UIViewRepresentable {
                         result = NSNull()
                     case "markdown.save":
                         guard self.file.pathExtension.lowercased() != "eidos", let text = params["text"] as? String, let digest = params["digest"] as? String else { throw LocalError.message(tr("无效 Markdown 保存请求")) }
-                        result = try DraftStore.shared.save(self.file, text: text, digest: digest)
+                        var saved = try DraftStore.shared.save(self.file, text: text, digest: digest, space: self.space)
+                        if let updated = saved.removeValue(forKey: "url") as? URL {
+                            self.file = updated
+                            DispatchQueue.main.async { self.controller.currentFile = updated }
+                        }
+                        result = saved
                     case "markdown.keepDraft":
                         guard self.file.pathExtension.lowercased() != "eidos", let text = params["text"] as? String, let digest = params["digest"] as? String else { throw LocalError.message(tr("无效草稿")) }
                         try DraftStore.shared.stage(self.file, text: text, digest: digest)
@@ -270,6 +276,7 @@ struct EditorView: UIViewRepresentable {
 struct EditorTable: Identifiable { let id: String; let name: String }
 
 final class EditorController: ObservableObject {
+    @Published var currentFile: URL?
     @Published var recordPage = false
     @Published var tables: [EditorTable] = []
     @Published var selectedTable = ""
@@ -287,6 +294,13 @@ final class EditorController: ObservableObject {
         }
     }
     var onUnavailable: (() -> Void)?
+    @MainActor
+    func savedFile() async throws -> URL {
+        guard let web else { throw LocalError.message(tr("编辑器尚未就绪")) }
+        _ = try await web.callAsyncJavaScript("if (!window.eidosFlush) throw new Error('编辑器尚未就绪'); await window.eidosFlush()", arguments: [:], in: nil, contentWorld: .page)
+        guard self.web === web, let currentFile else { throw LocalError.message(tr("编辑器尚未就绪")) }
+        return currentFile
+    }
     func flush() {
         guard let web else { return }
         var task = UIBackgroundTaskIdentifier.invalid

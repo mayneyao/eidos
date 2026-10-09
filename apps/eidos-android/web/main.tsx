@@ -92,6 +92,7 @@ function Markdown({
 }) {
   useMobilePlugins(request, true)
   const [text, setText] = useState(document.text ?? "")
+  const [documentPath, setDocumentPath] = useState(document.path)
   const [error, setError] = useState("")
   const digest = useRef(document.digest!)
   const latest = useRef(text)
@@ -109,12 +110,21 @@ function Markdown({
     const task = (async () => {
       while (latest.current !== saved.current) {
         const value = latest.current
-        const result = await request<{ digest: string }>("markdown.save", {
+        const result = await request<{
+          digest: string
+          path?: string
+          text?: string
+        }>("markdown.save", {
           text: value,
           digest: digest.current,
         })
         digest.current = result.digest
-        saved.current = value
+        saved.current = result.text ?? value
+        if (latest.current === value && result.text !== undefined) {
+          latest.current = result.text
+          setText(result.text)
+        }
+        if (result.path) setDocumentPath(result.path)
       }
       setError("")
     })()
@@ -175,7 +185,7 @@ function Markdown({
       <div className="markdown-content touch-editing">
         <MarkdownEditor
           documentKey={document.path}
-          documentPath={document.path}
+          documentPath={documentPath}
           markdown={text}
           onMarkdownChange={change}
           onSaveRequest={flush}

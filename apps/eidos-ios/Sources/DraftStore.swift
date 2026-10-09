@@ -28,11 +28,13 @@ final class DraftStore {
         }
         return document
     }
-    func save(_ file: URL, text: String, digest: String) throws -> [String: Any] {
+    func save(_ file: URL, text: String, digest: String, space: LocalSpace? = nil) throws -> [String: Any] {
+        let previousText = try LocalSpace.readMarkdown(file)["text"] as? String
         try stage(file, text: text, digest: digest)
         let result = try LocalSpace.saveMarkdown(file, text: text, expectedDigest: digest)
         // Disk contains the committed text even if draft cleanup is interrupted.
         try? FileManager.default.removeItem(at: key(file))
+        if let updated = space?.runFileHooks(file, type: "document.saved", previousText: previousText) { return updated }
         return result
     }
     func discard(_ file: URL) throws {

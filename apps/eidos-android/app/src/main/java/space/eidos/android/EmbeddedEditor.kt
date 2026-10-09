@@ -62,7 +62,7 @@ private fun isEditorLoadFailure(request: WebResourceRequest): Boolean {
  */
 internal class EmbeddedEditorBridge(
     private val repository: SpaceRepository,
-    private val file: SpaceFile,
+    private var file: SpaceFile,
     private val dark: Boolean,
     private val reply: (String, JSONObject) -> Unit,
     private val leave: () -> Unit,
@@ -78,6 +78,7 @@ internal class EmbeddedEditorBridge(
     private val openLocalLink: (String) -> Unit = { error(tr("无法打开本地链接")) },
     private val recordPageChanged: (Boolean) -> Unit = {},
     private val fileActionReady: () -> Unit = {},
+    private val fileRelocated: (SpaceFile) -> Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val messages = Channel<JSONObject>(64)
@@ -187,7 +188,11 @@ internal class EmbeddedEditorBridge(
                     TextDocument(file.path, params.getString("text"), params.getString("digest"))
                 repository.saveDraft(document)
                 val saved = repository.saveText(document)
-                JSONObject().put("digest", saved.digest)
+                if (saved.path != file.path) {
+                    file = repository.file(saved.path)
+                    withContext(Dispatchers.Main) { fileRelocated(file) }
+                }
+                JSONObject().put("digest", saved.digest).put("path", saved.path).put("text", saved.text)
             }
             "leave" -> {
                 withContext(Dispatchers.Main) { leave() }
@@ -233,7 +238,7 @@ internal class EmbeddedEditorBridge(
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 internal fun EmbeddedEditorScreen(
-    file: SpaceFile,
+    initialFile: SpaceFile,
     model: EidosModel,
     pool: EditorWebViewPool,
     shareMode: Boolean = false,
@@ -241,7 +246,10 @@ internal fun EmbeddedEditorScreen(
     rename: (SpaceFile) -> Unit = {},
     trash: (SpaceFile) -> Unit = {},
 ) {
-    val session = remember(file.path) { java.util.UUID.randomUUID().toString() }
+    // The parent changes editorGeneration for navigation. Hook renames preserve this editor.
+    val identity = remember { initialFile.path }
+    var file by remember(identity) { mutableStateOf(initialFile) }
+    val session = remember(identity) { java.util.UUID.randomUUID().toString() }
     val repository = model.repository
     val pluginOrigins =
         model.pluginMarket
@@ -257,22 +265,22 @@ internal fun EmbeddedEditorScreen(
     val imagePrefix = "/document/$session/"
     val dark = isSystemInDarkTheme()
     val background = MaterialTheme.colorScheme.background.toArgb()
-    var web by remember(file.path) { mutableStateOf<WebView?>(null) }
-    var bridge by remember(file.path) { mutableStateOf<EmbeddedEditorBridge?>(null) }
-    var pendingFileAction by remember(file.path) { mutableStateOf<(() -> Unit)?>(null) }
+    var web by remember(identity) { mutableStateOf<WebView?>(null) }
+    var bridge by remember(identity) { mutableStateOf<EmbeddedEditorBridge?>(null) }
+    var pendingFileAction by remember(identity) { mutableStateOf<(() -> Unit)?>(null) }
     val state by model.state.collectAsState()
     fun afterSave(action: () -> Unit) {
         pendingFileAction = action
         web?.evaluateJavascript(
             "(async () => { if (!window.eidosFlush) return; try { await window.eidosFlush(); window.eidosFileActionReady(); } catch (_) {} })()", null)
     }
-    var tables by remember(file.path) { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var selectedTable by remember(file.path) { mutableStateOf("") }
-    var recordPage by remember(file.path) { mutableStateOf(false) }
-    var loading by remember(file.path) { mutableStateOf(true) }
-    var pageLoaded by remember(file.path) { mutableStateOf(false) }
-    var editorReady by remember(file.path) { mutableStateOf(false) }
-    var failed by remember(file.path) { mutableStateOf(false) }
+    var tables by remember(identity) { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var selectedTable by remember(identity) { mutableStateOf("") }
+    var recordPage by remember(identity) { mutableStateOf(false) }
+    var loading by remember(identity) { mutableStateOf(true) }
+    var pageLoaded by remember(identity) { mutableStateOf(false) }
+    var editorReady by remember(identity) { mutableStateOf(false) }
+    var failed by remember(identity) { mutableStateOf(false) }
     var pendingPicker by remember { mutableStateOf<CompletableDeferred<List<Uri>>?>(null) }
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -295,7 +303,7 @@ internal fun EmbeddedEditorScreen(
             }
     }
     BackHandler { leave() }
-    DisposableEffect(file.path) {
+    DisposableEffect(identity) {
         onDispose {
             val currentPath =
                 if (shareMode) model.state.value.shareRecord?.path
@@ -326,12 +334,12 @@ internal fun EmbeddedEditorScreen(
                         if (!shareMode) FileRow(
                             file = file, enabled = editorReady && !state.busy,
                             open = { /* Already using the default editor. */ },
-                            export = { afterSave { export(it) } },
+                            export = { afterSave { export(file) } },
                             favorite = state.favorites.any { it.path == file.path && it.tableId == null },
                             toggleFavorite = { model.toggleFavorite(Favorite(it.path, it.name)) },
                             publish = {}, pluginRegistry = model.pluginOpenWith,
-                            openPlugin = { target, id -> afterSave { model.openWithPlugin(target, id) } },
-                            rename = { afterSave { rename(it) } }, menuOnly = true,
+                            openPlugin = { _, id -> afterSave { model.openWithPlugin(file, id) } },
+                            rename = { afterSave { rename(file) } }, menuOnly = true,
                             trash = { afterSave { trash(file) } },
                         )
                     },
@@ -376,6 +384,12 @@ internal fun EmbeddedEditorScreen(
                                         )
                                 },
                                 leave = model::leaveWebEditor,
+                                fileRelocated = { relocated ->
+                                    if (pool.owns(channel)) {
+                                        model.editorFileRelocated(repository, file.path, relocated)
+                                        file = relocated
+                                    }
+                                },
                                 fileActionReady = {
                                     val action = pendingFileAction
                                     pendingFileAction = null

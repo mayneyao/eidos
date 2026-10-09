@@ -158,6 +158,26 @@ final class LocalSpace {
         guard candidate.path.hasPrefix(base), try candidate.checkResourceIsReachable() else { throw LocalError.message(tr("资源不存在或路径越界")) }
         return candidate
     }
+    func runFileHooks(_ url: URL, type: String, previousText: String? = nil, previousPath: String? = nil) -> [String: Any]? {
+        guard ["md", "markdown"].contains(url.pathExtension.lowercased()) else { return nil }
+        do {
+            let file = try checked(url), snapshot = try Self.readMarkdown(file)
+            guard let text = snapshot["text"] as? String, let digest = snapshot["digest"] as? String else { return nil }
+            var event: [String: Any] = ["type": type, "source": "local", "operationId": UUID().uuidString, "path": FileActivity.path(file, space: self), "document": ["text": text, "version": digest]]
+            event["previousText"] = previousText; event["previousPath"] = previousPath
+            guard let plan = try MobilePluginService(space: self).fileHookPlan(event),
+                  (try Self.readMarkdown(file))["digest"] as? String == digest else { return nil }
+            let name = plan["name"] as? String ?? file.lastPathComponent
+            let destination = file.deletingLastPathComponent().appendingPathComponent(name)
+            guard destination == file || !FileManager.default.fileExists(atPath: destination.path) else { return nil }
+            if let replacement = plan["text"] as? String, replacement != text { _ = try Self.saveMarkdown(file, text: replacement, expectedDigest: digest) }
+            let result = destination == file ? file : try rename(file, to: name, emitHooks: false)
+            var updated = try Self.readMarkdown(result)
+            updated["path"] = FileActivity.path(result, space: self)
+            updated["url"] = result
+            return updated
+        } catch { NSLog("Eidos file hook skipped: %@", error.localizedDescription); return nil }
+    }
 
     static func importEditorFiles(document: URL, sources: [URL]) throws -> [Any] {
         guard sources.count <= 100 else { throw LocalError.message(tr("请选择最多 100 个文件")) }

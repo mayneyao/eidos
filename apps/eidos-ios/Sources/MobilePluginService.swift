@@ -112,6 +112,32 @@ final class MobilePluginService {
             }
         }.sorted { $0.id < $1.id }
     }
+    func fileHookPlan(_ event: [String: Any]) throws -> [String: Any]? {
+        let installed = (try handle("list", [:]) as? [[String: Any]] ?? []).filter { $0["enabled"] as? Bool == true }
+            .sorted { (($0["manifest"] as? [String: Any])?["id"] as? String ?? "") < (($1["manifest"] as? [String: Any])?["id"] as? String ?? "") }
+        for record in installed {
+            guard let manifest = record["manifest"] as? [String: Any], let plugin = manifest["id"] as? String,
+                  let path = event["path"] as? String else { continue }
+            let hooks = manifest["hooks"] as? [[String: Any]] ?? []
+            for hook in hooks where hook["event"] as? String == event["type"] as? String &&
+                (hook["extensions"] as? [String] ?? []).contains(where: { path.lowercased().hasSuffix($0.lowercased()) }) {
+                do {
+                    let package = try program(plugin)
+                    guard let modules = package["modules"] as? [String: String], let entry = manifest["extension"] as? String, let code = modules[entry] else { continue }
+                    var settings: [String: Any] = [:]
+                    for (name, declaration) in manifest["settings"] as? [String: [String: Any]] ?? [:] {
+                        settings[name] = preferences.object(forKey: key(plugin, name)) ?? declaration["default"]
+                    }
+                    func ids(_ kind: String) -> [String] { (manifest[kind] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String } }
+                    let input: [String: Any] = ["event": event, "settings": settings, "hook": hook["id"] ?? "", "hooks": ids("hooks"), "actions": ids("actions"), "formatters": ids("formatters")]
+                    let result = try Runtime.call(space.root, "runFileHook", ["code": code, "input": input, "declaration": hook]) as? [String: Any]
+                    guard preferences.string(forKey: key(plugin, "enabled")) == record["revision"] as? String else { continue }
+                    if let plan = result?["plan"] as? [String: Any], !plan.isEmpty { return plan }
+                } catch { NSLog("Eidos hook skipped %@: %@", plugin, error.localizedDescription) }
+            }
+        }
+        return nil
+    }
     func fileViews(_ file: URL) throws -> [PluginNavigationPage] {
         guard !LocalSpace.isDirectory(file) else { return [] }
         let installed = try handle("list", [:]) as? [[String: Any]] ?? []

@@ -1030,9 +1030,66 @@ class SpaceRepository(
     }
 
     suspend fun saveText(document: TextDocument): TextDocument = io {
+        val previousText = local.readText(document.path).first
         val digest = local.writeText(document.path, document.text, document.digest)
         draftFile(document.path).delete()
-        document.copy(digest = digest, recovered = false)
+        runFileHooks(document.copy(digest = digest, recovered = false), "document.saved", previousText = previousText)
+    }
+
+    private suspend fun runFileHooks(document: TextDocument, type: String, previousText: String? = null, previousPath: String? = null): TextDocument {
+        if (!document.path.endsWith(".md", true) && !document.path.endsWith(".markdown", true)) return document
+        val store = PluginMarketStore(context)
+        val settingsStore = context.getSharedPreferences("mobile-plugin-settings", 0)
+        val event = JSONObject().put("type", type).put("source", "local").put("operationId", java.util.UUID.randomUUID().toString())
+            .put("path", document.path).put("previousText", previousText).put("previousPath", previousPath)
+            .put("document", JSONObject().put("text", document.text).put("version", document.digest))
+        for (plugin in store.installed(spaceId).filter { it.enabled }.sortedBy { it.id }) {
+            val hooks = plugin.manifest.optJSONArray("hooks") ?: continue
+            for (index in 0 until hooks.length()) {
+                val hook = hooks.getJSONObject(index)
+                val extensions = hook.optJSONArray("extensions") ?: continue
+                if (hook.optString("event") != type || !(0 until extensions.length()).any { document.path.endsWith(extensions.getString(it), true) }) continue
+                try {
+                    val program = store.program(spaceId, plugin.id)
+                    val manifest = program.getJSONObject("manifest")
+                    val settings = JSONObject()
+                    manifest.optJSONObject("settings")?.let { declarations ->
+                        for (key in declarations.keys()) {
+                            val stored = settingsStore.getString(JSONArray(listOf(spaceId, plugin.id, key)).toString(), null)
+                            settings.put(key, stored?.let { JSONArray(it).get(0) } ?: declarations.getJSONObject(key).get("default"))
+                        }
+                    }
+                    fun ids(kind: String): JSONArray {
+                        val values = manifest.optJSONArray(kind) ?: JSONArray()
+                        return JSONArray((0 until values.length()).map { values.getJSONObject(it).getString("id") })
+                    }
+                    val input = JSONObject().put("event", event).put("settings", settings).put("hook", hook.getString("id"))
+                        .put("hooks", ids("hooks")).put("actions", ids("actions")).put("formatters", ids("formatters"))
+                    val result = NativeRuntime.call(root.path, "runFileHook", JSONObject().put("input", input).put("declaration", hook)
+                        .put("code", program.getJSONObject("modules").getString(manifest.getString("extension"))))
+                    val plan = result.optJSONObject("plan") ?: continue
+                    if (!store.installed(spaceId).any { it.id == plugin.id && it.enabled && it.revision == plugin.revision }) continue
+                    if (local.readText(document.path).second != document.digest) return document
+                    val name = plan.optString("name", local.resolve(document.path).name)
+                    val target = File(local.resolve(document.path).parentFile, name)
+                    if (target != local.resolve(document.path) && target.exists()) continue
+                    var saved = document
+                    if (plan.has("text") && plan.getString("text") != document.text) {
+                        val text = plan.getString("text")
+                        saved = document.copy(text = text, digest = local.writeText(document.path, text, document.digest))
+                    }
+                    if (target != local.resolve(document.path)) {
+                        val moved = renameLocked(document.path, name, false)
+                        val (text, version) = local.readText(moved)
+                        saved = saved.copy(path = moved, text = text, digest = version)
+                    }
+                    return saved
+                } catch (error: Exception) {
+                    android.util.Log.w("EidosFileHook", "Skipped ${plugin.id}/${hook.optString("id")}", error)
+                }
+            }
+        }
+        return document
     }
 
     suspend fun createUntitled(folder: String, kind: String): String = io {
@@ -1084,12 +1141,14 @@ class SpaceRepository(
         }
     }
 
-    suspend fun rename(path: String, name: String): String = io {
+    suspend fun rename(path: String, name: String): String = io { renameLocked(path, name, true) }
+
+    private suspend fun renameLocked(path: String, name: String, emitHooks: Boolean): String {
         require(path.isNotBlank()) { tr("不能重命名 Space 根目录") }
         val source = local.resolve(path)
         check(source.exists() && visible(source)) { tr("文件暂时不可用") }
         val cleanName = local.validName(name)
-        if (source.name == cleanName) return@io path
+        if (source.name == cleanName) return path
         if (source.isFile && source.extension.lowercase() in listOf("eidos", "md", "markdown")) {
             require(File(cleanName).extension.equals(source.extension, true)) { tr("重命名时请保留原扩展名") }
         }
@@ -1156,7 +1215,22 @@ class SpaceRepository(
             Files.move(target.toPath(), source.toPath())
             error(tr("无法保存新名称，请重试"))
         }
-        nextPath
+        if (target.isFile && target.extension.lowercase() in listOf("md", "markdown")) {
+            try {
+                val changes = NativeRuntime.call(root.path, "prepareMarkdownRenameLinks", JSONObject().put("source", path).put("target", nextPath)).getJSONArray("changes")
+                for (index in 0 until changes.length()) {
+                    val change = changes.getJSONObject(index)
+                    val linkedPath = change.getString("path")
+                    if (draftFile(linkedPath).baseFile.exists()) continue
+                    runCatching { local.writeText(linkedPath, change.getString("text"), change.getString("version")) }
+                }
+            } catch (error: Exception) { android.util.Log.w("EidosFileHook", "Skipped link maintenance", error) }
+        }
+        if (emitHooks && target.isFile && target.extension.lowercase() in listOf("md", "markdown")) {
+            val (text, digest) = local.readText(nextPath)
+            return runFileHooks(TextDocument(nextPath, text, digest), "file.renamed", previousPath = path).path
+        }
+        return nextPath
     }
 
     private fun createEntry(folder: String, name: String, kind: String): String {

@@ -5,10 +5,16 @@ export function validateMobileManifest(input: unknown) {
   const manifest = parseManifest(input)
   if (manifest.kind === "theme") throw new Error("移动端不支持插件主题")
   if (
-    manifest.requires?.pluginApi !== "3.0.0" ||
+    !["3.0.0", "3.3.0"].includes(manifest.requires?.pluginApi ?? "") ||
     manifest.formatters?.length ||
+    manifest.fileTemplates?.length ||
     manifest.storage ||
     manifest.workspace?.filemeta ||
+    manifest.hooks?.some((hook) =>
+      hook.extensions.some(
+        (extension) => ![".md", ".markdown"].includes(extension)
+      )
+    ) ||
     manifest.placements?.some(
       (p) =>
         ![
