@@ -35,6 +35,26 @@ fn path_string(path: &Path) -> String {
 }
 
 #[test]
+fn release_notes_file_creation_examples_execute() {
+    let notes = include_str!("../RELEASE_NOTES.md");
+    for line in notes
+        .lines()
+        .filter_map(|line| line.strip_prefix("eidos file new "))
+    {
+        let (arguments, fields) = line.split_once(" --fields '").expect("quoted fields JSON");
+        let fields = fields.strip_suffix('\'').expect("closing fields quote");
+        let dir = tempfile::tempdir().unwrap();
+        let file = path_string(&dir.path().join("example.eidos"));
+        let mut args = vec!["file", "new", &file];
+        args.extend(arguments.split_whitespace().skip(1));
+        args.extend(["--fields", fields]);
+        let created = success(&args);
+        assert_eq!(created["created"], true);
+        success(&["file", "validate", &file]);
+    }
+}
+
+#[test]
 fn agent_can_create_query_mutate_and_validate_a_file() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("tracker.eidos");
