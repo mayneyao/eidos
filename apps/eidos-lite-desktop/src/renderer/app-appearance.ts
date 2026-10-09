@@ -40,7 +40,7 @@ export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   uiZoom: 1,
   appearance: "system",
   language: "system",
-  markdownFileEditingMode: "source",
+  markdownFileEditingMode: "wysiwyg",
   htmlFileOpenMode: "preview",
   markdownCompatibilityProfile: "eidos",
   terminalLayout: "bottom",

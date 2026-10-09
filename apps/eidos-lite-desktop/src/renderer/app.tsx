@@ -4411,7 +4411,13 @@ function WorkspaceApp({
                     platform={platform}
                     focusRequestToken={fileSurfaceFocusRequestToken}
                     keyboardShortcuts={keyboardShortcuts}
-                    onEditingModeChange={setTextPreviewEditingMode}
+                    onEditingModeChange={(mode) => {
+                      setTextPreviewEditingMode(mode)
+                      setMarkdownFileEditingMode(mode)
+                      void window.eidosLite
+                        .updatePreferences({ markdownFileEditingMode: mode })
+                        .catch((cause) => setError(errorMessage(cause)))
+                    }}
                     onSaved={(file) => {
                       const previousPath = textPreview.relativePath
                       if (file.relativePath !== previousPath) {

@@ -10,6 +10,15 @@ import {
 import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 describe("Eidos Lite preferences", () => {
+  it("starts in rich text and retains an explicit source-mode preference", () => {
+    expect(normalizeEidosLitePreferences({}).markdownFileEditingMode).toBe(
+      "wysiwyg"
+    )
+    expect(
+      normalizeEidosLitePreferences({ markdownFileEditingMode: "source" })
+        .markdownFileEditingMode
+    ).toBe("source")
+  })
   it("normalizes unknown or stale preference values", () => {
     expect(normalizeEidosLitePreferences(null)).toEqual(
       DEFAULT_EIDOS_LITE_PREFERENCES
