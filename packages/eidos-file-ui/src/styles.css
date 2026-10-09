@@ -1093,7 +1093,11 @@
   min-height: 44px;
 }
 [data-mobile-record="true"] [data-eidos-file-record-page-scroll] {
-  scrollbar-gutter: auto;
+  scrollbar-gutter: stable;
+}
+[data-mobile-record="true"]
+  [data-eidos-file-record-page-scroll].overflow-y-auto {
+  overflow-y: scroll;
 }
 [data-mobile-record="true"] [data-eidos-file-record-page-scroll] > article {
   padding: 24px 24px 64px;

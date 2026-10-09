@@ -265,6 +265,11 @@
   font-family: var(--font-ui);
 }
 
+.markdown-page > .markdown-content {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 *::-webkit-scrollbar {
   width: 15px;
   height: 15px;

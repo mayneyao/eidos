@@ -540,6 +540,13 @@ rejections are forwarded to `onError`.
 
 ### Link navigation
 
+Editable desktop editors open links with Ctrl/Cmd-click. With
+`toolbarMode="mobile"`, tapping a link opens it through the host callback without
+a modifier key. Read-only editors also use ordinary clicks. A long press or text
+selection on mobile retains the system text-editing behavior.
+Bare URLs and angle autolinks contain editable text, so deletion and replacement
+operate on characters and update the destination.
+
 The package validates and resolves destinations before calling
 `onOpenExternalUrl`:
 

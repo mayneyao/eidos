@@ -5,6 +5,7 @@ import {
   type LexicalNode,
 } from "lexical"
 import { $isTableNode } from "@lexical/table"
+import { $isLinkNode } from "@lexical/link"
 import { $isListItemNode } from "@lexical/list"
 import { MARKDOWN_EDITOR_CORE_NODES } from "../nodes/node-registry"
 import { $isEfmBlockNode, $isEfmInlineNode } from "../nodes/efm-semantic-node"
@@ -42,6 +43,11 @@ function inspect(source: string) {
       text: $getRoot().getTextContent(),
       blocks: nodes.filter($isEfmBlockNode).map((node) => node.getData()),
       inlines: nodes.filter($isEfmInlineNode).map((node) => node.getData()),
+      links: nodes.filter($isLinkNode).map((node) => ({
+        url: node.getURL(),
+        text: node.getTextContent(),
+        childType: node.getFirstChild()?.getType(),
+      })),
       markdown: gfmMarkdownProfile.codec.export(registry.transformers),
     }
   })
@@ -84,9 +90,18 @@ describe("GFM preset", () => {
     expect(result.tables).toBe(1)
     expect(result.checked).toEqual([true, false])
     expect(result.markdown).toContain("~~Removed~~")
-    expect(
-      result.inlines.filter((entry) => entry.kind === "autolink")
-    ).toHaveLength(2)
+    expect(result.links).toEqual([
+      {
+        url: "http://www.example.com",
+        text: "www.example.com",
+        childType: "text",
+      },
+      {
+        url: "mailto:hello@example.com",
+        text: "hello@example.com",
+        childType: "text",
+      },
+    ])
   })
   it("does not interpret YAML envelopes, math fences or vault syntax as extensions", () => {
     const result = inspect(
@@ -116,7 +131,11 @@ describe("GFM preset", () => {
       "Heading\n=======\n\n[Guide][doc] and <https://example.com>\n\n[doc]: https://example.com\n\n> A **quote**.\n\n    indented code"
     )
     expect(result.markdown).toContain("[doc]: https://example.com")
-    expect(result.inlines.some((entry) => entry.kind === "autolink")).toBe(true)
+    expect(result.links).toContainEqual({
+      url: "https://example.com",
+      text: "https://example.com",
+      childType: "text",
+    })
     expect(result.nodes).not.toContain("efm-source-block")
   })
 })

@@ -45,6 +45,7 @@ import { RequestedTextSearchPlugin } from "../plugins/requested-text-search-plug
 import { FloatingToolbarPlugin } from "../plugins/toolbar-plugin"
 import { MobileToolbarPlugin } from "../plugins/mobile-toolbar-plugin"
 import { MobileImagePlugin } from "../plugins/mobile-image-plugin"
+import { DocumentTailPlugin } from "../plugins/document-tail-plugin"
 import {
   MarkdownShortcutProvider,
   useMarkdownShortcuts,
@@ -278,6 +279,13 @@ function MarkdownEditorImplementation({
 }) {
   const { ariaKeys } = useMarkdownShortcuts()
   const controls = resolveEditorInteractions(interactions, showToolbar)
+  const linkPress = useRef<{
+    pointerId: number
+    time: number
+    x: number
+    y: number
+    cancelled: boolean
+  } | null>(null)
   const resolvedLabels = useMemo(
     () => ({ ...DEFAULT_LABELS, ...labels }),
     [labels]
@@ -355,12 +363,60 @@ function MarkdownEditorImplementation({
           ) : null}
           <div
             className="eme-editor-stage"
+            onPointerDownCapture={(event) => {
+              linkPress.current =
+                event.pointerType === "touch" || event.pointerType === "pen"
+                  ? {
+                      pointerId: event.pointerId,
+                      time: Date.now(),
+                      x: event.clientX,
+                      y: event.clientY,
+                      cancelled: false,
+                    }
+                  : null
+            }}
+            onPointerMoveCapture={(event) => {
+              const press = linkPress.current
+              if (
+                press?.pointerId === event.pointerId &&
+                Math.hypot(event.clientX - press.x, event.clientY - press.y) >
+                  10
+              )
+                press.cancelled = true
+            }}
+            onPointerUpCapture={() => {
+              const press = linkPress.current
+              if (press && Date.now() - press.time >= 500)
+                press.cancelled = true
+            }}
+            onPointerCancelCapture={() => {
+              if (linkPress.current) linkPress.current.cancelled = true
+            }}
+            onContextMenuCapture={() => {
+              if (linkPress.current) linkPress.current.cancelled = true
+            }}
             onClickCapture={(event) => {
               const anchor = (
                 event.target as Element
               ).closest<HTMLAnchorElement>("a[href]")
               if (!anchor) return
-              if (!readOnly && !(event.metaKey || event.ctrlKey)) return
+              const selection = anchor.ownerDocument.getSelection()
+              if (
+                toolbarMode === "mobile" &&
+                (linkPress.current?.cancelled ||
+                  (selection &&
+                    !selection.isCollapsed &&
+                    event.currentTarget.contains(selection.anchorNode)))
+              ) {
+                event.preventDefault()
+                return
+              }
+              if (
+                !readOnly &&
+                toolbarMode !== "mobile" &&
+                !(event.metaKey || event.ctrlKey)
+              )
+                return
               const rawDestination = anchor.getAttribute("href") ?? ""
               const internalTarget = registry.features.has(
                 MARKDOWN_FEATURES.obsidianWikilink
@@ -368,7 +424,6 @@ function MarkdownEditorImplementation({
                 ? parseObsidianMarkdownLinkDestination(rawDestination)
                 : null
               if (internalTarget) {
-                if (!readOnly && !(event.metaKey || event.ctrlKey)) return
                 event.preventDefault()
                 if (!onOpenInternalLink) return
                 try {
@@ -409,6 +464,7 @@ function MarkdownEditorImplementation({
               }
             }}
           >
+            <DocumentTailPlugin readOnly={readOnly} />
             <RichTextPlugin
               contentEditable={
                 <ContentEditable

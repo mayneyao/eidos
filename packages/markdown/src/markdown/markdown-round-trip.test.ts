@@ -7,6 +7,7 @@ import {
   type LexicalNode,
 } from "lexical"
 import { $isCodeNode } from "@lexical/code-core"
+import { $isLinkNode } from "@lexical/link"
 import {
   $createListItemNode,
   $createListNode,
@@ -417,7 +418,7 @@ $$
     }
   )
 
-  it("preserves GFM autolinks as semantic inline nodes", () => {
+  it("preserves GFM autolinks as editable links", () => {
     const input = "1. Download from https://obsidian.md/download."
     const editor = createEditor({ nodes: [...MARKDOWN_EDITOR_NODES] })
     editor.update(
@@ -428,14 +429,11 @@ $$
     )
 
     editor.getEditorState().read(() => {
-      const links = descendants($getRoot()).filter($isEfmInlineNode)
-      expect(links.map((node) => node.getData())).toEqual([
-        expect.objectContaining({
-          kind: "autolink",
-          source: "https://obsidian.md/download",
-          resolvedUrl: "https://obsidian.md/download",
-        }),
+      const links = descendants($getRoot()).filter($isLinkNode)
+      expect(links.map((node) => node.getURL())).toEqual([
+        "https://obsidian.md/download",
       ])
+      expect(links[0].getFirstChild()?.getType()).toBe("text")
     })
     expect(
       editor

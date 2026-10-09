@@ -5,6 +5,9 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 import { STRIKETHROUGH } from "@lexical/markdown"
 import { GFM_GRAMMARS } from "./grammar"
 import { EfmInlineNode } from "../../nodes/efm-semantic-node"
+import { LinkNode } from "@lexical/link"
+import { EDITABLE_LINK } from "../commonmark/editable-autolink"
+import { RelativeLinkBehavior } from "../commonmark/relative-link-behavior"
 import { defineMarkdownPlugin } from "../../plugin-system/plugin-api"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
 import { TABLE, createTableTransformer } from "../../markdown/table-transformer"
@@ -70,7 +73,11 @@ export const autolinkPlugin = defineMarkdownPlugin({
   id: "markdown.autolink",
   version: "1.0.0",
   features: [MARKDOWN_FEATURES.gfmAutolink],
-  nodes: [EfmInlineNode],
+  nodes: [LinkNode, EfmInlineNode],
+  transformers: [{ order: 180, transformer: EDITABLE_LINK }],
+  behaviors: [
+    { id: "markdown.autolink.destination", component: RelativeLinkBehavior },
+  ],
   grammar: GFM_GRAMMARS.autolink,
 })
 

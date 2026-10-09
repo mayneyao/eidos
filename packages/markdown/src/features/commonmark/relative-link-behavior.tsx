@@ -1,7 +1,13 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $isLinkNode, LinkNode } from "@lexical/link"
-import { $getNodeByKey } from "lexical"
+import { $getNodeByKey, TextNode } from "lexical"
+import type { LinkNode as Link } from "@lexical/link"
+import { mergeRegister } from "@lexical/utils"
+import {
+  $editableAutolinkDestination,
+  $isEditableAutolink,
+} from "./editable-autolink"
 
 /** Only restore relative destinations; leave URL scheme sanitization to Lexical. */
 export function isRelativeMarkdownDestination(destination: string): boolean {
@@ -18,8 +24,21 @@ export function isRelativeMarkdownDestination(destination: string): boolean {
 export function RelativeLinkBehavior() {
   const [editor] = useLexicalComposerContext()
 
-  useEffect(
-    () =>
+  useEffect(() => {
+    const updateAutolink = (node: Link) => {
+      if (!$isEditableAutolink(node)) return
+      const destination = $editableAutolinkDestination(node)
+      if (!destination) {
+        for (const child of node.getChildren()) node.insertBefore(child)
+        node.remove()
+      } else if (destination !== node.getURL()) node.setURL(destination)
+    }
+    return mergeRegister(
+      editor.registerNodeTransform(LinkNode, updateAutolink),
+      editor.registerNodeTransform(TextNode, (node) => {
+        const parent = node.getParent()
+        if ($isLinkNode(parent)) updateAutolink(parent)
+      }),
       editor.registerMutationListener(
         LinkNode,
         (mutations) => {
@@ -38,9 +57,9 @@ export function RelativeLinkBehavior() {
           })
         },
         { skipInitialization: false }
-      ),
-    [editor]
-  )
+      )
+    )
+  }, [editor])
 
   return null
 }

@@ -145,6 +145,58 @@ final class EditorWebTests: XCTestCase {
         XCTAssertEqual(result.matches.count, 1)
         XCTAssertNotNil(result.matches.first?.tableId)
     }
+    @MainActor
+    func testMarkdownURLDeletesOneCharacterAndPersists() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        let file = try space.create(markdown: true)
+        try "https://example.com/page".write(to: file, atomically: true, encoding: .utf8)
+        let editor = EditorController()
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        window.rootViewController = UIHostingController(rootView: EditorView(file: file, space: space, dark: false, controller: editor, onLeave: {}))
+        window.makeKeyAndVisible(); window.rootViewController?.view.layoutIfNeeded()
+        defer {
+            window.isHidden = true; window.rootViewController = nil
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        let web = try await ready(editor, script: "!!document.querySelector('.eme-content-editable a span')")
+        let editable = try await web.evaluateJavaScript("document.querySelector('.eme-content-editable a').closest('[contenteditable=false]')===null")
+        XCTAssertEqual(editable as? Bool, true)
+        _ = try await web.evaluateJavaScript("(()=>{const root=document.querySelector('.eme-content-editable');root.focus();const text=root.querySelector('a span').firstChild;const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);document.execCommand('delete')})()")
+        _ = try await ready(editor, script: "document.querySelector('.eme-content-editable').textContent==='https://example.com/pag' && document.querySelector('.eme-content-editable a').getAttribute('href')==='https://example.com/pag'")
+        _ = try await web.callAsyncJavaScript("await window.eidosFlush(); return true", arguments: [:], in: nil, contentWorld: .page)
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "https://example.com/pag")
+    }
+
+    @MainActor
+    func testMarkdownTailAfterCalloutAcceptsTyping() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        let file = try space.create(markdown: true)
+        try "> [!note] Tail\n> Keep".write(to: file, atomically: true, encoding: .utf8)
+        let editor = EditorController()
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        window.rootViewController = UIHostingController(rootView: EditorView(file: file, space: space, dark: false, controller: editor, onLeave: {}))
+        window.makeKeyAndVisible(); window.rootViewController?.view.layoutIfNeeded()
+        defer {
+            window.isHidden = true; window.rootViewController = nil
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        let web = try await ready(editor, script: "!!document.querySelector('.eme-content-editable [data-lexical-decorator]')")
+        _ = try await web.evaluateJavaScript("(()=>{const root=document.querySelector('.eme-content-editable');const r=root.querySelector('[data-lexical-decorator]').getBoundingClientRect();for(const type of ['pointerdown','pointerup'])root.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:1,pointerType:'touch',button:0,clientX:r.left+40,clientY:r.bottom+24}))})()")
+        _ = try await ready(editor, script: "document.querySelector('.eme-content-editable').lastElementChild.tagName==='P'")
+        _ = try await web.evaluateJavaScript("document.execCommand('insertText',false,'New paragraph')")
+        _ = try await ready(editor, script: "document.querySelector('.eme-content-editable').textContent.includes('New paragraph')")
+        _ = try await web.callAsyncJavaScript("await window.eidosFlush(); return true", arguments: [:], in: nil, contentWorld: .page)
+        XCTAssertTrue(try String(contentsOf: file, encoding: .utf8).contains("New paragraph"))
+    }
+
     @MainActor private func ready(_ controller: EditorController, script: String) async throws -> WKWebView {
         for _ in 0..<150 {
             if let web = controller.web, (try? await web.evaluateJavaScript(script)) as? Bool == true { return web }

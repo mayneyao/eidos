@@ -29,6 +29,7 @@ describe("compileMarkdownPlugins", () => {
       "eidos.commonmark.behavior",
       "markdown.table.behavior",
       "markdown.task-list.behavior",
+      "markdown.autolink.destination",
     ])
   })
   it("reconstructs the shipped transformer order from the default profile", () => {

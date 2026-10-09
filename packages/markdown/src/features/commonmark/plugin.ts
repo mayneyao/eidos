@@ -11,7 +11,6 @@ import {
   INLINE_CODE,
   ITALIC_STAR,
   ITALIC_UNDERSCORE,
-  LINK,
   QUOTE,
 } from "@lexical/markdown"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
@@ -39,6 +38,7 @@ import {
 import { COMMONMARK_CONSTRUCTS } from "../../core/markdown-grammar"
 import { EfmInlineNode } from "../../nodes/efm-semantic-node"
 import { RelativeLinkBehavior } from "./relative-link-behavior"
+import { EDITABLE_LINK } from "./editable-autolink"
 import type { MarkdownPlugin } from "../../plugin-system/plugin-api"
 
 /** Syntax owners declare contributions directly. Legacy bundles only aggregate. */
@@ -145,7 +145,7 @@ export const emphasisPlugin = syntax("emphasis", MARKDOWN_FEATURES.emphasis, {
 export const linkPlugin = syntax("link", MARKDOWN_FEATURES.link, {
   grammar: { commonmark: ["autolink", "labelStartLink", "definition"] },
   nodes: [LinkNode, EfmInlineNode],
-  transformers: [{ order: 180, transformer: LINK }],
+  transformers: [{ order: 180, transformer: EDITABLE_LINK }],
   behaviors: [
     { id: "markdown.link.relative-dom", component: RelativeLinkBehavior },
   ],

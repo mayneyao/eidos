@@ -301,6 +301,40 @@ describe("SourceRangeEditingPlugin integration", () => {
     expect(container.querySelectorAll("li")).toHaveLength(2)
   })
 
+  it.each(["cancel", "unchanged", "edit"])(
+    "preserves consecutive blank lines when multiple blocks %s source editing",
+    async (action) => {
+      const original = "Before\n\n\nOne\n\n\n\nTwo\n\n\nAfter\n"
+      await renderEditor(original)
+      act(() => {
+        selectBlocks(1, 2)
+        openSourceEditor()
+      })
+      await flushEditor()
+      const textarea = container.querySelector<HTMLTextAreaElement>(
+        "[data-source-range-textarea='true']"
+      )!
+      expect(textarea.value).toBe("One\n\n\n\nTwo")
+      expect(onMarkdownChange).not.toHaveBeenCalled()
+      act(() => {
+        if (action === "edit")
+          changeTextarea(textarea, textarea.value.replace("One", "Changed"))
+        if (action === "cancel")
+          textarea.dispatchEvent(
+            new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
+          )
+        else commitTextarea(textarea)
+      })
+      await flushEditor()
+      if (action === "edit")
+        expect(onMarkdownChange).toHaveBeenLastCalledWith(
+          original.replace("One", "Changed")
+        )
+      else expect(onMarkdownChange).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    }
+  )
+
   it("contains ordinary multiline editing keys inside the source textarea", async () => {
     await renderEditor("One\n\nTwo")
     act(() => {

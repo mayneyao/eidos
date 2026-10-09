@@ -24,7 +24,6 @@ import {
   INLINE_CODE,
   ITALIC_STAR,
   ITALIC_UNDERSCORE,
-  LINK,
   ORDERED_LIST,
   QUOTE,
   STRIKETHROUGH,
@@ -39,6 +38,7 @@ import {
 } from "@lexical/react/LexicalHorizontalRuleNode"
 
 import { TABLE } from "./table-transformer"
+import { EDITABLE_LINK } from "../features/commonmark/editable-autolink"
 
 const richListSourceState = createState("eme-rich-list-source", {
   parse: (value) => (typeof value === "string" ? value : ""),
@@ -244,5 +244,5 @@ export const EIDOS_MARKDOWN_TRANSFORMERS: readonly Transformer[] = [
   ITALIC_UNDERSCORE,
   STRIKETHROUGH,
   HIGHLIGHT,
-  LINK,
+  EDITABLE_LINK,
 ]

@@ -59,6 +59,7 @@ import type { MarkdownGrammar } from "../core/markdown-grammar"
 import { importBlockSyntax, scanBlockSyntax } from "../core/block-syntax"
 import { importInlineSyntax, scanInlineSyntax } from "../core/inline-syntax"
 import { ACTIVE_HTML } from "../core/html-safety"
+import { $createEditableAutolink } from "../features/commonmark/editable-autolink"
 import { frontmatterRange } from "../features/frontmatter/syntax"
 import { htmlBlockSyntax } from "../features/html/plugin"
 import type {
@@ -871,14 +872,8 @@ function inlineReplacements(
       replacements.push({
         start: range.start,
         end: range.end,
-        data: {
-          kind: "autolink",
-          source: original,
-          url: node.url,
-          resolvedUrl: resolveEfmResourceUri(node.url, baseUri) ?? undefined,
-          label: textFromNode(node),
-          ...(node.title ? { title: node.title } : {}),
-        },
+        importNode: () =>
+          $createEditableAutolink(original, textFromNode(node), node.url!),
       })
       return
     }

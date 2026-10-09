@@ -5,6 +5,7 @@ import {
   type LexicalNode,
 } from "lexical"
 import { $isTableNode } from "@lexical/table"
+import { $isLinkNode } from "@lexical/link"
 import { $isListItemNode } from "@lexical/list"
 import {
   commonmarkPreset,
@@ -70,6 +71,7 @@ function inspect(profile: MarkdownProfile, source: string) {
         .map((node) => node.getChecked())
         .filter((checked) => typeof checked === "boolean"),
       inlines: nodes.filter($isEfmInlineNode).map((node) => node.getData()),
+      links: nodes.filter($isLinkNode).map((node) => node.getURL()),
       blocks: nodes.filter($isEfmBlockNode).map((node) => node.getData()),
       source: profile.codec.export(registry.transformers),
     }
@@ -377,14 +379,13 @@ describe("composable presets", () => {
   })
   it("keeps CommonMark angle links but does not interpret bare URLs", () => {
     const markdown = "www.example.com and <https://example.com>"
-    expect(
-      inspect(commonmarkPreset, markdown).inlines.map((node) => node.kind)
-    ).toEqual(["autolink"])
-    expect(
-      inspect(custom([autolinkPlugin]), markdown).inlines.map(
-        (node) => node.kind
-      )
-    ).toEqual(["autolink", "autolink"])
+    expect(inspect(commonmarkPreset, markdown).links).toEqual([
+      "https://example.com",
+    ])
+    expect(inspect(custom([autolinkPlugin]), markdown).links).toEqual([
+      "http://www.example.com",
+      "https://example.com",
+    ])
   })
   it("composes math and footnotes independently of GFM extensions", () => {
     const output = inspect(custom([mathPlugin, footnotePlugin]), source)
