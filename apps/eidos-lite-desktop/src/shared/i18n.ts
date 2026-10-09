@@ -87,6 +87,11 @@ const zh: Record<string, string> = {
   "Installing…": "安装中…",
   "Loading documentation…": "正在加载文档…",
   Screenshots: "展示截图",
+  Carousel: "轮播图",
+  "Previous screenshot": "上一张截图",
+  "Next screenshot": "下一张截图",
+  "Choose screenshot": "选择截图",
+  "Screenshot {number}: {alt}": "截图 {number}：{alt}",
   "View full image: {alt}": "查看大图：{alt}",
   "Not installed": "未安装",
   Compatibility: "兼容性",
@@ -165,6 +170,11 @@ const zh: Record<string, string> = {
   Views: "视图",
   "Actions & Commands": "动作与命令",
   Formatters: "格式化程序",
+  "File hooks": "文件 hook",
+  "Runs automatically after local saves or renames.":
+    "在本地保存或重命名后自动执行。",
+  "Can update the current document and its filename.":
+    "可修改当前文档及其文件名。",
   Placements: "挂载点",
   "Enabled in this Space": "当前 Space 已启用",
   Unavailable: "不可用",

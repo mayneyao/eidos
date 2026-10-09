@@ -759,7 +759,7 @@ it("detects plugin updates and shows update actions in marketplace, detail view,
   expect(container.textContent).toContain("Update available: v1.2.0")
 })
 
-it("renders screenshots in plugin detail view and toggles lightbox modal", async () => {
+it("manually switches screenshots and previews the selected image", async () => {
   Object.assign(window.eidosLite, {
     pluginMarketplace: async () => ({
       plugins: [
@@ -772,6 +772,7 @@ it("renders screenshots in plugin detail view and toggles lightbox modal", async
           sha256: "abc",
           screenshots: [
             { path: "screenshots/overview.png", alt: "Chart overview" },
+            { path: "screenshots/details.png", alt: "Chart details" },
           ],
         },
       ],
@@ -803,6 +804,26 @@ it("renders screenshots in plugin detail view and toggles lightbox modal", async
     "https://raw.githubusercontent.com/eidos-space/eidos-chart-plugin/main/screenshots/overview.png"
   )
   expect(img.alt).toBe("Chart overview")
+  expect(screenshotSection?.querySelectorAll("img")).toHaveLength(1)
+  const next = screenshotSection?.querySelector<HTMLButtonElement>(
+    '[aria-label="Next screenshot"]'
+  )
+  await act(async () => next?.click())
+  expect(img.alt).toBe("Chart details")
+  expect(screenshotSection?.textContent).toContain("2 / 2")
+  await act(async () => next?.click())
+  expect(img.alt).toBe("Chart overview")
+  await act(async () => {
+    next?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "End", bubbles: true })
+    )
+  })
+  expect(img.alt).toBe("Chart details")
+  expect(
+    screenshotSection
+      ?.querySelector('[data-screenshot-index="1"]')
+      ?.getAttribute("aria-pressed")
+  ).toBe("true")
 
   // Click screenshot button to open lightbox
   const btn = screenshotSection?.querySelector(

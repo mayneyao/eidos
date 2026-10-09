@@ -36,6 +36,7 @@ import {
 } from "../shared/plugins"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
+import { PluginScreenshotCarousel } from "./plugin-screenshot-carousel"
 import { PluginPage } from "./plugin-workspace"
 import { PluginConnectionSettings } from "./plugin-connection-settings"
 import { PluginMarketplaceInstallButton } from "./plugin-marketplace"
@@ -246,8 +247,10 @@ export function PluginDetailView({
   const views = manifest?.views ?? []
   const actions = manifest?.actions ?? []
   const formatters = manifest?.formatters ?? []
+  const hooks = manifest?.hooks ?? []
   const placements = manifest?.placements ?? []
-  const totalContributions = views.length + actions.length + formatters.length
+  const totalContributions =
+    views.length + actions.length + formatters.length + hooks.length
 
   const screenshots = useMemo(() => {
     if (!marketplacePlugin?.repo || !marketplacePlugin.screenshots?.length) {
@@ -422,6 +425,12 @@ export function PluginDetailView({
               <dt>{t("Formatters")}</dt>
               <dd>{formatters.length}</dd>
             </div>
+            {hooks.length > 0 && (
+              <div className="plugin-prop-item">
+                <dt>{t("File hooks")}</dt>
+                <dd>{hooks.length}</dd>
+              </div>
+            )}
           </dl>
         </div>
       )}
@@ -810,35 +819,11 @@ export function PluginDetailView({
           {activeTab === "details" && (
             <div className="plugin-tab-details space-y-6">
               {screenshots.length > 0 && (
-                <section
-                  className="plugin-screenshots-section"
-                  aria-label={t("Screenshots")}
-                >
-                  <div className="plugin-screenshots-scroll">
-                    {screenshots.map((s, idx) => (
-                      <figure key={idx} className="plugin-screenshot-figure">
-                        <button
-                          type="button"
-                          className="plugin-screenshot-btn"
-                          onClick={() => setActiveScreenshot(s)}
-                          aria-label={t("View full image: {alt}", {
-                            alt: s.alt,
-                          })}
-                        >
-                          <img
-                            src={s.src}
-                            alt={s.alt}
-                            loading="lazy"
-                            className="plugin-screenshot-img"
-                          />
-                        </button>
-                        <figcaption className="plugin-screenshot-caption">
-                          {s.alt}
-                        </figcaption>
-                      </figure>
-                    ))}
-                  </div>
-                </section>
+                <PluginScreenshotCarousel
+                  key={marketplacePlugin?.id}
+                  screenshots={screenshots}
+                  onPreview={setActiveScreenshot}
+                />
               )}
               {builtin ? (
                 <div className="plugin-builtin-content">{builtin.details}</div>
@@ -1281,6 +1266,23 @@ export function PluginDetailView({
                             manifest.workspace.files.write)
                             ? t("Can read and write files in this Space.")
                             : t("Can read files in this Space.")}
+                        </span>
+                      </div>
+                    )}
+                    {hooks.length > 0 && (
+                      <div className="plugin-spec-item">
+                        <span className="plugin-spec-label">
+                          {t("File hooks")}
+                        </span>
+                        <span className="plugin-spec-value">
+                          {t(
+                            "Runs automatically after local saves or renames."
+                          )}{" "}
+                          {hooks.some((hook) => hook.access === "write")
+                            ? t(
+                                "Can update the current document and its filename."
+                              )
+                            : t("Read-only")}
                         </span>
                       </div>
                     )}

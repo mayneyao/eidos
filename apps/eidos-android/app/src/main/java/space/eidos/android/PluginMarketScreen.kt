@@ -41,6 +41,7 @@ import org.json.JSONObject
 internal fun NativePluginManager(model: EidosModel, spaceName: String, close: () -> Unit) {
     var opened by remember { mutableStateOf<String?>(null) }
     var readme by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var installRequest by remember { mutableStateOf<String?>(null) }
     Box(Modifier.fillMaxSize()) {
         if (opened != null)
             MobilePluginScreen(
@@ -57,6 +58,8 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                 close,
                 openPlugin = { opened = it },
                 openReadme = { id, name -> readme = id to name },
+                installRequest = installRequest,
+                installHandled = { installRequest = null },
                 uninstall = { id ->
                     MobilePluginService(
                             model.getApplication(),
@@ -74,6 +77,13 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                 pluginId = id,
                 readme = true,
                 title = name,
+                headerActions = {
+                    val installed = model.pluginMarket.installed(model.repository.spaceId).any { it.id == id }
+                    TextButton(enabled = !installed, onClick = {
+                        readme = null
+                        installRequest = id
+                    }) { Text(if (installed) tr("已安装") else tr("安装")) }
+                },
                 close = { readme = null },
             )
         }
@@ -130,7 +140,7 @@ internal fun pluginPermissions(manifest: JSONObject): String =
                     else tr("可读取当前 Space 的普通文件。")
                 )
             if (
-                listOf("actions", "views").any { key ->
+                listOf("actions", "views", "hooks").any { key ->
                     val items = manifest.optJSONArray(key)
                     items != null &&
                         (0 until items.length()).any {
@@ -139,6 +149,7 @@ internal fun pluginPermissions(manifest: JSONObject): String =
                 }
             )
                 add(tr("包含写入操作，可修改资料。"))
+            if (manifest.optJSONArray("hooks")?.length()?.let { it > 0 } == true) add(tr("会在本地保存或重命名后自动处理当前文档。"))
             if (manifest.has("connections")) add(tr("可通过已配置的连接发送资料；密钥由本机保管。"))
             val origins = manifest.optJSONObject("browser")?.optJSONArray("networkOrigins")
             if (origins == null || origins.length() == 0) add(tr("不允许联网"))
@@ -155,6 +166,8 @@ fun PluginMarketScreen(
     openPlugin: (String) -> Unit = {},
     openReadme: (String, String) -> Unit = { _, _ -> },
     uninstall: (suspend (String) -> Unit)? = null,
+    installRequest: String? = null,
+    installHandled: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var catalog by remember { mutableStateOf<List<MarketPlugin>>(emptyList()) }
@@ -215,6 +228,15 @@ fun PluginMarketScreen(
             } finally {
                 loadingCatalog = false
             }
+        }
+    }
+    LaunchedEffect(installRequest) {
+        val id = installRequest ?: return@LaunchedEffect
+        if (!busy) {
+            action {
+                review = store.prepare(store.market().single { it.id == id }) to spaceId
+            }
+            installHandled()
         }
     }
     BackHandler { if (!busy) close() }

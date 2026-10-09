@@ -65,6 +65,7 @@ val buildNative =
         inputs.file(rootProject.file("../../scripts/build-quickjs.mjs"))
         inputs.file(rootProject.file("../../scripts/generated-assets.mjs"))
         inputs.file(rootProject.file("../../packages/plugin-runtime/src/compatibility-data.json"))
+        inputs.file(rootProject.file("../../packages/plugin-runtime/src/file-hook-vm.js"))
         inputs.file(rootProject.file("../../Cargo.lock"))
         inputs.file(rootProject.file("../../Cargo.toml"))
         inputs.file(rootProject.file("../../crates/eidos-runtime-host/Cargo.toml"))

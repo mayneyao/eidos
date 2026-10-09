@@ -16,9 +16,10 @@ private func pluginPermissions(_ manifest: [String:Any]) -> String {
     if let files = (manifest["workspace"] as? [String:Any])?["files"], files as? Bool == true || files is [String:Any] {
         lines.append(files as? Bool == true || (files as? [String:Any])?["write"] as? Bool == true ? tr("可读取和修改当前 Space 的普通文件。") : tr("可读取当前 Space 的普通文件。"))
     }
-    if ["views","actions"].contains(where: { key in (manifest[key] as? [[String:Any]] ?? []).contains { $0["access"] as? String == "write" } }) {
+    if ["views","actions","hooks"].contains(where: { key in (manifest[key] as? [[String:Any]] ?? []).contains { $0["access"] as? String == "write" } }) {
         lines.append(tr("包含写入操作，可修改资料。"))
     }
+    if !(manifest["hooks"] as? [[String:Any]] ?? []).isEmpty { lines.append(tr("会在本地保存或重命名后自动处理当前文档。")) }
     if manifest["connections"] != nil { lines.append(tr("可通过已配置的连接发送资料；密钥由本机保管。")) }
     let origins = (manifest["browser"] as? [String:Any])?["networkOrigins"] as? [String] ?? []
     lines += origins.isEmpty ? [tr("不允许联网")] : origins.map { tr("允许联网：") + $0 }
@@ -113,6 +114,7 @@ struct NativePluginManagerView: View {
     @State private var removing: ManagedPlugin?
     @State private var details: ManagedPlugin?
     @State private var readme: ManagedPlugin?
+    @State private var readmeInstall: String?
     @State private var opened: ManagedPlugin?
     @State private var detailAction: (plugin: ManagedPlugin, remove: Bool)?
     init(space: LocalSpace, open: @escaping (URL) -> Void) {
@@ -161,11 +163,23 @@ struct NativePluginManagerView: View {
                     .toolbar { ToolbarItem(placement:.cancellationAction) { Button(tr("返回")) { opened = nil } } }
             }
         }
-        .fullScreenCover(item:$readme) { plugin in
+        .fullScreenCover(item:$readme, onDismiss: {
+            if let id = readmeInstall {
+                readmeInstall = nil
+                model.prepare(id: id)
+            }
+        }) { plugin in
             NavigationStack {
                 MobilePluginView(space:space,dark:colorScheme == .dark,open:open,pluginId:plugin.id,readme:true)
                     .navigationTitle(plugin.name).navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement:.cancellationAction) { Button(tr("返回")) { readme = nil } } }
+                    .toolbar { ToolbarItem(placement:.topBarTrailing) {
+                        let installed = model.installed.contains { $0.id == plugin.id }
+                        Button(installed ? tr("已安装") : tr("安装")) {
+                            readmeInstall = plugin.id
+                            readme = nil
+                        }.disabled(installed || model.busy)
+                    } }
             }
         }
         .alert(tr("启用插件"),isPresented:Binding(get:{ enabling != nil },set:{ if !$0 { enabling = nil } })) {

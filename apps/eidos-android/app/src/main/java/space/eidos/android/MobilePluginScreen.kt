@@ -28,6 +28,7 @@ internal fun MobilePluginScreen(
     title: String? = null,
     onOpenFile: (() -> Unit)? = null,
     active: Boolean = true,
+    headerActions: @Composable () -> Unit = {},
     close: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -67,6 +68,7 @@ internal fun MobilePluginScreen(
                 TopAppBar(
                     title = { Text(title ?: initialFile?.file?.name ?: tr("插件"), maxLines = 1) },
                     navigationIcon = { TextButton(onClick = close) { Text(tr("返回")) } },
+                    actions = { headerActions() },
                 )
         },
     ) { padding ->
