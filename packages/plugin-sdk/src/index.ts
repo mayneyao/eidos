@@ -11,6 +11,8 @@ export interface PluginManifest {
   kind?: "theme"
   id: string
   name: string
+  /** Plain-text summary for plugin management; one line, at most 1024 UTF-16 code units. */
+  description?: string
   version: string
   /** Minimum plugin API contract (stable major.minor.patch, not the SDK npm version). */
   requires?: { pluginApi: string }

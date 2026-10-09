@@ -38,6 +38,14 @@ GPX 等普通文件的 listViews 返回已启用且匹配的插件 View 与内�
 
 `requires.pluginApi` 声明插件要求的 API，本文示例使用 `"3.0.0"`。`apiVersion` 固定为 `1`，插件自己的 version 用于标识发布版本。
 
+可以在清单中添加 `description`，说明插件的具体用途。使用非空的单行纯文本，
+最多 1024 个 UTF-16 码元。Lite 在插件列表和详情中显示该摘要，本地安装的插件
+也适用。缺失时，如果插件市场有对应描述，则使用市场描述。
+
+```json
+"description": "Keep Markdown filenames and existing leading H1 headings in sync."
+```
+
 ## 当前文件与页面
 
 在使用 binding 前检查 kind。page 提供 route，file 提供 file 元数据，并可通过 location 描述表格位置。

@@ -150,6 +150,13 @@ A plugin supplies `plugin.json`, or a standalone TS/JS source exporting a static
 remain local `./` paths. Unknown fields, duplicate IDs and invalid placements
 MUST be rejected. The SDK is type-only; code imports it with `import type`.
 
+The manifest MAY include `description`, a nonempty plain-text summary on one line,
+with at most 1024 UTF-16 code units and no ASCII control characters. The parser
+MUST preserve it in the packaged manifest. Lite displays the installed manifest's
+description in plugin lists and details, falling back to the plugin's marketplace
+description when absent. Hosts MUST render descriptions as text, not HTML. Without
+either description, Lite omits the summary instead of substituting generic copy.
+
 ```ts
 interface ViewDeclaration {
   id: string

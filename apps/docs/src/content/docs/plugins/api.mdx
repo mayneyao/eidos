@@ -60,6 +60,15 @@ In Lite, the sidebar footer shows Settings, Plugins, and up to three standalone 
 
 requires.pluginApi declares the required API; these examples use `"3.0.0"`. apiVersion is `1`, while the plugin's own version identifies its releases.
 
+Add an optional `description` to the manifest to explain what your plugin does.
+Use a nonempty line of plain text, up to 1024 UTF-16 code units. Lite shows this
+summary in plugin lists and details, including for locally installed packages.
+If it is absent, Lite uses the plugin's marketplace description when available.
+
+```json
+"description": "Keep Markdown filenames and existing leading H1 headings in sync."
+```
+
 ## Current file and page
 
 Check binding.kind before accessing the binding. A page supplies route; a file supplies file metadata and can describe a table location.

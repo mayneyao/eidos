@@ -93,6 +93,11 @@ Binding 仅描述资源与定位，不授予权限。FileRef 的 ID 是上下文
 入口仍为本地 ./ 路径；未知字段、重复 ID、无效 placement 必须拒绝。
 SDK 只提供类型，使用 import type。
 
+清单可以包含 `description`：非空的单行纯文本摘要，最多 1024 个 UTF-16 码元，
+不能含 ASCII 控制字符。解析器必须在打包清单中保留该字段。Lite 在插件列表和
+详情中优先显示已安装清单的描述；缺失时使用该插件的市场描述。宿主必须将描述
+渲染为文本，不能作为 HTML。两者均缺失时，Lite 省略摘要，不替换为通用文案。
+
 ```ts
 interface ViewDeclaration {
   id: string

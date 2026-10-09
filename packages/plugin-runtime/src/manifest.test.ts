@@ -21,6 +21,33 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("preserves optional plugin descriptions through package round trips", () => {
+    const value = { ...manifest(), description: "编辑本地 CSV files." }
+    const parsed = parseManifest(value)
+    expect(parsed.description).toBe(value.description)
+    expect(
+      decodePackage(
+        encodePackage(parsed, { "./main.ts": "export default () => {}" })
+      ).manifest.description
+    ).toBe(value.description)
+    expect(parseManifest(manifest()).description).toBeUndefined()
+    expect(
+      parseManifest({ ...value, description: "x".repeat(1024) }).description
+    ).toHaveLength(1024)
+  })
+  it.each([
+    null,
+    false,
+    42,
+    {},
+    "",
+    " ",
+    "two\nlines",
+    "control\u007f",
+    "x".repeat(1025),
+  ])("rejects invalid plugin description %j", (description) => {
+    expect(() => parseManifest({ ...manifest(), description })).toThrow()
+  })
   it("validates page explorer placements and explicit property namespaces", () => {
     const value = {
       ...manifest(),

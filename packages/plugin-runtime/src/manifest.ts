@@ -199,6 +199,7 @@ export function parseManifest(input: unknown): PluginManifest {
     m,
     ["apiVersion", "id", "name", "version"],
     [
+      "description",
       "extension",
       "views",
       "fileTemplates",
@@ -338,6 +339,7 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   text(m.id)
   text(m.name)
+  if (m.description !== undefined) text(m.description, 1024)
   text(m.version)
   if (!/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/.test(m.id))
     invalid("Invalid plugin ID")

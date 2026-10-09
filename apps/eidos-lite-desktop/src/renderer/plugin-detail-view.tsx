@@ -52,6 +52,7 @@ export interface PluginDetailViewProps {
   builtin?: {
     id: string
     name: string
+    description?: string
     enabled: boolean
     details: ReactNode
   }
@@ -338,21 +339,9 @@ export function PluginDetailView({
     ? marketplacePlugin.repo.split("/")[0]
     : manifest?.id?.split(".")[0]
   const pluginDescription =
-    marketplacePlugin?.description ||
-    (manifest as { description?: string })?.description ||
-    (builtin
-      ? t(
-          "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device."
-        )
-      : isTheme
-        ? t("This theme customizes the Eidos Lite interface on this device.")
-        : hasConnections
-          ? t(
-              "This plugin uses authenticated connections configured in its settings."
-            )
-          : t(
-              "This plugin extends Eidos with customizable views, commands, and formatting tools. All processing runs directly on your local device."
-            ))
+    manifest?.description?.trim() ||
+    marketplacePlugin?.description?.trim() ||
+    builtin?.description?.trim()
   const sidebarContent = (
     <div className="plugin-sidebar-content">
       {/* Identity & Properties */}
@@ -661,7 +650,9 @@ export function PluginDetailView({
             )}
           </div>
 
-          <p className="plugin-detail-desc">{pluginDescription}</p>
+          {pluginDescription && (
+            <p className="plugin-detail-desc">{pluginDescription}</p>
+          )}
 
           <div className="plugin-detail-actions">
             {hasUpdate && onInstall && (

@@ -52,6 +52,7 @@ export function PluginManager({
   builtins?: {
     id: string
     name: string
+    description?: string
     enabled: boolean
     details: ReactNode
   }[]
@@ -274,8 +275,7 @@ export function PluginManager({
   const filteredPlugins = plugins.filter((item) => {
     const matched = marketplace?.plugins.find((p) => p.id === item.manifest.id)
     const desc =
-      matched?.description ??
-      (item.manifest as { description?: string })?.description
+      item.manifest.description?.trim() || matched?.description?.trim()
     return matchesSearch(item.manifest.id, item.manifest.name, desc)
   })
 
@@ -720,7 +720,9 @@ export function PluginManager({
                       matched.version
                     )
                   )
-                  const desc = matched?.description
+                  const desc =
+                    plugin.manifest.description?.trim() ||
+                    matched?.description?.trim()
                   return (
                     <button
                       type="button"
@@ -870,7 +872,9 @@ export function PluginManager({
                       matched.version
                     )
                   )
-                  const desc = matched?.description
+                  const desc =
+                    plugin.manifest.description?.trim() ||
+                    matched?.description?.trim()
                   return (
                     <button
                       type="button"

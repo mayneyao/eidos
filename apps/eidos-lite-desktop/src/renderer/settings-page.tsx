@@ -1407,6 +1407,9 @@ export function SettingsPage() {
                     {
                       id: "builtin.terminal",
                       name: t("Terminal"),
+                      description: t(
+                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+                      ),
                       enabled: preferences.builtInPlugins.terminal,
                       details: (
                         <div className="settings-group">

@@ -3,6 +3,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { PluginManager, PluginFileActions } from "./plugin-manager"
+import { PluginDetailView } from "./plugin-detail-view"
 import type { PluginListing } from "../shared/plugins"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -93,6 +94,72 @@ async function drop(files: File[], type = "drop") {
   })
   expect(event.defaultPrevented).toBe(true)
 }
+
+it.each([
+  {
+    local: "Edit local CSV files.",
+    market: "Catalog description",
+    expected: "Edit local CSV files.",
+  },
+  {
+    local: undefined,
+    market: "Catalog description",
+    expected: "Catalog description",
+  },
+  { local: undefined, market: undefined, expected: undefined },
+])(
+  "uses the plugin's own description in details: %j",
+  async ({ local, market, expected }) => {
+    const listing = await window.eidosLite.listPlugins()
+    const plugin = listing.plugins[0]
+    plugin.manifest.description = local
+    await act(async () =>
+      root.render(
+        <PluginDetailView
+          plugin={plugin}
+          marketplacePlugin={
+            market
+              ? {
+                  id: plugin.manifest.id,
+                  name: "CSV",
+                  description: market,
+                  repo: "eidos-space/csv",
+                  version: "1.0.0",
+                  sha256: "abc",
+                  tag: "v1.0.0",
+                  asset: "example.csv-1.0.0.eidos-plugin",
+                  preview: false,
+                  compatibility: "Plugin API 3.3.0",
+                }
+              : null
+          }
+          onBack={() => {}}
+          onToggleEnable={() => {}}
+          onUninstall={() => {}}
+        />
+      )
+    )
+    expect(container.querySelector(".plugin-detail-desc")?.textContent).toBe(
+      expected
+    )
+    expect(container.textContent).not.toContain("This plugin extends Eidos")
+  }
+)
+
+it("shows local descriptions in plugin lists and renders them as plain text in details", async () => {
+  const listing = await window.eidosLite.listPlugins()
+  const description = "Edit <b>CSV</b> files locally."
+  listing.plugins[0].manifest.description = description
+  Object.assign(window.eidosLite, { listPlugins: async () => listing })
+  await act(async () => root.render(<PluginManager spaceAvailable />))
+  await click("Installed")
+  expect(container.textContent).toContain(description)
+  await click("CSV")
+  expect(container.querySelector(".plugin-detail-desc")?.textContent).toBe(
+    description
+  )
+  expect(container.querySelector(".plugin-detail-desc b")).toBeNull()
+})
 
 it("lets users remove an unreadable installed plugin without trying to enable it", async () => {
   Object.assign(window.eidosLite, {
