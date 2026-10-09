@@ -392,7 +392,7 @@ export function PathActionDialog({
                           className="path-dialog-option-hint"
                         >
                           {t(
-                            "Adds a Text field for record content. You can change the Content field in Table settings at any time."
+                            "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field."
                           )}
                         </p>
                       </div>

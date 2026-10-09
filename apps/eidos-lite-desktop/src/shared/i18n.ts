@@ -745,8 +745,8 @@ const zh: Record<string, string> = {
   "Manage folder file metadata": "管理当前文件夹的文件元数据",
   "Advanced options": "高级选项",
   "Include Markdown content": "添加 Markdown 正文",
-  "Adds a Text field for record content. You can change the Content field in Table settings at any time.":
-    "创建 Text 字段作为记录正文。之后可随时在表设置中更换正文字段。",
+  "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field.":
+    "勾选后会添加一个 Text 字段来存储正文。展开记录后，可用 Markdown 编辑器编辑正文，内容会保存到该字段。",
   Content: "正文",
   Note: "文本笔记",
   "Scans files in this folder into an interactive table. Includes image galleries, file size, mimetype, and customizable tags and rating columns.":

@@ -257,7 +257,7 @@ describe("create file templates", () => {
       )
       expect(
         container.querySelector(".path-dialog-option-hint")?.textContent
-      ).toContain("Table settings")
+      ).toContain("Markdown editor")
       expect(
         container.querySelector(".path-dialog-option-hint")?.textContent
       ).not.toContain("Feed")
