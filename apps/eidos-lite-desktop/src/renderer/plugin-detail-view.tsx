@@ -39,13 +39,13 @@ import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginScreenshotCarousel } from "./plugin-screenshot-carousel"
 import { PluginPage } from "./plugin-workspace"
 import { PluginConnectionSettings } from "./plugin-connection-settings"
+import { PluginDeclarativeSettings } from "./plugin-declarative-settings"
 import { PluginMarketplaceInstallButton } from "./plugin-marketplace"
 import { useEidosLiteI18n } from "./i18n"
 import {
   pluginHostInfo,
   checkPluginCompatibility,
 } from "@eidos.space/plugin-runtime/compatibility"
-import type { PluginManifest, SettingValue } from "@eidos.space/plugin-sdk"
 
 export interface PluginDetailViewProps {
   plugin?: PluginListing["plugins"][number]
@@ -1389,108 +1389,5 @@ export function PluginDetailView({
         </div>
       )}
     </div>
-  )
-}
-
-function PluginDeclarativeSettings({ manifest }: { manifest: PluginManifest }) {
-  const { t } = useEidosLiteI18n()
-  const [values, setValues] = useState<Record<string, SettingValue> | null>(
-    null
-  )
-  const [error, setError] = useState("")
-  useEffect(() => {
-    let live = true
-    void window.eidosLite
-      .pluginSettings(manifest.id)
-      .then((result) => {
-        if (live) setValues(result)
-      })
-      .catch((cause) => {
-        if (live) setError(String(cause))
-      })
-    return () => {
-      live = false
-    }
-  }, [manifest.id])
-  const save = async (key: string, value: SettingValue) => {
-    setError("")
-    try {
-      await window.eidosLite.setPluginSetting(manifest.id, key, value)
-      setValues((current) => (current ? { ...current, [key]: value } : current))
-    } catch (cause) {
-      setError(String(cause))
-    }
-  }
-  if (!values)
-    return error ? (
-      <p role="alert">{error}</p>
-    ) : (
-      <p className="text-sm text-muted-foreground">{t("Loading settings…")}</p>
-    )
-  return (
-    <section className="space-y-5" aria-label={t("Settings")}>
-      {Object.entries(manifest.settings ?? {}).map(([key, declaration]) => {
-        const value = values[key] ?? declaration.default
-        return (
-          <label key={key} className="block max-w-lg text-sm">
-            <span className="font-medium">{declaration.title}</span>
-            {declaration.description && (
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {declaration.description}
-              </span>
-            )}
-            {declaration.type === "boolean" ? (
-              <input
-                className="ml-3"
-                type="checkbox"
-                checked={value === true}
-                onChange={(event) => void save(key, event.target.checked)}
-              />
-            ) : declaration.type === "string" && declaration.enum ? (
-              <select
-                className="mt-2 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={String(value)}
-                onChange={(event) => void save(key, event.target.value)}
-              >
-                {declaration.enum.map((choice) => (
-                  <option key={choice} value={choice}>
-                    {choice}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                key={`${manifest.id}:${key}`}
-                className="mt-2 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                type={declaration.type === "number" ? "number" : "text"}
-                defaultValue={String(value)}
-                min={
-                  declaration.type === "number"
-                    ? declaration.minimum
-                    : undefined
-                }
-                max={
-                  declaration.type === "number"
-                    ? declaration.maximum
-                    : undefined
-                }
-                onBlur={(event) => {
-                  const next =
-                    declaration.type === "number"
-                      ? Number(event.target.value)
-                      : event.target.value
-                  if (next !== value) void save(key, next)
-                }}
-              />
-            )}
-          </label>
-        )
-      })}
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </section>
   )
 }

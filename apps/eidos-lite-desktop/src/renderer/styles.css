@@ -12783,7 +12783,143 @@ body {
 .html-preview-host[data-html-preview-state="error"] .html-preview-webview {
   visibility: hidden;
 }
-/* Plugin settings own one embedded surface in the plugin detail page. */
+/* Declarative settings share one surface; plugin-authored views own theirs. */
+.plugin-tab-settings {
+  display: grid;
+  gap: 1.5rem;
+}
+.plugin-declarative-settings {
+  container: plugin-settings / inline-size;
+  min-width: 0;
+  max-width: 48rem;
+}
+.plugin-settings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.plugin-settings-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.plugin-settings-heading p {
+  margin: 0.3rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.plugin-settings-status {
+  flex: none;
+  min-width: 8ch;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  text-align: end;
+}
+.plugin-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 14rem);
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+}
+.plugin-setting-row + .plugin-setting-row {
+  border-top: 1px solid var(--line);
+}
+.plugin-setting-row[data-setting-type="boolean"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.plugin-setting-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plugin-setting-copy label {
+  display: block;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.plugin-setting-copy p {
+  margin: 0.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.plugin-setting-control {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+}
+.plugin-setting-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.plugin-setting-input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plugin-setting-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.plugin-setting-control :disabled,
+.plugin-setting-control [aria-disabled="true"],
+.plugin-setting-control [readonly] {
+  opacity: 0.6;
+  cursor: wait;
+}
+.plugin-setting-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.plugin-settings-load {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+.plugin-settings-load p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.plugin-settings-load [role="alert"] {
+  color: var(--danger);
+}
+@container plugin-settings (max-width: 520px) {
+  .plugin-setting-row:not([data-setting-type="boolean"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+  .plugin-setting-row {
+    column-gap: 1rem;
+  }
+  .plugin-settings-heading {
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+  }
+}
 .plugin-settings-surface {
   height: 640px;
   min-height: 400px;
