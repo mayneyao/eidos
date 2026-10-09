@@ -2,6 +2,7 @@ import { installHtmlPreviewGuestGuard } from "./html-preview-view"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
+import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import { installWindowZoom } from "./window-zoom"
 import {
   app,
@@ -194,8 +195,8 @@ export class WindowController {
   onSpaceReleased: (ownerId: number) => void = () => {}
   fileHookRunner?: (
     session: SpaceSession,
-    event: import("@eidos.space/plugin-sdk").FileHookEvent
-  ) => Promise<import("@eidos.space/plugin-sdk").FileHookPlan | null>
+    event: FileHookEvent
+  ) => Promise<FileHookPlan | null>
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {
     nativeTheme.on("updated", () => {
