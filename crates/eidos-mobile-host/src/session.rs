@@ -177,6 +177,154 @@ mod tests {
     use super::*;
 
     #[test]
+    fn repeated_schema_assignment_does_not_create_a_sync_checkpoint() -> Result<()> {
+        exercise_windows_cloud_peer_sync(true)
+    }
+
+    #[test]
+    fn windows_cloud_peer_sync_without_android_writes_stays_fast_forward() -> Result<()> {
+        exercise_windows_cloud_peer_sync(false)
+    }
+
+    fn exercise_windows_cloud_peer_sync(repeat_assignments: bool) -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("tasks.eidos");
+        super::super::execute(&path, "create", json!({"title":"Tasks"}))?;
+        let mut graft = crate::graft::GraftHost::default();
+        graft.execute(directory.path(), "checkpoint", json!({}))?;
+        let before = std::fs::read(&path)?;
+        let mut host = SessionHost::default();
+        let snapshot = host.execute(&path, "web:getSnapshot", json!({}))?;
+        for _ in 0..if repeat_assignments { 2 } else { 0 } {
+            let plan = host.execute(
+                &path,
+                "web:preflightSchema",
+                json!({
+                    "expectedRevision": snapshot["revision"],
+                    "change": {"kind":"set-file-title", "title":"Tasks"}
+                }),
+            )?;
+            let result = host.execute(
+                &path,
+                "web:mutateSchema",
+                json!({
+                    "expectedRevision": snapshot["revision"],
+                    "planToken": plan["planToken"], "actionsHash": plan["actionsHash"]
+                }),
+            )?;
+            assert_eq!(result["changed"], false, "{result}");
+            assert_eq!(result["revision"], snapshot["revision"]);
+        }
+        host.close();
+        assert_eq!(std::fs::read(&path)?, before);
+        let saved = graft.execute(directory.path(), "checkpoint", json!({}))?;
+        assert_eq!(saved["status"]["dirty"], false);
+        let history = graft.execute(directory.path(), "history", json!({}))?;
+        assert_eq!(history["commits"].as_array().unwrap().len(), 1);
+
+        // Windows -> cloud -> macOS -> LAN -> Android. Storage is isolated;
+        // exercise peer operations without depending on a physical device.
+        let remotes = tempfile::tempdir()?;
+        let cloud = remotes.path().join("cloud");
+        let peer = remotes.path().join("peer");
+        let mac = remotes.path().join("mac");
+        let android = remotes.path().join("android");
+        for root in [&cloud, &peer, &mac, &android] {
+            std::fs::create_dir(root)?;
+        }
+        let cloud_url = format!("fs://{}", cloud.display());
+        let peer_url = format!("fs://{}", peer.display());
+        graft.execute(
+            directory.path(),
+            "configureRemote",
+            json!({"url":cloud_url}),
+        )?;
+        graft.execute(directory.path(), "push", json!({}))?;
+        let mut mac_host = crate::graft::GraftHost::default();
+        let mut android_host = crate::graft::GraftHost::default();
+        mac_host.execute(&mac, "clone", json!({"url":cloud_url}))?;
+        android_host.execute(&android, "clone", json!({"url":cloud_url}))?;
+        if repeat_assignments {
+            let phone_path = android.join("tasks.eidos");
+            let snapshot = host.execute(&phone_path, "web:getSnapshot", json!({}))?;
+            let plan = host.execute(
+                &phone_path,
+                "web:preflightSchema",
+                json!({
+                    "expectedRevision":snapshot["revision"],
+                    "change":{"kind":"set-file-title", "title":"Tasks"}
+                }),
+            )?;
+            host.execute(
+                &phone_path,
+                "web:mutateSchema",
+                json!({
+                    "expectedRevision":snapshot["revision"],
+                    "planToken":plan["planToken"], "actionsHash":plan["actionsHash"]
+                }),
+            )?;
+            host.close();
+        }
+        let schema = super::super::execute(&path, "schema", json!({}))?;
+        let table = schema["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|object| object["object"] == "table")
+            .unwrap();
+        super::super::execute(
+            &path,
+            "mutateRows",
+            json!({
+                "tableId":table["id"], "expectedRevision":schema["snapshot"]["revision"],
+                "changes":[{"kind":"create", "clientKey":"windows-record",
+                    "values":{table["labelFieldId"].as_str().unwrap():"Windows record"}}]
+            }),
+        )?;
+        let windows = graft.execute(directory.path(), "checkpoint", json!({}))?;
+        graft.execute(directory.path(), "push", json!({}))?;
+        mac_host.execute(&mac, "fetch", json!({}))?;
+        assert_eq!(
+            mac_host.execute(&mac, "fastForward", json!({}))?["outcome"],
+            "updated"
+        );
+        mac_host.execute(&mac, "peerConfigure", json!({"url":peer_url}))?;
+        mac_host.execute(&mac, "peerPush", json!({}))?;
+        let phone_before = android_host.execute(&android, "status", json!({}))?;
+        let phone_saved = android_host.execute(&android, "checkpoint", json!({}))?;
+        assert_eq!(
+            phone_saved["status"]["current_head"],
+            phone_before["status"]["current_head"]
+        );
+        android_host.execute(&android, "peerConfigure", json!({"url":peer_url}))?;
+        android_host.execute(&android, "peerFetch", json!({}))?;
+        assert_eq!(
+            android_host.execute(&android, "peerFastForward", json!({}))?["outcome"],
+            "updated"
+        );
+        let phone_saved = android_host.execute(&android, "checkpoint", json!({}))?;
+        assert_eq!(
+            phone_saved["status"]["current_head"],
+            windows["status"]["current_head"]
+        );
+        let phone_bytes = std::fs::read(android.join("tasks.eidos"))?;
+        let repeated = android_host.execute(&android, "peerFastForward", json!({}))?;
+        assert_eq!(repeated["outcome"], "unchanged");
+        assert_eq!(repeated["timing_ms"]["apply"], 0);
+        assert_eq!(std::fs::read(android.join("tasks.eidos"))?, phone_bytes);
+        let rows = super::super::execute(
+            &android.join("tasks.eidos"),
+            "queryRows",
+            json!({
+                "tableId":table["id"], "query":{}, "limit":50,
+                "projection":{"fields":[table["labelFieldId"]],"resolveRelations":[]}
+            }),
+        )?;
+        assert_eq!(rows["rows"][0]["values"][0], "Windows record");
+        Ok(())
+    }
+
+    #[test]
     fn embedded_session_keeps_schema_plans_and_rejects_host_operations() -> Result<()> {
         let directory = tempfile::tempdir()?;
         let path = directory.path().join("web.eidos");

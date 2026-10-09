@@ -3827,14 +3827,17 @@ export class EidosRuntimeService implements RuntimeClient {
         }
         case "set-file-title":
           this.core.connection.run(
-            "UPDATE eidos__meta SET title=? WHERE singleton=1",
-            [assertEidosFileDisplayName(leaf.title, "File title")]
+            "UPDATE eidos__meta SET title=? WHERE singleton=1 AND title IS NOT ?",
+            [
+              assertEidosFileDisplayName(leaf.title, "File title"),
+              assertEidosFileDisplayName(leaf.title, "File title"),
+            ]
           )
           break
         case "set-default-table":
           this.core.connection.run(
-            "UPDATE eidos__meta SET default_table_id=? WHERE singleton=1",
-            [leaf.tableId]
+            "UPDATE eidos__meta SET default_table_id=? WHERE singleton=1 AND default_table_id IS NOT ?",
+            [leaf.tableId, leaf.tableId]
           )
           break
         case "delete-table":
@@ -3847,15 +3850,23 @@ export class EidosRuntimeService implements RuntimeClient {
           break
         case "set-table-settings":
           this.core.connection.run(
-            "UPDATE eidos__tables SET settings_json=? WHERE id=?",
-            [canonicalizeEidosFileJson(leaf.settings), leaf.tableId]
+            "UPDATE eidos__tables SET settings_json=? WHERE id=? AND settings_json IS NOT ?",
+            [
+              canonicalizeEidosFileJson(leaf.settings),
+              leaf.tableId,
+              canonicalizeEidosFileJson(leaf.settings),
+            ]
           )
           affectedTableIds.add(leaf.tableId)
           break
         case "set-table-position":
           this.core.connection.run(
-            "UPDATE eidos__tables SET position=? WHERE id=?",
-            [parseSignedInt64(leaf.position, "position"), leaf.tableId]
+            "UPDATE eidos__tables SET position=? WHERE id=? AND position IS NOT ?",
+            [
+              parseSignedInt64(leaf.position, "position"),
+              leaf.tableId,
+              parseSignedInt64(leaf.position, "position"),
+            ]
           )
           affectedTableIds.add(leaf.tableId)
           break
@@ -3912,8 +3923,12 @@ export class EidosRuntimeService implements RuntimeClient {
             ...leaf.settings,
           }
           this.core.connection.run(
-            "UPDATE eidos__fields SET settings_json=? WHERE id=?",
-            [canonicalizeEidosFileJson(settings), leaf.fieldId]
+            "UPDATE eidos__fields SET settings_json=? WHERE id=? AND settings_json IS NOT ?",
+            [
+              canonicalizeEidosFileJson(settings),
+              leaf.fieldId,
+              canonicalizeEidosFileJson(settings),
+            ]
           )
           affectedTableIds.add(field.tableId)
           affectedFieldIds.add(leaf.fieldId)
@@ -3922,8 +3937,12 @@ export class EidosRuntimeService implements RuntimeClient {
         case "set-field-position": {
           const field = this.field(leaf.fieldId)
           this.core.connection.run(
-            "UPDATE eidos__fields SET position=? WHERE id=?",
-            [parseSignedInt64(leaf.position, "position"), leaf.fieldId]
+            "UPDATE eidos__fields SET position=? WHERE id=? AND position IS NOT ?",
+            [
+              parseSignedInt64(leaf.position, "position"),
+              leaf.fieldId,
+              parseSignedInt64(leaf.position, "position"),
+            ]
           )
           affectedTableIds.add(field.tableId)
           affectedFieldIds.add(leaf.fieldId)

@@ -221,6 +221,13 @@ impl GraftHost {
                     // conflict workflow; never silently pick a whole file.
                     return Ok(json!({"outcome": "needs_merge", "plan": plan}));
                 }
+                if plan.kind == MergePlanKind::UpToDate {
+                    return Ok(json!({"outcome": "unchanged", "timing_ms": {
+                        "check": checked_ms,
+                        "plan": planned_ms - checked_ms,
+                        "apply": 0
+                    }}));
+                }
                 let result = session.apply_merge(&ApplyMergeOptions {
                     revision: revision.into(),
                     expected_head: head,
