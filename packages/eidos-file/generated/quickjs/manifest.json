@@ -73,10 +73,11 @@
       "packages/eidos-file/src/runtime-cache.test.ts": "bac0ab1e01736be93d7905c8fc3c57bc87c962b9a4422f3a5f363e1e251cabac",
       "packages/eidos-file/src/runtime-contract.ts": "350fb0cc86deee37320ba0cf9ee64926167cc8ed47c5e938a8c61433b73c0068",
       "packages/eidos-file/src/runtime-data-safety.regression.test.ts": "2e9c377ee2be987b05f1bea720d121ee8c012e47577477409a0506f37e8d7f0b",
+      "packages/eidos-file/src/runtime-schema-noop.regression.test.ts": "84d489742ef7cf874dfaa6bf452f35546544d6d91f1353a6dc70f9dc27c80c88",
       "packages/eidos-file/src/runtime-search-fragments.test.ts": "3fa1932d23af80ca1c151ab9bc9efa05877181f228a42e056f004a8268698053",
       "packages/eidos-file/src/runtime-service-list-filter.regression.test.ts": "1040f51d6e1bac346a50a99abc661cabfe472c9ae1308548c9af25253a47940b",
       "packages/eidos-file/src/runtime-service-wasm.test.ts": "3d633628930034c3db9a7629bd0ec931a5e0c98c5dbffa1be611a063a892268f",
-      "packages/eidos-file/src/runtime-service.ts": "f3623f2f6037b7c15de68bb7e6ceb1f559c6e4f06479ee107bc64b34c7750c91",
+      "packages/eidos-file/src/runtime-service.ts": "158a7fb3fca1de44acfdc4cee665bb51277e2351f4c4b8c922a7fdfa42413b62",
       "packages/eidos-file/src/runtime.ts": "9841323463afcbe04e99a7a73d9af452e2e3aeb662c6714cc50f60c5ca79b761",
       "packages/eidos-file/src/schema.ts": "13f40952f3ef317211d21ac7ed804a61158260d3709d44751142722e61e79b21",
       "packages/eidos-file/src/select-options.ts": "60028e8f0cb59780f618130af3ca0b7423e99371514b4ac7bdd39d890edbfe7f",
@@ -100,7 +101,7 @@
       "packages/eidos-file/generated/quickjs"
     ],
     "files": {
-      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "aada3e0a9d7b065b56a21f5e84b0fd3ce9374f6b3ca6bc9798817d9c8959a9a0"
+      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "7d05a93868917250f842133c180b15ee83baea84dc0b7c22cd0bd7eb55ed19b1"
     }
   }
 }
