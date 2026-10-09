@@ -40,6 +40,28 @@ class LocalFiles(
         return hash.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /** Keep removed files outside the synchronized Space so deletion is recoverable. */
+    fun trash(relative: String, trashRoot: File) {
+        require(relative.isNotBlank()) { tr("不能删除 Space 根目录") }
+        var candidate = root
+        relative.split('/').forEach { part ->
+            candidate = File(candidate, part)
+            require(!Files.isSymbolicLink(candidate.toPath())) { tr("不能删除符号链接") }
+        }
+        val source = resolve(relative)
+        require(source != root.canonicalFile && source.exists()) { tr("文件暂时不可用") }
+        val folder = File(trashRoot, java.util.UUID.randomUUID().toString())
+        check(folder.mkdirs()) { tr("无法创建回收目录") }
+        try {
+            File(folder, "path").writeText(relative)
+            Files.move(source.toPath(), File(folder, "payload").toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } catch (error: Exception) {
+            File(folder, "path").delete()
+            folder.delete()
+            throw error
+        }
+    }
+
     fun readText(relative: String): Pair<String, String> {
         val file = resolve(relative)
         require(file.length() <= MAX_TEXT_BYTES) { tr("文件超过 2 MB，暂不支持在手机上编辑") }

@@ -239,6 +239,7 @@ internal fun EmbeddedEditorScreen(
     shareMode: Boolean = false,
     export: (SpaceFile) -> Unit = {},
     rename: (SpaceFile) -> Unit = {},
+    trash: (SpaceFile) -> Unit = {},
 ) {
     val session = remember(file.path) { java.util.UUID.randomUUID().toString() }
     val repository = model.repository
@@ -331,6 +332,7 @@ internal fun EmbeddedEditorScreen(
                             publish = {}, pluginRegistry = model.pluginOpenWith,
                             openPlugin = { target, id -> afterSave { model.openWithPlugin(target, id) } },
                             rename = { afterSave { rename(it) } }, menuOnly = true,
+                            trash = { afterSave { trash(file) } },
                         )
                     },
                 )

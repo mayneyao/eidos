@@ -1391,6 +1391,17 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         mutable.update { it.copy(folder = folder, files = files, recent = recent) }
     }
 
+    fun trash(file: SpaceFile) = launchAction {
+        repository.trash(file.path)
+        documentHistory.removeAll { it == file.path || it.startsWith(file.path + "/") }
+        mutable.update {
+            if (it.webFile?.path == file.path || it.webFile?.path?.startsWith(file.path + "/") == true)
+                it.copy(webFile = null, editorGeneration = it.editorGeneration + 1)
+            else it
+        }
+        refreshFiles()
+    }
+
     fun rename(file: SpaceFile, name: String, done: () -> Unit) = launchAction {
         val path = repository.rename(file.path, name)
         if (mutable.value.webFile?.path == file.path) {

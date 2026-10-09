@@ -69,6 +69,20 @@ final class LocalSpaceTests: XCTestCase {
         XCTAssertThrowsError(try space.create(markdown: true, in: link))
         XCTAssertThrowsError(try space.createFolder("escape", in: link))
     }
+    func testTrashPreservesUncommittedMarkdownDraft() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        let note = root.appendingPathComponent("Note.md")
+        defer { try? DraftStore.shared.discard(note); try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: space.privateRoot) }
+        try Data("original".utf8).write(to: note)
+        try DraftStore.shared.stage(note, text: "unsaved edit", digest: LocalSpace.digest(Data("original".utf8)))
+        XCTAssertThrowsError(try space.trash(note))
+        XCTAssertEqual(try String(contentsOf: note, encoding: .utf8), "original")
+        try DraftStore.shared.discard(note)
+        try space.trash(note)
+        let removed = try XCTUnwrap(try space.trashItems().first)
+        XCTAssertEqual(try space.restore(removed), note)
+    }
     func testDraftSurvivesReopenAndNeverOverwritesExternalChanges() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: root)

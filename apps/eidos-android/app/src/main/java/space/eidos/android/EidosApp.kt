@@ -175,7 +175,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                 state.webFile != null ->
                     key(state.spaceId, state.webFile!!.path, state.editorGeneration) {
                         EmbeddedEditorScreen(state.webFile!!, model, editorPool,
-                            export = exportEntry, rename = { renameTarget = it })
+                            export = exportEntry, rename = { renameTarget = it }, trash = model::trash)
                     }
                 else ->
                     Scaffold(
@@ -428,6 +428,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                         openPlugin = model::openWithPlugin,
                                                         showPath = true,
                                                         rename = { renameTarget = it },
+                                                        trash = model::trash,
                                                         displayName =
                                                             if (favorite.tableId != null)
                                                                 favorite.name
@@ -451,6 +452,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                         pluginRegistry = model.pluginOpenWith,
                                                         openPlugin = model::openWithPlugin,
                                                         rename = { renameTarget = it },
+                                                        trash = model::trash,
                                                     )
                                                 }
                                                 item {
@@ -487,6 +489,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                     pluginRegistry = model.pluginOpenWith,
                                                     openPlugin = model::openWithPlugin,
                                                     rename = { renameTarget = it },
+                                                    trash = model::trash,
                                                 )
                                             }
                                         }
@@ -706,6 +709,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                         model.openWithPlugin(file, key)
                                     },
                                     showPath = true,
+                                    trash = { searchSheet = false; model.trash(it) },
                                     rename = {
                                         searchSheet = false
                                         renameTarget = it
@@ -816,9 +820,11 @@ internal fun FileRow(
     displayName: String = file.name,
     rename: (SpaceFile) -> Unit,
     menuOnly: Boolean = false,
+    trash: ((SpaceFile) -> Unit)? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     var openWith by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     val candidates = pluginRegistry.candidates(file)
     if (menuOnly) {
         IconButton(onClick = { menu = true }, enabled = enabled) {
@@ -945,8 +951,30 @@ internal fun FileRow(
                                 export(file)
                             },
                     )
+                    if (trash != null)
+                        ListItem(
+                            headlineContent = { Text(tr("删除"), color = MaterialTheme.colorScheme.error) },
+                            leadingContent = { Icon(Icons.Outlined.Delete, null) },
+                            modifier = Modifier.clickable(enabled = enabled) {
+                                menu = false
+                                deleting = true
+                            },
+                        )
                 }
                 Spacer(Modifier.height(24.dp))
             }
         }
+    if (deleting)
+        AlertDialog(
+            onDismissRequest = { deleting = false },
+            title = { Text(tr("删除 {0}", file.name)) },
+            text = { Text(tr("将从 Space 移除此项目，下一次同步会同步该删除。")) },
+            confirmButton = {
+                TextButton(enabled = enabled, onClick = {
+                    deleting = false
+                    trash?.invoke(file)
+                }) { Text(tr("删除")) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = false }) { Text(tr("取消")) } },
+        )
 }

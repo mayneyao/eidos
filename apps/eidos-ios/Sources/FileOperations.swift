@@ -31,6 +31,7 @@ extension LocalSpace {
     }
     func trash(_ source: URL) throws {
         let source = try checked(source)
+        guard !DraftStore.shared.hasDraft(under: source) else { throw LocalError.message(tr("请先保存未完成的文本草稿")) }
         guard !RecordDraftStore.hasDraft(self, under: source) else { throw LocalError.message(tr("请先保存或放弃此文件的记录草稿")) }
         _ = try Runtime.call(root, "close")
         let item = TrashedFile(id: UUID().uuidString, relativePath: String(source.path.dropFirst(root.standardizedFileURL.path.count + 1)), date: Date())

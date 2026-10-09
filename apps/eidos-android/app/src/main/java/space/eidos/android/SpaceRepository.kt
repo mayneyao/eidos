@@ -206,7 +206,7 @@ class SpaceRepository(
             throw error
         }
         syncProfiles.clear()
-        for (directory in listOf(quarantine, staging, drafts)) {
+        for (directory in listOf(quarantine, staging, drafts, File(context.filesDir, "trash-$spaceId"))) {
             if (directory.exists())
                 Files.walk(directory.toPath()).use { paths ->
                     paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
@@ -1056,6 +1056,32 @@ class SpaceRepository(
 
     suspend fun create(folder: String, name: String, kind: String): String = io {
         createEntry(folder, name, kind)
+    }
+
+    suspend fun trash(path: String) = io {
+        val source = local.resolve(path)
+        require(path.isNotBlank() && source.exists() && visible(source)) { tr("文件暂时不可用") }
+        val children =
+            if (source.isDirectory) source.walkTopDown().filter { it.isFile }.toList()
+            else listOf(source)
+        check(children.none {
+            draftFile(entry(it).path).baseFile.exists() ||
+                File(draftFile(entry(it).path).baseFile.path + ".bak").exists()
+        }) { tr("请先保存未完成的文本草稿") }
+        if (children.any { it.extension.equals("eidos", true) }) {
+            check(File(context.filesDir, "record-drafts").listFiles().orEmpty().none { it.isFile }) {
+                tr("请先保存未完成的记录草稿")
+            }
+            NativeRuntime.close()
+        }
+        local.trash(path, File(context.filesDir, "trash-$spaceId"))
+        val retainedFavorites = readFavorites().filter { it.path != path && !it.path.startsWith("$path/") }
+        val favorites = JSONArray(retainedFavorites.map {
+            JSONObject().put("path", it.path).put("name", it.name).put("tableId", it.tableId)
+        })
+        check(preferences.edit().putString("personal.favorites", favorites.toString()).commit()) {
+            tr("无法保存收藏状态")
+        }
     }
 
     suspend fun rename(path: String, name: String): String = io {

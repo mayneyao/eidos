@@ -11,6 +11,26 @@ class LocalFilesTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test
+    fun trashMovesOnlyTheSelectedFileAndPreservesItsBytes() {
+        val root = temporary.newFolder("space")
+        val trash = temporary.newFolder("trash")
+        val files = LocalFiles(root)
+        File(root, "selected.md").writeText("selected")
+        File(root, "other.md").writeText("other")
+        files.trash("selected.md", trash)
+        assertFalse(File(root, "selected.md").exists())
+        assertEquals("other", File(root, "other.md").readText())
+        val removed = trash.listFiles()!!.single()
+        assertEquals("selected", File(removed, "payload").readText())
+        assertEquals("selected.md", File(removed, "path").readText())
+        assertThrows(IllegalArgumentException::class.java) { files.trash("", trash) }
+        assertThrows(IllegalArgumentException::class.java) { files.trash("../outside", trash) }
+        Files.createSymbolicLink(File(root, "link.md").toPath(), File(root, "other.md").toPath())
+        assertThrows(IllegalArgumentException::class.java) { files.trash("link.md", trash) }
+        assertEquals("other", File(root, "other.md").readText())
+    }
+
+    @Test
     fun rejectsTraversalAndSymlinkEscape() {
         val root = temporary.newFolder("space")
         val outside = temporary.newFolder("outside")
