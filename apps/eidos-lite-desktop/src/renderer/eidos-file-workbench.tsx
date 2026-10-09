@@ -85,6 +85,7 @@ interface FormulaEditorTarget {
 }
 
 export interface EidosFileWorkbenchProps {
+  onOpenSpaceFile?(path: string): void | Promise<void>
   relativePath: string
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
@@ -111,6 +112,7 @@ export interface EidosFileWorkbenchProps {
 }
 
 export function EidosFileWorkbench({
+  onOpenSpaceFile,
   relativePath,
   snapshot,
   source,
@@ -825,6 +827,9 @@ export function EidosFileWorkbench({
           query={recordNavigationQuery ?? {}}
           disabled={disabled}
           onSnapshot={onSnapshot}
+          fileRelativePath={relativePath}
+          onOpenSpaceFile={onOpenSpaceFile}
+          onError={onError}
         >
           <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
             <EidosFileEditorView

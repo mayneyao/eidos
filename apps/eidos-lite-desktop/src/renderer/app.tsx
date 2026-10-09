@@ -4543,6 +4543,19 @@ function WorkspaceApp({
                     }
                   >
                     <EidosFileWorkbench
+                      onOpenSpaceFile={async (path) => {
+                        const entry = findSpaceEntry(space.entries, path) ?? {
+                          name: path.split("/").at(-1)!,
+                          relativePath: path,
+                          kind: path.toLowerCase().endsWith(".eidos")
+                            ? ("eidos" as const)
+                            : ("file" as const),
+                          size: 0,
+                          modifiedAtMs: 0,
+                        }
+                        setSelectedEntry(entry)
+                        await openEntry(entry)
+                      }}
                       key={`${activeFile.sessionId}:${fileMaterializationKey}`}
                       relativePath={activeFile.relativePath}
                       recordOpenMode={recordOpenMode}

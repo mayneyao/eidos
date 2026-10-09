@@ -84,6 +84,69 @@ vi.mock("./plugin-editor", () => ({
 }))
 
 let cleanup = () => {}
+it("opens mapped files through the existing internal and system host flows", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+  const openPath = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: {
+      listPlugins: async () => ({ plugins: [] }),
+      onPluginEvent: () => () => {},
+      openPath,
+    },
+  })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  cleanup = () => root.unmount()
+  const onOpenSpaceFile = vi.fn()
+  const getRow = vi
+    .fn()
+    .mockResolvedValue({ _id: "notes.md", path: "notes.md" })
+  const props = {
+    source: { getRow },
+    table: {
+      table: {
+        id: "files",
+        settings: { vtabModule: "fs_meta", vtabConfig: { root: "." } },
+      },
+      fields: [
+        { name: "path", tableColumnName: "path", settings: { isSystem: true } },
+      ],
+    },
+    query: {},
+    disabled: false,
+    onSnapshot: vi.fn(),
+    fileRelativePath: "assets/files.eidos",
+    onOpenSpaceFile,
+    onError: vi.fn(),
+  } as unknown as Omit<ComponentProps<typeof PluginTableActions>, "children">
+  await act(async () =>
+    root.render(
+      <PluginTableActions {...props}>
+        <EidosFileTableActionMenu
+          target={{
+            rowId: "notes.md",
+            ranges: [{ startIndex: 0, endIndex: 1 }],
+          }}
+          onClose={() => {}}
+        />
+      </PluginTableActions>
+    )
+  )
+  const items =
+    container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+  expect([...items].map((item) => item.textContent)).toEqual([
+    "Open in Eidos",
+    "Open with default app",
+  ])
+  await act(async () => items[0]!.click())
+  expect(onOpenSpaceFile).toHaveBeenCalledWith("assets/notes.md")
+  expect(openPath).not.toHaveBeenCalled()
+  await act(async () => items[1]!.click())
+  expect(openPath).toHaveBeenCalledWith("assets/notes.md")
+  expect(props.onError).not.toHaveBeenCalled()
+})
 afterEach(async () => {
   await act(async () => cleanup())
   document.body.replaceChildren()

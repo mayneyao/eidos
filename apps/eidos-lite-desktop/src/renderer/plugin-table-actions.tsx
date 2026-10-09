@@ -22,10 +22,14 @@ import { useEidosLiteI18n } from "./i18n"
 import { PluginIcon } from "./plugin-icon"
 import { PluginTaskCard } from "./plugin-task-card"
 import { createTaskProgress } from "./task-progress"
-import { Redo2, Undo2 } from "lucide-react"
+import { Redo2, Undo2, ExternalLink, File } from "lucide-react"
+import { fileMetadataRowPath } from "./file-metadata-actions"
 import { validateIconDefinition } from "@eidos.space/plugin-runtime/manifest"
 
 interface Props {
+  fileRelativePath?: string
+  onOpenSpaceFile?(path: string): void | Promise<void>
+  onError?(error: unknown): void
   source: EidosFileDataSource
   table: EidosFileTableSnapshot
   view?: EidosFileViewInfo
@@ -56,6 +60,7 @@ function taskError(error: unknown) {
 }
 
 export function PluginTableActions(props: Props) {
+  const { t } = useEidosLiteI18n()
   const [plugins, setPlugins] = useState<
     Array<{ manifest: PluginManifest; hash: string }>
   >([])
@@ -92,18 +97,81 @@ export function PluginTableActions(props: Props) {
     () => ({
       async list(target: EidosFileActionTarget) {
         if (props.disabled) return []
-        return (
-          await Promise.all(
-            [...runners.current.values()].map((runner) => runner.list(target))
-          )
-        ).flat()
+        const mappedFile =
+          props.table.table.settings?.vtabModule === "fs_meta" &&
+          target.rowId &&
+          props.fileRelativePath &&
+          props.onOpenSpaceFile
+            ? await props.source.getRow?.(props.table.table.id, target.rowId)
+            : null
+        const path =
+          mappedFile && props.fileRelativePath
+            ? fileMetadataRowPath(
+                props.table,
+                mappedFile,
+                props.fileRelativePath
+              )
+            : null
+        const fileActions = path
+          ? [
+              {
+                id: "host/open-mapped-file",
+                title: t("Open in Eidos"),
+                icon: <File />,
+              },
+              {
+                id: "host/open-mapped-file-system",
+                title: t("Open with default app"),
+                icon: <ExternalLink />,
+              },
+            ]
+          : []
+        return [
+          ...fileActions,
+          ...(
+            await Promise.all(
+              [...runners.current.values()].map((runner) => runner.list(target))
+            )
+          ).flat(),
+        ]
       },
       run(id: string, target: EidosFileActionTarget) {
+        if (props.disabled) return
+        if (
+          (id === "host/open-mapped-file" ||
+            id === "host/open-mapped-file-system") &&
+          target.rowId &&
+          props.fileRelativePath
+        ) {
+          void Promise.resolve(
+            props.source.getRow?.(props.table.table.id, target.rowId)
+          )
+            .then(async (row) => {
+              const path = row
+                ? fileMetadataRowPath(props.table, row, props.fileRelativePath!)
+                : null
+              if (!path) throw new Error(t("This file is no longer available"))
+              if (id === "host/open-mapped-file")
+                await props.onOpenSpaceFile?.(path)
+              else await window.eidosLite.openPath(path)
+            })
+            .catch((cause) => props.onError?.(cause))
+          return
+        }
         if (!props.disabled)
           runners.current.get(id.split("/")[0]!)?.run(id, target)
       },
     }),
-    [props.disabled, revision]
+    [
+      props.disabled,
+      props.source,
+      props.table,
+      props.fileRelativePath,
+      props.onOpenSpaceFile,
+      props.onError,
+      t,
+      revision,
+    ]
   )
   return (
     <EidosFileTableActionsContext.Provider value={actions}>
