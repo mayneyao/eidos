@@ -18,10 +18,11 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
       if (!(await fileMenu.isVisible().catch(() => false)))
         await trigger.click()
       const submenuTriggers = fileMenu.locator(
-        '[role="menuitem"][aria-haspopup="menu"]'
+        '[role="menuitem"][aria-haspopup="menu"]:not([disabled])'
       )
       for (let index = 0; index < (await submenuTriggers.count()); index += 1) {
-        await submenuTriggers.nth(index).hover()
+        // Initial file loading can replace the menu; let the outer retry reopen it.
+        await submenuTriggers.nth(index).hover({ timeout: 5_000 })
         if (await item.isVisible().catch(() => false)) break
       }
     }
