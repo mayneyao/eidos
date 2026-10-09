@@ -339,6 +339,9 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   ).toHaveCount(0)
 
   await page.getByRole("button", { name: "Close record details" }).click()
+  // Editing Start date moves this row beyond the Gallery's virtual window.
+  await page.getByRole("button", { name: "Search Eidos File rows" }).click()
+  await page.getByPlaceholder("Search rows").fill("QA all-field record")
   await openGalleryRecord(page, "QA all-field record")
   await expect(inspector.getByRole("textbox", { name: "Samples" })).toHaveValue(
     "41"
