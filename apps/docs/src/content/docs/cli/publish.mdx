@@ -21,7 +21,7 @@ source of truth and the CLI can exit after publishing.
   origin by default.
 </Aside>
 
-## Ordinary files and plugin Views (staging preview)
+## Ordinary files and plugin Views
 
 `--slug` accepts directory paths such as `rides/2026/today.gpx`, including
 Unicode names and spaces. For an ordinary file copied to a temporary snapshot,
@@ -29,20 +29,18 @@ use `--source-path "Tracks/2026/ride.gpx"` to retain its original Space-relative
 path in the plugin binding. The source path and public slug are independent;
 only the selected file is published, not the other files in its directories.
 
-The staging build also supports ordinary files. Their stable URL downloads the
+Publish also supports ordinary files. Their stable URL downloads the
 original bytes. To display a file as an interactive page, publish it with a
 read-only file View from a local plugin package:
 
 ```bash
-eidos publish ride.gpx --slug ride-download \
-  --publish-origin https://publish-staging.eidos.space
+eidos publish ride.gpx --slug ride-download
 eidos publish ride.gpx --slug ride-map \
-  --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map \
-  --publish-origin https://publish-staging.eidos.space
+  --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map
 ```
 
-Use a staging account and its Publish CLI key. These features require Pro and
-are not yet available on production. Each slug has its own access settings and
+Use your account's Publish CLI key. These features require Pro.
+Each slug has its own access settings and
 active Version; the same source file can have a download link and a View link.
 
 The plugin package is included privately in the publication snapshot. It is not
@@ -50,7 +48,7 @@ listed in the plugin registry. Browser code is delivered to visitors as part of
 the page, so never include secrets in a plugin. Changing the package or selected
 View creates a new Version when you republish.
 
-This preview supports plugin API 3.0.0, `kind: "file"`, `access: "read"`, and
+Published Views support plugin API 3.0.0, `kind: "file"`, `access: "read"`, and
 no declared View capabilities. The file and compressed package each have a
 16 MiB limit; the unpacked package is also limited to 16 MiB. Views can read only
 the published file. Local workspace, settings, storage, connections, companion

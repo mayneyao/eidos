@@ -11,7 +11,7 @@ Local edits reach the hosted page only when you republish.
 
 ## Publish a file
 
-1. Right-click a Markdown or Eidos File in the sidebar.
+1. Right-click a file in the sidebar.
 2. Choose **Publish…**.
 3. Set the URL path and access mode.
 4. Review the content and choose **Publish**.
@@ -39,16 +39,19 @@ your local file.
 **Check:** the submitted response appears in the local table.
 Publishing a form and collecting its responses are separate operations.
 
-## Ordinary files and plugin Views (staging preview)
+## Ordinary files and plugin Views
 
-The staging build can publish an ordinary file as a download.
+Publish an ordinary file as a download by selecting **Download file** under **Publish as**.
 If an enabled plugin provides a compatible read-only file View, select it
 under **Publish as** to render the file as a page.
 
-This Pro preview snapshots the source file and plugin together.
+This Pro feature snapshots the source file and plugin together.
 Each must fit the 16 MiB limit. The View can read only the published file.
 Visitors do not need to install the plugin.
-See the [CLI compatibility requirements](/cli/publish/#ordinary-files-and-plugin-views-staging-preview).
+Files without a compatible plugin View remain available as downloads; Eidos does
+not include an interactive renderer for every file format. Downloads support
+files up to 1 GiB, subject to account limits.
+See the [CLI compatibility requirements](/cli/publish/#ordinary-files-and-plugin-views).
 
 ## Update or remove the page
 

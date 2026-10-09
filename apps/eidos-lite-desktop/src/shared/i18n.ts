@@ -758,6 +758,17 @@ const zh: Record<string, string> = {
     "发布会在后台继续，你可以正常使用工作区。",
   "Publish as": "发布为",
   "Download file": "下载文件",
+  "Checking compatible plugin Views…": "正在检查兼容的插件视图…",
+  "Could not load plugin Views. Reopen Publish to try again, or publish the file as a download.":
+    "无法加载插件视图。请重新打开发布重试，或发布为可下载文件。",
+  "No compatible read-only plugin View. Publish as a download, or install and enable a compatible plugin.":
+    "没有兼容的只读插件视图。可以发布为可下载文件，或先安装并启用兼容插件。",
+  "No compatible read-only plugin View. You can publish this file as Markdown.":
+    "没有兼容的只读插件视图。可以发布为 Markdown 网页。",
+  "Plugin Views can read only this published file. The file and plugin package must each fit within 16 MiB.":
+    "插件视图只能读取当前发布文件。文件和插件包各不能超过 16 MiB。",
+  "Plugin Views require a file no larger than 16 MiB. Publish it as a download instead.":
+    "插件视图要求文件不超过 16 MiB。较大文件可以发布为可下载文件。",
   "Plugin View": "插件视图",
   "Previously published View": "之前发布的视图",
   "Share this file as an interactive webpage. The file and plugin are saved with this publication.":

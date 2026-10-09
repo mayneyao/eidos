@@ -34,9 +34,11 @@ describe("Eidos Publish engine boundary", () => {
     )
     expect(args).not.toContain("--source-path")
   })
-  it("rejects staging-only sources and paths before production account or file access", async () => {
+  it("passes ordinary files, plugin Views and paths to production account access", async () => {
     const account = {
-      accountAccessToken: vi.fn(),
+      accountAccessToken: vi
+        .fn()
+        .mockRejectedValue(new Error("test account unavailable")),
       accountSubject: vi.fn(),
     }
     const engine = new EidosPublishEngine(
@@ -64,10 +66,13 @@ describe("Eidos Publish engine boundary", () => {
         },
         vi.fn()
       )
-      expect(result.ok).toBe(false)
+      expect(result).toMatchObject({
+        ok: false,
+        failure: { message: "test account unavailable" },
+      })
     }
-    expect(account.accountAccessToken).not.toHaveBeenCalled()
-    expect(account.accountSubject).not.toHaveBeenCalled()
+    expect(account.accountAccessToken).toHaveBeenCalledTimes(3)
+    expect(account.accountSubject).toHaveBeenCalledTimes(3)
     expect(resolveUserPath).not.toHaveBeenCalled()
   })
   afterEach(() => vi.unstubAllGlobals())

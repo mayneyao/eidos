@@ -1,4 +1,5 @@
 import { validPublicationPath } from "../shared/publication-path"
+import { publishableFileViews } from "../shared/publish-file-view"
 import {
   useEffect,
   useLayoutEffect,
@@ -50,14 +51,8 @@ export function defaultPublishSlug(
   )
 }
 
-export function isPublishableEntry(
-  entry: SpaceTreeEntry,
-  preview = false
-): boolean {
-  return (
-    entry.kind === "eidos" ||
-    (entry.kind === "file" && (preview || /\.(md|markdown)$/i.test(entry.name)))
-  )
+export function isPublishableEntry(entry: SpaceTreeEntry): boolean {
+  return entry.kind === "eidos" || entry.kind === "file"
 }
 
 export type PublishAccountState =
@@ -195,52 +190,37 @@ export function PublishPanel({
   const [pluginViews, setPluginViews] = useState<
     Array<{ hash: string; viewId: string; label: string }>
   >([])
+  const [pluginListing, setPluginListing] = useState<
+    "loading" | "ready" | "failed"
+  >("loading")
   useEffect(() => {
-    if (!preview) return
+    if (entry.kind !== "file") return
     let active = true
     void window.eidosLite
       .listPlugins()
       .then((listing) => {
         if (!active) return
-        const extension = "." + entry.name.split(".").at(-1)?.toLowerCase()
         setPluginViews(
           listing.plugins.flatMap((plugin) => {
-            if (
-              !plugin.enabled ||
-              plugin.unavailable ||
-              plugin.manifest.requires?.pluginApi !== "3.0.0" ||
-              plugin.manifest.workspace ||
-              plugin.manifest.connections ||
-              plugin.manifest.settings ||
-              plugin.manifest.storage
-            )
-              return []
-            return (plugin.manifest.views ?? [])
-              .filter(
-                (view) =>
-                  view.kind === "file" &&
-                  view.access === "read" &&
-                  !view.capabilities?.length &&
-                  plugin.manifest.placements?.some(
-                    (p) =>
-                      p.location === "file/open" &&
-                      p.view === view.id &&
-                      p.extensions.includes(extension)
-                  )
-              )
-              .map((view) => ({
+            if (!plugin.enabled || plugin.unavailable) return []
+            return publishableFileViews(plugin.manifest, entry.name).map(
+              (view) => ({
                 hash: plugin.hash,
                 viewId: view.id,
                 label: plugin.manifest.name + " · " + view.title,
-              }))
+              })
+            )
           })
         )
+        setPluginListing("ready")
       })
-      .catch(() => {})
+      .catch(() => {
+        if (active) setPluginListing("failed")
+      })
     return () => {
       active = false
     }
-  }, [entry.name, preview])
+  }, [entry.name, entry.kind])
   const free = account?.plan === "free"
   const effectiveAccess = free ? "public" : accessMode
   const effectiveBranding = free ? "show" : branding
@@ -317,23 +297,22 @@ export function PublishPanel({
   const passwordCharacters = Array.from(password).length
   const passwordBytes = new TextEncoder().encode(password).byteLength
 
-  const validation = !(preview
-    ? validPublicationPath(slug)
-    : /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug))
-    ? t(
-        preview
-          ? "Use a relative path without empty, dot, or parent segments."
-          : "Use 1–64 lowercase letters, numbers, or hyphens."
-      )
-    : effectiveAccess === "password" &&
-        (passwordCharacters < 8 ||
-          passwordCharacters > 128 ||
-          passwordBytes > 256 ||
-          /[\u0000-\u001f\u007f]/.test(password))
-      ? t("Use 8–128 characters and at most 256 UTF-8 bytes.")
-      : effectiveAccess === "password" && password !== confirmation
-        ? t("Passwords do not match.")
-        : null
+  const validation =
+    pluginView && entry.size > 16 * 1024 * 1024
+      ? t(
+          "Plugin Views require a file no larger than 16 MiB. Publish it as a download instead."
+        )
+      : !validPublicationPath(slug)
+        ? t("Use a relative path without empty, dot, or parent segments.")
+        : effectiveAccess === "password" &&
+            (passwordCharacters < 8 ||
+              passwordCharacters > 128 ||
+              passwordBytes > 256 ||
+              /[\u0000-\u001f\u007f]/.test(password))
+          ? t("Use 8–128 characters and at most 256 UTF-8 bytes.")
+          : effectiveAccess === "password" && password !== confirmation
+            ? t("Passwords do not match.")
+            : null
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -574,7 +553,7 @@ export function PublishPanel({
       ) : null}
 
       <form onSubmit={submit}>
-        {preview && entry.kind === "file" ? (
+        {entry.kind === "file" ? (
           <label>
             <span>{t("Publish as")}</span>
             <select
@@ -610,6 +589,27 @@ export function PublishPanel({
                     "Share this file as an interactive webpage. The file and plugin are saved with this publication."
                   )
                 : t("Share a fixed URL for this file.")}
+            </small>
+            <small>
+              {entry.size > 16 * 1024 * 1024
+                ? t(
+                    "Plugin Views require a file no larger than 16 MiB. Publish it as a download instead."
+                  )
+                : pluginListing === "loading"
+                  ? t("Checking compatible plugin Views…")
+                  : pluginListing === "failed"
+                    ? t(
+                        "Could not load plugin Views. Reopen Publish to try again, or publish the file as a download."
+                      )
+                    : pluginViews.length === 0
+                      ? t(
+                          /\.(md|markdown)$/i.test(entry.name)
+                            ? "No compatible read-only plugin View. You can publish this file as Markdown."
+                            : "No compatible read-only plugin View. Publish as a download, or install and enable a compatible plugin."
+                        )
+                      : t(
+                          "Plugin Views can read only this published file. The file and plugin package must each fit within 16 MiB."
+                        )}
             </small>
           </label>
         ) : null}
@@ -689,11 +689,7 @@ export function PublishPanel({
             autoFocus
             value={slug}
             spellCheck={false}
-            onChange={(event) =>
-              setSlug(
-                preview ? event.target.value : event.target.value.toLowerCase()
-              )
-            }
+            onChange={(event) => setSlug(event.target.value)}
           />
           <small>
             {t(

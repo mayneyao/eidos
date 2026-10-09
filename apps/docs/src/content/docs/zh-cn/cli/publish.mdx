@@ -20,22 +20,22 @@ Eidos Publish 可以把本地 `.eidos`、`.md` 或 `.markdown` 文件变成稳�
   Publish 服务地址。
 </Aside>
 
-## 普通文件与插件 View（staging 预览）
+## 普通文件与插件 View
 
 `--slug` 支持多级目录，例如 `运动/2026/骑行.gpx`，也支持中文和空格。
 如果普通文件已复制为临时快照，可通过 `--source-path "轨迹/2026/原始.gpx"`
 保留插件绑定中的原始 Space 相对路径。源路径和公开地址独立；只发布选中的文件，
 不会同时发布其目录内的其他文件。
 
-staging 构建支持发布普通文件，稳定地址默认下载原始内容。指定本地插件包中的
+发布支持普通文件，稳定地址默认下载原始内容。指定本地插件包中的
 只读 file View，可以将文件发布成交互网页：
 
 ```bash
-eidos publish ride.gpx --slug ride-download --publish-origin https://publish-staging.eidos.space
-eidos publish ride.gpx --slug ride-map --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map --publish-origin https://publish-staging.eidos.space
+eidos publish ride.gpx --slug ride-download
+eidos publish ride.gpx --slug ride-map --plugin ./local.eidos-gpx-viewer.eidos-plugin --plugin-view map
 ```
 
-请使用 staging 账号及其 Publish CLI 密钥。这些功能需要 Pro，尚未在生产环境上线。
+请使用账号的 Publish CLI 密钥。这些功能需要 Pro。
 同一源文件可以使用不同 slug，分别提供下载链接和 View 链接；每个链接有独立的
 访问权限和当前 Version。
 
@@ -43,7 +43,7 @@ eidos publish ride.gpx --slug ride-map --plugin ./local.eidos-gpx-viewer.eidos-p
 仍会交付给访问者，因此插件中不能包含秘密。重新发布时，更换插件包或 View 会创建
 新的 Version。
 
-此预览支持 plugin API 3.0.0、`kind: "file"`、`access: "read"` 且没有声明
+发布 View 支持 plugin API 3.0.0、`kind: "file"`、`access: "read"` 且没有声明
 View capabilities 的插件。源文件和压缩包分别限制为 16 MiB，解压后的包也限制为
 16 MiB。View 只能读取当前发布文件，不能访问本地 workspace、settings、storage、
 connections、同目录其他文件或执行写入。支持声明的浏览器网络来源和浏览器 worker。

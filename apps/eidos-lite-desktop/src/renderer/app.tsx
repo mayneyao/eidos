@@ -5097,10 +5097,7 @@ function WorkspaceApp({
                   setContextMenu(null)
                 }}
               />
-              {isPublishableEntry(
-                contextMenu.entry,
-                appInfo?.services.name === "staging"
-              ) ? (
+              {isPublishableEntry(contextMenu.entry) ? (
                 <button
                   type="button"
                   role="menuitem"

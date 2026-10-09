@@ -76,7 +76,7 @@ describe("Publish panel", () => {
     )
   })
 
-  it("retains production URLs and limits ordinary files to staging", () => {
+  it("retains production URL defaults and exposes every regular file", () => {
     expect(defaultPublishSlug("docs/Release Notes.markdown")).toBe(
       "release-notes"
     )
@@ -88,8 +88,9 @@ describe("Publish panel", () => {
       size: 1,
       modifiedAtMs: 1,
     }
-    expect(isPublishableEntry(ordinary)).toBe(false)
-    expect(isPublishableEntry(ordinary, true)).toBe(true)
+    expect(isPublishableEntry(ordinary)).toBe(true)
+    expect(isPublishableEntry({ ...ordinary, name: "ride.GPX" })).toBe(true)
+    expect(isPublishableEntry({ ...ordinary, kind: "directory" })).toBe(false)
     expect(
       isPublishableEntry({
         name: "guide.md",
@@ -98,18 +99,6 @@ describe("Publish panel", () => {
         size: 1,
         modifiedAtMs: 1,
       })
-    ).toBe(true)
-    expect(
-      isPublishableEntry(
-        {
-          name: "notes.txt",
-          relativePath: "notes.txt",
-          kind: "file",
-          size: 1,
-          modifiedAtMs: 1,
-        },
-        true
-      )
     ).toBe(true)
   })
 

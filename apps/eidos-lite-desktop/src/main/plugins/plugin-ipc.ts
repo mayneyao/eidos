@@ -20,6 +20,7 @@ import {
 } from "@eidos.space/plugin-runtime/package"
 import { PluginError, parseChange } from "@eidos.space/plugin-runtime/rpc"
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
+import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginFileHooks } from "./plugin-file-hooks"
@@ -1048,13 +1049,10 @@ export function registerPluginIpc(controller: WindowController): {
     async publishPackage(hash: string, viewId: string): Promise<Uint8Array> {
       const pkg = await store.read(hash)
       const view = pkg.manifest.views?.find((view) => view.id === viewId)
-      if (
-        !view ||
-        view.kind !== "file" ||
-        view.access !== "read" ||
-        view.capabilities?.length
-      )
-        throw new Error("Choose a read-only file View")
+      if (!view || !isPublishableFileView(pkg.manifest, view))
+        throw new Error(
+          "Choose a read-only file View using plugin API 3.0.0 without local workspace, settings, storage, connections, or View capabilities"
+        )
       return encodePackage(pkg.manifest, pkg.modules)
     },
     close() {
