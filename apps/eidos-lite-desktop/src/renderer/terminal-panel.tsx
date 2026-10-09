@@ -298,6 +298,7 @@ function TerminalSessionViewport({
       macOptionClickForcesSelection: true,
       rightClickSelectsWord: true,
       scrollback: 5_000,
+      minimumContrastRatio: 4.5,
       theme: terminalTheme(mount, theme),
       linkHandler: {
         activate: (_event, uri) => {

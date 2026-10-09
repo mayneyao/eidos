@@ -6388,7 +6388,7 @@ body {
   --term-color-4: light-dark(oklch(0.48 0.13 245), oklch(0.72 0.11 240));
   --term-color-5: light-dark(oklch(0.5 0.13 330), oklch(0.74 0.11 325));
   --term-color-6: light-dark(oklch(0.47 0.105 205), oklch(0.76 0.09 205));
-  --term-color-7: light-dark(oklch(0.8 0.008 220), oklch(0.82 0.008 220));
+  --term-color-7: light-dark(oklch(0.43 0.008 220), oklch(0.82 0.008 220));
   --term-color-8: var(--ink-faint);
   --term-color-9: light-dark(oklch(0.58 0.17 25), oklch(0.79 0.14 25));
   --term-color-10: light-dark(oklch(0.53 0.13 150), oklch(0.82 0.11 150));
@@ -6396,7 +6396,7 @@ body {
   --term-color-12: light-dark(oklch(0.55 0.14 245), oklch(0.8 0.11 240));
   --term-color-13: light-dark(oklch(0.57 0.14 330), oklch(0.81 0.11 325));
   --term-color-14: light-dark(oklch(0.54 0.115 205), oklch(0.83 0.09 205));
-  --term-color-15: light-dark(oklch(0.96 0.004 220), oklch(0.94 0.006 220));
+  --term-color-15: light-dark(oklch(0.45 0.004 220), oklch(0.94 0.006 220));
   --terminal-selection-background: color-mix(
     in oklab,
     var(--lite-accent) 30%,

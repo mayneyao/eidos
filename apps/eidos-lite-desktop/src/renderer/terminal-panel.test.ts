@@ -331,6 +331,7 @@ it("keeps independent terminal tabs through Strict Mode remounts", async () => {
   expect((terminal?.options.theme as { background?: string }).background).toBe(
     "rgb(255, 255, 255)"
   )
+  expect(terminal?.options.minimumContrastRatio).toBe(4.5)
   expect(
     (terminal?.options.theme as { selectionBackground?: string })
       .selectionBackground
