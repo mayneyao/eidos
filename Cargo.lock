@@ -821,7 +821,7 @@ checksum = "f678cf4a922c215c63e0de95eb1ff08a958a81d47e485cf9da1e27bf6305cfa5"
 
 [[package]]
 name = "eidos"
-version = "3.1.0"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "base64",

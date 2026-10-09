@@ -78,8 +78,8 @@ must complete before enabling named resources across supported platforms.
 > the [repository README](../../README.md). This document covers the detailed
 > architecture and verification contract.
 
-Eidos Lite 0.4.0 is the current release. Local Spaces, editing, and version
-history require no account. It uses Graft SDK 0.3.30 for durable merge state,
+Local Spaces, editing, and version history require no account. Eidos Lite uses
+Graft SDK 0.3.30 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users

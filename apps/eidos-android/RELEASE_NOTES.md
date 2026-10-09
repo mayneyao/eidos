@@ -1,21 +1,42 @@
-# Eidos Android 0.1.0
+# Eidos Android 0.2.0
 
-The first stable APK channel for Eidos on Android. This release updates the shared editor and streamlines plugin installation and search. Android 9 or newer is required.
+This release adds local file hooks and improves Markdown editing, draft safety
+and plugin communication. Android 9 or newer is required.
+
+## What's new
+
+Compatible plugins can run isolated file hooks after local Markdown saves and
+renames. An open document follows a hook-triggered rename. Enable the plugin
+in the Space where you want its automation to run.
 
 ## Improvements
 
-- Newly installed plugins become available in the Space where you approved installation, without a second enable step. Other Spaces retain their existing permissions.
-- File search and plugin search use consistent native controls.
-- Device transfers display localized progress descriptions.
+- Long record titles wrap within the mobile layout.
+- Local version controls distinguish inspecting history from saving a checkpoint.
+- Table Content settings explain how a Text field stores Markdown record bodies.
 
 ## Bug fixes
 
-- Empty checked and unchecked Markdown tasks remain tasks after saving and reopening. Nested lists and lists with blank lines preserve their checked states.
+- Touch selection works inside Markdown links, and Backspace deletes individual
+  characters without removing the entire URL. Reserved scrollbar space reduces
+  layout shifts when entering edit mode.
+- Moving a file to the recycle bin protects pending recovery drafts and requires
+  confirmation before removing the open document.
+- Unchanged table and field settings no longer create spurious schema changes.
+- Plugin binary RPC responses use the expected envelope, allowing file and
+  attachment responses to reach the embedded plugin host.
 
 ## Install
 
-Download `eidos-android-0.1.0.apk` and verify it against `SHA256SUMS`. The APK supports ARM64 and x86-64. It uses the same application ID and signing identity as the beta, so install it over the beta to retain local data. The separate development app is not migrated.
+Download `eidos-android-0.2.0.apk` and verify it against `SHA256SUMS`. The APK
+supports ARM64 and x86-64. Install it over the previous stable APK to retain local
+data; the signing identity and application ID are unchanged. The development
+app remains separate.
 
 ## Compatibility and scope
 
-Use Eidos Lite 0.22.0 or later for the current phone-pairing and local-network sharing flow. Each device keeps a local copy for offline editing. Review conflicting changes on Desktop, and keep the app open during initial transfers. Mobile cloud account and hosted-sync entry points are not included in this release. Google Play distribution is not available.
+File hook plugins require Plugin API 3.3.0; Eidos Lite 0.23.0 supports the same
+hook contract. Local files remain usable offline. Keep the app in the foreground
+during LAN transfers and review conflicting changes on Desktop. Mobile cloud
+account and hosted-sync entry points remain unavailable. Distribution uses the
+GitHub APK channel; Google Play publication is not configured.

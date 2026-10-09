@@ -1,24 +1,33 @@
 ## What's new
 
-### Publish ordinary files with a plugin view
+### Add Markdown bodies when creating tables in Serve
 
-`eidos cloud publish` can publish an ordinary file as a download or render it using a read-only plugin file View. Pass `--plugin` with the plugin package and `--plugin-view` with its View ID. A GPX file, for example, can become a map page. The publication captures both the file and plugin as immutable snapshots. Requires a Pro account and an `EIDOS_PUBLISH_TOKEN` CLI key.
+When creating a table in `eidos serve`, select the Markdown content option to
+add a Text field for record bodies. Opening a record provides the Markdown
+editor, and the body is stored in that field. The Content field is configured
+for the table and shared by its views.
 
-Use `--source-path` to preserve a file's original Space-relative path independently of its public slug.
+Try Serve with a new local file:
 
-## Improvements
-
-- **Serve on touch screens**: Shared mobile navigation and record editing make local files easier to browse on smaller screens.
-- **Plugin tools**: The bundled Skill covers file templates, embedded file and saved views, host downloads, and the current plugin authoring interfaces.
+```sh
+eidos file new notes.eidos --table notes --fields '[{"name":"Title","type":"Text"}]'
+eidos serve notes.eidos
+```
 
 ## Bug fixes
 
-- **Markdown task lists**: Empty checked and unchecked tasks preserve their state after saving and reopening, including nested and loose lists.
-- **New grid records**: Appending a row focuses its first editable field even when leading fields are hidden or read-only.
+- **Schema changes**: Applying unchanged table or field settings no longer
+  records a schema mutation.
+- **Markdown editing**: Touch selection and character-by-character deletion
+  work within links. Scrollbar space is reserved to prevent horizontal jumps
+  when entering edit mode.
+- **Record fields**: Text fields used as Markdown bodies keep the correct
+  visibility and editing behavior in the shared editor.
 
 ## Use with an Agent
 
-Initialize the Skill bundled with this CLI version in the current project or install it for your user:
+Initialize the Skill bundled with this CLI version in the current project or
+install it for your user:
 
 ```sh
 eidos self skill init
@@ -39,4 +48,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v3.1.0 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v3.2.0 and verify the downloaded archive against the
+release `SHA256SUMS` before replacing an existing binary.

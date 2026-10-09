@@ -155,7 +155,7 @@ test("CLI release notes are versioned and scoped to the standalone CLI", async (
 
 test("Serve release notes provide a complete runnable example", async () => {
   const releaseNotes = await read(files.releaseNotes)
-  const firstCreateCommand = releaseNotes.search(/^eidos create /mu)
+  const firstCreateCommand = releaseNotes.search(/^eidos file new /mu)
   const firstServeCommand = releaseNotes.search(/^eidos serve /mu)
 
   if (firstServeCommand === -1) return

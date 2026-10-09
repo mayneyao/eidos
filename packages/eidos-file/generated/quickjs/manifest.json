@@ -51,7 +51,7 @@
       "packages/eidos-file/src/lookup-functions.ts": "40a47707c0e8c1994dcbed681d3f20fdd6830880d013b1d22394e52f2cc339a7",
       "packages/eidos-file/src/lookup.test.ts": "0ff0168c10832ca326c49cc3b4bab1c9c331247c1c2e6a0a98021c85a0a0a2fe",
       "packages/eidos-file/src/lookup.ts": "8fc34998c8d6fb97ab25bb5567aef03bdcc2fc9a728f2af4a706c8ec45e65578",
-      "packages/eidos-file/src/node-sqlite.test.ts": "8011ed8769eeb75116a41c660434fdc35d576c03b99ebe2b6511869bc41f57de",
+      "packages/eidos-file/src/node-sqlite.test.ts": "2b016c4c2005278b5279f59a9cb4dc664a68657fe4e2ea4f87f268f45a6e18a6",
       "packages/eidos-file/src/node-sqlite.ts": "ea7dad3f373ecbcbd807128fa336d76b4e21d7950956696d82f632768903d5bb",
       "packages/eidos-file/src/plugin-config.test.ts": "f4a22b6e199809b3e4d50829ca3d4dea8513632cab98ec56576ffcd65ab639e2",
       "packages/eidos-file/src/plugin-config.ts": "6ea7ea451f90881177cb7acf4a3376b6e66a39818651c4967eab214066bd6337",
@@ -91,7 +91,7 @@
       "packages/eidos-file/src/types.ts": "15bb37b5f084728756174a153dad6ba39d1fc241093dd657bccb45d779c2b549",
       "packages/eidos-file/src/validation.ts": "f4b7244b586bffb4434d7e15d36ed429462b4031659ee284b6705af98d635815",
       "packages/eidos-file/src/view-query-compatibility.test.ts": "d84726b5ac11f6f8e97538e52e715b2f766545a6d0869677f6bb2cd7b447717e",
-      "packages/eidos-file/package.json": "c8002d64c469983f80c23629b1570a7253a5351b3aa3cc68ba6fb554f8431766",
+      "packages/eidos-file/package.json": "d536ddca9f1e6de358c858ef339e8fc35fb608ad7490deb6333c5808f6c3a4ed",
       "scripts/build-quickjs.mjs": "c8da25b2f9f668c82cdaf45a694afe36080e88994275deaccd3f2d9ababab617",
       "scripts/generated-assets.mjs": "c2bb4780ee7ffde60c9e6bd4a4172904af0ebef08b1ae1984b9261b529dda5d0"
     }

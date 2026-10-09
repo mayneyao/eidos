@@ -1,17 +1,18 @@
-## Plugin SDK and Tools 0.5.0
+## Plugin SDK and Tools 0.7.0
 
-This release targets executable Plugin API 3.0.0. Generated executable plugins
-require Eidos Lite 0.20.0 or Eidos CLI 3.0.0, depending on their capabilities.
+This release adds optional file hooks for Plugin API 3.3.0. Existing executable
+plugins and standalone themes retain their declared requirements.
 
-- Build page and file views with resource metadata in `binding` and operations
-  under `capabilities`.
-- Compose `eidos/schema`, `eidos/table` and `eidos/config` capabilities, with
-  shared credentialed connections and lifecycle-bound access.
-- Use the consistent `readContext`, `readRows`, `setViewConfig`, `watch`,
-  `settings.set`, `storage.delete`, `connections.isConfigured` and
-  `task.declareOutputs` APIs. Removed names have no compatibility aliases.
-- Generate updated document, Eidos, table, action and page starters. Standalone
-  themes retain their independent Plugin API 1.6.0 contract.
+- Declare isolated hooks that run after local file saves and renames. Use
+  scoped document reads, text updates and renames without exposing filesystem
+  handles to guest code.
+- Add a plugin-specific description to the package manifest.
+- Generate, check and pack projects with the matching 0.7.0 SDK and tools.
+  Existing document, Eidos, table, action, page and theme starters remain available.
 
-Existing executable plugins require source migration. Follow the repository's
-[migration guide](https://github.com/mayneyao/eidos/blob/dev/docs/migrations/eidos-plugins.md).
+File hooks require a host advertising Plugin API 3.3.0 and the corresponding
+capability. Eidos Lite 0.23.0 supports them. CLI Serve does not support file
+hooks and rejects packages requiring that capability.
+
+See the [file hooks guide](https://docs.eidos.space/plugins/api/#run-after-local-file-changes) for
+declarations, permissions and host behavior.

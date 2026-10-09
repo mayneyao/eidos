@@ -11,8 +11,8 @@
       "pack:plugin": "eidos-plugin pack ."
     },
     "devDependencies": {
-      "@eidos.space/plugin-sdk": "0.6.0",
-      "@eidos.space/plugin-tools": "0.6.0"
+      "@eidos.space/plugin-sdk": "0.7.0",
+      "@eidos.space/plugin-tools": "0.7.0"
     }
   },
   "tsconfig": {
