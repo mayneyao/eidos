@@ -5,8 +5,8 @@ package space.eidos.android
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.*
@@ -53,8 +53,7 @@ internal fun SyncScreen(
             },
         )
         Column(
-            Modifier.weight(1f).then(if (destination == SyncDestination.Versions) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                .padding(horizontal = 24.dp).padding(bottom = 24.dp),
+            Modifier.weight(1f).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (destination == SyncDestination.Overview) {
@@ -63,20 +62,33 @@ internal fun SyncScreen(
                     model.showPeerVersions(id)
                 }
             } else {
-                Text(localVersionSummary(state.graft), style = MaterialTheme.typography.titleLarge)
-                Text(tr("保存数据文件、笔记和附件的本地版本，不会发送到电脑。"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = model::checkpoint, enabled = ready && state.graft != null) {
-                    Text(tr("保存本地版本"))
-                }
-                TextButton(onClick = model::refreshLocalVersions, enabled = ready) { Text(tr("刷新状态")) }
-                state.syncMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                Text(tr("最近 50 个版本"), style = MaterialTheme.typography.titleSmall)
-                if (state.localVersions.isEmpty()) Text(tr("尚无本地版本"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                state.localVersions.forEach { version ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(version.message)
-                        Text(version.id.take(12), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(localVersionSummary(state.graft), style = MaterialTheme.typography.titleMedium)
+                            Text(tr("保存数据文件、笔记和附件的本地版本，不会发送到电脑。"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = model::checkpoint, enabled = ready && state.graft != null && (state.graft.dirty || !state.graft.initialized)) {
+                                    Text(tr("保存本地版本"))
+                                }
+                                IconButton(onClick = model::refreshLocalVersions, enabled = ready) {
+                                    Icon(Icons.Outlined.Refresh, tr("刷新状态"))
+                                }
+                            }
+                            state.syncMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                        HorizontalDivider(Modifier.padding(vertical = 16.dp))
+                        Text(tr("最近 50 个版本"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+                    if (state.localVersions.isEmpty()) item { Text(tr("尚无本地版本"), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    items(state.localVersions, key = { it.id }) { version ->
+                        ListItem(
+                            headlineContent = { Text(version.message, style = MaterialTheme.typography.bodyMedium) },
+                            supportingContent = { Text(version.id.take(12), style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) },
+                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                        )
                     }
                 }
             }
