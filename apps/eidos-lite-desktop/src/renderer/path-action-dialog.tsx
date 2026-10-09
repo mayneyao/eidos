@@ -399,7 +399,12 @@ export function PathActionDialog({
                     ) : null}
                   </div>
                 </details>
-              ) : null
+              ) : (
+                <div
+                  className="path-dialog-options-placeholder"
+                  aria-hidden="true"
+                />
+              )
             ) : state.action === "create-linked-note" ? (
               <div className="path-dialog-hint">
                 <p>

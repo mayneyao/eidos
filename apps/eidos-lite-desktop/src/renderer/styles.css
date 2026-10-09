@@ -12246,7 +12246,9 @@ body {
   margin: 0;
 }
 
-.path-dialog-options {
+.path-dialog-options,
+.path-dialog-options-placeholder {
+  min-height: 1.75rem;
   margin: 0 0.8rem 0.5rem;
 }
 
