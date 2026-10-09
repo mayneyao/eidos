@@ -415,7 +415,9 @@ export class MobilePluginInstance {
           await this.native<{ text: string }>("readText", { path: boundPath })
         ).text
       if (method === "fs.readBinary")
-        return this.native("readBinary", { path: boundPath })
+        return {
+          data: await this.native<string>("readBinary", { path: boundPath }),
+        }
       if (method === "fs.list") {
         const files = await this.native<Array<{ path: string; kind: string }>>(
           "files",
