@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState, type ReactNode } from "react"
 import type { PluginManifest } from "@eidos.space/plugin-sdk"
 import type { PluginOpenResult } from "../shared/plugins"
 import { PluginEditor } from "./plugin-editor"
@@ -31,7 +31,10 @@ export function PluginConnectionSettings({
     }
   }, [manifest.id])
   return (
-    <section aria-label={t("Connection settings")}>
+    <section
+      className="plugin-connection-settings"
+      aria-label={t("Connection settings")}
+    >
       {Object.entries(manifest.connections ?? {}).map(([id, connection]) => (
         <Connection
           key={id}
@@ -40,14 +43,18 @@ export function PluginConnectionSettings({
           ticket={instance?.ticket}
         />
       ))}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p className="plugin-setting-error" role="alert">
+          {error}
+        </p>
+      )}
       {instance && (
         <div hidden>
           <PluginEditor
             instance={instance}
             onDraft={() => {}}
-            onFallback={() => setError("Connection settings unavailable")}
-            onRetry={() => setError("Reopen plugin settings to retry")}
+            onFallback={() => setError(t("Connection settings unavailable"))}
+            onRetry={() => setError(t("Reopen plugin settings to retry"))}
             onError={setError}
           />
         </div>
@@ -66,12 +73,14 @@ function Connection({
   ticket?: string
 }) {
   const { t } = useEidosLiteI18n()
+  const fieldId = useId()
   const [secret, setSecret] = useState("")
   const [endpoint, setEndpoint] = useState(connection.url)
   const [model, setModel] = useState("")
   const [configured, setConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState("")
+  const [statusError, setStatusError] = useState(false)
   useEffect(() => {
     let live = true
     if (ticket)
@@ -92,7 +101,10 @@ function Connection({
           }
         })
         .catch((error) => {
-          if (live) setStatus(String(error))
+          if (live) {
+            setStatus(String(error))
+            setStatusError(true)
+          }
         })
     return () => {
       live = false
@@ -101,6 +113,8 @@ function Connection({
   async function save(value: string | null) {
     if (!ticket || busy) return
     setBusy(true)
+    setStatus("")
+    setStatusError(false)
     try {
       await window.eidosLite.pluginConnection(
         ticket,
@@ -121,95 +135,149 @@ function Connection({
       )
     } catch (error) {
       setStatus(String(error))
+      setStatusError(true)
     } finally {
       setBusy(false)
     }
   }
   return (
     <form
-      className="space-y-3 border-b border-border py-5"
+      className="plugin-connection-form"
+      aria-labelledby={`${fieldId}-heading`}
+      aria-busy={busy}
       onSubmit={(event) => {
         event.preventDefault()
         void save(secret)
       }}
     >
-      <div className="font-medium">{connection.title}</div>
-      {connection.configurable ? (
-        <>
-          <p className="text-xs text-muted-foreground">
-            {t("OpenAI-compatible Chat Completions endpoint")}
+      <header className="plugin-settings-heading">
+        <div>
+          <h2 id={`${fieldId}-heading`}>{connection.title}</h2>
+          <p>
+            {connection.configurable
+              ? t("OpenAI-compatible Chat Completions endpoint")
+              : connection.url}
           </p>
-          <label className="block text-sm">
-            Endpoint
-            <input
-              className="mt-2 block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
-              type="url"
-              required
-              value={endpoint}
-              onChange={(e) => setEndpoint(e.target.value)}
-              placeholder="https://api.example.com/v1/chat/completions"
-            />
-          </label>
-          <label className="block text-sm">
-            {t("Model")}
-            <input
-              className="mt-2 block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
-              required
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Model ID"
-            />
-          </label>
-        </>
-      ) : (
-        <p className="text-xs text-muted-foreground">{connection.url}</p>
-      )}
-      <label className="block text-sm">
-        API Key
-        <input
-          className="mt-2 block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
-          aria-label={`${connection.title} API Key`}
-          type="password"
-          autoComplete="off"
-          placeholder={configured ? "••••••••" : "API Key"}
-          value={secret}
-          onChange={(event) => setSecret(event.target.value)}
-        />
-      </label>
-      <div className="flex gap-2">
-        <button
-          className="settings-button"
-          disabled={
-            !ticket ||
-            busy ||
-            (connection.configurable
-              ? !endpoint.trim() ||
-                !model.trim() ||
-                (!configured && !secret.trim())
-              : !secret.trim())
-          }
-          type="submit"
-        >
-          {t("Save")}
-        </button>
-        {configured && (
-          <button
-            className="settings-button settings-button-quiet"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void save(null)
-            }}
-          >
-            {t("Remove credential")}
-          </button>
+        </div>
+      </header>
+      <div className="settings-group plugin-settings-fields">
+        {connection.configurable && (
+          <>
+            <ConnectionField id={`${fieldId}-endpoint`} title={t("Endpoint")}>
+              <input
+                id={`${fieldId}-endpoint`}
+                className="plugin-setting-input"
+                type="url"
+                required
+                value={endpoint}
+                readOnly={busy}
+                onChange={(event) => setEndpoint(event.target.value)}
+                placeholder="https://api.example.com/v1/chat/completions"
+              />
+            </ConnectionField>
+            <ConnectionField id={`${fieldId}-model`} title={t("Model")}>
+              <input
+                id={`${fieldId}-model`}
+                className="plugin-setting-input"
+                required
+                value={model}
+                readOnly={busy}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={t("Model ID")}
+              />
+            </ConnectionField>
+          </>
         )}
+        <ConnectionField
+          id={`${fieldId}-key`}
+          title="API Key"
+          description={t(
+            configured
+              ? connection.configurable
+                ? "Leave blank to keep the saved credential."
+                : "Enter a new key to replace the saved credential."
+              : "Stored with system encryption."
+          )}
+        >
+          <input
+            id={`${fieldId}-key`}
+            className="plugin-setting-input"
+            aria-label={`${connection.title} API Key`}
+            aria-describedby={`${fieldId}-key-description`}
+            type="password"
+            autoComplete="off"
+            placeholder={configured ? "••••••••" : "API Key"}
+            value={secret}
+            readOnly={busy}
+            onChange={(event) => setSecret(event.target.value)}
+          />
+        </ConnectionField>
+        <footer className="plugin-connection-footer">
+          {status && (
+            <p
+              role={statusError ? "alert" : "status"}
+              className={
+                statusError
+                  ? "plugin-setting-error"
+                  : "plugin-connection-status"
+              }
+            >
+              {status}
+            </p>
+          )}
+          <div className="plugin-connection-actions">
+            {configured && (
+              <button
+                className="settings-button settings-button-quiet"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  void save(null)
+                }}
+              >
+                {t("Remove credential")}
+              </button>
+            )}
+            <button
+              className="settings-button settings-button-primary"
+              disabled={
+                !ticket ||
+                busy ||
+                (connection.configurable
+                  ? !endpoint.trim() ||
+                    !model.trim() ||
+                    (!configured && !secret.trim())
+                  : !secret.trim())
+              }
+              type="submit"
+            >
+              {busy ? t("Saving…") : t("Save")}
+            </button>
+          </div>
+        </footer>
       </div>
-      {status && (
-        <p role="status" className="text-xs text-muted-foreground">
-          {status}
-        </p>
-      )}
     </form>
+  )
+}
+
+function ConnectionField({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="plugin-setting-row">
+      <div className="plugin-setting-copy">
+        <label htmlFor={id}>{title}</label>
+        {description && <p id={`${id}-description`}>{description}</p>}
+      </div>
+      <div className="plugin-setting-control">{children}</div>
+    </div>
   )
 }

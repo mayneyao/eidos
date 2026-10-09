@@ -50,6 +50,15 @@ const zh: Record<string, string> = {
   "Task progress": "任务进度",
   "Actions · filtered records": "操作 · 当前筛选结果",
   "Connection settings": "连接设置",
+  "Connection settings unavailable": "连接设置暂不可用",
+  "Reopen plugin settings to retry": "请重新打开插件设置重试",
+  Endpoint: "接口地址",
+  Model: "模型",
+  "Model ID": "模型 ID",
+  "Leave blank to keep the saved credential.": "留空可保留已保存的凭据。",
+  "Enter a new key to replace the saved credential.":
+    "输入新密钥以替换已保存的凭据。",
+  "Stored with system encryption.": "使用系统加密存储。",
   "Plugin settings": "插件设置",
   "Changes are saved automatically in this Space.":
     "更改会自动保存到当前 Space。",

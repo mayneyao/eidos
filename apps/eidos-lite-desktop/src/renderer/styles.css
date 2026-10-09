@@ -12809,15 +12809,56 @@ body {
 .html-preview-host[data-html-preview-state="error"] .html-preview-webview {
   visibility: hidden;
 }
-/* Declarative settings share one surface; plugin-authored views own theirs. */
+/* Host-generated settings share row styling; plugin-authored views own theirs. */
 .plugin-tab-settings {
   display: grid;
   gap: 1.5rem;
 }
-.plugin-declarative-settings {
+.plugin-declarative-settings,
+.plugin-connection-settings {
   container: plugin-settings / inline-size;
   min-width: 0;
   max-width: 48rem;
+}
+.plugin-connection-settings {
+  display: grid;
+  gap: 1.5rem;
+}
+.plugin-connection-form {
+  min-width: 0;
+}
+.plugin-connection-settings .plugin-setting-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+}
+.plugin-connection-settings .plugin-settings-heading p {
+  overflow-wrap: anywhere;
+}
+.plugin-connection-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem 1rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--line);
+}
+.plugin-connection-footer > p {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+}
+.plugin-connection-status {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.plugin-connection-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 .plugin-settings-heading {
   display: flex;
@@ -12934,7 +12975,8 @@ body {
   color: var(--danger);
 }
 @container plugin-settings (max-width: 520px) {
-  .plugin-setting-row:not([data-setting-type="boolean"]) {
+  .plugin-setting-row:not([data-setting-type="boolean"]),
+  .plugin-connection-settings .plugin-setting-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.65rem;
   }
