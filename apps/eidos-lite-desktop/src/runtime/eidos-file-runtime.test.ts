@@ -16,6 +16,53 @@ import {
 } from "./eidos-file-runtime"
 import * as vtabResolver from "./vtab-resolver"
 
+it.each([undefined, "Content", "正文"])(
+  "persists the initial table's optional record content field (%s)",
+  async (contentFieldName) => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-initial-content-"))
+    const filePath = path.join(root, "notes.eidos")
+    let opened: Awaited<ReturnType<typeof openEidosLiteFileRuntime>> | undefined
+    try {
+      opened = await createEidosLiteFileRuntime(filePath, "Notes", {
+        contentFieldName,
+      })
+      const table = opened.initialSnapshot.tables[0]!
+      const content = table.fields.find(
+        (field) => field.name === contentFieldName
+      )
+      expect(
+        table.fields
+          .filter((field) => field.systemRole == null)
+          .map((field) => field.name)
+      ).toEqual(contentFieldName ? ["Name", contentFieldName] : ["Name"])
+      if (contentFieldName) {
+        expect(content).toMatchObject({ type: "text", isDerived: false })
+        expect(table.table.contentFieldId).toBe(content!.id)
+        const inserted = await opened.source.insertRow(table.table.id, {
+          [content!.id!]: "# Record content\n\nEditable Markdown",
+        })
+        await opened.close()
+        opened = await openEidosLiteFileRuntime(filePath)
+        const restored = opened.initialSnapshot.tables[0]!
+        expect(restored.table.contentFieldId).toBe(content!.id)
+        expect(
+          restored.fields.find((field) => field.id === content!.id)?.name
+        ).toBe(contentFieldName)
+        expect(
+          await opened.source.getRow(table.table.id, String(inserted.row._id))
+        ).toMatchObject({
+          [content!.id!]: "# Record content\n\nEditable Markdown",
+        })
+      } else {
+        expect(table.table.contentFieldId).toBeNull()
+      }
+    } finally {
+      await opened?.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+)
+
 it("inherits field configuration, namespace and legacy storage keys without copying property values", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "eidos-inherit-properties-"))
   let parent: Awaited<ReturnType<typeof openEidosLiteFileRuntime>> | undefined

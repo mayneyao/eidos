@@ -50,6 +50,7 @@ import {
   eidosFileFieldKey,
   isEidosFileRecordLabelEligible,
   isEidosFileRecordLabelField,
+  isEidosFileContentFieldEligible,
 } from "./eidos-file-field-visibility"
 import {
   Dialog,
@@ -245,13 +246,7 @@ export function EidosFileSheetTabs({
     return field ? eidosFileFieldKey(field) : ""
   }, [settingsTarget])
   const contentFields = useMemo(
-    () =>
-      settingsTarget?.fields.filter(
-        (field) =>
-          field.type === "text" &&
-          field.valueKind === "source" &&
-          field.systemRole == null
-      ) ?? [],
+    () => settingsTarget?.fields.filter(isEidosFileContentFieldEligible) ?? [],
     [settingsTarget]
   )
   const currentContentFieldId =

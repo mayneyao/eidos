@@ -12233,15 +12233,43 @@ body {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0 0.8rem 0.5rem;
 }
 
-.path-dialog-metadata[data-visible="false"] {
-  visibility: hidden;
-  pointer-events: none;
+.path-dialog-options {
+  margin: 0 0.8rem 0.5rem;
 }
 
-.path-dialog .path-dialog-metadata-label {
+.path-dialog-options summary {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.75rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.path-dialog-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.path-dialog-options summary > svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.path-dialog-options[open] summary > svg {
+  transform: rotate(90deg);
+}
+
+.path-dialog-options-fields {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.4rem 0 0.15rem 1.125rem;
+}
+
+.path-dialog .path-dialog-option-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -12249,7 +12277,7 @@ body {
   cursor: pointer;
 }
 
-.path-dialog-metadata input[type="checkbox"] {
+.path-dialog-options input[type="checkbox"] {
   width: 0.875rem;
   height: 0.875rem;
   margin: 0;
@@ -12258,8 +12286,15 @@ body {
   accent-color: var(--primary-action);
 }
 
+.path-dialog p.path-dialog-option-hint {
+  padding: 0.3rem 0 0 1.375rem;
+  font-size: 0.65rem;
+  color: var(--ink-faint);
+}
+
 .path-dialog-template-btn:focus-visible,
-.path-dialog-hint-help-btn:focus-visible {
+.path-dialog-hint-help-btn:focus-visible,
+.path-dialog-options summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }

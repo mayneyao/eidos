@@ -22,6 +22,7 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
 import {
   EidosFileViewTabStrip,
   exportEidosFileViewCsv,
@@ -715,13 +716,17 @@ export function ServeApp() {
   )
 
   const createTable = useCallback(
-    async (input: CreateEidosFileTableInput) => {
+    async (input: CreateEidosFileTableInput, contentFieldName?: string) => {
       const current = clientRef.current
       if (!current || !snapshot) return
       const previousIds = new Set(
         snapshot.tables.map((table) => table.table.id)
       )
-      const next = await current.createTable(input)
+      const next = await createEidosFileTableWithContent(
+        current,
+        input,
+        contentFieldName
+      )
       const created = next.tables.find(
         (table) => !previousIds.has(table.table.id)
       )

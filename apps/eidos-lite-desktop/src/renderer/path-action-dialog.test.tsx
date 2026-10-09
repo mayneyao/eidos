@@ -125,11 +125,7 @@ describe("create file templates", () => {
           expect(choices[1]!.getAttribute("aria-checked")).toBe("true")
           expect(choices[0]!.getAttribute("aria-checked")).toBe("false")
           expect(submit.disabled).toBe(!value)
-          expect(
-            container
-              .querySelector(".path-dialog-metadata")
-              ?.getAttribute("aria-hidden")
-          ).toBe("true")
+          expect(container.querySelector(".path-dialog-options")).toBeNull()
         }
         // Clicking the active type must not rewrite a custom filename either.
         await act(async () => choices[1]!.click())
@@ -226,7 +222,84 @@ describe("create file templates", () => {
     }
   })
 
-  it("renders 2 file types and toggles file metadata checkbox for Eidos files", async () => {
+  it("keeps optional Eidos configuration collapsed and creates a table with record content when selected", async () => {
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    const onSubmit = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <PathActionDialog
+            state={{ action: "create-file", entry: null }}
+            busy={false}
+            onSubmit={onSubmit}
+            onCancel={vi.fn()}
+          />
+        )
+      )
+      const details = container.querySelector("details")!
+      const summary = details.querySelector("summary")!
+      const submit =
+        container.querySelector<HTMLButtonElement>('[type="submit"]')!
+      expect(details.open).toBe(false)
+      await act(async () => submit.click())
+      expect(onSubmit).toHaveBeenLastCalledWith("Untitled.eidos", "eidos")
+
+      await act(async () => summary.click())
+      expect(details.open).toBe(true)
+      const content = details.querySelector<HTMLInputElement>(
+        "input[aria-describedby]"
+      )!
+      expect(content.checked).toBe(false)
+      expect(content.closest("label")?.textContent).toContain(
+        "Include Markdown content"
+      )
+      expect(
+        container.querySelector(".path-dialog-option-hint")?.textContent
+      ).toContain("Table settings")
+      expect(
+        container.querySelector(".path-dialog-option-hint")?.textContent
+      ).not.toContain("Feed")
+      await act(async () => content.click())
+      await act(async () => summary.click())
+      expect(details.open).toBe(false)
+      await act(async () => submit.click())
+      expect(onSubmit).toHaveBeenLastCalledWith(
+        "Untitled.eidos",
+        "eidos",
+        "Content"
+      )
+
+      const types =
+        container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      await act(async () => types[1]!.click())
+      expect(container.querySelector("details")).toBeNull()
+      await act(async () => submit.click())
+      expect(onSubmit).toHaveBeenLastCalledWith("Untitled.md", "text")
+
+      await act(async () => types[0]!.click())
+      const restored = container.querySelector("details")!
+      expect(restored.open).toBe(false)
+      expect(
+        restored.querySelector<HTMLInputElement>("input[aria-describedby]")
+          ?.checked
+      ).toBe(true)
+      await act(async () => restored.querySelector("summary")!.click())
+      await act(async () =>
+        restored
+          .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+          .click()
+      )
+      await act(async () => submit.click())
+      expect(onSubmit).toHaveBeenLastCalledWith("files.eidos", "files-index")
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
+
+  it("renders 2 file types and toggles file metadata inside advanced options for Eidos files", async () => {
     const container = document.createElement("div")
     document.body.append(container)
     const root = createRoot(container)
@@ -267,7 +340,10 @@ describe("create file templates", () => {
       expect(templateButtons[0]?.textContent).toBe("Eidos")
       expect(templateButtons[1]?.textContent).toBe("Text")
 
-      // File Table switch row should be visible for Eidos files
+      const details = container.querySelector("details")!
+      expect(details.open).toBe(false)
+      await act(async () => details.querySelector("summary")!.click())
+
       const switchBtn = container.querySelector<HTMLInputElement>(
         'input[type="checkbox"]'
       )!
@@ -298,15 +374,8 @@ describe("create file templates", () => {
       // Switch to Note
       await act(async () => templateButtons[1]!.click())
       expect(input.value).toBe("files.md")
-      expect(
-        container
-          .querySelector(".path-dialog-metadata")
-          ?.getAttribute("aria-hidden")
-      ).toBe("true")
-      expect(
-        container.querySelector<HTMLInputElement>('input[type="checkbox"]')
-          ?.disabled
-      ).toBe(true)
+      expect(container.querySelector(".path-dialog-options")).toBeNull()
+      expect(container.querySelector('input[type="checkbox"]')).toBeNull()
 
       // Submit form with Note
       await act(async () => submit.click())

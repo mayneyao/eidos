@@ -27,6 +27,7 @@ import {
   type EidosFileEditorShellProps,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
 import { RecordContentProvider } from "@eidos.space/eidos-file-serve/record-content"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
@@ -1786,13 +1787,17 @@ export function App() {
   )
 
   const createTable = useCallback(
-    async (input: CreateEidosFileTableInput) => {
+    async (input: CreateEidosFileTableInput, contentFieldName?: string) => {
       const client = clientRef.current
       if (!client || !snapshot) return
       const previousIds = new Set(
         snapshot.tables.map((table) => table.table.id)
       )
-      const next = await client.createTable(input)
+      const next = await createEidosFileTableWithContent(
+        client,
+        input,
+        contentFieldName
+      )
       const created = next.tables.find(
         (table) => !previousIds.has(table.table.id)
       )

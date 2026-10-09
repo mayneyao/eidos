@@ -31,6 +31,7 @@ import {
   hasSqliteHeader,
 } from "@eidos.space/eidos-file/node-sqlite"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
+import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui/create-table-with-content"
 import { parse } from "csv-parse"
 
 import {
@@ -832,6 +833,7 @@ export async function createEidosLiteFileRuntime(
   options?: {
     template?: "blank" | "files-index"
     metadataSchema?: FileMetadataSchema
+    contentFieldName?: string
   }
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
@@ -899,9 +901,11 @@ export async function createEidosLiteFileRuntime(
       binding.hostBridge,
       filePath
     )
-    opened.initialSnapshot = await opened.source.createTable({
-      name: "Table 1",
-    })
+    opened.initialSnapshot = await createEidosFileTableWithContent(
+      opened.source,
+      { name: "Table 1" },
+      options?.contentFieldName
+    )
     return opened
   } catch (error) {
     if (opened) {

@@ -15,6 +15,7 @@ import type {
 } from "@eidos.space/eidos-file"
 import {
   createEidosFilePluginRegistry,
+  createEidosFileTableWithContent,
   EidosFileEditorShell,
   EidosFileEditorView,
   EidosFileFieldCreatePopover,
@@ -468,9 +469,16 @@ export function EidosFileWorkbench({
     setReloadToken((current) => current + 1)
   }
 
-  const createTable = async (input: CreateEidosFileTableInput) => {
+  const createTable = async (
+    input: CreateEidosFileTableInput,
+    contentFieldName?: string
+  ) => {
     const previousIds = new Set(snapshot.tables.map((table) => table.table.id))
-    const next = await source.createTable(input)
+    const next = await createEidosFileTableWithContent(
+      source,
+      input,
+      contentFieldName
+    )
     const created = next.tables.find(
       (table) => !previousIds.has(table.table.id)
     )

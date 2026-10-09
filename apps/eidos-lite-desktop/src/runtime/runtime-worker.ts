@@ -335,7 +335,11 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       openedRuntime = await createEidosLiteFileRuntime(
         request.filePath,
         request.title,
-        { template: request.template, metadataSchema: request.metadataSchema }
+        {
+          template: request.template,
+          metadataSchema: request.metadataSchema,
+          contentFieldName: request.contentFieldName,
+        }
       )
       source = openedRuntime.source
       return openedRuntime.initialSnapshot

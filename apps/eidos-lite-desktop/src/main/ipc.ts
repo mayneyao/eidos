@@ -1360,13 +1360,22 @@ export function registerIpc(
   })
   ipcMain.handle(
     IPC_CHANNELS.createEidosFile,
-    (event, parentRelativePath: unknown, name: unknown, template: unknown) =>
+    (
+      event,
+      parentRelativePath: unknown,
+      name: unknown,
+      template: unknown,
+      contentFieldName: unknown
+    ) =>
       controller
         .requireSession(event.sender)
         .createEidosFile(
           optionalRelativePath(parentRelativePath),
           requiredString(name, "file name"),
-          template === "files-index" ? "files-index" : "blank"
+          template === "files-index" ? "files-index" : "blank",
+          contentFieldName == null
+            ? undefined
+            : requiredString(contentFieldName, "content field name")
         )
   )
   ipcMain.handle(

@@ -65,6 +65,41 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("passes initial table content configuration to the isolated creation worker", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-create-content-"))
+    )
+    class Creator extends FakeRuntimeUtilityProcess {
+      postMessage(request: RuntimeWorkerRequest): void {
+        if (request.type !== "create") return super.postMessage(request)
+        this.requests.push(request)
+        void writeFile(request.filePath, "fixture").then(() =>
+          this.emit("message", {
+            requestId: request.requestId,
+            ok: true,
+            result: { tables: [] },
+          })
+        )
+      }
+    }
+    const worker = new Creator()
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(worker as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    try {
+      await pool.create("notes.eidos", "Notes", { contentFieldName: "正文" })
+      expect(worker.requests[0]).toMatchObject({
+        type: "create",
+        filePath: path.join(root, "notes.eidos"),
+        contentFieldName: "正文",
+      })
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("reuses a private property worker and drains it with Space handles", async () => {
     const first = new FakeRuntimeUtilityProcess()
     const second = new FakeRuntimeUtilityProcess()

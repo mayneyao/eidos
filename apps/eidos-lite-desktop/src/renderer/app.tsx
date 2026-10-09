@@ -3170,7 +3170,8 @@ function WorkspaceApp({
   const submitPathDialog = useCallback(
     async (
       value: string,
-      template?: "eidos" | "files-index" | "text" | `plugin:${string}`
+      template?: "eidos" | "files-index" | "text" | `plugin:${string}`,
+      contentFieldName?: string
     ) => {
       if (!pathDialog) return
       setPathMutationBusy(true)
@@ -3223,7 +3224,8 @@ function WorkspaceApp({
                 : await window.eidosLite.createEidosFile(
                     parentPath(pathDialog.entry),
                     value,
-                    template === "files-index" ? "files-index" : "blank"
+                    template === "files-index" ? "files-index" : "blank",
+                    contentFieldName
                   )
             break
           case "create-folder":
@@ -5337,7 +5339,9 @@ function WorkspaceApp({
           state={pathDialog}
           busy={pathMutationBusy}
           onCancel={() => setPathDialog(null)}
-          onSubmit={(value, template) => void submitPathDialog(value, template)}
+          onSubmit={(value, template, contentFieldName) =>
+            void submitPathDialog(value, template, contentFieldName)
+          }
         />
       ) : null}
     </div>

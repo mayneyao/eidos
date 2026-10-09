@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   isEidosFileFieldWritable,
+  isEidosFileContentFieldEligible,
   isEidosFileRecordLabelEligible,
 } from "./eidos-file-field-visibility"
 
@@ -31,6 +32,32 @@ function field(
 }
 
 describe("Eidos File field capabilities", () => {
+  it("excludes read-only mapped attributes from Content Field candidates", () => {
+    expect(
+      isEidosFileContentFieldEligible(
+        field("text", { name: "path", writable: false })
+      )
+    ).toBe(false)
+    expect(
+      isEidosFileContentFieldEligible(
+        field("text", {
+          name: "path",
+          writable: true,
+          settings: { isSystem: true, readOnly: true },
+        })
+      )
+    ).toBe(false)
+    expect(
+      isEidosFileContentFieldEligible(
+        field("text", { name: "notes", writable: true })
+      )
+    ).toBe(true)
+    expect(
+      isEidosFileContentFieldEligible(
+        field("formula", { valueKind: "derived" })
+      )
+    ).toBe(false)
+  })
   it("uses Runtime writability and safely handles legacy relation descriptors", () => {
     expect(isEidosFileFieldWritable(field("text", { writable: false }))).toBe(
       false

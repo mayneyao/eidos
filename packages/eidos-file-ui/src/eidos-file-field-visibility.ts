@@ -71,12 +71,20 @@ export function eidosFileContentField(
   if (!fieldId) return null
   return (
     table.fields.find(
-      (field) =>
-        field.id === fieldId &&
-        field.type === "text" &&
-        field.valueKind === "source" &&
-        field.systemRole == null
+      (field) => field.id === fieldId && isEidosFileContentFieldEligible(field)
     ) ?? null
+  )
+}
+
+/** Content belongs to an ordinary writable Text field, including mapped tables. */
+export function isEidosFileContentFieldEligible(
+  field: EidosFileFieldInfo
+): boolean {
+  return (
+    field.type === "text" &&
+    field.valueKind === "source" &&
+    field.systemRole == null &&
+    isEidosFileFieldWritable(field)
   )
 }
 

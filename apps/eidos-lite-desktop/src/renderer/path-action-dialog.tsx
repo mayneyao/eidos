@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
-import { CircleHelp, LoaderCircle, X } from "lucide-react"
+import { useEffect, useId, useRef, useState } from "react"
+import { ChevronRight, CircleHelp, LoaderCircle, X } from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -37,7 +37,11 @@ export function PathActionDialog({
   state: PathDialogState
   busy: boolean
   onCancel(): void
-  onSubmit(value: string, template?: FileTemplateId): void
+  onSubmit(
+    value: string,
+    template?: FileTemplateId,
+    contentFieldName?: string
+  ): void
 }) {
   const { t, locale } = useEidosLiteI18n()
   const config = {
@@ -76,6 +80,8 @@ export function PathActionDialog({
   const [value, setValue] = useState(config.initial)
   const [selectedKind, setSelectedKind] = useState<FileKind>("eidos")
   const [isFileTable, setIsFileTable] = useState(false)
+  const [includeContent, setIncludeContent] = useState(false)
+  const contentHintId = useId()
   const [templates, setTemplates] = useState<
     Array<{ key: string; title: string; extension: string }>
   >([])
@@ -214,10 +220,14 @@ export function PathActionDialog({
           event.preventDefault()
           if (busy) return
           if (state.action === "create-file") {
-            onSubmit(
-              effectiveIsFileTable ? "files.eidos" : value,
-              currentTemplateId
-            )
+            if (currentTemplateId === "eidos" && includeContent) {
+              onSubmit(value, currentTemplateId, t("Content"))
+            } else {
+              onSubmit(
+                effectiveIsFileTable ? "files.eidos" : value,
+                currentTemplateId
+              )
+            }
           } else {
             onSubmit(value)
           }
@@ -326,40 +336,70 @@ export function PathActionDialog({
               />
             </label>
             {state.action === "create-file" ? (
-              <div
-                className="path-dialog-metadata"
-                data-visible={!pluginTemplate && selectedKind === "eidos"}
-                aria-hidden={!!pluginTemplate || selectedKind !== "eidos"}
-              >
-                <label className="path-dialog-metadata-label">
-                  <input
-                    type="checkbox"
-                    checked={effectiveIsFileTable}
-                    onChange={handleToggleFileTable}
-                    disabled={busy || selectedKind !== "eidos"}
-                  />
-                  <span>{t("Manage folder file metadata")}</span>
-                </label>
-                <button
-                  type="button"
-                  className="path-dialog-hint-help-btn"
-                  disabled={busy || selectedKind !== "eidos"}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    const docUrl = locale.startsWith("zh")
-                      ? "https://docs.eidos.space/zh-cn/user-guide/file-metadata/"
-                      : "https://docs.eidos.space/user-guide/file-metadata/"
-                    void window.eidosLite?.openExternalUrl(docUrl)
-                  }}
-                  title={t(
-                    "Manage file metadata directly in the current folder with custom fields and visual views."
-                  )}
-                  aria-label={t("Learn more in documentation")}
-                >
-                  <CircleHelp className="path-dialog-hint-help-icon" />
-                </button>
-              </div>
+              !pluginTemplate && selectedKind === "eidos" ? (
+                <details className="path-dialog-options">
+                  <summary>
+                    <ChevronRight aria-hidden="true" />
+                    {t("Advanced options")}
+                  </summary>
+                  <div className="path-dialog-options-fields">
+                    <div className="path-dialog-metadata">
+                      <label className="path-dialog-option-label">
+                        <input
+                          type="checkbox"
+                          checked={effectiveIsFileTable}
+                          onChange={handleToggleFileTable}
+                          disabled={busy}
+                        />
+                        <span>{t("Manage folder file metadata")}</span>
+                      </label>
+                      <button
+                        type="button"
+                        className="path-dialog-hint-help-btn"
+                        disabled={busy}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const docUrl = locale.startsWith("zh")
+                            ? "https://docs.eidos.space/zh-cn/user-guide/file-metadata/"
+                            : "https://docs.eidos.space/user-guide/file-metadata/"
+                          void window.eidosLite?.openExternalUrl(docUrl)
+                        }}
+                        title={t(
+                          "Manage file metadata directly in the current folder with custom fields and visual views."
+                        )}
+                        aria-label={t("Learn more in documentation")}
+                      >
+                        <CircleHelp className="path-dialog-hint-help-icon" />
+                      </button>
+                    </div>
+                    {!effectiveIsFileTable ? (
+                      <div>
+                        <label className="path-dialog-option-label">
+                          <input
+                            type="checkbox"
+                            checked={includeContent}
+                            onChange={(event) =>
+                              setIncludeContent(event.target.checked)
+                            }
+                            disabled={busy}
+                            aria-describedby={contentHintId}
+                          />
+                          <span>{t("Include Markdown content")}</span>
+                        </label>
+                        <p
+                          id={contentHintId}
+                          className="path-dialog-option-hint"
+                        >
+                          {t(
+                            "Adds a Text field for record content. You can change the Content field in Table settings at any time."
+                          )}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </details>
+              ) : null
             ) : state.action === "create-linked-note" ? (
               <div className="path-dialog-hint">
                 <p>

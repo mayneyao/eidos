@@ -207,6 +207,7 @@ export class RuntimePool {
     options?: {
       template?: "blank" | "files-index"
       metadataSchema?: FileMetadataSchema
+      contentFieldName?: string
     }
   ): Promise<OpenEidosFileResult> {
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
@@ -243,7 +244,8 @@ export class RuntimePool {
         entry,
         title,
         options?.template,
-        options?.metadataSchema
+        options?.metadataSchema,
+        options?.contentFieldName
       )
       if (!snapshot) throw new Error("Eidos File runtime did not create")
       entry.canonicalPath = await fs.realpath(filePath)
@@ -746,14 +748,16 @@ export class RuntimePool {
     entry: RuntimeEntry,
     createTitle?: string,
     createTemplate?: "blank" | "files-index",
-    metadataSchema?: FileMetadataSchema
+    metadataSchema?: FileMetadataSchema,
+    contentFieldName?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     return this.withResidencyLock(() =>
       this.ensureResidentLocked(
         entry,
         createTitle,
         createTemplate,
-        metadataSchema
+        metadataSchema,
+        contentFieldName
       )
     )
   }
@@ -762,7 +766,8 @@ export class RuntimePool {
     entry: RuntimeEntry,
     createTitle?: string,
     createTemplate?: "blank" | "files-index",
-    metadataSchema?: FileMetadataSchema
+    metadataSchema?: FileMetadataSchema,
+    contentFieldName?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"] | null> {
     await this.closingEntries.get(entry)
     if (entry.closed || !this.entriesBySession.has(entry.sessionId)) {
@@ -790,7 +795,8 @@ export class RuntimePool {
       createTitle,
       false,
       createTemplate,
-      metadataSchema
+      metadataSchema,
+      contentFieldName
     )
   }
 
@@ -819,7 +825,8 @@ export class RuntimePool {
     createTitle?: string,
     readOnly = false,
     createTemplate?: "blank" | "files-index",
-    metadataSchema?: FileMetadataSchema
+    metadataSchema?: FileMetadataSchema,
+    contentFieldName?: string
   ): Promise<RuntimeCalls["getSnapshot"]["result"]> {
     const child = this.spawnChild(entry)
     try {
@@ -839,6 +846,7 @@ export class RuntimePool {
               title: createTitle,
               template: createTemplate,
               metadataSchema,
+              contentFieldName,
             }
       )) as RuntimeCalls["getSnapshot"]["result"]
     } catch (error) {

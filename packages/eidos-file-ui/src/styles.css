@@ -995,6 +995,17 @@
   display: grid;
   gap: 8px;
 }
+.mobile-table-settings > label.mobile-table-content-option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.mobile-table-settings input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--primary);
+}
 .mobile-table-settings input,
 .mobile-table-settings textarea {
   width: 100%;

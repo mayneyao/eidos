@@ -7,7 +7,11 @@ import type {
 import type { EidosFileEditorDataSource } from "./data-source"
 import { Popover, PopoverContent } from "./ui/adaptive-popover"
 import { MobileLayoutChoice } from "./mobile-view-layout"
-import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import { createEidosFileTableWithContent } from "./create-table-with-content"
+import {
+  eidosFileFieldKey,
+  isEidosFileContentFieldEligible,
+} from "./eidos-file-field-visibility"
 
 declare global {
   interface Window {
@@ -32,6 +36,7 @@ export function MobileTableSettings({
   const [description, setDescription] = useState("")
   const [label, setLabel] = useState("")
   const [contentField, setContentField] = useState("__none__")
+  const [includeContent, setIncludeContent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const pending = useRef(false)
@@ -41,6 +46,7 @@ export function MobileTableSettings({
     const open = (value: "create" | "edit") => {
       if (pending.current || (value === "edit" && !current.current)) return
       setMode(value)
+      setIncludeContent(false)
       setError("")
       setName(value === "edit" ? (current.current?.table.name ?? "") : "")
       setDescription(
@@ -75,13 +81,17 @@ export function MobileTableSettings({
             try {
               if (mode === "create") {
                 const before = await source.getSnapshot()
-                const snapshot = await source.createTable({
-                  name: name.trim(),
-                  description: description.trim() || undefined,
-                  fields: [
-                    { name: t("Title"), type: "text", isRecordLabel: true },
-                  ],
-                })
+                const snapshot = await createEidosFileTableWithContent(
+                  source,
+                  {
+                    name: name.trim(),
+                    description: description.trim() || undefined,
+                    fields: [
+                      { name: t("Title"), type: "text", isRecordLabel: true },
+                    ],
+                  },
+                  includeContent ? t("Content") : undefined
+                )
                 onSnapshot(snapshot)
                 const added = snapshot.tables.find(
                   (t) =>
@@ -130,6 +140,24 @@ export function MobileTableSettings({
               placeholder={t("Optional")}
             />
           </label>
+          {mode === "create" && (
+            <>
+              <label className="mobile-table-content-option">
+                <input
+                  type="checkbox"
+                  checked={includeContent}
+                  disabled={busy}
+                  onChange={(event) => setIncludeContent(event.target.checked)}
+                />
+                {t("Include Markdown content")}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "Adds a Text field for record content. You can change the Content field in Table settings at any time."
+                )}
+              </p>
+            </>
+          )}
           {mode === "edit" && table && (
             <>
               <MobileLayoutChoice
@@ -149,12 +177,7 @@ export function MobileTableSettings({
                 options={[
                   { value: "__none__", label: t("None") },
                   ...table.fields
-                    .filter(
-                      (field) =>
-                        field.type === "text" &&
-                        field.valueKind === "source" &&
-                        field.systemRole == null
-                    )
+                    .filter(isEidosFileContentFieldEligible)
                     .map((field) => ({
                       value: eidosFileFieldKey(field),
                       label: field.name,

@@ -1319,7 +1319,8 @@ export class SpaceSession {
   async createEidosFile(
     parentRelativePath: string | null,
     requestedName: string,
-    template?: "blank" | "files-index"
+    template?: "blank" | "files-index",
+    contentFieldName?: string
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
     const safeName = normalizeSpaceEntryName(requestedName)
@@ -1388,7 +1389,11 @@ export class SpaceSession {
       return await this.runtimePool.create(
         relativePath,
         path.basename(name, ".eidos"),
-        { template: metadataFile ? "files-index" : template, metadataSchema }
+        {
+          template: metadataFile ? "files-index" : template,
+          metadataSchema,
+          contentFieldName: metadataFile ? undefined : contentFieldName,
+        }
       )
     })
     this.runtimeSessionByPath.set(relativePath, created.sessionId)

@@ -403,6 +403,10 @@ const zh: EidosFileUIMessageOverrides = {
   "All values stored in this field will be permanently removed from the Eidos File. This cannot be undone from the current view.":
     "此字段中保存的所有值都会从 Eidos File 中永久删除，且无法在当前视图中撤销。",
   "Table settings": "数据表设置",
+  "Include Markdown content": "添加 Markdown 正文",
+  "Adds a Text field for record content. You can change the Content field in Table settings at any time.":
+    "创建 Text 字段作为记录正文。之后可随时在表设置中更换正文字段。",
+  Content: "正文",
   "Record label field": "记录标题字段",
   "Content field": "内容字段",
   "Add from photos": "从相册添加",

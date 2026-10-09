@@ -30,12 +30,16 @@ export function EidosFileSheetCreatePopover({
   disabled?: boolean
   csvImportProps?: SheetCsvImportProps
   importAction?: ReactNode
-  onCreate: (table: CreateEidosFileTableInput) => Promise<void> | void
+  onCreate: (
+    table: CreateEidosFileTableInput,
+    contentFieldName?: string
+  ) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [screen, setScreen] = useState<"menu" | "create">("menu")
   const [name, setName] = useState("")
+  const [includeContent, setIncludeContent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
@@ -43,6 +47,7 @@ export function EidosFileSheetCreatePopover({
   const reset = () => {
     setScreen("menu")
     setName("")
+    setIncludeContent(false)
     setSubmitting(false)
     setError(null)
   }
@@ -54,7 +59,10 @@ export function EidosFileSheetCreatePopover({
     setSubmitting(true)
     setError(null)
     try {
-      await onCreate({ name: nextName })
+      await onCreate(
+        { name: nextName },
+        includeContent ? t("Content") : undefined
+      )
       setOpen(false)
       reset()
     } catch (creationError) {
@@ -175,6 +183,22 @@ export function EidosFileSheetCreatePopover({
                     {error}
                   </p>
                 ) : null}
+                <label className="mt-2 flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={includeContent}
+                    disabled={submitting}
+                    onChange={(event) =>
+                      setIncludeContent(event.target.checked)
+                    }
+                  />
+                  {t("Include Markdown content")}
+                </label>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {t(
+                    "Adds a Text field for record content. You can change the Content field in Table settings at any time."
+                  )}
+                </p>
               </div>
               <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
                 <Button

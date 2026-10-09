@@ -709,6 +709,11 @@ const zh: Record<string, string> = {
   "File Table": "文件元数据管理",
   "File Metadata Management": "文件元数据管理",
   "Manage folder file metadata": "管理当前文件夹的文件元数据",
+  "Advanced options": "高级选项",
+  "Include Markdown content": "添加 Markdown 正文",
+  "Adds a Text field for record content. You can change the Content field in Table settings at any time.":
+    "创建 Text 字段作为记录正文。之后可随时在表设置中更换正文字段。",
+  Content: "正文",
   Note: "文本笔记",
   "Scans files in this folder into an interactive table. Includes image galleries, file size, mimetype, and customizable tags and rating columns.":
     "自动扫描当前文件夹中的文件并生成表格视图。内置图片画廊、文件大小、mimetype，以及可自定义的标签与评分元数据。",
