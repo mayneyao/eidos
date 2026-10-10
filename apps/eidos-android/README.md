@@ -5,7 +5,13 @@ The application shell uses Kotlin and Jetpack Compose. Markdown and `.eidos`
 files open in a bundled WebView editor by default. There is no local HTTP server.
 It builds independently of the Web and Electron applications.
 
-The interface supports English and Chinese. Open the file browser's **Folder actions → Language** menu to choose **Follow system**, **中文**, or **English**. The default follows the system language, using Chinese for `zh` and English for other languages. The choice is saved for the app and applies to the native interface and bundled editor without reopening the Space.
+The native interface and bundled editors support English and Chinese. In the
+file browser, open **Folder actions → Language** and choose **Follow system**,
+**中文**, or **English**. The default is **Follow system**: Chinese for `zh`
+system languages and English for all others. The app remembers your choice and
+applies it without reopening the Space.
+
+This README uses English interface labels.
 
 Open a file's action menu and choose **Delete** to remove it from the Space.
 The editor saves pending changes before asking the host to remove an open file;
@@ -13,7 +19,7 @@ unresolved drafts block removal. Deletions are included in subsequent version
 checkpoints and sync. A private recovery copy remains on this device, outside the
 synchronized Space; Android does not yet provide a recovery browser.
 
-To remove a local Space, open its name menu and choose **删除此 Space 的本地数据**.
+To remove a local Space, open its name menu and choose **Delete this Space's local data**.
 Confirm the scope, then complete Android's system screen-lock verification.
 Cancellation or missing screen-lock credentials leaves the Space intact. Deletion
 removes local files, history, drafts and sync associations; paired devices and
@@ -35,8 +41,8 @@ and the developer's Graft checkout are never edited.
 Device Sync first reads version metadata and computes the missing snapshot data.
 Peer downloads use Graft's `fetch_for_checkout` operation to prepare the repository
 graph and SQLite log metadata before downloading external file payloads or SQLite
-segments. Android displays “获取清单” until Graft declares the combined total,
-“下载数据” during transfer, and “写入文件” only after the target data is cached and
+segments. Android displays “Fetching manifest” until Graft declares the combined total,
+“Downloading data” during transfer, and “Writing files” only after the target data is cached and
 verified. The host does not parse Graft metadata or calculate the transfer budget.
 The Android TLS relay bounds upstream concurrency and waits for a free slot
 instead of disconnecting requests during a connection burst; cancellation closes
@@ -73,7 +79,7 @@ table favorites, search results, new records, and share forms. Files, account,
 Sync, and Publish remain native. Share forms retain their unfinished values and
 attachment destination in the local share inbox until submitted.
 
-The view selector reads saved views, including their query and layout. **新建视图**
+The view selector reads saved views, including their query and layout. **New view**
 adds a Grid, Gallery, Kanban, Calendar, Form or Feed view to the local file using
 the shared Runtime and each view plugin's default configuration. Creation is
 disabled when required fields are absent, such as a Select field for Kanban.
@@ -81,7 +87,7 @@ Existing saved query/layout settings are retained. Records open as full pages
 on the phone. Calendar uses a compact month/week date selector and a list of records
 for the selected day. Choose the date field beside the period title, add a record
 from the day's heading, or use a record's **…** button for its bottom-sheet actions.
-Markdown's **+ → 图片 / 文件** and `.eidos` attachment fields use
+Markdown's **+ → Image / File** and `.eidos` attachment fields use
 the Android document picker. Selected files are copied into an `assets` folder
 beside the document and referenced with relative URLs, so they remain available
 offline. Imports support up to 100 files, 64 MB per file and 128 MB per batch.
@@ -106,18 +112,18 @@ and move-up/down controls for touch input.
 
 ## Plugins
 
-The native plugin page has **发现** and **已安装** tabs. Discovery supports
+The native plugin page has **Discover** and **Installed** tabs. Discovery supports
 name/description search and category filters. Tap a plugin to read its README in
-a WebView. The installed row's **管理** button opens permissions, tools, and
-uninstall actions; **更多 → 导入插件包** imports a local package.
+a WebView. The installed row's **Manage** button opens permissions, tools, and
+uninstall actions; **More → Import plugin package** imports a local package.
 The switch enables a plugin only in the current Space.
 
-In the file browser, **新建** sits beside **搜索** in the top bar.
-**当前文件夹操作 → 排序** offers name, modification time, and file type in either
+In the file browser, **New** sits beside **Search** in the top bar.
+**Folder actions → Sort** offers name, modification time, and file type in either
 direction, with folders always first and natural numeric name ordering.
 The selected order is remembered across launches and Spaces.
 
-Open **当前文件夹操作 → 插件** to install published packages or import a
+Open **Folder actions → Plugins** to install published packages or import a
 `.eidos-plugin`. After permission review, installation enables it in the originating Space. Installation, permission
 review, activation and removal use native Compose controls. The shared mobile
 workbench runs document views, table views, pages, workspace and table
@@ -130,7 +136,7 @@ plugins, permissions, and verification commands.
 
 ### Bundled file previews
 
-The file menu's **打开方式** sheet offers the default opener and bundled
+The file menu's **Open with** sheet offers the default opener and bundled
 read-only file views. The text preview uses a committed UTF-8 snapshot (up to
 2 MiB). A development build can also bundle the existing GPX Viewer directly
 from its source checkout: set `eidos.pluginSources` in the ignored
@@ -139,7 +145,7 @@ GPX Viewer reads only the selected file (up to 16 MiB), supports refresh,
 MapLibre workers, tracks, playback and charts, and loads map resources only
 from its declared OpenFreeMap origin. Network access is shown in the chooser.
 Plugins run in separate WebViews without the editor's native bridge. Opening
-a plugin does not change the default editor. Open **当前文件夹操作 → 插件**
+a plugin does not change the default editor. Open **Folder actions → Plugins**
 to browse the shared registry or import a local `.eidos-plugin` package. Review
 its read/network/worker permissions, install it on the device, then enable it
 separately for the current Space. Incompatible packages are rejected before
@@ -159,9 +165,9 @@ list. Offline computers retain their downloaded copies in the list. Open files
 and local versions from each Space's menu; device management is secondary.
 Keep both apps open on the same network while transferring.
 
-After submitting the code, **等待电脑授权** identifies the computer. Accept the
+After submitting the code, **Waiting for computer approval** identifies the computer. Accept the
 native pairing dialog in Eidos Lite on that computer. If it is in the background,
-click its system notification or open **Settings → Devices**. **取消配对** stops
+click its system notification or open **Settings → Devices**. **Cancel pairing** stops
 the wait and dismisses the pending desktop request when reachable. Rejection and
 expiry are reported separately; generate a new code to try again.
 
@@ -178,7 +184,7 @@ Each phone uploads its saved history to its own incoming Remote. The desktop
 automatically merges compatible changes and publishes the validated result.
 When changes genuinely conflict, the phone keeps its current files and asks
 you to open **Sync** on the desktop. Resolve the conflict there, then tap
-**立即同步** on the phone. Phone edits made while waiting are saved and sent on
+**Sync now** on the phone. Phone edits made while waiting are saved and sent on
 the next attempt. A conflict, stopped operation or failed transfer never records
 a successful sync time. Keep the phone in the foreground while transferring.
 
@@ -192,7 +198,7 @@ background LAN transfers or provide phone-to-phone sync or an Internet relay.
 ## Files and editing
 
 The shared data editor switches tables with a dropdown beside the `.eidos`
-filename in the native header. **字段** opens a bottom sheet: field visibility
+filename in the native header. **Fields** opens a bottom sheet: field visibility
 and drag ordering belong to the current View; tapping a field opens its shared
 property editor in the same sheet. Back preserves the field list and search.
 Field names, types, options, numeric display, formulas and lookups use the shared
@@ -217,7 +223,7 @@ a claim that an offline device knows the remote's latest state.
   snapshot rather than a mutable Space file. The same 64 MiB opening limit,
   2048-pixel image downsampling and cache cleanup rules as record attachments
   apply; symbolic links are rejected.
-- Use **+ → 导入文件夹** to import an entire system directory
+- Use **+ → Import folder** to import an entire system directory
   into the current folder, or the current folder menu to export to a new child of a
   selected system directory. Relative paths, empty folders and attachment bytes
   are preserved. Import stages the complete tree before publishing it locally;
@@ -265,7 +271,7 @@ a claim that an offline device knows the remote's latest state.
   immediately. Text, number, integer, and URL values edit in place; date, option,
   relation, and attachment values open their field editor directly.
   Share forms keep their field edits and attachment destination in the pending
-  inbox until **保存记录** commits the record. Reopening the same destination restores
+  inbox until **Save record** commits the record. Reopening the same destination restores
   its draft and original revision. Failed or uncertain submissions retain staged
   content for recovery.
 - Choose a destination folder before saving shared text, links, images, or files.
@@ -284,7 +290,7 @@ a claim that an offline device knows the remote's latest state.
   destination before retrying because some content may already have committed.
   The Space menu reopens pending shares after checking files. For table destinations,
   select an `.eidos` file and table, a favorite table, or the last used table to
-  open a prefilled shared record page. Review the fields and press **保存记录** to commit
+  open a prefilled shared record page. Review the fields and press **Save record** to commit
   through the Runtime. The complete text is placed in the writable text/URL
   label field, or the first writable text field when the label is unsuitable.
   File shares can also target a writable File field; select the destination
@@ -316,7 +322,7 @@ through read-only Runtime queries. Record matches are grouped by table; opening
 a result searches that table with the same text. Results are limited to 100 items,
 and unreadable files are reported without discarding other results.
 
-Use **加入后台同步** to enqueue a persistent, one-time WorkManager task. It waits
+Use **Queue background sync** to enqueue a persistent, one-time WorkManager task. It waits
 for network access and for the application to leave the foreground with all
 editors closed. An open document, record list or pending share defers file
 replacement. Returning to the app refreshes the file list. The Sync screen shows
@@ -326,7 +332,7 @@ a failed sync or disable the automatic schedule. Cancellation is cooperative;
 the repository stays locked until that operation exits. Cancellation does not roll back an
 already completed remote publication. Disconnecting
 cancels the task and removes its credentials. Publish an empty remote first with
-**发布本机版本** before queuing ordinary two-way sync.
+**Publish local version** before queuing ordinary two-way sync.
 
 Retryable Graft errors use exponential backoff starting at 30 seconds, with up
 to five retries. Error counts and messages are stored separately from the Space;
@@ -335,7 +341,7 @@ uncertain publication stops for user attention. Credentials are loaded from the
 Space's encrypted profile at execution time, never placed in WorkManager input.
 Android controls execution timing and may defer tasks for battery restrictions.
 Force-stopping the app requires opening it again before scheduled work resumes.
-Enable **自动同步** separately for each Space to request a periodic task with a
+Enable **Auto sync** separately for each Space to request a periodic task with a
 15-minute interval and network connectivity constraints. The first automatic
 attempt is scheduled after 15 minutes; Android may run it later. Foreground and
 editor protection also applies to automatic tasks. Divergence, an uncertain
@@ -353,7 +359,7 @@ controls job quotas and foreground-service time limits; this is not an unlimited
 background transfer service. System-interrupted scheduled work can retry from
 Graft state; explicitly cancelled tasks remain cancelled.
 
-Use **高级：手动下载远程 Space** in the Space selector to download a custom remote into
+Use **Advanced: Download remote Space manually** in the Space selector to download a custom remote into
 a new local Space. Enter a local name, remote URL, and optional access token.
 The downloaded Space appears in the selector only after its files and attachments
 are available locally. Failed downloads can be retried without replacing the
@@ -361,14 +367,14 @@ current Space or leaving an incomplete entry in the selector.
 
 The native transport implements remote configuration, authenticated clone,
 fetch, push, and guarded fast-forward updates. Diverged histories retain both
-sides and show a pending-merge message. Choose **检查并合并** to save local edits,
+sides and show a pending-merge message. Choose **Review and merge** to save local edits,
 fetch the remote version and prepare a merge. Compatible Eidos metadata changes
 use the canonical Runtime merge rules. Remaining conflicts appear in a native
 review screen: preview both Markdown versions (up to 32 KB each), then choose a
 whole local or remote file state with confirmation. For Eidos files this choice
 includes all tables and records; per-record and per-cell conflict editors are not
-yet available. **保存合并** validates changed Eidos files and creates a local merge
-commit; use **立即同步** to upload it. **中止合并** restores the pre-merge local version.
+yet available. **Save merge** validates changed Eidos files and creates a local merge
+commit; use **Sync now** to upload it. **Abort merge** restores the pre-merge local version.
 Unfinished reviews reopen with the Space, and ordinary sync/checkpoints cannot
 bypass the merge. Downloads currently
 run in the foreground. After an interruption, the Space menu offers restarting
@@ -555,12 +561,12 @@ available.
 ## Device sync (experimental)
 
 Desktop and Android can exchange a Space over the same IPv4 LAN without a
-cloud account. In Eidos Lite, open **Sync → 设备直连 → 开启设备同步**. On Android,
-open **同步**, scan the QR code or paste the pairing code, then approve
+cloud account. In Eidos Lite, open **Sync → Device connection → Enable device sync**. On Android,
+open **Sync**, scan the QR code or paste the pairing code, then approve
 the device on the desktop. Pairing codes expire after five minutes and are
 single-use. Trust belongs to the computer, independently of each Space. After
 pairing, select an available Space on Android to create its separate local copy.
-Use **连接设备 → 选择 Space** to add another Space without pairing again.
+Use **Connect a device → Choose Space** to add another Space without pairing again.
 Only Spaces with device sync enabled on the desktop appear in this list.
 
 During transfer, Android shows Graft's transferred bytes, total bytes and percentage
@@ -597,7 +603,7 @@ different files. Eidos candidates pass Runtime validation before completing the
 merge. Actual content conflicts retain both versions and require the complete
 desktop Sync merge workspace. Android retains an editable local copy and shows
 the desktop review guidance. After resolving conflicts on the desktop, tap
-**立即同步** on Android to receive the reviewed result and include any edits
+**Sync now** on Android to receive the reviewed result and include any edits
 made on the phone while waiting.
 It has no Internet relay, NAT traversal, or automatic background device sync.
 Progress reports operation stages and transferred bytes.
