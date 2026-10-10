@@ -6,7 +6,7 @@ sidebar:
 ---
 
 `eidos serve` embeds the same Eidos File editor used by the first-party Web and
-Lite hosts. It is useful when you want a visual UI while keeping a terminal-owned
+Lite hosts. It provides a visual UI while keeping a terminal-owned
 file workflow.
 
 ```bash
@@ -20,12 +20,12 @@ eidos serve tracker.eidos --open
 
 ## Behavior
 
-- binds to `127.0.0.1` by default;
-- uses port `8420` by default;
-- opens exactly one file;
-- commits editor mutations directly to that file;
-- requires no separate Save step;
-- ships the UI inside the macOS, Linux, and Windows binaries.
+- Binds to `127.0.0.1` by default.
+- Uses port `8420` by default.
+- Opens exactly one file.
+- Commits editor mutations directly to that file.
+- Requires no separate Save step.
+- Ships the UI inside the macOS, Linux, and Windows binaries.
 
 Choose another port when needed:
 
@@ -35,29 +35,29 @@ eidos serve tracker.eidos --port 9000 --open
 
 ## Explicit assets folder
 
-Serve does not infer or open an assets directory. Mount an existing directory
+Serve does not open an assets directory automatically. Mount an existing directory
 explicitly when the File contains relative entries such as `assets/cover.png`:
 
 ```bash
 eidos serve tracker.eidos --assets-dir ./assets --open
 ```
 
-With the mount active, File fields in the embedded UI can preview images, open
-or download existing files, and upload files through the picker, drag and drop,
-or clipboard paste. Uploads are written into the mounted directory with a
-collision-safe name and the UI persists the resulting `assets/<name>` File
+With the mount active, File fields in the embedded UI can preview images.
+They can open or download existing files, and upload files through the picker, drag and drop,
+or clipboard paste. The server writes uploads into the mounted directory with a
+collision-safe name. The UI saves the resulting `assets/<name>` File
 entry through the normal Runtime mutation.
 
-The mounted directory is an explicit capability: without `--assets-dir`, Serve
-neither reads nor writes a guessed sibling folder. Relative entries outside
-the `assets/` prefix are not resolved by this mount. Each upload is limited to
+The mounted directory is an explicit capability. Without `--assets-dir`, Serve
+does not read or write a sibling folder. Relative entries outside
+the `assets/` prefix are not resolved by this mount. The server limits each upload to
 256 MiB and previews to 64 MiB. A paired LAN browser, Relay account browser, or
 guest with a `--share` link receives the same upload authority for the lifetime
-of the Serve process, so mount only a directory intended for those users.
+of the Serve process. Mount only a directory intended for those users.
 
 ## Load custom plugins
 
-`eidos serve` can load `.eidos-plugin` packages (such as `eidos.chart` or custom table views) and make them available in the embedded web editor.
+`eidos serve` can load `.eidos-plugin` packages and make them available in the embedded web editor.
 
 ```bash
 # Load a single plugin package
@@ -72,43 +72,47 @@ eidos serve tracker.eidos \
 eidos serve tracker.eidos --plugins-dir ./plugins
 ```
 
-If a `.eidos/plugins/` directory exists adjacent to the served file, Serve automatically discovers and loads all `.eidos-plugin` packages within it.
+If a `.eidos/plugins/` directory exists next to the served file, Serve automatically finds and loads all `.eidos-plugin` packages within it.
 
-Serve also loads the device-wide store at `~/.eidos/plugins` (override with `EIDOS_HOME`), so plugins installed in Eidos Lite are available here. An adjacent `.eidos/plugins/` directory takes precedence, and the strict `--publish` profile ignores the shared store.
+Serve also loads the device store at `~/.eidos/plugins`. You can override this path with `EIDOS_HOME`.
+Plugins installed in Eidos Lite are available here. An adjacent `.eidos/plugins/` directory takes precedence.
+The strict `--publish` profile ignores the shared store.
 
 ### Sandbox and security
 
-Custom views run in an isolated `iframe` with `sandbox="allow-scripts"` (without `allow-same-origin`), assigning each plugin an opaque `null` origin. Plugins have no access to the host DOM, cookies, local storage, or other plugins.
+Custom views run in an isolated `iframe` with `sandbox="allow-scripts"`.
+The host assigns each plugin an opaque `null` origin.
+Plugins cannot access the host DOM, cookies, local storage, or other plugins.
 
-Each plugin receives a dynamic Content Security Policy (CSP) enforced by the host:
+Each plugin receives a dynamic Content Security Policy enforced by the host:
 
-- Outbound network requests are blocked by default, unless exact origins are declared in `manifest.browser.networkOrigins`.
-- Web Workers are blocked unless `manifest.browser.workers` is set to `true`.
-- Scripts and styles are scoped to the sandboxed document.
+- The host blocks outbound network requests by default. You can declare exact origins in `manifest.browser.networkOrigins`.
+- The host blocks Web Workers unless you set `manifest.browser.workers` to `true`.
+- The browser limits scripts and styles to the sandboxed document.
 
 ### Host capabilities
 
 Plugins communicate with Serve via asynchronous JSON-RPC:
 
-- **`table.read`**: Retrieves table fields and merged view properties.
-- **`table.page`**: Fetches paged records respecting active search and filters.
-- **`table.aggregate`**: Executes high-performance grouped calculations (count, sum, average, min, max) server-side directly in SQLite, without transferring large row datasets over the network.
-- **`table.properties`**: Persists custom view settings to `properties.plugin`. In `--publish` mode, mutations are blocked with a `PERMISSION_DENIED` error.
+- **`table.read`**: Reads table fields and merged view properties.
+- **`table.page`**: Reads paged records with active search and filters.
+- **`table.aggregate`**: Calculates grouped indicators in SQLite directly, without transferring large row datasets over the network.
+- **`table.properties`**: Saves custom view settings to `properties.plugin`. In `--publish` mode, the server rejects mutations with a `PERMISSION_DENIED` error.
 - **`table.openRecord`**: Opens the record detail panel.
-- **View settings**: If the plugin declares a `configuration` schema, Serve automatically renders a **View settings** menu in the table toolbar.
+- **View settings**: When the plugin declares a `configuration` schema, Serve renders a **View settings** menu in the table toolbar.
 
 ## Trusted LAN access
 
-Use `--lan` to detect and bind one private IPv4 interface:
+Use `--lan` to find and bind one private IPv4 interface:
 
 ```bash
 eidos serve tracker.eidos --lan
 ```
 
 The printed URL contains a fragment-only access key. Opening it pairs that
-browser with the running CLI process; later visits use a process-local,
-HttpOnly session cookie. If automatic detection picks no suitable address,
-or the machine has several interfaces, choose an exact private or overlay
+browser with the running CLI process. Later visits use a process-local,
+HttpOnly session cookie. If automatic detection finds no suitable address,
+or the machine has several interfaces, specify an exact private or overlay
 network address:
 
 ```bash
@@ -116,13 +120,13 @@ eidos serve tracker.eidos --lan --host 192.168.1.20
 eidos serve tracker.eidos --lan --host 100.80.12.4
 ```
 
-LAN mode accepts RFC 1918, link-local, CGNAT (including typical Tailscale), and
-IPv6 unique-local addresses. It never accepts a public address or wildcard
-bind. API Host and Origin must match the selected address exactly.
+LAN mode accepts RFC 1918, link-local, CGNAT, and
+IPv6 unique-local addresses. It rejects public addresses and wildcard
+binds. API Host and Origin must match the selected address exactly.
 
 LAN mode uses plain HTTP. The access link prevents unpaired browsers from
-using the API, but it does not protect traffic from someone able to observe
-the local network. Use it only on a private network you trust.
+using the API, but it does not protect traffic from observers on
+the local network. Use it only on a private network that you trust.
 
 ## Eidos Relay access
 
@@ -134,20 +138,20 @@ eidos whoami
 eidos serve tracker.eidos --relay --open
 ```
 
-`eidos login` opens `eidos.space` for an Authorization Code + PKCE sign-in and
-stores a renewable CLI session in an owner-only user configuration file.
-Later Relay commands silently reuse or refresh it without an operating-system
-credential prompt. `eidos logout` removes the local credential.
+`eidos login` opens `eidos.space` for an Authorization Code and PKCE sign-in.
+It stores a renewable CLI session in an owner-only configuration file.
+Later Relay commands reuse or refresh it without an operating-system
+prompt. `eidos logout` deletes the local credential.
 
 The account session authorizes the CLI to claim your stable opaque
 `r-….eidos.ink` hostname. By default, the printed URL contains no access key.
-Opening it on any device redirects the browser to eidos.space; only the same
-account that claimed the hostname can complete sign-in. Relay then creates a
+Opening it on any device redirects the browser to `eidos.space`.
+Only the account that claimed the hostname can complete sign-in. Relay then creates a
 host-only HttpOnly session for that browser. OAuth tokens never enter the
 browser URL or the local Serve process.
 
-Use `--share` only when a guest should be able to open the running file without
-the owner's Eidos account:
+Use `--share` only when a guest must open the running file without
+the owner Eidos account:
 
 ```bash
 eidos serve tracker.eidos --relay --share
@@ -155,21 +159,20 @@ eidos serve tracker.eidos --relay --share
 
 This explicit share mode prints a fragment-key capability for the current
 Serve process. Relay exchanges it for an HttpOnly browser session, so the key
-is not sent in normal HTTP requests. Anyone who receives that link can edit
+does not travel in normal HTTP requests. Anyone who receives that link can edit
 the file while this Relay session remains active.
 
 Starting another Relay serve for the same account takes over the hostname and
 disconnects the older connector. It also invalidates browser sessions created
 by the previous claim. Local and `--lan` use remain account-free.
-Relay currently accepts request bodies up to 4 MiB, so use localhost or LAN for
-large CSV imports. `--share` requires `--relay`; `--relay` and `--lan` are
+Relay accepts request bodies up to 4 MiB. Use localhost or LAN for
+large CSV imports. `--share` requires `--relay`. `--relay` and `--lan` are
 mutually exclusive.
 
 ## Development UI override
 
 `--ui-dir` serves a different static build instead of the UI embedded in the
-binary. This is a developer and release-validation option, not a normal user
-requirement.
+binary. This option supports development and release validation.
 
 ```bash
 eidos serve tracker.eidos --ui-dir ./dist --port 8420
@@ -178,16 +181,16 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 ## Concurrency
 
 Multiple localhost, paired LAN, account-authorized Relay, or explicitly shared
-Relay browsers can edit simultaneously. Serve serializes their mutations
+Relay browsers can edit at the same time. Serve serializes mutations
 through one authoritative Runtime writer and notifies other browsers after
-every committed revision. A simultaneous stale edit is rejected without side
-effects and the browser refreshes to the latest revision.
+every committed revision. The server rejects a simultaneous stale edit without side
+effects. The browser then refreshes to the latest revision.
 
 Cell changes and newly appended rows render optimistically. In particular, a
-new row is editable before its remote insert returns; Serve still commits the
+new row is editable before its remote insert returns. Serve commits the
 row creation before sending edits that depend on its authoritative Row ID.
 
-The Serve process must still be the file's only physical writer. Stop it
+The Serve process must remain the file only physical writer. Stop it
 before opening the same path in another write-capable host or SQLite tool.
-After a session, `eidos file validate tracker.eidos --level full` provides an
-independent integrity check.
+After a session, use `eidos file validate tracker.eidos --level full` for an
+independent check.

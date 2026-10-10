@@ -7,46 +7,49 @@ sidebar:
 
 import FileMap from "../../../../components/FileMap.astro"
 
-Eidos Lite 是处理本地文件夹的桌面应用，支持 `.eidos` 文件、Markdown 笔记和
-其他普通文件，提供本地 Graft 历史和可选的 Sync。
-打开 Space 和编辑本地文件不需要账户或网络。
+Eidos Lite 是管理本地文件夹的桌面应用。
+它支持 `.eidos` 文件、Markdown 笔记和附件。
+Lite 提供本地历史记录和可选的同步服务。
+你可以在未登录账户且离线的状态下打开 Space 并编辑文件。
 
 ## 安装 Eidos Lite
 
-从[下载页面](https://eidos.space/download)选择适合系统的安装包。
-安装后打开 Eidos Lite。
+从[下载页面](https://eidos.space/download)选择适合当前操作系统的安装包。
+完成安装后启动 Eidos Lite。
 
 ## 打开文件夹
 
-选择 **New Space** 在新文件夹中开始，或选择 **Open Space** 打开已有文件夹。
-本例使用名为 `Research` 的文件夹。
+选择 **New Space** 在新文件夹中开始工作。
+选择 **Open Space** 打开已有的本地文件夹。
+本教程使用名为 `Research` 的文件夹。
 
-**检查结果：**侧边栏显示该文件夹的内容。
+**检查结果：** 侧边栏显示该文件夹包含的文件与目录。
 
 <FileMap lang="zh-cn" />
 
-上图展示添加书单、笔记和图片之后的一种文件结构。
-打开 Space 不会自动创建这些示例文件。
+上图展示添加书单、笔记和图片后的目录结构。
+打开空白 Space 不会自动创建这些示例文件。
 
 ## 创建 Eidos File
 
-1. 在侧边栏打开 **New File**。
-2. 选择 **Eidos**，将文件命名为 `books.eidos`。
-3. 在编辑器中打开文件。
+1. 在侧边栏选择 **New File**。
+2. 选择 **Eidos** 并将文件命名为 `books.eidos`。
+3. 在编辑器中打开该文件。
 
-**检查结果：**侧边栏包含 `books.eidos`，编辑区显示该文件。
+**检查结果：** 侧边栏列出 `books.eidos`，编辑器显示该文件。
 
-## 找到常用操作
+## 认识核心界面区域
 
-| 区域     | 用途                                    |
-| -------- | --------------------------------------- |
-| 侧边栏   | 打开、创建、重命名或移动 Space 中的文件 |
-| 标签栏   | 回到已打开的文件                        |
-| 编辑区   | 阅读笔记或编辑表记录                    |
-| Versions | 查看改动和已保存的历史                  |
-| Sync     | 检查可选的跨设备同步                    |
+| 区域 | 用途 |
+| --- | --- |
+| 侧边栏 | 打开、创建、重命名或移动 Space 中的文件 |
+| 标签页 | 在已打开的文件之间快速切换 |
+| 编辑器 | 阅读笔记和编辑表格记录 |
+| Versions | 检查修改历史并按需恢复版本 |
+| Sync | 管理跨设备同步状态 |
 
-继续阅读[创建书单](/zh-cn/user-guide/eidos-file-basics/)。
-要在手机使用 Space，先在 **设置 → 设备** 配对，再为该 Space 开启
-**Sync → 局域网同步**。具体步骤见[局域网同步指南](/zh-cn/user-guide/sync/)，无需云端账号。
-把 Space 移到另一块磁盘之前，先了解[数据存储与备份](/zh-cn/user-guide/data-safety/)。
+接下来请阅读[创建书单教程](/zh-cn/user-guide/eidos-file-basics/)。
+若要在移动设备上使用该 Space，请先在 **设置 → 设备** 中配对。
+然后在 Space 设置中开启 **Sync → 局域网同步**。
+具体步骤请参考[局域网同步指南](/zh-cn/user-guide/sync/)。局域网同步无需云端账户。
+将 Space 移动到其他磁盘前，请先阅读[数据存储与备份](/zh-cn/user-guide/data-safety/)。

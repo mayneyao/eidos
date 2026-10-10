@@ -43,7 +43,7 @@ Eidos file operations live under `ctx.capabilities.eidos`: `schema` reads the fi
 
 To visualize a table inside an Eidos file, declare `capabilities: ["eidos/table"]` with a `table/view` placement. Users add it from the table's view menu, and the plugin queries the bound table through `ctx.capabilities.eidos.table`.
 
-Read file information from `ctx.binding.file`. When the view is located within a table, `ctx.binding.location` also supplies table and view IDs. See the [API reference](/plugins/api/) for data methods.
+Read file information from `ctx.binding.file`. When the view opens inside a table, `ctx.binding.location` also supplies table and view IDs. See the [API reference](/plugins/api/) for data methods.
 
 ## Use the context in code
 
@@ -58,7 +58,7 @@ Return an object with `dispose()` from mount to clean up your interface. For exa
 
 ## Commands and formatting
 
-Commands perform an operation such as creating today's note or processing selected records. Declare commands in `actions`, export `activate(ctx)` from the module named by `extension`, and register handlers through `ctx.capabilities.actions`.
+Commands execute actions such as creating today's note or processing selected records. Declare commands in `actions`, export `activate(ctx)` from the module named by `extension`, and register handlers through `ctx.capabilities.actions`.
 
 A formatter receives document text and returns formatted text. Register it through `ctx.capabilities.formatters` so users can invoke it through Eidos's formatting operation.
 

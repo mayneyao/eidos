@@ -3,32 +3,34 @@ title: Start with one file
 description: Choose how to work with local files, then create and save a portable Eidos File.
 ---
 
-Start with the files you want to work on. Eidos Lite opens a local folder
-of `.eidos` and ordinary files as a **Space**. The browser editor and CLI
-work directly with individual Eidos Files, using the same open SQLite-backed
-format and Runtime.
+Start with the files you want to work on.
+Eidos Lite opens a local folder of `.eidos` and ordinary files as a **Space**.
+The Web Editor and CLI work directly with individual Eidos Files.
+Both tools use the same open SQLite format and Runtime.
 
-| I want to…                             | Start here                                 | Where work is saved                       |
-| -------------------------------------- | ------------------------------------------ | ----------------------------------------- |
-| Manage a folder of files and notes     | [Eidos Lite](/getting-started/eidos-lite/) | Local files in a Space                    |
-| Try one file without installing an app | [Web Editor](/getting-started/browser/)    | Save to disk or download the working copy |
-| Use commands or an agent               | [CLI](/getting-started/cli/)               | The file path supplied to the command     |
+| Goal | Start here | Storage location |
+| --- | --- | --- |
+| Manage a folder of files and notes | [Eidos Lite](/getting-started/eidos-lite/) | Local files in a Space |
+| Try one file without installing an app | [Web Editor](/getting-started/browser/) | Save to disk or download the file |
+| Use commands or an AI agent | [CLI](/getting-started/cli/) | The target file path |
 
-Local work does not require an account. Lite provides local Graft history;
+Local work does not require an account.
+Lite provides local version history.
 [Sync](/user-guide/sync/) is optional.
 
 ## Make something small
 
 1. Create an Eidos File named `books.eidos`.
 2. Add a **Books** table with a **Title** field.
-3. Add a book, then create a **Status** Select field.
-4. Check that your changes are saved to `books.eidos`.
-5. Keep any referenced attachments with the file when you move or back it up.
+3. Add a book record.
+4. Add a **Status** Select field.
+5. Check that your changes save to `books.eidos`.
+6. Keep referenced attachments beside the file when you copy or move it.
 
 Follow [the book-list walkthrough](/user-guide/eidos-file-basics/).
-If the names are unfamiliar, first read [how the pieces fit](/concepts/).
+If the concepts are new, read [how the pieces fit](/concepts/).
 
 ## Go further
 
-[Build a plugin](/plugins/) to add an editor or a tool.
-Read the [specifications](/specifications/) when implementing a compatible application.
+[Build a plugin](/plugins/) to add an editor or a custom tool.
+Read the [specifications](/specifications/) to implement a compatible application.

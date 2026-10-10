@@ -5,44 +5,48 @@ sidebar:
   order: 70
 ---
 
-Versions records local snapshots of your Space. Use it to review earlier
-work or restore a recorded state. It does not require an account.
+Versions records local snapshots of your Space.
+Use it to review earlier work or restore a recorded state.
+It works offline and does not require an account.
 
 ## Enable history
 
-Open **Versions** in Eidos Lite and choose **Enable versioning**.
-The initial version records the Space's starting state.
-Use **Changes** to review current work and **History** to browse saved versions.
+Open **Versions** in Eidos Lite.
+Select **Enable versioning**.
+The initial version records the current state of your Space.
+Use **Changes** to review working edits.
+Use **History** to browse saved versions.
 
 ## Save a milestone
 
 1. Open **Changes**.
-2. Review the added, modified, and deleted files.
+2. Review added, changed, and deleted files.
 3. Enter a version note, such as **Reading list before cleanup**.
-4. Choose **Save version**.
+4. Select **Save version**.
 
-**Check:** the new note appears in History.
+**Check:** The new note appears in History.
 
 ## Inspect a version
 
-Open **History**, select a version, and choose a file to inspect its changes.
-Browsing history does not modify your current files.
+Open **History**.
+Select a version, then select a file to inspect its diffs.
+Browsing history does not change your current files.
 
-## Restore deliberately
+## Restore a previous state
 
 1. Select the target version in History.
-2. Review the state you intend to restore.
-3. Choose **Restore this version**.
-4. Read the confirmation and confirm **Restore Space**.
+2. Review the file changes you plan to restore.
+3. Select **Restore this version**.
+4. Read the modal prompt and select **Restore Space**.
 
-This operation affects the Space, not just the selected file.
+This operation restores the whole Space, not only the selected file.
 After restoring, open important files and check their contents.
-Keep an independent backup for recovery after device or disk loss.
+Keep an independent backup for protection against drive failures.
 
-## Leave temporary files out
+## Exclude temporary files
 
-Use `.gitignore` or `.graftignore` in the Space root to exclude temporary
-content from version tracking. For example:
+Create a `.gitignore` or `.graftignore` file in the Space root folder.
+List temporary directories and files to exclude them from history tracking:
 
 ```text
 node_modules/
@@ -50,6 +54,6 @@ node_modules/
 cache/
 ```
 
-Excluded files cannot be recovered from a version that never captured them.
-Physical file attributes used by File Metadata Management also require
-separate backup verification. See [data safety](/user-guide/data-safety/).
+History cannot restore files that you excluded from tracking.
+File attributes used by File Metadata Management require separate backup tools.
+See [data safety](/user-guide/data-safety/).

@@ -42,28 +42,30 @@ Paths resolve from the dashboard file and remain inside its Space. Panels are
 read-only, limited to 12, and cannot contain nested dashboards. `panel.refresh()`
 reloads the reference. Embedded plugin Views receive
 `ctx.presentation?.mode === "embedded"` and can simplify their toolbar.
-The host manages rendering and grants; the dashboard never receives child
+The host manages rendering and grants. The dashboard never receives child
 plugin handles. Use ordinary rectangular containers without transforms or
-overlapping controls. For a floating menu, use a native HTML `popover`; Lite
+overlapping controls. For a floating menu, use a native HTML `popover`. Lite
 clips resource surfaces beneath the most recently opened popover without resizing
 their content. This capability is currently available in Lite.
 Set `pointer-events: none` on resource containers during layout editing to let
-drag and resize gestures cross the previews. Restore it to interact with charts.
+drag and resize gestures cross previews. Restore it to interact with charts.
 
-Each entry in views requires id, title, entry and kind. kind is page or file; access is read or write and defaults to read.
+Each entry in views requires id, title, entry, and kind. The kind property is page or file. Access options include `"read"` and `"write"`. The default mode is `"read"`.
 
-File views declare their data interfaces in capabilities: `document` for text editing, or a combination of `eidos/schema`, `eidos/table` and `eidos/config` for file structure, the current table and plugin configuration. For direct file reads or media playback, use fs and omit capabilities. Text and Eidos interfaces apply to different file formats and cannot be combined.
+File views declare data interfaces in capabilities: `document` for text editing, or a combination of `eidos/schema`, `eidos/table`, and `eidos/config`.
+For direct file reads or media playback, use fs and omit capabilities.
+Text and Eidos interfaces apply to different file formats and you cannot combine them.
 
-Choose a placement: navigation and plugin/settings open a page; file/open opens a file by extension; table/view opens a file view with eidos/table within a table.
+Choose a placement. The navigation and plugin/settings placements open a page. The file/open placement opens a file by extension. The table/view placement opens a file view with eidos/table within a table.
 
-In Lite, the sidebar footer shows Settings, Plugins, and up to three standalone pages from enabled plugins. Pages appear in their default order until the user changes it. With more than three pages, the **…** menu lists all pages and supports pinning and drag reordering, including keyboard operation through the drag handle. Up to three pinned pages are guaranteed a visible slot; remaining slots follow the saved order. Pins and ordering are saved locally per Space. Narrow sidebars display icons with name tooltips. Pages dedicated to `plugin/settings` or `sidebar/explorer` are excluded unless they also declare a `navigation` placement. Showing an entry does not load its page contents.
+In Lite, the sidebar footer shows Settings, Plugins, and up to three standalone pages from enabled plugins. Pages appear in their default order until the user changes it. With more than three pages, the **…** menu lists all pages and supports pinning and drag reordering. Up to three pinned pages receive a visible slot. Remaining slots follow the saved order. Lite saves pins and ordering locally per Space. Narrow sidebars show icons with name tooltips. Pages dedicated to `plugin/settings` or `sidebar/explorer` do not appear unless they also declare a `navigation` placement. Showing an entry does not load its page contents.
 
-requires.pluginApi declares the required API; these examples use `"3.0.0"`. apiVersion is `1`, while the plugin's own version identifies its releases.
+The field `requires.pluginApi` declares the required API. These examples use `"3.0.0"`. The `apiVersion` is `1`, while the plugin version identifies its releases.
 
 Add an optional `description` to the manifest to explain what your plugin does.
 Use a nonempty line of plain text, up to 1024 UTF-16 code units. Lite shows this
 summary in plugin lists and details, including for locally installed packages.
-If it is absent, Lite uses the plugin's marketplace description when available.
+If absent, Lite uses the marketplace description when available.
 
 ```json
 "description": "Keep Markdown filenames and existing leading H1 headings in sync."
@@ -71,7 +73,7 @@ If it is absent, Lite uses the plugin's marketplace description when available.
 
 ## Current file and page
 
-Check binding.kind before accessing the binding. A page supplies route; a file supplies file metadata and can describe a table location.
+Check binding.kind before accessing the binding. A page supplies route. A file supplies file metadata and can describe a table location.
 
 ```ts
 if (ctx.binding.kind === "page") {
@@ -81,19 +83,19 @@ if (ctx.binding.kind === "page") {
 }
 ```
 
-FileRef members such as path, name and size depend on the environment. Its id identifies the file within the current context; use stable identifiers from your application data for persistent references.
+FileRef members such as path, name, and size depend on the environment. Its id identifies the file within the current context. Use stable identifiers from your application data for persistent references.
 
 ## Read and edit text
 
 Declare `capabilities: ["document"]` and use ctx.capabilities.document. Writing also requires `access: "write"`.
 
-| Method                            | Purpose                                           |
-| --------------------------------- | ------------------------------------------------- |
-| `read()`                          | Read a snapshot including text, version and dirty |
-| `observe(listener, onError?)`     | Get an initial snapshot and subscribe to changes  |
-| `edit({ text, expectedVersion })` | Update unsaved content; returns applied or stale  |
-| `save()`                          | Save the file; returns saved or conflict          |
-| `undo()` / `redo()`               | Undo or redo an edit and return a snapshot        |
+| Method | Purpose |
+| --- | --- |
+| `read()` | Read a snapshot including text, version, and dirty |
+| `observe(listener, onError?)` | Get an initial snapshot and subscribe to changes |
+| `edit({ text, expectedVersion })` | Update unsaved content. Returns applied or stale |
+| `save()` | Save the file. Returns saved or conflict |
+| `undo()` / `redo()` | Undo or redo an edit and return a snapshot |
 
 This function body converts the current text to uppercase and saves it:
 
@@ -123,7 +125,9 @@ Use the version from the read snapshot as expectedVersion. On stale, preserve us
 
 ## Read files and play media
 
-Lite's ctx.capabilities.fs provides readText/writeText, readBinary/writeBinary, list/stat, delete/rename, getUrl and watch. Text reads are limited to 2 MiB and binary I/O to 16 MiB. For larger media, play the streaming URL returned by getUrl.
+Lite's `ctx.capabilities.fs` provides readText, writeText, readBinary, writeBinary, list, stat, delete, rename, getUrl, and watch.
+The host limits text reads to 2 MiB and binary I/O to 16 MiB.
+For larger media, play the streaming URL returned by getUrl.
 
 ```ts
 const fs = ctx.capabilities.fs
@@ -134,11 +138,16 @@ video.src = await fs.getUrl()
 root.append(video)
 ```
 
-File-view access is confined to the bound file and its allowed directory scope. Access throughout a Space requires workspace.files. Writes also require write access on the contribution. Direct writes, deletes and renames return BUSY for paths with an existing working copy; use the document interface for text editing, saving and conflict handling.
+File-view access stays confined to the bound file and its allowed directory scope.
+Access throughout a Space requires `workspace.files`. Writes also require write access on the contribution.
+Direct writes, deletes, and renames return BUSY for paths with an existing working copy.
+Use the document interface for text editing, saving, and conflict handling.
 
 ## File properties in Lite
 
-Lite API 3.1 exposes complete native namespace properties through `ctx.capabilities.filemeta`, backed by sqlite-fs-meta. Declare the namespaces you need; writes also require `access: "write"` on the View or Action. A page needs workspace file read permission to select files across the Space.
+Lite API 3.1 exposes complete native namespace properties through `ctx.capabilities.filemeta`, backed by sqlite-fs-meta.
+Declare the namespaces you need. Writes also require `access: "write"` on the View or Action.
+A page needs workspace file read permission to select files across the Space.
 
 ```json
 {
@@ -158,7 +167,14 @@ await filemeta.patch("notes/example.md", "space.eidos.meta", {
 })
 ```
 
-Reads return the whole JSON object, including keys without columns in files.eidos; an absent namespace returns `{}`. Patches preserve other keys. Null is a value; remove deletes keys. Paths are relative to the Space, and without workspace file read permission only the bound file is available. Property permission does not allow changing file contents. Existing corrupt JSON, symbolic links and non-files fail instead of being overwritten. Envelopes are bounded to 1 MiB and the native filesystem may impose smaller limits. These are immediate filesystem operations; serialize writers when several processes modify the same namespace. No Linux `attr` command-line package is needed.
+Reads return the whole JSON object, including keys without columns in `files.eidos`. An absent namespace returns `{}`.
+Patches preserve other keys. Null is a value. The `remove` array deletes keys.
+Paths are relative to the Space, and without workspace file read permission only the bound file is available.
+Property permission does not allow changing file contents.
+Existing corrupt JSON, symbolic links, and non-files fail instead of being overwritten.
+The host limits envelopes to 1 MiB and the native filesystem can impose smaller limits.
+These are immediate filesystem operations. Serialize writers when several processes change the same namespace.
+You do not need a Linux `attr` command-line package.
 
 ## Replace the sidebar explorer in Lite
 
@@ -180,13 +196,28 @@ Declare a page View at `sidebar/explorer`, requiring plugin API `3.1.0`:
 }
 ```
 
-After installing and enabling the plugin, open **Plugins → Choose file explorer** and select it. The choice is saved per Space. A replacement owns the complete explorer area, including its heading, breadcrumbs, search, sorting and file-action toolbar. Lite does not place the built-in Space heading above the plugin. Window navigation and application controls remain in the host shell, outside this contribution. Return to the built-in explorer through Plugin Manager; if a plugin fails, Lite restores the built-in heading and tree with retry and recovery actions.
+After installing and enabling the plugin, open **Plugins → Choose file explorer** and select it.
+Lite saves the choice per Space. A replacement owns the complete explorer area, including its heading, breadcrumbs, search, sorting, and file-action toolbar.
+Lite does not place the built-in Space heading above the plugin.
+Window navigation and application controls remain in the host shell, outside this contribution.
+Return to the built-in explorer through Plugin Manager. If a plugin fails, Lite restores the built-in heading and tree with retry and recovery actions.
 
-At this placement `ctx.capabilities.explorer.read()` returns rootDirectory, activePath and sort. Root null means the Space; activePath null means no open file. `explorer.watch(listener)` subscribes to changes without an initial callback and returns a disposable subscription. It provides display state, while file permissions remain independently checked. Use `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` for each directory level, `fs.watch` for refreshes and `ui.openFile(relativePath)` when a user selects a file. Listings include empty directories; FileStat.modifiedAtMs supports time sorting. Default list options preserve recursive file-only indexing. Eidos opens files in the main area using the configured file View. The plugin owns navigation, selection styling and granted file actions within the sidebar sandbox. Global Space text search temporarily overlays the explorer and leaves the plugin mounted, preserving its browsing state. Ordinary navigation pages do not receive explorer context.
+At this placement `ctx.capabilities.explorer.read()` returns rootDirectory, activePath, and sort.
+Root null means the Space. ActivePath null means no open file.
+`explorer.watch(listener)` subscribes to changes without an initial callback and returns a disposable subscription.
+It provides state to show, while the host checks file permissions independently.
+Use `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` for each directory level.
+Use `fs.watch` for refreshes and `ui.openFile(relativePath)` when a user selects a file.
+Listings include empty directories. FileStat.modifiedAtMs supports time sorting.
+Default list options preserve recursive file-only indexing.
+Eidos opens files in the main area using the configured file View.
+The plugin owns navigation, selection styling, and granted file actions within the sidebar sandbox.
+Global Space text search temporarily overlays the explorer and leaves the plugin mounted.
+Ordinary navigation pages do not receive explorer context.
 
 ## Work with Eidos files
 
-`ctx.capabilities.eidos` contains the `schema`, `table` and `config` interfaces you declare. For example, a table view that reads file structure and saves plugin configuration can declare:
+`ctx.capabilities.eidos` contains the `schema`, `table`, and `config` interfaces you declare. For example, a table view that reads file structure and saves plugin configuration can declare:
 
 ```json
 {
@@ -199,19 +230,27 @@ At this placement `ctx.capabilities.explorer.read()` returns rootDirectory, acti
 }
 ```
 
-Add a `table/view` placement for this view. Each declaration provides its corresponding interface; declaration order does not affect behavior.
+Add a `table/view` placement for this view.
+Each declaration provides its corresponding interface.
+Declaration order does not affect behavior.
 
 ### Browse file structure
 
-Declare `eidos/schema`. Use `ctx.capabilities.eidos.schema.listTables()` to list tables in the file and `readTable(tableId)` to read fields. A file browser opens through a `file/open` placement matching `.eidos`; a table view can also read the structure of its containing file.
+Declare `eidos/schema`. Use `ctx.capabilities.eidos.schema.listTables()` to list tables in the file and `readTable(tableId)` to read fields.
+A file browser opens through a `file/open` placement matching `.eidos`. A table view can also read the structure of its containing file.
 
 ### Query the current table
 
-Declare `eidos/table` and open through `table/view`. `ctx.capabilities.eidos.table` provides readContext for current schema and view information, readRows for records, aggregate for summaries, setViewConfig to replace the current view’s plugin configuration, openRecord for record navigation and watch for invalidation notifications. Read schema first and query using field IDs; these operations always target the bound table.
+Declare `eidos/table` and open through `table/view`.
+`ctx.capabilities.eidos.table` provides readContext for schema and view information.
+It provides readRows for records, aggregate for summaries, and setViewConfig to replace view configuration.
+It provides openRecord for record navigation and watch for invalidation notifications.
+Read schema first and query using field IDs. These operations always target the bound table.
 
 ### Save plugin configuration
 
-Declare `eidos/config`. Use read, write and watch on `ctx.capabilities.eidos.config` to access your plugin's configuration stored in the file. A file browser can select tables within that file; a table view uses its bound table ID.
+Declare `eidos/config`. Use read, write, and watch on `ctx.capabilities.eidos.config` to access plugin configuration in the file.
+A file browser can select tables within that file. A table view uses its bound table ID.
 
 ```ts
 const { table, config } = ctx.capabilities.eidos ?? {}
@@ -223,25 +262,36 @@ await config.write(table.tableId, {
 })
 ```
 
-Writes require `access: "write"` and the version from the read result. If the version is stale, reread and reconcile the changes before writing. `config.watch(tableId, listener)` returns a subscription without an initial value; read initially and reread on notification. Notifications may include unrelated changes and stop after disposal.
+Writes require `access: "write"` and the version from the read result.
+If the version is stale, reread and reconcile changes before writing.
+`config.watch(tableId, listener)` returns a subscription without an initial value. Read initially and reread on notification.
+Notifications can include unrelated changes and stop after disposal.
 
-Lite supports all three interfaces. CLI Serve provides `eidos/table`; declare only supported capabilities and verify with `check --target cli` when targeting Serve.
+Lite supports all three interfaces. CLI Serve provides `eidos/table`.
+Declare only supported capabilities and check with `check --target cli` when targeting Serve.
 
 ## Settings, storage and notifications
 
-Lite views read settings with capabilities.settings.get(key); ordinary actions can also set/reset them. capabilities.storage supplies list/read/write/delete for private binary objects addressed by key. Declare the quota in manifest.storage.maxBytes. Private storage remains on the device.
+Lite views read settings with `capabilities.settings.get(key)`. Ordinary actions can also set or reset them.
+The storage interface supplies list, read, write, and delete for private binary objects.
+Declare the quota in `manifest.storage.maxBytes`. Private storage remains on the device.
 
-capabilities.ui.notify(message) shows a notification. In environments supporting navigation, ui.openFile(relativePath) opens a file and ui.navigate(viewId, route?) opens a page. Check optional methods before calling them.
+`capabilities.ui.notify(message)` shows a notification.
+In environments supporting navigation, `ui.openFile(relativePath)` opens a file and `ui.navigate(viewId, route?)` opens a page.
+Check optional methods before calling them.
 
 Views can use the optional `capabilities.ui.exportFile({ name, mimeType, data })`
 to export generated files without filesystem write permission. Supply a filename
 without a directory, a media type such as `image/png`, and a `Uint8Array` of at most
 16 MiB. Lite opens a save dialog and returns `{ status: "saved" }` or
 `{ status: "cancelled" }`. CLI Serve returns `{ status: "download-started" }` after
-initiating the browser download. Check whether the method exists and show export
-failures to the user. Mobile and action contexts do not currently provide it.
+starting the browser download. Check whether the method exists and show export
+failures to the user. Mobile and action contexts do not provide it currently.
 
-capabilities.network.read({ url }) makes bounded HTTPS requests to origins declared in browser.networkOrigins. For credentialed requests, use `isConfigured(connectionId)` and `request({ connection, body })` on `ctx.capabilities.connections` with a declared connection. Connections are available to pages, file views and ordinary actions. Users configure details and secrets in Eidos; action requests are cancelled when the invocation ends.
+`capabilities.network.read({ url })` makes bounded HTTPS requests to origins declared in `browser.networkOrigins`.
+For credentialed requests, use `isConfigured(connectionId)` and `request({ connection, body })` on `ctx.capabilities.connections` with a declared connection.
+Connections are available to pages, file views, and ordinary actions.
+Users configure details and secrets in Eidos. The host cancels action requests when the invocation ends.
 
 ## Register commands and formatters
 
@@ -282,34 +332,45 @@ export default activate
 ```
 
 Events provide the Space-relative `path`, `operationId`, `source`, and
-`document: { text, version }`. `document.saved` includes `previousText`;
+`document: { text, version }`. `document.saved` includes `previousText`.
 `file.renamed` includes `previousPath`. Hooks run only after successful local
-changes. Opening, enabling, cloud/LAN updates and hook-generated changes do not
-trigger them. A filename plan retains the extension and folder; existing files
-and newer document versions are protected. A failed hook leaves the save or
+changes. Opening, enabling, cloud or LAN updates, and hook-generated changes do not
+trigger them. A filename plan retains the extension and folder. The host protects existing files
+and newer document versions. A failed hook leaves the save or
 rename in place. Multiple plugins run by ID, then declaration order, stopping
 at the first effective write plan.
 
 Use portable JavaScript: hook handlers have no filesystem, database, network,
-DOM or Node APIs. They receive the plugin's resolved settings and return plans
+DOM, or Node APIs. They receive resolved plugin settings and return plans
 for the current document only. Add registration disposables to subscriptions.
-Lite supports editable text files; Android and iOS support Markdown. CLI Serve
+Lite supports editable text files. Android and iOS support Markdown. CLI Serve
 does not support hooks.
 
-In activate, call capabilities.actions.register(id, handler) for a declared action. Its handler receives a context and performs operations through capabilities.
+In activate, call `capabilities.actions.register(id, handler)` for a declared action.
+Its handler receives a context and performs operations through capabilities.
 
-Register formatters with capabilities.formatters.register(id, provider). provider.format receives `{ text, path, signal }` and returns `{ text }`; Eidos applies an undoable edit.
+Register formatters with `capabilities.formatters.register(id, provider)`.
+`provider.format` receives `{ text, path, signal }` and returns `{ text }`.
+Eidos applies an undoable edit.
 
 ## Process table records in batches
 
-Register a table action with capabilities.actions.registerTableProvider(id, provider). getItems receives capabilities.eidos.table, read-only capabilities.eidos.config and signal and returns menu items. run also receives capabilities.target, task and connections.
+Register a table action with `capabilities.actions.registerTableProvider(id, provider)`.
+`getItems` receives `capabilities.eidos.table`, read-only `capabilities.eidos.config`, and `signal`, and returns menu items.
+`run` also receives `capabilities.target`, `task`, and `connections`.
 
-target.count is the number of records in this run. Read them with target.readRows and pass each returned readToken to target.update. Before writing, submit a real output sample to task.declareOutputs and await validation; this establishes the fields the run may update. Report progress with task.report and check signal between batches. Cancellation retains completed changes.
+`target.count` is the number of records in this run.
+Read them with `target.readRows` and pass each returned `readToken` to `target.update`.
+Before writing, submit a real output sample to `task.declareOutputs` and await validation.
+This establishes the fields the run can update.
+Report progress with `task.report` and check `signal` between batches.
+Cancellation retains completed changes.
 
 ## Release resources and handle errors
 
-Add subscriptions to ctx.subscriptions, cancel asynchronous work with ctx.signal, and release interface resources in the dispose object returned from mount.
+Add subscriptions to `ctx.subscriptions`, cancel asynchronous work with `ctx.signal`, and release interface resources in the dispose object returned from mount.
 
-Common errors include PERMISSION_DENIED (insufficient access), INSTANCE_CLOSED (closed context), STALE_REVISION (changed data), BUSY (a managed resource), TOO_LARGE (a size limit) and TIMEOUT. Explain the failure to the user and preserve unsaved input.
+Common errors include PERMISSION_DENIED (insufficient access), INSTANCE_CLOSED (closed context), STALE_REVISION (changed data), BUSY (a managed resource), TOO_LARGE (a size limit), and TIMEOUT.
+Explain the failure to the user and preserve unsaved input.
 
 See the [SDK types](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts) for full signatures and the [plugin specification](https://github.com/mayneyao/eidos/blob/dev/docs/specs/eidos-lite-plugins-1.0.md) for behavioral requirements.

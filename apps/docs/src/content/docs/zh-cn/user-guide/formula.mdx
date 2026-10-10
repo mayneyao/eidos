@@ -5,71 +5,68 @@ sidebar:
   order: 4
 ---
 
-Formula 字段根据同一张表中的其他字段计算值。
-结果只读；需要改变结果时，修改源字段。
+Formula 公式字段根据同一张表中的其他字段计算值。
+计算结果为只读。
+如需改变结果，请直接修改源字段中的值。
 
-## 试一个计算
+## 尝试一次简单计算
 
-在 Books 表中添加两个整数字段：**Pages** 和 **Pages read**。
-创建结果类型为 **integer** 的 Formula 字段，输入表达式：
+在 Books 表格中添加两个整数字段：**Pages** 和 **Pages read**。
+创建结果类型为 **integer** 的 Formula 字段，输入如下表达式：
 
 ```sql
 "Pages" - "Pages read"
 ```
 
-Pages 输入 `120`，Pages read 输入 `45`，结果是 `75`。
-把 Pages read 改成 `60`，结果变为 `60`。
-任一输入为空时，这个表达式返回 null。
+在 Pages 中输入 `120`，在 Pages read 中输入 `45`。计算结果为 `75`。
+将 Pages read 修改为 `60`，计算结果自动更新为 `60`。
+若任一输入字段为空，表达式返回 null。
 
-**检查结果：**保存字段前，先查看表达式预览。
+**检查结果：** 保存字段前，先查看表达式的实时预览。
 
 ## 语言边界
 
-Formula 使用带引号的字段名和固定的 SQLite 3.45 标量函数集合。
-Runtime 解析表达式并检查类型，再生成 SQL。
-Formula 不能执行 SQL 语句。
+Formula 使用带双引号的字段名称和一组固定的 SQLite 3.45 标量函数。
+Runtime 会先解析表达式并检查数据类型，然后再生成 SQL 执行。
+Formula 不能执行任意 SQL 语句。
 
 ## 表达式语法
 
-- 使用精确 display name 引用 Field：`"累计阅读时长(秒)"`。
-- 使用 SQLite `||` 拼接文本。
-- 使用 `IS NULL` 或 `IS NOT NULL` 检查 null。
-- 使用 `CAST(value AS TEXT|INTEGER|REAL)` 转换 value。
-- 使用 `IIF(condition, trueValue, falseValue)`，或 searched
-  `CASE WHEN condition THEN value ELSE value END`。
-- arithmetic 支持 `+`、`-`、`*`、`/`、`%`；comparison 支持 `=`、`==`、
-  `!=`、`<>`、`<`、`<=`、`>`、`>=`。
+- 使用确切的字段显示名引用字段：`"累计阅读时长(秒)"`。
+- 使用 SQLite `||` 运算符拼接文本。
+- 使用 `IS NULL` 或 `IS NOT NULL` 检查空值。
+- 使用 `CAST(value AS TEXT|INTEGER|REAL)` 进行类型转换。
+- 使用 `IIF(condition, trueValue, falseValue)` 或多分支 `CASE WHEN condition THEN value ELSE value END`。
+- 算术运算符支持 `+`、`-`、`*`、`/`、`%`。
+- 比较运算符支持 `=`、`==`、`!=`、`<>`、`<`、`<=`、`>`、`>=`。
 
-声明的 result type 仍必须精确为 `text`、`number`、`integer`、`checkbox`、
-`date`、`datetime` 或 `url`。
+声明的结果类型必须精确指定为：`text`、`number`、`integer`、`checkbox`、`date`、`datetime` 或 `url`。
 
-## 支持的 SQLite 函数
+## 受支持的 SQLite 函数
 
-| 分类        | 函数                                                                                                                                                                          |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Null 与分支 | `COALESCE`、`IFNULL`、`IIF`、`NULLIF`                                                                                                                                         |
-| 数值        | `ABS`、`CEIL`、`CEILING`、`FLOOR`、`ROUND`、`SIGN`、scalar `MAX`、scalar `MIN`                                                                                                |
-| 文本        | `CHAR`、`CONCAT`、`CONCAT_WS`、`FORMAT`、`PRINTF`、`INSTR`、`LENGTH`、`OCTET_LENGTH`、`LOWER`、`UPPER`、`LTRIM`、`RTRIM`、`TRIM`、`REPLACE`、`SUBSTR`、`SUBSTRING`、`UNICODE` |
-| Pattern     | `GLOB`、`LIKE`                                                                                                                                                                |
-| 检查        | `HEX`、`QUOTE`、`TYPEOF`                                                                                                                                                      |
-| 日期时间    | `DATE`、`DATETIME`、`TIME`、`JULIANDAY`、`UNIXEPOCH`、`STRFTIME`、`TIMEDIFF`                                                                                                  |
+| 分类 | 函数列表 |
+| --- | --- |
+| 空值与分支 | `COALESCE`、`IFNULL`、`IIF`、`NULLIF` |
+| 数值计算 | `ABS`、`CEIL`、`CEILING`、`FLOOR`、`ROUND`、`SIGN`、标量 `MAX`、标量 `MIN` |
+| 文本处理 | `CHAR`、`CONCAT`、`CONCAT_WS`、`FORMAT`、`PRINTF`、`INSTR`、`LENGTH`、`OCTET_LENGTH`、`LOWER`、`UPPER`、`LTRIM`、`RTRIM`、`TRIM`、`REPLACE`、`SUBSTR`、`SUBSTRING`、`UNICODE` |
+| 模式匹配 | `GLOB`、`LIKE` |
+| 类型检查 | `HEX`、`QUOTE`、`TYPEOF` |
+| 日期时间 | `DATE`、`DATETIME`、`TIME`、`JULIANDAY`、`UNIXEPOCH`、`STRFTIME`、`TIMEDIFF` |
 
-函数名按 ASCII case-insensitive 处理。通过 static signature 检查的调用使用 SQLite
-3.45 的 value、null、conversion、indexing 与 formatting behavior。需要特别注意：
+函数名大小写不敏感。
+所有函数均遵循 SQLite 3.45 标准行为：
 
-- `CONCAT` 将 non-null value 转为 text 并跳过 null。
-- `SUBSTR` 与 `SUBSTRING` 和 SQLite 一样从一开始计数；negative position 与
-  length 也保留 SQLite 行为。
-- 内建 `LOWER` 与 `UPPER` 只 fold ASCII character。
-- `FORMAT` 与 `PRINTF` 使用 SQLite formatting，而不是设备 locale。
-- date/time function 必须提供 time value。format 与 modifier 必须是 string
-  literal；`now`、`localtime`、`utc`、`auto` 会被拒绝，以避免结果依赖
-  clock、timezone 或 Host SQLite version。`UNIXEPOCH` 还会拒绝 `subsec` 与
-  `subsecond`，使 result 保持为 Integer。
+- `CONCAT` 将非空值转换为文本并忽略空值。
+- `SUBSTR` 与 `SUBSTRING` 索引从 1 开始。负数偏移量遵循 SQLite 标准规则。
+- 内置 `LOWER` 与 `UPPER` 仅处理 ASCII 字符。
+- `FORMAT` 与 `PRINTF` 使用 SQLite 格式化规则，不受系统区域设置影响。
+- 日期时间函数必须提供有效的时间值。
+- 格式修饰符必须是字符串常量。Runtime 禁止使用 `now`、`localtime`、`utc` 与 `auto`，以保证跨平台计算的一致性与可复现性。
+- `UNIXEPOCH` 禁止传入 `subsec` 与 `subsecond`，确保输出结果始终为标准整数。
 
-## 阅读时长示例
+## 阅读时长格式化示例
 
-下列表达式将 `309299` 秒格式化为 `85小时55分钟`，余下秒数按最近分钟取整：
+以下表达式将 `309299` 秒格式化为 `85小时55分钟`，并将剩余秒数四舍五入到最近的分钟：
 
 ```sql
 IIF(
@@ -83,25 +80,22 @@ IIF(
 )
 ```
 
-如果想丢弃余下秒数，请把 minute 部分的 `ROUND` 换成 `FLOOR`；对于 `309299`，
-该结果是 `85小时54分钟`。
+如果需要直接向下取整并忽略剩余秒数，请将分钟部分的 `ROUND` 替换为 `FLOOR`。
+对于 `309299` 秒，计算结果为 `85小时54分钟`。
 
-## 明确不支持
+## 明确不支持的特性
 
-Formula 排除 SQL statement、subquery、aggregate/window function、table-valued
-function、randomness、connection-state function、extension loading、JSON
-function、Host-defined function，以及仅由新版 SQLite 新增的函数。旧 Eidos-only
-名称（例如 `IF`、`IS_NULL`、`LOWER_ASCII`、`DATE_ADD_DAYS`）不作为 alias；请使用
-上面的 SQLite spelling。
+Formula 不支持完整 SQL 语句、子查询与窗口函数。
+它不支持表值函数、随机数生成与连接状态函数。
+它不支持扩展加载与 JSON 函数。
+旧版自定义函数名（如 `IF`、`IS_NULL`、`DATE_ADD_DAYS`）已废弃，请使用标准 SQLite 函数：
 
-更新较早的 draft File 时，请显式迁移表达式：
-
-| 旧 spelling                          | SQLite profile spelling                                     |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `IF(C, A, B)`                        | `IIF(C, A, B)`                                              |
-| `IS_NULL(X)`                         | `X IS NULL`                                                 |
-| `LOWER_ASCII(X)` / `UPPER_ASCII(X)`  | `LOWER(X)` / `UPPER(X)`                                     |
-| `DATE_ADD_DAYS(D, 7)`                | `DATE(D, '+7 days')`                                        |
-| `DATE_DIFF_DAYS(A, B)`               | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)`              |
-| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')`                        |
-| `DATETIME_DIFF_MILLISECONDS(A, B)`   | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |
+| 旧版拼写 | 标准 SQLite 拼写 |
+| --- | --- |
+| `IF(C, A, B)` | `IIF(C, A, B)` |
+| `IS_NULL(X)` | `X IS NULL` |
+| `LOWER_ASCII(X)` / `UPPER_ASCII(X)` | `LOWER(X)` / `UPPER(X)` |
+| `DATE_ADD_DAYS(D, 7)` | `DATE(D, '+7 days')` |
+| `DATE_DIFF_DAYS(A, B)` | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)` |
+| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')` |
+| `DATETIME_DIFF_MILLISECONDS(A, B)` | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |

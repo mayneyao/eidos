@@ -51,10 +51,10 @@ export default defineConfig({
         starlightSidebarTopics(
           [
             {
-              id: "lite",
+              id: "user-guide",
               label: {
-                en: "Eidos Lite",
-                "zh-CN": "Eidos Lite",
+                en: "User Guide",
+                "zh-CN": "用户指南",
               },
               icon: "rocket",
               link: "/user-guide/",
@@ -197,7 +197,7 @@ export default defineConfig({
           {
             exclude: ["/", "/zh-cn/"],
             topics: {
-              lite: ["/legacy", "/zh-cn/legacy"],
+              "user-guide": ["/legacy", "/zh-cn/legacy"],
             },
           }
         ),

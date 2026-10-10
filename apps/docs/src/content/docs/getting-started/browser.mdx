@@ -7,38 +7,34 @@ sidebar:
 
 import { Aside, Steps } from "@astrojs/starlight/components"
 
-The Web Editor creates and edits individual `.eidos` files directly in your
-browser. It uses the same Eidos File Runtime and editor UI as Lite and CLI
-Serve, and does not require installation or an account. To work with a
-folder of notes and other files, use [Eidos Lite](/getting-started/eidos-lite/).
+The Web Editor creates and edits individual `.eidos` files in your browser.
+It uses the same Runtime and editor UI as Lite and CLI Serve.
+It does not require software installation or an account.
+To work with a folder of notes and other files, use [Eidos Lite](/getting-started/eidos-lite/).
 
 <Steps>
 
 1. Open [editor.eidos.space](https://editor.eidos.space/).
 
-2. Choose **New** for a blank file, **Open** for an existing `.eidos` file, or
-   open the bundled sample first.
+2. Select **New** for a blank file. Select **Open** for an existing `.eidos` file. You can also open the bundled sample.
 
-3. Add records, fields, tables, or views. Double-click a Grid cell or press
+3. Add records, fields, tables, or views. Double-click a Grid cell or press <kbd>Enter</kbd> to edit it.
 
-   <kbd>Enter</kbd> to edit it.
-
-4. Use **Save** to update a directly opened file. If the browser cannot keep a
-   writable file handle, use **Save As** or **Download a copy**.
+4. Select **Save** to update the local file directly. If your browser does not support writable file handles, select **Save As** or **Download a copy**.
 
 </Steps>
 
 <Aside type="note" title="Know which copy you are editing">
-  Chromium-based browsers can usually write back to a file after you grant
-  permission. Other browsers import a working copy and require Save As or a
-  download. The editor shows the current save state in its titlebar.
+  Chromium browsers can write changes directly back to your local file after you grant permission.
+  Other browsers import a temporary working copy and require you to download changes.
+  The titlebar shows the current save state.
 </Aside>
 
 ## What stays local
 
-File bytes, SQLite queries, and edits remain on the device. The editor keeps a
-browser-private recovery copy for unsaved work where supported; that recovery
-copy is not a substitute for saving or backing up the `.eidos` file.
+Your file data, SQLite queries, and edits remain on your local device.
+The editor keeps a private recovery copy in the browser for unsaved work where supported.
+This recovery copy does not replace saving or backing up your `.eidos` file.
 
 Continue with [Eidos File basics](/user-guide/eidos-file-basics/) or
 [Data location and safety](/user-guide/data-safety/).

@@ -7,28 +7,28 @@ sidebar:
 
 import ViewLab from "../../../components/ViewLab.astro"
 
-By the end of this guide, `books.eidos` will contain a book list and a saved
-view of books you are reading.
+Follow this walkthrough to create a book list in `books.eidos` with a saved view.
 
-Start with an open Eidos File in [Lite](/getting-started/eidos-lite/),
+Open an Eidos File in [Lite](/getting-started/eidos-lite/),
 the [Web Editor](/getting-started/browser/), or [CLI Serve](/getting-started/cli/).
 
 ## 1. Create the table
 
-Create a table named **Books**. Use a Text field named **Title** as its
-Record Label Field. Eidos uses this field as the displayed name of each book.
+Create a table named **Books**.
+Use a Text field named **Title** as its Record Label Field.
+Eidos uses this field as the primary label for each book record.
 
-Add a Select field named **Status**, with the options **To read**, **Reading**,
-and **Finished**.
+Add a Select field named **Status**.
+Add three options: **To read**, **Reading**, and **Finished**.
 
 | Field | Type | Purpose |
 | --- | --- | --- |
-| Title | Text | Name of the book; Record Label Field |
-| Status | Select | One reading state |
+| Title | Text | Name of the book (Record Label Field) |
+| Status | Select | Current reading state |
 
 ## 2. Add records
 
-Add three records. Enter the title and choose the status for each.
+Add three records. Enter the title and select the status for each book.
 
 | Title | Status |
 | --- | --- |
@@ -36,34 +36,34 @@ Add three records. Enter the title and choose the status for each.
 | A Room of One's Own | Finished |
 | Walden | To read |
 
-**Check:** Books contains three records. Each record describes one book.
+**Check:** The table contains three records. Each record describes one book.
 
 ## 3. Save a reading view
 
-Add a Grid view named **Reading now**. Open **Filter** and add
-`Status = Reading`.
+Add a Grid view named **Reading now**.
+Open **Filter** and add `Status = Reading`.
 
-**Check:** the view shows **The Little Prince**. The other two records are
-still in Books. Clear the filter to see them.
+**Check:** The view shows **The Little Prince**.
+The other two records remain in the Books table.
+Clear the filter to show them again.
 
-## 4. Try a different layout
+## 4. Change the view layout
 
-Create a Gallery view to see books as cards. Changing a book's Status there
-changes the same record you see in Grid.
+Create a Gallery view to show books as cards.
+Changing a book's Status in Gallery updates the same record in the Grid view.
 
-This small example uses a Finished checkbox to show the relationship.
-Its changes stay on this page and reset when you reload.
+This interactive example uses a Finished checkbox to demonstrate the relationship:
 
 <ViewLab />
 
-## 5. Check saving
+## 5. Check your file
 
-In Lite and CLI Serve, committed edits write to the local file.
-In the Web Editor, check the save state and use **Save**, **Save As**, or
-**Download a copy**, as available.
+In Lite and CLI Serve, committed edits write directly to the local file.
+In the Web Editor, check the save status.
+Use **Save**, **Save As**, or **Download a copy** to preserve your work.
 
-When moving `books.eidos`, include any local files its attachment fields
-reference. [Learn what to back up](/user-guide/data-safety/).
+When you copy or move `books.eidos`, include any local attachment files.
+Read [what to back up](/user-guide/data-safety/).
 
-Next: [choose fields](/user-guide/tables-and-fields/) or
-[configure views](/user-guide/views-and-querying/).
+Next steps: [configure fields](/user-guide/tables-and-fields/) or
+[create custom views](/user-guide/views-and-querying/).

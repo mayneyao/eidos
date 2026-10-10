@@ -51,7 +51,7 @@ Add this to `plugin.json`:
 
 `kind: "file"` binds the view to the file the user opens. `capabilities: ["document"]` provides the text interface. `file/open` and `.txt` select the file menu in which the view appears.
 
-## 2. Display the text
+## 2. Show the text
 
 Add this to `src/main.ts`:
 
@@ -82,7 +82,7 @@ const mount: Mount = async (ctx, root) => {
 export default mount
 ```
 
-Eidos calls mount with a context and an interface container. This code creates a pre element, obtains the current text through document.observe(), and updates the display when content changes. Adding the subscription to ctx.subscriptions releases it automatically when the view closes.
+Eidos calls mount with a context and an interface container. This code creates a `pre` element, reads the current text through `document.observe()`, and updates the text when content changes. Adding the subscription to `ctx.subscriptions` releases it automatically when the view closes.
 
 ## 3. Open it in Eidos Lite
 
@@ -91,16 +91,18 @@ Eidos calls mount with a context and an interface container. This code creates a
 3. Review access and enable the plugin for the current Space.
 4. Choose **Text Reader** from a `.txt` file's **Open with** menu.
 
-The view displays the file's content. Change the test file and confirm that the reader updates.
+The view shows the file content. Change the test file and check that the reader updates.
 
 ## 4. Change the interface
 
-Edit main.ts and save it. Eidos Lite recompiles and reloads the view. If compilation fails, use the error message to fix the code; the previous successfully loaded interface remains visible while you work.
+Edit `main.ts` and save it. Eidos Lite recompiles and reloads the view.
+If compilation fails, use the error message to fix the code.
+The previous loaded interface remains visible while you work.
 
 Use CSS variables such as `--eidos-background`, `--eidos-foreground` and `--eidos-border` to match Eidos's light and dark themes.
 
 ## Next steps
 
-To support editing, set access to write, add an input interface, use document.edit() to update content and document.save() to persist it. See the [API reference](/plugins/api/) for editing, conflict handling and undo methods.
+To support editing, set access to write, add an input interface, use `document.edit()` to update content and `document.save()` to persist it. See the [API reference](/plugins/api/) for editing, conflict handling and undo methods.
 
 To create a tool opened from navigation, read about [page views](/plugins/concepts/#page-views-open-independently). When you are ready to share your plugin, follow [development and distribution](/plugins/workflow/) to check and package it.

@@ -27,7 +27,7 @@ Use your own file path and table name.
 
 | Task | Command group |
 | --- | --- |
-| Create, inspect, validate, or repair a file | `eidos file` |
+| Create, inspect, check, or repair a file | `eidos file` |
 | Manage tables, fields, and views | `eidos schema` |
 | Query or change records and attachments | `eidos data` |
 | Open a local web editor | `eidos serve` |
@@ -47,7 +47,7 @@ eidos --json data query tracker.eidos Tasks --fields Title,Status --limit 50
 ```
 
 Check the exit status before using the result.
-For writes, [read context, apply with a revision check, then validate](/cli/automation-workflow/).
+For writes, [read context, apply with a revision check, then check the file](/cli/automation-workflow/).
 Do not build a script around the human-readable output.
 
 ## Set up an agent

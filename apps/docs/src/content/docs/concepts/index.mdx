@@ -8,65 +8,71 @@ sidebar:
 import FileMap from "../../../components/FileMap.astro"
 import ViewLab from "../../../components/ViewLab.astro"
 
-**Eidos File** is an open, SQLite-backed format for structured data. Each
-`.eidos` file stores its own data and structure, and can be opened directly
-with compatible tools.
+**Eidos File** is an open, SQLite-backed format for structured data.
+Each `.eidos` file stores its own schema and data.
+Compatible tools open the file directly without conversions.
 
 **Eidos Lite** is the desktop app that opens a local folder as a **Space**.
-The folder contains `.eidos` files alongside Markdown notes, images, and
-other ordinary files. Lite adds local Graft history and optional Sync;
-local editing works offline and without signing in.
+The folder contains `.eidos` files beside Markdown notes, images, and other files.
+Lite adds local version history and optional Sync.
+Local editing works offline without an account.
 
 ## Follow one example
 
-You want to track books and keep reading notes. Create a Space called
-`Research`. Put the book list in `books.eidos` and your notes in `notes.md`.
+You want to track books and keep reading notes.
+Create a Space named `Research`.
+Store the book list in `books.eidos` and write your notes in `notes.md`.
 
 <FileMap />
 
-The folder remains accessible in your file manager. Opening it in Eidos Lite
-does not convert your other documents into database records.
+The folder remains accessible in your system file manager.
+Opening the folder in Eidos Lite does not convert your files into proprietary database records.
 
 ## Inside an Eidos File
 
-A **table** groups records. Fields describe their values, and a saved
-**view** selects and displays records from the table.
+A **table** groups records.
+Fields describe record attributes.
+A saved **view** queries and shows records from that table.
 
-| Part               | What it does                          | Books example               |
-| ------------------ | ------------------------------------- | --------------------------- |
-| Table              | Groups one kind of item               | Books                       |
-| Field              | Describes a property                  | Title, Status               |
-| Record             | Stores one item                       | One book                    |
-| Record Label Field | Supplies the record's displayed title | Title                       |
-| Saved view         | Stores query and display settings     | Books with Status = Reading |
+| Component | Function | Books example |
+| --- | --- | --- |
+| Table | Groups one category of items | Books |
+| Field | Describes a property | Title, Status |
+| Record | Stores one item | One book |
+| Record Label Field | Supplies the record title | Title |
+| Saved view | Stores query, filter, and layout settings | Books with Status = Reading |
 
-The file stores the table structure, records, and saved views. A File field
-can reference an external attachment. Include that attachment when moving
-the file. See [data storage](/user-guide/data-safety/).
+The file stores the table schema, records, and saved views.
+A File field can reference an external attachment on disk.
+Include that attachment when you copy or move the `.eidos` file.
+See [data storage](/user-guide/data-safety/).
 
 ## One table, several views
 
-A Grid displays rows. A Gallery displays cards. A Kanban groups records.
-These are ways to display table data. Creating another view does not copy
-the records.
+A Grid shows rows and columns.
+A Gallery shows cards.
+A Kanban groups records into columns.
+These views present the same underlying table data.
+Creating a new view does not duplicate records.
 
 <ViewLab />
 
-Filtering changes which records you see. Editing a record changes its values.
-If an edit stops a record from matching a filter, it disappears from that
-view but remains in the table.
+Filtering changes which records you see.
+Editing a record updates its stored values.
+If an edit causes a record to fail a filter rule, the view hides the record, but the table keeps it.
 
-## Choose a way to open the file
+## Choose a tool to open the file
 
-- **Eidos Lite:** work with a local folder of `.eidos` and ordinary files, local Graft history, and optional Sync.
-- **Web Editor:** open one Eidos File in a browser. Check its save state before closing.
-- **CLI:** create, inspect, query, and change files from scripts or agents. Use `eidos serve` for a local editor.
+- **Eidos Lite:** Manage a local folder with `.eidos` files and ordinary files. Use local history and optional Sync.
+- **Web Editor:** Open one Eidos File in your browser. Check the save status before you close the tab.
+- **CLI:** Create, inspect, query, and update files with terminal commands or AI agents. Use `eidos serve` for a local editor.
 
-Eidos File provides the portable Runtime behind these tools. Lite, the Web
-Editor, and CLI Serve share the editor UI, so the file's data and editing
-rules stay consistent across them.
+Eidos File provides the portable Runtime behind these tools.
+Lite, the Web Editor, and CLI Serve share the same editor UI.
+Data rules and formula calculations stay identical across all tools.
 
-Local work and LAN sync do not require an account. Cloud sync and Publish are
-separate, optional services. [Compare saving, history, Sync, and backups](/user-guide/data-safety/).
+Local work and LAN sync do not require an account.
+Cloud sync and web publishing are optional services.
+[Compare saving, history, Sync, and backups](/user-guide/data-safety/).
 
-Next: [create a book table](/user-guide/eidos-file-basics/).
+Next step: [create a book table](/user-guide/eidos-file-basics/).

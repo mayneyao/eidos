@@ -5,186 +5,190 @@ sidebar:
   order: 20
 ---
 
-A table groups one kind of item. A field describes one property of that item.
-For example, each record in Books represents a book. Title and Status are fields.
+A table groups one category of items.
+A field describes one property of that item.
+For example, each record in Books represents a book.
+Title and Status are fields.
 
 ## Start with two fields
 
-Create **Title** as Text and **Status** as Select. Give Status the options
-**To read**, **Reading**, and **Finished**. Set Title as the Record Label Field.
+Create **Title** as a Text field.
+Create **Status** as a Select field.
+Give Status three options: **To read**, **Reading**, and **Finished**.
+Set Title as the Record Label Field.
 
-**Check:** add a book and choose Reading. Its title identifies the record,
-and its status can be used in a filter. Add more fields when you need them.
+**Check:** Add a book and choose Reading.
+Its title identifies the record.
+Its status works in filter rules.
+Add more fields when you need them.
 The [book-list walkthrough](/user-guide/eidos-file-basics/) shows the full task.
 
 ## Create and name a table
 
-Use the table tabs to create, rename, reorder, or remove tables. Names are
-human-readable and may change later; Eidos keeps stable internal IDs so saved
-views and relations do not depend on a displayed name.
+Use the table tabs to create, rename, reorder, or delete tables.
+Table names are human-readable.
+You can change them later.
+Eidos maintains stable internal IDs.
+Saved views and relations do not depend on the table name.
 
-For records with notes or articles, enable **Include Markdown content** when
-creating the table. Eidos adds a Text field for record content. You can change
-this table-wide **Content field** in **Table settings** at any time. When creating
-a `.eidos` file in Lite, expand **Advanced options** to enable content for its
-initial table. A table without a Content field remains a structured table.
-File properties such as a mapped file's path are read-only and cannot store
-record content.
+For records with notes or articles, enable **Include Markdown content** when you create the table.
+Eidos adds a Text field for record content.
+You can change this table-wide **Content field** in **Table settings** at any time.
+When you create a `.eidos` file in Lite, expand **Advanced options** to enable content for the initial table.
+A table without a Content field remains a structured table.
+File properties such as a mapped file path are read-only and cannot store record content.
 
-Choose concise singular or plural naming and use it consistently. A table
-called **Projects** should contain one project per record, not a mixture of
-projects, clients, and free-form notes.
+Choose concise names and use them consistently.
+A table named **Projects** should contain one project per record.
+Do not mix projects, clients, and free-form notes in one table.
 
 ## Choose the Record Label Field
 
-Every table has exactly one Record Label Field. Eidos uses it for record
-titles, Gallery and Kanban cards, Relation choices, and linked-record labels.
+Every table has exactly one Record Label Field.
+Eidos uses it for record titles, Gallery cards, Kanban cards, and Relation links.
 
-Open the table menu and choose **Table settings** to change it. Good label
-fields are recognizable and usually unique enough for a person to distinguish
-records. Changing the label field does not rewrite Relation IDs; linked labels
-refresh from the newly selected field.
+Open the table menu and select **Table settings** to change it.
+Good label fields are recognizable and distinguish records clearly.
+Changing the label field does not rewrite Relation IDs.
+Linked labels refresh from the newly selected field.
 
-If the current label field is being deleted, select a replacement first. Eidos
-will not leave a table without a record label.
+If you delete the current label field, select a replacement first.
+Eidos does not allow a table without a record label.
 
 ## Pick a field type
 
-| Field type      | Use it for                                   | Important behavior                                  |
-| --------------- | -------------------------------------------- | --------------------------------------------------- |
-| Text            | Titles, notes, codes, and free-form values   | Searchable; preserves entered text                  |
-| Number          | Measurements and decimal values              | Finite decimal number                               |
-| Integer         | Counts and exact whole numbers               | Exact signed 64-bit value                           |
-| Select          | One controlled state or category             | One option; may have a create-time default          |
-| Multi-select    | Tags and multiple controlled categories      | Ordered option list; no implicit default            |
-| Checkbox        | Yes/no state                                 | Can also be left empty                              |
-| Rating          | A five-star presentation                     | Stored as an integer-style value                    |
-| URL             | A web address                                | Clickable only after Host policy checks             |
-| Date            | A calendar day without a time zone           | Use when time-of-day does not matter                |
-| Date & time     | An exact moment                              | Stored canonically and displayed in a chosen zone   |
-| File            | Portable attachment and image references     | Acquisition and preview depend on Host capabilities |
-| Formula         | A value calculated from fields in this table | Read-only result                                    |
-| Relation        | Records in another table                     | Stores stable target record IDs                     |
-| Lookup / rollup | Values read or aggregated through a Relation | Read-only derived result                            |
+| Field type | Use it for | Important behavior |
+| --- | --- | --- |
+| Text | Titles, notes, codes, and free-form values | Searchable. Preserves entered text |
+| Number | Measurements and decimal values | Finite decimal number |
+| Integer | Counts and whole numbers | Exact signed 64-bit value |
+| Select | One controlled state or category | One option. Can have a default option |
+| Multi-select | Tags and multiple categories | Ordered option list. No default option |
+| Checkbox | Yes/no state | Can remain empty |
+| Rating | Star ratings | Stored as an integer value |
+| URL | Web address | Clickable only after Host policy checks |
+| Date | Calendar day without a time zone | Use when time-of-day does not matter |
+| Date & time | Exact moment | Stored canonically and shown in a selected time zone |
+| File | Attachment and image references | File access depends on Host capabilities |
+| Formula | Value calculated from fields in this table | Read-only result |
+| Relation | Records in another table | Stores stable target record IDs |
+| Lookup / rollup | Values read or aggregated through a Relation | Read-only derived result |
 
-Prefer the narrowest type that expresses the data. A status should normally be
-Select, not Text. A birthday should be Date, not Datetime. A relationship to a
-person should be Relation, not a copied name.
+Choose the narrowest type that expresses the data.
+Use Select for a status, not Text.
+Use Date for a birthday, not Date & time.
+Use Relation for a person, not a copied text name.
 
 ## Configure Select options and a default
 
-Field properties let you add, rename, recolor, reorder, and remove Select or
-Multi-select options. The option name is the stored logical value; color is
-presentation.
+Field properties let you add, rename, recolor, reorder, and delete options.
+The option name is the stored logical value.
+The option color is only a visual presentation.
 
-For a Select field, **Default option** controls new record creation:
+For a Select field, **Default option** sets the value for new records:
 
 - **No default** leaves an omitted field empty.
-- Choosing an option assigns it when a create action omits the field.
-- Explicitly clearing or supplying a value overrides the default.
-- Existing records are not backfilled.
+- Choosing an option assigns it when a creation action omits the field.
+- Explicitly supplying another value overrides the default.
+- Existing records do not receive the default value.
 - CSV import does not infer the default.
-- Renaming the chosen option retargets the default atomically.
-- Deleting the chosen option clears the default.
+- Renaming the chosen option updates the default automatically.
+- Deleting the chosen option clears the default setting.
 
-Multi-select does not have this setting because an implicit list can hide
-whether a creator actually chose a tag.
+Multi-select does not support default values.
+An implicit list can hide whether a user selected a tag deliberately.
 
 ## Connect tables with Relation and Lookup
 
-A forward Relation points from this table to one or more records in a target
-table. The stored value is an ordered list of stable Row IDs; the editor
-resolves the target's current Record Label for display.
+A forward Relation points from this table to records in a target table.
+The stored value is an ordered list of stable Row IDs.
+The editor resolves the target's current Record Label to show it.
 
-Use a Lookup when you need to show or aggregate a field reached through that
-Relation. A Lookup is derived: edit the source record or the Relation rather
-than trying to type over the Lookup result.
+Use a Lookup to show or aggregate a field reached through that Relation.
+A Lookup is derived.
+Edit the source record or the Relation rather than typing over the Lookup result.
 
-Before deleting a related table or field, read the dependency report. Hidden
-views and derived fields may still depend on it.
+Before you delete a related table or field, check the dependency report.
+Hidden views and derived fields may still depend on it.
 
 ## Calculate values with Formula
 
-Formula fields calculate a declared result from fields in the same table. The
-editor previews and validates the expression before committing its definition.
-Formula results are read-only and refresh when their dependencies change.
-See [Formula expressions](/user-guide/formula/) for the fixed SQLite 3.45
-function whitelist, syntax, null behavior, and formatting examples.
+Formula fields calculate a result from fields in the same table.
+The editor previews and checks the expression before saving its definition.
+Formula results are read-only and refresh when input fields change.
+See [Formula expressions](/user-guide/formula/) for supported functions, syntax, and examples.
 
-Double-click a Formula cell, or select it and press Enter or Space, to open the
-Formula editor beside that cell. The selected record becomes the preview
-example, so changes to the expression can be checked against the row you were
-already inspecting. Opening the editor from Field settings uses the Runtime's
-ordinary sample rows.
+Double-click a Formula cell to open the Formula editor beside that cell.
+You can also select the cell and press Enter or Space.
+The selected record becomes the preview example.
+You can check changes to the expression against that row.
+Opening the editor from Field settings uses sample rows from the Runtime.
 
-Use Formula for repeatable derivation, not for values a person must override.
+Use Formula for repeatable derivations, not for values that require manual overrides.
 Use Lookup for data across a Relation.
 
 ## Rename, reorder, convert, or delete fields
 
-- **Rename** changes the displayed and physical field name while Runtime
-  rewrites supported references by stable ID.
-- **Reorder** changes presentation, not record values.
-- **Hide** belongs to a View and does not remove the field or its data.
-- **Convert** may be metadata-only, lossless, explicitly lossy, or forbidden.
-  Review the preflight impact instead of trusting a small sample.
-- **Delete** permanently removes stored values and may affect dependencies.
+- **Rename** changes the shown name and physical field name. Runtime rewrites supported references by stable ID.
+- **Reorder** changes column order, not record values.
+- **Hide** belongs to a View and does not delete the field or its data.
+- **Convert** changes field types. Review the preflight impact before you apply the change.
+- **Delete** permanently deletes stored values and can affect dependent formulas.
 
 ### Conversion overview
 
-Read each row as the current type and each column as the destination type:
+Read each row as the current type and each column as the target type:
 
-- `✓` is available when every stored value passes Runtime validation.
-- `⚠` is available but can lose or round information, so Eidos previews the
-  impact and requires confirmation.
-- `•` is already the same type.
-- `—` is not available in the general Type control.
+- `✓` is available when every stored value passes validation.
+- `⚠` is available but can lose or round information. Eidos shows a preview and asks for approval.
+- `•` indicates the field is already that type.
+- `—` is not available in the Type menu.
 
-| From → To    | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
-| ------------ | :--: | :----: | :-----: | :------: | :----: | :----------: | :----: | :--: | :---------: | :-: |
-| Text         |  •   |   ✓    |    ✓    |    ✓     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
-| Number       |  ✓   |   •    |    ⚠    |    ⚠     |   ✓    |      —       |   ⚠    |  —   |      —      |  —  |
-| Integer      |  ✓   |   ⚠    |    •    |    ⚠     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
-| Checkbox     |  ✓   |   ✓    |    ✓    |    •     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
-| Select       |  ✓   |   ✓    |    ✓    |    ✓     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
-| Multi-select |  ✓   |   —    |    —    |    —     |   ⚠    |      •       |   —    |  —   |      —      |  —  |
-| Rating       |  ✓   |   ✓    |    ✓    |    ⚠     |   ✓    |      —       |   •    |  —   |      —      |  —  |
-| Date         |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  •   |      ✓      |  ✓  |
-| Date & time  |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ⚠   |      •      |  ✓  |
-| URL          |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ✓   |      ✓      |  •  |
+| From → To | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Text | • | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Number | ✓ | • | ⚠ | ⚠ | ✓ | — | ⚠ | — | — | — |
+| Integer | ✓ | ⚠ | • | ⚠ | ✓ | — | ✓ | — | — | — |
+| Checkbox | ✓ | ✓ | ✓ | • | ✓ | — | ✓ | — | — | — |
+| Select | ✓ | ✓ | ✓ | ✓ | • | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Multi-select | ✓ | — | — | — | ⚠ | • | — | — | — | — |
+| Rating | ✓ | ✓ | ✓ | ⚠ | ✓ | — | • | — | — | — |
+| Date | ✓ | — | — | — | ✓ | — | — | • | ✓ | ✓ |
+| Date & time | ✓ | — | — | — | ✓ | — | — | ⚠ | • | ✓ |
+| URL | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | • |
 
-These fields deliberately use dedicated controls instead of the general Type
-conversion menu:
+These field types use dedicated setup flows instead of the Type conversion menu:
 
-| Field                                | General conversion | How to change it                                    |
-| ------------------------------------ | :----------------: | --------------------------------------------------- |
-| File                                 |         —          | Create a File field and move attachments explicitly |
-| Relation                             |         —          | Use the Relation definition flow                    |
-| Formula                              |         —          | Use the Formula editor and declare its result type  |
-| Lookup / rollup                      |         —          | Use the Lookup editor and aggregate settings        |
-| Row ID / Created time / Updated time |         —          | System-managed fields are immutable                 |
+| Field | General conversion | How to change it |
+| --- | :---: | --- |
+| File | — | Create a File field and move attachments manually |
+| Relation | — | Use the Relation configuration flow |
+| Formula | — | Use the Formula editor and set its result type |
+| Lookup / rollup | — | Use the Lookup editor and aggregation settings |
+| Row ID / Created time / Updated time | — | System fields are immutable |
 
-Rating is an Integer presentation and accepts only whole values from 0 through 5. Text and Select conversions also require canonical values for the
-destination type; for example, Text to Checkbox accepts only lowercase `true`
-or `false`. For the low-level conversion classes and algorithms, see the
-[Runtime 1.0 specification](/specifications/runtime-1-0/).
+Rating is an Integer format.
+It accepts whole numbers from 0 through 5.
+Text and Select conversions require standard values for the target type.
+For example, Text to Checkbox accepts only lowercase `true` or `false`.
+For detailed conversion rules, see the [Runtime 1.0 specification](/specifications/runtime-1-0/).
 
-Schema changes use revision checks. If another edit changed the file after the
-plan was prepared, Eidos refreshes the plan instead of applying it to stale
-state.
+Schema changes use revision checks.
+If another edit modified the file after generating the plan, Eidos refreshes the plan.
+It does not apply stale plans.
 
 ## A useful task table
 
-A practical Tasks table might contain:
+A practical Tasks table can contain:
 
-| Field     | Type         | Configuration                       |
-| --------- | ------------ | ----------------------------------- |
-| Title     | Text         | Record Label Field                  |
-| Status    | Select       | Todo, Doing, Done; default Todo     |
-| Assignee  | Relation     | Links to People                     |
-| Due       | Date         | No time-of-day                      |
-| Tags      | Multi-select | Controlled topic names              |
-| Days open | Formula      | Derived from creation time          |
-| Team      | Lookup       | Read from Assignee's related record |
+| Field | Type | Configuration |
+| --- | --- | --- |
+| Title | Text | Record Label Field |
+| Status | Select | Todo, Doing, Done. Default: Todo |
+| Assignee | Relation | Links to People |
+| Due | Date | No time-of-day |
+| Tags | Multi-select | Controlled tag names |
+| Days open | Formula | Calculated from creation time |
+| Team | Lookup | Read from Assignee's related record |
 
 Next, learn how to [create and edit records](/user-guide/records-and-editing/).

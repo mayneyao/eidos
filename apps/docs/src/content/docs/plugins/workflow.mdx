@@ -15,7 +15,8 @@ Develop your plugin from source, then package it as an `.eidos-plugin` file. Thi
 npx @eidos.space/plugin-tools --help
 ```
 
-In an existing project, install plugin-tools and `@eidos.space/plugin-sdk` as development dependencies and keep a lockfile. The SDK provides editor type information; import it using `import type`.
+In an existing project, install plugin-tools and `@eidos.space/plugin-sdk` as development dependencies and keep a lockfile.
+The SDK provides editor type information. Import it using `import type`.
 
 ## Start from an example project
 
@@ -27,9 +28,11 @@ cd csv-editor
 npm install
 ```
 
-Run `npx @eidos.space/plugin-tools templates` to see other examples and their purposes. Install interface libraries such as React in your plugin project when needed; packaging includes them in the bundle.
+Run `npx @eidos.space/plugin-tools templates` to see other examples and their purposes.
+Install interface libraries such as React in your plugin project when needed. Packaging includes them in the bundle.
 
-For a small project, you can also export manifest and a default mount or activate function from a single `.ts` file. Check and pack accept both directories and standalone source files.
+For a small project, you can also export manifest and a default mount or activate function from a single `.ts` file.
+Check and pack commands accept both directories and standalone source files.
 
 ## Check and debug
 
@@ -39,21 +42,30 @@ Run in the plugin directory:
 npx @eidos.space/plugin-tools check . --target lite
 ```
 
-This checks declarations, entry points and TypeScript, and confirms that the requested features work in Eidos Lite. Fix diagnostics, load development source through Plugin Manager, and exercise the entry points your users will use.
+This checks declarations, entry points and TypeScript, and checks that the requested features work in Eidos Lite.
+Fix diagnostics, load development source through Plugin Manager, and exercise the entry points your users will use.
 
-Choose tests suited to your plugin: text editors should cover save/reopen, undo/redo and external-change conflicts; batch operations should cover the full target, cancellation and partial completion. Check light/dark rendering and reopening for every interface.
+Choose tests suited to your plugin.
+Text editors must test save, reopen, undo, redo, and external-change conflicts.
+Batch operations must test targets, cancellation, and partial completion.
+Check light and dark rendering and reopening for every interface.
 
-Saving source automatically reloads the view. Changes to access declarations require another permission review. Automatic development updates last for the current run; install a packaged build to keep using it after restart.
+Saving source automatically reloads the view.
+Changes to access declarations require another permission review.
+Automatic development updates last for the current run.
+Install a packaged build to keep using it after restart.
 
 ## Use a view in CLI Serve
 
-CLI Serve loads file views within tables and provides table queries and notifications. If your view also needs to work in Serve, check that target:
+CLI Serve loads file views within tables and provides table queries and notifications.
+If your view also needs to work in Serve, check that target:
 
 ```sh
 npx @eidos.space/plugin-tools check . --target cli
 ```
 
-Lite's filesystem, independent pages and extension operations are desktop features. Check for optional interfaces before calling them in a view intended for multiple environments.
+Lite's filesystem, independent pages and extension operations are desktop features.
+Check for optional interfaces before calling them in a view intended for multiple environments.
 
 ## Package and install
 
@@ -61,17 +73,21 @@ Lite's filesystem, independent pages and extension operations are desktop featur
 npx @eidos.space/plugin-tools pack .
 ```
 
-The command reports paths to an `.eidos-plugin` archive and a `.sha256` checksum. Share the archive with users, who install it through Eidos Lite's Plugin Manager and enable it for their Spaces.
+The command reports paths to an `.eidos-plugin` archive and a `.sha256` checksum.
+Share the archive with users, who install it through Eidos Lite's Plugin Manager and enable it for their Spaces.
 
-To verify a package in CLI Serve:
+To check a package in CLI Serve:
 
 ```sh
 eidos --json plugin doctor /absolute/plugin.eidos-plugin
 eidos serve /absolute/test.eidos --plugin /absolute/plugin.eidos-plugin
 ```
 
-A doctor result with compatible: true means the package meets CLI feature requirements. Then open Serve in a browser and add the plugin from a table's view menu.
+A doctor result with compatible: true means the package meets CLI feature requirements.
+Then open Serve in a browser and add the plugin from a table's view menu.
 
 ## Publish updates
 
-Keep plugin IDs, view IDs and setting keys stable. Increase the plugin version, check it and create a new package. Test the update with copies of existing settings and files to verify that user configuration remains usable.
+Keep plugin IDs, view IDs and setting keys stable.
+Increase the plugin version, check it and create a new package.
+Test the update with copies of existing settings and files to check that user configuration remains usable.

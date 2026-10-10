@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-一个插件由声明文件和代码组成。声明文件告诉 Eidos 插件叫什么、从哪里打开，以及需要访问哪些数据；代码负责界面和操作。
+一个插件由声明文件和代码组成。声明文件告诉 Eidos 插件叫什么、从哪里打开，以及需要访问哪些数据。代码负责界面和操作。
 
 ## 插件声明
 
@@ -43,7 +43,7 @@ Eidos 文件的接口组织在 `ctx.capabilities.eidos` 下：`schema` 读取文
 
 展示 Eidos 文件内部的表格时，声明 `capabilities: ["eidos/table"]` 并使用 `table/view` 入口。用户在表格的视图菜单中添加它，插件通过 `ctx.capabilities.eidos.table` 查询当前表格的数据。
 
-文件信息通过 `ctx.binding.file` 获取；定位到表格时，`ctx.binding.location` 还提供表格和视图 ID。具体数据接口见 [API 参考](/zh-cn/plugins/api/)。
+文件信息通过 `ctx.binding.file` 获取。视图在表格中打开时，`ctx.binding.location` 还提供表格和视图 ID。具体数据接口见 [API 参考](/zh-cn/plugins/api/)。
 
 ## 在代码中使用上下文
 
@@ -58,7 +58,7 @@ Eidos 打开视图时调用默认导出的 `mount(ctx, root)`。在 `root` 中�
 
 ## 命令与格式化
 
-命令适合一次性操作，例如生成今日笔记或处理选中的记录。在 `actions` 中声明命令，在 `extension` 指向的模块中导出 `activate(ctx)`，通过 `ctx.capabilities.actions` 注册处理函数。
+命令执行生成今日笔记或处理选中记录等动作。在 `actions` 中声明命令，在 `extension` 指向的模块中导出 `activate(ctx)`，通过 `ctx.capabilities.actions` 注册处理函数。
 
 格式化器接收文档文本并返回格式化结果。通过 `ctx.capabilities.formatters` 注册后，用户可以从 Eidos 的格式化操作中调用它。
 

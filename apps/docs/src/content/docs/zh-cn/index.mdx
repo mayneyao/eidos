@@ -1,16 +1,16 @@
 ---
 title: Eidos 文档
-description: 使用可携带的 Eidos File，通过 Eidos Lite 管理本地文件夹。
+description: 本地优先、开放格式的结构化数据空间。探索 Eidos File、Eidos Lite 与开发者工具。
 template: splash
 hero:
-  title: 你的工作，保存在文件里。
-  tagline: 用 .eidos 文件保存结构化数据，把笔记和附件放在旁边。在 Eidos Lite 中打开文件夹，在浏览器中编辑文件，或用 CLI 自动处理工作。
+  title: 本地优先、开放格式的结构化数据空间。
+  tagline: 用标准的本地 SQLite 文件保存表格与笔记，数据完全由你掌控。从日常操作指南到 CLI 自动化、插件开发与开放格式规范，全面探索 Eidos。
   actions:
-    - text: 从一个文件开始
-      link: /zh-cn/getting-started/
+    - text: 用户指南
+      link: /zh-cn/user-guide/
       icon: right-arrow
-    - text: 阅读文件规范
-      link: /zh-cn/specifications/
+    - text: 开发者工具
+      link: /zh-cn/cli/
       variant: minimal
 ---
 
@@ -20,53 +20,86 @@ import FileMap from "../../../components/FileMap.astro"
 
 ## 先看文件里有什么
 
-**Eidos File** 是基于 SQLite 的开放结构化数据格式，提供可跨平台使用的
-Runtime 和共享编辑器 UI。一个 `.eidos` 文件保存表、类型化字段、记录、关系和视图。
-通过网页编辑器、面向智能体的 CLI 或 `eidos serve`，可以直接操作这个文件。
+**Eidos File** 是基于 SQLite 的开放结构化数据格式。
+一个 `.eidos` 文件保存表格、类型化字段、记录与已保存视图。
+你可以在网页编辑器中打开该文件，使用 CLI 处理数据，或将其集成至应用程序中。
 
-**Eidos Lite** 是桌面应用，用来打开包含 `.eidos` 文件、Markdown 笔记和
-其他普通文件的本地文件夹。这个文件夹叫作 **Space**。
-Lite 提供本地 Graft 历史和可选的 Sync。本地文件在离线或未登录时仍然可用。
+**Eidos Lite** 是管理本地文件夹的桌面应用。
+该文件夹即为你的 **Space**。
+Lite 将 `.eidos` 文件与 Markdown 笔记及附件一同保存。
+Lite 提供本地版本历史与可选的同步功能。
+所有本地文件均可在未登录与离线状态下正常使用。
 
 <FileMap lang="zh-cn" />
 
-## 接下来做什么
+## 面向用户
 
-<nav class="docs-home-index__list" aria-label="文档阅读路径">
+在本地计算机上管理个人笔记、结构化表格与各类文档。
+
+<nav class="docs-home-index__list" aria-label="用户文档阅读路径">
   <a href="/zh-cn/getting-started/eidos-lite/" class="docs-home-index__item">
     <span class="docs-home-index__number">01</span>
     <span class="docs-home-index__copy">
-      <strong>管理本地文件夹</strong>
-      <span>安装 Eidos Lite，打开 Space，创建第一个文件。</span>
+      <strong>在本地 Space 中工作</strong>
+      <span>安装 Eidos Lite。打开本地文件夹。创建你的第一个表格。</span>
     </span>
     <span aria-hidden="true">→</span>
   </a>
   <a href="/zh-cn/getting-started/browser/" class="docs-home-index__item">
     <span class="docs-home-index__number">02</span>
     <span class="docs-home-index__copy">
-      <strong>在浏览器里打开文件</strong>
-      <span>无需安装应用，直接试用网页编辑器。</span>
+      <strong>在浏览器中打开文件</strong>
+      <span>无需安装任何软件，直接检查与编辑 Eidos File。</span>
     </span>
     <span aria-hidden="true">→</span>
   </a>
-  <a href="/zh-cn/cli/" class="docs-home-index__item">
+  <a href="/zh-cn/concepts/" class="docs-home-index__item">
     <span class="docs-home-index__number">03</span>
     <span class="docs-home-index__copy">
-      <strong>让命令行完成重复工作</strong>
-      <span>使用 CLI 创建、查询和验证文件。</span>
+      <strong>理解核心概念</strong>
+      <span>学习文件、表格、字段、记录与视图如何协同工作。</span>
     </span>
     <span aria-hidden="true">→</span>
   </a>
-  <a href="/zh-cn/plugins/" class="docs-home-index__item">
+  <a href="/zh-cn/user-guide/data-safety/" class="docs-home-index__item">
     <span class="docs-home-index__number">04</span>
     <span class="docs-home-index__copy">
-      <strong>在 Eidos 中开发工具</strong>
-      <span>通过插件添加文件编辑器、独立页面或命令。</span>
+      <strong>保护与同步你的数据</strong>
+      <span>检查存储位置，管理备份历史，配置跨设备同步。</span>
     </span>
     <span aria-hidden="true">→</span>
   </a>
 </nav>
 
-已经在使用 Eidos？查看[使用指南](/zh-cn/user-guide/)，或了解[数据存储与备份](/zh-cn/user-guide/data-safety/)。
+## 面向开发者
+
+自动化重复任务，构建插件，或基于开放数据格式进行二次开发。
+
+<nav class="docs-home-index__list" aria-label="开发者文档阅读路径">
+  <a href="/zh-cn/cli/" class="docs-home-index__item">
+    <span class="docs-home-index__number">05</span>
+    <span class="docs-home-index__copy">
+      <strong>使用 CLI 进行自动化</strong>
+      <span>检查文件结构，查询记录数据，运行脚本或 AI Agent 技能。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/zh-cn/plugins/" class="docs-home-index__item">
+    <span class="docs-home-index__number">06</span>
+    <span class="docs-home-index__copy">
+      <strong>构建插件</strong>
+      <span>使用 TypeScript 创建自定义页面视图、文件处理器与命令。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a href="/zh-cn/specifications/" class="docs-home-index__item">
+    <span class="docs-home-index__number">07</span>
+    <span class="docs-home-index__copy">
+      <strong>阅读底层规范</strong>
+      <span>查阅 SQLite 存储 Schema、运行时规则与适配器接口标准。</span>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+</nav>
 
 </div>

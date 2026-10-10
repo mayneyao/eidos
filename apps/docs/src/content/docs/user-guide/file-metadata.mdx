@@ -8,55 +8,70 @@ sidebar:
 
 import { FileTree } from "@astrojs/starlight/components"
 
-**File Metadata Management** displays files in a folder as table records.
-Add fields such as Status, Rating, or Tags to organize them.
+**File Metadata Management** shows files in a folder as table records.
+Add fields such as Status, Rating, or Tags to organize files.
 
-The configuration lives in `files.eidos`. Custom values live in the physical
-files' attributes. These are different storage locations: copying the
-configuration file alone does not copy your tags.
+The configuration lives in `files.eidos`.
+Custom values live in the physical file attributes.
+These are separate storage locations.
+Copying the configuration file alone does not copy your tags.
 
 ---
 
-## 1. Quick Start
+## 1. Quick start
 
 Start in the folder you want to manage:
 
-1. **Create a file**: In the Eidos Lite sidebar, click New File (shortcut: `Cmd/Ctrl + N`), and choose **Eidos** as the file type.
-2. **Enable management**: Check the **File Metadata Management** toggle. The filename is fixed to `files.eidos`, then click **Create**. Each folder gets one configuration; an existing file is never overwritten.
-3. **Start tagging**: Open the created table and click the **+ (Add Column)** button on the right side of the header. Enter a property name (such as "Status", "Rating", or "Tags") and start recording metadata directly on your files as you would in a spreadsheet.
+1. **Create a file**: In the Eidos Lite sidebar, select New File (`Cmd/Ctrl + N`). Choose **Eidos** as the file type.
+2. **Enable management**: Turn on the **File Metadata Management** toggle. The filename becomes `files.eidos`. Select **Create**. Each folder receives one configuration file. Eidos never overwrites an existing file.
+3. **Start tagging**: Open the table. Select the **+ (Add Column)** button in the header. Enter a property name such as "Status", "Rating", or "Tags". Record metadata directly on your files as you would in a spreadsheet.
 
 ---
 
 ## Folder browsing and metadata configuration
 
-Right-click a folder and choose **Show this folder** to browse it as the sidebar root. The path above the tree lets you return to an ancestor. **Sort files** beside Search offers name, modification time, and file type in ascending or descending order. Folders stay first, and your sort preference applies throughout the tree and is remembered across sessions.
+Right-click a folder and select **Show this folder** to make it the sidebar root.
+The breadcrumb path above the tree returns to ancestor folders.
+**Sort files** beside Search offers name, modification time, and file type in ascending or descending order.
+Folders stay first.
+Eidos remembers your sort preference across sessions.
 
-A new subfolder `files.eidos` inherits custom fields, types, options, display settings, attribute namespace, and storage keys from the nearest parent configuration. This copies configuration at creation time: later parent changes do not overwrite existing child configurations. It does not copy files or property values. Configurations sharing a namespace and storage keys read the same attributes on a physical file.
+A subfolder `files.eidos` inherits custom fields, types, options, settings, attribute namespace, and storage keys from the nearest parent configuration.
+This copies configuration at creation time.
+Later changes in a parent folder do not overwrite child configurations.
+Inheritance does not copy files or property values.
+Configurations sharing a namespace and storage key read the same attributes on a physical file.
 
 Existing metadata files with other names remain directly usable.
 
 ---
 
-## 2. Daily Workflow & File Safety
+## 2. Daily workflow and file safety
 
-- **Original files stay in place**: Editing custom fields changes file attributes, not the file's content bytes.
-- **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table detects the changes and updates in real time without requiring manual refreshes.
-- **Open physical files**: The read-only `file` cell offers Open without attachment removal or reordering. Local files, including large videos, open in the system application without loading their bytes into the editor. Image thumbnails retain their preview size limit.
+- **Original files stay in place**: Editing custom fields changes file attributes, not file content bytes.
+- **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table updates in real time.
+- **Open physical files**: The read-only `file` cell opens the file in your system viewer. Local files, including large videos, open without loading full file bytes into the editor. Image thumbnails retain preview size limits.
 
-CSV import can create an ordinary table alongside `files` in the same `.eidos` file. Ordinary tables support Relations to other ordinary tables; the filesystem-backed `files` table cannot be a Relation source or target. URL fields are supported.
+CSV import can create an ordinary table alongside `files` in the same `.eidos` file.
+Ordinary tables support Relations to other ordinary tables.
+The filesystem-backed `files` table cannot be a Relation source or target.
+URL fields work normally.
 
 ---
 
-## 3. Scope of Management
+## 3. Scope of management
 
-**An `.eidos` file with File Metadata Management enabled scans its containing folder and its descendants.**
+**An `.eidos` file with File Metadata Management enabled scans its containing folder and all subfolders.**
 
-It does not walk up the parent hierarchy or follow symbolic links. Ignored entries are excluded. A table created in a subfolder scans that subfolder and its descendants.
+It does not scan parent directories.
+It does not follow symbolic links.
+It ignores excluded files.
+A table created in a subfolder scans only that subfolder and its descendants.
 
 <FileTree>
 
 - Movies/
-  - **files.eidos** Manages this folder and its descendants
+  - **files.eidos** Manages this folder and its subfolders
   - Interstellar.mkv
   - Dune.mp4
   - Poster.jpg
@@ -66,9 +81,10 @@ It does not walk up the parent hierarchy or follow symbolic links. Ignored entri
 
 ---
 
-## 4. Nested Folders & Shared Attribute Mechanics
+## 4. Nested folders and shared attribute mechanics
 
-Complex project structures often contain nested subfolders (for example, a project folder containing dedicated asset subfolders). When both a parent folder and a subfolder create their own `files.eidos`:
+Complex projects often contain nested subfolders.
+A parent folder and a subfolder can each create a `files.eidos`:
 
 <FileTree>
 
@@ -89,39 +105,40 @@ Complex project structures often contain nested subfolders (for example, a proje
 
 ### Independent layouts and configurations
 
-The `.eidos` file in the parent folder and the one in the subfolder are **completely separate documents**:
-Layouts, view styles, filter criteria, and sort rules are independent. The parent table can include files in a subfolder whether or not that subfolder has its own `.eidos` file.
+The `.eidos` file in the parent folder and the one in the subfolder are separate documents:
+Layouts, view styles, filter criteria, and sort rules remain independent.
+The parent table can include files in a subfolder whether that subfolder has its own `.eidos` file or not.
 
 ### Shared underlying metadata on physical files
 
-Because custom attributes are recorded directly in physical file extended attributes:
+Custom attributes record directly in physical file extended attributes:
 
-- **Field names are attribute keys**: New fields use their exact names as storage keys, just like `tags` and `rating`. Tools and tables using the same namespace and key share values.
-- **Field names cannot be changed**: Metadata fields do not support renaming. Existing fields with generated `field_…` keys retain their original mapping and values; opening a file does not migrate or overwrite external attributes.
+- **Field names are attribute keys**: New fields use their exact names as storage keys. Tools and tables that use the same namespace and key share values.
+- **Field names cannot change**: Metadata fields do not support renaming. Existing fields with generated `field_…` keys retain their mapping. Opening a file does not overwrite external attributes.
 
 ### Important precautions
 
-1. **Edits affect physical file attributes**: Tables sharing a storage key can observe each other's edits. Older fields with generated keys remain independent even if their names match.
-2. **Moving files**: An ordinary rename on the same filesystem preserves file attributes. Copying or transferring files depends on the filesystem and tool. The destination table needs the same namespace and storage key to read existing values.
-3. **Difference between "Deleting a column" and "Clearing a cell value"**:
-   - **Deleting a column (field)** removes the column and clears its stored attribute from files included in the table. This also affects other tables sharing that attribute.
-   - **Clearing the content of a cell** explicitly removes that attribute value from the physical file's system metadata.
+1. **Edits update physical file attributes**: Tables that share a storage key observe each other's edits.
+2. **Moving files**: Renaming a file on the same filesystem preserves attributes. Copying files across drives depends on the filesystem. The destination table needs the same namespace and storage key to read values.
+3. **Deleting fields versus clearing cells**:
+   - **Deleting a column** deletes the column and clears the attribute from files in the table. This affects other tables sharing that attribute.
+   - **Clearing a cell** clears that single attribute from the physical file.
 4. **Attribute portability**:
-   - Values use extended attributes on macOS/Linux and alternate data streams on Windows. The filesystem must support them. Do not assume that Graft history, Sync, backups, or copying an `.eidos` file preserves these external attributes; verify your backup tool separately.
-   - If files are transferred using third-party tools that strip extended attributes (such as sending individual files over instant messaging apps) or copied onto basic FAT32 media, the extended attributes may be ignored by the operating system.
-5. **Transaction limits**: Ordinary transaction and savepoint rollback restores metadata while the process is running. The journal is in memory; it does not provide crash atomicity or isolation from other programs changing the same attributes.
+   - macOS and Linux use extended attributes. Windows uses alternate data streams. The filesystem must support them. Check your backup tool to make sure it preserves external attributes.
+   - Moving files through tools that strip extended attributes can delete this metadata. Basic FAT32 drives do not support extended attributes.
+5. **Transaction boundaries**: The rollback journal lives in memory while the process runs. It does not provide crash atomicity or protection from other programs editing the same files.
 
 ---
 
-## 5. Built-in System Fields
+## 5. Built-in system fields
 
-The system automatically extracts physical file properties (read-only):
+The system extracts physical file properties as read-only fields:
 
-| Field       | Type           | Description                                                                     |
-| :---------- | :------------- | :------------------------------------------------------------------------------ |
-| `name`      | Text           | Physical filename (e.g. `Photo.jpg`)                                            |
-| `path`      | Text           | Relative path from the folder root, serving as the record title and primary key |
-| `extension` | Text / Select  | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`)                             |
-| `size`      | Text / Integer | File size (formatted automatically as KB, MB, or GB)                            |
-| `mimetype`  | Text           | Media type (e.g. `image/jpeg`, `video/mp4`), useful for filtering media types   |
-| `file`      | Attachment     | Local file handle providing instant thumbnails and full-screen previews         |
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | Text | Physical filename (e.g. `Photo.jpg`) |
+| `path` | Text | Relative path from the folder root (primary label) |
+| `extension` | Text / Select | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`) |
+| `size` | Text / Integer | File size formatted in KB, MB, or GB |
+| `mimetype` | Text | Media type (e.g. `image/jpeg`, `video/mp4`) |
+| `file` | Attachment | Local file handle for thumbnails and previews |

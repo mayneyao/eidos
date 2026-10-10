@@ -19,11 +19,11 @@ eidos serve tracker.eidos --open
 
 ## 行为
 
-- 默认绑定 `127.0.0.1`；
-- 默认端口是 `8420`；
-- 一次只打开一个文件；
-- 编辑器 mutation 直接提交到该文件；
-- 不需要额外 Save 步骤；
+- 默认绑定 `127.0.0.1`。
+- 默认端口是 `8420`。
+- 一次只打开一个文件。
+- 编辑器 mutation 直接提交到该文件。
+- 不需要额外 Save 步骤。
 - macOS、Linux 与 Windows binary 都内置 UI。
 
 需要时可更换端口：
@@ -45,8 +45,8 @@ eidos serve tracker.eidos --assets-dir ./assets --open
 拖放或剪贴板粘贴上传文件。上传内容会以避免覆盖同名文件的名称写入挂载目录，UI 再通过
 正常 Runtime mutation 持久化生成的 `assets/<name>` File entry。
 
-这个目录是一项显式 capability：没有 `--assets-dir` 时，Serve 不会读取或写入猜测出的
-相邻目录；该 mount 也不会解析 `assets/` 前缀之外的 relative entry。单个上传限制为
+这个目录是一项显式 capability。没有 `--assets-dir` 时，Serve 不会读取或写入猜测出的
+相邻目录。该 mount 也不会解析 `assets/` 前缀之外的 relative entry。单个上传限制为
 256 MiB，预览限制为 64 MiB。已配对 LAN 浏览器、Relay 账号浏览器，以及持有
 `--share` 链接的访客，在 Serve 进程存活期间都拥有同样的上传权限，因此只应挂载准备
 授权给这些用户的目录。
@@ -78,8 +78,8 @@ Serve 还会加载设备级共享存储 `~/.eidos/plugins`（可用 `EIDOS_HOME`
 
 宿主为插件注入动态内容安全策略 (CSP)：
 
-- 默认完全禁止外部网络请求；仅允许在 `manifest.browser.networkOrigins` 显式声明的 HTTPS 源。
-- 默认禁止 Web Worker；仅在声明 `manifest.browser.workers: true` 时开放 Blob Worker。
+- 默认完全禁止外部网络请求。仅允许在 `manifest.browser.networkOrigins` 显式声明的 HTTPS 源。
+- 默认禁止 Web Worker。仅在声明 `manifest.browser.workers: true` 时开放 Blob Worker。
 - 脚本与样式均限制在沙箱文档内执行。
 
 ### 宿主能力支持
@@ -87,8 +87,8 @@ Serve 还会加载设备级共享存储 `~/.eidos/plugins`（可用 `EIDOS_HOME`
 插件通过异步 JSON-RPC 与 Serve 通信：
 
 - **`table.read`**：获取表格字段定义与合并后的视图配置。
-- **`table.page`**：分页拉取当前视图过滤与检索后的行记录。
-- **`table.aggregate`**：在服务端 SQLite 层直接执行高速分组指标计算（支持计数、求和、平均值、最值等），无需在客户端拉取数万行原始数据。
+- **`table.page`**：分页读取当前视图过滤与检索后的行记录。
+- **`table.aggregate`**：在服务端 SQLite 层直接执行高速分组指标计算（支持计数、求和、平均值、最值等），无需在客户端传输数万行原始数据。
 - **`table.properties`**：持久化保存视图个性化配置到 `properties.plugin`。在 `--publish` 模式下禁止修改并返回 `PERMISSION_DENIED`。
 - **`table.openRecord`**：打开行记录详情抽屉。
 - **View settings**：插件声明 `configuration` 时，Serve 会自动在表格工具栏渲染 **View settings** 配置菜单。
@@ -102,7 +102,7 @@ eidos serve tracker.eidos --lan
 ```
 
 终端输出的 URL 在 fragment 中携带 access key。打开该链接后，浏览器会与当前 CLI
-进程配对；后续访问使用只存在于该进程内的 HttpOnly session cookie。自动检测找不到合适
+进程配对。后续访问使用只存在于该进程内的 HttpOnly session cookie。自动检测找不到合适
 地址，或机器有多个网络接口时，可以指定准确的私网或 overlay network 地址：
 
 ```bash
@@ -129,10 +129,10 @@ eidos serve tracker.eidos --relay --open
 
 `eidos login` 会打开 `eidos.space`，通过 Authorization Code + PKCE 登录，
 并把可刷新的 CLI 会话存入仅当前用户可读的配置文件。后续 Relay 命令会
-无系统凭据弹窗地静默复用或刷新它；`eidos logout` 用于删除本机凭据。
+无系统凭据弹窗地静默复用或刷新它。`eidos logout` 用于删除本机凭据。
 
 账号会话用于授权 CLI 认领稳定匿名的 `r-….eidos.ink` 域名。默认输出的
-URL 不包含 access key。在任意设备打开后，浏览器会跳转到 eidos.space；
+URL 不包含 access key。在任意设备打开后，浏览器会跳转到 eidos.space。
 只有认领该域名的同一账号才能完成登录。Relay 随后为该浏览器建立
 host-only HttpOnly session。OAuth token 不会进入浏览器 URL 或本地 Serve 进程。
 
@@ -149,7 +149,7 @@ eidos serve tracker.eidos --relay --share
 同一账号启动新的 Relay serve 时，新连接会接管域名并断开旧 connector，同时
 使上一次 claim 建立的浏览器 session 失效。本地与 `--lan` 模式仍然无需账号。
 Relay 当前限制单个请求 body 为 4 MiB，大型 CSV 导入请使用 localhost 或 LAN。
-`--share` 需要同时使用 `--relay`；`--relay` 与 `--lan` 不能同时使用。
+`--share` 需要同时使用 `--relay`。`--relay` 与 `--lan` 不能同时使用。
 
 ## 开发 UI override
 
@@ -166,7 +166,7 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 同时编辑。Serve 通过一个权威 Runtime writer 串行提交 mutation，并在每次 revision 提交后
 通知其他浏览器。同时发生的 stale edit 会以零副作用拒绝，浏览器随后刷新到最新 revision。
 
-单元格变更和新增行都会乐观渲染。新行的远端 insert 返回前就可以继续输入；
+单元格变更和新增行都会乐观渲染。新行的远端 insert 返回前就可以继续输入。
 Serve 仍会先提交建行，再发送依赖其权威 Row ID 的后续编辑。
 
 Serve 进程仍必须是该文件唯一的物理 writer。使用其他可写 Host 或 SQLite 工具打开同一路径

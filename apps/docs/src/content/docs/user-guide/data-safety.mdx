@@ -8,50 +8,48 @@ sidebar:
 import FileMap from "../../../components/FileMap.astro"
 import DataChoices from "../../../components/DataChoices.astro"
 
-Your Space is a folder on your device. Keep its files and their referenced
-attachments together when you move or back up your work.
+Your Space is a folder on your device.
+Keep its files and referenced attachments together when you move or back up your work.
 
 ## Follow the files
 
 <FileMap />
 
-An `.eidos` file stores tables, fields, records, formulas, and saved view
-definitions. File fields store references: these can point to separate files
-or contain supported inline data. Do not assume every attachment is inside
-the database.
+An `.eidos` file stores tables, fields, records, formulas, and saved views.
+File fields store references.
+These references point to separate files on disk or hold inline data.
+Do not assume every attachment lives inside the SQLite database.
 
-Images pasted into Markdown notes in Lite are saved in an `assets/`
-folder beside the note. The note links to them with relative paths.
+Eidos Lite saves images pasted into Markdown notes in an `assets/` folder beside the note.
+The note links to them with relative paths.
 
 ## Saving is one part of recovery
 
 <DataChoices />
 
 Versions and Sync serve different purposes from an independent backup.
-Local history can be lost with its drive. Sync can carry unwanted changes
-to another device.
+Drive failures can destroy local history along with working files.
+Sync can carry unwanted edits to another device.
 
 ## Make a backup you can restore
 
-1. Finish editing and check that changes are saved.
+1. Finish editing and check that the application saved your changes.
 2. Close the Space and stop other programs that write to its files.
-3. Copy the whole Space to independent storage. Include hidden history files
-   if you need to preserve local history.
-4. Open a separate restored copy. Check important records, notes, and attachments.
+3. Copy the whole Space folder to independent storage. Include hidden history files if you want to preserve local version history.
+4. Open a restored copy. Check important records, notes, and attachments.
 
-If a live-backup tool copies open databases, use its documented consistent
-snapshot method. Do not assume that copying an active SQLite database alone
-captures all committed work.
+If a live-backup tool copies open databases, use its documented snapshot method.
+Do not assume that copying an active SQLite database alone captures all committed work.
 
 File Metadata Management stores custom values in physical file attributes.
 Check that your backup tool preserves those attributes.
-Copying `files.eidos` alone does not back them up.
+Copying `files.eidos` alone does not back up custom attributes.
 See [file metadata portability](/user-guide/file-metadata/).
 
-## When a file is locked
+## When another process locks a file
 
-Close the other editor that is writing to the file, then retry.
-Do not remove lock or database sidecar files to force a file open.
+Close the other editor or process that has the file open, then retry.
+Do not delete lock files or database sidecars to force a file open.
 See [troubleshooting](/user-guide/troubleshooting/).
 
 Next: [save a version](/user-guide/history-and-recovery/).

@@ -7,9 +7,10 @@ sidebar:
 
 import { Aside, TabItem, Tabs } from "@astrojs/starlight/components"
 
-独立的 `eidos` CLI 直接操作 `.eidos` 文件，不依赖 Eidos Lite 或后台服务。
+独立的 `eidos` CLI 直接操作 `.eidos` 文件。
+它不依赖 Eidos Lite 或后台服务。
 
-## 1. 安装
+## 1. 安装 CLI
 
 <Tabs syncKey="cli-install">
   <TabItem label="macOS / Linux">
@@ -28,24 +29,26 @@ irm https://download.eidos.space/cli/install.ps1 | iex
   </TabItem>
 </Tabs>
 
-如果安装后 `eidos` 没有立即进入 `PATH`，请重启终端，然后运行 `eidos --help`。
+如果安装后 `eidos` 未进入 `PATH`，请重启终端。
+运行 `eidos --help` 检查安装状态。
 
-## 可选：初始化智能体 Skill
+## 2. 可选：初始化智能体 Skill
 
-独立 CLI 已经内置 Eidos Skill，不需要 Node.js 或 `npx`：
+CLI 内置面向 AI 编程助手的 Eidos Skill。
+你不需要安装 Node.js 或 `npx`：
 
 ```bash
-# 当前 Space / 项目
+# 当前项目
 eidos self skill init
 
-# 当前用户，供所有项目使用
+# 全局配置，供所有项目使用
 eidos self skill init --global
 ```
 
-使用 `eidos self skill init --space <DIR>` 可以指定其他 Space。初始化器会让 Skill 与已安装的 CLI 保持一致；
-如果文件存在本地修改，只有显式传入 `--force` 才会覆盖。
+使用 `eidos self skill init --space <DIR>` 指定其他目标文件夹。
+初始化工具不会在缺少 `--force` 参数的情况下覆盖已修改的 Skill 文件。
 
-## 2. 创建带数据表的文件
+## 3. 创建带有表格的文件
 
 ```bash
 eidos file new example.eidos \
@@ -54,22 +57,23 @@ eidos file new example.eidos \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 ```
 
-CLI 会把这张初始表设为文件默认表，并创建第一个 Grid 视图。字段默认允许空值；只有高级
-Schema 操作才需要显式配置非空约束。
+CLI 会将该初始表格设为文件默认表。
+它会为表格自动创建第一个 Grid 视图。
+字段默认允许为空值。
 
-## 3. 打开本地编辑器
+## 4. 打开本地编辑器
 
 ```bash
 eidos serve example.eidos --open
 ```
 
-服务默认监听 `127.0.0.1`，打开共享 Eidos File UI，并把已提交的编辑直接写入
-`example.eidos`。要在可信私有网络的另一台设备上使用，可运行
-`eidos serve example.eidos --lan` 并打开终端输出的配对 URL。按 <kbd>Ctrl</kbd> +
+本地服务默认监听 `127.0.0.1`。
+它会在浏览器中打开共享的编辑器界面。
+它会将提交的修改直接写入 `example.eidos` 文件。
+若要在局域网内的其他设备上访问，请运行 `eidos serve example.eidos --lan`。
+按 <kbd>Ctrl</kbd> + <kbd>C</kbd> 停止服务。
 
-<kbd>C</kbd> 停止服务。
-
-<Aside type="tip" title="校验结果">
+<Aside type="tip" title="检查文件完整性">
 
 ```bash
 eidos file validate example.eidos --level full
@@ -77,6 +81,6 @@ eidos file validate example.eidos --level full
 
 </Aside>
 
-下一步阅读 [CLI 与自动化指南](/zh-cn/cli/)。需要稳定、只读的托管 URL 时，继续阅读
-[Eidos Publish 预览指南](/zh-cn/cli/publish/)；需要持续连接本机文件的实时编辑器时，使用
-[`eidos serve`](/zh-cn/cli/serve/)。
+下一步请阅读 [CLI 与自动化指南](/zh-cn/cli/)。
+若需要发布只读在线版本，请参考 [CLI 发布指南](/zh-cn/cli/publish/)。
+若需要保持与本地文件的实时连接，请使用 [`eidos serve`](/zh-cn/cli/serve/)。

@@ -7,10 +7,10 @@ sidebar:
 
 import { Aside, TabItem, Tabs } from "@astrojs/starlight/components"
 
-The standalone `eidos` CLI works directly with `.eidos` files. It does not
-need Eidos Lite or a background service.
+The standalone `eidos` CLI works directly with `.eidos` files.
+It does not require Eidos Lite or a background service.
 
-## 1. Install
+## 1. Install the CLI
 
 <Tabs syncKey="cli-install">
   <TabItem label="macOS / Linux">
@@ -29,26 +29,26 @@ irm https://download.eidos.space/cli/install.ps1 | iex
   </TabItem>
 </Tabs>
 
-Restart the terminal if `eidos` is not immediately on `PATH`, then run
-`eidos --help`.
+Restart your terminal if `eidos` is not on your `PATH`.
+Run `eidos --help` to check the installation.
 
-## Optional: initialize the Agent Skill
+## 2. Optional: initialize the Agent Skill
 
-The standalone CLI includes the Eidos Skill. No Node.js or `npx` is required:
+The CLI includes an AI agent skill for coding assistants.
+You do not need Node.js or `npx`:
 
 ```bash
-# Current Space/project
+# Current project
 eidos self skill init
 
-# Current user, for all projects
+# Global configuration for all projects
 eidos self skill init --global
 ```
 
-Use `eidos self skill init --space <DIR>` to target another Space. The initializer keeps the Skill
-aligned with the installed CLI and will not overwrite local edits without
-`--force`.
+Use `eidos self skill init --space <DIR>` to target another folder.
+The tool will not overwrite modified skill files without `--force`.
 
-## 2. Create a file with a table
+## 3. Create a file with a table
 
 ```bash
 eidos file new example.eidos \
@@ -57,24 +57,23 @@ eidos file new example.eidos \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 ```
 
-The CLI makes this initial table the File default and creates its first Grid
-view. Fields allow empty values unless an advanced schema operation says
-otherwise.
+The CLI makes this initial table the default table.
+It creates a Grid view for the table.
+Fields accept empty values by default.
 
-## 3. Open the local editor
+## 4. Open the local editor
 
 ```bash
 eidos serve example.eidos --open
 ```
 
-The server listens on `127.0.0.1` by default, opens the shared Eidos File UI,
-and writes committed edits directly to `example.eidos`. To use another device
-on a trusted private network, run `eidos serve example.eidos --lan` and open
-the paired URL printed in the terminal. Stop it with <kbd>Ctrl</kbd> +
+The server listens on `127.0.0.1` by default.
+It opens the shared editor UI in your browser.
+It writes committed changes directly to `example.eidos`.
+To access the editor from another local device, run `eidos serve example.eidos --lan`.
+Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to stop the server.
 
-<kbd>C</kbd>.
-
-<Aside type="tip" title="Verify the result">
+<Aside type="tip" title="Check the file">
 
 ```bash
 eidos file validate example.eidos --level full
@@ -82,7 +81,6 @@ eidos file validate example.eidos --level full
 
 </Aside>
 
-Continue with the [CLI and automation guide](/cli/). When you need a stable,
-read-only hosted URL, follow the [Eidos Publish preview guide](/cli/publish/).
-For a live editor that stays connected to the file on your computer, use
-[`eidos serve`](/cli/serve/).
+Continue with the [CLI and automation guide](/cli/).
+To publish a read-only web copy, follow [Publishing with the CLI](/cli/publish/).
+To keep an editor connected to local files, use [`eidos serve`](/cli/serve/).

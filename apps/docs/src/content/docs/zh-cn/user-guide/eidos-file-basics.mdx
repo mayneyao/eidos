@@ -7,29 +7,29 @@ sidebar:
 
 import ViewLab from "../../../../components/ViewLab.astro"
 
-完成本教程后，`books.eidos` 将包含一份书单，
-以及一个只显示正在阅读书籍的视图。
+按照本教程指引，在 `books.eidos` 中建立一份书单表格并保存特定视图。
 
-先在 [Lite](/zh-cn/getting-started/eidos-lite/)、
+首先在 [Lite](/zh-cn/getting-started/eidos-lite/)、
 [网页编辑器](/zh-cn/getting-started/browser/)或
 [CLI Serve](/zh-cn/getting-started/cli/) 中打开一个 Eidos File。
 
-## 1. 创建表
+## 1. 创建表格
 
-创建名为 **Books** 的表。把名为 **Title** 的文本字段设为记录标题字段。
-Eidos 用这个字段显示每本书的名称。
+创建一张名为 **Books** 的表格。
+将 **Title** 文本字段设为记录标题字段。
+Eidos 使用该字段作为每本书在界面中的主要名称。
 
-添加名为 **Status** 的单选字段，设置三个选项：
-**To read**、**Reading** 和 **Finished**。
+添加一个名为 **Status** 的单选字段。
+设置三个选项：**To read**、**Reading** 与 **Finished**。
 
 | 字段 | 类型 | 用途 |
 | --- | --- | --- |
-| Title | Text | 书名，同时作为记录标题字段 |
-| Status | Select | 一个阅读状态 |
+| Title | Text | 书名（记录标题字段） |
+| Status | Select | 当前阅读状态 |
 
 ## 2. 添加记录
 
-添加三条记录，分别输入书名并选择状态。
+添加三条记录。输入书名并选择阅读状态。
 
 | Title | Status |
 | --- | --- |
@@ -37,34 +37,33 @@ Eidos 用这个字段显示每本书的名称。
 | A Room of One's Own | Finished |
 | Walden | To read |
 
-**检查结果：**Books 包含三条记录，每条记录代表一本书。
+**检查结果：** 表格包含三条记录，每条记录描述一本书。
 
 ## 3. 保存阅读视图
 
 添加名为 **Reading now** 的 Grid 视图。
-打开 **Filter**，添加条件 `Status = Reading`。
+打开 **Filter** 并添加筛选条件 `Status = Reading`。
 
-**检查结果：**视图只显示 **The Little Prince**。
-另外两条记录仍然在 Books 中，清除筛选即可看到。
+**检查结果：** 视图中仅显示 **The Little Prince**。
+另外两条记录仍完整保存在 Books 表格中。清除筛选条件即可重新查看。
 
-## 4. 换一种布局
+## 4. 切换视图布局
 
-创建 Gallery 视图，以卡片显示书籍。
-在其中修改一本书的 Status，Grid 中的同一条记录也会变化。
+创建一个 Gallery 画廊视图，将每本书以卡片形式展示。
+在 Gallery 中修改某本书的 Status，Grid 视图中的对应记录会同步更新。
 
-下面用“已读完”复选框演示这个关系。
-改动只作用于本页示例，刷新页面后会重置。
+下方可交互示例演示这种视图联动关系：
 
 <ViewLab lang="zh-cn" />
 
-## 5. 确认保存
+## 5. 检查保存状态
 
-在 Lite 和 CLI Serve 中，已提交的编辑会写入本地文件。
-在网页编辑器中，检查保存状态，并按可用选项使用
-**Save**、**Save As** 或 **Download a copy**。
+在 Lite 和 CLI Serve 中，提交的编辑会直接写入本地文件。
+在网页编辑器中，请留意标题栏的保存状态。
+按需使用 **Save**、**Save As** 或 **Download a copy** 保存改动。
 
-移动 `books.eidos` 时，也要带上附件字段引用的本地文件。
-[了解需要备份什么](/zh-cn/user-guide/data-safety/)。
+复制或移动 `books.eidos` 时，请一并带上引用的外部附件文件。
+详情请查阅[数据备份说明](/zh-cn/user-guide/data-safety/)。
 
-下一步：[选择字段](/zh-cn/user-guide/tables-and-fields/)，
-或[配置视图](/zh-cn/user-guide/views-and-querying/)。
+后续步骤：[配置字段类型](/zh-cn/user-guide/tables-and-fields/)或
+[自定义视图](/zh-cn/user-guide/views-and-querying/)。

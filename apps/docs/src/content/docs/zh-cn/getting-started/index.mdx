@@ -3,31 +3,34 @@ title: 从一个文件开始
 description: 选择处理本地文件的方式，创建并保存可携带的 Eidos File。
 ---
 
-从你要使用的文件开始。Eidos Lite 把包含 `.eidos` 和普通文件的本地文件夹
-作为 **Space** 打开。网页编辑器和 CLI 直接操作单个 Eidos File，
-使用相同的开放 SQLite 格式和 Runtime。
+从你需要处理的文件开始。
+Eidos Lite 将包含 `.eidos` 和普通文件的本地文件夹作为 **Space** 打开。
+网页编辑器和 CLI 直接操作单个 Eidos File。
+所有工具均使用相同的开放 SQLite 格式和 Runtime。
 
-| 我想……                   | 从这里开始                                       | 保存位置                 |
-| ------------------------ | ------------------------------------------------ | ------------------------ |
-| 管理文件夹里的文件和笔记 | [Eidos Lite](/zh-cn/getting-started/eidos-lite/) | Space 中的本地文件       |
-| 不安装应用，先试一个文件 | [网页编辑器](/zh-cn/getting-started/browser/)    | 保存到磁盘或下载工作副本 |
-| 使用命令或智能体处理数据 | [CLI](/zh-cn/getting-started/cli/)               | 命令指定的文件路径       |
+| 目标 | 入口 | 存储位置 |
+| --- | --- | --- |
+| 管理包含文件与笔记的文件夹 | [Eidos Lite](/zh-cn/getting-started/eidos-lite/) | Space 中的本地文件 |
+| 无需安装应用，快速尝试单个文件 | [网页编辑器](/zh-cn/getting-started/browser/) | 保存到本地磁盘或下载副本 |
+| 使用命令行或 AI Agent 处理数据 | [CLI](/zh-cn/getting-started/cli/) | 命令指定的具体文件路径 |
 
-本地使用无需账户。Lite 提供本地 Graft 历史；
-[Sync](/zh-cn/user-guide/sync/)是可选功能。
+本地使用无需登录账户。
+Lite 提供本地版本历史记录。
+[Sync](/zh-cn/user-guide/sync/) 为可选的云端同步功能。
 
 ## 先完成一个小任务
 
 1. 创建一个名为 `books.eidos` 的 Eidos File。
-2. 添加 **Books** 表和 **Title** 字段。
-3. 添加一本书，再创建 **Status** 单选字段。
-4. 确认改动已经保存到 `books.eidos`。
-5. 移动或备份文件时，也带上它引用的附件。
+2. 添加一张 **Books** 表格，并创建 **Title** 文本字段。
+3. 添加一条图书记录。
+4. 添加一个 **Status** 单选字段。
+5. 检查改动已保存至 `books.eidos` 文件。
+6. 移动或备份文件时，请同时带上引用的外部附件。
 
-按[书单教程](/zh-cn/user-guide/eidos-file-basics/)操作。
-如果这些名称还不熟悉，先读[Eidos 的文件模型](/zh-cn/concepts/)。
+按照[书单快速入门教程](/zh-cn/user-guide/eidos-file-basics/)开始操作。
+如果不熟悉这些概念，请先阅读[核心概念说明](/zh-cn/concepts/)。
 
-## 继续深入
+## 进阶探索
 
-通过[插件](/zh-cn/plugins/)添加编辑器或工具。
-开发兼容应用时，阅读[文件规范](/zh-cn/specifications/)。
+通过[插件开发](/zh-cn/plugins/)添加自定义编辑器或自动化工具。
+开发兼容工具时，请查阅[底层规范标准](/zh-cn/specifications/)。

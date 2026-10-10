@@ -5,38 +5,41 @@ sidebar:
   order: 30
 ---
 
-A record is one item in a table. The same record can appear as a Grid row,
-a Gallery card, or an item in another view.
+A record is one item in a table.
+The same record can appear as a Grid row, a Gallery card, or an item in another view.
 
 ## Change a value
 
 1. Select a cell in Grid.
 2. Press **Enter** or double-click to edit.
 3. Enter the new value and commit the edit.
-4. Check the displayed value.
+4. Check the updated value.
 
-Use **Escape** to cancel the current cell edit. Use **Tab** and **Shift + Tab**
-to move between cells. A calculated field, such as Formula or Lookup, cannot
-be edited directly; change its inputs instead.
+Press **Escape** to cancel the current cell edit.
+Use **Tab** and **Shift + Tab** to move between cells.
+You cannot edit calculated fields like Formula or Lookup directly.
+Change the source input fields instead.
 
 ## Add a record
 
-Use **Add record**, or **Cmd + Enter** on macOS and **Ctrl + Enter** on
-Windows/Linux in Grid. Enter a recognizable title in the Record Label Field.
+Select **Add record**, or press **Cmd + Enter** on macOS and **Ctrl + Enter** on Windows/Linux in Grid.
+Enter a recognizable name in the Record Label Field.
 
-If a new record is missing from the current view, check the view's filters.
-The record may not match them.
+If a new record does not appear in the current view, check the view filters.
+The new record may not match the active filter rules.
 
 ## Paste a block of cells
 
-Copy rows and columns from a spreadsheet. Select the destination cell and
-paste. Check that the columns align and that dates and numbers have the
-intended values. For a whole dataset, use [CSV import](/user-guide/import-and-export/).
+Copy rows and columns from a spreadsheet.
+Select the destination cell in Grid and paste the clipboard contents.
+Check that the columns align properly.
+Check that dates and numbers parse accurately.
+For a complete dataset, use [CSV import](/user-guide/import-and-export/).
 
-## Read a long record
+## Open record details
 
-Use the row's expand control to open its details.
-This gives long text, relations, and attachments more room than a Grid cell.
+Use the row expand control to open the record detail modal.
+This modal provides more space for long text fields, relations, and attachments.
 
 ## Link to another record
 
@@ -44,21 +47,22 @@ This gives long text, relations, and attachments more room than a Grid cell.
 2. Search for a record in the target table.
 3. Select the record to link it.
 
-The relation stores the record's ID. The displayed label comes from the
-target table's Record Label Field. Renaming that label does not break the link.
+The relation stores the target row ID.
+The shown label comes from the target table's Record Label Field.
+Renaming that label does not break the stored relation.
 
 ## Add attachments
 
-Use a File field to add an attachment. Available import and preview controls
-depend on the app that opened the Eidos File.
-When moving the data, include referenced local attachments.
+Use a File field to add an attachment.
+Available import and preview features depend on the host application.
+When you copy or move the file, include referenced local attachments.
 See [data storage](/user-guide/data-safety/).
 
 ## Undo an edit
 
-Use **Cmd + Z** on macOS or **Ctrl + Z** on Windows/Linux for edits supported
-by the active editor's undo history. Check the result after undoing.
-For older saved states, use [Versions](/user-guide/history-and-recovery/);
-undo is not a substitute for a backup.
+Press **Cmd + Z** on macOS or **Ctrl + Z** on Windows/Linux to undo recent edits.
+Check the result after you undo an action.
+For older saved states, use [Versions](/user-guide/history-and-recovery/).
+Undo is not a substitute for regular backups.
 
-Next: [find records with views](/user-guide/views-and-querying/).
+Next steps: [find records with views](/user-guide/views-and-querying/).

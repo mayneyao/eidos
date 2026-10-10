@@ -7,63 +7,66 @@ sidebar:
 
 import ViewLab from "../../../components/ViewLab.astro"
 
-A saved table view stores how to select and display records.
-Use separate views for recurring tasks, such as **Reading now** or **Finished books**.
+A saved table view stores how to select and show records.
+Use separate views for recurring workflows, such as **Reading now** or **Finished books**.
 
 ## Try the difference between hiding and editing
 
-1. Turn on **Show unfinished only**. One record disappears.
-2. Switch to **Gallery**. The same two records appear as cards.
+1. Turn on **Show unfinished only**. One record disappears from the list.
+2. Switch to **Gallery**. The remaining two records appear as cards.
 3. Mark a visible book as **Finished**. It no longer matches the filter.
-4. Clear the filter. All three records are still there.
+4. Clear the filter. All three records remain in the table.
 
 <ViewLab />
 
-This example illustrates the relationship between data and a view.
-It is not connected to an Eidos File.
+This example demonstrates the relationship between underlying data and views.
+It does not change an actual `.eidos` file.
 
-## Choose a layout for the task
+## Choose a layout for your task
 
-| Layout | Use it to | Configure |
+| Layout | Purpose | Configuration options |
 | --- | --- | --- |
-| Grid | Compare fields and edit rows | Field order, widths, visibility |
-| Gallery | Browse records as cards | Card content and cover field |
-| Kanban | Group records by a state | A single-select grouping field |
-| Calendar | See records by date | A Date or Date & time field |
-| Form | Enter a new record | Questions and submission settings |
-| Feed | Read records in a stream | Fields to display |
+| Grid | Compare fields and edit rows | Column order, widths, visibility |
+| Gallery | Browse records as cards | Card content and cover image field |
+| Kanban | Group records by state | Single-select grouping field |
+| Calendar | View records by date | Date or Date & time field |
+| Form | Submit new records | Questions and input settings |
+| Feed | Read records in a continuous stream | Fields to show |
 
-For layout contracts, see [Standard Views](/specifications/standard-views-1-0/).
-For plugin development, **page** and **file** are the two View kinds;
-they describe where a plugin opens. See [plugin concepts](/plugins/concepts/).
+For formal layout rules, see [Standard Views 1.0](/specifications/standard-views-1-0/).
+For plugin development, **page** and **file** are the two View kinds.
+They define where a plugin opens.
+See [plugin concepts](/plugins/concepts/).
 
 ## Search for a quick lookup
 
-Use **Search** to find a title or keyword. Clear the search to return to the
-saved view's results. Save a filter when you need the same selection repeatedly.
+Use **Search** to find a title or keyword quickly.
+Clear the search text to return to the saved view results.
+Save a permanent filter when you need the same criteria repeatedly.
 
 ## Combine filters
 
-Open **Filter**. Choose how to combine conditions:
+Open **Filter**. Choose how to combine filter conditions:
 
 | Rule | Example | Result |
 | --- | --- | --- |
-| ALL (AND) | Status is Reading AND Rating is 5 | Only books satisfying both |
-| ANY (OR) | Status is Reading OR Rating is 5 | Books satisfying either |
+| ALL (AND) | Status is Reading AND Rating is 5 | Shows records that match both rules |
+| ANY (OR) | Status is Reading OR Rating is 5 | Shows records that match either rule |
 
-A record that fails the filter remains in the table.
-When a date filter is relative, its results can change as the date changes.
+Records that do not match the filter stay in the table.
+When you use relative date filters, shown results update automatically over time.
 
 ## Sort results
 
 Open **Sort** and add rules in priority order.
 For example, sort by Status first, then by Title.
-The second rule orders records with the same value for the first.
+The secondary rule sorts records that share the same primary value.
 
-## Show the fields you need
+## Show relevant fields
 
-Open **Fields** to change visibility and field order.
-Hiding a field does not delete its values. For card layouts, configure card
-content and the cover separately. A hidden field is not shown on the card.
+Open **Fields** to adjust column visibility and order.
+Hiding a field does not delete its data values.
+For card layouts, configure card properties and cover images separately.
+Hidden fields do not show on cards.
 
-Next: [export a view](/user-guide/import-and-export/).
+Next steps: [export a view](/user-guide/import-and-export/).
