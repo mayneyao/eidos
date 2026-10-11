@@ -74,6 +74,7 @@ export function QuickOpen({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dialogRef = useRef<HTMLDialogElement | null>(null)
   const requestIdRef = useRef(0)
+  const revealSelectionRef = useRef(true)
 
   const tableItems = useMemo<QuickOpenItem[]>(
     () =>
@@ -102,6 +103,7 @@ export function QuickOpen({
   const items = trimmedQuery
     ? [...tableItems, ...results]
     : [...tableItems, ...recentItems]
+  const selectedItem = items[selectedIndex]
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current
@@ -112,6 +114,17 @@ export function QuickOpen({
     inputRef.current?.focus({ preventScroll: true })
     return () => dialog.close()
   }, [])
+
+  useLayoutEffect(() => {
+    if (!revealSelectionRef.current) return
+    dialogRef.current
+      ?.querySelector<HTMLElement>('[data-selected="true"]')
+      ?.scrollIntoView?.({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      })
+  }, [selectedIndex, selectedItem])
 
   useEffect(() => {
     setSelectedIndex(0)
@@ -194,15 +207,20 @@ export function QuickOpen({
                 ? `quick-open-item-${selectedIndex}`
                 : undefined
             }
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              revealSelectionRef.current = true
+              setQuery(event.target.value)
+            }}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
                 event.preventDefault()
+                revealSelectionRef.current = true
                 setSelectedIndex((current) =>
                   items.length ? (current + 1) % items.length : 0
                 )
               } else if (event.key === "ArrowUp") {
                 event.preventDefault()
+                revealSelectionRef.current = true
                 setSelectedIndex((current) =>
                   items.length ? (current - 1 + items.length) % items.length : 0
                 )
@@ -269,7 +287,13 @@ export function QuickOpen({
                     aria-selected={index === selectedIndex}
                     className="quick-open-item"
                     data-selected={index === selectedIndex ? "true" : undefined}
-                    onMouseEnter={() => setSelectedIndex(index)}
+                    onMouseMove={(event) => {
+                      // Scrolling can put a different row under a stationary
+                      // pointer. Only actual mouse movement changes selection.
+                      if (!event.movementX && !event.movementY) return
+                      revealSelectionRef.current = false
+                      setSelectedIndex(index)
+                    }}
                     onClick={() => pick(item)}
                   >
                     {item.tableId ? (

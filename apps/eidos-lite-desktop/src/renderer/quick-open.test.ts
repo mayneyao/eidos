@@ -30,9 +30,15 @@ function setInputValue(input: HTMLInputElement, value: string) {
 describe("QuickOpen", () => {
   let host: HTMLDivElement | null = null
   let root: Root | null = null
+  const scrollIntoView = vi.fn()
 
   // jsdom does not implement the browser's modal top layer.
   beforeEach(() => {
+    scrollIntoView.mockClear()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
     Object.defineProperties(HTMLDialogElement.prototype, {
       showModal: {
         configurable: true,
@@ -74,9 +80,11 @@ describe("QuickOpen", () => {
     host?.remove()
     host = null
     root = null
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
   })
 
   async function renderQuickOpen(props: {
+    recentFiles?: typeof recentFiles
     onOpen?: (selection: {
       kind: string
       name: string
@@ -96,7 +104,7 @@ describe("QuickOpen", () => {
     await act(async () => {
       root?.render(
         createElement(QuickOpen, {
-          recentFiles,
+          recentFiles: props.recentFiles ?? recentFiles,
           activeTableSource: props.activeTableSource ?? null,
           onOpen: props.onOpen ?? (() => undefined),
           onOpenTable: props.onOpenTable ?? (() => undefined),
@@ -112,6 +120,93 @@ describe("QuickOpen", () => {
     expect(host?.textContent).toContain("readme.md")
     expect(host?.textContent).toContain("crm.eidos")
     expect(host?.textContent).toContain("notes/")
+  })
+
+  it("keeps keyboard selection visible through long lists and wraparound without moving focus", async () => {
+    const files = Array.from({ length: 30 }, (_, index) => ({
+      relativePath: `notes/${index}.md`,
+      name: `${index}.md`,
+      kind: "file" as const,
+    }))
+    const onOpen = vi.fn()
+    await renderQuickOpen({ recentFiles: files, onOpen })
+    const input = host!.querySelector("input")!
+
+    async function move(key: string, index: number) {
+      scrollIntoView.mockClear()
+      await act(async () => keyDown(input, key))
+      const selected = host!.querySelector('[aria-selected="true"]')!
+      expect(selected.id).toBe(`quick-open-item-${index}`)
+      expect(input.getAttribute("aria-activedescendant")).toBe(selected.id)
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      })
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(selected)
+      expect(document.activeElement).toBe(input)
+    }
+
+    await move("ArrowUp", 29)
+    await move("ArrowDown", 0)
+    for (let index = 1; index <= 20; index++) await move("ArrowDown", index)
+    await move("ArrowUp", 19)
+    await act(async () => keyDown(input, "Enter"))
+    expect(onOpen).toHaveBeenCalledWith(files[19])
+  })
+
+  it("reveals the first result when an asynchronous search replaces the list", async () => {
+    const searchSpacePaths = vi
+      .fn()
+      .mockResolvedValue([
+        { relativePath: "a.md", name: "a.md", kind: "file", score: 10 },
+      ])
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { searchSpacePaths } as unknown as EidosLiteApi,
+    })
+    await renderQuickOpen({})
+    const input = host!.querySelector("input")!
+    await act(async () => keyDown(input, "ArrowDown"))
+    await act(async () => setInputValue(input, "md"))
+    scrollIntoView.mockClear()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    const selected = host!.querySelector('[aria-selected="true"]')!
+    expect(selected.textContent).toContain("a.md")
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(selected)
+    expect(document.activeElement).toBe(input)
+  })
+
+  it("ignores stationary hover after keyboard navigation and resumes selection on mouse movement", async () => {
+    const onOpen = vi.fn()
+    await renderQuickOpen({ onOpen })
+    const input = host!.querySelector("input")!
+    const options = host!.querySelectorAll<HTMLButtonElement>('[role="option"]')
+    await act(async () => keyDown(input, "ArrowDown"))
+    scrollIntoView.mockClear()
+
+    await act(async () => {
+      options[0].dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+      options[0].dispatchEvent(new MouseEvent("mousemove", { bubbles: true }))
+    })
+    expect(options[1].getAttribute("aria-selected")).toBe("true")
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    await act(async () => {
+      const movement = new MouseEvent("mousemove", { bubbles: true })
+      Object.defineProperties(movement, {
+        movementX: { value: 1 },
+        movementY: { value: 0 },
+      })
+      options[0].dispatchEvent(movement)
+    })
+    expect(options[0].getAttribute("aria-selected")).toBe("true")
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+    await act(async () => keyDown(input, "Enter"))
+    expect(onOpen).toHaveBeenCalledWith(recentFiles[0])
   })
 
   it("searches after a debounce and opens the top hit with Enter", async () => {
