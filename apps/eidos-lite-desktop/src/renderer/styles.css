@@ -1612,6 +1612,7 @@ body {
   grid-row: 1 / -1;
   grid-column: 1;
   width: 100%;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--workbench-titlebar-height) minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;

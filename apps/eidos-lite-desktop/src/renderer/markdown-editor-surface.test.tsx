@@ -110,6 +110,101 @@ describe("MarkdownEditorSurface", () => {
     expect(wysiwygEditor).not.toHaveBeenCalled()
   })
 
+  it("keeps search fallback in the current session across parent rerenders", async () => {
+    const modeChanged = vi.fn()
+    const target = {
+      requestId: "search-1",
+      textSearch: { requestId: "search-1", query: "Source", start: 2, end: 8 },
+    }
+    const render = async (
+      requestId = "search-1",
+      documentKey = "README.md"
+    ) => {
+      await act(async () => {
+        root.render(
+          <MarkdownEditorSurface
+            documentKey={documentKey}
+            relativePath={documentKey}
+            content="# Source"
+            editingMode="wysiwyg"
+            theme="light"
+            navigationTarget={{
+              ...target,
+              requestId,
+              textSearch: { ...target.textSearch, requestId },
+            }}
+            onEditingModeChange={(mode) => modeChanged(mode)}
+            onChange={vi.fn()}
+          />
+        )
+      })
+    }
+    await render()
+    await act(async () => {
+      wysiwygEditor.mock.lastCall![0].onTextSearchUnavailable()
+    })
+    expect(
+      container.querySelector('[data-testid="source-editor"]')
+    ).not.toBeNull()
+    const richTextRenders = wysiwygEditor.mock.calls.length
+    for (let index = 0; index < 3; index++) await render()
+    expect(
+      container.querySelector('[data-testid="source-editor"]')
+    ).not.toBeNull()
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Opened source to locate this match precisely"
+    )
+    expect(wysiwygEditor.mock.calls.length).toBe(richTextRenders)
+    expect(sourceEditor.mock.lastCall![0].searchTarget).toEqual(
+      target.textSearch
+    )
+    expect(modeChanged).not.toHaveBeenCalled()
+
+    await render("search-2")
+    expect(
+      container.querySelector('[data-testid="wysiwyg-editor"]')
+    ).not.toBeNull()
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    await act(async () =>
+      wysiwygEditor.mock.lastCall![0].onTextSearchUnavailable()
+    )
+    await render("search-2", "another.md")
+    expect(
+      container.querySelector('[data-testid="wysiwyg-editor"]')
+    ).not.toBeNull()
+    expect(modeChanged).not.toHaveBeenCalled()
+  })
+
+  it("does not overwrite a source preference when search tries rich text", async () => {
+    const onEditingModeChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="README.md"
+          relativePath="README.md"
+          content="# Source"
+          editingMode="source"
+          theme="light"
+          navigationTarget={{
+            requestId: "search-1",
+            textSearch: {
+              requestId: "search-1",
+              query: "Source",
+              start: 2,
+              end: 8,
+            },
+          }}
+          onEditingModeChange={onEditingModeChange}
+          onChange={vi.fn()}
+        />
+      )
+    })
+    expect(
+      container.querySelector('[data-testid="wysiwyg-editor"]')
+    ).not.toBeNull()
+    expect(onEditingModeChange).not.toHaveBeenCalled()
+  })
+
   it("uses the same empty-document guidance in source and rich text", async () => {
     const render = async (editingMode: "source" | "wysiwyg") => {
       await act(async () => {

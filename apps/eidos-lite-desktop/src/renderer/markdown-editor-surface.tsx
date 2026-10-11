@@ -261,13 +261,15 @@ export function MarkdownEditorSurface({
     onEditingModeChange,
   ])
   const [searchFallback, setSearchFallback] = useState(false)
+  const textSearchRequestId = navigationTarget?.textSearch?.requestId
   useEffect(() => {
     setSearchFallback(false)
-    if (navigationTarget?.textSearch) {
+    if (textSearchRequestId !== undefined) {
+      // Search navigation is session-local. Persisting these automatic mode
+      // changes rerenders the host and must not restart the same request.
       setSessionMode("wysiwyg")
-      onEditingModeChange?.("wysiwyg")
     }
-  }, [navigationTarget?.textSearch?.requestId, onEditingModeChange])
+  }, [documentKey, textSearchRequestId])
   useEffect(() => setAttachmentError(null), [documentKey])
 
   return (
@@ -340,7 +342,6 @@ export function MarkdownEditorSurface({
             onTextSearchUnavailable={() => {
               setSearchFallback(true)
               setSessionMode("source")
-              onEditingModeChange?.("source")
             }}
             onOpenInternalLink={onOpenInternalLink}
             placeholder={
