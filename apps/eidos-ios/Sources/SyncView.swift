@@ -38,6 +38,9 @@ private struct DownloadedPeerSpace {
 }
 
 struct SyncView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var peerPresence = PeerPresence()
+    @State private var availabilityRefreshPending = false
     @AppStorage(AppLanguage.key, store: AppLanguage.defaults) private var appLanguage = "system"
     @Environment(\.locale) private var appLocale
     let space: LocalSpace
@@ -175,7 +178,16 @@ struct SyncView: View {
                     else if !embedded { Button(tr("完成")) { dismiss(); onChange() } }
                 }
                 .interactiveDismissDisabled(busy)
-                .task { refreshConnection() }
+                .task { refreshConnection(); if scenePhase == .active { peerPresence.start() } }
+                .onChange(of: peerPresence.revision) { _, _ in refreshAvailability() }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { peerPresence.start() }
+                    else { peerPresence.stop(); availabilityCheck?.cancel() }
+                }
+                .onChange(of: busy) { _, value in
+                    if !value && availabilityRefreshPending { refreshAvailability() }
+                }
+                .onDisappear { peerPresence.stop(); availabilityCheck?.cancel(); availabilityRefreshPending = false }
                 .fullScreenCover(isPresented: $addingComputer) { pairingFlow }
                 .sheet(isPresented: Binding(get: { enteringCode && !addingComputer }, set: { enteringCode = $0 })) { manualPairing }
                 .fullScreenCover(isPresented: Binding(get: { scanning && !addingComputer }, set: { scanning = $0 })) {
@@ -216,7 +228,7 @@ struct SyncView: View {
                     Button(tr("取消"), role: .cancel) { forgetComputer = nil }
                     Button(tr("解除配对"), role: .destructive) {
                         // Alert dismissal clears forgetComputer before this action runs.
-                        // Serialize removal with availability probes that save credentials.
+                        // Discard pending availability results before removing the device.
                         availabilityCheck?.cancel()
                         run(success: tr("已解除配对"), initialMessage: tr("正在解除配对")) { _ in
                             try PeerSync.forgetDevice(device.fingerprint)
@@ -446,24 +458,22 @@ struct SyncView: View {
         }
     }
     private func refreshAvailability() {
-        guard !checking && !busy else { return }
+        guard scenePhase == .active, peerPresence.isRunning else { return }
+        guard !checking && !busy else { availabilityRefreshPending = true; return }
+        availabilityRefreshPending = false
         checking = true
         let cancellation = SyncCancellation()
         availabilityCheck = cancellation
         SyncHTTP.begin(cancellation.id)
         let paired = devices.sorted { $0.fingerprint == selectedDevice?.fingerprint && $1.fingerprint != selectedDevice?.fingerprint }
-        LocalSpace.io.async {
-            Runtime.cancellation = cancellation.id
-            defer {
-                Runtime.cancellation = nil
-                SyncHTTP.end(cancellation.id)
-                _ = eidos_ios_cancellation(cancellation.id, 2)
-                DispatchQueue.main.async { checking = false; availabilityCheck = nil }
-            }
-            for device in paired {
-                guard !cancellation.cancelled else { break }
+        let group = DispatchGroup()
+        for device in paired {
+            group.enter()
+            peerPresence.checks.addOperation {
+                defer { group.leave() }
+                guard !cancellation.cancelled else { return }
                 do {
-                    let spaces = try PeerSync.availableSpaces(device)
+                    let spaces = try PeerSync.availableSpaces(device, cancellation: cancellation.id, saveEndpoint: false)
                     DispatchQueue.main.async {
                         guard !cancellation.cancelled, devices.contains(where: { $0.fingerprint == device.fingerprint }) else { return }
                         availability[device.fingerprint] = .online(Set(spaces.map(\.space)))
@@ -476,6 +486,12 @@ struct SyncView: View {
                     }
                 }
             }
+        }
+        group.notify(queue: .main) {
+            SyncHTTP.end(cancellation.id)
+            _ = eidos_ios_cancellation(cancellation.id, 2)
+            checking = false; availabilityCheck = nil
+            if availabilityRefreshPending && scenePhase == .active { refreshAvailability() }
         }
     }
     private func syncDownloaded(_ item: DownloadedPeerSpace) {

@@ -29,8 +29,7 @@ final class PeerDiscovery: NSObject, NetServiceBrowserDelegate, NetServiceDelega
     private let candidates = Candidates()
     private var active = true
     init(fingerprint: String, space: String?) { self.fingerprint = fingerprint; self.space = space }
-    static func find<T>(_ profile: PeerProfile, space: String?, verify: (String) throws -> T?) throws -> T? {
-        let cancellation = Runtime.cancellation
+    static func find<T>(_ profile: PeerProfile, space: String?, cancellation: String? = Runtime.cancellation, verify: (String) throws -> T?) throws -> T? {
         try SyncHTTP.checkCancellation(cancellation)
         let discovery = PeerDiscovery(fingerprint: profile.fingerprint, space: space)
         DispatchQueue.main.async {

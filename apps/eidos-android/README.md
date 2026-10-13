@@ -171,8 +171,9 @@ click its system notification or open **Settings → Devices**. **Cancel pairing
 the wait and dismisses the pending desktop request when reachable. Rejection and
 expiry are reported separately; generate a new code to try again.
 
-After a restart or address change, sync checks the saved Space endpoint and the
-computer's latest saved endpoint before Bonjour discovery. Every candidate must
+After a restart or address change, sync checks saved endpoints and Bonjour
+discovery concurrently, using the first verified connection. While Sync is open,
+device and network changes trigger a refresh, with a periodic fallback. Every candidate must
 pass the paired TLS identity. Stop interrupts address probes and discovery as
 well as the transfer. Local files and the last successful sync time remain intact.
 

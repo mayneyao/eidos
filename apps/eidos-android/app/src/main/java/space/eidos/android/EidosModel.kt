@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
 import org.json.JSONObject
 
 enum class MainTab {
@@ -422,40 +423,45 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         if (mutable.value.busy || mutable.value.peerBusy || !peerAvailabilityLock.tryLock()) return
         mutable.update { it.copy(peerChecking = true) }
         try {
-            for (device in mutable.value.peerDevices) {
-                var available: List<PeerSpace>? = null
-                val result =
-                    try {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            val saved =
-                                checkNotNull(
-                                    PeerConnection.load(
-                                        getApplication(),
-                                        "device-${device.fingerprint}",
-                                    )
+            kotlinx.coroutines.coroutineScope {
+                val permits = kotlinx.coroutines.sync.Semaphore(3)
+                for (device in mutable.value.peerDevices) launch {
+                    permits.withPermit {
+                        var available: List<PeerSpace>? = null
+                        val result =
+                            try {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val saved =
+                                        checkNotNull(
+                                            PeerConnection.load(
+                                                getApplication(),
+                                                "device-${device.fingerprint}",
+                                            )
+                                        )
+                                    val verified = PeerConnection.reconnectWithSpaces(getApplication(), saved)
+                                    val spaces = verified.spaces
+                                    available = spaces
+                                    PeerAvailability(true, spaces.map { it.id }.toSet())
+                                }
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Exception) {
+                                PeerAvailability(false)
+                            }
+                        mutable.update {
+                            if (it.peerDevices.none { peer -> peer.fingerprint == device.fingerprint }) it
+                            else
+                                it.copy(
+                                    peerAvailability = it.peerAvailability + (device.fingerprint to result),
+                                    peerSpaces =
+                                        available?.let { spaces ->
+                                            it.peerSpaces.filter { peer ->
+                                                peer.fingerprint != device.fingerprint
+                                            } + spaces
+                                        } ?: it.peerSpaces,
                                 )
-                            val connection = PeerConnection.reconnect(getApplication(), saved)
-                            val spaces = connection.spaces(timeoutMillis = 2000)
-                            available = spaces
-                            PeerAvailability(true, spaces.map { it.id }.toSet())
                         }
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (_: Exception) {
-                        PeerAvailability(false)
                     }
-                mutable.update {
-                    if (it.peerDevices.none { peer -> peer.fingerprint == device.fingerprint }) it
-                    else
-                        it.copy(
-                            peerAvailability = it.peerAvailability + (device.fingerprint to result),
-                            peerSpaces =
-                                available?.let { spaces ->
-                                    it.peerSpaces.filter { peer ->
-                                        peer.fingerprint != device.fingerprint
-                                    } + spaces
-                                } ?: it.peerSpaces,
-                        )
                 }
             }
         } finally {
@@ -471,8 +477,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     checkNotNull(PeerConnection.load(getApplication(), "device-$fingerprint")) {
                         tr("请先配对设备")
                     }
-                val connected = PeerConnection.reconnect(getApplication(), device)
-                connected.spaces().also { connected.saveDevice(getApplication()) }
+                val verified = PeerConnection.reconnectWithSpaces(getApplication(), device)
+                verified.spaces.also { verified.connection.saveDevice(getApplication()) }
             }
         mutable.update {
             it.copy(

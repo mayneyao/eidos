@@ -6,6 +6,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import java.net.InetAddress
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
@@ -48,9 +50,14 @@ class PeerDiscoveryTest {
                 listener,
             )
             withTimeout(10000) { registered.await() }
-            val endpoint = PeerDiscovery.find(app, fingerprint, "test-space") { it }
-            assertNotNull("Android NSD should resolve the advertised endpoint", endpoint)
-            assertTrue(endpoint!!.endsWith(":45678"))
+            // Availability checks for several devices share the platform NSD resolver.
+            val endpoints = List(3) {
+                async { PeerDiscovery.find(app, fingerprint, "test-space") { it } }
+            }.awaitAll()
+            endpoints.forEach { endpoint ->
+                assertNotNull("Concurrent Android NSD checks should resolve the endpoint", endpoint)
+                assertTrue(endpoint!!.endsWith(":45678"))
+            }
         } finally {
             runCatching { manager.unregisterService(listener) }
         }

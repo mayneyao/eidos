@@ -30,11 +30,11 @@ internal fun SyncScreen(
     model: EidosModel,
 ) {
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(lifecycle, state.peerDevices.map { it.fingerprint }, state.busy, state.peerBusy) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (true) {
+            peerPresenceChanges(context).collect {
                 model.checkPeerAvailability()
-                kotlinx.coroutines.delay(20_000)
             }
         }
     }

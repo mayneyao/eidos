@@ -67,6 +67,8 @@ data class PeerDevice(val fingerprint: String, val name: String)
 
 data class PeerSpace(val id: String, val name: String, val url: String, val fingerprint: String)
 
+internal data class VerifiedPeer(val connection: PeerConnection, val spaces: List<PeerSpace>)
+
 internal class PeerConnection(
     val url: String,
     val fingerprint: String,
@@ -362,26 +364,32 @@ internal class PeerConnection(
             context: Context,
             saved: PeerConnection,
             remoteSpace: String? = null,
-        ): PeerConnection {
-            suspend fun verify(url: String): PeerConnection? =
+        ): PeerConnection = reconnectWithSpaces(context, saved, remoteSpace).connection
+
+        suspend fun reconnectWithSpaces(
+            context: Context,
+            saved: PeerConnection,
+            remoteSpace: String? = null,
+        ): VerifiedPeer {
+            suspend fun verify(url: String): VerifiedPeer? =
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val candidate =
                             PeerConnection(url, saved.fingerprint, saved.token, saved.name)
                         val spaces = candidate.cancellable { candidate.spaces(timeoutMillis = 2000) }
-                        if (remoteSpace == null) candidate
+                        if (remoteSpace == null) VerifiedPeer(candidate, spaces)
                         else
                             spaces
                                 .firstOrNull { it.id == remoteSpace }
                                 ?.let {
-                                    if (it.url == candidate.url) candidate
-                                    else
+                                    val connection = if (it.url == candidate.url) candidate else
                                         PeerConnection(
                                             it.url,
                                             saved.fingerprint,
                                             saved.token,
                                             saved.name,
                                         )
+                                    VerifiedPeer(connection, spaces)
                                 }
                     } catch (error: kotlinx.coroutines.CancellationException) {
                         throw error
@@ -390,9 +398,11 @@ internal class PeerConnection(
                     }
                 }
             val device = load(context, "device-${saved.fingerprint}")
-            return verify(saved.url)
-                ?: device?.takeIf { it.fingerprint == saved.fingerprint && it.url != saved.url }?.let { verify(it.url) }
-                ?: PeerDiscovery.find(context, saved.fingerprint, remoteSpace, ::verify)
+            val addresses = listOfNotNull(saved.url, device?.takeIf { it.fingerprint == saved.fingerprint }?.url).distinct()
+            return firstPeerResult(
+                addresses.map { url -> suspend { verify(url) } } +
+                    suspend { PeerDiscovery.find(context, saved.fingerprint, remoteSpace, ::verify) }
+            )
                 ?: error(tr("未找到已配对电脑。请确认在同一局域网，且电脑已开启此 Space 的设备同步"))
         }
 

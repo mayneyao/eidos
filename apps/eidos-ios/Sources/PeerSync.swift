@@ -139,13 +139,13 @@ final class PeerTunnel {
     func close() { queue.sync { onTransfer(received, sent); listener.cancel(); connections.values.forEach { $0.0.cancel(); $0.1.cancel() }; connections.removeAll() } }
     deinit { listener.cancel() }
 
-    func call(_ route: String, token: String, body: [String: Any] = [:], timeout: TimeInterval = 120) throws -> [String: Any] {
+    func call(_ route: String, token: String, body: [String: Any] = [:], timeout: TimeInterval = 120, cancellation: String? = Runtime.cancellation) throws -> [String: Any] {
         var request = URLRequest(url: URL(string: baseURL + route)!)
         request.httpMethod = "POST"; request.timeoutInterval = timeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return try SyncHTTP.request(request)
+        return try SyncHTTP.request(request, cancellation: cancellation)
     }
 }
 
@@ -167,12 +167,12 @@ final class SyncHTTP: NSObject, URLSessionTaskDelegate {
         if cancelled { throw URLError(.cancelled) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
-    static func request(_ request: URLRequest) throws -> [String: Any] {
+    static func request(_ request: URLRequest, cancellation: String? = Runtime.cancellation) throws -> [String: Any] {
         let done = DispatchSemaphore(value: 0)
         var outcome: Result<[String: Any], Error> = .failure(LocalError.message(tr("请求超时")))
         let session = URLSession(configuration: .ephemeral, delegate: SyncHTTP(), delegateQueue: nil)
         let id = UUID()
-        if let cancellation = Runtime.cancellation {
+        if let cancellation {
             lock.lock()
             if stopped.contains(cancellation) { lock.unlock(); session.invalidateAndCancel(); throw LocalError.message(tr("已停止")) }
             sessions[id] = (cancellation, session); lock.unlock()
@@ -220,12 +220,13 @@ enum PeerSync {
         try DeviceSecrets.remove("peer-device:" + fingerprint)
         UserDefaults.standard.set((UserDefaults.standard.stringArray(forKey: "peer-devices") ?? []).filter { $0 != fingerprint }, forKey: "peer-devices")
     }
-    static func availableSpaces(_ device: PeerProfile) throws -> [PeerProfile] {
-        let connected = try reconnect(device, requireSpace: false)
-        try saveDevice(connected)
-        let tunnel = try PeerTunnel(url: connected.url, fingerprint: connected.fingerprint)
-        defer { tunnel.close() }
-        let result = try tunnel.call("/spaces", token: connected.token)
+    static func availableSpaces(_ device: PeerProfile, cancellation: String? = Runtime.cancellation, saveEndpoint: Bool = true) throws -> [PeerProfile] {
+        let verified = try reconnectWithSpaces(device, requireSpace: false, cancellation: cancellation)
+        try SyncHTTP.checkCancellation(cancellation)
+        if saveEndpoint { try saveDevice(verified.profile) }
+        return verified.spaces
+    }
+    private static func spaceProfiles(_ result: [String: Any], connected: PeerProfile) throws -> [PeerProfile] {
         return try (result["spaces"] as? [[String: Any]] ?? []).map { item in
             guard let id = item["id"] as? String, let url = item["url"] as? String else { throw LocalError.message(tr("电脑返回了无效 Space")) }
             _ = try PeerTunnel.endpoint(url)
@@ -309,32 +310,41 @@ enum PeerSync {
         guard result["outcome"] as? String != "needs_merge" else { throw LocalError.message(tr("电脑版本有新变化，本机文件已保留。请重新同步；如仍有冲突，请到电脑处理。")) }
     }
     static func reconnect(_ profile: PeerProfile, requireSpace: Bool = true) throws -> PeerProfile {
-        let cancellation = Runtime.cancellation
-        func verify(_ url: String) throws -> PeerProfile? {
+        try reconnectWithSpaces(profile, requireSpace: requireSpace, cancellation: Runtime.cancellation).profile
+    }
+    private static func reconnectWithSpaces(_ profile: PeerProfile, requireSpace: Bool, cancellation: String?) throws -> (profile: PeerProfile, spaces: [PeerProfile]) {
+        func verify(_ url: String, cancellation: String) throws -> (profile: PeerProfile, spaces: [PeerProfile])? {
             try SyncHTTP.checkCancellation(cancellation)
             do {
                 let tunnel = try PeerTunnel(url: url, fingerprint: profile.fingerprint)
                 defer { tunnel.close() }
-                let result = try tunnel.call("/spaces", token: profile.token, timeout: 2)
+                let result = try tunnel.call("/spaces", token: profile.token, timeout: 2, cancellation: cancellation)
+                let connected = PeerProfile(url: url, fingerprint: profile.fingerprint, token: profile.token, name: profile.name, space: profile.space, spaceName: profile.spaceName)
+                let spaces = try spaceProfiles(result, connected: connected)
                 if !requireSpace {
-                    return PeerProfile(url: url, fingerprint: profile.fingerprint, token: profile.token, name: profile.name, space: profile.space, spaceName: profile.spaceName)
+                    return (connected, spaces)
                 }
-                let spaces = result["spaces"] as? [[String: Any]] ?? []
-                guard let match = spaces.first(where: { $0["id"] as? String == profile.space }), let endpoint = match["url"] as? String else { return nil }
-                _ = try PeerTunnel.endpoint(endpoint)
-                return PeerProfile(url: endpoint, fingerprint: profile.fingerprint, token: profile.token, name: profile.name, space: profile.space, spaceName: profile.spaceName)
+                guard let match = spaces.first(where: { $0.space == profile.space }) else { return nil }
+                return (match, spaces)
             } catch {
                 try SyncHTTP.checkCancellation(cancellation)
                 return nil
             }
         }
-        if let connected = try verify(profile.url) { return connected }
+        var addresses = [profile.url]
         if let data = try DeviceSecrets.load("peer-device:" + profile.fingerprint) {
             let device = try JSONDecoder().decode(PeerProfile.self, from: data)
-            if device.fingerprint == profile.fingerprint, device.url != profile.url,
-               let connected = try verify(device.url) { return connected }
+            if device.fingerprint == profile.fingerprint, device.url != profile.url { addresses.append(device.url) }
         }
-        if let connected = try PeerDiscovery.find(profile, space: requireSpace ? profile.space : nil, verify: verify) { return connected }
+        var probes: [(String) throws -> (profile: PeerProfile, spaces: [PeerProfile])?] = addresses.map { url in
+            { identity in try verify(url, cancellation: identity) }
+        }
+        probes.append { identity in
+            try PeerDiscovery.find(profile, space: requireSpace ? profile.space : nil, cancellation: identity) { url in
+                try verify(url, cancellation: identity)
+            }
+        }
+        if let connected = try PeerRace.first(cancellation: cancellation, probes: probes) { return connected }
         throw LocalError.message(tr("未找到已配对电脑，请确认同一局域网且电脑已开启此 Space 的设备同步"))
     }
 }
