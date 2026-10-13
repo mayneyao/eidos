@@ -2171,7 +2171,7 @@ body {
   position: absolute;
   z-index: 1;
   right: 0.5rem;
-  bottom: 2.875rem;
+  bottom: 0.625rem;
   min-width: 0;
   max-width: calc(100% - 1rem);
   animation: sidebar-update-enter 160ms var(--sidebar-motion-ease-out) both;

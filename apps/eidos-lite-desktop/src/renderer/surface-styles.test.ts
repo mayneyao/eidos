@@ -267,8 +267,8 @@ describe("Eidos Lite surface hierarchy", () => {
     )
     expect(rule(".sidebar-settings-button")).toContain("height: 2rem")
     expect(rule(".sidebar-update-action")).toContain("position: absolute")
-    // The update pill floats above the new row of pinned plugin pages.
-    expect(rule(".sidebar-update-action")).toContain("bottom: 2.875rem")
+    // The update pill floats at the bottom, aligned with the footer actions.
+    expect(rule(".sidebar-update-action")).toContain("bottom: 0.625rem")
     expect(rule(".sidebar-update-action")).not.toContain("border-top")
     expect(rule(".sidebar-update-action")).toContain(
       "animation: sidebar-update-enter"
