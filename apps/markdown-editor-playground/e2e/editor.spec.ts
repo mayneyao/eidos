@@ -27,6 +27,60 @@ async function setExternalMarkdown(page: Page, markdown: string) {
   }, markdown)
 }
 
+for (const markdown of [
+  "# Release notes\n\nFile properties preview.",
+  "> [!note] Tail\n> Content",
+  "```js\nconsole.log(1)\n```",
+]) {
+  test(`bottom padding clicks preserve Markdown until input: ${markdown}`, async ({
+    page,
+  }) => {
+    await openMarkdown(page, markdown)
+    const canvas = page.getByLabel("Markdown playground editor")
+    const blocks = canvas.locator(
+      ":scope > :not([data-lexical-decorator-boundary]):not([data-lexical-cursor])"
+    )
+    const count = await blocks.count()
+    const box = await canvas.boundingBox()
+    if (!box) throw new Error("Editor geometry is unavailable")
+    for (let i = 0; i < 3; i++) {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height - 30)
+      expect(await currentMarkdown(page)).toBe(markdown)
+      await expect(blocks).toHaveCount(count + 1)
+      await expect(canvas.locator(".eme-paragraph").last()).toHaveText("")
+      expect(
+        await canvas.evaluate((element) => {
+          const selection = window.getSelection()
+          const line = element.lastElementChild
+          return (
+            !!line &&
+            !!selection?.anchorNode &&
+            line.contains(selection.anchorNode) &&
+            selection.isCollapsed &&
+            line.getBoundingClientRect().height > 0 &&
+            getComputedStyle(element).caretColor !== "rgba(0, 0, 0, 0)"
+          )
+        })
+      ).toBe(true)
+    }
+    await expect(canvas).toBeFocused()
+    await page.keyboard.insertText("New paragraph")
+    await expect.poll(() => currentMarkdown(page)).toContain("New paragraph")
+    await expect(canvas.locator(".eme-paragraph").last()).toHaveText(
+      "New paragraph"
+    )
+    await page.keyboard.press("ControlOrMeta+z")
+    await expect.poll(() => currentMarkdown(page)).toBe(markdown)
+    await page.keyboard.press("Enter")
+    await expect.poll(() => currentMarkdown(page)).not.toBe(markdown)
+    const afterEnter = await currentMarkdown(page)
+    await page.keyboard.press("ControlOrMeta+z")
+    await expect.poll(() => currentMarkdown(page)).toBe(markdown)
+    await page.keyboard.press("ControlOrMeta+Shift+z")
+    await expect.poll(() => currentMarkdown(page)).toBe(afterEnter)
+  })
+}
+
 test("CAN-001 opens in the focused WYSIWYG editor", async ({ page }) => {
   await page.goto("/playground")
 

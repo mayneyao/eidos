@@ -7,9 +7,12 @@ import {
   $isRangeSelection,
   $isTextNode,
   DELETE_CHARACTER_COMMAND,
+  INSERT_PARAGRAPH_COMMAND,
+  KEY_DOWN_COMMAND,
   type LexicalEditor,
 } from "lexical"
 import { MarkdownEditor } from "./markdown-editor"
+import { documentStateWithoutPendingTail } from "../plugins/document-tail-plugin"
 import { eidosMarkdownPlugins } from "../plugin-system/builtins"
 import { defineMarkdownPlugin } from "../plugin-system/plugin-api"
 
@@ -29,6 +32,7 @@ let root: Root
 const open = vi.fn()
 const change = vi.fn()
 const error = vi.fn()
+const save = vi.fn()
 const originalRangeRect = Object.getOwnPropertyDescriptor(
   Range.prototype,
   "getBoundingClientRect"
@@ -59,6 +63,7 @@ async function render(markdown: string, readOnly = false) {
         onMarkdownChange={change}
         onOpenExternalUrl={open}
         onError={error}
+        onSaveRequest={save}
         readOnly={readOnly}
       />
     )
@@ -74,6 +79,7 @@ beforeEach(() => {
   open.mockClear()
   change.mockClear()
   error.mockClear()
+  save.mockClear()
   Object.defineProperty(Range.prototype, "getBoundingClientRect", {
     configurable: true,
     value: () => new DOMRect(0, 0, 1, 20),
@@ -175,15 +181,43 @@ it.each([
   "> [!note] Tail\n> Content",
   "```js\nconsole.log(1)\n```",
   "| A | B |\n| - | - |\n| one | two |",
+  "# Release notes\n\nFile properties preview.",
 ])(
-  "inserts an editable paragraph in bottom padding after %s",
+  "keeps bottom padding clicks read-only until typing after %s",
   async (markdown) => {
     await render(markdown)
     const content = host.querySelector<HTMLElement>(".eme-content-editable")!
+    const initialDocument = editor.getEditorState().toJSON().root
+    const blockCount = () =>
+      content.querySelectorAll(
+        ":scope > :not([data-lexical-decorator-boundary]):not([data-lexical-cursor])"
+      ).length
+    const initialCount = blockCount()
     await act(async () => {
       pointer(content, "pointerdown")
       pointer(content, "pointerup")
     })
+    expect(change).not.toHaveBeenCalled()
+    expect(
+      documentStateWithoutPendingTail(editor, editor.getEditorState()).toJSON()
+        .root
+    ).toEqual(initialDocument)
+    expect(blockCount()).toBe(initialCount + 1)
+    expect(content.lastElementChild?.tagName).toBe("P")
+    editor.getEditorState().read(() => {
+      const selection = $getSelection()
+      expect($isRangeSelection(selection)).toBe(true)
+      if ($isRangeSelection(selection))
+        expect(selection.anchor.getNode()).toBe($getRoot().getLastChild())
+    })
+    await act(async () => {
+      editor.dispatchCommand(
+        KEY_DOWN_COMMAND,
+        new KeyboardEvent("keydown", { key: "s", code: "KeyS", ctrlKey: true })
+      )
+    })
+    expect(save).toHaveBeenLastCalledWith(markdown)
+    expect(change).not.toHaveBeenCalled()
     await act(async () =>
       editor.update(
         () => {
@@ -196,17 +230,32 @@ it.each([
     )
     expect(change.mock.lastCall?.[0]).toContain("New paragraph")
     expect(content.lastElementChild?.tagName).toBe("P")
-    const count = content.children.length
+    const count = blockCount()
     await act(async () => {
       pointer(content, "pointerdown")
       pointer(content, "pointerup")
       pointer(content, "pointerdown")
       pointer(content, "pointerup")
     })
-    expect(content.children.length).toBe(count + 1)
+    expect(blockCount()).toBe(count + 1)
     expect(error).not.toHaveBeenCalled()
   }
 )
+
+it("commits an explicit Enter after focusing the pending writing line", async () => {
+  await render("Original paragraph")
+  const content = host.querySelector<HTMLElement>(".eme-content-editable")!
+  await act(async () => {
+    pointer(content, "pointerdown")
+    pointer(content, "pointerup")
+  })
+  expect(change).not.toHaveBeenCalled()
+  await act(async () =>
+    editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined)
+  )
+  expect(change).toHaveBeenCalled()
+  expect(change.mock.lastCall?.[0]).toMatch(/^Original paragraph\n+$/u)
+})
 
 it.each(["hold", "move", "cancel", "read-only"])(
   "does not insert a paragraph for a %s tail gesture",
