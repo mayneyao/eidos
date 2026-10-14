@@ -774,6 +774,8 @@ export type EidosLiteRecordOpenMode = "panel" | "page"
 export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
+  /** Personal action ordering; never stored in an Eidos File or Space. */
+  menuOrders?: import("./menu-orders").EidosLiteMenuOrders
   uiZoom: number
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage

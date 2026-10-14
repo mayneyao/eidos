@@ -2,6 +2,30 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts stable menu action IDs and rejects malformed or duplicate orders", () => {
+    const menuOrders = {
+      "grid.cell": ["host/open-mapped-file-sidebar", "plugin/action"],
+    }
+    expect(eidosLitePreferencesPatch({ menuOrders })).toEqual({ menuOrders })
+    for (const invalid of [
+      null,
+      [],
+      { other: [] },
+      { "grid.cell": "x" },
+      { "grid.cell": [""] },
+      { "grid.cell": ["x", "x"] },
+      {
+        "grid.cell": Array.from(
+          { length: 513 },
+          (_, index) => `plugin/${index}`
+        ),
+      },
+    ]) {
+      expect(() => eidosLitePreferencesPatch({ menuOrders: invalid })).toThrow(
+        "Invalid menu order preferences"
+      )
+    }
+  })
   it("accepts HTML opening modes and rejects unsupported editors", () => {
     for (const htmlFileOpenMode of ["preview", "source"]) {
       expect(eidosLitePreferencesPatch({ htmlFileOpenMode })).toEqual({

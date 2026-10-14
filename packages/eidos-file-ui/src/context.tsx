@@ -93,6 +93,12 @@ export interface EidosFileMarkdownHtml {
 }
 
 export interface EidosFileUIHost {
+  /** Host-owned personal menu preferences, independent of saved View layout. */
+  menuOrders?: { "grid.cell"?: readonly string[] }
+  onMenuOrderChange?: (
+    menu: "grid.cell",
+    order: readonly string[]
+  ) => void | Promise<void>
   /** Touch hosts present cell editors in a bottom sheet. */
   interactionMode?: "desktop" | "mobile"
   themeName: EidosFileUIThemeName
@@ -154,6 +160,8 @@ const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
+  menuOrders,
+  onMenuOrderChange,
   interactionMode,
   children,
   themeName,
@@ -178,6 +186,9 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedMenuOrders = menuOrders ?? parent.menuOrders
+  const resolvedOnMenuOrderChange =
+    onMenuOrderChange ?? parent.onMenuOrderChange
   const resolvedInteractionMode = interactionMode ?? parent.interactionMode
   const resolvedThemeName = themeName ?? parent.themeName
   const resolvedLocale = locale ?? parent.locale
@@ -205,6 +216,10 @@ export function EidosFileUIProvider({
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
+      ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
+      ...(resolvedOnMenuOrderChange
+        ? { onMenuOrderChange: resolvedOnMenuOrderChange }
+        : {}),
       interactionMode: resolvedInteractionMode,
       themeName: resolvedThemeName,
       locale: resolvedLocale,
@@ -245,6 +260,8 @@ export function EidosFileUIProvider({
         : {}),
     }),
     [
+      resolvedMenuOrders,
+      resolvedOnMenuOrderChange,
       resolvedInteractionMode,
       locale,
       messages,

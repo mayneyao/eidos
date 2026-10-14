@@ -86,6 +86,7 @@ interface FormulaEditorTarget {
 
 export interface EidosFileWorkbenchProps {
   onOpenSpaceFile?(path: string): void | Promise<void>
+  onOpenFileInSidebar?(path: string): void | Promise<void>
   relativePath: string
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
@@ -105,6 +106,11 @@ export interface EidosFileWorkbenchProps {
   weekStartsOnMonday?: boolean
   timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  menuOrders?: { "grid.cell"?: readonly string[] }
+  onMenuOrderChange?: (
+    menu: "grid.cell",
+    order: readonly string[]
+  ) => Promise<void>
   macos?: boolean
   onTableSelect(tableId: string): void
   onSnapshot(snapshot: EidosFileSnapshot): void
@@ -113,6 +119,7 @@ export interface EidosFileWorkbenchProps {
 
 export function EidosFileWorkbench({
   onOpenSpaceFile,
+  onOpenFileInSidebar,
   relativePath,
   snapshot,
   source,
@@ -131,6 +138,8 @@ export function EidosFileWorkbench({
   weekStartsOnMonday = true,
   timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  menuOrders,
+  onMenuOrderChange,
   macos = false,
   onTableSelect,
   onSnapshot,
@@ -584,6 +593,8 @@ export function EidosFileWorkbench({
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
+      menuOrders={menuOrders}
+      onMenuOrderChange={onMenuOrderChange}
       markdownEditingMode={CONTENT_FIELD_EDITING_MODE}
       renderMarkdownEditor={renderMarkdownEditor}
       renderMarkdownHtml={renderMarkdownHtml}
@@ -829,6 +840,7 @@ export function EidosFileWorkbench({
           onSnapshot={onSnapshot}
           fileRelativePath={relativePath}
           onOpenSpaceFile={onOpenSpaceFile}
+          onOpenFileInSidebar={onOpenFileInSidebar}
           onError={onError}
         >
           <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">

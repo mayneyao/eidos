@@ -215,6 +215,10 @@ const TerminalPanel = lazy(async () => {
   const module = await import("./terminal-panel")
   return { default: module.TerminalPanel }
 })
+const FileSidebar = lazy(async () => {
+  const module = await import("./file-sidebar")
+  return { default: module.FileSidebar }
+})
 
 interface CachedFile {
   sessionId: string
@@ -812,6 +816,15 @@ function WorkspaceApp({
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const platform = appInfo?.platform ?? rendererPlatform()
   const macos = platform === "darwin"
+  const [menuOrders, setMenuOrders] = useState<
+    NonNullable<EidosLitePreferences["menuOrders"]>
+  >({})
+  const saveMenuOrder = async (menu: "grid.cell", order: readonly string[]) => {
+    const preferences = await window.eidosLite.updatePreferences({
+      menuOrders: { ...menuOrders, [menu]: [...order] },
+    })
+    setMenuOrders(preferences.menuOrders ?? {})
+  }
   const [keyboardShortcuts, setKeyboardShortcuts] =
     useState<EidosLiteKeyboardShortcuts>({
       ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -886,6 +899,8 @@ function WorkspaceApp({
   )
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
+  const cachedFilesRef = useRef(cachedFiles)
+  cachedFilesRef.current = cachedFiles
   const [recentFileState, setRecentFileState] = useState<RecentFileState>({
     spaceId: null,
     files: [],
@@ -956,6 +971,17 @@ function WorkspaceApp({
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
+  const [sidebarFilePath, setSidebarFilePath] = useState<string | null>(null)
+  useEffect(() => setSidebarFilePath(null), [space?.id])
+  const openFileInSidebar = useCallback((path: string) => {
+    setVersionPanelOpen(false)
+    setSyncPanelMode(null)
+    setSidebarFilePath(path)
+  }, [])
+  const releaseSidebarEidosFile = useCallback(async (sessionId: string) => {
+    if (!cachedFilesRef.current.some((file) => file.sessionId === sessionId))
+      await window.eidosLite.closeEidosFile(sessionId)
+  }, [])
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
   const [textSearchQuery, setTextSearchQuery] = useState("")
@@ -1250,6 +1276,7 @@ function WorkspaceApp({
         }
       }
       setKeyboardShortcuts(preferences.keyboardShortcuts)
+      setMenuOrders(preferences.menuOrders ?? {})
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
       setTimeZone(preferences.timeZone)
       setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
@@ -1697,7 +1724,9 @@ function WorkspaceApp({
     ? ("history" as const)
     : syncPanelMode
       ? ("sync" as const)
-      : null
+      : sidebarFilePath
+        ? ("file-preview" as const)
+        : null
   const mergeLocation = navigationSnapshot?.location
   const recordLocation =
     typeof mergeLocation === "object" && mergeLocation?.type === "record"
@@ -2837,12 +2866,14 @@ function WorkspaceApp({
 
   const toggleVersionPanel = useCallback(() => {
     if (!space) return
+    setSidebarFilePath(null)
     setSyncPanelMode(null)
     setVersionPanelOpen((current) => !current)
   }, [space])
 
   const toggleSyncPanel = useCallback(() => {
     if (!space) return
+    setSidebarFilePath(null)
     setVersionPanelOpen(false)
     setSyncPanelMode((current) => (current === null ? "enable" : null))
   }, [space])
@@ -4543,6 +4574,7 @@ function WorkspaceApp({
                     }
                   >
                     <EidosFileWorkbench
+                      onOpenFileInSidebar={openFileInSidebar}
                       onOpenSpaceFile={async (path) => {
                         const entry = findSpaceEntry(space.entries, path) ?? {
                           name: path.split("/").at(-1)!,
@@ -4631,6 +4663,8 @@ function WorkspaceApp({
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
+                      menuOrders={menuOrders}
+                      onMenuOrderChange={saveMenuOrder}
                       macos={macos}
                       onTableSelect={(tableId) => {
                         setCachedFiles((current) =>
@@ -4852,6 +4886,33 @@ function WorkspaceApp({
             onFilesMaterialized={refreshMaterializedFiles}
             onRefresh={() => setVersionRefreshKey((current) => current + 1)}
             onInspectionChange={handleVersionInspectionChange}
+          />
+        </Suspense>
+      ) : null}
+      {workbenchSurfaces.right === "file-preview" && sidebarFilePath ? (
+        <Suspense fallback={null}>
+          <FileSidebar
+            key={space.id}
+            relativePath={sidebarFilePath}
+            theme={theme}
+            platform={platform}
+            disabled={localInteractionBlocked || pathMutationBusy}
+            drafts={textFileDrafts}
+            markdownFileEditingMode={markdownFileEditingMode}
+            markdownCompatibilityProfile={markdownCompatibilityProfile}
+            htmlFileOpenMode={htmlFileOpenMode}
+            keyboardShortcuts={keyboardShortcuts}
+            onDraftChange={updateTextFileDraft}
+            menuOrders={menuOrders}
+            onMenuOrderChange={saveMenuOrder}
+            onOpenFile={openFileInSidebar}
+            onNavigatePlugin={navigatePluginPage}
+            onReleaseEidosFile={releaseSidebarEidosFile}
+            onChanged={() => setExternalFileRefreshToken((token) => token + 1)}
+            onClose={() => {
+              setSidebarFilePath(null)
+              setFileSurfaceFocusRequestToken((token) => token + 1)
+            }}
           />
         </Suspense>
       ) : null}

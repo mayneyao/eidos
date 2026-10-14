@@ -1,8 +1,8 @@
 import type { EidosLiteTerminalLayout } from "../shared/contracts"
 
-export type WorkbenchAuxiliaryView = "history" | "sync" | null
+export type WorkbenchAuxiliaryView = "history" | "sync" | "file-preview" | null
 export type WorkbenchContentSurface = "file" | "diff" | "merge"
-export type WorkbenchRightSidebarView = "history" | "sync" | null
+export type WorkbenchRightSidebarView = WorkbenchAuxiliaryView
 
 export interface WorkbenchLayoutState {
   terminalLayout: EidosLiteTerminalLayout

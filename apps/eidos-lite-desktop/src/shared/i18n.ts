@@ -4,6 +4,9 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Open in sidebar": "在侧边栏打开",
+  "File preview": "文件预览",
+  "Close file preview": "关闭文件预览",
   "Open in Eidos": "在 Eidos 中打开",
   "Open with default app": "使用系统默认应用打开",
   "Device transfers": "设备传输",

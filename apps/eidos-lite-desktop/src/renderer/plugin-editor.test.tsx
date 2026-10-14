@@ -10,6 +10,80 @@ afterEach(() => {
   document.body.replaceChildren()
   textDraftLifecycle.release()
 })
+it("routes Save only to the focused File View when two surfaces are mounted", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(window, {
+    eidosLite: {
+      onPluginEvent: () => () => {},
+      closePluginEditor: vi.fn(async () => {}),
+    },
+  })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          {["main", "sidebar"].map((ticket) => (
+            <PluginEditor
+              key={ticket}
+              instance={{
+                ticket,
+                url: `eidos-plugin://${ticket}/index.html`,
+                editor: {
+                  key: "review/file",
+                  label: "Review",
+                  pluginName: "Review",
+                },
+              }}
+              onDraft={() => {}}
+              onFallback={() => {}}
+              onRetry={() => {}}
+            />
+          ))}
+        </>
+      )
+    )
+    const frames = Array.from(container.querySelectorAll("iframe"))
+    const mainMessages = vi.spyOn(frames[0]!.contentWindow!, "postMessage")
+    const sidebarMessages = vi.spyOn(frames[1]!.contentWindow!, "postMessage")
+    mainMessages.mockClear()
+    sidebarMessages.mockClear()
+    frames[1]!.focus()
+    await act(async () =>
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: frames[1]!.contentWindow,
+          data: { protocol: "eidos-plugin", apiVersion: 1, shortcut: "save" },
+        })
+      )
+    )
+    expect(mainMessages).not.toHaveBeenCalled()
+    expect(sidebarMessages).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ observation: "host.save" }),
+      "*"
+    )
+    frames[0]!.focus()
+    sidebarMessages.mockClear()
+    await act(async () =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "s",
+          ctrlKey: true,
+          cancelable: true,
+        })
+      )
+    )
+    expect(mainMessages).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ observation: "host.save" }),
+      "*"
+    )
+    expect(sidebarMessages).not.toHaveBeenCalled()
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
 it("routes common connections without a data adapter and preserves invocation identity", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const request = vi.fn(async (_ticket: string, message: PluginRequest) => ({

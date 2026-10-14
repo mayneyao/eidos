@@ -4,6 +4,10 @@ import { createRoot } from "react-dom/client"
 import { afterEach, expect, it, vi } from "vitest"
 import type { ComponentProps } from "react"
 import type { PluginRequest } from "@eidos.space/plugin-runtime/rpc"
+import type {
+  EidosFileDataSource,
+  EidosFileTableSnapshot,
+} from "@eidos.space/eidos-file"
 import { PluginTableActions } from "./plugin-table-actions"
 import { EidosFileTableActionMenu } from "@eidos.space/eidos-file-ui"
 
@@ -253,4 +257,85 @@ it("keeps dynamic menu results when StrictMode repeats the loading effect", asyn
   expect(container.textContent).toContain("Run redone")
   expect(props.source.undoTableActionRow).toHaveBeenCalledTimes(2)
   expect(props.source.writeTableActionRow).toHaveBeenCalledOnce()
+})
+
+it("opens the current fs_meta file in the sidebar without main or system navigation", async () => {
+  const getRow = vi.fn(async () => ({ "path-id": "images/a.png" }))
+  const onMain = vi.fn()
+  const onSidebar = vi.fn()
+  const onError = vi.fn()
+  const openPath = vi.fn()
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: {
+      listPlugins: async () => ({ plugins: [] }),
+      onPluginEvent: () => () => {},
+      openPath,
+    },
+  })
+  const table = {
+    table: {
+      id: "files",
+      settings: { vtabModule: "fs_meta", vtabConfig: { root: "." } },
+    },
+    fields: [
+      {
+        name: "path",
+        tableColumnName: "path-id",
+        settings: { isSystem: true },
+      },
+    ],
+  } as unknown as EidosFileTableSnapshot
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const render = async (disabled = false, value = table) =>
+    act(async () =>
+      root.render(
+        <PluginTableActions
+          fileRelativePath="files.eidos"
+          source={{ getRow } as unknown as EidosFileDataSource}
+          table={value}
+          query={{}}
+          disabled={disabled}
+          onSnapshot={() => {}}
+          onOpenSpaceFile={onMain}
+          onOpenFileInSidebar={onSidebar}
+          onError={onError}
+        >
+          <EidosFileTableActionMenu
+            target={{ rowId: "row", ranges: null }}
+            onClose={() => {}}
+          />
+        </PluginTableActions>
+      )
+    )
+  try {
+    await render()
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+    )
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Open in Eidos",
+      "Open in sidebar",
+      "Open with default app",
+    ])
+    // Resolve again when invoked, because the row can have changed since listing.
+    getRow.mockResolvedValue({ "path-id": "images/b.png" })
+    await act(async () => buttons[1]!.click())
+    expect(onSidebar).toHaveBeenCalledExactlyOnceWith("images/b.png")
+    expect(onMain).not.toHaveBeenCalled()
+    expect(openPath).not.toHaveBeenCalled()
+    getRow.mockResolvedValue({ "path-id": "../escape.png" })
+    await act(async () => buttons[1]!.click())
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onSidebar).toHaveBeenCalledTimes(1)
+    await render(true)
+    expect(container.querySelectorAll('[role="menuitem"]')).toHaveLength(0)
+    await render(false, { ...table, table: { ...table.table, settings: {} } })
+    expect(container.querySelectorAll('[role="menuitem"]')).toHaveLength(0)
+  } finally {
+    await act(async () => root.unmount())
+    container.remove()
+  }
 })

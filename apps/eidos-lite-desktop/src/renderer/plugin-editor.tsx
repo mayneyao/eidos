@@ -101,14 +101,17 @@ export function PluginEditor({
   }, [tableRevision])
   useEffect(() => {
     lease.current = instance.ticket
+    const ownsSave = () => {
+      const surface = frame.current?.closest(".plugin-editor")
+      return (
+        surface?.contains(document.activeElement) &&
+        !surface.parentElement?.closest(".plugin-editor") &&
+        !surface.closest("[inert]")
+      )
+    }
     const save = () => {
       // Embedded resources route Save to the enclosing file view.
-      if (
-        frame.current
-          ?.closest(".plugin-editor")
-          ?.parentElement?.closest(".plugin-editor")
-      )
-        return
+      if (!ownsSave()) return
       frame.current?.contentWindow?.postMessage(
         {
           protocol: PLUGIN_PROTOCOL,
@@ -122,6 +125,7 @@ export function PluginEditor({
     const keydown = (event: KeyboardEvent) => {
       if (
         !event.defaultPrevented &&
+        ownsSave() &&
         (event.metaKey || event.ctrlKey) &&
         !event.altKey &&
         !event.shiftKey &&

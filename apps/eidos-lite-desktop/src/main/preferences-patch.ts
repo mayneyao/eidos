@@ -1,6 +1,7 @@
 import type { EidosLitePreferences } from "../shared/contracts"
 import { isEidosLiteBuiltInPlugins } from "../shared/built-in-plugins"
 import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
+import { isEidosLiteMenuOrders } from "../shared/menu-orders"
 import {
   normalizeEidosLiteTerminalShell,
   normalizeEidosLiteTimeZone,
@@ -14,6 +15,11 @@ export function eidosLitePreferencesPatch(
   }
   const candidate = value as Record<string, unknown>
   const patch: Partial<EidosLitePreferences> = {}
+  if ("menuOrders" in candidate) {
+    if (!isEidosLiteMenuOrders(candidate.menuOrders))
+      throw new Error("Invalid menu order preferences")
+    patch.menuOrders = candidate.menuOrders
+  }
   if ("uiZoom" in candidate) {
     if (
       typeof candidate.uiZoom !== "number" ||

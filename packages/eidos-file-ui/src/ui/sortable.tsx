@@ -75,6 +75,7 @@ export function SortableContainer<T extends SortableValue>({
   orientation = "vertical",
   optimistic = true,
   containerProps,
+  onDragStateChange,
 }: {
   items: T[]
   onReorder: (items: T[]) => Promise<void> | void
@@ -83,6 +84,7 @@ export function SortableContainer<T extends SortableValue>({
   disabled?: boolean
   orientation?: "horizontal" | "vertical"
   optimistic?: boolean
+  onDragStateChange?: (dragging: boolean) => void
   containerProps?: Omit<
     HTMLAttributes<HTMLDivElement>,
     "children" | "className"
@@ -132,6 +134,7 @@ export function SortableContainer<T extends SortableValue>({
   )
   const onDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      onDragStateChange?.(false)
       if (!event.over || event.active.id === event.over.id || disabled) return
       const from = localItems.findIndex((item) => item.id === event.active.id)
       const to = localItems.findIndex((item) => item.id === event.over?.id)
@@ -152,7 +155,7 @@ export function SortableContainer<T extends SortableValue>({
         }
       }
     },
-    [disabled, localItems, onReorder, optimistic]
+    [disabled, localItems, onReorder, optimistic, onDragStateChange]
   )
   return (
     <DndContext
@@ -161,6 +164,8 @@ export function SortableContainer<T extends SortableValue>({
       autoScroll={orientation !== "horizontal"}
       modifiers={orientation === "horizontal" ? horizontalModifiers : undefined}
       onDragEnd={onDragEnd}
+      onDragStart={() => onDragStateChange?.(true)}
+      onDragCancel={() => onDragStateChange?.(false)}
     >
       <SortableContext
         items={localItems.map((item) => item.id)}

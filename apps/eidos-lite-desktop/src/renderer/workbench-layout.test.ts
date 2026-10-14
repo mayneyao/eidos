@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest"
 import { resolveWorkbenchSurfaces } from "./workbench-layout"
 
 describe("resolveWorkbenchSurfaces", () => {
+  it("opens a file on the right while retaining the main editor and terminal", () => {
+    expect(
+      resolveWorkbenchSurfaces({
+        terminalLayout: "bottom",
+        terminalVisible: true,
+        auxiliaryView: "file-preview",
+        diffOpen: false,
+        mergeOpen: false,
+      })
+    ).toEqual({ content: "file", right: "file-preview", terminal: "bottom" })
+  })
   it("splits file content and Terminal vertically by default", () => {
     expect(
       resolveWorkbenchSurfaces({

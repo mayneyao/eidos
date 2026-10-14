@@ -22,13 +22,14 @@ import { useEidosLiteI18n } from "./i18n"
 import { PluginIcon } from "./plugin-icon"
 import { PluginTaskCard } from "./plugin-task-card"
 import { createTaskProgress } from "./task-progress"
-import { Redo2, Undo2, ExternalLink, File } from "lucide-react"
+import { Redo2, Undo2, ExternalLink, File, PanelRight } from "lucide-react"
 import { fileMetadataRowPath } from "./file-metadata-actions"
 import { validateIconDefinition } from "@eidos.space/plugin-runtime/manifest"
 
 interface Props {
   fileRelativePath?: string
   onOpenSpaceFile?(path: string): void | Promise<void>
+  onOpenFileInSidebar?(path: string): void | Promise<void>
   onError?(error: unknown): void
   source: EidosFileDataSource
   table: EidosFileTableSnapshot
@@ -119,6 +120,15 @@ export function PluginTableActions(props: Props) {
                 title: t("Open in Eidos"),
                 icon: <File />,
               },
+              ...(props.onOpenFileInSidebar
+                ? [
+                    {
+                      id: "host/open-mapped-file-sidebar",
+                      title: t("Open in sidebar"),
+                      icon: <PanelRight />,
+                    },
+                  ]
+                : []),
               {
                 id: "host/open-mapped-file-system",
                 title: t("Open with default app"),
@@ -139,6 +149,7 @@ export function PluginTableActions(props: Props) {
         if (props.disabled) return
         if (
           (id === "host/open-mapped-file" ||
+            id === "host/open-mapped-file-sidebar" ||
             id === "host/open-mapped-file-system") &&
           target.rowId &&
           props.fileRelativePath
@@ -153,6 +164,8 @@ export function PluginTableActions(props: Props) {
               if (!path) throw new Error(t("This file is no longer available"))
               if (id === "host/open-mapped-file")
                 await props.onOpenSpaceFile?.(path)
+              else if (id === "host/open-mapped-file-sidebar")
+                await props.onOpenFileInSidebar?.(path)
               else await window.eidosLite.openPath(path)
             })
             .catch((cause) => props.onError?.(cause))
@@ -168,6 +181,7 @@ export function PluginTableActions(props: Props) {
       props.table,
       props.fileRelativePath,
       props.onOpenSpaceFile,
+      props.onOpenFileInSidebar,
       props.onError,
       t,
       revision,

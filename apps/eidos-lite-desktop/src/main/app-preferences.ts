@@ -1,5 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { normalizeEidosLiteMenuOrders } from "../shared/menu-orders"
 
 import type {
   EidosLiteAppearance,
@@ -19,6 +20,7 @@ import {
 } from "../shared/keyboard-shortcuts"
 
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
+  menuOrders: {},
   uiZoom: 1,
   appearance: "system",
   language: "system",
@@ -109,6 +111,7 @@ export function normalizeEidosLitePreferences(
       : {}
   const defaultSpaceLocation = candidate.defaultSpaceLocation
   return {
+    menuOrders: normalizeEidosLiteMenuOrders(candidate.menuOrders),
     appearance: appearance(candidate.appearance),
     uiZoom:
       typeof candidate.uiZoom === "number" &&

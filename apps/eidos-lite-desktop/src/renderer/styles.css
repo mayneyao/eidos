@@ -2457,7 +2457,8 @@ body {
 
 .workbench > .version-panel,
 .workbench > .sync-inspector-host,
-.workbench > .sync-merge-changes-panel {
+.workbench > .sync-merge-changes-panel,
+.workbench > .file-sidebar {
   --eidos-shell-workbar-height: var(--chrome-header-height);
 
   grid-row: 1 / -1;
@@ -8650,6 +8651,74 @@ body {
   background: var(--canvas);
 }
 
+.file-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.file-sidebar > header {
+  -webkit-app-region: drag;
+  user-select: none;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+  height: var(--version-header-height);
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.file-sidebar > header button {
+  -webkit-app-region: no-drag;
+}
+
+.file-sidebar > header strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+.file-sidebar-status,
+.file-sidebar-error {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.file-sidebar-error {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.file-sidebar-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.file-sidebar-body > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.file-sidebar .media-preview-audio audio {
+  max-width: 100%;
+}
 .version-panel:has(.version-error) {
   grid-template-rows: var(--version-header-height) 2.15rem auto minmax(0, 1fr);
 }

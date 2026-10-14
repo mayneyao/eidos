@@ -37,6 +37,7 @@ export function applyAppearance(
 }
 
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
+  menuOrders: {},
   uiZoom: 1,
   appearance: "system",
   language: "system",

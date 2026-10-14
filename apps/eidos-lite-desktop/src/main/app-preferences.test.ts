@@ -61,6 +61,7 @@ describe("Eidos Lite preferences", () => {
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
+      menuOrders: {},
       uiZoom: 1.5,
       appearance: "dark",
       language: "zh",
@@ -83,6 +84,7 @@ describe("Eidos Lite preferences", () => {
     await expect(
       new EidosLitePreferencesStore(filePath).get()
     ).resolves.toEqual({
+      menuOrders: {},
       uiZoom: 1.5,
       appearance: "dark",
       language: "zh",
@@ -108,6 +110,36 @@ describe("Eidos Lite preferences", () => {
       normalizeEidosLitePreferences({ workspaceLayout: "terminal-primary" })
         .terminalLayout
     ).toBe("side")
+  })
+
+  it("retains unknown action IDs across restart and normalizes stale menu orders", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-menu-orders-")
+    )
+    const file = path.join(directory, "preferences.json")
+    const store = new EidosLitePreferencesStore(file)
+    const menuOrders = {
+      "grid.cell": [
+        "host/open-mapped-file-sidebar",
+        "plugin/uninstalled",
+        "core/open-record",
+      ],
+    }
+    await store.update({ menuOrders })
+    expect(
+      (await new EidosLitePreferencesStore(file).get()).menuOrders
+    ).toEqual(menuOrders)
+    expect(
+      normalizeEidosLitePreferences({
+        menuOrders: {
+          "grid.cell": [null, "", "core/open-record", "core/open-record", 123],
+        },
+      }).menuOrders
+    ).toEqual({ "grid.cell": ["core/open-record"] })
+    await store.update({ menuOrders: { "grid.cell": [] } })
+    expect(
+      (await new EidosLitePreferencesStore(file).get()).menuOrders
+    ).toEqual({ "grid.cell": [] })
   })
 
   it("migrates retired main and right Terminal layouts to the side split", () => {

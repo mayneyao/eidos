@@ -20,6 +20,43 @@ export interface EidosFileTableActions {
 }
 export const EidosFileTableActionsContext =
   createContext<EidosFileTableActions | null>(null)
+export function useEidosFileTableActions(
+  target: EidosFileActionTarget,
+  enabled = true
+) {
+  const actions = useContext(EidosFileTableActionsContext)
+  const key = JSON.stringify(target)
+  const [listing, setListing] = useState<{
+    owner: EidosFileTableActions
+    key: string
+    items: Array<{ id: string; title: string; icon?: ReactNode }>
+    error: string
+  } | null>(null)
+  useEffect(() => {
+    if (!actions || !enabled) return
+    let live = true
+    void actions.list(JSON.parse(key) as EidosFileActionTarget).then(
+      (next) => {
+        if (live) {
+          setListing({ owner: actions, key, items: next, error: "" })
+        }
+      },
+      (cause) => {
+        if (live)
+          setListing({ owner: actions, key, items: [], error: String(cause) })
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [actions, key, enabled])
+  const current =
+    enabled && listing?.owner === actions && listing.key === key
+      ? listing
+      : null
+  return { actions, items: current?.items ?? [], error: current?.error ?? "" }
+}
+
 export function EidosFileTableActionMenu({
   target,
   onClose,
@@ -27,30 +64,7 @@ export function EidosFileTableActionMenu({
   target: EidosFileActionTarget
   onClose(): void
 }) {
-  const actions = useContext(EidosFileTableActionsContext)
-  const [items, setItems] = useState<
-    Array<{ id: string; title: string; icon?: ReactNode }>
-  >([])
-  const [error, setError] = useState("")
-  const key = JSON.stringify(target)
-  useEffect(() => {
-    if (!actions) return
-    let live = true
-    void actions.list(JSON.parse(key) as EidosFileActionTarget).then(
-      (next) => {
-        if (live) {
-          setItems(next)
-          setError("")
-        }
-      },
-      (cause) => {
-        if (live) setError(String(cause))
-      }
-    )
-    return () => {
-      live = false
-    }
-  }, [actions, key])
+  const { actions, items, error } = useEidosFileTableActions(target)
   return (
     <>
       {items.length > 0 && (

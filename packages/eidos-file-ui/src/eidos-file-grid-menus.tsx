@@ -32,7 +32,12 @@ import {
 
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
-import { EidosFileTableActionMenu } from "./table-actions"
+import { useEidosFileTableActions } from "./table-actions"
+import {
+  EidosFileCellActions,
+  type EidosFileCellAction,
+} from "./eidos-file-cell-actions"
+import { Zap } from "lucide-react"
 import { eidosFileFieldDisplaysUrl } from "./eidos-file-field-properties"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/adaptive-popover"
@@ -63,6 +68,7 @@ const menuItemClassName =
   "flex h-7 w-full items-center gap-2 rounded-[3px] px-2 text-left text-xs text-popover-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-45"
 
 function menuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  if ((event.target as HTMLElement).closest("[data-menu-drag-handle]")) return
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
   event.preventDefault()
   const items = Array.from(
@@ -462,6 +468,7 @@ export function EidosFileCellMenu({
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
 }) {
   const { translate: t } = useEidosFileUI()
+  const dragging = useRef(false)
   const run = (action: () => void) => {
     onOpenChange(false)
     action()
@@ -474,6 +481,83 @@ export function EidosFileCellMenu({
     eidosFileUrlIsActivatable(cellText)
       ? cellText
       : ""
+
+  const target = {
+    ranges: state?.rowRanges ?? null,
+    rowId: typeof rowId === "string" ? rowId : undefined,
+  }
+  const {
+    actions,
+    items: extensions,
+    error,
+  } = useEidosFileTableActions(target, open && !!state)
+  const items: EidosFileCellAction[] = state
+    ? [
+        ...(onOpenFile
+          ? [
+              {
+                id: "core/open-file",
+                title: t("Open file"),
+                icon: <ExternalLink className="h-3.5 w-3.5" />,
+                group: "record" as const,
+                run: () => run(onOpenFile),
+              },
+            ]
+          : []),
+        {
+          id: "core/open-record",
+          title: t("Open record"),
+          icon: <PanelRightOpen className="h-3.5 w-3.5" />,
+          group: "record",
+          run: () => run(() => onOpenRecord(state)),
+        },
+        {
+          id: "core/copy-cell",
+          title: t("Copy cell"),
+          icon: <Copy className="h-3.5 w-3.5" />,
+          group: "record",
+          disabled: !cellText,
+          run: () => run(() => onCopyCell(cellText)),
+        },
+        {
+          id: "core/copy-record-id",
+          title: t("Copy record ID"),
+          icon: <Copy className="h-3.5 w-3.5" />,
+          group: "record",
+          disabled: typeof rowId !== "string" || rowId.length === 0,
+          run: () =>
+            run(() => onCopyRecordId(typeof rowId === "string" ? rowId : "")),
+        },
+        ...(url
+          ? [
+              {
+                id: "core/open-url",
+                title: t("Open URL"),
+                icon: <ExternalLink className="h-3.5 w-3.5" />,
+                group: "record" as const,
+                run: () => run(() => onOpenUrl?.(url)),
+              },
+            ]
+          : []),
+        ...extensions.map((item) => ({
+          ...item,
+          icon: item.icon ?? <Zap className="h-3.5 w-3.5" />,
+          group: "extension" as const,
+          run: () => run(() => actions?.run(item.id, target)),
+        })),
+        {
+          id: "core/delete-record",
+          title:
+            selectionCount === 1
+              ? t("Delete record")
+              : t("Delete {count} records", { count: selectionCount }),
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+          group: "destructive",
+          disabled: !canDelete,
+          run: () => run(() => onDeleteRows(state.rowRanges)),
+        },
+      ]
+    : []
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -494,67 +578,29 @@ export function EidosFileCellMenu({
         align="start"
         side="bottom"
         sideOffset={2}
-        className="w-56 p-1"
+        className="w-56 p-1 has-[[data-menu-reordering=true]]:w-[15.25rem]"
         role="menu"
         aria-label={t("Record actions")}
         onKeyDown={menuKeyDown}
+        onEscapeKeyDown={(event) => {
+          if (dragging.current) event.preventDefault()
+        }}
       >
-        {state ? (
-          <>
-            {onOpenFile ? (
-              <MenuItem onClick={() => run(onOpenFile)}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("Open file")}
-              </MenuItem>
-            ) : null}
-            <MenuItem onClick={() => run(() => onOpenRecord(state))}>
-              <PanelRightOpen className="h-3.5 w-3.5" />
-              {t("Open record")}
-            </MenuItem>
-            <MenuItem
-              disabled={!cellText}
-              onClick={() => run(() => onCopyCell(cellText))}
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {t("Copy cell")}
-            </MenuItem>
-            <MenuItem
-              disabled={typeof rowId !== "string" || rowId.length === 0}
-              onClick={() =>
-                run(() =>
-                  onCopyRecordId(typeof rowId === "string" ? rowId : "")
-                )
-              }
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {t("Copy record ID")}
-            </MenuItem>
-            {url ? (
-              <MenuItem onClick={() => run(() => onOpenUrl?.(url))}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("Open URL")}
-              </MenuItem>
-            ) : null}
-            <EidosFileTableActionMenu
-              target={{
-                ranges: state.rowRanges,
-                rowId: typeof rowId === "string" ? rowId : undefined,
-              }}
-              onClose={() => onOpenChange(false)}
-            />
-            <div className="my-1 h-px bg-border" role="separator" />
-            <MenuItem
-              destructive
-              disabled={!canDelete}
-              onClick={() => run(() => onDeleteRows(state.rowRanges))}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {selectionCount === 1
-                ? t("Delete record")
-                : t("Delete {count} records", { count: selectionCount })}
-            </MenuItem>
-          </>
-        ) : null}
+        {state && (
+          <EidosFileCellActions
+            items={items}
+            open={open}
+            onBlur={() => onOpenChange(false)}
+            onDragStateChange={(value) => {
+              dragging.current = value
+            }}
+          />
+        )}
+        {error && (
+          <p role="alert" className="px-2 text-xs text-destructive">
+            {error}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   )
