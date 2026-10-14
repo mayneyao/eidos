@@ -118,6 +118,11 @@ describe("RuntimePool LRU policy", () => {
       "filemeta",
       "filemeta",
     ])
+    await pool.filemeta("folder", "space.eidos.meta", undefined, true)
+    expect(first.requests.at(-1)).toMatchObject({
+      type: "filemeta",
+      allowDirectories: true,
+    })
     await pool.closeHandles()
     expect(first.requests.at(-1)?.type).toBe("close")
     await pool.filemeta("note.md", "space.eidos.meta")

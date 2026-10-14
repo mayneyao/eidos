@@ -2,15 +2,19 @@ import { DatabaseSync } from "node:sqlite"
 import type { FileMetaValues, FileMetaPatch } from "@eidos.space/plugin-sdk"
 import { resolvePluginFile } from "../main/space/plugin-file-mutations"
 import { resolveVTabExtensionPath } from "./vtab-resolver"
+import { resolvePropertyEntry } from "../main/space/space-property-paths"
 
 /** Runs only inside the utility boundary; no .eidos schema is required. */
 export async function filemeta(
   root: string,
   relativePath: string,
   namespace: string,
-  patch?: FileMetaPatch
+  patch?: FileMetaPatch,
+  allowDirectories = false
 ): Promise<FileMetaValues> {
-  const { fullPath, stats } = await resolvePluginFile(root, relativePath)
+  const { fullPath, stats } = allowDirectories
+    ? await resolvePropertyEntry(root, relativePath)
+    : await resolvePluginFile(root, relativePath)
   if (!stats) throw new Error("File does not exist")
   const extension = resolveVTabExtensionPath("fs_meta")
   if (!extension) throw new Error("sqlite-fs-meta extension is unavailable")

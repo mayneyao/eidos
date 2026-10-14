@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process"
 import { DatabaseSync } from "node:sqlite"
 import { afterEach, describe, expect, it } from "vitest"
 import {
+  canonicalizeEidosFileJson,
   decodeEidosFileValues,
   EidosFileRuntime,
   ConnectionPortEidosFileConnection,
@@ -22,6 +23,198 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     for (const runtime of runtimes.splice(0)) await runtime.close()
     for (const root of roots.splice(0))
       fs.rmSync(root, { recursive: true, force: true })
+  })
+  it("reads and edits directory properties through the runtime with fs_meta 0.4", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-directory-"))
+    )
+    roots.push(root)
+    fs.mkdirSync(path.join(root, "project"))
+    fs.mkdirSync(path.join(root, "empty"))
+    fs.writeFileSync(path.join(root, "project", "note.txt"), "content")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const rating = fields.find((field) => field.name === "rating")!
+    const attachment = fields.find((field) => field.name === "file")!
+    const directory = fields.find((field) => field.name === "is_dir")!
+    expect(directory).toMatchObject({
+      type: "checkbox",
+      writable: false,
+      settings: { isSystem: true, readOnly: true, writable: false },
+    })
+    const page = await runtime.source.getPage(table.id, 0, 100, {})
+    expect(page.rows.map((row) => row._id)).toEqual(
+      expect.arrayContaining(["project", "empty", "project/note.txt"])
+    )
+    expect(page.rows.find((row) => row._id === "project")?.[directory.id]).toBe(
+      true
+    )
+    expect(page.rows.find((row) => row._id === "empty")?.[directory.id]).toBe(
+      true
+    )
+    expect(
+      page.rows.find((row) => row._id === "project/note.txt")?.[directory.id]
+    ).toBe(false)
+    for (const [value, expected] of [
+      [true, ["empty", "project"]],
+      [false, ["files.eidos", "project/note.txt"]],
+    ] as const) {
+      const filtered = await runtime.source.getPage(table.id, 0, 100, {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            { type: "rule", field: directory.id, operator: "equals", value },
+          ],
+        },
+      })
+      expect(filtered.rows.map((row) => row._id).sort()).toEqual(expected)
+    }
+    await expect(
+      runtime.source.updateRow(table.id, "project", { [directory.id]: false })
+    ).rejects.toThrow(/read.only/i)
+    await expect(
+      runtime.source.deleteField(table.id, directory.id)
+    ).rejects.toThrow()
+    await expect(
+      runtime.source.updateField(table.id, directory.id, { type: "text" })
+    ).rejects.toThrow()
+    await runtime.source.updateRow(table.id, "project", { [rating.id!]: 4 })
+    const folder = await runtime.source.getRow(table.id, "project")
+    expect(folder?.[rating.id!]).toBe("4")
+    expect(decodeEidosFileValues(String(folder?.[attachment.id!]))).toEqual([])
+    const db = new DatabaseSync(file, { allowExtension: true })
+    try {
+      db.loadExtension(resolveVTabExtensionPath("fs_meta")!)
+      expect(
+        JSON.parse(
+          String(
+            db.prepare("SELECT fs_meta_capabilities() AS value").get()!.value
+          )
+        )
+      ).toContain("directory-properties")
+      expect(
+        db
+          .prepare("SELECT _id FROM files WHERE is_dir = 1 ORDER BY _id")
+          .all()
+          .map((row) => row._id)
+      ).toEqual(["empty", "project"])
+      expect(
+        JSON.parse(
+          String(
+            db
+              .prepare("SELECT fs_meta_read(?, ?) AS value")
+              .get(path.join(root, "project"), "space.eidos.meta")!.value
+          )
+        )
+      ).toEqual({ rating: 4 })
+      expect(
+        JSON.parse(
+          String(
+            db
+              .prepare("SELECT fs_meta_read(?, ?) AS value")
+              .get(path.join(root, "project", "note.txt"), "space.eidos.meta")!
+              .value
+          )
+        )
+      ).toEqual({})
+    } finally {
+      db.close()
+    }
+    expect(
+      fs.readFileSync(path.join(root, "project", "note.txt"), "utf8")
+    ).toBe("content")
+  })
+  it("adds the directory field to existing indexes once, preserving fields, Views and metadata", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-vtab-directory-field-"))
+    )
+    roots.push(root)
+    fs.mkdirSync(path.join(root, "folder"))
+    fs.writeFileSync(path.join(root, "note.txt"), "content")
+    const file = path.join(root, "files.eidos")
+    createFsMetaEidosFile(file)
+    const db = new DatabaseSync(file, { allowExtension: true })
+    let originalViews: unknown[]
+    let originalFields: unknown[]
+    let originalRevision: number
+    try {
+      db.loadExtension(resolveVTabExtensionPath("fs_meta")!)
+      db.exec(
+        "DELETE FROM eidos__fields WHERE physical_name = 'is_dir'; UPDATE files SET rating = 4 WHERE _id = 'note.txt';"
+      )
+      const fields = db.prepare("SELECT * FROM eidos__fields ORDER BY id").all()
+      const rating = fields.find((field) => field.name === "rating")!
+      db.prepare(
+        "UPDATE eidos__views SET query_json = ?, layout_json = ? WHERE type = 'grid'"
+      ).run(
+        canonicalizeEidosFileJson({
+          filter: { op: "eq", fieldId: rating.id, value: 4 },
+        }),
+        canonicalizeEidosFileJson({
+          fieldOrder: fields.map((field) => field.id),
+          hiddenFields: [rating.id],
+        })
+      )
+      originalViews = db.prepare("SELECT * FROM eidos__views ORDER BY id").all()
+      originalFields = fields
+      originalRevision = Number(
+        db.prepare("SELECT revision FROM eidos__meta").get()!.revision
+      )
+    } finally {
+      db.close()
+    }
+    const readOnly = await openEidosLiteFileRuntime(file, { readOnly: true })
+    expect(
+      readOnly.initialSnapshot.tables[0]!.fields.some(
+        (field) => field.name === "is_dir"
+      )
+    ).toBe(false)
+    await readOnly.close()
+    let runtime = await openEidosLiteFileRuntime(file)
+    const table = runtime.initialSnapshot.tables[0]!
+    const directory = table.fields.find((field) => field.name === "is_dir")!
+    expect(directory).toMatchObject({ type: "checkbox", writable: false })
+    const rating = table.fields.find((field) => field.name === "rating")!
+    expect(
+      (await runtime.source.getRow(table.table.id, "note.txt"))?.[rating.id]
+    ).toBe("4")
+    expect(
+      (await runtime.source.getRow(table.table.id, "folder"))?.[directory.id]
+    ).toBe(true)
+    expect(Number(runtime.initialSnapshot.metadata.revision)).toBe(
+      originalRevision + 1
+    )
+    await runtime.close()
+    runtime = await openEidosLiteFileRuntime(file)
+    runtimes.push(runtime)
+    expect(Number(runtime.initialSnapshot.metadata.revision)).toBe(
+      originalRevision + 1
+    )
+    expect(
+      runtime.initialSnapshot.tables[0]!.fields.filter(
+        (field) => field.name === "is_dir"
+      ).map((field) => field.id)
+    ).toEqual([directory.id])
+    const checked = new DatabaseSync(file)
+    try {
+      expect(
+        checked.prepare("SELECT * FROM eidos__views ORDER BY id").all()
+      ).toEqual(originalViews)
+      expect(
+        checked
+          .prepare(
+            "SELECT * FROM eidos__fields WHERE physical_name <> 'is_dir' ORDER BY id"
+          )
+          .all()
+      ).toEqual(originalFields)
+    } finally {
+      checked.close()
+    }
+    expect(fs.readFileSync(path.join(root, "note.txt"), "utf8")).toBe("content")
   })
   it("keeps file creation time distinct from modification time in scans and lookups", async () => {
     const root = fs.realpathSync(

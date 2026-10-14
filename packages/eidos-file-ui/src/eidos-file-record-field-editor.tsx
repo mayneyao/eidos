@@ -51,6 +51,9 @@ export function EidosFileRecordFieldEditor({
   field,
   row,
   placeholder,
+  mixed = false,
+  allowCustomValues = field.type === "multi-select" &&
+    eidosFileSelectOptions(field).length === 0,
   appearance = "field",
   disabled,
   onChange,
@@ -60,6 +63,10 @@ export function EidosFileRecordFieldEditor({
   field: EidosFileFieldInfo
   row: EidosFileRow
   placeholder?: string
+  /** A batch selection contains different values for this property. */
+  mixed?: boolean
+  /** Allow entering tags directly; defaults to true with no configured options. */
+  allowCustomValues?: boolean
   appearance?: "field" | "record-title" | "record-property"
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
@@ -74,7 +81,8 @@ export function EidosFileRecordFieldEditor({
   } = useEidosFileUI()
   const mobileTitle =
     appearance === "record-title" && interactionMode === "mobile"
-  const value = row[field.tableColumnName]
+  const value = mixed ? null : row[field.tableColumnName]
+  const [customOption, setCustomOption] = useState("")
   const [draft, setDraft] = useState(
     field.type === "datetime"
       ? dateTimeInputValue(value, timeZone)
@@ -244,7 +252,13 @@ export function EidosFileRecordFieldEditor({
       rawValue !== null && !options.some((option) => option.value === rawValue)
     return (
       <Select
-        value={typeof value === "string" && value ? value : "__empty__"}
+        value={
+          mixed
+            ? "__mixed__"
+            : typeof value === "string" && value
+              ? value
+              : "__empty__"
+        }
         disabled={disabled}
         onValueChange={(next) =>
           void onChange(next === "__empty__" ? null : next)
@@ -254,6 +268,11 @@ export function EidosFileRecordFieldEditor({
           <SelectValue placeholder={placeholder ?? t("Empty")} />
         </SelectTrigger>
         <SelectContent>
+          {mixed ? (
+            <SelectItem value="__mixed__" disabled>
+              {placeholder ?? t("Mixed values")}
+            </SelectItem>
+          ) : null}
           <SelectItem value="__empty__">{t("Empty")}</SelectItem>
           {hasUnconfiguredValue ? (
             <SelectItem value={rawValue}>
@@ -276,6 +295,12 @@ export function EidosFileRecordFieldEditor({
     )
     const selectedSet = new Set(selected)
     const options = eidosFileSelectOptions(field)
+    const availableOptions = [
+      ...options,
+      ...selected
+        .filter((name) => !options.some((option) => option.value === name))
+        .map((name) => ({ name, value: name, color: "default" })),
+    ]
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -309,10 +334,11 @@ export function EidosFileRecordFieldEditor({
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-1">
           <div className="grid gap-0.5">
-            {options.map((option) => (
+            {availableOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
+                disabled={disabled}
                 className="flex h-8 items-center gap-2 rounded px-2 text-left text-xs hover:bg-accent"
                 onClick={() => {
                   const next = selectedSet.has(option.value)
@@ -330,6 +356,25 @@ export function EidosFileRecordFieldEditor({
               </button>
             ))}
           </div>
+          {allowCustomValues ? (
+            <Input
+              aria-label={t("Add option")}
+              placeholder={t("Add option")}
+              className="mt-1 h-8 text-xs"
+              value={customOption}
+              disabled={disabled}
+              onChange={(event) => setCustomOption(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229)
+                  return
+                if (event.key !== "Enter" || !customOption.trim()) return
+                event.preventDefault()
+                const next = [...new Set([...selected, customOption.trim()])]
+                void onChange(encodeEidosFileMultiSelectValues(next))
+                setCustomOption("")
+              }}
+            />
+          ) : null}
         </PopoverContent>
       </Popover>
     )

@@ -5,7 +5,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react"
-import { X, Plus, Search } from "lucide-react"
+import { X, Plus, Search, SlidersHorizontal } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
 import type { ExplorerSort } from "./explorer-sort"
@@ -32,8 +32,10 @@ export function WorkspaceHeading({
   sort,
   onSortChange,
   spaceSwitcher,
+  onBrowseProperties,
 }: {
   spaceSwitcher?: ReactNode
+  onBrowseProperties?: () => void
   name: string
   path: string
   directory?: string | null
@@ -202,6 +204,18 @@ export function WorkspaceHeading({
           </button>
           {sort && onSortChange && (
             <ExplorerSortMenu sort={sort} onChange={onSortChange} />
+          )}
+          {onBrowseProperties && (
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t("Manage file properties")}
+              title={t("Manage file properties")}
+              disabled={navigationDisabled}
+              onClick={onBrowseProperties}
+            >
+              <SlidersHorizontal size={14} />
+            </button>
           )}
           <div
             className="workspace-heading-menu"

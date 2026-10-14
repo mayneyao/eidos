@@ -326,6 +326,15 @@ const api: EidosLiteApi = {
       template,
       contentFieldName
     ),
+  getPropertySchema: () => ipcRenderer.invoke(IPC_CHANNELS.propertiesSchema),
+  defineProperty: (field) =>
+    ipcRenderer.invoke(IPC_CHANNELS.propertiesDefine, field),
+  readEntryProperties: (paths) =>
+    ipcRenderer.invoke(IPC_CHANNELS.propertiesRead, paths),
+  patchEntryProperties: (paths, patch) =>
+    ipcRenderer.invoke(IPC_CHANNELS.propertiesPatch, paths, patch),
+  manageFolderProperties: (directory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.propertiesManage, directory),
   createTextFile: (parentRelativePath, name) =>
     ipcRenderer.invoke(IPC_CHANNELS.createTextFile, parentRelativePath, name),
   createFolder: (parentRelativePath, name) =>

@@ -18,6 +18,7 @@ export const EIDOS_LITE_WORKSPACE_SHORTCUT_COMMANDS = [
   "toggle-markdown-editing-mode",
   "command-palette",
   "format-document",
+  "file-properties",
 ] as const
 
 export const EIDOS_LITE_EDITOR_SHORTCUT_COMMANDS = [
@@ -54,6 +55,7 @@ export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   ...EIDOS_LITE_DOCUMENT_SHORTCUT_COMMANDS,
   "command-palette",
   "format-document",
+  "file-properties",
 ] as const
 
 export type EidosLiteShortcutCommand =
@@ -71,6 +73,7 @@ export type EidosLiteKeyboardShortcuts = Record<
 export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
   Object.freeze({
     "new-file": "Mod+N",
+    "file-properties": "Alt+Enter",
     "quick-open": "Mod+P",
     "command-palette": "Mod+K",
     "format-document": (

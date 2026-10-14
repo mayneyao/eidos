@@ -840,9 +840,8 @@ export async function createEidosLiteFileRuntime(
   const baseName = path.basename(filePath).toLowerCase()
   if (
     options?.template === "files-index" ||
-    baseName === "files.eidos" ||
-    baseName === "_files.eidos" ||
-    baseName === "_fs_meta.eidos"
+    (options?.template === undefined &&
+      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(baseName))
   ) {
     createFsMetaEidosFile(filePath, {
       title:
@@ -974,6 +973,7 @@ export async function openEidosLiteFileRuntime(
   })
 
   const connection = new NodeSqliteConnectionPort(database, { readOnly })
+  let opened: EidosLiteFileRuntime | undefined
   try {
     loadDeclaredVTabExtensions(database)
     const binding = await Runtime.open(
@@ -982,14 +982,40 @@ export async function openEidosLiteFileRuntime(
       readOnly ? "read" : "readwrite",
       factoryContext
     )
-    return await bindRuntime(
+    opened = await bindRuntime(
       connection,
       binding.service,
       binding.hostBridge,
       filePath
     )
+    if (!readOnly) {
+      for (const { table, fields } of opened.initialSnapshot.tables) {
+        const capabilities = table.settings?.capabilities as
+          | { alterSchema?: boolean }
+          | undefined
+        if (
+          table.settings?.vtabModule !== "fs_meta" ||
+          capabilities?.alterSchema === false ||
+          fields.some(
+            (field) =>
+              field.physicalName === "is_dir" ||
+              field.name.toLowerCase() === "is_dir"
+          )
+        )
+          continue
+        // Register the native column through the canonical Runtime so existing
+        // indexes retain their Views, field identities, and revision semantics.
+        opened.initialSnapshot = await opened.source.addField(table.id, {
+          name: "is_dir",
+          type: "checkbox",
+          property: { isSystem: true, readOnly: true, writable: false },
+        })
+      }
+    }
+    return opened
   } catch (error) {
-    if (connection.database.isOpen) connection.close()
+    if (opened) await opened.close().catch(() => undefined)
+    else if (connection.database.isOpen) connection.close()
     throw error
   }
 }

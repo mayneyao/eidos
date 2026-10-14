@@ -1,4 +1,21 @@
 import { randomUUID } from "node:crypto"
+import { fileMetaPatch } from "../plugins/filemeta"
+import {
+  SPACE_PROPERTIES_NAMESPACE,
+  SPACE_PROPERTIES_FILE,
+  DEFAULT_SPACE_PROPERTY_SCHEMA,
+  spacePropertyDefinition,
+  assertSpacePropertyPatch,
+  type SpacePropertyPatchResult,
+  type SpacePropertySelection,
+} from "../../shared/space-properties"
+import { propertyPaths, resolvePropertyEntry } from "./space-property-paths"
+import { isEidosLiteSchemaImpactRequiredResult } from "../../shared/contracts"
+import {
+  spacePropertyTable,
+  spacePropertySchema,
+  spacePropertyFieldInput,
+} from "./space-property-schema"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import {
   resolvePluginFile,
@@ -1027,6 +1044,209 @@ export class SpaceSession {
     return result
   }
 
+  private async openSpacePropertyCatalog(
+    create: boolean
+  ): Promise<OpenEidosFileResult | null> {
+    const stats = await fs
+      .lstat(path.join(this.canonical.root, SPACE_PROPERTIES_FILE))
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null
+        throw error
+      })
+    if (!stats && !create) return null
+    if (stats)
+      await resolvePropertyEntry(this.canonical.root, SPACE_PROPERTIES_FILE)
+    const opened = stats
+      ? await this.runtimePool.open(SPACE_PROPERTIES_FILE)
+      : await this.runtimePool.create(SPACE_PROPERTIES_FILE, "Files", {
+          template: "files-index",
+        })
+    this.runtimeSessionByPath.set(SPACE_PROPERTIES_FILE, opened.sessionId)
+    const table = spacePropertyTable(opened.snapshot)
+    if (!stats) {
+      const status = DEFAULT_SPACE_PROPERTY_SCHEMA.fields.find(
+        (field) => field.key === "status"
+      )!
+      await this.runtimePool.call(opened.sessionId, "addField", [
+        table.table.id,
+        spacePropertyFieldInput(status),
+      ])
+      opened.snapshot = await this.runtimePool.call(
+        opened.sessionId,
+        "getSnapshot",
+        []
+      )
+      await this.rememberRuntimeExternalChangeState(
+        opened.sessionId,
+        opened.snapshot.metadata.revision
+      )
+      this.noteLocalChange()
+    }
+    return opened
+  }
+
+  private async readSpacePropertySchema() {
+    const catalog = await this.openSpacePropertyCatalog(false)
+    return catalog
+      ? spacePropertySchema(catalog.snapshot)
+      : structuredClone(DEFAULT_SPACE_PROPERTY_SCHEMA)
+  }
+
+  async manageFolderProperties(requestedDirectory: string | null) {
+    const directory = requestedDirectory === "." ? null : requestedDirectory
+    await resolveSpaceDirectory(this.canonical.root, directory)
+    this.prioritizeLocalWork()
+    const catalog = await this.gate.withMutation(async () => {
+      await resolveSpaceDirectory(this.canonical.root, directory)
+      return (await this.openSpacePropertyCatalog(true))!
+    })
+    await this.freshSnapshotAndEmit()
+    return {
+      relativePath: SPACE_PROPERTIES_FILE,
+      tableId: spacePropertyTable(catalog.snapshot).table.id,
+    }
+  }
+
+  async getPropertySchema() {
+    return this.gate.withRuntimeRead(() => this.readSpacePropertySchema())
+  }
+
+  async defineProperty(field: unknown) {
+    this.prioritizeLocalWork()
+    const requested = spacePropertyDefinition(field)
+    const schema = await this.gate.withMutation(async () => {
+      const catalog = (await this.openSpacePropertyCatalog(true))!
+      const table = spacePropertyTable(catalog.snapshot)
+      const existing = table.fields.find(
+        (candidate) =>
+          String(
+            candidate.settings?.vtabStorageKey ??
+              candidate.physicalName ??
+              candidate.name
+          ) === requested.key
+      )
+      if (existing) {
+        const definition = spacePropertySchema(catalog.snapshot).fields.find(
+          (candidate) => candidate.key === requested.key
+        )
+        if (!definition || definition.type !== requested.type)
+          throw new Error("An existing property cannot change type")
+        const oldOptions =
+          existing.property?.options ?? existing.settings?.options
+        const colors = new Map(
+          Array.isArray(oldOptions)
+            ? oldOptions.map((option) => [option.name, option.color])
+            : []
+        )
+        if (["select", "tags"].includes(requested.type)) {
+          const result = await this.runtimePool.call(
+            catalog.sessionId,
+            "updateField",
+            [
+              table.table.id,
+              existing.id,
+              {
+                property: {
+                  ...existing.property,
+                  options: (requested.options ?? []).map((name) => ({
+                    name,
+                    color: colors.get(name) ?? "gray",
+                  })),
+                },
+              },
+            ]
+          )
+          if (isEidosLiteSchemaImpactRequiredResult(result))
+            throw new Error(
+              "Edit these options in files.eidos to review their effect on existing values."
+            )
+        }
+      } else {
+        await this.runtimePool.call(catalog.sessionId, "addField", [
+          table.table.id,
+          spacePropertyFieldInput(requested),
+        ])
+      }
+      const snapshot = await this.runtimePool.call(
+        catalog.sessionId,
+        "getSnapshot",
+        []
+      )
+      await this.rememberRuntimeExternalChangeState(
+        catalog.sessionId,
+        snapshot.metadata.revision
+      )
+      return spacePropertySchema(snapshot)
+    })
+    this.noteLocalChange()
+    await this.freshSnapshotAndEmit()
+    return schema
+  }
+
+  async readEntryProperties(
+    requested: unknown
+  ): Promise<SpacePropertySelection> {
+    const paths = propertyPaths(requested)
+    return this.gate.withRuntimeRead(async () => {
+      const schema = await this.readSpacePropertySchema()
+      const entries: SpacePropertySelection["entries"] = []
+      for (const relativePath of paths) {
+        const { stats } = await resolvePropertyEntry(
+          this.canonical.root,
+          relativePath
+        )
+        const values = await this.runtimePool.filemeta(
+          relativePath,
+          SPACE_PROPERTIES_NAMESPACE,
+          undefined,
+          true
+        )
+        entries.push({
+          path: relativePath,
+          kind: stats.isDirectory() ? "directory" : "file",
+          values,
+        })
+      }
+      return { schema, entries }
+    })
+  }
+
+  async patchEntryProperties(
+    requested: unknown,
+    requestedPatch: unknown
+  ): Promise<SpacePropertyPatchResult> {
+    const paths = propertyPaths(requested)
+    const patch = fileMetaPatch(requestedPatch)
+    this.prioritizeLocalWork()
+    const result: SpacePropertyPatchResult = { updated: [], errors: [] }
+    await this.gate.withMutation(async () => {
+      const schema = await this.readSpacePropertySchema()
+      assertSpacePropertyPatch(schema, patch)
+      for (const relativePath of paths) {
+        try {
+          await this.runtimePool.filemeta(
+            relativePath,
+            SPACE_PROPERTIES_NAMESPACE,
+            patch,
+            true
+          )
+          result.updated.push(relativePath)
+        } catch (error) {
+          result.errors.push({
+            path: relativePath,
+            message: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+    })
+    if (result.updated.length) {
+      this.noteLocalChange()
+      this.notifyMarkdownWatchers(result.updated)
+      await this.freshSnapshotAndEmit()
+    }
+    return result
+  }
+
   async deleteFile(requestedPath: string): Promise<void> {
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
@@ -1327,11 +1547,7 @@ export class SpaceSession {
     const requestedFileName = safeName.toLowerCase().endsWith(".eidos")
       ? safeName
       : `${safeName}.eidos`
-    const metadataFile =
-      template === "files-index" ||
-      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(
-        requestedFileName.toLowerCase()
-      )
+    const metadataFile = template === "files-index"
     const name = metadataFile ? "files.eidos" : requestedFileName
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)

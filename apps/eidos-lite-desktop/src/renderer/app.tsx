@@ -26,6 +26,7 @@ import {
   Copy,
   Database,
   FilePlus2,
+  Folder,
   FolderOpen,
   FolderPlus,
   GitMerge,
@@ -35,6 +36,7 @@ import {
   Pencil,
   RefreshCw,
   Settings,
+  SlidersHorizontal,
   SquareTerminal,
   Trash2,
   Upload,
@@ -42,6 +44,8 @@ import {
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { WorkspaceHeading } from "./workspace-heading"
+import { SpacePropertiesPanel } from "./space-properties-panel"
+import { FolderPropertiesBreadcrumbs } from "./folder-properties-breadcrumbs"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
 import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
@@ -111,6 +115,8 @@ import {
   replaceNavigationLocation,
   type NavigationLocation,
   type NavigationSnapshot,
+  type FolderPropertiesNavigationLocation,
+  type RecordNavigationLocation,
   type VersionDiffNavigationLocation,
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
@@ -226,6 +232,33 @@ interface CachedFile {
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
   tableId: string
+  propertyView?: boolean
+  propertyViewId?: string
+}
+
+function fileWorkbenchLocation(
+  file: CachedFile,
+  tableId: string,
+  rowId: string | null,
+  viewId: string | undefined = file.propertyViewId
+): RecordNavigationLocation | FolderPropertiesNavigationLocation {
+  return file.propertyView
+    ? {
+        type: "folder-properties",
+        directory: file.source.propertyDirectory,
+        rowId,
+        ...(viewId ? { viewId } : {}),
+      }
+    : {
+        type: "record",
+        path: file.relativePath,
+        tableId,
+        rowId,
+        ...(file.source.propertyDirectory
+          ? { propertyDirectory: file.source.propertyDirectory }
+          : {}),
+        ...(viewId ? { viewId } : {}),
+      }
 }
 
 function externalChangeAffectsEidosFile(
@@ -972,15 +1005,31 @@ function WorkspaceApp({
   const [busyFile, setBusyFile] = useState<string | null>(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [sidebarFilePath, setSidebarFilePath] = useState<string | null>(null)
+  const [propertyPanel, setPropertyPanel] = useState<{
+    paths: string[]
+  } | null>(null)
+  const propertyFocusReturn = useRef<HTMLElement | null>(null)
+  useEffect(() => setPropertyPanel(null), [space?.id])
   useEffect(() => setSidebarFilePath(null), [space?.id])
   const openFileInSidebar = useCallback((path: string) => {
     setVersionPanelOpen(false)
     setSyncPanelMode(null)
+    setPropertyPanel(null)
     setSidebarFilePath(path)
   }, [])
   const releaseSidebarEidosFile = useCallback(async (sessionId: string) => {
     if (!cachedFilesRef.current.some((file) => file.sessionId === sessionId))
       await window.eidosLite.closeEidosFile(sessionId)
+  }, [])
+  const showProperties = useCallback((paths: string[]) => {
+    propertyFocusReturn.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    setVersionPanelOpen(false)
+    setSyncPanelMode(null)
+    setSidebarFilePath(null)
+    setPropertyPanel({ paths })
   }, [])
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
@@ -1594,6 +1643,13 @@ function WorkspaceApp({
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  const activeDocumentLocation = useMemo(
+    () =>
+      activeFile?.propertyView
+        ? fileWorkbenchLocation(activeFile, activeFile.tableId, null)
+        : activeDocumentPath,
+    [activeFile, activeDocumentPath]
+  )
 
   useEffect(() => {
     if (!space || typeof window.eidosLite.getSyncMergeStatus !== "function") {
@@ -1613,7 +1669,7 @@ function WorkspaceApp({
           if (typeof location === "object" && location?.type === "merge") {
             // The repository event can finish a merge before its inspector's
             // IPC callback returns. Reconcile the route from durable status too.
-            recordNavigationLocation(activeDocumentPath)
+            recordNavigationLocation(activeDocumentLocation)
             setVersionPanelOpen(false)
             setSyncPanelMode("enable")
             void window.eidosLite.refreshSpace().then(
@@ -1633,7 +1689,7 @@ function WorkspaceApp({
   }, [
     space?.id,
     space?.graft.changeToken,
-    activeDocumentPath,
+    activeDocumentLocation,
     recordNavigationLocation,
     acceptSpaceSnapshot,
   ])
@@ -1724,14 +1780,25 @@ function WorkspaceApp({
     ? ("history" as const)
     : syncPanelMode
       ? ("sync" as const)
-      : sidebarFilePath
-        ? ("file-preview" as const)
-        : null
+      : propertyPanel
+        ? ("properties" as const)
+        : sidebarFilePath
+          ? ("file-preview" as const)
+          : null
   const mergeLocation = navigationSnapshot?.location
   const recordLocation =
     typeof mergeLocation === "object" && mergeLocation?.type === "record"
       ? mergeLocation
-      : null
+      : typeof mergeLocation === "object" &&
+          mergeLocation?.type === "folder-properties" &&
+          activeFile?.propertyView &&
+          activeFile.source.propertyDirectory === mergeLocation.directory
+        ? {
+            ...mergeLocation,
+            path: activeFile.relativePath,
+            tableId: activeFile.tableId,
+          }
+        : null
   const mergeInitialPath =
     typeof mergeLocation === "object" && mergeLocation?.type === "merge"
       ? mergeLocation.path
@@ -2177,6 +2244,8 @@ function WorkspaceApp({
     }
   }, [])
 
+  const propertyManagementEpoch = useRef(0)
+  const [propertyManagementBusy, setPropertyManagementBusy] = useState(false)
   const openEntry = useCallback(
     async (
       entry: SpaceTreeEntry,
@@ -2185,10 +2254,17 @@ function WorkspaceApp({
         tableId?: string
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
         pluginEditor?: string
+        propertyDirectory?: string | null
+        propertyView?: boolean
+        viewId?: string
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
       if (fileOpenInFlight.current) return false
+      if (!options.propertyView && options.propertyDirectory == null) {
+        propertyManagementEpoch.current++
+        setPropertyManagementBusy(false)
+      }
       setPluginsVisible(false)
       setPluginPage(null)
       // History navigation inside an open Eidos File only changes the table
@@ -2208,14 +2284,27 @@ function WorkspaceApp({
             setError("This table is no longer available in the file.")
             return false
           }
-          setCachedFiles((current) =>
-            current.map((file) =>
-              file.sessionId === historyFile.sessionId
-                ? { ...file, tableId: options.tableId! }
-                : file
-            )
-          )
         }
+        setCachedFiles((current) =>
+          current.map((file) => {
+            if (file.sessionId !== historyFile.sessionId) return file
+            const directory = options.propertyDirectory ?? null
+            const source =
+              file.source.propertyDirectory === directory
+                ? file.source
+                : file.source.withPropertyDirectory(directory, file.snapshot)
+            const tableId = options.tableId ?? file.tableId
+            const propertyView =
+              options.propertyView ?? options.propertyDirectory != null
+            const propertyViewId = propertyView ? options.viewId : undefined
+            return source === file.source &&
+              tableId === file.tableId &&
+              propertyView === Boolean(file.propertyView) &&
+              propertyViewId === file.propertyViewId
+              ? file
+              : { ...file, source, tableId, propertyView, propertyViewId }
+          })
+        )
         setVersionInspection(null)
         setFileIssue(null)
         setTextPreview(null)
@@ -2341,15 +2430,41 @@ function WorkspaceApp({
               {
                 ...next,
                 snapshot: opened.snapshot,
+                source: next.source.withPropertyDirectory(
+                  options.propertyDirectory ?? null,
+                  opened.snapshot
+                ),
                 tableId,
+                propertyView:
+                  options.propertyView ?? options.propertyDirectory != null,
+                propertyViewId: options.propertyView
+                  ? options.viewId
+                  : undefined,
               },
             ]
           })
           setTextPreview(null)
           setActiveSession(opened.sessionId)
-          rememberOpenedEntry(entry)
+          if (!options.propertyView) rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
-            recordNavigationLocation(entry.relativePath, false)
+            recordNavigationLocation(
+              options.propertyView
+                ? {
+                    type: "folder-properties",
+                    directory: options.propertyDirectory ?? null,
+                    rowId: null,
+                  }
+                : options.propertyDirectory
+                  ? {
+                      type: "record",
+                      path: entry.relativePath,
+                      tableId,
+                      rowId: null,
+                      propertyDirectory: options.propertyDirectory,
+                    }
+                  : entry.relativePath,
+              false
+            )
           }
           return true
         }
@@ -2367,7 +2482,8 @@ function WorkspaceApp({
                   : (snapshot.tables[0]?.table.id ?? file.tableId)
                 return { ...file, snapshot, tableId }
               })
-            )
+            ),
+          options.propertyDirectory ?? null
         )
         const file: CachedFile = {
           sessionId: opened.sessionId,
@@ -2375,6 +2491,9 @@ function WorkspaceApp({
           snapshot: opened.snapshot,
           source,
           tableId,
+          propertyView:
+            options.propertyView ?? options.propertyDirectory != null,
+          propertyViewId: options.propertyView ? options.viewId : undefined,
         }
         setCachedFiles((current) =>
           [
@@ -2388,9 +2507,26 @@ function WorkspaceApp({
         )
         setTextPreview(null)
         setActiveSession(opened.sessionId)
-        rememberOpenedEntry(entry)
+        if (!options.propertyView) rememberOpenedEntry(entry)
         if (options.recordHistory !== false) {
-          recordNavigationLocation(entry.relativePath, false)
+          recordNavigationLocation(
+            options.propertyView
+              ? {
+                  type: "folder-properties",
+                  directory: options.propertyDirectory ?? null,
+                  rowId: null,
+                }
+              : options.propertyDirectory
+                ? {
+                    type: "record",
+                    path: entry.relativePath,
+                    tableId,
+                    rowId: null,
+                    propertyDirectory: options.propertyDirectory,
+                  }
+                : entry.relativePath,
+            false
+          )
         }
         return true
       } catch (cause) {
@@ -2411,6 +2547,78 @@ function WorkspaceApp({
       htmlFileOpenMode,
       recordNavigationLocation,
       rememberOpenedEntry,
+    ]
+  )
+
+  useEffect(() => {
+    propertyManagementEpoch.current++
+    setPropertyManagementBusy(false)
+  }, [space?.id])
+  const manageFolderProperties = useCallback(
+    async (directory: string | null) => {
+      if (
+        fileOpenInFlight.current ||
+        !space ||
+        blocksLocalInteraction(space.operation.phase) ||
+        pathMutationBusy
+      )
+        return
+      const request = ++propertyManagementEpoch.current
+      setPropertyManagementBusy(true)
+      try {
+        const catalog = await window.eidosLite.manageFolderProperties(directory)
+        if (request !== propertyManagementEpoch.current) return
+        const opened = await openEntry(
+          {
+            kind: "eidos",
+            name: "files.eidos",
+            relativePath: catalog.relativePath,
+            size: 0,
+            modifiedAtMs: 0,
+          },
+          {
+            tableId: catalog.tableId,
+            propertyDirectory: directory,
+            propertyView: true,
+            viewId: activeFile?.propertyView
+              ? (recordLocation?.viewId ?? activeFile.propertyViewId)
+              : undefined,
+            recordHistory: false,
+            pluginEditor: "builtin",
+          }
+        )
+        if (opened && request === propertyManagementEpoch.current) {
+          setPropertyPanel(null)
+          recordNavigationLocation(
+            {
+              type: "folder-properties",
+              directory,
+              rowId: null,
+              ...(activeFile?.propertyView &&
+              (recordLocation?.viewId ?? activeFile.propertyViewId)
+                ? {
+                    viewId: recordLocation?.viewId ?? activeFile.propertyViewId,
+                  }
+                : {}),
+            },
+            false
+          )
+        }
+      } catch (cause) {
+        if (request === propertyManagementEpoch.current)
+          setError(errorMessage(cause))
+      } finally {
+        if (request === propertyManagementEpoch.current)
+          setPropertyManagementBusy(false)
+      }
+    },
+    [
+      openEntry,
+      space,
+      pathMutationBusy,
+      activeFile,
+      recordLocation?.viewId,
+      recordNavigationLocation,
     ]
   )
 
@@ -2561,12 +2769,14 @@ function WorkspaceApp({
 
   const launchSpace = useRef(space)
   const launchOpenEntry = useRef(openEntry)
+  const launchActiveFile = useRef(activeFile)
   const launchAcceptSpaceSnapshot = useRef(acceptSpaceSnapshot)
   useEffect(() => {
     launchSpace.current = space
     launchOpenEntry.current = openEntry
+    launchActiveFile.current = activeFile
     launchAcceptSpaceSnapshot.current = acceptSpaceSnapshot
-  }, [acceptSpaceSnapshot, openEntry, space])
+  }, [acceptSpaceSnapshot, activeFile, openEntry, space])
 
   useEffect(() => {
     if (!space) return
@@ -2634,6 +2844,8 @@ function WorkspaceApp({
   const applyingNavigationLocation = useRef(false)
   const applyNavigationLocation = useCallback(
     (location: NavigationLocation) => {
+      propertyManagementEpoch.current++
+      setPropertyManagementBusy(false)
       pendingNavigationLocation.current = location
       if (applyingNavigationLocation.current) return
       applyingNavigationLocation.current = true
@@ -2712,6 +2924,46 @@ function WorkspaceApp({
 
             setVersionRouteError(null)
 
+            if (
+              typeof target === "object" &&
+              target.type === "folder-properties"
+            ) {
+              const cached = launchActiveFile.current
+              const catalog =
+                cached?.propertyView &&
+                cached.source.propertyDirectory === target.directory
+                  ? {
+                      relativePath: cached.relativePath,
+                      tableId: cached.tableId,
+                    }
+                  : await window.eidosLite.manageFolderProperties(
+                      target.directory
+                    )
+              if (
+                pendingNavigationLocation.current !== undefined ||
+                launchSpace.current?.id !== currentSpace.id
+              )
+                continue
+              await launchOpenEntry.current(
+                {
+                  kind: "eidos",
+                  name: "Properties",
+                  relativePath: catalog.relativePath,
+                  size: 0,
+                  modifiedAtMs: 0,
+                },
+                {
+                  recordHistory: false,
+                  tableId: catalog.tableId,
+                  propertyDirectory: target.directory,
+                  propertyView: true,
+                  viewId: target.viewId,
+                  pluginEditor: "builtin",
+                }
+              )
+              continue
+            }
+
             const targetPath = typeof target === "string" ? target : target.path
             let directoryPath = ""
             for (const segment of targetPath.split("/").slice(0, -1)) {
@@ -2755,6 +3007,10 @@ function WorkspaceApp({
             setSelectedEntry(entry)
             await launchOpenEntry.current(entry, {
               recordHistory: false,
+              propertyDirectory:
+                typeof target === "object" && target?.type === "record"
+                  ? target.propertyDirectory
+                  : undefined,
               ...(typeof target !== "string" && target.type === "record"
                 ? { tableId: target.tableId }
                 : {}),
@@ -2823,10 +3079,10 @@ function WorkspaceApp({
       setVersionRouteError(null)
       return
     }
-    recordNavigationLocation(activeDocumentPath)
+    recordNavigationLocation(activeDocumentLocation)
     setVersionInspection(null)
     setVersionRouteError(null)
-  }, [activeDocumentPath, recordNavigationLocation])
+  }, [activeDocumentLocation, recordNavigationLocation])
 
   const handleVersionInspectionChange = useCallback(
     (inspection: VersionInspection | null) => {
@@ -2866,6 +3122,7 @@ function WorkspaceApp({
 
   const toggleVersionPanel = useCallback(() => {
     if (!space) return
+    setPropertyPanel(null)
     setSidebarFilePath(null)
     setSyncPanelMode(null)
     setVersionPanelOpen((current) => !current)
@@ -2873,6 +3130,7 @@ function WorkspaceApp({
 
   const toggleSyncPanel = useCallback(() => {
     if (!space) return
+    setPropertyPanel(null)
     setSidebarFilePath(null)
     setVersionPanelOpen(false)
     setSyncPanelMode((current) => (current === null ? "enable" : null))
@@ -2941,6 +3199,21 @@ function WorkspaceApp({
       }
       if (workspaceShortcut === "quick-open" && space) {
         setQuickOpenVisible((current) => !current)
+        return
+      }
+      if (
+        workspaceShortcut === "file-properties" &&
+        space &&
+        !pathDialog &&
+        !blocksLocalInteraction(space.operation.phase)
+      ) {
+        const target =
+          selectedEntry?.kind !== "symlink"
+            ? selectedEntry?.relativePath
+            : undefined
+        if (target || activeDocumentPath)
+          showProperties([target ?? activeDocumentPath!])
+        else showProperties([explorerDirectory ?? "."])
         return
       }
       if (workspaceShortcut === "command-palette") {
@@ -3015,6 +3288,8 @@ function WorkspaceApp({
     versionInspection,
     mergeWorkbenchOpen,
     selectedEntry,
+    activeDocumentPath,
+    showProperties,
     explorerDirectory,
     explorerDirectoryEntry,
     space,
@@ -3425,7 +3700,11 @@ function WorkspaceApp({
   const titlebarPresentation = fileTitlebarPresentation(
     space.name,
     activeDocumentPath,
-    busyFile,
+    propertyManagementBusy ||
+      (typeof navigationSnapshot?.location === "object" &&
+        navigationSnapshot?.location?.type === "folder-properties")
+      ? null
+      : busyFile,
     pluginEditor?.relativePath === activeDocumentPath
       ? {
           documentPath: pluginEditor.relativePath,
@@ -3553,6 +3832,9 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
+        onBrowseProperties={() =>
+          void manageFolderProperties(explorerDirectory)
+        }
         sort={explorerSort}
         onSortChange={setExplorerSort}
         name={space.name}
@@ -3751,7 +4033,11 @@ function WorkspaceApp({
                     ? (explorerDirectoryEntry?.children ?? [])
                     : space.entries
                 }
-                activePath={activeDocumentPath}
+                activePath={
+                  activeFile?.propertyView
+                    ? activeFile.source.propertyDirectory
+                    : activeDocumentPath
+                }
                 revealToken={treeRevealToken}
                 disabled={localInteractionBlocked || busyFile !== null}
                 renameRequest={treeRenameRequest}
@@ -3949,6 +4235,20 @@ function WorkspaceApp({
                 </strong>
               ) : whatsNew.open ? (
                 <strong>RELEASE_NOTES.md</strong>
+              ) : activeFile?.propertyView && !titlebarPresentation.pending ? (
+                <FolderPropertiesBreadcrumbs
+                  spaceName={space.name}
+                  directory={activeFile.source.propertyDirectory}
+                  disabled={
+                    localInteractionBlocked ||
+                    pathMutationBusy ||
+                    propertyManagementBusy
+                  }
+                  onNavigate={(directory) => {
+                    if (directory !== activeFile.source.propertyDirectory)
+                      void manageFolderProperties(directory)
+                  }}
+                />
               ) : activeDocumentPath && !titlebarPresentation.pending ? (
                 <button
                   type="button"
@@ -4020,8 +4320,16 @@ function WorkspaceApp({
               <button
                 type="button"
                 className="icon-button active-file-close"
-                aria-label={`Close ${activeDocumentPath}`}
-                title={`Close ${activeDocumentPath}`}
+                aria-label={
+                  activeFile?.propertyView
+                    ? t("Close properties")
+                    : `Close ${activeDocumentPath}`
+                }
+                title={
+                  activeFile?.propertyView
+                    ? t("Close properties")
+                    : `Close ${activeDocumentPath}`
+                }
                 onClick={() => void closeActiveDocument()}
               >
                 <X />
@@ -4561,7 +4869,11 @@ function WorkspaceApp({
               ) : activeFile && activeTable ? (
                 <section
                   className="file-editor"
-                  aria-label={activeFile.relativePath}
+                  aria-label={
+                    activeFile.propertyView
+                      ? t("Folder properties")
+                      : activeFile.relativePath
+                  }
                   data-eidos-file-relative-path={activeFile.relativePath}
                   data-eidos-file-row-count={activeTable.rowCount}
                 >
@@ -4588,8 +4900,9 @@ function WorkspaceApp({
                         setSelectedEntry(entry)
                         await openEntry(entry)
                       }}
-                      key={`${activeFile.sessionId}:${fileMaterializationKey}`}
+                      key={`${activeFile.sessionId}:${fileMaterializationKey}:${activeFile.source.propertyDirectory ?? ""}`}
                       relativePath={activeFile.relativePath}
+                      propertyView={activeFile.propertyView}
                       recordOpenMode={recordOpenMode}
                       onRecordOpenModeChange={setRecordOpenMode}
                       snapshot={activeFile.snapshot}
@@ -4604,45 +4917,40 @@ function WorkspaceApp({
                           : undefined
                       }
                       onViewSelect={(viewId) =>
-                        recordNavigationLocation({
-                          type: "record",
-                          path: activeFile.relativePath,
-                          tableId: activeFile.tableId,
-                          rowId: null,
-                          viewId,
-                        })
+                        recordNavigationLocation(
+                          fileWorkbenchLocation(
+                            activeFile,
+                            activeFile.tableId,
+                            null,
+                            viewId
+                          )
+                        )
                       }
                       onRecordNavigate={(tableId, rowId) =>
-                        recordNavigationLocation({
-                          type: "record",
-                          path: activeFile.relativePath,
-                          tableId,
-                          rowId,
-                        })
+                        recordNavigationLocation(
+                          fileWorkbenchLocation(
+                            activeFile,
+                            tableId,
+                            rowId,
+                            recordLocation?.viewId
+                          )
+                        )
                       }
                       inspectedRowId={
-                        navigationSnapshot?.location &&
-                        typeof navigationSnapshot.location === "object" &&
-                        navigationSnapshot.location.type === "record" &&
-                        navigationSnapshot.location.path ===
-                          activeFile.relativePath &&
-                        navigationSnapshot.location.tableId ===
-                          activeFile.tableId
-                          ? navigationSnapshot.location.rowId
+                        recordLocation?.path === activeFile.relativePath &&
+                        recordLocation.tableId === activeFile.tableId
+                          ? recordLocation.rowId
                           : null
                       }
                       onInspectedRowChange={(rowId) => {
                         const current = navigationSnapshotRef.current
                         if (!current || !space) return
-                        const location = {
-                          type: "record" as const,
-                          path: activeFile.relativePath,
-                          tableId: activeFile.tableId,
+                        const location = fileWorkbenchLocation(
+                          activeFile,
+                          activeFile.tableId,
                           rowId,
-                          ...(recordLocation?.viewId
-                            ? { viewId: recordLocation.viewId }
-                            : {}),
-                        }
+                          recordLocation?.viewId
+                        )
                         if (rowId === null) {
                           closeRecordLocation(space.id, location)
                           return
@@ -4658,7 +4966,9 @@ function WorkspaceApp({
                         }
                         recordNavigationLocation(location)
                       }}
-                      disabled={localInteractionBlocked}
+                      disabled={
+                        localInteractionBlocked || propertyManagementBusy
+                      }
                       theme={theme}
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}
@@ -4678,12 +4988,7 @@ function WorkspaceApp({
                         // would inspect the previous render's table snapshot when
                         // an import or create has just added this table.
                         recordNavigationLocation(
-                          {
-                            type: "record",
-                            path: activeFile.relativePath,
-                            tableId,
-                            rowId: null,
-                          },
+                          fileWorkbenchLocation(activeFile, tableId, null),
                           false
                         )
                       }}
@@ -4844,14 +5149,14 @@ function WorkspaceApp({
                 ? collapsedTitlebarNavigation
                 : null
             }
-            onClose={() => recordNavigationLocation(activeDocumentPath)}
+            onClose={() => recordNavigationLocation(activeDocumentLocation)}
             onStatusChange={(merge) => {
               setSyncMergeStatus(merge)
               if (merge.state === "none") {
                 setVersionRefreshKey((current) => current + 1)
                 reloadVersionDiffRoute()
                 setVersionPanelOpen(false)
-                recordNavigationLocation(activeDocumentPath)
+                recordNavigationLocation(activeDocumentLocation)
                 setSyncPanelMode("enable")
               }
             }}
@@ -4888,6 +5193,20 @@ function WorkspaceApp({
             onInspectionChange={handleVersionInspectionChange}
           />
         </Suspense>
+      ) : null}
+      {workbenchSurfaces.right === "properties" && propertyPanel ? (
+        <SpacePropertiesPanel
+          key={`${space.id}:${JSON.stringify(propertyPanel)}`}
+          paths={propertyPanel.paths}
+          theme={theme}
+          disabled={localInteractionBlocked || pathMutationBusy}
+          onManage={(directory) => void manageFolderProperties(directory)}
+          onChanged={() => setExternalFileRefreshToken((token) => token + 1)}
+          onClose={() => {
+            setPropertyPanel(null)
+            propertyFocusReturn.current?.focus({ preventScroll: true })
+          }}
+        />
       ) : null}
       {workbenchSurfaces.right === "file-preview" && sidebarFilePath ? (
         <Suspense fallback={null}>
@@ -4945,7 +5264,7 @@ function WorkspaceApp({
                 setVersionRefreshKey((current) => current + 1)
                 reloadVersionDiffRoute()
                 setVersionPanelOpen(false)
-                recordNavigationLocation(activeDocumentPath)
+                recordNavigationLocation(activeDocumentLocation)
                 setSyncPanelMode("enable")
               }
             }}
@@ -5110,6 +5429,31 @@ function WorkspaceApp({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={
+              pathMutationBusy ||
+              localInteractionBlocked ||
+              contextMenu.entries.some((entry) => entry.kind === "symlink") ||
+              contextMenu.entries.length > 100
+            }
+            onClick={() => {
+              showProperties(
+                contextMenu.entries.map((entry) => entry.relativePath)
+              )
+              setContextMenu(null)
+            }}
+          >
+            <SlidersHorizontal /> {t("Properties")}
+            <span className="space-context-menu-shortcut">
+              {workspaceShortcutLabel(
+                "file-properties",
+                macos,
+                keyboardShortcuts
+              )}
+            </span>
+          </button>
           {contextMenu.entries.length > 1 ? (
             <>
               <p className="space-context-menu-selection">
@@ -5198,6 +5542,19 @@ function WorkspaceApp({
               ) : null}
               {contextMenu.entry.kind === "directory" ? (
                 <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={pathMutationBusy || localInteractionBlocked}
+                    onClick={() => {
+                      void manageFolderProperties(
+                        contextMenu.entry.relativePath
+                      )
+                      setContextMenu(null)
+                    }}
+                  >
+                    <SlidersHorizontal /> {t("Manage folder properties")}
+                  </button>
                   <button
                     type="button"
                     role="menuitem"

@@ -4,6 +4,7 @@ import type {
   EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
+  EidosFileRowQuery,
 } from "@eidos.space/eidos-file"
 import type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
 import {
@@ -16,8 +17,50 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   constructor(
     readonly sessionId: string,
     private snapshotValue: EidosFileSnapshot,
-    private readonly onSnapshot?: (snapshot: EidosFileSnapshot) => void
+    private readonly onSnapshot?: (snapshot: EidosFileSnapshot) => void,
+    readonly propertyDirectory: string | null = null
   ) {}
+
+  withPropertyDirectory(
+    directory: string | null,
+    snapshot = this.snapshotValue
+  ) {
+    return new IpcEidosFileDataSource(
+      this.sessionId,
+      snapshot,
+      this.onSnapshot,
+      directory
+    )
+  }
+
+  private scopedQuery(
+    tableId: string,
+    query: EidosFileRowQuery
+  ): EidosFileRowQuery {
+    if (!this.propertyDirectory) return query
+    const table = this.snapshotValue.tables.find(
+      ({ table }) => table.id === tableId
+    )
+    if (table?.table.settings?.vtabModule !== "fs_meta") return query
+    const field = table.fields.find((field) => field.name === "path")
+    if (!field) throw new Error("File metadata table has no path field")
+    return {
+      ...query,
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: field.id,
+            operator: "starts-with",
+            value: `${this.propertyDirectory}/`,
+          },
+          ...(query.filter ? [query.filter] : []),
+        ],
+      },
+    }
+  }
 
   private async mutate<M extends RuntimeMutationMethod>(
     method: M,
@@ -53,6 +96,9 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   }
 
   getPage(...args: Parameters<EidosFileDataSource["getPage"]>) {
+    args[3] = this.scopedQuery(args[0], args[3])
+    // A Grid's initial hint comes from the full catalog snapshot.
+    if (this.propertyDirectory) args[4] = undefined
     return window.eidosLite.callRuntime(this.sessionId, "getPage", args)
   }
 
@@ -80,7 +126,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     const ids = await window.eidosLite.callRuntime(
       this.sessionId,
       "captureTableActionTarget",
-      [tableId, query, ranges]
+      [tableId, this.scopedQuery(tableId, query), ranges]
     )
     signal?.throwIfAborted()
     return ids
@@ -117,13 +163,21 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
       .catch(() => {})
   }
 
-  getRow(...args: Parameters<NonNullable<EidosFileDataSource["getRow"]>>) {
+  async getRow(
+    ...args: Parameters<NonNullable<EidosFileDataSource["getRow"]>>
+  ) {
+    if (
+      this.propertyDirectory &&
+      (await this.getRowIndex(args[0], args[1], {})) === null
+    )
+      return null
     return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
   }
 
   getRecordNeighbors(
     ...args: Parameters<NonNullable<EidosFileDataSource["getRecordNeighbors"]>>
   ) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return window.eidosLite.callRuntime(
       this.sessionId,
       "getRecordNeighbors",
@@ -134,18 +188,21 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   getRowIndex(
     ...args: Parameters<NonNullable<EidosFileDataSource["getRowIndex"]>>
   ) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return window.eidosLite.callRuntime(this.sessionId, "getRowIndex", args)
   }
 
   getGroupCounts(
     ...args: Parameters<NonNullable<EidosFileDataSource["getGroupCounts"]>>
   ) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return window.eidosLite.callRuntime(this.sessionId, "getGroupCounts", args)
   }
 
   calculateColumnStats(
     ...args: Parameters<EidosFileDataSource["calculateColumnStats"]>
   ) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return window.eidosLite.callRuntime(
       this.sessionId,
       "calculateColumnStats",
@@ -156,6 +213,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   aggregateTable(
     ...args: Parameters<NonNullable<EidosFileDataSource["aggregateTable"]>>
   ) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return window.eidosLite.callRuntime(this.sessionId, "aggregateTable", args)
   }
 
@@ -192,11 +250,15 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return this.mutate("insertRow", args)
   }
 
-  updateRow(...args: Parameters<EidosFileDataSource["updateRow"]>) {
-    return this.mutate("updateRow", args)
+  async updateRow(...args: Parameters<EidosFileDataSource["updateRow"]>) {
+    const result = await this.mutate("updateRow", args)
+    if (!this.propertyDirectory) return result
+    const page = await this.getPage(args[0], 0, 1, {})
+    return { ...result, rowCount: page.total }
   }
 
   deleteRowRanges(...args: Parameters<EidosFileDataSource["deleteRowRanges"]>) {
+    args[2] = this.scopedQuery(args[0], args[2])
     return this.mutate("deleteRowRanges", args)
   }
 

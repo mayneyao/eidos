@@ -448,6 +448,8 @@ declare function EidosFileRecordFieldEditor({
   field,
   row,
   placeholder,
+  mixed,
+  allowCustomValues,
   appearance,
   disabled,
   onChange,
@@ -456,7 +458,9 @@ declare function EidosFileRecordFieldEditor({
 }: {
   field: EidosFileFieldInfo;
   row: EidosFileRow;
-  placeholder?: string;
+  placeholder?: string; /** A batch selection contains different values for this property. */
+  mixed?: boolean; /** Allow entering tags directly; defaults to true with no configured options. */
+  allowCustomValues?: boolean;
   appearance?: "field" | "record-title" | "record-property";
   disabled: boolean;
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>;

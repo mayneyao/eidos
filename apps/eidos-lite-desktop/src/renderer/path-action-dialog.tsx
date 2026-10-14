@@ -146,9 +146,7 @@ export function PathActionDialog({
     trimmed.endsWith(".files.eidos")
 
   const effectiveIsFileTable =
-    !pluginTemplate &&
-    selectedKind === "eidos" &&
-    (isFileTable || isFilesEidosName)
+    !pluginTemplate && selectedKind === "eidos" && isFileTable
 
   const currentTemplateId: FileTemplateId = (() => {
     if (pluginTemplate) return `plugin:${pluginTemplate}`
@@ -351,7 +349,7 @@ export function PathActionDialog({
                           onChange={handleToggleFileTable}
                           disabled={busy}
                         />
-                        <span>{t("Manage folder file metadata")}</span>
+                        <span>{t("Create a file metadata index")}</span>
                       </label>
                       <button
                         type="button"
@@ -366,7 +364,7 @@ export function PathActionDialog({
                           void window.eidosLite?.openExternalUrl(docUrl)
                         }}
                         title={t(
-                          "Manage file metadata directly in the current folder with custom fields and visual views."
+                          "Advanced: browse file properties with SQL and custom Views."
                         )}
                         aria-label={t("Learn more in documentation")}
                       >

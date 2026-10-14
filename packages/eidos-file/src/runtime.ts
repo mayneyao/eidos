@@ -3770,8 +3770,21 @@ export class EidosFileRuntime {
       )
     }
     if (field.type === "row-id") return `${rowAlias}."_id"`
-    if (field.physicalName)
-      return `${rowAlias}.${quoteIdentifier(field.physicalName)}`
+    if (field.physicalName) {
+      const expression = `${rowAlias}.${quoteIdentifier(field.physicalName)}`
+      const table = schema.tables.get(field.tableId!)
+      if (
+        field.type === "file" &&
+        field.physicalName === "file" &&
+        table &&
+        jsonObject(table.settings_json).vtabModule === "fs_meta"
+      ) {
+        // Native directory rows have no attachment. Preserve the File logical
+        // type's empty-array representation without masking corrupt file rows.
+        return `CASE WHEN ${rowAlias}."is_dir" = 1 AND ${expression} IS NULL THEN '[]' ELSE ${expression} END`
+      }
+      return expression
+    }
     const nextStack = [...stack, field.id]
     const formula = schema.formulas.get(field.id)
     if (formula) {

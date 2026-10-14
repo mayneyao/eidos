@@ -39,6 +39,13 @@ describe("Eidos Lite browser navigation history", () => {
       },
       { type: "merge" as const, path: "a.eidos", tableName: "dev" },
       { type: "whats-new" as const, lang: "zh-CN" as const },
+      { type: "folder-properties" as const, directory: null, rowId: null },
+      {
+        type: "folder-properties" as const,
+        directory: "Projects/资料 ?#",
+        rowId: "Projects/资料 ?#/note.md",
+        viewId: "gallery / 一",
+      },
     ]
     for (const location of locations) {
       expect(
@@ -53,6 +60,8 @@ describe("Eidos Lite browser navigation history", () => {
     expect(
       parseNavigationHash("#/spaces/s/pages/eidos.journals/%ZZ")
     ).toBeNull()
+    expect(parseNavigationHash("#/spaces/s/properties/records")).toBeNull()
+    expect(parseNavigationHash("#/spaces/s/properties/unknown")).toBeNull()
   })
 
   it("restores plugin pages through a direct route and browser history", async () => {
@@ -122,6 +131,39 @@ describe("Eidos Lite browser navigation history", () => {
     })
     expect(initializeNavigationHistory("s")).toEqual(snapshot)
     expect(readNavigationHistory("s")).toEqual(snapshot)
+  })
+
+  it("restores folder properties, its View and record across refresh and history", async () => {
+    const wholeSpace = {
+      type: "folder-properties" as const,
+      directory: null,
+      rowId: null,
+      viewId: "gallery",
+    }
+    const folder = { ...wholeSpace, directory: "Projects/资料" }
+    const record = { ...folder, rowId: "Projects/资料/note.md" }
+    let snapshot = initializeNavigationHistory("s")
+    snapshot = pushNavigationLocation(snapshot, "s", wholeSpace)
+    snapshot = pushNavigationLocation(snapshot, "s", folder)
+    snapshot = pushNavigationLocation(snapshot, "s", record)
+    expect(window.location.hash).not.toContain("files.eidos")
+    expect(initializeNavigationHistory("s").location).toEqual(record)
+    const waitForNavigation = () =>
+      new Promise<void>((resolve) =>
+        window.addEventListener("popstate", () => resolve(), { once: true })
+      )
+    const close = waitForNavigation()
+    closeRecordLocation("s", record)
+    await close
+    expect(readNavigationHistory("s").location).toEqual(folder)
+    const back = waitForNavigation()
+    window.history.back()
+    await back
+    expect(readNavigationHistory("s").location).toEqual(wholeSpace)
+    const forward = waitForNavigation()
+    window.history.forward()
+    await forward
+    expect(readNavigationHistory("s").location).toEqual(folder)
   })
 
   it("encodes the active Space and file in the URL", () => {
@@ -263,5 +305,19 @@ describe("Eidos Lite browser navigation history", () => {
     expect(pathMatchesPrefix("projects/plan.eidos", "projects")).toBe(true)
     expect(pathMatchesPrefix("projects-old/plan.eidos", "projects")).toBe(false)
     expect(pathMatchesPrefix(null, "projects")).toBe(false)
+  })
+})
+it("round-trips folder scope alongside a saved View and record", () => {
+  const location = {
+    type: "record" as const,
+    path: "files.eidos",
+    tableId: "files",
+    rowId: "docs/note.txt",
+    viewId: "grid",
+    propertyDirectory: "docs",
+  }
+  expect(parseNavigationHash(navigationHash("space", location))).toEqual({
+    spaceId: "space",
+    location,
   })
 })

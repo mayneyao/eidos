@@ -1378,6 +1378,25 @@ export function registerIpc(
             : requiredString(contentFieldName, "content field name")
         )
   )
+  ipcMain.handle(IPC_CHANNELS.propertiesSchema, (event) =>
+    controller.requireSession(event.sender).getPropertySchema()
+  )
+  ipcMain.handle(IPC_CHANNELS.propertiesDefine, (event, field: unknown) =>
+    controller.requireSession(event.sender).defineProperty(field)
+  )
+  ipcMain.handle(IPC_CHANNELS.propertiesRead, (event, paths: unknown) =>
+    controller.requireSession(event.sender).readEntryProperties(paths)
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.propertiesPatch,
+    (event, paths: unknown, patch: unknown) =>
+      controller.requireSession(event.sender).patchEntryProperties(paths, patch)
+  )
+  ipcMain.handle(IPC_CHANNELS.propertiesManage, (event, directory: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .manageFolderProperties(optionalRelativePath(directory))
+  )
   ipcMain.handle(
     IPC_CHANNELS.createTextFile,
     (event, parentRelativePath: unknown, name: unknown) =>

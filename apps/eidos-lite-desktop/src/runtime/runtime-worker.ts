@@ -324,7 +324,8 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         request.root,
         request.relativePath,
         request.namespace,
-        request.patch
+        request.patch,
+        request.allowDirectories
       )
     case "create": {
       if (!path.isAbsolute(request.filePath)) {

@@ -31,7 +31,7 @@ it("splits Terminal only inside the middle work area", async () => {
     /const closeVersionDiffRoute = useCallback\(\(\) => \{([\s\S]*?)\n  \}, \[[^\]]*\]\)/
   )?.[1]
   expect(closeDiffRoute).toContain(
-    "recordNavigationLocation(activeDocumentPath)"
+    "recordNavigationLocation(activeDocumentLocation)"
   )
   expect(closeDiffRoute).not.toContain("navigateHistory(-1)")
   expect(closeDiffRoute).not.toContain("canNavigateHistory")

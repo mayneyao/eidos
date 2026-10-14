@@ -14,6 +14,113 @@ import { EidosFileSchemaImpactRequiredError } from "../../../../packages/eidos-f
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 
+it("applies transient folder scope to paging, totals, neighbors, statistics and action targets without changing saved Views", async () => {
+  const catalog = {
+    ...snapshot,
+    tables: [
+      {
+        table: { id: "files", settings: { vtabModule: "fs_meta" } },
+        fields: [
+          {
+            id: "path-field",
+            name: "path",
+            tableColumnName: "path-field",
+            physicalName: null,
+          },
+        ],
+        views: [{ id: "grid", filter: null }],
+      },
+    ],
+  } as unknown as EidosFileSnapshot
+  const callRuntime = vi.fn(async () => ({}))
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime },
+  })
+  const source = new IpcEidosFileDataSource(
+    "catalog",
+    catalog
+  ).withPropertyDirectory("docs")
+  const query = {
+    search: "note",
+    filter: {
+      type: "group" as const,
+      conjunction: "or" as const,
+      children: [],
+    },
+  }
+  const scoped = {
+    ...query,
+    filter: {
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: "path-field",
+          operator: "starts-with",
+          value: "docs/",
+        },
+        query.filter,
+      ],
+    },
+  }
+  await source.getPage("files", 0, 100, query, 999)
+  expect(callRuntime).toHaveBeenLastCalledWith("catalog", "getPage", [
+    "files",
+    0,
+    100,
+    scoped,
+    undefined,
+  ])
+  await source.getRecordNeighbors("files", "docs/note.txt", query)
+  expect(callRuntime).toHaveBeenLastCalledWith(
+    "catalog",
+    "getRecordNeighbors",
+    ["files", "docs/note.txt", scoped]
+  )
+  await source.getRowIndex("files", "docs/note.txt", query)
+  expect(callRuntime).toHaveBeenLastCalledWith("catalog", "getRowIndex", [
+    "files",
+    "docs/note.txt",
+    scoped,
+  ])
+  await source.getGroupCounts("files", "status", query)
+  expect(callRuntime).toHaveBeenLastCalledWith("catalog", "getGroupCounts", [
+    "files",
+    "status",
+    scoped,
+  ])
+  await source.calculateColumnStats("files", [], query)
+  expect(callRuntime).toHaveBeenLastCalledWith(
+    "catalog",
+    "calculateColumnStats",
+    ["files", [], scoped]
+  )
+  await source.aggregateTable("files", { metric: { op: "count" } }, query)
+  expect(callRuntime).toHaveBeenLastCalledWith("catalog", "aggregateTable", [
+    "files",
+    { metric: { op: "count" } },
+    scoped,
+  ])
+  await source.captureTableActionTarget("files", query, null)
+  expect(callRuntime).toHaveBeenLastCalledWith(
+    "catalog",
+    "captureTableActionTarget",
+    ["files", scoped, null]
+  )
+  await source.withPropertyDirectory(null).getPage("files", 0, 100, query, 999)
+  expect(callRuntime).toHaveBeenLastCalledWith("catalog", "getPage", [
+    "files",
+    0,
+    100,
+    query,
+    999,
+  ])
+  expect(catalog.tables[0]!.views[0]!.filter).toBeNull()
+  expect(query.filter.conjunction).toBe("or")
+})
+
 const snapshot = {
   path: "tasks.eidos",
   metadata: { revision: "2" },

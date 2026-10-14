@@ -339,8 +339,22 @@ export class RuntimePool {
   async filemeta(
     relativePath: string,
     namespace: string,
-    patch?: FileMetaPatch
+    patch?: FileMetaPatch,
+    allowDirectories = false
   ): Promise<FileMetaValues> {
+    const entry = this.propertyWorker()
+    return (await this.request(entry, {
+      type: "filemeta",
+      requestId: entry.nextRequestId++,
+      root: this.spaceRoot,
+      relativePath,
+      namespace,
+      patch,
+      ...(allowDirectories ? { allowDirectories: true } : {}),
+    })) as FileMetaValues
+  }
+
+  private propertyWorker(): RuntimeEntry {
     const entry = (this.propertyEntry ??= {
       sessionId: randomUUID(),
       relativePath: "",
@@ -354,14 +368,7 @@ export class RuntimePool {
       lastAccess: 0,
     })
     if (!entry.child) this.spawnChild(entry)
-    return (await this.request(entry, {
-      type: "filemeta",
-      requestId: entry.nextRequestId++,
-      root: this.spaceRoot,
-      relativePath,
-      namespace,
-      patch,
-    })) as FileMetaValues
+    return entry
   }
 
   async reopenHandles(): Promise<void> {

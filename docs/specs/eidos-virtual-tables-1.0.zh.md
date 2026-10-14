@@ -153,6 +153,7 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 
 - **`name`** (`type: "text"`): 物理文件名，指定为记录标题字段（`label_field_id`）。
 - **`path`** (`type: "text"`): 规范 POSIX 相对路径，与 `_id` 的值完全一致。
+- **`is_dir`** (`type: "checkbox"`): 项目是否为文件夹。原生 `INTEGER` 列对文件夹返回 `1`，对普通文件返回 `0`；Runtime 将其作为标准复选框值提供给显示和筛选。
 - **`extension`** (`type: "select"`): 文件扩展名，在表格中渲染为单选标签胶囊，内置 `options: []`。
 - **`size`** (`type: "integer"`): 物理文件字节大小。
 - **`mimetype`** (`type: "text"`): 基于文件后缀推导的 MIME 媒体类型（如 `image/png`、`text/plain`、`application/pdf`），方便通过单条件前缀或包含规则筛选媒体分类（如 `starts with image/`）。
@@ -166,6 +167,11 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 每个虚拟表**必须**指定一个字段作为记录标题字段（`eidos__tables.label_field_id`）。对于文件系统虚拟表，该字段**必须**指向 `name`（文件名）字段。
 
 ### 5.3. 系统内置 `file` 附件字段
+
+`fs_meta` 提供的目录行（`is_dir = 1`）可在内置 `file` 列返回 SQL `NULL`。
+Runtime **必须**将其投影为空 File 数组 `[]`。此映射仅适用于目录行的
+内置 `fs_meta.file` 列，**不得**因此接受普通文件或普通表中的无效 File 值。
+目录属性属于目录自身，不意味着其子项继承这些属性。
 
 针对文件系统虚拟表（`fs_meta`），系统提供内置的 `type: "file"` 字段（对应虚拟表物理列 `file TEXT`）：
 
@@ -262,16 +268,17 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 
 ### 8.2. 默认字段映射表
 
-| 字段名称      | 类型       | 系统角色         | 是否可写 | 说明                            |
-| ------------- | ---------- | ---------------- | -------- | ------------------------------- |
-| `id` / `_id`  | `text`     | `row-id`         | `false`  | 相对 POSIX 路径                 |
-| `name`        | `text`     | 无（标题 Label） | `false`  | 文件或文件夹基本名称            |
-| `extension`   | `text`     | 无               | `false`  | 文件后缀名（不带点）            |
-| `size`        | `integer`  | 无               | `false`  | 文件字节数大小                  |
-| `mimetype`    | `text`     | 无               | `false`  | 推导的 MIME 媒体类型            |
-| `file`        | `file`     | 无               | `false`  | 附件 JSON 对象数组              |
-| `_created_at` | `datetime` | `created-time`   | `false`  | 文件系统创建时间 (ISO 8601 UTC) |
-| `_updated_at` | `datetime` | `updated-time`   | `false`  | 文件系统修改时间 (ISO 8601 UTC) |
+| 字段名称      | 类型       | 系统角色         | 是否可写 | 说明                               |
+| ------------- | ---------- | ---------------- | -------- | ---------------------------------- |
+| `id` / `_id`  | `text`     | `row-id`         | `false`  | 相对 POSIX 路径                    |
+| `name`        | `text`     | 无（标题 Label） | `false`  | 文件或文件夹基本名称               |
+| `is_dir`      | `checkbox` | 无               | `false`  | 文件夹标记（`1` 文件夹，`0` 文件） |
+| `extension`   | `text`     | 无               | `false`  | 文件后缀名（不带点）               |
+| `size`        | `integer`  | 无               | `false`  | 文件字节数大小                     |
+| `mimetype`    | `text`     | 无               | `false`  | 推导的 MIME 媒体类型               |
+| `file`        | `file`     | 无               | `false`  | 附件 JSON 对象数组                 |
+| `_created_at` | `datetime` | `created-time`   | `false`  | 文件系统创建时间 (ISO 8601 UTC)    |
+| `_updated_at` | `datetime` | `updated-time`   | `false`  | 文件系统修改时间 (ISO 8601 UTC)    |
 
 ## 9. Graft 版本控制兼容性
 

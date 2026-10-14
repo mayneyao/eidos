@@ -276,6 +276,85 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     ).toBeTruthy()
   })
 
+  it("shows a mixed Select value without presenting the first record's value", async () => {
+    const onChange = vi.fn(async () => undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={optionField("select")}
+          row={{ _id: "batch", status: "Done" }}
+          mixed
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    )
+    expect(container.querySelector('[role="combobox"]')?.textContent).toBe(
+      "Mixed values"
+    )
+    expect(
+      container.querySelector('[data-eidos-file-option-color="green"]')
+    ).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("can remove an unconfigured tag and disables an already open picker while saving", async () => {
+    const onChange = vi.fn(async () => undefined)
+    const render = (disabled: boolean) => (
+      <EidosFileRecordFieldEditor
+        field={optionField("multi-select")}
+        row={{ _id: "row-1", tags: JSON.stringify(["Unconfigured"]) }}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    )
+    await act(async () => root.render(render(false)))
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Tags"]')!.click()
+    )
+    const tag = document.body.querySelector<HTMLElement>(
+      '[role="dialog"] [data-eidos-file-option-color="default"]'
+    )!
+    const button = tag.closest<HTMLButtonElement>("button")!
+    expect(button.textContent).toBe("Unconfigured")
+    await act(async () => root.render(render(true)))
+    expect(button.disabled).toBe(true)
+    await act(async () => button.click())
+    expect(onChange).not.toHaveBeenCalled()
+    await act(async () => root.render(render(false)))
+    await act(async () => button.click())
+    expect(onChange).toHaveBeenCalledWith("[]")
+  })
+
+  it("adds a tag directly when no options have been configured", async () => {
+    const field = { ...optionField("multi-select"), property: { options: [] } }
+    const onChange = vi.fn(async () => undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={field}
+          row={{ _id: "row-1", tags: "[]" }}
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    )
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Tags"]')!.click()
+    )
+    const input = document.body.querySelector<HTMLInputElement>(
+      '[aria-label="Add option"]'
+    )!
+    await act(async () => enterInputValue(input, " Work "))
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    expect(onChange).toHaveBeenCalledWith('["Work"]')
+    expect(input.value).toBe("")
+  })
+
   it("edits nullable Checkbox values without collapsing NULL into false", async () => {
     const onChange = vi.fn(async () => undefined)
     await act(async () => {

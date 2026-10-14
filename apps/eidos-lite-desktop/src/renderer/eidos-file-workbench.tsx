@@ -88,6 +88,8 @@ export interface EidosFileWorkbenchProps {
   onOpenSpaceFile?(path: string): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
   relativePath: string
+  /** Folder properties use the shared editor without document-level sheet tabs. */
+  propertyView?: boolean
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
   refreshToken?: number
@@ -121,6 +123,7 @@ export function EidosFileWorkbench({
   onOpenSpaceFile,
   onOpenFileInSidebar,
   relativePath,
+  propertyView = false,
   snapshot,
   source,
   refreshToken = 0,
@@ -735,71 +738,73 @@ export function EidosFileWorkbench({
           tabIndex: -1,
         }}
         sheetTabs={
-          <EidosFileSheetTabs
-            tables={snapshot.tables.map((table) => table.table)}
-            tableSnapshots={snapshot.tables}
-            activeTableId={activeTable.table.id}
-            disabled={disabled}
-            createAction={
-              <EidosFileSheetCreatePopover
-                disabled={disabled}
-                onCreate={createTable}
-                importAction={
-                  pluginContext ? (
-                    <EidosFilePluginSlot
-                      context={pluginContext}
-                      plugins={editorPlugins}
-                      slot="sheet-create"
-                    />
-                  ) : undefined
+          propertyView ? undefined : (
+            <EidosFileSheetTabs
+              tables={snapshot.tables.map((table) => table.table)}
+              tableSnapshots={snapshot.tables}
+              activeTableId={activeTable.table.id}
+              disabled={disabled}
+              createAction={
+                <EidosFileSheetCreatePopover
+                  disabled={disabled}
+                  onCreate={createTable}
+                  importAction={
+                    pluginContext ? (
+                      <EidosFilePluginSlot
+                        context={pluginContext}
+                        plugins={editorPlugins}
+                        slot="sheet-create"
+                      />
+                    ) : undefined
+                  }
+                />
+              }
+              onSelect={(tableId) => {
+                onTableSelect(tableId)
+                setRelatedRecordTarget(null)
+                setSearch("")
+                setPropertyField(null)
+                setFormulaTarget(null)
+                setLookupTarget(null)
+              }}
+              onReorder={(tableIds) =>
+                source.reorderTables(tableIds).then(() => undefined)
+              }
+              onRename={async (table, name) => {
+                await source.updateTable(table.id, { name })
+              }}
+              onUpdateTableSettings={async (table, changes) => {
+                const next = await source.updateTable(table.table.id, changes)
+                onSnapshot(next)
+                setReloadToken((current) => current + 1)
+              }}
+              onDelete={async (table) => {
+                const next = await source.deleteTable(table.id)
+                if (table.id === activeTable.table.id) {
+                  const nextTableId =
+                    next.metadata.defaultTableId ??
+                    next.tables[0]?.table.id ??
+                    activeTable.table.id
+                  onTableSelect(nextTableId)
                 }
-              />
-            }
-            onSelect={(tableId) => {
-              onTableSelect(tableId)
-              setRelatedRecordTarget(null)
-              setSearch("")
-              setPropertyField(null)
-              setFormulaTarget(null)
-              setLookupTarget(null)
-            }}
-            onReorder={(tableIds) =>
-              source.reorderTables(tableIds).then(() => undefined)
-            }
-            onRename={async (table, name) => {
-              await source.updateTable(table.id, { name })
-            }}
-            onUpdateTableSettings={async (table, changes) => {
-              const next = await source.updateTable(table.table.id, changes)
-              onSnapshot(next)
-              setReloadToken((current) => current + 1)
-            }}
-            onDelete={async (table) => {
-              const next = await source.deleteTable(table.id)
-              if (table.id === activeTable.table.id) {
-                const nextTableId =
-                  next.metadata.defaultTableId ??
-                  next.tables[0]?.table.id ??
-                  activeTable.table.id
-                onTableSelect(nextTableId)
-              }
-              setActiveViews((current) => {
-                const nextViews = { ...current }
-                delete nextViews[table.id]
-                return nextViews
-              })
-            }}
-            onExportCsv={(table) => {
-              const tableSnapshot = snapshot.tables.find(
-                (candidate) => candidate.table.id === table.id
-              )
-              if (!tableSnapshot) {
-                return Promise.reject(new Error("Eidos File table not found"))
-              }
-              return exportTableCsv(tableSnapshot)
-            }}
-            onExportError={onError}
-          />
+                setActiveViews((current) => {
+                  const nextViews = { ...current }
+                  delete nextViews[table.id]
+                  return nextViews
+                })
+              }}
+              onExportCsv={(table) => {
+                const tableSnapshot = snapshot.tables.find(
+                  (candidate) => candidate.table.id === table.id
+                )
+                if (!tableSnapshot) {
+                  return Promise.reject(new Error("Eidos File table not found"))
+                }
+                return exportTableCsv(tableSnapshot)
+              }}
+              onExportError={onError}
+            />
+          )
         }
         overlays={
           <>

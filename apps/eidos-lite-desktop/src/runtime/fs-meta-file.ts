@@ -120,6 +120,7 @@ export function createFsMetaEidosFile(
     const createdFieldId = createEidosFileUuid()
     const updatedFieldId = createEidosFileUuid()
     const fileFieldId = createEidosFileUuid()
+    const directoryFieldId = createEidosFileUuid()
 
     const customFieldIds = customFields.map(() => createEidosFileUuid())
 
@@ -270,6 +271,16 @@ export function createFsMetaEidosFile(
         readOnlySystemSettings,
       ],
       [fileFieldId, "file", "file", "file", null, 0, 5, readOnlySystemSettings],
+      [
+        directoryFieldId,
+        "is_dir",
+        "is_dir",
+        "checkbox",
+        null,
+        1,
+        6,
+        readOnlySystemSettings,
+      ],
     ]
 
     const allFields = [
@@ -310,7 +321,7 @@ export function createFsMetaEidosFile(
             f.type,
             null,
             isNonNull ? 0 : 1,
-            6 + idx,
+            7 + idx,
             settings,
           ]
         }

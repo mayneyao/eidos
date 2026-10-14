@@ -677,6 +677,7 @@ const zh: EidosFileUIMessageOverrides = {
   "No matching records": "没有匹配的记录",
   "Select a record": "选择记录",
   "Add option": "添加选项",
+  "Mixed values": "多个不同值",
   "New option": "新选项",
   "Import CSV": "导入 CSV",
   "Export CSV": "导出 CSV",

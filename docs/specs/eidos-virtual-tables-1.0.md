@@ -197,6 +197,7 @@ System fields MUST include `isSystem: true`, `readOnly: true`, and `writable: fa
 
 - **`name`** (`type: "text"`): Physical file name, designated as the Record Label Field (`label_field_id`).
 - **`path`** (`type: "text"`): Canonical relative POSIX file path, identical in value to `_id`.
+- **`is_dir`** (`type: "checkbox"`): Whether the entry is a directory. The native `INTEGER` column returns `1` for directories and `0` for regular files; the Runtime exposes the canonical Checkbox value for display and filtering.
 - **`extension`** (`type: "select"`): File extension, rendered as a single-select tag badge with `options: []`.
 - **`size`** (`type: "integer"`): Physical file size in bytes.
 - **`mimetype`** (`type: "text"`): Guessed MIME media type based on file extension (e.g. `image/png`, `text/plain`, `application/pdf`), enabling single-condition filter queries across media types (e.g. `starts with image/`).
@@ -212,6 +213,13 @@ Every virtual table MUST designate one field as the Table's Record Label Field
 the `name` (file name) field.
 
 ### 5.3. Built-in `file` Attachment Field
+
+Directory rows (`is_dir = 1`) supplied by `fs_meta` may have SQL `NULL` in
+the built-in `file` column. The Runtime MUST project that value as the empty
+File array `[]`. This mapping applies only to the built-in `fs_meta.file`
+column on directory rows; it MUST NOT accept invalid File values on regular
+files or ordinary tables. Directory properties belong to the directory itself
+and do not imply inheritance by its children.
 
 Custom fields retain the canonical `physical_name = name` mapping. Their
 `settings_json.vtabStorageKey` identifies the external attribute. New custom
@@ -342,6 +350,7 @@ The `fs_meta` profile defines standard behavior for filesystem metadata virtual 
 | ------------- | ---------- | -------------- | -------- | ------------------------------------- |
 | `id` / `_id`  | `text`     | `row-id`       | `false`  | POSIX relative path from root         |
 | `name`        | `text`     | None (Label)   | `false`  | Basename of file or folder            |
+| `is_dir`      | `checkbox` | None           | `false`  | Directory flag (`1` folder, `0` file) |
 | `extension`   | `text`     | None           | `false`  | File extension (without dot)          |
 | `size`        | `integer`  | None           | `false`  | File size in bytes                    |
 | `mimetype`    | `text`     | None           | `false`  | Guessed MIME media type               |

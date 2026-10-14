@@ -27,6 +27,7 @@ export const SHORTCUT_GROUPS: Array<{
       "new-file",
       "quick-open",
       "search-space-text",
+      "file-properties",
       "toggle-markdown-editing-mode",
     ],
   },
@@ -71,6 +72,7 @@ export const SHORTCUT_GROUPS: Array<{
 
 const COMMAND_LABELS: Record<EidosLiteShortcutCommand, string> = {
   "new-file": "New File",
+  "file-properties": "File properties",
   "quick-open": "Quick Open",
   "command-palette": "Command palette",
   "format-document": "Format Document",

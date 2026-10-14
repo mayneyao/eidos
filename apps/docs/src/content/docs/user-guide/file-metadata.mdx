@@ -1,148 +1,95 @@
 ---
-title: File Metadata Management
-description: Browse a folder and its descendants as a table, with custom values stored on the files themselves.
+title: File Properties
+description: Edit custom properties on files and folders, and filter them across your Space.
 sidebar:
-  label: File Metadata Management
+  label: File Properties
   order: 60
 ---
 
-import { FileTree } from "@astrojs/starlight/components"
+## Set properties directly
 
-**File Metadata Management** shows files in a folder as table records.
-Add fields such as Status, Rating, or Tags to organize files.
+Right-click a file or folder in Eidos Lite and choose **Properties**.
+You can also select an item and press **Alt + Enter**.
 
-The configuration lives in `files.eidos`.
-Custom values live in the physical file attributes.
-These are separate storage locations.
-Copying the configuration file alone does not copy your tags.
+The property sidebar offers Tags, Rating, and Status:
 
----
+- Open Tags to choose options. With no configured options, type a tag and press **Enter** to add it.
+- Enter a rating and press **Enter**, or leave the field, to save it.
+- Choose a status to save it immediately.
+- Use the clear button beside a property to remove its value.
 
-## 1. Quick start
+The sidebar uses the same property editors as table records, including colored Select and Tags options.
+Text and number edits save when you leave the field. Failed edits offer **Retry** and **Discard change**.
 
-Start in the folder you want to manage:
+Select multiple items in the file sidebar, then choose **Properties** to edit them together.
+A property with different values shows **Mixed values**.
+Applying a value sets that property on every selected item and preserves other properties.
+If some items cannot be written, the sidebar lists their paths and errors.
+A batch is a series of individual writes, so successful writes remain saved.
 
-1. **Create a file**: In the Eidos Lite sidebar, select New File (`Cmd/Ctrl + N`). Choose **Eidos** as the file type.
-2. **Enable management**: Turn on the **File Metadata Management** toggle. The filename becomes `files.eidos`. Select **Create**. Each folder receives one configuration file. Eidos never overwrites an existing file.
-3. **Start tagging**: Open the table. Select the **+ (Add Column)** button in the header. Enter a property name such as "Status", "Rating", or "Tags". Record metadata directly on your files as you would in a spreadsheet.
+Folder properties belong to the folder itself.
+They do not apply automatically to its children, including files created later.
 
----
+## Define a custom property
 
-## Folder browsing and metadata configuration
+Choose **Add property** in the property sidebar.
+Enter its name and select Text, Number, Rating, Checkbox, Select, or Tags.
+For Select or Tags, enter options separated by commas.
 
-Right-click a folder and select **Show this folder** to make it the sidebar root.
-The breadcrumb path above the tree returns to ancestor folders.
-**Sort files** beside Search offers name, modification time, and file type in ascending or descending order.
-Folders stay first.
-Eidos remembers your sort preference across sessions.
+Definitions are shared across the entire Space.
+The pencil button beside a property edits its definition, including Select and Tags options.
+An existing property keeps its name and type.
+Definitions are saved as fields in one `files.eidos` at the Space root.
+Adding a custom property creates this file if needed; Tags, Rating, and Status can be set directly before it exists.
+The sidebar and table editor use the same field definitions and physical attribute values.
+Option changes that affect existing values must be reviewed in the table editor.
 
-A subfolder `files.eidos` inherits custom fields, types, options, settings, attribute namespace, and storage keys from the nearest parent configuration.
-This copies configuration at creation time.
-Later changes in a parent folder do not overwrite child configurations.
-Inheritance does not copy files or property values.
-Configurations sharing a namespace and storage key read the same attributes on a physical file.
+Property values are stored on each physical file or folder in the `space.eidos.meta` namespace.
+Copying `files.eidos` alone does not copy property values.
 
-Existing metadata files with other names remain directly usable.
+## Manage a folder's properties
 
----
+Right-click a folder and choose **Manage folder properties**, or use that button in the folder's property sidebar.
+Eidos Lite opens a folder properties view with the shared Grid and Gallery interface, showing only that folder's descendants, including nested folders and empty folders.
+It creates the root catalog on first use and never creates a catalog inside the selected folder.
 
-## 2. Daily workflow and file safety
+Use Search, Filter, Sort, and Fields to organize the items and edit their properties.
+Choose **Open in sidebar** from an item's row menu to keep the table visible while viewing its file on the right. The file uses your configured opening method, including custom File Views.
 
-- **Original files stay in place**: Editing custom fields changes file attributes, not file content bytes.
-- **Automatic disk change detection**: When you add, rename, or delete files in your operating system, the table updates in real time.
-- **Open physical files**: The read-only `file` cell opens the file in your system viewer. Local files, including large videos, open without loading full file bytes into the editor. Image thumbnails retain preview size limits.
+In Eidos Lite, hold **Option** on macOS or **Alt** on Windows/Linux while the row menu is open to reveal drag handles. Drag actions into your preferred order, or choose **Restore default order**. The order is saved in your local app preferences and applies across tables. Drag the file preview's title bar to move the desktop window.
+The title shows a breadcrumb such as **Space › Projects › Properties**.
+Choose an ancestor folder to manage its descendants, or the Space name to manage the entire Space.
+The scope, active View, and open record are retained through refresh and back/forward navigation. The scope is not written into saved Views.
+Saved filters combine with the folder scope.
 
-Choose **Open in sidebar** from a file row's menu to keep the table visible while viewing the file on the right. The file uses your configured opening method, including custom File Views. Drag the preview's title bar to move the desktop window.
+Choose **Manage file properties** beside Search in the file sidebar to manage the current folder, or the whole Space when at the root.
+Opening `files.eidos` directly shows the entire Space.
+An unrelated file already using that name is never overwritten.
 
-Hold **Option** on macOS or **Alt** on Windows/Linux while the row menu is open to reveal drag handles. Drag actions into your preferred order, or choose **Restore default order**. The menu expands while reordering; its normal layout has no reserved handle space. The order is saved in your local app preferences and applies across tables.
+## Storage and file safety
 
-CSV import can create an ordinary table alongside `files` in the same `.eidos` file.
-Ordinary tables support Relations to other ordinary tables.
-The filesystem-backed `files` table cannot be a Relation source or target.
-URL fields work normally.
+Editing properties changes attributes, preserving file content bytes.
+Symbolic links and paths outside the Space are rejected.
+Native writes reject files with multiple hard links on Unix.
+The filesystem must support the native attribute storage: extended attributes on macOS and Linux, or alternate data streams on Windows.
 
----
+Renaming on the same filesystem usually preserves attributes.
+Copies, backups, and transfers depend on the tools and filesystem involved.
+Use tools that preserve attributes when these values matter.
 
-## 3. Scope of management
+## Advanced: SQL and custom Views
 
-**An `.eidos` file with File Metadata Management enabled scans its containing folder and all subfolders.**
+The shared `files.eidos` is a standard Eidos File with Grid, Gallery, and custom Views.
+Use its SQL interface for advanced queries. Folder scope applies to the editor's data queries; SQL queries use their own explicit conditions.
 
-It does not scan parent directories.
-It does not follow symbolic links.
-It ignores excluded files.
-A table created in a subfolder scans only that subfolder and its descendants.
+Existing file metadata indexes remain usable without migrating their values.
+Indexes read the same physical attributes when they use the same namespace and storage key.
 
-<FileTree>
+Editing an index column writes its attribute on the physical file or folder.
+Clearing a cell removes that value.
+Deleting a custom column clears that attribute on items in the index, which also affects other readers using the same namespace and key.
 
-- Movies/
-  - **files.eidos** Manages this folder and its subfolders
-  - Interstellar.mkv
-  - Dune.mp4
-  - Poster.jpg
-  - Notes.pdf
-
-</FileTree>
-
----
-
-## 4. Nested folders and shared attribute mechanics
-
-Complex projects often contain nested subfolders.
-A parent folder and a subfolder can each create a `files.eidos`:
-
-<FileTree>
-
-- Creative-Project/
-  - **files.eidos** Includes files in nested folders
-  - Project-Plan.pdf
-  - Budget.xlsx
-  - Visual-Assets/
-    - **files.eidos** Manages subfolder files independently
-    - Hero-Poster.png
-    - Brand-Logo.svg
-    - Illustration.jpg
-  - References/
-    - Competitive-Review.md
-    - Moodboard.png
-
-</FileTree>
-
-### Independent layouts and configurations
-
-The `.eidos` file in the parent folder and the one in the subfolder are separate documents:
-Layouts, view styles, filter criteria, and sort rules remain independent.
-The parent table can include files in a subfolder whether that subfolder has its own `.eidos` file or not.
-
-### Shared underlying metadata on physical files
-
-Custom attributes record directly in physical file extended attributes:
-
-- **Field names are attribute keys**: New fields use their exact names as storage keys. Tools and tables that use the same namespace and key share values.
-- **Field names cannot change**: Metadata fields do not support renaming. Existing fields with generated `field_…` keys retain their mapping. Opening a file does not overwrite external attributes.
-
-### Important precautions
-
-1. **Edits update physical file attributes**: Tables that share a storage key observe each other's edits.
-2. **Moving files**: Renaming a file on the same filesystem preserves attributes. Copying files across drives depends on the filesystem. The destination table needs the same namespace and storage key to read values.
-3. **Deleting fields versus clearing cells**:
-   - **Deleting a column** deletes the column and clears the attribute from files in the table. This affects other tables sharing that attribute.
-   - **Clearing a cell** clears that single attribute from the physical file.
-4. **Attribute portability**:
-   - macOS and Linux use extended attributes. Windows uses alternate data streams. The filesystem must support them. Check your backup tool to make sure it preserves external attributes.
-   - Moving files through tools that strip extended attributes can delete this metadata. Basic FAT32 drives do not support extended attributes.
-5. **Transaction boundaries**: The rollback journal lives in memory while the process runs. It does not provide crash atomicity or protection from other programs editing the same files.
-
----
-
-## 5. Built-in system fields
-
-The system extracts physical file properties as read-only fields:
-
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `name` | Text | Physical filename (e.g. `Photo.jpg`) |
-| `path` | Text | Relative path from the folder root (primary label) |
-| `extension` | Text / Select | Lowercase file extension (e.g. `jpg`, `mp4`, `pdf`) |
-| `size` | Text / Integer | File size formatted in KB, MB, or GB |
-| `mimetype` | Text | Media type (e.g. `image/jpeg`, `video/mp4`) |
-| `file` | Attachment | Local file handle for thumbnails and previews |
+Directories appear as rows, including empty folders.
+The read-only `is_dir` Checkbox is checked for folders and unchecked for files. Filter it to show only folders or only files.
+Their `file` attachment is empty; folder size is the native directory entry size, not a recursive total.
+Read-only fields such as name, path, extension, size, and modification time come from the filesystem.

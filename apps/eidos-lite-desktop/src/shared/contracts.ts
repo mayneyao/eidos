@@ -1,6 +1,12 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
 import type { FileMetaPatch } from "@eidos.space/plugin-sdk"
 import type {
+  SpacePropertyDefinition,
+  SpacePropertySchema,
+  SpacePropertySelection,
+  SpacePropertyPatchResult,
+} from "./space-properties"
+import type {
   FileHistoryPage,
   RestoreTextVersionRequest,
   RestoreTextVersionResult,
@@ -132,6 +138,11 @@ export const IPC_CHANNELS = {
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
+  propertiesRead: "eidos-lite:properties-read",
+  propertiesDefine: "eidos-lite:properties-define",
+  propertiesPatch: "eidos-lite:properties-patch",
+  propertiesManage: "eidos-lite:properties-manage",
+  propertiesSchema: "eidos-lite:properties-schema",
   createTextFile: "eidos-lite:path-create-text",
   createFolder: "eidos-lite:path-create-folder",
   renamePath: "eidos-lite:path-rename",
@@ -1674,6 +1685,7 @@ export type RuntimeWorkerRequest =
       relativePath: string
       namespace: string
       patch?: FileMetaPatch
+      allowDirectories?: boolean
     }
   | {
       type: "inspectMergeTables"
@@ -1852,6 +1864,16 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<EidosLiteMarkdownImageResolution | null>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
+  readEntryProperties(paths: string[]): Promise<SpacePropertySelection>
+  getPropertySchema(): Promise<SpacePropertySchema>
+  defineProperty(field: SpacePropertyDefinition): Promise<SpacePropertySchema>
+  patchEntryProperties(
+    paths: string[],
+    patch: FileMetaPatch
+  ): Promise<SpacePropertyPatchResult>
+  manageFolderProperties(
+    directory: string | null
+  ): Promise<{ relativePath: string; tableId: string }>
   createEidosFile(
     parentRelativePath: string | null,
     name: string,

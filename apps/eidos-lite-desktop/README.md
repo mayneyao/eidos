@@ -53,7 +53,7 @@ from the repository root keeps an isolated plugin store and never touches the
 shared Eidos home. The first launch after upgrading migrates an existing
 `userData/plugins` store into the home.
 
-Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned sqlite-fs-meta v0.3.0 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
+Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned sqlite-fs-meta v0.4.0 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Virtual tables include files and directories; SQL queries that need only files should use `WHERE is_dir = 0`. Native directory properties are available through SQL, while the plugin filemeta capability remains restricted to regular files. Development and tests can supply a locally built binary:
 
 ```bash
 SQLITE_FS_META_PATH=/absolute/sqlite-fs-meta/target/debug/libfs_meta.dylib pnpm dev:eidos-lite

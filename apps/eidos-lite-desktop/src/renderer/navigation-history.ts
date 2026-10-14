@@ -22,12 +22,21 @@ export interface RecordNavigationLocation {
   tableId: string
   rowId: string | null
   viewId?: string
+  propertyDirectory?: string
+}
+
+export interface FolderPropertiesNavigationLocation {
+  type: "folder-properties"
+  directory: string | null
+  rowId: string | null
+  viewId?: string
 }
 
 export type NavigationLocation =
   | string
   | VersionDiffNavigationLocation
   | RecordNavigationLocation
+  | FolderPropertiesNavigationLocation
   | { type: "plugins"; pluginId?: string }
   | { type: "plugin-page"; key: string }
   | { type: "file"; path: string; openWith: "source" | "wysiwyg" | "preview" }
@@ -77,7 +86,7 @@ export function closeCurrentPage(): void {
 
 export function closeRecordLocation(
   spaceId: string,
-  location: RecordNavigationLocation
+  location: RecordNavigationLocation | FolderPropertiesNavigationLocation
 ): void {
   const table = { ...location, rowId: null }
   const state = navigationState(window.history.state)
@@ -157,9 +166,19 @@ export function navigationHash(
     return `#/spaces/${space}/files/${encodeURIComponent(location.path)}?openWith=${location.openWith}`
   if (location.type === "merge")
     return `#/spaces/${space}/merge/files/${encodeURIComponent(location.path)}${location.tableName ? `?table=${encodeURIComponent(location.tableName)}` : ""}`
+  if (location.type === "folder-properties") {
+    const params = new URLSearchParams()
+    if (location.directory) params.set("folder", location.directory)
+    if (location.viewId) params.set("view", location.viewId)
+    return `#/spaces/${space}/properties${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${params.size ? `?${params}` : ""}`
+  }
   if (location.type === "record") {
     const base = `#/spaces/${space}/files/${encodeURIComponent(location.path)}/tables/${encodeURIComponent(location.tableId)}`
-    return `${base}${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${location.viewId ? `?view=${encodeURIComponent(location.viewId)}` : ""}`
+    const params = new URLSearchParams()
+    if (location.viewId) params.set("view", location.viewId)
+    if (location.propertyDirectory)
+      params.set("folder", location.propertyDirectory)
+    return `${base}${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${params.size ? `?${params}` : ""}`
   }
   const route =
     location.mode === "changes"
@@ -203,6 +222,22 @@ export function parseNavigationHash(
       const spaceId = decodeURIComponent(match[1])
       if (!match[2]) return { spaceId, location: null }
       const parts = match[2].split("/").map(decodeURIComponent)
+      if (
+        parts[0] === "properties" &&
+        (parts.length === 1 ||
+          (parts.length === 3 && parts[1] === "records" && parts[2]))
+      ) {
+        const viewId = params.get("view")
+        return {
+          spaceId,
+          location: {
+            type: "folder-properties",
+            directory: params.get("folder") || null,
+            rowId: parts[2] ?? null,
+            ...(viewId ? { viewId } : {}),
+          },
+        }
+      }
       if (parts[0] === "plugins") {
         return {
           spaceId,
@@ -250,6 +285,9 @@ export function parseNavigationHash(
               tableId: parts[3],
               rowId: parts[5] ?? null,
               ...(viewId ? { viewId } : {}),
+              ...(params.get("folder")
+                ? { propertyDirectory: params.get("folder")! }
+                : {}),
             },
           }
         }
