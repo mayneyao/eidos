@@ -104,7 +104,7 @@ final class LocalSpace {
         let parent = try checked(directory ?? root, allowRoot: true)
         let url = availableURL("Untitled", extension: markdown ? "md" : "eidos", in: parent)
         if markdown { try Data().write(to: url, options: [.atomic, .completeFileProtectionUnlessOpen]) }
-        else { _ = try Runtime.call(url, "create", ["title":url.deletingPathExtension().lastPathComponent]) }
+        else { _ = try Runtime.call(url, "create", ["title":url.deletingPathExtension().lastPathComponent, "locale":AppLanguage.locale]) }
         return url
     }
     func importFile(_ source: URL, in directory: URL? = nil) throws -> URL {

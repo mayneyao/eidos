@@ -12,9 +12,41 @@ import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.json.JSONObject
+import java.io.File
+import java.util.UUID
 
 class AppLanguageUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun newFileTemplateUsesAppLanguageAndPreservesExistingNames() {
+        val context = compose.activity.application
+        val original = AppLanguage.selected()
+        val directory = File(context.cacheDir, "language-${UUID.randomUUID()}").apply { mkdirs() }
+        fun names(file: File): List<String> {
+            val objects = NativeRuntime.call(file.path, "schema").getJSONArray("objects")
+            return (0 until objects.length()).map(objects::getJSONObject)
+                .filter { it.optString("object") in setOf("table", "field") }
+                .filter { it.optString("name") !in setOf("_id", "_created_at", "_updated_at") }
+                .map { it.getString("name") }
+        }
+        try {
+            compose.runOnUiThread { AppLanguage.set(context, "en") }
+            val english = File(directory, "english.eidos")
+            val request = JSONObject().put("title", "Untitled")
+            NativeRuntime.call(english.path, "create", request)
+            assertEquals(false, request.has("locale"))
+            assertEquals(setOf("Records", "Title", "Notes"), names(english).toSet())
+            compose.runOnUiThread { AppLanguage.set(context, "zh") }
+            assertEquals(setOf("Records", "Title", "Notes"), names(english).toSet())
+            val chinese = File(directory, "chinese.eidos")
+            NativeRuntime.call(chinese.path, "create", request)
+            assertEquals(setOf("记录", "标题", "笔记"), names(chinese).toSet())
+        } finally {
+            compose.runOnUiThread { AppLanguage.set(context, original) }
+            directory.deleteRecursively()
+        }
+    }
 
     @Test fun deviceSyncProgressUsesEnglishWithoutChangingStageIdentity() {
         val context = compose.activity.application

@@ -233,6 +233,15 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
             Ok(json!({"snapshot": snapshot, "objects": objects}))
         }
         "create" => {
+            let chinese = request["locale"]
+                .as_str()
+                .and_then(|locale| locale.split(['-', '_']).next())
+                .is_some_and(|language| language.eq_ignore_ascii_case("zh"));
+            let (table_name, title_name, notes_name) = if chinese {
+                ("记录", "标题", "笔记")
+            } else {
+                ("Records", "Title", "Notes")
+            };
             let snapshot = call(&host, "getSnapshot", json!({}))?;
             let plan = call(
                 &host,
@@ -240,11 +249,11 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
                 json!({
                     "expectedRevision": snapshot["revision"],
                     "change": {
-                        "kind": "create-table", "clientKey": "records", "name": "记录", "position": "0",
+                        "kind": "create-table", "clientKey": "records", "name": table_name, "position": "0",
                         "labelFieldClientKey": "title",
                         "fields": request.get("fields").cloned().unwrap_or_else(|| json!([
-                            {"clientKey": "title", "name": "标题", "kind": "text", "position": "0"},
-                            {"clientKey": "notes", "name": "笔记", "kind": "text", "position": "1"}
+                            {"clientKey": "title", "name": title_name, "kind": "text", "position": "0"},
+                            {"clientKey": "notes", "name": notes_name, "kind": "text", "position": "1"}
                         ]))
                     }
                 }),
@@ -300,6 +309,57 @@ pub extern "system" fn Java_space_eidos_android_NativeRuntime_execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_file_template_uses_locale_without_renaming_existing_schema() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        for (index, locale, names) in [
+            (0, Some("en"), ["Records", "Title", "Notes"]),
+            (1, Some("zh"), ["记录", "标题", "笔记"]),
+            (2, Some("zh-Hant-TW"), ["记录", "标题", "笔记"]),
+            (3, Some("ja-JP"), ["Records", "Title", "Notes"]),
+            (4, None, ["Records", "Title", "Notes"]),
+        ] {
+            let path = directory.path().join(format!("{index}.eidos"));
+            execute(
+                &path,
+                "create",
+                json!({"title": "Untitled", "locale": locale}),
+            )?;
+            let schema = execute(&path, "schema", json!({}))?;
+            let objects = schema["objects"].as_array().unwrap();
+            for (kind, name) in [
+                ("table", names[0]),
+                ("field", names[1]),
+                ("field", names[2]),
+            ] {
+                assert!(objects
+                    .iter()
+                    .any(|item| item["object"] == kind && item["name"] == name));
+            }
+            assert_eq!(
+                schema,
+                execute(&path, "schema", json!({"locale": "other"}))?
+            );
+        }
+        let custom = directory.path().join("custom.eidos");
+        execute(
+            &custom,
+            "create",
+            json!({
+                "title": "Custom", "locale": "en", "fields": [
+                    {"clientKey": "title", "name": "自定义标题", "kind": "text", "position": "0"}
+                ]
+            }),
+        )?;
+        let schema = execute(&custom, "schema", json!({}))?;
+        assert!(schema["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["object"] == "field" && item["name"] == "自定义标题"));
+        Ok(())
+    }
 
     #[test]
     fn capability_failure_is_distinct_from_sqlite_integrity() -> Result<()> {

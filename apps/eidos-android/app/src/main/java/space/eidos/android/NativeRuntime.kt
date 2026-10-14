@@ -16,7 +16,10 @@ object NativeRuntime {
     }
 
     fun call(path: String, method: String, request: JSONObject = JSONObject()): JSONObject {
-        val envelope = JSONObject(execute(path, method, request.toString()))
+        val payload = if (method == "create" && !request.has("locale"))
+            JSONObject(request.toString()).put("locale", AppLanguage.locale())
+        else request
+        val envelope = JSONObject(execute(path, method, payload.toString()))
         check(envelope.optBoolean("ok")) { envelope.optString("error", tr("数据操作失败")) }
         return envelope.getJSONObject("value")
     }
