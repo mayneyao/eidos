@@ -1,42 +1,33 @@
-# Eidos Android 0.2.0
+# Eidos Android 0.2.1
 
-This release adds local file hooks and improves Markdown editing, draft safety
-and plugin communication. Android 9 or newer is required.
-
-## What's new
-
-Compatible plugins can run isolated file hooks after local Markdown saves and
-renames. An open document follows a hook-triggered rename. Enable the plugin
-in the Space where you want its automation to run.
+This update fixes the language of new Eidos files and improves connections to
+paired computers and Markdown editing. Android 9 or newer is required.
 
 ## Improvements
 
-- Long record titles wrap within the mobile layout.
-- Local version controls distinguish inspecting history from saving a checkpoint.
-- Table Content settings explain how a Text field stores Markdown record bodies.
+- Paired computers are detected sooner after returning to the app or changing
+  networks. Saved addresses and local-network discovery are checked in parallel,
+  and the first verified connection is used.
 
 ## Bug fixes
 
-- Touch selection works inside Markdown links, and Backspace deletes individual
-  characters without removing the entire URL. Reserved scrollbar space reduces
-  layout shifts when entering edit mode.
-- Moving a file to the recycle bin protects pending recovery drafts and requires
-  confirmation before removing the open document.
-- Unchanged table and field settings no longer create spurious schema changes.
-- Plugin binary RPC responses use the expected envelope, allowing file and
-  attachment responses to reach the embedded plugin host.
+- New Eidos files use the selected app language for their default table and
+  field names. English creates Records, Title and Notes. Existing table and field
+  names remain unchanged when switching languages. Fixes #327.
+- Tapping below the last Markdown block places the caret at the end without
+  marking an unchanged document as edited or saving an extra blank line. Typing,
+  Enter and undo continue to use normal editing history.
 
 ## Install
 
-Download `eidos-android-0.2.0.apk` and verify it against `SHA256SUMS`. The APK
+Download `eidos-android-0.2.1.apk` and verify it against `SHA256SUMS`. The APK
 supports ARM64 and x86-64. Install it over the previous stable APK to retain local
 data; the signing identity and application ID are unchanged. The development
 app remains separate.
 
 ## Compatibility and scope
 
-File hook plugins require Plugin API 3.3.0; Eidos Lite 0.23.0 supports the same
-hook contract. Local files remain usable offline. Keep the app in the foreground
-during LAN transfers and review conflicting changes on Desktop. Mobile cloud
-account and hosted-sync entry points remain unavailable. Distribution uses the
-GitHub APK channel; Google Play publication is not configured.
+Device sync requires the paired computer and phone to be on the same local
+network with device sync enabled in Eidos Lite. Keep the app in the foreground
+during transfers. Distribution uses the GitHub APK channel; Google Play
+publication is not configured.
