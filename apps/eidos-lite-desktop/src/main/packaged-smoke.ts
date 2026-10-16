@@ -1857,7 +1857,7 @@ const rendererProbe = `
       stagingBadge: Boolean(stagingBadge),
     },
     space: { name: space.name, eidosFileCount: space.eidosFileCount },
-    graft: space.graft,
+    graft: restored.graft,
     cachedFiles,
     runtimeCache: { residentPaths: [], trackedPaths: [] },
     fileLifecycle,
