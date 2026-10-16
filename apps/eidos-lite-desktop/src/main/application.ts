@@ -78,6 +78,19 @@ if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL && developmentUserData) {
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT
+const encryptedSmokeResult = !app.isPackaged
+  ? process.env.EIDOS_LITE_STAGING_E2EE_RESULT
+  : undefined
+if (encryptedSmokeResult) {
+  if (!path.isAbsolute(encryptedSmokeResult))
+    throw new Error("Staging smoke result path must be absolute")
+  const directory = path.join(
+    path.dirname(encryptedSmokeResult),
+    "app-user-data"
+  )
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
+  app.setPath("userData", directory)
+}
 const isPackagedSmoke = Boolean(smokeSpace || smokeResult)
 const smokeLaunchedAtMs = Number(process.env.EIDOS_LITE_SMOKE_LAUNCHED_AT_MS)
 let smokeUserData: string | null = null
@@ -100,7 +113,9 @@ if (!hasSingleInstanceLock) {
 const services = resolveEidosLiteServiceEnvironment(
   runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
 )
-if (smokeUserData) {
+if (encryptedSmokeResult) {
+  app.setAppLogsPath(path.join(app.getPath("userData"), "logs"))
+} else if (smokeUserData) {
   app.setAppLogsPath(path.join(smokeUserData, "logs"))
 } else {
   app.setAppLogsPath()
@@ -337,6 +352,57 @@ async function installApplicationMenu(): Promise<void> {
 }
 
 void app.whenReady().then(async () => {
+  if (encryptedSmokeResult) {
+    try {
+      if (
+        services.name !== "staging" ||
+        (!process.env.EIDOS_LITE_STAGING_TOKEN_FILE &&
+          !process.env.EIDOS_LITE_STAGING_ACCOUNT_STATE)
+      )
+        throw new Error(
+          "Staging smoke requires staging and an owner-only token file"
+        )
+      const {
+        runEncryptedStagingSmoke,
+        runRememberedStagingRestore,
+        prepareStagingUiProfiles,
+      } = await import("./sync/encrypted-staging-smoke")
+      const enrollment = process.env.EIDOS_LITE_STAGING_REMEMBER_ENROLLMENT
+      if (process.env.EIDOS_LITE_STAGING_UI_PROFILES === "1")
+        await prepareStagingUiProfiles(
+          encryptedSmokeResult,
+          process.env.EIDOS_LITE_STAGING_ACCOUNT_STATE!
+        )
+      else if (enrollment)
+        await runRememberedStagingRestore(
+          encryptedSmokeResult,
+          enrollment,
+          process.env.EIDOS_LITE_STAGING_TOKEN_FILE,
+          process.env.EIDOS_LITE_STAGING_ACCOUNT_STATE
+        )
+      else
+        await runEncryptedStagingSmoke(
+          encryptedSmokeResult,
+          process.env.EIDOS_LITE_STAGING_TOKEN_FILE,
+          process.env.EIDOS_LITE_STAGING_ACCOUNT_STATE
+        )
+      app.exit(0)
+    } catch (error) {
+      fs.writeFileSync(
+        encryptedSmokeResult,
+        JSON.stringify({
+          status: "failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Staging validation failed",
+        }),
+        { mode: 0o600 }
+      )
+      app.exit(1)
+    }
+    return
+  }
   const appReadyAtMs = Date.now()
   logger.info("app.ready", {
     startupMs: Math.max(0, appReadyAtMs - bootstrapStartedAtMs),

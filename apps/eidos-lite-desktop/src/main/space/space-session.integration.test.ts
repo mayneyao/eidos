@@ -29,6 +29,180 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("stops first upload if its account admission changes while the repository is being checked", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-sync-account-race-")
+    )
+    const root = path.join(directory, "Space")
+    await fs.mkdir(root)
+    await fs.writeFile(path.join(root, "note.md"), "Keep this content local")
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, path.join(directory, "state"), {
+        graft,
+      })
+      const approval = {
+        manifestId: (await session.syncPreflight()).manifestId,
+      }
+      await session.prepareHostedSync(approval, true)
+      const originalPreflight = session.assertSyncPreflight.bind(session)
+      const entered = deferred<void>()
+      const continueCheck = deferred<void>()
+      vi.spyOn(session, "assertSyncPreflight").mockImplementationOnce(
+        async (value) => {
+          entered.resolve()
+          await continueCheck.promise
+          return originalPreflight(value)
+        }
+      )
+      const encryptedSync = vi.spyOn(graft, "encryptedSync")
+      const configureRemote = vi.spyOn(graft, "configureOfficialRemote")
+      let current = true
+      const result = session.enableHostedSync(
+        "https://sync-staging.eidos.space/u-test/account-race",
+        "synthetic-token",
+        approval,
+        undefined,
+        undefined,
+        () => {
+          if (!current) throw new Error("The Sync account changed")
+        }
+      )
+      const rejected = expect(result).rejects.toThrow(
+        "The Sync account changed"
+      )
+      await entered.promise
+      current = false
+      continueCheck.resolve()
+      await rejected
+      expect(encryptedSync).not.toHaveBeenCalled()
+      expect(configureRemote).not.toHaveBeenCalled()
+      await expect(session.officialSyncRemoteUrl()).resolves.toBeNull()
+      expect(await fs.readFile(path.join(root, "note.md"), "utf8")).toBe(
+        "Keep this content local"
+      )
+    } finally {
+      await session?.close()
+      await graft.close()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("prepares first cloud connection without requiring a separate version-history setup", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-first-sync-")
+    )
+    const root = path.join(directory, "Space")
+    await fs.mkdir(root)
+    await fs.writeFile(path.join(root, "note.md"), "Initial content")
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, path.join(directory, "state"), {
+        graft,
+      })
+      const approval = {
+        manifestId: (await session.syncPreflight()).manifestId,
+      }
+      await session.prepareHostedSync(approval, true)
+      await expect(session.assertHostedSyncReady(true)).resolves.toBeUndefined()
+      expect((await graft.history(root)).commits).toHaveLength(1)
+      await fs.writeFile(path.join(root, "note.md"), "Reviewed updated content")
+      await session.prepareHostedSync(
+        { manifestId: (await session.syncPreflight()).manifestId },
+        true
+      )
+      expect((await graft.history(root)).commits).toHaveLength(2)
+      await expect(session.assertHostedSyncReady(true)).resolves.toBeUndefined()
+    } finally {
+      await session?.close()
+      await graft.close()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects encryption admission for an ordinary origin while preserving local history and its connection", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-origin-admission-")
+    )
+    const root = path.join(directory, "Space")
+    await fs.mkdir(root)
+    await fs.writeFile(path.join(root, "note.md"), "Keep this local history")
+    const graft = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+    })
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, path.join(directory, "state"), {
+        graft,
+      })
+      await session.enableVersioning()
+      const previousUrl =
+        "https://sync-staging.eidos.space/u-test/previous-space"
+      await graft.configureOfficialRemote(root, previousUrl, "synthetic-token")
+      const before = await graft.history(root)
+      await expect(session.assertHostedSyncReady()).resolves.toBeUndefined()
+      await expect(session.assertHostedSyncReady(true)).rejects.toMatchObject({
+        code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT",
+      })
+      await expect(
+        session.prepareHostedSync(
+          { manifestId: (await session.syncPreflight()).manifestId },
+          true
+        )
+      ).rejects.toMatchObject({ code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT" })
+      await expect(graft.remoteUrl(root)).resolves.toBe(previousUrl)
+      expect((await graft.history(root)).currentHead).toBe(before.currentHead)
+      expect(await fs.readFile(path.join(root, "note.md"), "utf8")).toBe(
+        "Keep this local history"
+      )
+    } finally {
+      await session?.close()
+      await graft.close()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("shows an unversioned Space immediately and skips native merge recovery reads", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-unversioned-snapshot-")
+    )
+    const root = path.join(directory, "Space")
+    await fs.mkdir(root)
+    const getMergeStatus = vi.fn(async () => ({ state: "none" }))
+    const graft = {
+      backend: "sdk",
+      expectedVersion: () => "0.3.30",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      close: async () => undefined,
+      inspectSpace: async () => ({ available: true, initialized: false }),
+      getMergeStatus,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(root, path.join(directory, "state"), {
+        graft,
+      })
+      const snapshot = await session.snapshot()
+      expect(snapshot.graft).toMatchObject({
+        initialized: false,
+        checking: false,
+      })
+      await expect(session.getSyncMergeStatus()).resolves.toEqual({
+        state: "none",
+      })
+      expect(getMergeStatus).not.toHaveBeenCalled()
+    } finally {
+      await session?.close()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("creates text files with exact extensionless, dotfile, and custom names", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-new-text-"))
     const userData = await fs.mkdtemp(
@@ -2565,7 +2739,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
       })
       expect(initial.graft).toMatchObject({
         initialized: false,
-        checking: true,
+        checking: false,
       })
 
       status.resolve({

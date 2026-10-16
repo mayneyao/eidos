@@ -174,6 +174,11 @@ export const IPC_CHANNELS = {
   syncSignOut: "eidos-lite:sync-sign-out",
   syncPreflight: "eidos-lite:sync-preflight",
   syncEnable: "eidos-lite:sync-enable",
+  syncUnlock: "eidos-lite:sync-unlock",
+  syncForgetUnlock: "eidos-lite:sync-forget-unlock",
+  syncPasswordSettings: "eidos-lite:sync-password-settings",
+  syncPasswordSave: "eidos-lite:sync-password-save",
+  syncPasswordForget: "eidos-lite:sync-password-forget",
   syncRepositories: "eidos-lite:sync-repositories",
   syncClone: "eidos-lite:sync-clone",
   syncRun: "eidos-lite:sync-run",
@@ -797,6 +802,7 @@ export interface EidosLitePreferences {
 }
 
 export type EidosLiteSettingsDestination =
+  | "account-sync"
   | "devices"
   | "documentation"
   | "website"
@@ -903,6 +909,13 @@ export interface SyncAccountStatus {
 }
 
 export interface EidosSyncStatus {
+  encryption?: {
+    state: "locked" | "unlocked"
+    remembered?: boolean
+    rememberError?: string
+  }
+  deviceUnlockAvailable?: boolean
+  defaultPasswordConfigured?: boolean
   environment: "staging" | "production"
   account: SyncAccountStatus
   device: {
@@ -934,9 +947,6 @@ export interface EidosSyncStatus {
 
 export type EidosSyncPreflightConcern =
   | "tracked-ignored"
-  | "hidden"
-  | "suspected-secret"
-  | "large-file"
   | "file-too-large"
   | "symlink"
   | "unsupported-entry"
@@ -968,10 +978,22 @@ export interface EidosSyncPreflight {
 
 export interface EidosSyncPreflightApproval {
   manifestId: string
-  confirmWarnings: boolean
+}
+
+export interface EidosSyncEncryption {
+  profile: "encrypted-remote-v1"
+  version: 1
+  suite: 1
+  uuid: string
+}
+
+export interface EidosSyncPasswordInput {
+  password: Uint8Array
+  remember?: boolean
 }
 
 export interface EidosSyncRepository {
+  encryption?: EidosSyncEncryption
   name: string
   displayName: string
   createdAtMs: number
@@ -1076,6 +1098,8 @@ export interface EidosSyncRunResult extends EidosSyncOutcome {
 }
 
 export type EidosSyncFailureCode =
+  | "encryption-locked"
+  | "remote-already-configured"
   | "offline"
   | "authentication-required"
   | "device-revoked"
@@ -1780,7 +1804,9 @@ export interface EidosLiteApi extends PluginApi {
   downloadUpdate(): Promise<EidosLiteUpdateStatus>
   restartToInstallUpdate(): Promise<void>
   openSettings(): Promise<void>
-  onSettingsNavigate?(listener: (page: "devices") => void): () => void
+  onSettingsNavigate?(
+    listener: (page: "devices" | "account-sync") => void
+  ): () => void
   openWhatsNew(): Promise<void>
   openWhatsNewRelease(): Promise<void>
   onWhatsNew(listener: () => void): () => void
@@ -1976,12 +2002,22 @@ export interface EidosLiteApi extends PluginApi {
   signOutSync(): Promise<EidosSyncStatus>
   getSyncPreflight(): Promise<EidosSyncPreflight>
   enableSync(
-    approval: EidosSyncPreflightApproval
+    approval: EidosSyncPreflightApproval,
+    encryption?: EidosSyncPasswordInput
   ): Promise<EidosSyncConnectionResponse>
+  unlockSync(encryption: EidosSyncPasswordInput): Promise<EidosSyncStatus>
+  forgetSyncUnlock(): Promise<EidosSyncStatus>
+  getSyncPasswordSettings(): Promise<{
+    available: boolean
+    configured: boolean
+  }>
+  saveDefaultSyncPassword(input: EidosSyncPasswordInput): Promise<void>
+  forgetDefaultSyncPassword(): Promise<void>
   listSyncRepositories(): Promise<EidosSyncRepositoryList>
   cloneSyncRepository(
     remoteUrl: string,
-    displayName?: string
+    displayName?: string,
+    encryption?: EidosSyncPasswordInput
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
   peerSync(

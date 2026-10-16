@@ -1,6 +1,7 @@
 import {
   GraftProtocolError,
   type GraftByteRange,
+  type GraftEncryptionDescriptor,
   type GraftListQuery,
   type GraftListResult,
   type GraftMultipartBackend,
@@ -33,6 +34,12 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
   readonly #repositoryId: string
   readonly #usage: DurableObjectStub<SyncUsageDurableObject>
   readonly multipart: GraftMultipartBackend | undefined
+  get encryption(): GraftEncryptionDescriptor | undefined {
+    return this.#delegate.encryption
+  }
+  get encryptedRouting(): GraftRepositoryBackend["encryptedRouting"] {
+    return this.#delegate.encryptedRouting
+  }
 
   constructor(input: {
     delegate: GraftRepositoryBackend
@@ -55,11 +62,19 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
       multipart === undefined
         ? undefined
         : {
-            start: async (path, totalBytes, partBytes) => {
+            ...(multipart.supportsEncryption
+              ? { supportsEncryption: true as const }
+              : {}),
+            start: async (path, totalBytes, partBytes, encryption) => {
               if (this.#mode !== "off") {
                 await this.reserveMultipart(path, totalBytes)
               }
-              const upload = await multipart.start(path, totalBytes, partBytes)
+              const upload = await multipart.start(
+                path,
+                totalBytes,
+                partBytes,
+                encryption
+              )
               if (upload === null && this.#mode !== "off") {
                 const metadata = await this.#delegate.head(path)
                 if (metadata !== null) {
@@ -172,7 +187,8 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
         const created = await this.#delegate.putIfAbsent(
           path,
           staged.body,
-          kind
+          kind,
+          { ...options, contentLength: undefined }
         )
         await this.finishStagedBody(staged, created)
         finished = true
@@ -193,7 +209,7 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
       staged = await this.stageUnknownLength(value)
       knownBytes = staged.size
       storageValue = staged.body
-      storageOptions = undefined
+      storageOptions = { ...options, contentLength: undefined }
     }
     if (knownBytes === null) {
       throw new Error("Immutable upload length could not be determined")

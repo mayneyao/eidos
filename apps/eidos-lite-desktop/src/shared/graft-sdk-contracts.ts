@@ -1,5 +1,26 @@
 import type { SpaceVersionTextContentRequest } from "./contracts"
 
+export interface GraftEncryptedConnection {
+  url: string
+  uuid: string
+  authenticationDomain: string
+  accountSubject: string
+  bearerToken: string
+  stateDirectory: string
+}
+
+export interface GraftEncryptedInput {
+  connection: GraftEncryptedConnection
+  password: Uint8Array
+  stateIdentity?: string
+}
+
+export interface GraftCloneOptions {
+  signal?: AbortSignal
+  onProgress?: (progress: GraftTransferProgress) => void
+  encryption?: GraftEncryptedInput
+}
+
 export interface GraftTransferProgress {
   direction: "upload" | "download"
   transferredBytes: number
@@ -29,6 +50,11 @@ export interface GraftSqliteSnapshotCaptureResult {
 }
 
 export type GraftSdkCommand =
+  | "encryptedSyncStatus"
+  | "initializeEncryptedSync"
+  | "unlockEncryptedSync"
+  | "cloneEncryptedSync"
+  | "lockEncryptedSync"
   | "sdkVersion"
   | "operationMaterializesWorktree"
   | "init"

@@ -21,7 +21,12 @@ export class SyncExecutor {
 
   constructor(
     private readonly syncControl: SyncControlPlane,
-    injectedFailures: readonly PackagedSyncFault[] = []
+    injectedFailures: readonly PackagedSyncFault[] = [],
+    private readonly prepareEncryptedSync?: (
+      session: SpaceSession,
+      remote: string,
+      token: string
+    ) => Promise<void>
   ) {
     this.injectedFailures = [...injectedFailures]
   }
@@ -65,6 +70,7 @@ export class SyncExecutor {
       if (!remoteUrl)
         throw new Error("This Space is not connected to Eidos Sync")
       const access = await this.syncControl.repositoryAccess(remoteUrl)
+      await this.prepareEncryptedSync?.(session, remoteUrl, access.accessToken)
       const outcome = await session.syncHostedRemote(
         access.accessToken,
         access.access,

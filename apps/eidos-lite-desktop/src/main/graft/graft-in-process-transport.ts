@@ -1,4 +1,9 @@
 import path from "node:path"
+import { EncryptedGraftHost } from "./encrypted-graft-host"
+import type {
+  GraftEncryptedInput,
+  GraftCloneOptions,
+} from "../../shared/graft-sdk-contracts"
 import type {
   CloneOptions,
   CommitChangedPathsOptions,
@@ -59,6 +64,7 @@ const { operationMaterializesWorktree, RepositorySession, sdkVersion } =
   loadEidosGraftSdk()
 
 export class GraftInProcessTransport implements GraftSdkTransport {
+  private readonly encryptedHost = new EncryptedGraftHost()
   private session: EidosGraftRepositorySession | null = null
   private opening: Promise<EidosGraftRepositorySession> | null = null
   private lifecycleGeneration = 0
@@ -100,6 +106,7 @@ export class GraftInProcessTransport implements GraftSdkTransport {
   }
 
   async close(): Promise<void> {
+    await this.encryptedHost.disconnect()
     this.lifecycleGeneration += 1
     const session = this.session
     const opening = this.opening
@@ -123,6 +130,37 @@ export class GraftInProcessTransport implements GraftSdkTransport {
     if (command === "sdkVersion") return sdkVersion()
     if (command === "operationMaterializesWorktree") {
       return operationMaterializesWorktree(this.string(args[0], "operation"))
+    }
+    if (command === "encryptedSyncStatus")
+      return { state: this.encryptedHost.state }
+    if (command === "lockEncryptedSync") {
+      await this.encryptedHost.lock()
+      return { locked: true }
+    }
+    if (
+      command === "initializeEncryptedSync" ||
+      command === "unlockEncryptedSync" ||
+      command === "cloneEncryptedSync"
+    ) {
+      if (!this.target) throw new Error("Graft repository session is not open")
+      await this.session?.close()
+      this.session = null
+      try {
+        this.session = await this.encryptedHost.connect(
+          this.target,
+          args[0] as GraftEncryptedInput,
+          command === "initializeEncryptedSync"
+            ? "initialize"
+            : command === "cloneEncryptedSync"
+              ? "clone"
+              : "unlock",
+          { signal: options.signal }
+        )
+      } catch (error) {
+        this.session = await RepositorySession.open(this.target)
+        throw error
+      }
+      return { unlocked: true }
     }
     const session = this.requireSession()
     const signal = options.signal
@@ -403,12 +441,18 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           signal,
         })
       case "setHttpBearerToken":
+        if (
+          args[0] === "origin" &&
+          this.encryptedHost.refresh(this.string(args[1], "Remote credential"))
+        )
+          return { configured: true }
         session.setHttpBearerToken(
           this.string(args[0], "Remote name"),
           this.string(args[1], "Remote credential")
         )
         return { configured: true }
       case "clearHttpBearerToken":
+        await this.encryptedHost.disconnect()
         session.clearHttpBearerToken(this.string(args[0], "Remote name"))
         return { cleared: true }
       default:
@@ -426,11 +470,26 @@ export class GraftInProcessTransport implements GraftSdkTransport {
     targetDirectory: string,
     remoteUrl: string,
     token?: string,
-    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
+    options: GraftCloneOptions = {}
   ): Promise<unknown> {
+    if (options.signal?.aborted) throw abortError()
     const transport = new GraftInProcessTransport()
     await transport.open(targetDirectory)
+    let revocation: Promise<unknown> | undefined
+    const cancelEncrypted = () => {
+      revocation ??= transport.command("lockEncryptedSync")
+      void revocation.catch(() => undefined)
+    }
+    if (options.encryption)
+      options.signal?.addEventListener("abort", cancelEncrypted, { once: true })
     try {
+      if (options.signal?.aborted) throw abortError()
+      if (options.encryption)
+        return await transport.command(
+          "cloneEncryptedSync",
+          [options.encryption],
+          { signal: options.signal, onProgress: options.onProgress }
+        )
       return await transport.command(
         "cloneRepository",
         [
@@ -443,7 +502,12 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         options
       )
     } finally {
-      await transport.close()
+      options.signal?.removeEventListener("abort", cancelEncrypted)
+      try {
+        await revocation
+      } finally {
+        await transport.close()
+      }
     }
   }
 

@@ -35,6 +35,14 @@ interface AccountSessionOptions {
 
 export class AccountSessionService {
   private signInPromise: Promise<AccountSessionStatus> | null = null
+  private signInCallback: Promise<OAuthLoopbackCallback> | null = null
+  private callbackShutdown: Promise<void> = Promise.resolve()
+  private generation = 0
+  private credentialOperations: Promise<unknown> = Promise.resolve()
+  private refresh: {
+    generation: number
+    promise: Promise<StoredAccountSession>
+  } | null = null
 
   constructor(
     private readonly oauth: EidosOAuthClient,
@@ -49,9 +57,13 @@ export class AccountSessionService {
   ) {}
 
   async status(): Promise<AccountSessionStatus> {
+    const generation = this.generation
+    await this.credentialOperations
     const session = await this.credentials.read()
+    this.assertCurrent(generation)
     if (!session) return { state: "signed-out" }
     const profile = await this.profile?.read()
+    this.assertCurrent(generation)
     const user =
       profile?.id === session.user.id
         ? profile
@@ -63,15 +75,36 @@ export class AccountSessionService {
 
   signIn(): Promise<AccountSessionStatus> {
     if (!this.signInPromise) {
-      this.signInPromise = this.performSignIn().finally(() => {
-        this.signInPromise = null
+      const generation = ++this.generation
+      const task = this.performSignIn(generation).finally(() => {
+        if (this.signInPromise === task) this.signInPromise = null
       })
+      this.signInPromise = task
     }
     return this.signInPromise
   }
 
   async signOut(): Promise<AccountSessionStatus> {
-    await Promise.all([this.credentials.clear(), this.profile?.clear()])
+    this.generation += 1
+    this.signInPromise = null
+    const callback = this.signInCallback
+    this.signInCallback = null
+    this.callbackShutdown = Promise.all([
+      this.callbackShutdown,
+      callback?.then(
+        (listener) =>
+          listener.close(
+            new Error("The account session changed. Sign in again.")
+          ),
+        () => undefined
+      ),
+    ]).then(() => undefined)
+    await Promise.all([
+      this.callbackShutdown,
+      this.serializeCredentials(async () => {
+        await Promise.all([this.credentials.clear(), this.profile?.clear()])
+      }),
+    ])
     return { state: "signed-out" }
   }
 
@@ -80,12 +113,15 @@ export class AccountSessionService {
   }
 
   async authorization(): Promise<SyncAuthorization> {
+    const generation = this.generation
     const session = await this.activeSession()
+    this.assertCurrent(generation)
     const authorization = await this.syncClient.authorization(
       session.tokens.accessToken
     )
+    this.assertCurrent(generation)
     if (authorization.subject !== session.user.id) {
-      await this.credentials.clear()
+      await this.invalidateSession(generation)
       throw new Error(
         "The Eidos Sync identity does not match the signed-in account. Sign in again."
       )
@@ -94,7 +130,10 @@ export class AccountSessionService {
   }
 
   private async activeSession(): Promise<StoredAccountSession> {
+    const generation = this.generation
+    await this.credentialOperations
     const session = await this.credentials.read()
+    this.assertCurrent(generation)
     if (!session) throw new Error("Sign in to Eidos Sync first.")
     const { tokens } = session
     const expiresAt =
@@ -105,11 +144,25 @@ export class AccountSessionService {
       return session
     }
     if (!tokens.refreshToken) {
-      await this.credentials.clear()
+      await this.invalidateSession(generation)
       throw new Error("Your Eidos Sync session expired. Sign in again.")
     }
+    if (this.refresh?.generation === generation) return this.refresh.promise
+    const promise = this.refreshSession(session, generation).finally(() => {
+      if (this.refresh?.promise === promise) this.refresh = null
+    })
+    this.refresh = { generation, promise }
+    return promise
+  }
+
+  private async refreshSession(
+    session: StoredAccountSession,
+    generation: number
+  ): Promise<StoredAccountSession> {
+    const { tokens } = session
     try {
-      const refreshed = await this.oauth.refresh(tokens.refreshToken)
+      const refreshed = await this.oauth.refresh(tokens.refreshToken!)
+      this.assertCurrent(generation)
       const bound = await this.bindSession(
         {
           ...refreshed,
@@ -117,47 +170,90 @@ export class AccountSessionService {
         },
         session.user
       )
-      await this.credentials.write(bound.session)
+      await this.serializeCredentials(async () => {
+        this.assertCurrent(generation)
+        await this.credentials.write(bound.session)
+        this.assertCurrent(generation)
+      })
       return bound.session
     } catch (error) {
       if (
         error instanceof EidosOAuthError &&
         error.status !== undefined &&
-        [400, 401, 403].includes(error.status)
+        [400, 401, 403].includes(error.status) &&
+        generation === this.generation
       ) {
-        await this.credentials.clear()
+        await this.invalidateSession(generation)
       }
       throw error
     }
   }
 
-  private async performSignIn(): Promise<AccountSessionStatus> {
+  private assertCurrent(generation: number): void {
+    if (generation !== this.generation)
+      throw Object.assign(
+        new Error("The account session changed. Sign in again."),
+        { code: "authentication-required" }
+      )
+  }
+
+  private serializeCredentials<Result>(
+    operation: () => Promise<Result>
+  ): Promise<Result> {
+    const task = this.credentialOperations.then(operation, operation)
+    this.credentialOperations = task.catch(() => undefined)
+    return task
+  }
+
+  private async invalidateSession(generation: number): Promise<void> {
+    this.assertCurrent(generation)
+    const invalidated = ++this.generation
+    await this.serializeCredentials(async () => {
+      if (this.generation === invalidated) await this.credentials.clear()
+    })
+  }
+
+  private async performSignIn(
+    generation: number
+  ): Promise<AccountSessionStatus> {
+    await this.callbackShutdown
+    this.assertCurrent(generation)
     const callbackFactory =
       this.options.callbackFactory ?? OAuthLoopbackCallback.listen
     const placeholderRedirect = `http://127.0.0.1:${this.options.callbackPort ?? 13_128}/oauth/callback`
     const request =
       await this.oauth.createAuthorizationRequest(placeholderRedirect)
-    const callback = await callbackFactory(
+    this.assertCurrent(generation)
+    const pendingCallback = callbackFactory(
       request.state,
       this.options.callbackPort
     )
-    if (callback.redirectUri !== placeholderRedirect) {
-      callback.close()
-      throw new Error("The Eidos sign-in callback port changed unexpectedly.")
-    }
+    this.signInCallback = pendingCallback
+    const callback = await pendingCallback
     try {
+      this.assertCurrent(generation)
+      if (callback.redirectUri !== placeholderRedirect)
+        throw new Error("The Eidos sign-in callback port changed unexpectedly.")
       await this.options.openExternal(request.url)
       const code = await callback.waitForCode()
+      this.assertCurrent(generation)
       const tokens = await this.oauth.exchangeCode(
         code,
         request.codeVerifier,
         callback.redirectUri
       )
+      this.assertCurrent(generation)
       const user = await this.oauth.userInfo(tokens.accessToken)
+      this.assertCurrent(generation)
       const bound = await this.bindSession(tokens, user)
-      await this.credentials.write(bound.session)
-      await this.profile?.write(user).catch((error) => {
-        console.warn("Could not cache the Eidos account summary", error)
+      await this.serializeCredentials(async () => {
+        this.assertCurrent(generation)
+        await this.credentials.write(bound.session)
+        this.assertCurrent(generation)
+        await this.profile?.write(user).catch((error) => {
+          console.warn("Could not cache the Eidos account summary", error)
+        })
+        this.assertCurrent(generation)
       })
       return {
         state: "signed-in",
@@ -165,7 +261,8 @@ export class AccountSessionService {
         authorization: bound.authorization,
       }
     } finally {
-      callback.close()
+      await callback.close()
+      if (this.signInCallback === pendingCallback) this.signInCallback = null
     }
   }
 

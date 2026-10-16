@@ -4,8 +4,9 @@ import {
   type GraftRepositoryBackend,
 } from "@eidos.space/graft-remote"
 import {
-  CloudflareRepositoryBackend,
   RepositoryDurableObject,
+  openCloudflareRepository,
+  createEncryptedCloudflareRepository,
 } from "@eidos.space/graft-remote-cloudflare"
 import { createGraftRemote } from "@eidos.space/graft-remote-hono"
 import { WorkerEntrypoint } from "cloudflare:workers"
@@ -100,7 +101,7 @@ export interface RemoteServiceDependencies {
     repositoryId: string,
     principal: EidosPrincipal,
     request: Request
-  ): GraftRepositoryBackend
+  ): GraftRepositoryBackend | Promise<GraftRepositoryBackend>
   usageSummary(env: Env, principal: EidosPrincipal): Promise<SyncUsageSummary>
   recordActivity(env: Env, event: SyncActivityEvent): Promise<void>
 }
@@ -165,8 +166,8 @@ const defaultDependencies: RemoteServiceDependencies = {
       accessEnforcementEnabled(env.SYNC_ACCESS_ENFORCEMENT)
     )
   },
-  createBackend(env, repositoryId, principal, request) {
-    const delegate = new CloudflareRepositoryBackend(
+  async createBackend(env, repositoryId, principal, request) {
+    const delegate = await openCloudflareRepository(
       {
         objects: env.GRAFT_OBJECTS,
         repositories: env.GRAFT_REPOSITORIES,
@@ -275,16 +276,19 @@ export function createGraftRemoteWorker(
     )
     return jsonResponse({
       namespace: principal.namespace,
-      repositories: repositories.map((repository) => ({
-        name: repository.name,
-        display_name: repository.displayName,
-        created_at: repository.createdAt,
-        remote_url: repositoryUrl(
-          context.env,
-          principal.namespace,
-          repository.name
-        ),
-      })),
+      repositories: await Promise.all(
+        repositories.map(async (repository) => ({
+          name: repository.name,
+          display_name: repository.displayName,
+          created_at: repository.createdAt,
+          encryption: await encryptionDescriptor(context.env, repository.id),
+          remote_url: repositoryUrl(
+            context.env,
+            principal.namespace,
+            repository.name
+          ),
+        }))
+      ),
     })
   })
 
@@ -296,8 +300,19 @@ export function createGraftRemoteWorker(
     context.set("principal", principal)
     dependencies.authorizeEntitlement(context.env, principal, "write")
     const name = validateRepositoryName(context.req.param("repository"))
+    const payload = await displayNamePayload(context.req.raw, false)
     const displayName =
-      (await optionalDisplayName(context.req.raw)) ?? validateDisplayName(name)
+      payload?.display_name === undefined
+        ? validateDisplayName(name)
+        : validateDisplayName(payload.display_name)
+    const encrypted = payload?.encryption === "encrypted-remote-v1"
+    if (encrypted && context.env.SYNC_ENCRYPTED_CREATION !== "enabled") {
+      throw new GraftProtocolError(
+        503,
+        "encrypted_creation_unavailable",
+        "New encrypted Sync connections are temporarily unavailable"
+      )
+    }
     const result = await dependencies.createRepository(
       context.env,
       principal,
@@ -311,6 +326,36 @@ export function createGraftRemoteWorker(
         "Repository namespace access denied"
       )
     }
+    const retained = await encryptionDescriptor(
+      context.env,
+      result.repository.id
+    )
+    if (encrypted) {
+      if (retained === null) {
+        await createEncryptedCloudflareRepository(
+          {
+            objects: context.env.GRAFT_OBJECTS,
+            repositories: context.env.GRAFT_REPOSITORIES,
+          },
+          result.repository.id,
+          crypto.randomUUID()
+        )
+      }
+    } else {
+      if (retained !== null)
+        throw new GraftProtocolError(
+          409,
+          "profile_conflict",
+          "Repository uses encrypted Sync"
+        )
+      await openCloudflareRepository(
+        {
+          objects: context.env.GRAFT_OBJECTS,
+          repositories: context.env.GRAFT_REPOSITORIES,
+        },
+        result.repository.id
+      )
+    }
     const remoteUrl = repositoryUrl(
       context.env,
       principal.namespace,
@@ -322,6 +367,10 @@ export function createGraftRemoteWorker(
         namespace: principal.namespace,
         repository: result.repository.name,
         display_name: result.repository.displayName,
+        encryption: await encryptionDescriptor(
+          context.env,
+          result.repository.id
+        ),
         remote_url: remoteUrl,
       },
       result.created ? 201 : 200,
@@ -524,13 +573,10 @@ function validateRepositoryName(value: string): string {
   return value
 }
 
-async function optionalDisplayName(
-  request: Request
-): Promise<string | undefined> {
-  const payload = await displayNamePayload(request, false)
-  return payload === undefined
-    ? undefined
-    : validateDisplayName(payload.display_name)
+async function encryptionDescriptor(env: Env, repositoryId: string) {
+  const profile =
+    await env.GRAFT_REPOSITORIES.getByName(repositoryId).getProfile()
+  return profile === null || profile.profile === "plain" ? null : profile
 }
 
 async function requiredDisplayName(request: Request): Promise<string> {
@@ -541,7 +587,9 @@ async function requiredDisplayName(request: Request): Promise<string> {
 async function displayNamePayload(
   request: Request,
   required: boolean
-): Promise<{ display_name: unknown } | undefined> {
+): Promise<
+  { display_name: unknown; encryption?: "encrypted-remote-v1" } | undefined
+> {
   const body = await request.text()
   if (body.length === 0) {
     if (!required) return undefined
@@ -558,16 +606,29 @@ async function displayNamePayload(
     typeof payload !== "object" ||
     payload === null ||
     Array.isArray(payload) ||
-    Object.keys(payload).some((key) => key !== "display_name")
+    Object.keys(payload).some(
+      (key) => key !== "display_name" && (required || key !== "encryption")
+    )
   ) {
     throw invalidDisplayName()
   }
   const record = payload as Record<string, unknown>
+  if (
+    record.encryption !== undefined &&
+    record.encryption !== "encrypted-remote-v1"
+  )
+    throw invalidDisplayName()
   if (!Object.hasOwn(record, "display_name")) {
+    if (record.encryption !== undefined) throw invalidDisplayName()
     if (!required) return undefined
     throw invalidDisplayName()
   }
-  return { display_name: record.display_name }
+  return {
+    display_name: record.display_name,
+    ...(record.encryption === "encrypted-remote-v1"
+      ? { encryption: "encrypted-remote-v1" as const }
+      : {}),
+  }
 }
 
 function validateDisplayName(value: unknown): string {

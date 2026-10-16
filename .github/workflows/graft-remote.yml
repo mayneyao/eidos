@@ -50,6 +50,4 @@ jobs:
         run: pnpm --filter @eidos.space/graft-remote-service test
 
       - name: Build a deployment bundle
-        run: >-
-          pnpm --filter @eidos.space/graft-remote-service exec wrangler deploy
-          --dry-run --outdir /tmp/eidos-graft-remote-worker
+        run: pnpm --filter @eidos.space/graft-remote-service dry-run:production

@@ -1,4 +1,5 @@
 import path from "node:path"
+import type { GraftCloneOptions } from "../../shared/graft-sdk-contracts"
 import { utilityProcess, type UtilityProcess } from "electron"
 
 import type {
@@ -151,11 +152,28 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     targetDirectory: string,
     remoteUrl: string,
     token?: string,
-    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
+    options: GraftCloneOptions = {}
   ): Promise<unknown> {
+    if (options.signal?.aborted) throw abortError()
     const transport = new GraftUtilityTransport(this.workerPath, this.options)
     await transport.open(targetDirectory)
+    let revocation: Promise<unknown> | undefined
+    const cancelEncrypted = () => {
+      revocation ??= transport.command("lockEncryptedSync")
+      // The finally block awaits this acknowledgement before closing. Keep a
+      // failed immediate revocation from becoming an unhandled rejection.
+      void revocation.catch(() => undefined)
+    }
+    if (options.encryption)
+      options.signal?.addEventListener("abort", cancelEncrypted, { once: true })
     try {
+      if (options.signal?.aborted) throw abortError()
+      if (options.encryption)
+        return await transport.command(
+          "cloneEncryptedSync",
+          [options.encryption],
+          { signal: options.signal, onProgress: options.onProgress }
+        )
       return await transport.command(
         "cloneRepository",
         [
@@ -168,7 +186,12 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         options
       )
     } finally {
-      await transport.close()
+      options.signal?.removeEventListener("abort", cancelEncrypted)
+      try {
+        await revocation
+      } finally {
+        await transport.close()
+      }
     }
   }
 

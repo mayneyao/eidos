@@ -22,6 +22,7 @@ describe("Eidos Lite package identity", () => {
   it.each([
     "electron-builder.json",
     "electron-builder.dev.json",
+    "electron-builder.dev.mjs",
     "electron-builder.linux.json",
   ])("validates %s with the installed packager schema", async (configPath) => {
     const packageRequire = createRequire(path.join(appRoot, "package.json"))

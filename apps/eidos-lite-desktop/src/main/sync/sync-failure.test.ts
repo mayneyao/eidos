@@ -70,6 +70,22 @@ describe("classifySyncFailure", () => {
     expect(JSON.stringify(classified)).not.toContain("do-not-expose")
   })
 
+  it("explains an existing origin without offering an upload retry", () => {
+    expect(
+      classifySyncFailure(
+        Object.assign(new Error("private old remote URL"), {
+          code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT",
+        }),
+        "push"
+      )
+    ).toMatchObject({
+      code: "remote-already-configured",
+      action: "work-locally",
+      retryable: false,
+      localSafe: true,
+    })
+  })
+
   it("stops retrying when a local snapshot references missing storage", () => {
     const classified = classifySyncFailure(
       Object.assign(

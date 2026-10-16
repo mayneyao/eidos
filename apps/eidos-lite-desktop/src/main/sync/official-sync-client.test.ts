@@ -1,9 +1,46 @@
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
-import { OfficialSyncClient } from "./official-sync-client"
+import { OfficialSyncClient, syncEncryption } from "./official-sync-client"
 
 const staging = EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
 
 describe("OfficialSyncClient", () => {
+  it("rejects unsupported encrypted identities and a downgraded creation response", async () => {
+    const encryption = {
+      profile: "encrypted-remote-v1",
+      suite: 1,
+      version: 1,
+      uuid: "00010203-0405-4607-8809-0a0b0c0d0e0f",
+    }
+    expect(syncEncryption(encryption)).toEqual(encryption)
+    expect(() => syncEncryption({ ...encryption, suite: 2 })).toThrow()
+    expect(() =>
+      syncEncryption({ ...encryption, uuid: "not-a-uuid" })
+    ).toThrow()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/.well-known/graft")
+        ? Response.json({
+            service: "eidos-graft-remote",
+            protocol: "graft-remote",
+            version: 1,
+            remote_url_template:
+              staging.syncRemoteOrigin + "/{namespace}/{repository}",
+            authentication: {
+              scheme: "bearer",
+              authority: staging.accountOrigin,
+            },
+          })
+        : Response.json({
+            created: true,
+            namespace: "u-test",
+            repository: "preview",
+            remote_url: staging.syncRemoteOrigin + "/u-test/preview",
+          })
+    )
+    const client = new OfficialSyncClient(staging, fetchImpl)
+    await expect(
+      client.provisionRepository("preview", "Preview", "synthetic-token", true)
+    ).rejects.toMatchObject({ code: "invalid-response" })
+  })
   it("discovers, lists, and provisions only staging Remote repositories", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = []
     const fetchImpl = vi.fn(async (input: string | URL, init?: RequestInit) => {

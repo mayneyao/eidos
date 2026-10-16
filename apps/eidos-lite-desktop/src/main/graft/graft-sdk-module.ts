@@ -1,6 +1,10 @@
 import { createRequire } from "node:module"
 import path from "node:path"
-import * as publishedGraftSdk from "@eidos.space/graft"
+import type * as publishedGraftSdk from "@eidos.space/graft"
+import { existsSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
+import { applyGraftSdkLoadingPolicy } from "./graft-sdk-loading-policy"
 import type {
   CloneOptions,
   RemoteOperationOptions,
@@ -43,12 +47,98 @@ export interface EidosGraftSdkModule extends Omit<
     new (target: string): EidosGraftRepositorySession
     open(
       target: string,
-      options?: { signal?: AbortSignal }
+      options?: {
+        signal?: AbortSignal
+        encryptedRemote?: publishedGraftSdk.EncryptedRemoteSession
+      }
     ): Promise<EidosGraftRepositorySession>
   }
 }
 
 const require = createRequire(import.meta.url)
+declare const __EIDOS_LITE_SOURCE_GRAFT_OVERRIDES__: boolean | undefined
+declare const __EIDOS_LITE_DEFAULT_ENVIRONMENT__: string | undefined
+declare const __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__: boolean | undefined
+const sourceSnapshot =
+  typeof __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__ === "boolean" &&
+  __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__
+const sourceExecution =
+  typeof __EIDOS_LITE_SOURCE_GRAFT_OVERRIDES__ === "boolean"
+    ? __EIDOS_LITE_SOURCE_GRAFT_OVERRIDES__
+    : fileURLToPath(import.meta.url).endsWith(".ts") &&
+      (process.env.NODE_ENV === "development" ||
+        process.env.NODE_ENV === "test" ||
+        process.env.VITEST === "true" ||
+        process.env.VITEST === "1")
+const environment = resolveEidosLiteServiceEnvironment(
+  sourceExecution
+    ? process.env.EIDOS_LITE_ENVIRONMENT
+    : typeof __EIDOS_LITE_DEFAULT_ENVIRONMENT__ === "string"
+      ? __EIDOS_LITE_DEFAULT_ENVIRONMENT__
+      : "staging"
+).name
+let bundledStagingBinding: string | undefined
+if (environment === "staging" && sourceSnapshot) {
+  const resources = (process as NodeJS.Process & { resourcesPath?: string })
+    .resourcesPath
+  const candidates = [
+    resources ? path.join(resources, "graft-e2ee/graft-sdk.node") : "",
+    ...(sourceExecution
+      ? [
+          path.resolve(
+            path.dirname(fileURLToPath(import.meta.url)),
+            "../resources/graft-e2ee/graft-sdk.node"
+          ),
+          path.resolve(
+            process.cwd(),
+            "apps/eidos-lite-desktop/resources/graft-e2ee/graft-sdk.node"
+          ),
+          path.resolve(process.cwd(), "resources/graft-e2ee/graft-sdk.node"),
+        ]
+      : []),
+  ]
+  bundledStagingBinding = candidates.find(
+    (candidate) => candidate && existsSync(candidate)
+  )
+}
+applyGraftSdkLoadingPolicy({
+  sourceExecution,
+  environment,
+  variables: process.env,
+  bundledStagingBinding,
+  sourceSnapshot,
+})
+const installedGraftSdk = require("@eidos.space/graft") as PublishedGraftSdk
+if (!sourceExecution && environment === "production") {
+  if (typeof installedGraftSdk.EncryptedRemoteSession !== "function")
+    throw new Error(
+      "This Eidos Lite build is missing the required encrypted Sync SDK"
+    )
+  try {
+    new installedGraftSdk.EncryptedRemoteSession({
+      remoteName: "origin",
+      url: "https://release-check.invalid/namespace/repository",
+      uuid: "invalid",
+      authenticationDomain: "https://release-check.invalid",
+      accountSubject: "release-check",
+      bearerToken: "synthetic-release-check",
+      checkpointDirectory: "unused",
+      recoveryDirectory: "unused",
+      stagingDirectory: "unused",
+      createCheckpoint: true,
+    })
+    throw new Error("The encrypted Sync SDK accepted an invalid binding")
+  } catch (error) {
+    if (
+      (error as { code?: string }).code !==
+      "GRAFT_SDK_E2EE_INVALID_SESSION_BINDING"
+    )
+      throw new Error(
+        "This Eidos Lite build is missing native encrypted Sync support",
+        { cause: error }
+      )
+  }
+}
 let cachedModule: EidosGraftSdkModule | null = null
 
 /**
@@ -60,15 +150,9 @@ export function loadEidosGraftSdk(): EidosGraftSdkModule {
   if (cachedModule) return cachedModule
   const configuredPath = process.env.EIDOS_LITE_GRAFT_SDK_PATH?.trim()
   if (!configuredPath) {
-    cachedModule = publishedGraftSdk as EidosGraftSdkModule
+    cachedModule = installedGraftSdk as EidosGraftSdkModule
     return cachedModule
   }
-  const sourceExecution =
-    process.env.NODE_ENV === "development" ||
-    process.env.NODE_ENV === "test" ||
-    process.env.VITEST === "true" ||
-    process.env.VITEST === "1" ||
-    (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp === true
   if (!sourceExecution) {
     throw new Error(
       "EIDOS_LITE_GRAFT_SDK_PATH is available only in source development and tests"

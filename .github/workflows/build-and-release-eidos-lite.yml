@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify published Graft dependencies and E2EE profile
+        run: pnpm --filter @eidos.space/eidos-lite-desktop verify:graft-release
+
+      - name: Test Graft release dependency guard
+        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs
+
       - name: Verify tag and committed base version
         env:
           TAG: ${{ github.ref_name }}

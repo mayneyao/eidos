@@ -1,0 +1,336 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { EncryptedGraftHost } from "./encrypted-graft-host"
+import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+
+const native = vi.hoisted(() => ({ construct: vi.fn(), open: vi.fn() }))
+vi.mock("./graft-sdk-module", () => ({
+  loadEidosGraftSdk: () => ({
+    EncryptedRemoteSession: native.construct,
+    RepositorySession: { open: native.open },
+  }),
+}))
+
+describe("trusted encrypted host admission", () => {
+  let root: string
+  beforeEach(async () => {
+    native.construct.mockReset()
+    native.open.mockReset()
+    root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "eidos-encrypted-host-"))
+    )
+    await fs.mkdir(path.join(root, "source"))
+    await fs.mkdir(path.join(root, "source/.graft"))
+  })
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await fs.rm(root, { recursive: true, force: true })
+  })
+  const input = (root: string): GraftEncryptedInput => ({
+    connection: {
+      url: "https://sync-staging.eidos.space/u-test/space",
+      uuid: "00010203-0405-4607-8809-0a0b0c0d0e0f",
+      authenticationDomain: "https://staging.eidos.space",
+      accountSubject: "synthetic-user",
+      bearerToken: "synthetic-account-token",
+      stateDirectory: path.join(root, "private"),
+    },
+    password: Buffer.from("synthetic sync password"),
+  })
+
+  it("rejects cross-environment bindings before constructing a native authority and consumes the password", async () => {
+    const supplied = input(root)
+    supplied.connection.url = "https://sync.eidos.space/u-test/space"
+    await expect(
+      new EncryptedGraftHost().connect(
+        path.join(root, "source"),
+        supplied,
+        "unlock"
+      )
+    ).rejects.toThrow("same official environment")
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+    expect(native.construct).not.toHaveBeenCalled()
+  })
+
+  it("consumes a cancelled request without starting native unlock", async () => {
+    const supplied = input(root)
+    const abort = new AbortController()
+    abort.abort()
+    await expect(
+      new EncryptedGraftHost().connect(
+        path.join(root, "source"),
+        supplied,
+        "unlock",
+        { signal: abort.signal }
+      )
+    ).rejects.toMatchObject({ code: "GRAFT_SDK_E2EE_LOCKED" })
+    expect(native.construct).not.toHaveBeenCalled()
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it("does not return from an aborted unlock until native key revocation has drained", async () => {
+    const supplied = input(root)
+    const abort = new AbortController()
+    let finishUnlock!: () => void
+    let finishLock!: () => void
+    const authority = {
+      state: "locked",
+      unlock: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishUnlock = resolve
+          })
+      ),
+      lock: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishLock = resolve
+          })
+      ),
+      disconnect: vi.fn(async () => {}),
+    }
+    native.construct.mockImplementation(function () {
+      return authority
+    })
+    const host = new EncryptedGraftHost()
+    let settled = false
+    const operation = host.connect(
+      path.join(root, "source"),
+      supplied,
+      "unlock",
+      { signal: abort.signal }
+    )
+    const rejected = expect(operation).rejects.toMatchObject({
+      code: "GRAFT_SDK_E2EE_LOCKED",
+    })
+    void operation.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    await vi.waitFor(() => expect(authority.unlock).toHaveBeenCalledOnce())
+    abort.abort()
+    expect(authority.lock).toHaveBeenCalledOnce()
+    finishUnlock()
+    await vi.waitFor(() => expect(authority.disconnect).toHaveBeenCalledOnce())
+    expect(native.open).not.toHaveBeenCalled()
+    expect(settled).toBe(false)
+    finishLock()
+    await rejected
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it("passes cancellation to native clone and disconnects even if lock acknowledgement fails", async () => {
+    const supplied = input(root)
+    const abort = new AbortController()
+    const authority = {
+      state: "unlocked",
+      unlock: vi.fn(async () => {}),
+      lock: vi.fn(async () => {
+        throw new Error("native lock failed")
+      }),
+      disconnect: vi.fn(async () => {}),
+    }
+    const repository = {
+      cloneEncryptedRemote: vi.fn(async (options: { signal: AbortSignal }) => {
+        expect(options.signal).toBe(abort.signal)
+        await new Promise<void>((_resolve, reject) =>
+          options.signal.addEventListener(
+            "abort",
+            () => reject(new Error("native clone aborted")),
+            { once: true }
+          )
+        )
+      }),
+      close: vi.fn(async () => {}),
+    }
+    native.construct.mockImplementation(function () {
+      return authority
+    })
+    native.open.mockResolvedValue(repository)
+    const operation = new EncryptedGraftHost().connect(
+      path.join(root, "source"),
+      supplied,
+      "clone",
+      { signal: abort.signal }
+    )
+    const rejected = expect(operation).rejects.toThrow("native lock failed")
+    await vi.waitFor(() =>
+      expect(repository.cloneEncryptedRemote).toHaveBeenCalledOnce()
+    )
+    abort.abort()
+    await rejected
+    expect(repository.close).toHaveBeenCalledOnce()
+    expect(authority.disconnect).toHaveBeenCalledOnce()
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it("rejects an existing ordinary origin before publishing encryption config or touching its binding", async () => {
+    const supplied = input(root)
+    const initializeConfig = vi.fn().mockResolvedValue("config_published")
+    const repository = {
+      listRemotes: vi.fn().mockResolvedValue({
+        remotes: [
+          {
+            name: "origin",
+            kind: "http",
+            url: "https://sync-staging.eidos.space/u-test/previous-space",
+          },
+        ],
+      }),
+      addEncryptedRemote: vi.fn(),
+      pushInitialBranch: vi
+        .fn()
+        .mockRejectedValue(new Error("initialization remote binding changed")),
+      close: vi.fn().mockResolvedValue(undefined),
+    }
+    native.construct.mockImplementation(function () {
+      return {
+        initializeConfig,
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      }
+    })
+    native.open.mockResolvedValue(repository)
+    await expect(
+      new EncryptedGraftHost().connect(
+        path.join(root, "source"),
+        supplied,
+        "initialize"
+      )
+    ).rejects.toMatchObject({ code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT" })
+    expect(initializeConfig).not.toHaveBeenCalled()
+    expect(repository.addEncryptedRemote).not.toHaveBeenCalled()
+    expect(repository.pushInitialBranch).not.toHaveBeenCalled()
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it("can add encrypted origin when a different named remote exists", async () => {
+    const supplied = input(root)
+    const backup = {
+      name: "backup",
+      kind: "http",
+      url: "https://sync-staging.eidos.space/u-test/backup",
+    }
+    let added = false
+    const repository = {
+      listRemotes: vi.fn(async () => ({
+        remotes: added
+          ? [
+              backup,
+              {
+                name: "origin",
+                kind: "encrypted_http",
+                url: supplied.connection.url,
+              },
+            ]
+          : [backup],
+      })),
+      addEncryptedRemote: vi.fn(async () => {
+        added = true
+      }),
+      pushInitialBranch: vi.fn().mockResolvedValue({ state: "connected" }),
+      configureRemote: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    }
+    native.construct.mockImplementation(function () {
+      return {
+        state: "unlocked",
+        initializeConfig: vi.fn().mockResolvedValue("config_published"),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      }
+    })
+    native.open.mockResolvedValue(repository)
+    const host = new EncryptedGraftHost()
+    await expect(
+      host.connect(path.join(root, "source"), supplied, "initialize")
+    ).resolves.toBe(repository)
+    expect(repository.addEncryptedRemote).toHaveBeenCalledOnce()
+    expect((await repository.listRemotes()).remotes).toContain(backup)
+    await host.disconnect()
+  })
+
+  it("cannot start native unlock after an explicit lock during private directory preparation", async () => {
+    const supplied = input(root)
+    const mkdir = fs.mkdir.bind(fs)
+    let entered: () => void = () => undefined
+    let release: () => void = () => undefined
+    const preparing = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const paused = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    vi.spyOn(fs, "mkdir").mockImplementationOnce(async () => {
+      entered()
+      await paused
+      await mkdir(supplied.connection.stateDirectory, {
+        recursive: true,
+        mode: 0o700,
+      })
+      return undefined
+    })
+    const host = new EncryptedGraftHost()
+    const unlocking = host.connect(
+      path.join(root, "source"),
+      supplied,
+      "unlock"
+    )
+    await preparing
+    await host.lock()
+    release()
+    await expect(unlocking).rejects.toMatchObject({
+      code: "GRAFT_SDK_E2EE_LOCKED",
+    })
+    expect(host.state).toBe("locked")
+    expect(native.construct).not.toHaveBeenCalled()
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it.each(["staging", "production"])(
+    "establishes %s origin/main tracking without replacing the encrypted origin or passing a plain HTTP credential",
+    async (environment) => {
+      const supplied = input(root)
+      if (environment === "production") {
+        supplied.connection.url = "https://sync.eidos.space/u-test/space"
+        supplied.connection.authenticationDomain = "https://eidos.space"
+      }
+      const authority = {
+        state: "unlocked",
+        unlock: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      }
+      const repository = {
+        listRemotes: vi.fn().mockResolvedValue({
+          remotes: [
+            {
+              name: "origin",
+              kind: "encrypted_http",
+              url: supplied.connection.url,
+            },
+          ],
+        }),
+        configureRemote: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      }
+      native.construct.mockImplementation(function () {
+        return authority
+      })
+      native.open.mockResolvedValue(repository)
+      const host = new EncryptedGraftHost()
+      await expect(
+        host.connect(path.join(root, "source"), supplied, "unlock")
+      ).resolves.toBe(repository)
+      expect(repository.configureRemote).toHaveBeenCalledWith({
+        name: "origin",
+        url: `graft+e2ee:${supplied.connection.url}#${supplied.connection.uuid}`,
+        upstreamBranch: "main",
+      })
+      await host.disconnect()
+      expect(authority.disconnect).toHaveBeenCalledOnce()
+    }
+  )
+})

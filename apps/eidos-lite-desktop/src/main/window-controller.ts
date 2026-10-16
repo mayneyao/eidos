@@ -2,6 +2,7 @@ import { installHtmlPreviewGuestGuard } from "./html-preview-view"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
+import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import { installWindowZoom } from "./window-zoom"
 import {
@@ -107,9 +108,51 @@ export class WindowController {
   >()
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
   private readonly sharedSessions = new Map<string, SpaceSession>()
+  private encryptedCloneGeneration = 0
+  private readonly encryptedCloneDrains = new Set<Promise<void>>()
+  private readonly encryptedCloneAborts = new Set<AbortController>()
+
+  captureEncryptedCloneTicket(): number {
+    if (this.closing) throw new Error("Eidos Lite is closing")
+    return this.encryptedCloneGeneration
+  }
+
+  private assertEncryptedCloneTicket(ticket: number): void {
+    if (this.closing || ticket !== this.encryptedCloneGeneration)
+      throw Object.assign(
+        new Error("Encrypted Space download was interrupted"),
+        {
+          name: "AbortError",
+          code: "GRAFT_SDK_E2EE_LOCKED",
+        }
+      )
+  }
 
   retainDeviceSync(session: SpaceSession): void {
     this.sharedSessions.set(session.canonical.id, session)
+  }
+
+  async lockEncryptedSyncSessions(disconnect = false): Promise<void> {
+    this.encryptedCloneGeneration += 1
+    for (const operation of this.encryptedCloneAborts) operation.abort()
+    const cloneDrain = this.cloneCoordinatorInstance?.cancelEncryptedClones()
+    const sessions = new Set([
+      ...this.sessionByWebContents.values(),
+      ...this.sharedSessions.values(),
+    ])
+    const outcomes = await Promise.allSettled([
+      cloneDrain,
+      ...this.encryptedCloneDrains,
+      ...[...sessions]
+        .filter((session) => !session.isClosed)
+        .map((session) =>
+          disconnect
+            ? session.clearHostedSyncCredentials()
+            : session.lockEncryptedSync()
+        ),
+    ])
+    if (outcomes.some((outcome) => outcome.status === "rejected"))
+      throw new Error("Could not drain all encrypted Sync sessions")
   }
   async restoreDeviceSyncSpace(
     root: string,
@@ -235,13 +278,16 @@ export class WindowController {
           )
         }
       }
-      if (!installId && route === "/settings/devices") {
+      if (
+        !installId &&
+        (route === "/settings/devices" || route === "/settings/account-sync")
+      ) {
         if (this.settingsWindow.webContents.isLoading())
           void this.loadRenderer(this.settingsWindow, route)
         else
           this.settingsWindow.webContents.send(
             IPC_CHANNELS.settingsNavigate,
-            "devices"
+            route === "/settings/devices" ? "devices" : "account-sync"
           )
       }
       return this.settingsWindow
@@ -399,8 +445,14 @@ export class WindowController {
     accessToken: string,
     displayName?: string,
     reportProgress: CloneProgressReporter = () => undefined,
-    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined
+    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined,
+    encryption?: GraftEncryptedInput,
+    encryptedTicket = this.captureEncryptedCloneTicket()
   ): Promise<SpaceSnapshot | null> {
+    const assertAdmission = encryption
+      ? () => this.assertEncryptedCloneTicket(encryptedTicket)
+      : undefined
+    assertAdmission?.()
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const locale = await this.locale()
     const t = (message: string) => translateEidosLite(locale, message)
@@ -422,14 +474,69 @@ export class WindowController {
       ? await dialog.showSaveDialog(parent, options)
       : await dialog.showSaveDialog(options)
     if (result.canceled || !result.filePath) return null
-    const target = await this.cloneCoordinator().clone(
-      result.filePath,
-      remoteUrl,
-      accessToken,
-      reportProgress,
-      reportTransfer
-    )
-    return this.bindSpace(webContents, target)
+    assertAdmission?.()
+    let finishDrain = () => {}
+    let failDrain = (_error: unknown) => {}
+    const operationAbort = encryption ? new AbortController() : undefined
+    if (operationAbort) this.encryptedCloneAborts.add(operationAbort)
+    const drained = encryption
+      ? new Promise<void>((resolve, reject) => {
+          finishDrain = resolve
+          failDrain = reject
+        })
+      : undefined
+    if (drained) {
+      this.encryptedCloneDrains.add(drained)
+      void drained.catch(() => undefined)
+    }
+    let drainFailure: unknown
+    try {
+      const target = await this.cloneCoordinator().clone(
+        result.filePath,
+        remoteUrl,
+        accessToken,
+        reportProgress,
+        reportTransfer,
+        encryption
+      )
+      assertAdmission?.()
+      const snapshot = await this.bindSpace(
+        webContents,
+        target,
+        assertAdmission
+      )
+      // Draft cancellation or an already-open target leaves the original session
+      // attached. Never apply the downloaded repository's key to that session.
+      if (!snapshot || !encryption) return snapshot
+      const downloaded = this.requireSession(webContents)
+      try {
+        assertAdmission?.()
+        await downloaded.unlockEncryptedSync(
+          {
+            ...encryption,
+            password: Buffer.from(encryption.password),
+            stateIdentity: target,
+          },
+          assertAdmission,
+          operationAbort?.signal
+        )
+        assertAdmission?.()
+        return snapshot
+      } catch (error) {
+        try {
+          await downloaded.lockEncryptedSync()
+        } catch (lockError) {
+          drainFailure = lockError
+          throw lockError
+        }
+        throw error
+      }
+    } finally {
+      if (drainFailure) failDrain(drainFailure)
+      else finishDrain()
+      if (drained) this.encryptedCloneDrains.delete(drained)
+      if (operationAbort) this.encryptedCloneAborts.delete(operationAbort)
+    }
   }
 
   async copyLocalRecoverySpace(
@@ -686,8 +793,8 @@ export class WindowController {
   async openSettingsDestination(
     destination: EidosLiteSettingsDestination
   ): Promise<void> {
-    if (destination === "devices") {
-      this.showSettingsWindow("/settings/devices")
+    if (destination === "devices" || destination === "account-sync") {
+      this.showSettingsWindow(`/settings/${destination}`)
       return
     }
     if (destination === "logs") {
@@ -799,6 +906,15 @@ export class WindowController {
 
   async closeAll(): Promise<void> {
     this.closing = true
+    this.encryptedCloneGeneration += 1
+    for (const operation of this.encryptedCloneAborts) operation.abort()
+    const cloneDrain = Promise.all([
+      this.cloneCoordinatorInstance?.cancelEncryptedClones(),
+      ...this.encryptedCloneDrains,
+    ]).then(
+      () => null,
+      (error: unknown) => ({ error })
+    )
     const opening = await Promise.allSettled([...this.openingSessions])
     for (const result of opening) {
       if (result.status === "fulfilled") {
@@ -819,6 +935,8 @@ export class WindowController {
     }
     this.launchNotificationRetriesByWebContents.clear()
     await this.sessionCloses.waitForAll()
+    const cloneFailure = await cloneDrain
+    if (cloneFailure) throw cloneFailure.error
   }
 
   async prepareTextDraftsForShutdown(): Promise<boolean> {
@@ -888,13 +1006,14 @@ export class WindowController {
 
   private async bindSpace(
     webContents: WebContents,
-    root: string
+    root: string,
+    assertAdmission?: () => void
   ): Promise<SpaceSnapshot | null> {
     if (this.bindingOwners.has(webContents.id))
       throw new Error("A Space is already opening")
     this.bindingOwners.add(webContents.id)
     try {
-      return await this.bindSpaceNow(webContents, root)
+      return await this.bindSpaceNow(webContents, root, assertAdmission)
     } finally {
       this.bindingOwners.delete(webContents.id)
       this.textDraftClose.cancel(webContents)
@@ -903,10 +1022,13 @@ export class WindowController {
 
   private async bindSpaceNow(
     webContents: WebContents,
-    root: string
+    root: string,
+    assertAdmission?: () => void
   ): Promise<SpaceSnapshot | null> {
+    assertAdmission?.()
     if (this.closing) throw new Error("Eidos Lite is closing")
     const canonical = await canonicalizeSpaceRoot(root)
+    assertAdmission?.()
     const existing = this.windowBySpaceId.get(canonical.id)
     if (existing && !existing.isDestroyed()) {
       if (existing.isMinimized()) existing.restore()
@@ -947,6 +1069,7 @@ export class WindowController {
     let snapshot: SpaceSnapshot
     try {
       snapshot = await session.snapshot()
+      assertAdmission?.()
     } catch (error) {
       this.windowBySpaceId.delete(canonical.id)
       await this.closeEditorSession(session)
@@ -957,6 +1080,13 @@ export class WindowController {
       this.windowBySpaceId.delete(canonical.id)
       await this.closeEditorSession(session)
       return null
+    }
+    try {
+      assertAdmission?.()
+    } catch (error) {
+      this.windowBySpaceId.delete(canonical.id)
+      await this.closeEditorSession(session)
+      throw error
     }
     if (window.isDestroyed() || this.closing) {
       this.windowBySpaceId.delete(canonical.id)

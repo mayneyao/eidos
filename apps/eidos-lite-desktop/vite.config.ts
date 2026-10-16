@@ -14,15 +14,22 @@ import {
   type EidosLiteEnvironmentName,
 } from "./src/shared/service-environment"
 import { cleanElectronOutput } from "./src/main/electron-output-cleaner"
+import { readGraftSourceSnapshotPolicy } from "./scripts/graft-snapshot-policy.mjs"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
 
 function buildEnvironmentManifest(
-  environment: EidosLiteEnvironmentName
+  environment: EidosLiteEnvironmentName,
+  graftSourceSnapshot: boolean
 ): Plugin {
   return {
     name: "eidos-lite-build-environment-manifest",
     generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "graft-sdk-build-policy.json",
+        source: `${JSON.stringify({ sourceSnapshot: graftSourceSnapshot })}\n`,
+      })
       this.emitFile({
         type: "asset",
         fileName: "contracts.ts",
@@ -85,9 +92,14 @@ export default defineConfig(({ mode, command }) => {
     mode === "eidos-production" || mode === "eidos-release"
       ? "production"
       : "staging"
+  const graftSourceSnapshot =
+    defaultEnvironment === "staging" &&
+    readGraftSourceSnapshotPolicy(path.resolve(appRoot, "../.."))
   const environmentDefine = {
     __EIDOS_LITE_DEFAULT_ENVIRONMENT__: JSON.stringify(defaultEnvironment),
     __EIDOS_LITE_UPDATES_ENABLED__: JSON.stringify(mode === "eidos-release"),
+    __EIDOS_LITE_SOURCE_GRAFT_OVERRIDES__: JSON.stringify(command === "serve"),
+    __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__: JSON.stringify(graftSourceSnapshot),
   }
 
   return {
@@ -106,7 +118,7 @@ export default defineConfig(({ mode, command }) => {
             define: environmentDefine,
             plugins: [
               cleanElectronOutput(path.join(appRoot, "dist-electron")),
-              buildEnvironmentManifest(defaultEnvironment),
+              buildEnvironmentManifest(defaultEnvironment, graftSourceSnapshot),
             ],
             resolve: { alias: aliases },
             build: {
